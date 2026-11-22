@@ -1,5 +1,5 @@
 /**
- * @file Style edits under undo: every edit is one step, a colour picker's drag is one step, undo
+ * @file Style edits under undo: every edit is one step, a color picker's drag is one step, undo
  * puts back the identical stack without compiling anything, and a verb's `Run` handle keeps the
  * meaning the design gives it (an aborted signal writes nothing; a cancel after the call keeps
  * the edit).
@@ -60,8 +60,8 @@ describe("a style edit in the history", () => {
         const layer = await session.styles.add(RED);
 
         assert.deepEqual(
-            session.history.steps.map((step) => step.label),
-            ['Added layer "Red"'],
+            session.history.steps.map((step) => step.fact),
+            [{ code: "style.add-layer", params: { layer: "Red", layerId: layer.id } }],
         );
         assert.deepEqual(session.history.steps[0]?.ops, ["style.patch"]);
         assert.deepEqual(session.history.steps[0]?.slices, ["styles"]);
@@ -96,15 +96,52 @@ describe("a style edit in the history", () => {
         assert.strictEqual(session.styles.compiled(), beforeDrag, "the identical stack, not a copy");
     });
 
-    it("does not merge an edit made after the window has lapsed", async () => {
+    it("merges an edit of the same channel however long after, and a transaction is its own step", async () => {
         const { session, advance } = clocked();
         const layer = await session.styles.add(RED);
 
         await session.styles.update(layer.id, { set: { "node.color": "#00ff00" } });
-        advance(5000);
+        advance(60_000);
         await session.styles.update(layer.id, { set: { "node.color": "#0000ff" } });
+        assert.lengthOf(session.history.steps, 2, "the add, then both color edits");
 
-        assert.lengthOf(session.history.steps, 3);
+        await session.transaction("Blue again", async (tx) => {
+            await tx.styles.update(layer.id, { set: { "node.color": "#0000aa" } });
+        });
+        await session.styles.update(layer.id, { set: { "node.color": "#000055" } });
+        assert.lengthOf(session.history.steps, 4, "the transaction, then the edit after it");
+    });
+
+    it("makes the same steps from the same updates on an idle and on a loaded machine (#9488)", async () => {
+        // Each reading of the real clock a whole stall later than the last: a machine so loaded
+        // that every frame of a drag lands seconds after the one before.
+        const steps = async (stallMs: number): Promise<unknown[]> => {
+            let real = 0;
+            const clock = vi.spyOn(performance, "now").mockImplementation(() => (real += stallMs));
+            const session = createElementSession({});
+            sessions.push(session);
+            try {
+                const layer = await session.styles.add(RED);
+                for (let frame = 1; frame <= 20; frame++) {
+                    await session.styles.update(layer.id, {
+                        set: { "node.color": "#ff0000", "node.opacity": frame / 20 },
+                    });
+                }
+                for (let frame = 1; frame <= 5; frame++) {
+                    await session.styles.update(layer.id, { set: { "node.color": "#ff0000", "node.size": frame } });
+                }
+                await session.styles.update(layer.id, { set: { "node.color": "#00ff00" } });
+            } finally {
+                clock.mockRestore();
+            }
+
+            return session.history.steps.map((step) => [step.fact, step.ops.length]);
+        };
+
+        const idle = await steps(0);
+        assert.lengthOf(idle, 4, "the add, the opacity drag, the size drag, the color edit");
+        assert.deepEqual(await steps(16), idle);
+        assert.deepEqual(await steps(5000), idle);
     });
 
     it("compiles nothing on undo or redo: the restored layers are the compiled ones", async () => {
@@ -166,20 +203,20 @@ describe("a style edit in the history", () => {
     it("restores to a step and leaves nothing to redo when asked to drop the redo steps", async () => {
         const { session, advance } = clocked();
         const kept = await session.styles.add(RED);
+        const keptIds = session.styles.list().map((layer) => layer.id);
         const before = session.history.steps.at(-1)?.id ?? null;
         advance(5000);
-        await session.styles.add({ ...RED, name: "Second" });
-        await session.styles.add({ ...RED, name: "Third" });
+        const second = await session.styles.add({ ...RED, name: "Second" });
+        const third = await session.styles.add({ ...RED, name: "Third" });
 
         const outcome = await session.history.restoreTo(before, { redo: "drop" });
 
         assert.strictEqual(outcome.kind, "restored");
         const ids = session.styles.list().map((layer) => layer.id);
         assert.include(ids, kept.id);
-        assert.lengthOf(
-            ids.filter((id) => id !== kept.id && id.startsWith("red")),
-            0,
-        );
+        assert.notInclude(ids, second.id);
+        assert.notInclude(ids, third.id);
+        assert.deepEqual(ids, keptIds, "the style stack is back to what it was at the step");
         assert.strictEqual(session.history.position, 1);
         assert.strictEqual(session.history.steps.length, 1, "the steps passed are gone");
         assert.strictEqual((await session.redo()).kind, "nothing");

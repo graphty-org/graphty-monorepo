@@ -260,9 +260,23 @@ describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
         expect(typeof node("shapePoints", "flowchart-card")).toBe("string");
         expect(node("borderColor", "flowchart-decision")).toBe("#505050");
         expect(node("borderWidth", "flowchart-annotation")).toBe(0);
-        expect(node("shape", "default")).toBe("rectangle");
+        // a style with no type is a data parallelogram, as yEd Live draws it
+        expect(node("shape", "default")).toBe("parallelogram");
         expect(node("fill", "default")).toBe("#b7c9e3");
         expect(node("borderColor", "default")).toBe("#000000");
+    });
+
+    it("draws the lines inside a FlowchartNodeStyle's internal storage and predefined process as its picture", async () => {
+        const { node } = await sheet("specimen-node-shapes-p3.graphml");
+        for (const id of ["flowchart-internal-storage", "flowchart-predefined-process"]) {
+            const picture = decodeURIComponent(String(node("image", id)));
+            expect(picture).toContain('stroke="#505050"');
+            expect(node("imageFit", id)).toBe("fill");
+        }
+        expect(decodeURIComponent(String(node("image", "flowchart-internal-storage")))).toContain(
+            "M10,0L10,36M0,10L56,10",
+        );
+        expect(node("image", "flowchart-data")).toBeNull();
     });
 });
 
@@ -405,6 +419,28 @@ describe("yEd Live GraphML: edge label model parameters", () => {
     });
 });
 
+describe("yEd Live GraphML: a self-loop with no bends", () => {
+    it("runs round its node's top left corner 20 out, from the top side's middle to the left side's", async () => {
+        const file = `<?xml version="1.0"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/yfiles-common/3.0"
+    xmlns:yjs="http://www.yworks.com/xml/yfiles-for-html/2.0/xaml">
+<key id="g" for="node" attr.name="NodeGeometry" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/NodeGeometry"/>
+<key id="eg" for="edge" attr.name="EdgeGeometry" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/EdgeGeometry"/>
+<key id="es" for="edge" attr.name="EdgeStyle" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/EdgeStyle"/>
+<graph id="G" edgedefault="directed">
+<node id="a"><data key="g"><y:RectD X="0" Y="0" Width="100" Height="40"/></data></node>
+<edge id="loop" source="a" target="a"><data key="es"><yjs:PolylineEdgeStyle/></data></edge>
+</graph></graphml>`;
+        const result = await registry.importGraph(new TextEncoder().encode(file), {
+            format: "graphml",
+            styles: { toolDefaults: true },
+        });
+        assert(result.styles !== null && result.styles !== undefined);
+        // in halves of the 100 x 40 node, y up: 20 above the top, 20 left of the left side
+        expect(resolveStyles(result.styles, "edge", "bends", result.snapshot)).toEqual(["0,2 -1.4,2 -1.4,0"]);
+    });
+});
+
 describe("yEd Live GraphML: a LinearGradient fill", () => {
     it("reads a FlowchartNodeStyle's shared gradient from corner to corner", async () => {
         const result = await registry.importGraph(
@@ -489,6 +525,27 @@ describe("yEd Live GraphML: a LinearGradient fill", () => {
         }
         const at = snapshot.ids.requireIndex("linear-gradient-reflect");
         expect(resolveStyles(styles, "node", "fillGradientColors", snapshot)[at]).toBeNull();
+        expect(resolveStyles(styles, "node", "fill", snapshot)[at]).toBe("#ffffff");
+        expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
+    });
+
+    it("notes a REFLECT ramp far longer than its box, not an empty unrolled ramp", async () => {
+        const text = readFileSync(join(SHEETS, "specimen-node-fills-borders.graphml"), "utf8").replace(
+            'startPoint="0.4,0.5" endPoint="0.6,0.5"',
+            'startPoint="0,0.5" endPoint="1e10,0.5"',
+        );
+        assert(text.includes('endPoint="1e10,0.5"'));
+        const { styles, snapshot } = await registry.importGraph(new TextEncoder().encode(text), {
+            format: "graphml",
+            styles: { toolDefaults: true },
+            errorLimit: Infinity,
+        });
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const at = snapshot.ids.requireIndex("linear-gradient-reflect");
+        expect(resolveStyles(styles, "node", "fillGradientColors", snapshot)[at]).toBeNull();
+        expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at]).toBeNull();
         expect(resolveStyles(styles, "node", "fill", snapshot)[at]).toBe("#ffffff");
         expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
     });
@@ -625,7 +682,7 @@ describe("yEd Live GraphML: BPMN and UML node styles, as yEd Live 8.5.16 draws t
         const { node } = await sheet("specimen-node-shapes-p5.graphml");
         expect(node("shape", "bpmn-data-object-background")).toBe("polygon");
         expect(typeof node("shapePoints", "bpmn-data-object-background")).toBe("string");
-        expect(node("shape", "bpmn-data-store-background")).toBe("other:database");
+        expect(node("shape", "bpmn-data-store-background")).toBe("database");
         expect(node("shape", "bpmn-annotation-background")).toBe("rectangle");
         expect(node("fill", "bpmn-annotation-background")).toBe("#ff0000");
         expect(node("borderWidth", "bpmn-annotation-background")).toBe(0);
@@ -667,6 +724,14 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
         expect(node("stripeFrame", "tab-position-right")).toBe("0.05 0.146667 0.05 0.026667");
         expect(node("stripeColors", "tab-position-none")).toBeNull();
         expect(node("stripeFrame", "tab-position-none")).toBeNull();
+    });
+
+    it("draws an untabbed open group's panel alone, 4 in from its box, its corners rounded 2", async () => {
+        // yed-live-graphml-specimen-groups.svg: `tab-position-none`, stored 150 x 80, is drawn 142 x 72 with arcs of 2
+        const { node } = await sheet("specimen-groups.graphml");
+        expect(node("width", "tab-position-none")).toBe(142);
+        expect(node("height", "tab-position-none")).toBe(72);
+        expect(node("cornerRadius", "tab-position-none")).toBe(2);
     });
 
     it("reads tabHeight, and contentAreaFill with its alpha", async () => {
@@ -730,6 +795,14 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
         expect(node("borderWidth", "default")).toBe(0);
     });
 
+    it("draws no line round an open GroupNodeStyle with no tab, whatever its stroke", async () => {
+        // yed-live-graphml-specimen-groups.svg: `tab-position-none` (tabPosition="NONE", a #505050 stroke) is its
+        // white panel alone, with no yfiles-group-node-stroke path; the tabbed groups beside it keep their outline
+        const { node } = await sheet("specimen-groups.graphml");
+        expect(node("borderWidth", "tab-position-none")).toBe(0);
+        expect(node("borderWidth", "tab-position-top")).toBe(1);
+    });
+
     it("rounds a group's corners by its cornerRadius, 4 unset", async () => {
         // yed-live-graphml-specimen-groups-p2.svg and -p3.svg: arcs of 4 on every group, 12 and none where set
         const p2 = await sheet("specimen-groups-p2.graphml");
@@ -782,6 +855,16 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
         expect(p4.node("height", "v2-group-folder-state")).toBe(40);
         const icon = decodeURIComponent(String(p4.node("image", "v2-group-folder-state")).split(",")[1]);
         expect(icon).toContain('transform="translate(49 11) scale(1)"');
+    });
+});
+
+describe("yEd Live GraphML: a node's second label", () => {
+    it("is drawn as the external label, in the box yEd Live draws 2 in from the node's bottom", async () => {
+        const { node } = await sheet("specimen-labels.graphml");
+        expect(node("label", "two-labels")).toBe("Top");
+        expect(node("xlabel", "two-labels")).toBe("Bottom");
+        expect(node("xlabelOffsetX", "two-labels")).toBe(0);
+        expect(node("xlabelOffsetY", "two-labels")).toBe(7);
     });
 });
 
@@ -895,11 +978,20 @@ describe("yEd Live GraphML: spellings yEd Live 8.5.16 reads, and the ones it ign
         expect(p3("labelWrapAnywhere", "v2-wrapping-character")).toBe(true);
         expect(p3("labelWrapWidth", "v2-wrapping-word")).toBe(50);
         expect(p3("labelWrapAnywhere", "v2-wrapping-word")).toBe(null);
-        // -p2 draws a 3.0 *_ELLIPSIS label on one line cut between letters with an ellipsis ("A long la...")
+        // its box holds two 12px lines: WORD drops the third ("Wrap" / "this"), WORD_ELLIPSIS runs on ("this t...")
+        expect(p3("labelMaxLines", "v2-wrapping-word")).toBe(2);
+        expect(p3("labelMaxLinesEllipsis", "v2-wrapping-word")).toBe(false);
+        expect(p3("labelMaxLinesEllipsis", "v2-wrapping-word-ellipsis")).toBe(true);
+        // -p2's 3.0 box holds one 10px line: "A long lab" for WRAP_CHARACTER, "A long la..." for the *_ELLIPSIS ones
         const p2 = (await sheet("specimen-labels-p2.graphml")).node;
         expect(p2("labelWrapWidth", "wrapping-trim-character-ellipsis")).toBe(56);
-        expect(p2("labelWrapEllipsis", "wrapping-trim-character-ellipsis")).toBe(true);
-        expect(p2("labelWrapEllipsis", "wrapping-wrap-word-ellipsis")).toBe(true);
+        expect(p2("labelMaxLines", "wrapping-wrap-character")).toBe(1);
+        expect(p2("labelWrapAnywhere", "wrapping-wrap-character")).toBe(true);
+        expect(p2("labelMaxLinesEllipsis", "wrapping-wrap-character")).toBe(false);
+        expect(p2("labelMaxLines", "wrapping-wrap-word-ellipsis")).toBe(1);
+        expect(p2("labelMaxLinesEllipsis", "wrapping-wrap-word-ellipsis")).toBe(true);
+        // a TRIM_ wrapping keeps one line whatever its box holds
+        expect(p2("labelMaxLines", "wrapping-trim-word")).toBe(1);
         // -p2 and -p4 turn a stretch label on the left or the vertical middle up (-90) and on the right down (90)
         expect(p2("labelRotation", "model-stretch-left")).toBe(270);
         expect(p2("labelRotation", "model-stretch-center-vertical")).toBe(270);
@@ -923,8 +1015,8 @@ describe("yEd Live GraphML: spellings yEd Live 8.5.16 reads, and the ones it ign
         expect(edge("targetArrow", "bpmn-bpmn-edge-type-message-flow")).toBe("triangle-open");
         expect(edge("lineStyle", "bpmn-bpmn-edge-type-association")).toBe("dotted");
         expect(edge("targetArrow", "bpmn-bpmn-edge-type-association")).toBe("none");
-        expect(edge("targetArrow", "bpmn-bpmn-edge-type-directed-association")).toBe("other:open-vee");
-        expect(edge("sourceArrow", "bpmn-bpmn-edge-type-bidirected-association")).toBe("other:open-vee");
+        expect(edge("targetArrow", "bpmn-bpmn-edge-type-directed-association")).toBe("open-vee");
+        expect(edge("sourceArrow", "bpmn-bpmn-edge-type-bidirected-association")).toBe("open-vee");
         // a conversation is a band 3 wide in its color with a line 1 wide in its innerColor (white unset) along it
         expect(edge("color", "bpmn-bpmn-edge-type-conversation")).toBe("#ffffff");
         expect(edge("outlineColor", "bpmn-bpmn-edge-type-conversation")).toBe("#505050");

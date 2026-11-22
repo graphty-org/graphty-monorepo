@@ -1,9 +1,10 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
 import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { Lcg } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
-import { RandomNumberGenerator } from "../utils/random.js";
 import { type CommonLayoutOptions, resolve, result } from "./common.js";
+import { connectedComponents, type Csr, inducedCsr, packComponents } from "./components.js";
 
 /** Residual `|L x - theta x|` at which an eigenvector counts as found, relative to the Gershgorin bound on L. */
 const TOLERANCE = 1e-9;
@@ -12,7 +13,7 @@ const TOLERANCE = 1e-9;
 const MAX_ITERATIONS = 5000;
 
 /**
- * The rows of a graph of at most two nodes: one node on the centre; two at the centre minus and plus `scale` in every
+ * The rows of a graph of at most two nodes: one node on the center; two at the center minus and plus `scale` in every
  * component.
  * @param n - 0, 1 or 2
  * @param dim - components per row
@@ -32,23 +33,23 @@ function tinyRows(n: number, dim: number, scale: number, center: readonly number
 }
 
 /**
- * Whether arc `a` of row u is the first arc to a neighbour other than u.
+ * Whether arc `a` of row u is the first arc to a neighbor other than u.
  * @param g - the snapshot
  * @param u - the row
  * @param a - the arc
  * @returns true when the arc counts in the Laplacian
  */
-function distinctArc(g: GraphSnapshot, u: number, a: number): boolean {
+function distinctArc(g: Csr, u: number, a: number): boolean {
     const { rowPtr, colIdx } = g;
     return colIdx[a] !== u && (a === rowPtr[u] || colIdx[a] !== colIdx[a - 1]);
 }
 
 /**
- * Each node's count of distinct neighbours, self-loops ignored.
+ * Each node's count of distinct neighbors, self-loops ignored.
  * @param g - the snapshot
  * @returns n degrees
  */
-function distinctDegrees(g: GraphSnapshot): F64 {
+function distinctDegrees(g: Csr): F64 {
     const n = g.nodeCount;
     const degree = new Float64Array(n);
     for (let u = 0; u < n; u++) {
@@ -60,13 +61,13 @@ function distinctDegrees(g: GraphSnapshot): F64 {
 }
 
 /**
- * L x for the Laplacian that counts each distinct neighbour once and ignores self-loops.
+ * L x for the Laplacian that counts each distinct neighbor once and ignores self-loops.
  * @param g - the snapshot
  * @param degree - the distinct degrees
  * @param x - n values
  * @returns L x
  */
-function applyLaplacian(g: GraphSnapshot, degree: F64, x: F64): F64 {
+function applyLaplacian(g: Csr, degree: F64, x: F64): F64 {
     const n = g.nodeCount;
     const out = new Float64Array(n);
     for (let u = 0; u < n; u++) {
@@ -82,28 +83,22 @@ function applyLaplacian(g: GraphSnapshot, degree: F64, x: F64): F64 {
 }
 
 /**
- * Spectral rows over an undirected snapshot, as NetworkX's `spectral_layout`: component k is the Laplacian's
+ * Spectral rows over one connected component, as NetworkX's `spectral_layout`: component k is the Laplacian's
  * eigenvector of the k-th smallest eigenvalue after the constant one (the Fiedler vector first). The Laplacian
- * counts each distinct neighbour once and ignores self-loops. Each component is found by LOBPCG (Rayleigh-Ritz over
+ * counts each distinct neighbor once and ignores self-loops. Each component is found by LOBPCG (Rayleigh-Ritz over
  * the current vector, its residual and the previous step) from a seeded random start, kept orthogonal to the
  * constant vector and to the earlier components, so a repeated eigenvalue gives an orthonormal basis of its
  * eigenspace. A component the graph has no eigenvector left for (`dim >= n`) is zero. The rows are rescaled so the
- * farthest node is `scale` from `center`. One node sits on the centre; two sit at the centre minus and plus
+ * farthest node is `scale` from `center`. One node sits on the center; two sit at the center minus and plus
  * `scale` in every component.
- * @param g - an undirected snapshot
+ * @param g - a connected undirected graph
  * @param dim - components per row, any positive count
- * @param scale - the distance of the farthest node from the centre
+ * @param scale - the distance of the farthest node from the center
  * @param center - `dim` components
- * @param seed - the start vectors' seed, or null for a random one
+ * @param rng - the start vectors' generator
  * @returns `n * dim` values
  */
-function spectralRows(
-    g: GraphSnapshot,
-    dim: number,
-    scale: number,
-    center: readonly number[],
-    seed: number | null,
-): F64 {
+function componentRows(g: Csr, dim: number, scale: number, center: readonly number[], rng: Lcg): F64 {
     const n = g.nodeCount;
     if (n <= 2) {
         return tinyRows(n, dim, scale, center);
@@ -111,12 +106,12 @@ function spectralRows(
     const rows = new Float64Array(n * dim);
     const degree = distinctDegrees(g);
     const laplacian = (x: F64): F64 => applyLaplacian(g, degree, x);
-    const tolerance = TOLERANCE * 2 * Math.max(1, ...degree);
-    const rng = new RandomNumberGenerator(seed ?? undefined);
+    // a loop, not Math.max(...degree): spreading n arguments overflows the stack on large graphs (#7032)
+    const tolerance = TOLERANCE * 2 * degree.reduce((max, d) => Math.max(max, d), 1);
     // the constant vector, the eigenvector of 0, and then every component found so far
     const found: F64[] = [new Float64Array(n).fill(1 / Math.sqrt(n))];
     for (let d = 0; d < dim; d++) {
-        const start = Float64Array.from({ length: n }, () => (rng.rand() as number) - 0.5);
+        const start = Float64Array.from({ length: n }, () => rng.next() - 0.5);
         const component = orthonormal(start, found) ? smallest(laplacian, start, found, tolerance) : start.fill(0);
         found.push(component);
         for (let i = 0; i < n; i++) {
@@ -128,6 +123,36 @@ function spectralRows(
         rows[i] += center[i % dim];
     }
     return rows;
+}
+
+/**
+ * Spectral rows over an undirected snapshot. A connected graph is `componentRows` of the whole. A graph of several
+ * connected components (whose Laplacian has one zero eigenvalue per component, so a single eigenvector would put
+ * each component on one point) lays each component out on its own, at a size that grows with the square root of
+ * its node count, packs them side by side so none overlaps, and rescales the whole so the farthest node is `scale`
+ * from `center`.
+ * @param g - an undirected snapshot
+ * @param dim - components per row, any positive count
+ * @param scale - the distance of the farthest node from the center
+ * @param center - `dim` components
+ * @param seed - the start vectors' seed, or null for a random one
+ * @returns `n * dim` values
+ */
+function spectralRows(
+    g: GraphSnapshot,
+    dim: number,
+    scale: number,
+    center: readonly number[],
+    seed: number | null,
+): F64 {
+    const rng = new Lcg(seed);
+    const parts = connectedComponents(g);
+    if (parts.length <= 1) {
+        return componentRows(g, dim, scale, center, rng);
+    }
+    const origin = new Array<number>(dim).fill(0);
+    const rows = parts.map((nodes) => componentRows(inducedCsr(g, nodes), dim, Math.sqrt(nodes.length), origin, rng));
+    return rescaleInPlace(packComponents(parts, rows, g.nodeCount, dim), dim, scale, center);
 }
 
 /**
@@ -282,7 +307,8 @@ function norm(v: F64): number {
 
 /**
  * Nodes placed by the Laplacian's eigenvectors of its smallest non-zero eigenvalues (see `spectralRows`), one
- * component per dimension, rescaled so the farthest node is `scale` from the centre.
+ * component per dimension, rescaled so the farthest node is `scale` from the center. A graph of several connected
+ * components lays out each one on its own and packs them side by side, so none overlaps or collapses to a point.
  * @param s - the snapshot; a directed one is read as its undirected derived graph
  * @param options - `seed` fixes the start vectors
  * @returns the layout

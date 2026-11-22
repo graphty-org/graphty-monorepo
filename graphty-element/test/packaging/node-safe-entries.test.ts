@@ -40,13 +40,26 @@ const NODE_SAFE_ENTRIES = [
     // Not an entry point yet, but the headless session's data write verbs will reach it, so it
     // is held to the same rule now: ingest must never need a renderer.
     "src/session/project/ingest.ts",
+    // The pure build of sources and steps (the `source-steps` experiment): a draft runs it on a
+    // copy, in Node as in a browser.
+    "src/session/sources/steps/build.ts",
+    "src/session/sources/steps/provenance.ts",
 ];
 
 /**
  * What must never appear in a Node-safe entry point's import graph. `@hpcc-js/wasm-graphviz` is
  * imported only by the Graphviz Worker, which no entry point imports.
  */
-const FORBIDDEN = [/^@babylonjs($|\/)/, /^lit($|\/)/, /^@lit($|\/)/, /^@mlc-ai($|\/)/, /^@hpcc-js($|\/)/];
+const FORBIDDEN = [
+    /^@babylonjs($|\/)/,
+    /^lit($|\/)/,
+    /^@lit($|\/)/,
+    /^@mlc-ai($|\/)/,
+    /^@hpcc-js($|\/)/,
+    // The optional GPU package: only the root entry loads it (lazily, src/acceleration/autoload.ts),
+    // so a Node consumer of a Node-safe entry never tries to import its browser-only subpath.
+    /^@graphty\/webgpu-graph-algorithms($|\/)/,
+];
 
 /** The emitted JavaScript of one source file, keyed by absolute path. */
 const transpiled = new Map<string, string>();
@@ -64,6 +77,11 @@ function emit(file: string): string {
     const cached = transpiled.get(file);
     if (cached !== undefined) {
         return cached;
+    }
+
+    // A JSON module (the shipped shader hash lists) imports nothing.
+    if (file.endsWith(".json")) {
+        return "";
     }
 
     const output = ts.transpileModule(readFileSync(file, "utf8"), {
@@ -99,6 +117,9 @@ function resolveRelative(specifier: string, importer: string): string | null {
 
     return candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile()) ?? null;
 }
+
+/** Every source file each walked entry point reaches, package-relative, keyed by entry. */
+const FILES = new Map<string, readonly string[]>();
 
 /** One package this entry point pulls in, and the shortest chain of files that reaches it. */
 interface Reached {
@@ -162,6 +183,11 @@ function importGraph(entry: string): Reached[] {
         return chain.reverse();
     }
 
+    FILES.set(
+        entry,
+        [...parent.keys()].map((file) => file.replace(PACKAGE_ROOT, "")),
+    );
+
     return [...reached.entries()].flatMap(([specifier, importers]) =>
         importers.map((importer) => ({ specifier, chain: chainTo(importer) })),
     );
@@ -201,11 +227,35 @@ describe("the Node-safe entry points", () => {
         },
     );
 
+    // The catalog describes every built-in algorithm and layout from engine-facts.json; the
+    // implementations load only where a run or a layout needs them (#890).
+    it.each(["session.ts", "catalog.ts"])("%s reaches no algorithm or layout implementation", (entry) => {
+        graphOf(entry);
+        const implementations = (FILES.get(entry) ?? []).filter((file) =>
+            /^src\/(algorithms\/\w+Algorithm|layout\/\w+LayoutEngine)\.ts$/.test(file),
+        );
+        const engines = graphOf(entry).filter((found) => /^(d3-force-3d|ngraph\.)/.test(found.specifier));
+
+        assert.deepEqual(implementations, []);
+        assert.deepEqual(
+            engines.map((found) => `${found.specifier} via ${found.chain.join(" -> ")}`),
+            [],
+        );
+    });
+
+    it("sees what is really there: the root entry point does reach the algorithm and layout classes", () => {
+        graphOf("index.ts");
+        const files = FILES.get("index.ts") ?? [];
+
+        assert.include(files, "src/algorithms/PageRankAlgorithm.ts");
+        assert.include(files, "src/layout/NGraphLayoutEngine.ts");
+    });
+
     it("sees what is really there: the root entry point does reach Babylon.js and Lit", () => {
         // Without this, a walker that silently resolved nothing would pass every case above.
         const reached = graphOf("index.ts").map((found) => found.specifier);
 
-        assert.include(reached, "@babylonjs/core");
+        assert.isTrue(reached.some((specifier) => specifier.startsWith("@babylonjs/core/")));
         assert.include(reached, "lit");
     });
 
@@ -215,17 +265,10 @@ describe("the Node-safe entry points", () => {
         assert.isTrue(loaded.every((module) => typeof module === "object"));
     });
 
-    it("reads a layer's file-style facts in plain Node, from ./session alone", () => {
-        const origin: session.FileStyleOrigin = {
-            format: "gexf",
-            importId: "i1",
-            ruleId: "node.by.Modularity Class",
-            role: "mapping",
-            origin: "declared",
-        };
-
-        assert.deepEqual(session.fileStyleOf({ fileStyle: origin }), origin);
-        assert.isNull(session.fileStyleOf({}));
+    it("reads the default look's numbers in plain Node, from ./schema alone", () => {
+        assert.isAbove(schema.EDGE_CONSTANTS.DEFAULT_LINE_WIDTH, 0);
+        assert.equal(schema.defaultEdgeStyle.line?.width, schema.EDGE_CONSTANTS.DEFAULT_LINE_WIDTH);
+        assert.isAbove(schema.SHAPE_CONSTANTS.DEFAULT_NODE_SIZE, 0);
     });
 
     it("lists every style code in plain Node, from ./session alone", () => {
@@ -233,8 +276,6 @@ describe("the Node-safe entry points", () => {
 
         assert.include(session.FILE_STYLE_CODES, code);
         assert.include(session.FILE_STYLE_CODES, "W_STYLE_LAYER_CAP");
-        assert.strictEqual(session.FILE_STYLE_SHAPES.ellipse, "ellipse");
-        assert.include(session.FILE_STYLE_REASONS, "NO_EXPLANATION");
     });
 });
 
@@ -261,6 +302,17 @@ describe("the ./webgpu entry point", () => {
     // comparison below would fail. It is not a package-wide census -- an importer outside this
     // entry point's graph is not visible from here -- and `exports-map.test.ts` is what keeps the
     // peer optional in the manifest; this keeps the entry point the only door it comes through.
+    it("the root entry reaches the optional peer only through its lazy loader", () => {
+        const peers = graphOf("index.ts").filter((found) =>
+            /^@graphty\/webgpu-graph-algorithms($|\/)/.test(found.specifier),
+        );
+
+        assert.deepEqual(peers.map((found) => `${found.specifier} from ${found.chain.at(-1) ?? "nowhere"}`).sort(), [
+            "@graphty/webgpu-graph-algorithms from src/acceleration/autoload.ts",
+            "@graphty/webgpu-graph-algorithms/browser from src/acceleration/autoload.ts",
+        ]);
+    });
+
     it("reaches both entries of the optional peer from webgpu.ts, and from no other file", () => {
         const peers = graphOf("webgpu.ts").filter((found) =>
             /^@graphty\/webgpu-graph-algorithms($|\/)/.test(found.specifier),

@@ -10,10 +10,8 @@ import { useLeftPanel } from "../assistant-door/leftPanel";
 import { AutosaveChip } from "../autosave/AutosaveChip";
 import { CanvasMenu } from "../canvas/CanvasMenu";
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
-import { useCanvasDrop } from "../canvas/useCanvasDrop";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
-import { selectionWorkspaceOn } from "../features";
 import { GraphPlace } from "../graph-place/GraphPlace";
 import { DATA_PLACE_KINDS } from "../inspector/inspected";
 import { Inspector } from "../inspector/Inspector";
@@ -26,12 +24,14 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
 import { TimeDock } from "../time/TimeDock";
 import { WorkspaceToolbar } from "../toolbar/WorkspaceToolbar";
+import { ViewsPlace } from "../views-place/ViewsPlace";
 import { ElementHost } from "./ElementHost";
 import { focusIsLost, focusOpenedGraph } from "./focus";
 import { Header } from "./Header";
 import { NoticeSlot } from "./NoticeSlot";
 import { PanelBoundary } from "./PanelBoundary";
 import { Rail } from "./Rail";
+import { SiteChip } from "./SiteChip";
 import { WebGpuChip } from "./WebGpuChip";
 
 /** What each rail place draws in the left panel. */
@@ -39,6 +39,7 @@ const PLACES = {
     graph: <GraphPlace />,
     assistant: <AssistantPlace />,
     data: <DataPlace />,
+    views: <ViewsPlace />,
     notes: <NotesPlace />,
 } as const;
 
@@ -59,8 +60,7 @@ interface FrameProps {
  * @returns The frame
  */
 export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Element {
-    const { store, element, session } = useWorkspace();
-    const canvasDrop = useCanvasDrop();
+    const { store, element } = useWorkspace();
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
     const place = useWorkspaceState((state) => state.place);
@@ -70,10 +70,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
     const dockMaximized = useWorkspaceState((state) => state.dockMaximized);
     const autosave = useWorkspaceState((state) => state.autosave);
-    // The selection workspace covers one side panel (spec 3.0): it takes no focus under it.
+    // The full-screen selection workspace covers both side panels: they take no focus under it.
     const covered = useWorkspaceState((state) => state.selectionWorkspace?.host ?? null);
-    // The full-screen selection workspace (an experiment) covers both side panels.
-    const modalCover = covered !== null && selectionWorkspaceOn(session);
     const panels = page === "panels";
     // Leaving the Data page (Load, Cancel, Esc) takes away the control that had focus; focus goes
     // to the graph's heading, or the open place's list while the inspector shows something else
@@ -101,7 +99,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             store.set({ inspected: null });
         }
     }, [place, store]);
-    // A note or a message being written is about this project's graph: another project drops it.
+    // A note or a message being written, or a source card, is about this project's graph: another
+    // project drops it.
     useEffect(() => {
         store.set({
             noteDraft: null,
@@ -111,6 +110,10 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             assistantSpoken: null,
             assistantTalkPress: false,
             assistantRefused: false,
+            // A source card's picks name this project's sources.
+            sourceCard: null,
+            stagedEnds: null,
+            draftOpen: null,
         });
     }, [projectId, store]);
 
@@ -132,7 +135,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     aria-label="Left panel"
                     hidden={!panels}
                     data-fills={left.fills ? "" : undefined}
-                    inert={modalCover || covered === "selector"}
+                    inert={covered !== null}
                 >
                     <div className="ws-panel-body">
                         <PanelBoundary key={place} name="Place">
@@ -159,7 +162,6 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         className="ws-canvas"
                         aria-label="Graph drawing"
                         data-testid="canvas"
-                        {...canvasDrop}
                         inert={dockOpen && dockMaximized}
                     >
                         <CanvasMenu>
@@ -215,7 +217,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         className="ws-right"
                         aria-label="Inspector"
                         hidden={!panels || left.fills}
-                        inert={left.fills || modalCover || covered === "filter"}
+                        inert={left.fills || covered !== null}
                     >
                         <div className="ws-panel-body">
                             <PanelBoundary name="Inspector">
@@ -242,7 +244,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 )}
             </div>
             {/* State the reader reads rather than acts on: the autosave state (with the workspace's
-                polite status region), whether WebGPU is on, and the privacy chip. */}
+                polite status region), whether WebGPU is on, the site when it is canary or
+                nightly, and the privacy chip. */}
             <StatusBar
                 role="contentinfo"
                 aria-label="Status"
@@ -250,6 +253,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     <>
                         <AutosaveChip />
                         <WebGpuChip />
+                        <SiteChip />
                     </>
                 }
                 right={<PrivacyChip />}

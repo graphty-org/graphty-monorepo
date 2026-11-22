@@ -66,6 +66,30 @@ export type CategoryId = (typeof CATEGORY_IDS)[number];
  */
 export type PageId = "overview" | CategoryId | "runners" | "local-runs" | "issues";
 
+/** The page ranges, the slow ranges and the Issues ranges; the first of each is its default. */
+export const RANGES: readonly Range[] = ["1h", "6h", "24h"];
+export const SLOW_RANGES: readonly SlowRange[] = ["7d", "28d"];
+export const ISSUE_RANGES: readonly IssueRange[] = ["28d", "1h", "6h", "1d", "7d", "all"];
+
+/** Every page the read API serves at `/v1/page/<id>`. */
+export const PAGE_IDS = [
+    "overview",
+    ...CATEGORY_IDS,
+    "runners",
+    "local-runs",
+    "issues",
+] as const satisfies readonly PageId[];
+
+/** Any page's range. */
+export type PageRange = Range | SlowRange | IssueRange;
+
+/** Each page's ranges, as the read API takes them; the first is the default. */
+export const PAGE_RANGES: Record<PageId, readonly PageRange[]> = {
+    ...(Object.fromEntries(PAGE_IDS.map((id) => [id, RANGES])) as Record<PageId, readonly Range[]>),
+    costs: SLOW_RANGES,
+    issues: ISSUE_RANGES,
+};
+
 /** An SLA state. NO DATA (`nodata`) counts as yellow in a rollup but is drawn gray and hatched (3.1). */
 export type SlaState = "ok" | "warn" | "bad" | "nodata";
 
@@ -86,10 +110,10 @@ export type MemberState = SlaState | "notsetup" | "few" | "partial" | "idle" | "
 export type CategoryState = SlaState | "idle";
 
 /** An ISO 8601 time in UTC. */
-export type Iso = string; // NOSONAR(S6564): names the wire format of the string for readers of the contract
+export type Iso = string; // eslint-disable-line sonarjs/redundant-type-aliases -- names the wire format of the string for readers of the contract
 
 /** A hash route of the page, such as `/ci/runners` or `/master/red`, or an absolute https URL. */
-export type Route = string; // NOSONAR(S6564): names the wire format of the string for readers of the contract
+export type Route = string; // eslint-disable-line sonarjs/redundant-type-aliases -- names the wire format of the string for readers of the contract
 
 /** A parameter of a {@link Fact}: numbers in the unit its code names, ids, names of data, ISO times. */
 export type Param = string | number | boolean | null | readonly (string | number)[];
@@ -186,6 +210,12 @@ export const MEMBER_IDS = [
     "pull-requests.oldest_open",
     "pull-requests.merge_ratio",
     "pull-requests.caused_failures",
+    "pull-requests.issues_per_merge",
+    "pull-requests.multi_issue_share",
+    "pull-requests.runner_minutes_per_issue",
+    "pull-requests.group_released_share",
+    "pull-requests.groups_ready",
+    "pull-requests.groups_combinable",
     "pull-requests.automerge_green_stuck",
     "pull-requests.automerge_armed_long",
     "pull-requests.screenshot_backlog",
@@ -199,6 +229,7 @@ export const MEMBER_IDS = [
     "ci.bins_over",
     "ci.reruns",
     "ci.shards_over",
+    "ci.group_deadline",
     "ci.runner_minutes",
     "ci.superseded",
     "ci.chronic_jobs",
@@ -385,7 +416,7 @@ export type ChannelId = "canary" | "nightly" | "production";
 
 /**
  * How one release attempt ended: deployed or promoted (`ok`), failed (`bad`), passed but not promoted (`held`, a
- * nightly candidate waiting for screenshot approval), or cancelled.
+ * nightly candidate waiting for screenshot approval), or canceled.
  */
 export type ChannelOutcome = "ok" | "bad" | "held" | "cancelled";
 
@@ -549,6 +580,32 @@ export interface ShardsSection extends SectionBase {
     rows: ShardRow[];
     /** Shards not listed, and whether every one of them is within budget. */
     more?: { count: number; allWithin: boolean };
+    /** Full runs only: each test group's members summed per run against its test step's deadline. */
+    groups?: GroupRow[];
+}
+
+/** One full-run group run: its members' summed times (10 s between members) against the step's deadline. */
+export interface GroupRunTime {
+    runId: number;
+    totalS: number;
+    /** totalS over limitS, in %. */
+    pct: number;
+}
+
+/** A test group whose members run one after another in one test step (tools/ci-test-matrix.mjs GROUPS). */
+export interface GroupRow {
+    group: string;
+    /** The test step's deadline (TEST_STEP_LIMIT_MS). */
+    limitS: number;
+    runs: number;
+    /** Its newest full run in the range. */
+    newest: GroupRunTime;
+    /** Its slowest full run in the range. */
+    worst: GroupRunTime;
+    /** Above this % of the deadline the group is not OK. */
+    warnPct: number;
+    /** Each member's slowest run against its GROUP_MEMBER_SECONDS entry; `stale` when over it by more than 10 s. */
+    members: { member: string; maxS: number; tableS: number | null; stale: boolean }[];
 }
 
 export interface ShardRow {

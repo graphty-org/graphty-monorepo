@@ -14,13 +14,20 @@ import { browserProjects, createGraphSession, type GraphSession } from "@graphty
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { OPEN_PROJECT_URLS, PROJECT_HOSTS_KEY, readPreference, readProjectHosts } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
-import { openModels, openShapes, written } from "../../style/__tests__/modelHarness";
+import { addModel, openCustom, openModels, openShapes, written } from "../../style/__tests__/modelHarness";
 import { dotPng, quadGlb } from "../../style/__tests__/quadGlb";
 import { Workspace } from "../../Workspace";
 import { clearRecent } from "../recent";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+// They save through the name-only Save as; version 2 save files replace it, tested in
+// SaveFilesV2.real-element.test.tsx.
+withoutFeatures(["file-styles", "save-files-v2"]);
 
 const MODEL = "https://models.example.com/kit/panel.glb";
 const PICTURE = "https://pictures.example.com/dot.png";
@@ -181,14 +188,14 @@ describe("web addresses a project names, from the app", () => {
 });
 
 /**
- * Pastes MODEL in the Models pop-over by real input, and waits until graphty-element draws it.
+ * Pastes MODEL in the Load custom model dialog by real input, and waits until graphty-element draws it.
  * @param session - the element's session.
  * @param tab - the Style tab.
  */
 async function pasteModel(session: GraphSession, tab: HTMLElement): Promise<void> {
-    const models = await openModels(tab);
-    await userEvent.type(within(models).getByRole("textbox", { name: "Model address" }), MODEL);
-    await userEvent.click(within(models).getByRole("button", { name: "Add model address" }));
+    const dialog = await openCustom(tab);
+    await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${MODEL}{Enter}`);
+    await addModel(dialog);
     await reaches(session, MODEL, "drawn");
 }
 
@@ -209,8 +216,8 @@ async function keptEntries(): Promise<Record<string, unknown>[]> {
     return saved.members.find((member) => member.kind === "graphty-assets")?.assets ?? [];
 }
 
-describe("web addresses in the Style tab, with the node models experiment", () => {
-    it("draws a model pasted by URL in the Models pop-over, asking nothing", async () => {
+describe("web addresses in the Style tab, with node models", () => {
+    it("draws a model pasted by URL in the Load custom model dialog, asking nothing", async () => {
         const { session, tab } = await openShapes();
         await pasteModel(session, tab);
         assert.equal(written(session, "node.model"), MODEL);
@@ -225,8 +232,7 @@ describe("web addresses in the Style tab, with the node models experiment", () =
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Picture" }));
         const picture = await screen.findByRole("dialog", { name: "Picture" });
-        await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), PICTURE);
-        await userEvent.click(within(picture).getByRole("button", { name: "Add picture address" }));
+        await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), `${PICTURE}{Enter}`);
         await reaches(session, PICTURE, "drawn");
         assert.equal(written(session, "node.texture"), PICTURE);
     });
@@ -263,6 +269,31 @@ describe("web addresses in the Style tab, with the node models experiment", () =
         assert.isNull(screen.queryByRole("dialog", { name: "Save files from the web" }));
         const [again] = await keptEntries();
         assert.equal(again?.stored, "url");
+    });
+
+    it("names a model added by URL from the Main menu by its URL when picked in the project, so Save asks", async () => {
+        await clearRecent();
+        const { session, tab } = await openShapes();
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Add custom model..." }));
+        const dialog = await screen.findByRole("dialog", { name: "Load custom model" });
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${MODEL}{Enter}`);
+        await addModel(dialog, "Add to project");
+
+        const models = await openModels(tab);
+        const own = within(models).getByRole("group", { name: "In this project" });
+        await userEvent.click(within(own).getByRole("button", { name: "panel" }));
+        await waitFor(() => {
+            assert.equal(written(session, "node.model"), MODEL);
+        });
+        await reaches(session, MODEL, "drawn");
+
+        await userEvent.keyboard("{Control>}s{/Control}");
+        const saveAs = await screen.findByRole("dialog", { name: "Save Models as" });
+        await userEvent.click(within(saveAs).getByRole("button", { name: "Save" }));
+        const keep = await screen.findByRole("dialog", { name: "Save files from the web" });
+        assert.isNotNull(within(keep).getByTitle(MODEL));
+        await userEvent.click(within(keep).getByRole("button", { name: "Cancel" }));
     });
 
     it("Cancel in the question saves nothing and keeps the project's name", async () => {
@@ -325,6 +356,35 @@ describe("web addresses in the Style tab, with the node models experiment", () =
         });
         const [entry] = await keptEntries();
         assert.isDefined(entry?.files, "embedded, as the second question was answered");
+    });
+
+    it("Save local copy... asks too: Cancel downloads nothing, and the answer downloads the project", async () => {
+        const { session, tab } = await openShapes();
+        await pasteModel(session, tab);
+        const downloads: string[] = [];
+        vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+            downloads.push(this.download);
+        });
+        const saveCopy = async (): Promise<HTMLElement> => {
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Save local copy..." }));
+            return screen.findByRole("dialog", { name: "Save files from the web" });
+        };
+
+        await userEvent.click(within(await saveCopy()).getByRole("button", { name: "Cancel" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog"));
+        });
+        assert.deepEqual(downloads, []);
+
+        const keep = await saveCopy();
+        await userEvent.click(within(keep).getByText("Use URL"));
+        await userEvent.click(within(keep).getByRole("button", { name: "Save" }));
+        await waitFor(() => {
+            assert.deepEqual(downloads, ["Models.graphty.json"]);
+        });
+        assert.isTrue(session.project.dirty, "a copy leaves the project unsaved");
+        assert.lengthOf(await browserProjects.list(), 0);
     });
 
     it("asks again for a project opened in the session's place", async () => {

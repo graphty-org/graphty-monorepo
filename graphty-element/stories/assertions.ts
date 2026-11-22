@@ -13,7 +13,7 @@
  * WHAT THESE ASSERT, AND WHY THAT IS THE POINT. They read THE SCENE, not the style model:
  *
  * - the source mesh each node is instanced from, which is the shape and size actually drawn;
- * - the per-instance colour buffer, which is the colour actually drawn;
+ * - the per-instance color buffer, which is the color actually drawn;
  * - `mesh.visibility`, which is the opacity actually drawn;
  * - the label plane and the ink on its own texture, which is the text actually drawn;
  * - the curve flag and the vertex path of an edge line, which is whether it actually bows;
@@ -32,7 +32,7 @@ import type { Edge } from "../src/Edge";
 import type { Graph } from "../src/Graph";
 import type { Graphty } from "../src/graphty-element";
 import type { GraphSession } from "../src/session";
-import { isVisualCapture } from "./helpers";
+import { isVisualCapture, type RealInput, skyboxReady, untilFrames } from "./helpers";
 
 // Outside Storybook (render-parity, and every test that runs a story's play) nothing has run
 // .storybook/preview.ts, so storybook/test's waitFor would keep Testing Library's 1000 ms default
@@ -44,7 +44,7 @@ configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 /** How opaque a pixel of a label's own texture must be to count as ink. */
 const INK_ALPHA = 16;
 
-/** How many of a label's own colours are kept, most-used first. */
+/** How many of a label's own colors are kept, most-used first. */
 const MAX_LABEL_COLOURS = 6;
 
 /** How many offenders a failure message lists before it stops and quotes the count instead. */
@@ -53,7 +53,7 @@ const MAX_LISTED = 8;
 /** How far a curved edge's path must leave the straight line between its ends, in world units. */
 const CURVE_MIN_SAGITTA = 0.05;
 
-/** How far apart two colour channels may be and still count as the same colour. */
+/** How far apart two color channels may be and still count as the same color. */
 const COLOUR_TOLERANCE = 24;
 
 /** What one node is actually drawn as. */
@@ -94,7 +94,7 @@ interface DrawnNode {
     readonly opacity: number;
     /** Half the drawn bounding box's width in world units, which is where size lands. */
     readonly radius: number;
-    /** The per-instance colour buffer, as `#rrggbb`, or null for a node carrying none. */
+    /** The per-instance color buffer, as `#rrggbb`, or null for a node carrying none. */
     readonly hex: string | null;
     /** Where the mesh actually is. */
     readonly position: readonly [number, number, number];
@@ -103,7 +103,7 @@ interface DrawnNode {
     /** Opaque pixels on the label's own texture; -1 when the node draws no label at all. */
     readonly labelInk: number;
     /**
-     * The colours actually drawn on this node's label, most-used first, as `#rrggbb`.
+     * The colors actually drawn on this node's label, most-used first, as `#rrggbb`.
      *
      * READ OFF THE LABEL'S OWN CANVAS. A label is drawn onto a `DynamicTexture`, so the letters,
      * their outline and the panel behind them can be counted directly -- which is the only way to
@@ -118,7 +118,7 @@ interface DrawnCaption {
     readonly end: "arrowHead" | "arrowTail";
     /** Opaque pixels on the caption's own texture; -1 when there is no texture to read. */
     readonly ink: number;
-    /** The colours actually drawn on it, most-used first, as `#rrggbb`. */
+    /** The colors actually drawn on it, most-used first, as `#rrggbb`. */
     readonly colours: readonly string[];
 }
 
@@ -153,9 +153,8 @@ export interface Drawn {
      * READ OFF THE EDGES, because a cap has no mesh of its own. Every cap of one appearance is a
      * thin instance of a single batch mesh whose name deliberately does not say "arrow", so the
      * scene walk that counted caps by name finds none of them and would count the batch as a cap
-     * nothing is drawing. `Edge.drawnCaps` is where the answer moved to: the shape is the name
-     * the cap's mesh used to carry, and the span is the reading a story used to take off its
-     * bounding box -- the same number, so a measurement written before this change still holds.
+     * nothing is drawing. `Edge.drawnCaps` gives each cap's shape by name and its span, the
+     * same number a reading of the cap's bounding box gives.
      */
     readonly arrowCaps: readonly { readonly name: string; readonly span: number; readonly visibility: number }[];
     /** The distinct line-pattern meshes in the scene, by name. */
@@ -181,11 +180,11 @@ export interface Drawn {
      * A bezier or a patterned line in 3D still owns its mesh and is read off it. In 2D there is no
      * interning at all: `EdgeMesh.createLineMesh` routes a solid line to
      * `Simple2DLineRenderer.create`, which builds one mesh per edge, names every one of them
-     * `line-2d`, and puts the colour in that mesh's own material. Counting names alone therefore
+     * `line-2d`, and puts the color in that mesh's own material. Counting names alone therefore
      * answered "0 different edge appearances" for every 2D picture ever drawn, however many
-     * colours were on screen -- which is what two Flow stories were failing on while drawing
+     * colors were on screen -- which is what two Flow stories were failing on while drawing
      * exactly what they promised. So an individually built line is keyed by what it is DRAWN
-     * with: its material colour, its opacity and its width.
+     * with: its material color, its opacity and its width.
      *
      * Hidden meshes are left out, because a cached source mesh is a template parked off screen
      * rather than an edge anybody can see.
@@ -204,7 +203,7 @@ export interface Drawn {
      * THE ONLY READING OF AN EDGE'S APPEARANCE THERE IS. The element publishes no way to
      * enumerate edges and no handle on an edge object, so the width, the pattern and the cap an
      * edge is drawn with can only be read back off the meshes in the scene. The name carries the
-     * interned style and the colour; the bounding extent carries the width.
+     * interned style and the color; the bounding extent carries the width.
      */
     readonly edgeDigest: readonly string[];
     /** What the scene is cleared to behind everything, as `#rrggbb`. */
@@ -274,9 +273,9 @@ export async function eventually(done: () => boolean, complaint: string): Promis
 }
 
 /**
- * The colour a node is actually drawn in, read from the buffer the GPU is handed.
+ * The color a node is actually drawn in, read from the buffer the GPU is handed.
  * @param mesh - The node's mesh.
- * @returns The colour as `#rrggbb`, or null when the mesh carries no instance colour.
+ * @returns The color as `#rrggbb`, or null when the mesh carries no instance color.
  */
 function hexOfRgba(color: { r: number; g: number; b: number } | null): string | null {
     return color === null
@@ -291,9 +290,9 @@ function hexOfRgba(color: { r: number; g: number; b: number } | null): string | 
 }
 
 /**
- * The colour an instance carries in its own buffer, as #rrggbb.
+ * The color an instance carries in its own buffer, as #rrggbb.
  * @param mesh - The instance.
- * @returns The colour, or null when it carries none.
+ * @returns The color, or null when it carries none.
  */
 function instanceHex(mesh: AbstractMesh): string | null {
     const colour = (mesh as unknown as { instancedBuffers?: { color?: { r: number; g: number; b: number } } })
@@ -317,7 +316,7 @@ function instanceHex(mesh: AbstractMesh): string | null {
  * READ FROM THE TEXTURE, NOT FROM THE FRAME. A label is drawn on a `DynamicTexture` with a 2D
  * canvas behind it, so the letters can be counted directly for a fraction of a millisecond --
  * where reading them back off the GPU costs the better part of a second per story and cannot tell
- * a label from a dark node without a colour heuristic.
+ * a label from a dark node without a color heuristic.
  * @param mesh - The label plane.
  * @returns Opaque pixels, or -1 when there is no texture to read.
  */
@@ -349,7 +348,7 @@ function labelInk(mesh: AbstractMesh | null | undefined): { ink: number; colours
 
         ink++;
 
-        // Quantised to five bits a channel, so that one anti-aliased letter is one colour rather
+        // Quantized to five bits a channel, so that one anti-aliased letter is one color rather
         // than forty near-identical ones.
         const key =
             ((image.data[offset] >> 3) << 10) | ((image.data[offset + 1] >> 3) << 5) | (image.data[offset + 2] >> 3);
@@ -374,13 +373,13 @@ function labelInk(mesh: AbstractMesh | null | undefined): { ink: number; colours
 const OWN_LINE_MESHES = ["line-2d", "custom-line", "edge-plain"] as const;
 
 /**
- * The colour and opacity one mesh's own material draws in.
+ * The color and opacity one mesh's own material draws in.
  *
  * READ OFF WHATEVER THE MATERIAL CARRIES, by shape rather than by class. A 2D line is drawn with
- * `disableLighting` and its colour in `emissiveColor`; other materials put theirs in
+ * `disableLighting` and its color in `emissiveColor`; other materials put theirs in
  * `diffuseColor`; a shader material carries neither, and says so by answering null.
  * @param mesh - The mesh.
- * @returns The colour as `#rrggbb` and the alpha, or null for a material with no colour to read.
+ * @returns The color as `#rrggbb` and the alpha, or null for a material with no color to read.
  */
 function materialPaint(mesh: AbstractMesh): { hex: string; alpha: number } | null {
     const material = mesh.material as {
@@ -411,10 +410,10 @@ function materialPaint(mesh: AbstractMesh): { hex: string; alpha: number } | nul
 }
 
 /**
- * What one pattern element is drawn as: its shape, its colour, its opacity and its scale.
+ * What one pattern element is drawn as: its shape, its color, its opacity and its scale.
  *
  * Keyed the way {@link edgeLineAppearance} keys a line that owns its mesh, so an edge drawn with
- * dots in two colours counts as two appearances. A 3D element carries its colour in its slot; a
+ * dots in two colors counts as two appearances. A 3D element carries its color in its slot; a
  * 2D one on its batch's material.
  * @param element - One element of a patterned line.
  * @returns The appearance.
@@ -495,9 +494,8 @@ function sagittaOf(points: readonly Vector3[]): number {
  *
  * WAITING IS PART OF THE READING. Every wait here fails rather than expiring quietly, because a
  * wait that gives up and returns anyway cannot be told apart from a wait that succeeded: a story
- * whose fetch died would render an empty canvas and pass. That used to be true of the helpers in
- * `stories/helpers.ts` as well -- both of their waits raced a five-second timer that resolved
- * either way -- and is not any more: they throw, naming what never happened.
+ * whose fetch died would render an empty canvas and pass. The waits in `stories/helpers.ts`
+ * behave the same way: they throw, naming what never happened.
  * @param canvasElement - Where the story was rendered.
  * @param story - How to name the story in a failure message.
  * @returns What is on screen.
@@ -658,7 +656,16 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         maxSagitta: curves.reduce((most, points) => Math.max(most, sagittaOf(points)), 0),
         arrowMeshNames: [...new Set(drawnCaps.map((cap) => cap.name))].sort(),
         arrowCaps: drawnCaps,
-        linePatternNames: [...new Set(patternElements.map((element) => element.name))].sort(),
+        // a dash, dot, box, diamond or star line's elements are drawn by its line's shader (issue #7404)
+        linePatternNames: [
+            ...new Set([
+                ...patternElements.map((element) => element.name),
+                ...edges.flatMap((edge) => {
+                    const pattern = edge.drawnLine?.pattern ?? null;
+                    return pattern === null ? [] : [`pattern-${pattern}`];
+                }),
+            ]),
+        ].sort(),
         edgeLabelPlanes: Math.max(0, planes.length - nodePlanes),
         arrowCaptions: captions,
         edgeStyleNames: [...new Set(drawnEdgeLines)].sort(),
@@ -804,9 +811,9 @@ export async function assertLayoutPlaced(
 }
 
 /**
- * Every node is drawn in the colour the story asked for, or in one of the colours it listed.
+ * Every node is drawn in the color the story asked for, or in one of the colors it listed.
  * @param scene - What the story drew.
- * @param expected - The colour every node must be, as `#rrggbb`, or one colour per node id.
+ * @param expected - The color every node must be, as `#rrggbb`, or one color per node id.
  */
 export async function assertDrawnColour(
     scene: Drawn,
@@ -1111,7 +1118,7 @@ export async function assertLinePatternsDrawn(scene: Drawn, expected: readonly s
  * statement.
  *
  * WHICH RUN BELONGS TO WHICH ADDRESS IS THE ELEMENT'S QUESTION, NOT THIS FILE'S. A run records a
- * catalogue key that is often not the address a story names: `graphty:dijkstra` and
+ * catalog key that is often not the address a story names: `graphty:dijkstra` and
  * `graphty:bellman-ford` both record `shortest-path`, and `graphty:scc` records `components`. So
  * the element is ASKED -- `getSuggestedStyles` resolves the address through its own map -- rather
  * than the map being copied here, where it would drift.
@@ -1209,7 +1216,7 @@ function fingerprint(scene: Drawn): string {
         .join("|");
 
     // The edges are half the picture in several of these families, and nothing about them reaches
-    // a node reading: three stories whose layers differ only in edge width, edge colour and arrow
+    // a node reading: three stories whose layers differ only in edge width, edge color and arrow
     // cap draw the same five nodes.
     const edges = [
         scene.edgeDigest.join("|"),
@@ -1231,7 +1238,7 @@ const pictures = new Map<string, Map<string, string>>();
  * THE ONLY THING THAT CAN SEE THE REPORTED SYMPTOM. Visual review compares a story to its own past
  * and never to its siblings, so "these fourteen stories render identically to one another" is
  * invisible to it, and was invisible to every test in this package. The digest is built from what
- * the SCENE drew -- shape, geometry, size, opacity, colour, label ink -- and deliberately not
+ * the SCENE drew -- shape, geometry, size, opacity, color, label ink -- and deliberately not
  * from positions, because a physics layout gives a different picture every run and a position
  * would make every story look distinct whatever it painted.
  *
@@ -1318,7 +1325,7 @@ function arrangementDistance(
  * No two stories in this family arrange the graph the same way.
  *
  * THE COMPANION TO {@link assertDistinctPicture} FOR A FAMILY THAT DIFFERS IN NOTHING ELSE. That
- * one builds its digest from shape, size, colour and label and deliberately leaves position out,
+ * one builds its digest from shape, size, color and label and deliberately leaves position out,
  * because a physics layout gives a different picture every run. The accelerated layout stories
  * are the case it cannot serve: they draw one graph with one styling and two layouts, so the
  * arrangement is the only thing that differs, and they pin a seed so the arrangement is the same
@@ -1363,7 +1370,7 @@ export async function assertDistinctArrangement(scene: Drawn, family: string, mi
  * The edges in the picture are drawn with this many different appearances.
  *
  * READ FROM THE SCENE, off the meshes that draw the lines: the interned source mesh an instanced
- * 3D line comes from, and the material colour, opacity and width of a line the renderer built on
+ * 3D line comes from, and the material color, opacity and width of a line the renderer built on
  * its own, which is every line in a 2D picture. A story whose two layers set two widths and draws
  * every edge the same reads back as one.
  * @param scene - What the story drew.
@@ -1504,7 +1511,7 @@ export async function assertWireframes(scene: Drawn, ids: readonly string[]): Pr
 /**
  * The nodes in the picture are drawn with this many different values of one property.
  *
- * FOR A RESULT THAT IS A RAMP RATHER THAN A SET OF NAMES. A centrality drawn as a colour ramp
+ * FOR A RESULT THAT IS A RAMP RATHER THAN A SET OF NAMES. A centrality drawn as a color ramp
  * cannot be asserted node by node without re-implementing the algorithm; what it promises is that
  * the picture SEPARATES the nodes, and a run that produced nothing paints them all alike.
  * @param scene - What the story drew.
@@ -1544,7 +1551,7 @@ export async function assertArrowVariety(scene: Drawn, atLeast: number): Promise
 }
 
 /**
- * How many pixels of one colour are on the canvas.
+ * How many pixels of one color are on the canvas.
  *
  * THE READING OF LAST RESORT, and the only one for a property the scene graph does not carry. An
  * edge's drawn thickness is a shader parameter: the source mesh is interned without it, the
@@ -1561,12 +1568,12 @@ export async function assertArrowVariety(scene: Drawn, atLeast: number): Promise
  * that grows in two directions, `edgeSpanPx` for ink that grows in one -- and the reading means
  * the same thing wherever it is taken.
  * @param scene - What the story drew.
- * @param hex - The colour to count, as `#rrggbb`.
+ * @param hex - The color to count, as `#rrggbb`.
  * @param tolerance - How far one channel may be from `hex` and still count as it. The default of
- *     24 suits a colour well clear of the background. A colour NEARER the background than that
- *     cannot be counted at this tolerance at all -- three tenths of darkgrey over whitesmoke is
+ *     24 suits a color well clear of the background. A color NEARER the background than that
+ *     cannot be counted at this tolerance at all -- three tenths of darkgray over whitesmoke is
  *     0xde against a background of 0xf5, 23 apart, so the window swallows the whole empty canvas
- *     and the count is meaningless. Narrow it for a colour like that, and say what was measured.
+ *     and the count is meaningless. Narrow it for a color like that, and say what was measured.
  * @returns How many pixels are within tolerance of it.
  */
 export async function pixelsOfColour(scene: Drawn, hex: string, tolerance: number = COLOUR_TOLERANCE): Promise<number> {
@@ -1576,30 +1583,50 @@ export async function pixelsOfColour(scene: Drawn, hex: string, tolerance: numbe
 }
 
 /**
- * How many pixels of each of several colours are on the canvas, from one render and one read.
- * `pixelsOfColour` for a list: the canvas is warmed and copied once, not once per colour.
+ * The canvas as it is drawn now, four RGBA bytes a pixel, the same on WebGL and on WebGPU.
  * @param scene - What the story drew.
- * @param hexes - The colours to count, each as `#rrggbb`.
- * @param tolerance - How far one channel may be from a colour and still count as it; see `pixelsOfColour`.
- * @returns The count for each colour, in the order given.
+ * @returns Its pixels.
+ */
+export async function canvasPixels(scene: Drawn): Promise<Uint8Array> {
+    const { engine } = scene.graph;
+
+    // Wait for every shader to have compiled, then draw ONE frame and read it in the same task, so
+    // the buffer read is the frame just drawn. A fixed warm-up of frames stood here before: forty
+    // full-canvas renders per call, which a play function reading four colors paid 160 times over,
+    // about 19 s on an idle machine and past the 30 s limit on a loaded one (#2413).
+    // The read is taken inside the frame, before it is presented: a WebGPU canvas holds nothing once a
+    // frame has ended (test/helpers/whole-canvas.ts reads the same way).
+    await scene.graph.scene.whenReadyAsync();
+    engine.beginFrame();
+    scene.graph.scene.render();
+    const read = engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight());
+    engine.endFrame();
+    const pixels = (await read) as unknown as Uint8Array;
+    // A WebGPU read is in the canvas's own format, BGRA where that is the preferred one: put each pixel
+    // in RGBA order, so a color counts as itself on both engines (#9257).
+    if (engine.isWebGPU && navigator.gpu.getPreferredCanvasFormat() === "bgra8unorm") {
+        for (let offset = 0; offset < pixels.length; offset += 4) {
+            [pixels[offset], pixels[offset + 2]] = [pixels[offset + 2], pixels[offset]];
+        }
+    }
+
+    return pixels;
+}
+
+/**
+ * How many pixels of each of several colors are on the canvas, from one render and one read.
+ * `pixelsOfColour` for a list: the canvas is warmed and copied once, not once per color.
+ * @param scene - What the story drew.
+ * @param hexes - The colors to count, each as `#rrggbb`.
+ * @param tolerance - How far one channel may be from a color and still count as it; see `pixelsOfColour`.
+ * @returns The count for each color, in the order given.
  */
 export async function pixelsOfColours(
     scene: Drawn,
     hexes: readonly string[],
     tolerance: number = COLOUR_TOLERANCE,
 ): Promise<number[]> {
-    const { engine } = scene.graph;
-
-    // Wait for every shader to have compiled, then draw ONE frame and read it in the same task, so
-    // the buffer read is the frame just drawn. A fixed warm-up of frames stood here before: forty
-    // full-canvas renders per call, which a play function reading four colours paid 160 times over,
-    // about 19 s on an idle machine and past the 30 s limit on a loaded one (#2413).
-    await scene.graph.scene.whenReadyAsync();
-    scene.graph.scene.render();
-
-    const width = engine.getRenderWidth();
-    const height = engine.getRenderHeight();
-    const pixels = (await engine.readPixels(0, 0, width, height)) as unknown as Uint8Array;
+    const pixels = await canvasPixels(scene);
 
     return hexes.map((hex) => {
         const want = [
@@ -1748,15 +1775,15 @@ export async function assertViewMode(scene: Drawn, expected: "2d" | "3d"): Promi
 }
 
 /**
- * The labels on screen are actually drawn in this colour.
+ * The labels on screen are actually drawn in this color.
  *
  * READ OFF THE LABEL'S OWN CANVAS, which is the whole point: the eleven label stories differ from
  * one another only in how the words are lettered, and every one of those differences is invisible
  * to the style model's own agreement with itself. What is asked here is whether the pixels are
- * that colour.
+ * that color.
  * @param scene - What the story drew.
- * @param hex - The colour the story asks for, as `#rrggbb`.
- * @param what - What that colour is FOR, for the failure message: the text, its outline, its
+ * @param hex - The color the story asks for, as `#rrggbb`.
+ * @param what - What that color is FOR, for the failure message: the text, its outline, its
  *     background.
  */
 export async function assertLabelColour(scene: Drawn, hex: string, what: string): Promise<void> {
@@ -1786,7 +1813,7 @@ export async function assertLabelColour(scene: Drawn, hex: string, what: string)
 }
 
 /**
- * WCAG relative luminance of an sRGB colour given as 0..255 channels.
+ * WCAG relative luminance of an sRGB color given as 0..255 channels.
  * @param rgb - Red, green and blue, 0 to 255.
  * @returns The luminance, 0 (black) to 1 (white).
  */
@@ -1801,12 +1828,12 @@ function luminance(rgb: readonly number[]): number {
 /**
  * Every label on screen draws something that stands out against the canvas behind it.
  *
- * READ OFF THE LABEL'S OWN CANVAS AND THE SCENE'S CLEAR COLOUR. A label whose only colour is the
+ * READ OFF THE LABEL'S OWN CANVAS AND THE SCENE'S CLEAR COLOUR. A label whose only color is the
  * canvas's own -- white letters with no outline or panel on a light canvas -- has ink, so
- * `assertLabelsDrawn` passes it, and nobody can read it. Some drawn colour (the letters, their
+ * `assertLabelsDrawn` passes it, and nobody can read it. Some drawn color (the letters, their
  * outline or the panel behind them) must reach `minimumContrast` against the background.
  * @param scene - What the story drew.
- * @param minimumContrast - The WCAG contrast ratio one drawn colour must reach; 3 is WCAG's floor
+ * @param minimumContrast - The WCAG contrast ratio one drawn color must reach; 3 is WCAG's floor
  * for large text and graphics.
  */
 export async function assertLabelsReadable(scene: Drawn, minimumContrast = 3): Promise<void> {
@@ -1862,7 +1889,7 @@ export async function assertLabelInkAtLeast(scene: Drawn, atLeast: number): Prom
  * READ FROM THE SCENE'S CLEAR COLOUR, which is what is actually painted behind everything. A
  * story that sets a background the element never applied looks exactly like one that set none.
  * @param scene - What the story drew.
- * @param hex - The colour, as `#rrggbb`.
+ * @param hex - The color, as `#rrggbb`.
  */
 export async function assertBackgroundColour(scene: Drawn, hex: string): Promise<void> {
     const clear = scene.graph.scene.clearColor;
@@ -1881,7 +1908,7 @@ export async function assertBackgroundColour(scene: Drawn, hex: string): Promise
 }
 
 /**
- * Every node is drawn the same distance from the graph's centre.
+ * Every node is drawn the same distance from the graph's center.
  *
  * WHAT A CIRCULAR LAYOUT PROMISES, and the only thing about it that "every node has a position"
  * does not already say.
@@ -1943,7 +1970,8 @@ export async function assertNodeBands(
 }
 
 /**
- * A skybox is actually in the scene.
+ * A skybox is actually in the scene, and its image has arrived: a dome with no image draws as an
+ * empty sphere, so the dome alone does not show the skybox loaded.
  * @param scene - What the story drew.
  */
 export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
@@ -1954,6 +1982,8 @@ export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
         `${scene.story}: asks for a photo-dome skybox and the scene holds no dome mesh at all -- it holds ` +
             `[${[...new Set(scene.graph.scene.meshes.map((mesh) => mesh.name))].join(", ")}]`,
     );
+    // The image arrives on the network's time; wait on it with no deadline (the hang guard ends a load that never comes).
+    await untilFrames("the skybox image has arrived", () => skyboxReady(scene.graph.scene.meshes));
 }
 
 /**
@@ -1962,15 +1992,22 @@ export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
  *
  * Pointer events on the canvas rather than `selectNode`, because these stories exist to show that
  * a CLICK selects: a story that selected through the API passed with the canvas's pointer
- * listeners gone. `button: -1` on the move, as a real move carries no button (a hand-built one
- * defaults to the left button, which Babylon reads as a press).
+ * listeners gone. Under the test runner, the browser's own pointer (`realInput`); in Storybook's
+ * own UI, pointer events dispatched on the canvas, with `button: -1` on the move, as a real move
+ * carries no button (a hand-built one defaults to the left button, which Babylon reads as a press).
  * @param scene - What the story drew.
  * @param id - The node to click.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
  */
-export async function clickNode(scene: Drawn, id: string): Promise<void> {
+export async function clickNode(scene: Drawn, id: string, input?: RealInput): Promise<void> {
     const at = scene.element.nodeScreenPosition(id);
 
     await holds(at?.visible === true, `${scene.story}: node "${id}" is not on screen to be clicked`);
+
+    if (input !== undefined && at !== undefined) {
+        await input.click(scene.element, { x: at.x, y: at.y });
+        return;
+    }
 
     const { canvas } = scene.graph;
     const box = canvas.getBoundingClientRect();
@@ -1983,6 +2020,42 @@ export async function clickNode(scene: Drawn, id: string): Promise<void> {
 }
 
 /**
+ * Double-click a node the way a mouse does, at the spot the element says the node is drawn: the
+ * browser's own pointer under the test runner (`realInput`); in Storybook's own UI, two presses and
+ * releases dispatched on the canvas, then the `dblclick` the browser would add.
+ * @param element - The element.
+ * @param id - The node to double-click.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
+ */
+export async function doubleClickNode(element: Graphty, id: string, input?: RealInput): Promise<void> {
+    const at = element.nodeScreenPosition(id);
+    await holds(at?.visible === true, `node "${id}" is not on screen to be double-clicked`);
+    if (input !== undefined && at !== undefined) {
+        await input.doubleClick(element, { x: at.x, y: at.y });
+        return;
+    }
+
+    const { canvas } = element.graph;
+    const box = canvas.getBoundingClientRect();
+    const pointer = {
+        clientX: box.left + (at?.x ?? 0),
+        clientY: box.top + (at?.y ?? 0),
+        bubbles: true,
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+    };
+    canvas.dispatchEvent(new PointerEvent("pointermove", { ...pointer, button: -1, buttons: 0 }));
+    for (let press = 1; press <= 2; press++) {
+        canvas.dispatchEvent(new PointerEvent("pointerdown", { ...pointer, button: 0, buttons: 1, detail: press }));
+        canvas.dispatchEvent(new PointerEvent("pointerup", { ...pointer, button: 0, buttons: 0, detail: press }));
+        canvas.dispatchEvent(new MouseEvent("click", { ...pointer, button: 0, detail: press }));
+    }
+    // The browser's own word that the two clicks were one double-click, which the element expands on.
+    canvas.dispatchEvent(new MouseEvent("dblclick", { ...pointer, button: 0, detail: 2 }));
+}
+
+/**
  * Clicking a node puts the element's own highlight on screen.
  *
  * THE SCENE'S ANSWER TO "IS IT SELECTED", rather than the session's. The element draws a halo
@@ -1990,9 +2063,10 @@ export async function clickNode(scene: Drawn, id: string): Promise<void> {
  * compared with each other -- which is the whole subject of the four selection stories.
  * @param scene - What the story drew.
  * @param id - The node the story clicks.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
  */
-export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<void> {
-    await clickNode(scene, id);
+export async function assertSelectionDrawn(scene: Drawn, id: string, input?: RealInput): Promise<void> {
+    await clickNode(scene, id, input);
 
     // The halo is drawn by the render loop after the selection lands, so wait for the element to
     // say the frame on screen shows it.
@@ -2007,11 +2081,7 @@ export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<vo
 
     const haloed = scene.graph
         .getNodes()
-        .filter((node) => {
-            const { halo } = node as unknown as { halo?: { isDisposed: () => boolean } | null };
-
-            return halo !== undefined && halo !== null && !halo.isDisposed();
-        })
+        .filter((node) => node.drawnSelectionHalo)
         .map((node) => String(node.id));
 
     await holds(
@@ -2042,7 +2112,7 @@ export async function assertControlsPresent(
 }
 
 /**
- * The communities a run found sit in lumps: a node's distance from its community's centre, against the arrangement's
+ * The communities a run found sit in lumps: a node's distance from its community's center, against the arrangement's
  * radius, is at most `atMost`.
  * @param scene - What the story drew.
  * @param run - The run's id.

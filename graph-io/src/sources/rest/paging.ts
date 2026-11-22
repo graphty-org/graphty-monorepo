@@ -156,6 +156,34 @@ export function nextPosition(
     endpoint: URL,
     report: ImportReportBuilder,
 ): PagePosition {
+    const next = following(paging, position, page, endpoint, report);
+    if (next !== null && (next === position || next === page.url.href)) {
+        // a server that hands back the page it just served would be read forever
+        failOn(report, "E_SOURCE_RESPONSE", "the next page is the page just read", {
+            origin: originOf(endpoint),
+            expected: "advancing-cursor",
+            contentType: page.headers.get("content-type"),
+        });
+    }
+    return next;
+}
+
+/**
+ * Where the response says the next page is, unchecked.
+ * @param paging - the request's paging
+ * @param position - this page's position
+ * @param page - this page's response
+ * @param endpoint - the mapping's endpoint
+ * @param report - the load's report
+ * @returns the next position
+ */
+function following(
+    paging: RestPaging | undefined,
+    position: PagePosition,
+    page: PageResponse,
+    endpoint: URL,
+    report: ImportReportBuilder,
+): PagePosition {
     switch (paging?.style) {
         case "cursor": {
             const next = selectOne(page.body, paging.next);

@@ -95,6 +95,20 @@ export function usePopoutManager(): Pick<PopoutManagerContextValue, "closeAll" |
 }
 
 /**
+ * The pop-out the calling component sits inside, for content that closes its own panel -- an
+ * "Apply" or "Done" button, a list row that picks a value. Closing this way behaves like any other
+ * close: everything opened from the pop-out closes with it and focus returns to its trigger.
+ *
+ * Call it from inside `Popout.Panel`'s content; outside a `Popout` it throws.
+ * @returns `close`, which closes the pop-out, and `isOpen`. `close` is stable across renders.
+ */
+export function usePopout(): Pick<PopoutContextValue, "close" | "isOpen"> {
+    const { close, isOpen } = usePopoutContext();
+
+    return useMemo(() => ({ close, isOpen }), [close, isOpen]);
+}
+
+/**
  * Props for PopoutProvider.
  */
 interface PopoutProviderProps {

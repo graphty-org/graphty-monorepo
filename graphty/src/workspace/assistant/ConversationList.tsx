@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { CommandMenuItem } from "../frame/menus";
 import { RenameInput } from "../frame/RenameInput";
 import { GLYPHS } from "../glyphs";
+import { errorWords } from "../project/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import type { ChatRow } from "./chats";
 import { chatMenuName, WORDS } from "./words";
@@ -41,7 +42,7 @@ interface ChatListRowProps {
  * @param props.row - the chat
  * @param props.current - whether it is the open chat
  * @param props.onOpen - opens it
- * @param props.onRename - takes the new name, or null when the rename was cancelled, and how it ended
+ * @param props.onRename - takes the new name, or null when the rename was canceled, and how it ended
  * @param props.onDelete - deletes it, once confirmed
  * @returns the row
  */
@@ -223,21 +224,27 @@ export function ConversationList({ id, rows, openId, reload, onClose }: Conversa
             });
     };
     const remove = (row: ChatRow, index: number): void => {
-        const next = rows[index + 1] ?? rows[index - 1];
-        void element?.deleteAiConversation(row.id).then(() => {
-            if (openId === row.id) {
-                store.set({ assistantEnded: null });
-            }
-            reload();
-            if (next === undefined) {
-                store.set((state) => ({ composerCalls: state.composerCalls + 1 }));
-            } else {
-                setFocusTo(next.id);
-            }
-        });
+        const near: readonly (ChatRow | undefined)[] = rows;
+        const next = near[index + 1] ?? near[index - 1];
+        element
+            ?.deleteAiConversation(row.id)
+            .then(() => {
+                if (openId === row.id) {
+                    store.set({ assistantEnded: null });
+                }
+                reload();
+                if (next === undefined) {
+                    store.set((state) => ({ composerCalls: state.composerCalls + 1 }));
+                } else {
+                    setFocusTo(next.id);
+                }
+            })
+            .catch((error: unknown) => {
+                store.set({ notice: { message: errorWords(WORDS["assistant.list.not-deleted"], error), error: true } });
+            });
     };
     return (
-        <section // NOSONAR(S6847): only catches Esc bubbling from the list's own controls
+        <section // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- only catches Esc bubbling from the list's own controls
             ref={list}
             id={id}
             className="ws-assistant-log"
@@ -265,10 +272,20 @@ export function ConversationList({ id, rows, openId, reload, onClose }: Conversa
                                 onClose();
                                 return;
                             }
-                            void element?.openAiConversation(row.id).then(() => {
-                                store.set({ assistantEnded: null });
-                                onClose();
-                            });
+                            element
+                                ?.openAiConversation(row.id)
+                                .then(() => {
+                                    store.set({ assistantEnded: null });
+                                    onClose();
+                                })
+                                .catch((error: unknown) => {
+                                    store.set({
+                                        notice: {
+                                            message: errorWords(WORDS["assistant.list.not-opened"], error),
+                                            error: true,
+                                        },
+                                    });
+                                });
                         }}
                         onRename={(name, how) => {
                             rename(row, name, how);

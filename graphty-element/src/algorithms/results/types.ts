@@ -2,8 +2,8 @@
  * @file What an algorithm produces, and the context it produces it in.
  *
  * An algorithm used to write its answer through side effects, one deep path at a time, and
- * return nothing. Nothing could then be handed to a caller, cancelled, watched, or checked
- * against what the catalogue promised the algorithm would publish.
+ * return nothing. Nothing could then be handed to a caller, canceled, watched, or checked
+ * against what the catalog promised the algorithm would publish.
  *
  * So an algorithm now RETURNS what it computed. The return value names its result shape, the
  * fields it actually filled, the values per node, per edge and for the graph, and the caveats
@@ -19,7 +19,6 @@
 import type { EdgeId, FieldDescriptor, ResultShape } from "../../catalog/types";
 import type { ResultElementValues } from "../../session/results";
 import type { Caveats, RunDirection, RunProgressReport } from "../../session/runs";
-import { caveatSentence, partialSentence } from "../../session/runs/caveatFacts";
 import type { ScopedInput, ScopedInputOptions } from "../input/ScopedInput";
 
 // ---------------------------------------------------------------------------------------------
@@ -30,7 +29,7 @@ import type { ScopedInput, ScopedInputOptions } from "../input/ScopedInput";
  * One field a run actually published.
  *
  * This is deliberately NOT a {@link FieldDescriptor}: the plain and technical names a reader
- * sees belong to the catalogue, which states them once for every algorithm. A run knows which
+ * sees belong to the catalog, which states them once for every algorithm. A run knows which
  * of them it filled, in which half of the result and carrying what type -- and nothing more.
  */
 export interface ResultFieldSpec {
@@ -52,14 +51,14 @@ export interface ResultFieldSpec {
  * Everything one run of an algorithm produced.
  *
  * Returned rather than written through side effects, so a run is a value: it can be handed to a
- * caller, posted to a worker, checked against the catalogue, or thrown away when the run that
- * produced it was cancelled.
+ * caller, posted to a worker, checked against the catalog, or thrown away when the run that
+ * produced it was canceled.
  */
 export interface AlgorithmOutput {
     /** The result shape, which fixes the field names below. */
     readonly shape: ResultShape;
     /**
-     * The fields this run filled. Fewer than the catalogue declares whenever a parameter changed
+     * The fields this run filled. Fewer than the catalog declares whenever a parameter changed
      * what there was to publish.
      */
     readonly fields: readonly ResultFieldSpec[];
@@ -87,37 +86,27 @@ export interface AlgorithmOutput {
  * runs of the same algorithm routinely differ in: which engine ran, and whether an edge was
  * followed both ways.
  */
-interface CaveatsInit extends Partial<Omit<Caveats, "notes" | "partialReason">> {
+interface CaveatsInit extends Partial<Omit<Caveats, "notes">> {
     /** Which method computed the numbers, such as "dijkstra" or "stoer-wagner". */
     readonly method: string;
     /** How edge direction was treated. */
     readonly direction: RunDirection;
-    /** Sentences of the algorithm's own, published after the ones its `facts` are worded as. */
+    /** Sentences of the algorithm's own, in its own words. */
     readonly notes?: readonly string[];
-    /** Why the run stopped early, in a sentence of its own; worded from `partialCause` when absent. */
-    readonly partialReason?: string;
 }
 
 /**
  * Fill in the caveats every exact, double-precision run shares, and keep what the run said.
- *
- * `notes` comes out as the English of every fact, followed by any sentence the run wrote itself,
- * and `partialReason` as the English of `partialCause` when the run gave no sentence of its own.
  * @param init - What this run has to say.
  * @returns The complete caveats.
  */
 export function declaredCaveats(init: CaveatsInit): Caveats {
-    const facts = init.facts ?? [];
-    const reason =
-        init.partialReason ?? (init.partialCause === undefined ? undefined : partialSentence(init.partialCause));
-
     return {
         exact: true,
         precision: "f64",
         ...init,
-        facts,
-        notes: [...facts.map(caveatSentence), ...(init.notes ?? [])],
-        ...(reason === undefined ? {} : { partialReason: reason }),
+        facts: init.facts ?? [],
+        notes: init.notes ?? [],
     };
 }
 
@@ -156,7 +145,7 @@ export interface AlgorithmRunContext extends RunControls {
  * `publishResult`, which binds `input` to the algorithm it is publishing for.
  */
 export interface RunControls {
-    /** Aborted when the run is cancelled. Throw from it; never swallow it. */
+    /** Aborted when the run is canceled. Throw from it; never swallow it. */
     readonly signal: AbortSignal;
     /**
      * Say how far along the work is.
@@ -227,7 +216,7 @@ export function detachedRunContext(): AlgorithmRunContext {
  * Every per-element pass in every algorithm goes through this, so "report progress and yield"
  * is one decision made once rather than a loop each author writes their own way.
  * @param context - What the element gave the run.
- * @param phase - What to call this pass in a progress line.
+ * @param phase - The pass, as a kebab-case code (`"grouping-nodes"`) an application words; never a sentence.
  * @param items - The elements to walk.
  * @param step - What to do with one element.
  * @returns A promise that settles when every element has been walked.

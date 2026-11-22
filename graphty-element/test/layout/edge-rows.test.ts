@@ -10,13 +10,14 @@ import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 function node(id: string, index: number): Node {
-    return { id, index } as unknown as Node;
+    return fakeNode(id, { index });
 }
 
 function edge(src: Node, dst: Node): Edge {
-    return { id: `${src.id}-${dst.id}`, srcId: src.id, dstId: dst.id, srcNode: src, dstNode: dst } as unknown as Edge;
+    return fakeEdge(src, dst, { id: `${src.id}-${dst.id}` });
 }
 
 /**
@@ -103,5 +104,41 @@ describe("a force engine takes an edge with no Edge as an edge row", () => {
         simulation.removeEdgeRows(["r1"]);
         simulation.addEdgeRows([{ key: "r1", source: "a", target: "a2" }]);
         assert.strictEqual(simulation.ngraph.getLinksCount(), 1);
+    });
+    // An `Edge` built late (the paint loop needs one) takes the row's link over: the layout keeps its
+    // springs and stays settled, where dropping the row and adding the Edge unsettled it.
+    it("hands an Edge built late its row's ngraph link, leaving the layout settled", () => {
+        const a = node("a", 0);
+        const b = node("b", 1);
+        const simulation = new NGraphEngine({});
+        layoutEngineInternals.addNodes(simulation, [a, b]);
+        simulation.addEdgeRows([{ key: "r1", source: "a", target: "b" }]);
+        while (!simulation.isSettled) {
+            simulation.step();
+        }
+
+        const ab = edge(a, b);
+        assert.isTrue(simulation.adoptEdgeRow("r1", ab));
+        assert.isTrue(simulation.isSettled);
+        assert.strictEqual(simulation.ngraph.getLinksCount(), 1);
+        assert.deepStrictEqual([...simulation.edges], [ab]);
+        assert.isFalse(simulation.adoptEdgeRow("r1", ab), "the row has no link left to hand over");
+        simulation.removeEdge(ab);
+        assert.strictEqual(simulation.ngraph.getLinksCount(), 0);
+    });
+
+    it("hands an Edge built late its row's d3 link, without reheating", () => {
+        const a = node("a", 0);
+        const b = node("b", 1);
+        const simulation = new D3GraphEngine({});
+        layoutEngineInternals.addNodes(simulation, [a, b]);
+        simulation.addEdgeRows([{ key: "r1", source: "a", target: "b" }]);
+        simulation.step();
+
+        const ab = edge(a, b);
+        assert.isTrue(simulation.adoptEdgeRow("r1", ab));
+        assert.isFalse(simulation.graphNeedsRefresh);
+        assert.deepStrictEqual([...simulation.edges], [ab]);
+        assert.deepStrictEqual(layoutEngineInternals.edgeProblems(simulation, new Map([["a-b", ab]])), []);
     });
 });

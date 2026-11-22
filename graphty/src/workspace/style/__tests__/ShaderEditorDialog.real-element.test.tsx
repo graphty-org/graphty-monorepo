@@ -160,6 +160,20 @@ async function previewPixels(): Promise<{ src: string; pixels: number[] }> {
 }
 
 /**
+ * A list or field's input by its label, inside a container.
+ * @param container - where to look.
+ * @param name - its label.
+ * @returns the input.
+ */
+function inputLabelled(container: HTMLElement, name: RegExp): HTMLElement {
+    const [input] = within(container)
+        .getAllByLabelText(name)
+        .filter((each) => each.tagName === "INPUT");
+    assert.isDefined(input, `an input labelled ${String(name)}`);
+    return input;
+}
+
+/**
  * The open gear's Starts select: its input, not the listbox that shares the name.
  * @returns the input.
  */
@@ -337,7 +351,11 @@ describe("the code dialog on the real element", () => {
         await waitFor(() => {
             assert.deepEqual(usesOn(session, id), [{ shader: "uncertainty-aura" }]);
         });
-        assert.lengthOf(session.shaders.list(), 0, "no copy was added");
+        assert.deepEqual(
+            session.shaders.list().map((each) => each.id),
+            ["uncertainty-aura"],
+            "the project keeps its one copy of the preset; no second copy was added",
+        );
     });
 
     it("Delete from project on a project tile removes it, undoably", async () => {
@@ -780,6 +798,71 @@ vec4 shade(NodeInput n) { return n.color * gain; }
         await userEvent.click(await within(dialog).findByRole("button", { name: "param1 settings" }));
         await waitFor(async () => {
             assert.strictEqual(((await startsField()) as HTMLInputElement).value, "When hovered");
+        });
+    });
+
+    it("a row turned to Choice edits its choices, default and display name in its gear", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Add to node parameters" }));
+        const row = await within(dialog).findByRole("group", { name: "param1" });
+        await userEvent.click(inputLabelled(row, /^param1 type/));
+        await userEvent.click(await screen.findByRole("option", { name: "Choice" }));
+
+        await userEvent.click(await within(dialog).findByRole("button", { name: "param1 settings" }));
+        const first = await screen.findByLabelText<HTMLInputElement>(/^param1 choice 0/);
+        assert.strictEqual(first.value, "One", "a new Choice row starts with two choices");
+        await userEvent.fill(first, "Low");
+        await userEvent.click(screen.getByRole("button", { name: "Add a choice to param1" }));
+        await userEvent.click(screen.getByRole("button", { name: "Remove param1 choice 1" }));
+        await userEvent.fill(screen.getByLabelText<HTMLInputElement>(/^Display name/), "Level");
+        await userEvent.click(screen.getByRole("button", { name: "Close param1 settings" }));
+
+        await userEvent.click(inputLabelled(within(dialog).getByRole("group", { name: "param1" }), /^param1 default/));
+        await userEvent.click(await screen.findByRole("option", { name: "Choice 3" }));
+        await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
+        await waitFor(() => {
+            assert.deepInclude(splitShaderText(textOf(box)).draft?.params?.[1], {
+                name: "param1",
+                type: "enum",
+                values: [
+                    { value: "Low", label: "Low" },
+                    { value: "Choice 3", label: "Choice 3" },
+                ],
+                default: "Choice 3",
+                plainName: "Level",
+            });
+        });
+    });
+
+    it("a Number row's gear writes Step and Varies", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Add to node parameters" }));
+        await userEvent.click(await within(dialog).findByRole("button", { name: "param1 settings" }));
+        await userEvent.fill(await screen.findByLabelText<HTMLInputElement>(/^Step/), "0.5");
+        await userEvent.click(inputLabelled(document.body, /^Varies/));
+        await userEvent.click(await screen.findByRole("option", { name: "On" }));
+        await userEvent.click(screen.getByRole("button", { name: "Close param1 settings" }));
+        await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
+        await waitFor(() => {
+            assert.deepInclude(splitShaderText(textOf(box)).draft?.params?.[1], { step: 0.5, varies: true });
+        });
+    });
+
+    it("a row's minus takes the parameter out of the text", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Remove tint" }));
+        await waitFor(() => {
+            assert.isNull(within(dialog).queryByRole("group", { name: "tint" }));
+        });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
+        await waitFor(() => {
+            assert.isEmpty(splitShaderText(textOf(box)).draft?.params ?? []);
         });
     });
 

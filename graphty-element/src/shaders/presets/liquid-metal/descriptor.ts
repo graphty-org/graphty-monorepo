@@ -14,6 +14,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     target: "node",
     place: "paint",
     categories: Object.freeze(["Metal"]),
+    tags: Object.freeze(["metal", "shiny", "3D"]),
     params: Object.freeze([
         Object.freeze({ name: "speed", plainName: "Speed", type: "number", default: 0.3, min: 0, max: 2 }),
         Object.freeze({

@@ -1,7 +1,7 @@
 /**
- * @file Helpers on a real model: with a read-only `counter` (query) and a `stylist` (style), "find
- * the nodes with degree 3 or more, then color them red" is handed to at least one helper and ends
- * with exactly those nodes red and an answer in text.
+ * @file Helpers on a real model: with a read-only `counter` (query) and a `stylist` (style), "have
+ * the counter find the nodes with degree 3 or more, then have the stylist color them red" is handed
+ * to at least one helper and ends with exactly those nodes red and an answer in text.
  */
 
 import { afterEach, assert, describe, it } from "vitest";
@@ -50,14 +50,18 @@ describe.skipIf(skipIfNoApiKey())("helpers on a real model", () => {
             onEvent: (event) => events.push(event),
         });
 
-        const result = await harness.testPrompt("find the nodes with degree 3 or more, then color them red");
+        // The prompt names the helpers: handing work to one is the model's choice, so a request
+        // that leaves it open is sometimes done without one (#7186), and this case tests the hand-off.
+        const result = await harness.testPrompt(
+            "have the counter find the nodes with degree 3 or more, then have the stylist color them red",
+        );
 
         assert.strictEqual(result.code, "AI_COMPLETED", JSON.stringify(result.toolCalls));
         assert.isNotEmpty(result.llmText ?? "", "the model answers in text");
         assert.isAtLeast(
             events.filter((event) => event.type === "ai-agent-start").length,
             1,
-            "a helper was handed a task",
+            `a helper was handed a task; calls: ${JSON.stringify(result.toolCalls)}`,
         );
         assert.deepStrictEqual(redNodes(session, GRAPH.nodes), ["a", "b"]);
     });

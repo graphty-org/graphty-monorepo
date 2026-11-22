@@ -169,6 +169,49 @@ the line where it was, as superscripts do. Where runs of different sizes meet on
 (`node.labelRunAlign`): on their alphabetic baselines (the default), on their hanging baselines so
 their tops line up, or on their middles.
 
+## Long labels
+
+A long name drawn on one line covers its neighbors. `wrapWidth` breaks it onto more lines at the
+spaces between words, and `maxLines` keeps at most that many lines. The last line kept runs on with
+the rest of the text and is cut at the wrap width with an ellipsis, so it is as full as the lines above
+it ("this t..." rather than "this..."). Set `maxLinesEllipsis` to false (`node.labelMaxLinesEllipsis`)
+to drop the lines past `maxLines` as they are, with no ellipsis. `maxLines` also cuts a label that has
+more lines of its own, with no `wrapWidth`. Markup runs keep their style across the breaks.
+
+```typescript
+await element.session.styles.add({
+    name: "Short names",
+    target: "node",
+    selector: { match: "everything" },
+    set: {
+        "node.label": "Department of Health and Human Services",
+        "node.labelStyle": { wrapWidth: 4, maxLines: 2 },
+    },
+});
+```
+
+`wrapWidth` is in the scene's units, the same as a node's `size`.
+
+## A control for every label field
+
+`LABEL_STYLE_DESCRIPTORS` describes every field of a label style: its name, the kind of value it
+takes, its choices or bounds, and what is drawn while nothing sets it. A settings panel can draw a
+control for each field from it without listing any of them itself.
+
+```typescript
+import { LABEL_STYLE_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+
+for (const field of LABEL_STYLE_DESCRIPTORS) {
+    // field.field: "maxLines"; field.plainName: "Max Lines"
+    // field.accepts: "number"; field.min: 1; field.integer: true
+    // field.values: the choices of an "enum" field; field.default: the value drawn when unset
+    console.log(field.field, field.accepts, field.default);
+}
+```
+
+A label that stays the same size on screen at any distance is `sizeMode: "screen"`: its `sizePx`
+is then measured in CSS pixels.
+
 ## Text from several values
 
 A `template` binding builds a label from several values, one string per line. `{path}` reads a
@@ -198,6 +241,27 @@ Louvain numbers its groups by id, not from 1, so `rank` and `count` are what giv
 5". Every word is yours; the element adds none. A value is drawn as written: a name holding
 `<bold>` shows the tag, and only the template's own markup is read. Templates work on `node.label`,
 `edge.label` (where `count` and `rank` are taken across the edges) and `node.tooltip`.
+
+A `format` on the template writes every number a `{path}` reads the way `Intl.NumberFormat`
+would. Name on one line, PageRank below it with two decimals and thousands grouped:
+
+```typescript
+await element.session.styles.add({
+    name: "Name and rank",
+    target: "node",
+    selector: { match: "everything" },
+    encode: {
+        "node.label": {
+            template: ["{data.name}", "{results.pagerank.value}"],
+            format: { maximumFractionDigits: 2, useGrouping: true, locale: "en-US" },
+        },
+    },
+});
+```
+
+The lines are one label: they are drawn stacked, never overlapping, and decluttered together. Text,
+`count` and `rank` are written as before; `locale` chooses the decimal and grouping marks, the
+runtime's own when absent. The same `format` works on a `by` binding to a text channel.
 
 ## One node's label
 

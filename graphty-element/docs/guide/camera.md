@@ -4,25 +4,29 @@ Guide to camera control and animation.
 
 ## Overview
 
-The camera determines what part of the 3D scene is visible. Control it programmatically for automated tours, saved views, or responsive layouts.
+The camera determines what part of the 3D scene is visible. Control it programmatically, save views of it by name, and fly it through tours.
 
 ## Camera State
 
-The camera state includes position, target, and up vector:
+The camera state holds the drawing mode it was read in and the members that mode reads. In 3D:
 
 ```typescript
 const state = graph.getCameraState();
-// Returns:
+// Returns, in 3D:
 // {
+//   mode: "3d",
 //   position: { x: 0, y: 0, z: 100 },
 //   target: { x: 0, y: 0, z: 0 },
-//   up: { x: 0, y: 1, z: 0 }
+//   ...
 // }
+// and in 2D:
+// { mode: "2d", zoom: 1, pan: { x: 0, y: 0 }, rotation: 0 }
 ```
 
-- **position**: Where the camera is located
-- **target**: What the camera is looking at
-- **up**: Which direction is "up" for the camera
+- **mode**: The drawing mode the state belongs to (`"2d"` or `"3d"`)
+- **position**: Where the camera is located (3D)
+- **target**: What the camera is looking at (3D)
+- **zoom**, **pan**: How far in and where the camera is (2D)
 
 ## Setting Camera Position
 
@@ -80,8 +84,20 @@ await element.session.config.set({ framing: { extent: "centers", padding: 30 } }
 await element.session.config.set({ framing: undefined }); // back to framing every node whole
 ```
 
+`box` frames a fixed area instead of the nodes, given by its smallest and largest x and y in the
+units node positions are drawn in: the canvas shows that area whatever the nodes' extent. It frames
+stored positions, so it applies only while the `"fixed"` layout draws them; under any other layout
+the nodes are framed. A replacing load that does not set it from its file drops it.
+
+```typescript
+await element.session.config.set({
+    framing: { extent: "centers", padding: 0, box: { min: [0, -500], max: [500, 0] } },
+});
+```
+
 A file load can set it to how the file's own program frames it, with the file style option
-`framing: "file"`: a sigma.js (graphology) file is then framed as sigma.js draws it.
+`framing: "file"`: a sigma.js (graphology) file is then framed as sigma.js draws it, and a Pajek
+file shows the whole 0..1 square Pajek fits to its Draw window.
 
 ```typescript
 await element.session.data.import(source, { styles: "file", styleOptions: { framing: "file" } });
@@ -142,14 +158,14 @@ names a node the camera stays where it is:
 await graph.zoomToNodes(["alice", "bob"], { animate: true });
 ```
 
-By default each node counts as its centre, so a big node at the edge of the frame can be cut off,
-and one node is framed in a fixed-size box around its centre. Pass `extent: "drawn"` to measure each
-node by the box it is drawn in instead, so every framed node is whole on screen:
+By default each node counts as the box it is drawn in, so every framed node is whole on screen.
+Pass `extent: "centers"` to measure each node by its center alone, so a big node at the edge of the
+frame can be cut off, and one node is framed in a fixed-size box around its center:
 
 ```typescript
-await graph.zoomToNodes("hub", { extent: "drawn" });
-await graph.applyCameraView("isometric", { scope: "selection", extent: "drawn" });
-const state = graph.resolveCameraPreset("topView", { extent: "drawn" });
+await graph.zoomToNodes("hub", { extent: "centers" });
+await graph.applyCameraView("isometric", { scope: "selection", extent: "centers" });
+const state = graph.resolveCameraPreset("topView", { extent: "centers" });
 ```
 
 `extent` works the same for a camera view a third party registered: the box handed to its
@@ -185,59 +201,262 @@ const newState = {
 graph.setCameraState(newState, {
     animate: true,
     duration: 1000, // milliseconds
-    easing: "easeInOutQuad", // easing function
+    easing: "easeInOut", // "linear", "easeIn", "easeOut" or "easeInOut"
 });
 ```
 
-Available easing functions:
+## Saved views and tours
 
-- `linear`
-- `easeInQuad`, `easeOutQuad`, `easeInOutQuad`
-- `easeInCubic`, `easeOutCubic`, `easeInOutCubic`
-- `easeInExpo`, `easeOutExpo`, `easeInOutExpo`
+A **saved view** is a camera position kept under a name in the project, or a camera view it follows.
+A **tour** is a named list of stops, each naming a view or pausing, that the camera flies through and
+holds at. Both are saved in the project file and every change to them is one undo step; jumping to a
+view or playing a tour is not a change.
 
-## Camera Presets
+```ts
+import "@graphty/graphty-element";
+const g = document.querySelector("graphty-element")!;
+await g.waitForSettled();
+await g.session.views.save([{ name: "overview" }]); // the current camera
+await g.applyCameraView("topView", { animate: false }); // a built-in camera view id
+await g.session.views.save([{ name: "hub" }]);
+await g.session.views.save([{ name: "above", follows: "topView", key: "7" }]); // recomputed each time; key is yours to bind
+await g.session.tours.save([
+    {
+        name: "intro",
+        tour: {
+            stops: [
+                { view: "overview", hold: 2000 }, // no duration: jumps there
+                { pause: 1000 }, // wait where the camera is
+                { view: "hub", duration: 1500, hold: 3000 }, // a stop's duration is its flight
+            ],
+        },
+    },
+]);
+await g.playTour("intro", { restoreCamera: true }); // preview
+await g.captureAnimation({ tour: "intro", destination: { download: true } }); // 7.5 s, from the tour
+await g.captureScreenshot({ camera: { view: "hub" }, destination: { download: true } });
+```
 
-Save and restore camera positions:
+In a stop, `duration` is the flight to that stop and `hold` the time spent there, both in
+milliseconds; an unset one is 0. A pause, `{ pause }` in milliseconds, waits where the camera is.
+In `captureAnimation`'s options `duration` means something else: the whole video's length. A tour
+recording needs none, since its length is the tour's.
+
+`key: "7"` only stores the key: the element does not listen for it. Bind it yourself (see
+[Keys](#keys)).
+
+`playTour` and `captureAnimation` check the whole tour before anything moves and reject with a
+coded problem when it cannot be played, so this path needs no checks of its own.
+
+### Saved views
+
+`session.views` reads as a map from name to saved view, in project order. A saved view is
+`{ camera?, follows?, key? }`: a **fixed** view holds a `camera` state; a **following** view holds
+`follows`, a camera view id, and is recomputed for whatever is drawn each time it is applied.
+
+| Call                                              | What it does                                                                              |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `views.save([{ name, camera?, follows?, key? }])` | Keeps a view, at the end of the order; no `camera` and no `follows` keeps the current one |
+| `views.setKey(name, key)`                         | Gives a view a key, taking it from any other view that holds it; null clears it           |
+| `views.open(name, { animate })`                   | Brings a view back: what it keeps beside the camera (one undo step), then the camera      |
+| `views.rename(from, to)`                          | Renames a view in its place, and every tour stop naming it follows                        |
+| `views.move(name, index)`                         | Puts a view at a 0-based place in the order                                               |
+| `views.remove([name])`                            | Forgets views; tour stops naming them stay, and `planTour` reports them                   |
+| `applyCameraView(name, { animate, duration })`    | Jumps or flies to a camera view or a saved view                                           |
+| `viewProblem(name)`                               | `null` when the view can be applied now, else a coded fact saying why not                 |
+
+**One name, one view.** A name is a **camera view** first -- one the element ships (`fitToGraph`,
+`topView`, `bottomView`, `sideView`, `frontView`, `isometric`, listed by `session.catalog.cameras()`) or one an
+extension registered -- and a saved view only when no camera view has it. Saving a view under a
+camera view's name is refused with `E_PROTECTED`. If a camera view registered later takes a saved
+view's name, the saved view can no longer be reached by that name until it is renamed;
+`viewProblem(name, { saved: true })` judges the saved view itself and answers `E_PROTECTED`.
+
+**A Fit that never turns the camera.** Pass `params: { keepAngle: true }` to `fitToGraph` (with
+`scope: "selection"` for the selected nodes): it only zooms and pans, keeping the current angle
+and roll, so what is framed fills the canvas.
+
+**The drawing mode.** A camera view lists the drawing modes it works in. A saved state fits the
+mode it was saved in (`getCameraState()` writes `mode`); a state with no `mode` fits a mode when it
+holds at least one member that mode reads:
+
+| Mode | Members it reads                                                                          |
+| ---- | ----------------------------------------------------------------------------------------- |
+| 2D   | `zoom`, `pan`, `rotation`                                                                 |
+| 3D   | `position`, `target`, `alpha`, `beta`, `radius`, `pivotRotation`, `cameraDistance`, `fov` |
+
+A view or state that does not fit is refused with `E_UNSUPPORTED` `{ reason: "mode", name, modes,
+mode }` by `setCameraState`, `applyCameraView`, a screenshot's or recording's `camera`, and tours.
+While immersive (VR or AR) they refuse with `{ reason: "xr", mode }`, since the headset owns the
+camera. To disable a menu row before the reader picks it, ask `viewProblem`:
 
 ```typescript
-// Save current view
-graph.saveCameraPreset("overview");
+const problem = element.viewProblem("Port nodes");
+row.disabled = problem !== null; // problem.code and problem.params, worded by your application
+```
 
-// Navigate to different part of graph
-graph.setCameraPosition({ x: 200, y: 0, z: 50 });
+**Listing saved views.** A list of the saved views asks `viewProblem(name, { saved: true })` for
+each row, so a view a camera view now shadows shows as `E_PROTECTED` instead of as the camera view
+it can no longer reach.
 
-// Restore saved view
-graph.loadCameraPreset("overview");
+**From a name to a pose.** `resolveCameraPreset(name)` answers where a camera view or a saved view
+(a following one recomputed now) would put the camera, without moving it.
 
-// Restore with animation
-graph.loadCameraPreset("overview", {
-    animate: true,
-    duration: 1000,
+#### Views that keep more than the camera
+
+A view saved with `include` also keeps parts of the project, read at the save, and `views.open`
+brings them back as one undo step before it moves the camera:
+
+```ts
+import "@graphty/graphty-element";
+const g = document.querySelector("graphty-element")!;
+await g.waitForSettled();
+
+// Filter to the well-connected nodes and hide one, then keep it all as "Hubs".
+await g.session.visibility.setSteps([{ id: "hubs", on: true, rule: { kind: "degree", min: 3 } }]);
+await g.session.hidden.add(["n7"]);
+await g.session.views.save([{ name: "Hubs", include: ["filters", "layers", "hidden", "positions", "legend"] }]);
+
+// ...the reader changes things...
+await g.session.views.open("Hubs", { animate: true }); // all of it back; undo takes it out
+await g.session.views.rename("Hubs", "Hub nodes"); // one undo step
+```
+
+| Part        | What it keeps                                                       |
+| ----------- | ------------------------------------------------------------------- |
+| `filters`   | The filter steps and conditions (`session.visibility.conditions`)   |
+| `layers`    | The style layers (`session.styles.toDocument()`)                    |
+| `hidden`    | The nodes hidden from the drawing (`session.hidden`)                |
+| `positions` | Where every node is (`session.positions.snapshot()`)                |
+| `legend`    | Whether the element's legend is shown; not an undo step when opened |
+
+With no `include` a view keeps only the camera, as before. Each part can also be given as a value
+(`{ name, camera, hidden: ["n7"] }`). A node the graph no longer holds is skipped when positions
+come back. A part is a field of the saved view (`session.views.get(name)?.hidden`), and the project
+file saves it. A session that draws nothing (a `createGraphSession()` in Node) brings back every part
+but the camera, and keeps no `legend`. An unknown part is refused with `E_OPTION_RANGE`
+`{ option: "include", value }`.
+
+#### Keys
+
+A saved view's `key` is an opaque string the element stores, keeps unique among the saved views,
+and saves with the project. The element never listens for it: bind it in your page.
+
+```typescript
+document.addEventListener("keydown", (event) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("input, textarea, select, [contenteditable]") || event.ctrlKey || event.metaKey) {
+        return; // a key typed in a field is the field's
+    }
+    const found = [...element.session.views].find(([, view]) => view.key === event.key);
+    if (found !== undefined) {
+        void element.applyCameraView(found[0], { animate: true });
+    }
 });
 ```
 
-### Multiple Presets
+#### Starting cameras
+
+`views.setStartingCameras(list)` writes saved views into every project that never had them, once
+per project: a list of `{ name, follows, key? }`. The list is a session option and is never saved;
+each project records that it got its starting cameras in `config.startingCamerasWritten`, so a
+reader who renames or deletes one does not get it back. A name already saved is skipped, and a key
+another view holds is dropped. Afterwards they are ordinary saved views.
 
 ```typescript
-// Save multiple presets
-graph.saveCameraPreset("top");
-graph.setCameraPosition({ x: 0, y: 100, z: 0 });
-graph.setCameraTarget({ x: 0, y: 0, z: 0 });
+await element.session.views.setStartingCameras([
+    { name: "Top", follows: "topView", key: "1" },
+    { name: "Side", follows: "sideView", key: "2" },
+]);
+```
 
-graph.saveCameraPreset("side");
-graph.setCameraPosition({ x: 100, y: 0, z: 0 });
-graph.setCameraTarget({ x: 0, y: 0, z: 0 });
+### Tours
 
-// Create a tour
-const presets = ["overview", "top", "side"];
-let current = 0;
+`session.tours` reads as a map from name to tour, in project order, with `save`, `rename`, `move`
+and `remove` like the views. A tour is `{ stops, easing? }`; `easing` is `"linear"`, `"easeIn"`,
+`"easeOut"` or `"easeInOut"` (the default). An empty tour, and a stop naming a view nothing is
+saved under, can be saved, so a draft can exist and a rename never fails.
 
-function nextView() {
-    current = (current + 1) % presets.length;
-    graph.loadCameraPreset(presets[current], { animate: true });
+**Pauses.** A stop is either `{ view, duration?, hold? }` or `{ pause }`: a pause waits where the
+camera is, for that many milliseconds (finite and at least 0, else `E_OPTION_RANGE`
+`{ option: "pause", stop }`). It plans with no flight and a hold of the pause, counts toward
+`totalMs`, and a recording shows it as a hold. A tour of pauses alone plays. Code that reads
+`stop.view` narrows first: `"view" in stop`.
+
+`playTour(tour, options)` takes a saved tour's name, a tour, or stops given inline. It resolves,
+however the tour ended, with `{ reason }`:
+
+| `reason`         | What ended the tour                                                                                   |
+| ---------------- | ----------------------------------------------------------------------------------------------------- |
+| `"finished"`     | The last hold ended                                                                                   |
+| `"cancelled"`    | `options.signal` aborted, or `cancelCameraAnimation()`                                                |
+| `"interrupted"`  | The reader dragged, pinched, scrolled, pressed a camera key or clicked the canvas                     |
+| `"replaced"`     | Another tour, a recording, `setCameraState`, `applyCameraView` or a screenshot with a `camera` option |
+| `"mode-changed"` | The drawing mode switched between 2D, 3D and immersive                                                |
+
+`restoreCamera: true` puts the camera back where it was, only when the tour finishes. After an
+interruption the camera stays where the reader left it. Auto-rotate and following the selection
+wait while a tour plays. `tour-progress` (`{ tour, stop, stops, view, phase }`, `phase` one of
+`"flight"`, `"hold"` or `"pause"`, `view` absent for a stop given as a camera state and for a pause)
+fires on each stop and phase, and `tour-ended` (`{ tour, reason }`) once at the end.
+
+**The advanced path.** An editor that shows a tour's length and its broken stops before playing
+asks `planTour`, which checks and times a tour without moving anything, and plans again on
+`views-changed`, which fires whenever anything a plan reads may have changed (views, their order,
+tours, the 2D/3D switch, an XR session, a registered camera view):
+
+```typescript
+const show = (): void => {
+    const plan = element.planTour("intro");
+    length.textContent = `${plan.totalMs / 1000} s`; // 7.5 s for the example above
+    play.disabled = !plan.playable;
+    plan.stops.forEach((stop, index) => markBroken(index, stop.problem)); // null, or a coded fact
+};
+element.addEventListener("views-changed", show);
+```
+
+**Reduced motion.** When motion is reduced (`reducedMotion`, see
+[Reduced Motion](./reduced-motion.md)), each flight becomes a cut at its start, held for the
+flight's time, so a tour lasts as long for every reader. `isMotionReduced()` answers whether it is
+reduced now, and `reduced-motion-changed` fires when that changes.
+
+### How each call ends
+
+| Call                                | When canceled                                     | The camera afterwards                                                                                |
+| ----------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `playTour`                          | Resolves `{ reason: "cancelled" }`                | Stays where the tour left it; with `restoreCamera: true` (default false) put back when it finishes   |
+| `captureAnimation` with a `tour`    | Rejects with a `GraphtyError`, code `E_CANCELED`  | Always put back, except after the reader's own move, an outside camera move or a drawing mode switch |
+| `captureScreenshot` with a `camera` | Rejects with the signal's reason, an `AbortError` | Always put back                                                                                      |
+
+### When a name is not found
+
+| What is missing | Code               | `details`                                       |
+| --------------- | ------------------ | ----------------------------------------------- |
+| A view          | `E_UNKNOWN_CAMERA` | `name`, `available`, and `stop` (a tour's stop) |
+| A tour          | `E_BAD_COMMAND`    | `missing`, `available`                          |
+
+```typescript
+import { isGraphtyError } from "@graphty/graphty-element";
+
+try {
+    await element.playTour("intro");
+} catch (error) {
+    if (isGraphtyError(error) && error.code === "E_UNKNOWN_CAMERA") {
+        console.log("stop", error.details.stop, "names a view that is gone:", error.details.name);
+    } else if (isGraphtyError(error) && error.code === "E_BAD_COMMAND" && "missing" in error.details) {
+        console.log("no tour is saved as", error.details.missing);
+    } else {
+        throw error;
+    }
 }
 ```
+
+### Older calls
+
+`saveCameraPreset`, `loadCameraPreset`, `removeCameraPreset`, `getCameraPresets`,
+`exportCameraPresets` and `importCameraPresets` still work and are deprecated: use
+`session.views` and `applyCameraView`. In option objects, `camera: { preset }` is the older
+spelling of `camera: { view }`.
 
 ## 2D vs 3D Camera
 
@@ -258,8 +477,9 @@ Simplified camera for 2D layouts:
 ```
 
 ```typescript
-// 2D camera only has x, y position
-graph.setCameraPosition({ x: 0, y: 0, z: 100 });
+// 2D camera reads zoom, pan and rotation; position and target are refused (E_UNSUPPORTED)
+graph.setCameraPan({ x: 0, y: 0 });
+graph.setCameraZoom(1);
 ```
 
 In 2D mode:
@@ -312,6 +532,88 @@ graph.on("camera-state-changed", ({ state }) => {
     console.log("Camera moved:", state);
 });
 ```
+
+`camera-state-changed` fires for every move, the element's own included. To hear the reader's own
+camera gestures once each, listen on the session for `camera:gesture-end`:
+
+```typescript
+element.session.on("camera:gesture-end", ({ kind }) => {
+    console.log("the reader finished a camera gesture:", kind); // "orbit" | "pan" | "zoom"
+});
+```
+
+It fires once per gesture, never per frame, and the input decides when a gesture ends, never a
+timer:
+
+- A drag or a pinch ends at the pointer up that ends it. A click that moved nothing is no gesture.
+- A run of wheel events ends at the first frame with no new wheel event since the frame before.
+  Wheel events that arrive together, before a frame runs, are always one gesture.
+- A camera key ends when the last camera key held is released and the camera has come to rest
+  (in 2D, once its inertia has damped away). A key pressed before then continues the gesture.
+
+`kind` is `"orbit"` for a turn (a 3D drag, the arrow keys in 3D, a roll), `"pan"` for a sideways
+move and `"zoom"` for the wheel, a pinch or the zoom keys. Moves the element makes itself (a fit,
+a glide, `camera.autoRotate`) and calls such as `setCameraState` publish nothing. More kinds may
+be added. The type is `CameraGestureKind`, and `CAMERA_GESTURE_KINDS` lists every kind this
+version reports; both are exported from `@graphty/graphty-element/session`.
+
+## Minimap
+
+Turn on the `minimap` attribute and the element draws a minimap in its bottom-right corner: every
+node seen from where the camera looks, and a rectangle for what the view shows. Click it to center
+the view there, drag across it to scrub, or focus it and press the arrow keys to step the view.
+None of this is an undo step. Above 5,000 nodes it draws a density heatmap instead of points.
+
+```html
+<graphty-element minimap minimap-label="Overview"></graphty-element>
+<style>
+    graphty-element::part(minimap) {
+        left: 12px;
+        right: auto;
+        width: 200px;
+        height: 120px;
+        color: #0a6; /* the points and the view rectangle */
+        background: #fff;
+    }
+</style>
+```
+
+The minimap is a canvas exposed as `::part(minimap)`: its size, place, border and background are
+yours to set, and its `color` is what it draws with. `minimap-label` (property `minimapLabel`) is
+the name a screen reader announces, `"minimap"` unless you set one.
+
+### Drawing your own minimap
+
+To draw a minimap yourself, read the data the built-in one draws from. `element.getOverview()`
+returns every node seen along the current view, laid flat in a square frame where x and y run from
+0 to 1 (y down), and `viewport`, the rectangle of that frame the camera shows. Redraw on
+`overview-changed`, which fires at most once per frame when the camera or a node moves.
+`element.centerOnOverview({ x, y })` moves the camera, keeping its zoom and direction, so the view
+is centered on a frame point: call it on click to center, and on each pointer move to scrub.
+
+```ts
+const element = document.querySelector("graphty-element")!;
+const canvas = document.querySelector<HTMLCanvasElement>("#minimap")!; // 150 x 150
+const ctx = canvas.getContext("2d")!;
+
+element.addEventListener("overview-changed", () => {
+    const { points, viewport } = element.getOverview();
+    ctx.clearRect(0, 0, 150, 150);
+    for (let i = 0; i < points.length; i += 2) ctx.fillRect(points[i] * 150, points[i + 1] * 150, 2, 2);
+    ctx.strokeRect(viewport.x * 150, viewport.y * 150, viewport.width * 150, viewport.height * 150);
+});
+canvas.addEventListener("pointerdown", (e) => {
+    void element.centerOnOverview({ x: e.offsetX / 150, y: e.offsetY / 150 });
+});
+```
+
+Above 5,000 nodes `kind` is `"density"`: `points` is empty and `density.counts` holds how many
+nodes fall in each cell of a `density.size` by `density.size` grid (64 by default), row by row from
+the top, so the result stays small however big the graph is. Choose the limit and the grid with
+`getOverview({ maxPoints, gridSize })`. In 3D the frame turns with the camera, since it shows the
+graph as seen from where the camera looks. The viewport can reach past 0 to 1 when the view shows
+more than the graph. Reading the overview costs one pass over the nodes after a node or the view
+direction moved, and nothing more while only the viewport moved.
 
 ## Focus on Node
 

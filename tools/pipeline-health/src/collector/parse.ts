@@ -266,12 +266,12 @@ export interface CheckRunNote {
 export type CancelClass = NonNullable<RunItem["cancelClass"]>;
 
 /**
- * Why a cancelled run was cancelled, from its check runs' annotations.
+ * Why a canceled run was canceled, from its check runs' annotations.
  * @param checkRuns - the run's check runs with their annotations
  * @returns "superseded", "by-hand" or "red"
  */
 export function classifyCancel(checkRuns: CheckRunNote[]): CancelClass {
-    // No job was ever created: the run was cancelled while it waited, because a newer push or dispatch replaced it
+    // No job was ever created: the run was canceled while it waited, because a newer push or dispatch replaced it
     // in its concurrency group (ci.yml since #3855/#3940). It never ran, so it says nothing about the commit.
     if (!checkRuns.length) {
         return "superseded";
@@ -361,6 +361,18 @@ export interface RunnerUse {
     queued: number;
     /** Linux and Windows jobs waiting for a runner (status "queued") over 2 minutes, and runs queued with no jobs. */
     queuedOver2: number;
+    /**
+     * Linux and Windows jobs "queued" over 2 minutes that wait on their own workflow, not on GitHub: a job created
+     * later already holds a runner, so a runner was free. A matrix job held back by its `max-parallel` reads "queued".
+     */
+    heldByRun: number;
+    /**
+     * Runs queued with no jobs while a Linux or Windows job created over 2 minutes after them already holds a runner:
+     * runners were free, so GitHub has dropped them (CodeQL run 43448526218 sat queued 2 days, issue #8316). They
+     * count in neither `queuedOver2` nor `longestQueuedMs`.
+     */
+    stuck: number;
+    /** The age of the oldest Linux or Windows job, or run with no jobs, that is "queued" and really waits for a runner. */
     longestQueuedMs: number;
 }
 
@@ -383,17 +395,27 @@ export function waitsForRunner(j: GhJob, nowMs: number): boolean {
  * @param j - the job
  * @param p - the job's pool
  * @param nowMs - the current epoch ms
+ * @param newestRunning - the creation epoch ms of the newest Linux or Windows job that holds a runner
  */
-function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: number): void {
+function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: number, newestRunning: number): void {
     if (p === "other") {
         return;
     } // machine.dev and self-hosted pools are outside GitHub's limit
-    const age = nowMs - Date.parse(j.created_at);
     use.queued++;
+    if (j.status !== "queued" || p !== "linux_windows") {
+        return;
+    } // waiting, pending and macOS jobs wait on something other than GitHub's runners
+    const created = Date.parse(j.created_at);
+    if (created < newestRunning - 2 * MIN) {
+        if (waitsForRunner(j, nowMs)) {
+            use.heldByRun++;
+        }
+        return;
+    }
     if (waitsForRunner(j, nowMs)) {
         use.queuedOver2++;
     }
-    use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
+    use.longestQueuedMs = Math.max(use.longestQueuedMs, nowMs - created);
 }
 
 /**
@@ -408,8 +430,18 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
         running: { linux_windows: 0, macos: 0, other: 0 },
         queued: 0,
         queuedOver2: 0,
+        heldByRun: 0,
+        stuck: 0,
         longestQueuedMs: 0,
     };
+    // ponytail: assumes GitHub hands Linux runners out roughly first come, first served; a job created over 2 minutes
+    // after a queued one that already runs means runners were free. Exact per-matrix max-parallel needs the workflow files.
+    const newestRunning = Math.max(
+        0,
+        ...jobs
+            .filter((j) => j.status === "in_progress" && pool(j.labels) === "linux_windows")
+            .map((j) => Date.parse(j.created_at)),
+    );
     for (const j of jobs) {
         const p = pool(j.labels);
         if (j.status === "in_progress") {
@@ -418,14 +450,22 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
                 use.running.linux_windows++;
             } // a macOS job counts against the 60 too
         } else if (j.status === "queued" || j.status === "waiting" || j.status === "pending") {
-            countWaiting(use, j, p, nowMs);
+            countWaiting(use, j, p, nowMs, newestRunning);
         }
     }
     for (const r of runsWithoutJobs) {
-        const age = nowMs - Date.parse(r.created_at);
+        if (r.status !== "queued") {
+            continue;
+        }
+        const created = Date.parse(r.created_at);
+        if (created < newestRunning - 2 * MIN) {
+            use.stuck++;
+            continue;
+        }
+        const age = nowMs - created;
         use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
         // In an Actions outage runs sit queued before GitHub creates their jobs: each counts as one job waiting.
-        if (age > 2 * MIN && r.status === "queued") {
+        if (age > 2 * MIN) {
             use.queuedOver2++;
         }
     }
@@ -433,8 +473,10 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
 }
 
 /**
- * An unfinished pull_request run of the home repository whose pull request is no longer open (merged or closed):
- * GitHub can leave it queued for hours (run 40441556963, "Lint PR Title" queued 21 h after #3940 merged). It holds no
+ * An unfinished pull request run (any `pull_request*` event: pull_request, pull_request_target,
+ * pull_request_review, ...) of the home repository whose pull request is no longer open (merged or closed): GitHub can
+ * leave it queued for hours (run 40441556963, "Lint PR Title" queued 21 h after #3940 merged; #6729's six runs of
+ * three such events queued a day after it merged, issue #7358). It holds no
  * runner and nobody waits on it, so runner use leaves it out. GitHub empties a merged pull request's runs'
  * pull_requests, so a run is matched to an open pull request by number or head branch. `open` must be every open pull
  * request: with a truncated list nothing is called a ghost.
@@ -444,7 +486,7 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
  * @returns true when the run is a ghost
  */
 export function isGhostRun(run: GhRun, open: GqlPr[], complete: boolean): boolean {
-    if (!complete || run.event !== "pull_request" || run.status === "completed") {
+    if (!complete || !run.event.startsWith("pull_request") || run.status === "completed") {
         return false;
     }
     const listed = new Set((run.pull_requests ?? []).map((p) => p.number));
@@ -512,6 +554,8 @@ export interface GqlCheck {
 }
 
 export interface GqlPr {
+    /** GraphQL node id (only on the open list, to ask for its checks). */
+    id?: string;
     number: number;
     title: string;
     state: string;
@@ -525,6 +569,8 @@ export interface GqlPr {
     mergedAt: string | null;
     closedAt: string | null;
     autoMergeRequest: { enabledAt: string } | null;
+    /** MERGEABLE, CONFLICTING or UNKNOWN (only on the open list). */
+    mergeable?: string;
     /** Null for a deleted account. */
     author?: { login: string } | null;
     labels: { nodes: { name: string }[] };
@@ -748,7 +794,10 @@ export function prStages(runs: PrRun[], mergedAt: number): PrStages | undefined 
 export interface PrStocks {
     open: number;
     oldestOpenMs: number;
-    /** Armed, green and still unmerged 2 h after arming. */
+    /**
+     * Armed, green, not in conflict with its base and still unmerged 2 h after arming. A conflicting one needs its
+     * base merged in, its own state: automerge_armed_long counts it once armed 24 h.
+     */
     autoMergeGreenStuck: number;
     /** Armed 24 h or more, green or not. */
     autoMergeArmedLong: number;
@@ -776,7 +825,7 @@ function screenshotWaitMs(p: GqlPr, nowMs: number): number {
 
 /**
  * The "now" members of 4.2 and "Red on the same check" of 4.1, from the open pull requests.
- * ponytail: reads the first 50 open pull requests; past 50 the counts stop growing, which is already red.
+ * ponytail: reads at most OPEN_CAP (300) open pull requests; past that the counts stop growing, already red.
  * @param open - the open pull requests
  * @param nowMs - the current epoch ms
  * @param masterFailing - the checks (families folded) master's newest build failed
@@ -806,7 +855,7 @@ export function prStocks(open: GqlPr[], nowMs: number, masterFailing?: ReadonlyS
         }
         const rollup = p.commits?.nodes[0]?.commit.statusCheckRollup;
         const armed = p.autoMergeRequest ? nowMs - Date.parse(p.autoMergeRequest.enabledAt) : -1;
-        if (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS") {
+        if (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS" && p.mergeable !== "CONFLICTING") {
             s.autoMergeGreenStuck++;
             s.prs.greenStuck.push(p.number);
         }
@@ -1022,8 +1071,8 @@ export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
         lanes.publish = "not in this mode";
         // A failed job inside a lane can be non-gating (continue-on-error: CI's Performance Benchmarks, Story tests
         // parity), which the jobs API does not say. "Red early (<lane>)" runs only when the lane's result is failure,
-        // so a lane whose Red early job skipped passed. Not in a cancelled run (!cancelled() skips every Red early
-        // job) and not over a cancelled or timed-out job, which continue-on-error does not cover.
+        // so a lane whose Red early job skipped passed. Not in a canceled run (!cancelled() skips every Red early
+        // job) and not over a canceled or timed-out job, which continue-on-error does not cover.
         for (const [lane, name] of Object.entries(names) as [Lane, string][]) {
             const early = jobs.find((j) => j.name === `Red early (${name})`);
             const onlyFailures = jobsOf(jobs, name).every(
@@ -1083,7 +1132,7 @@ export function coverageAsOf(builtAt: number, attempts: { at: number; created?: 
 // The release channels (#4460): canary's deploys and production's promotions. Nightly's are release attempts.
 
 /**
- * A finished run's outcome as a channel attempt: success is ok, a cancel is cancelled, anything else failed.
+ * A finished run's outcome as a channel attempt: success is ok, a cancel is canceled, anything else failed.
  * @param conclusion - the run's conclusion
  * @returns the attempt's outcome
  */
@@ -1161,9 +1210,9 @@ export function failedStreak(runs: GhRun[]): GhRun[] {
 }
 
 /**
- * The cancelled runs a newer run of the same workflow took the place of: a newer run was created before the cancel
- * (a concurrency group replacing a waiting run, or a stuck run cancelled by hand after its successor started).
- * Neutral: neither failed nor a skipped train. A run cancelled with no successor yet still counts as it did.
+ * The canceled runs a newer run of the same workflow took the place of: a newer run was created before the cancel
+ * (a concurrency group replacing a waiting run, or a stuck run canceled by hand after its successor started).
+ * Neutral: neither failed nor a skipped train. A run canceled with no successor yet still counts as it did.
  * @param runs - one workflow's runs
  * @returns the ids of the replaced runs
  */
@@ -1456,7 +1505,7 @@ export function releaseTags(
 export const NOT_ON_NPM = new Set(["graphty", "githerd"]);
 
 /** Projects published to npm without the @graphty scope (test/collector/parse.test.ts checks the package.json names). */
-export const UNSCOPED_ON_NPM = new Set(["babylonjs-map"]);
+export const UNSCOPED_ON_NPM = new Set(["babylonjs-map", "babylonjs-models"]);
 
 export const npmName = (project: string): string =>
     project.startsWith("@") || UNSCOPED_ON_NPM.has(project) ? project : `@graphty/${project}`;

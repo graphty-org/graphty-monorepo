@@ -114,7 +114,7 @@ describe("PipelineCache", () => {
         requireGpu(t);
         const ctx = await acquireNullBackend();
         const cache = new PipelineCache(ctx.device, ctx.caps);
-        // body line 3 is wrong: a u32 initialised from an abstract float
+        // body line 3 is wrong: a u32 initialized from an abstract float
         const broken: WgslModuleSpec = {
             ...ADD,
             id: "test-broken",

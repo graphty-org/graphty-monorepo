@@ -1,12 +1,14 @@
+import "./notes.css";
+
 import { ControlSection } from "@graphty/compact-mantine";
 import type { GraphSession, Note, NoteTarget, NoteTargetInput } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, Stack, Text, Textarea, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Group, Pill, Select, Stack, TagsInput, Text, Textarea, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { aboutWords, noteTimeWords, targetStateWords, targetWords } from "./words";
+import { aboutWords, type NoteSort, noteTimeWords, sortNotes, targetStateWords, targetWords } from "./words";
 
 /**
  * Re-renders whenever the notes change, and when the filter or the data change what a target
@@ -105,7 +107,7 @@ function Chips({ session, targets, states, onOpen, tabbable = true, note }: Chip
                             </Text>
                         ) : (
                             <Button
-                                size="compact-xs"
+                                size="xs"
                                 variant="light"
                                 tabIndex={tabbable ? 0 : -1}
                                 aria-label={note === undefined ? undefined : `${words}, in note: ${noteName(note)}`}
@@ -142,6 +144,7 @@ function Editor({
 }: Readonly<{ onSaved: (id: string) => void; onClosed: () => void }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const draft = useWorkspaceState((state) => state.noteDraft);
+    const warningClosed = useWorkspaceState((state) => state.authorWarningClosed);
     const [error, setError] = useState<string | null>(null);
     // Add note while a note is open (its text kept, or new targets) puts the cursor back in it:
     // notes.add writes a fresh `targets`, typing does not.
@@ -164,7 +167,7 @@ function Editor({
         }
         let id: string;
         try {
-            id = session.notes.add({ text: draft.text, targets: draft.targets });
+            id = session.notes.add({ text: draft.text, targets: draft.targets, tags: draft.tags ?? [] });
         } catch {
             setError("This note could not be saved");
             return;
@@ -187,6 +190,35 @@ function Editor({
                 }
             }}
         >
+            {session.config.author === undefined && !warningClosed && (
+                <Group gap={4} wrap="nowrap">
+                    <GLYPHS.warning size={14} aria-hidden />
+                    <Text size="xs" style={{ flex: 1 }}>
+                        No author name
+                    </Text>
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        onClick={() => {
+                            store.set({ dialog: "settings:general" });
+                        }}
+                    >
+                        Set name
+                    </Button>
+                    <Tooltip label="Dismiss">
+                        <ActionIcon
+                            variant="subtle"
+                            size="sm"
+                            aria-label="Dismiss"
+                            onClick={() => {
+                                store.set({ authorWarningClosed: true });
+                            }}
+                        >
+                            <GLYPHS.close size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                </Group>
+            )}
             <Group gap={4}>
                 <Text size="xs" c="dimmed">
                     About
@@ -212,6 +244,16 @@ function Editor({
                     }
                 }}
             />
+            <TagsInput
+                label="Tags"
+                size="xs"
+                data={session.notes.tags()}
+                value={[...(draft.tags ?? [])]}
+                clearable
+                onChange={(tags) => {
+                    store.set({ noteDraft: { ...draft, tags } });
+                }}
+            />
             <Group gap={6} justify="flex-end">
                 <Button size="compact-sm" variant="subtle" onClick={close}>
                     Cancel
@@ -225,58 +267,299 @@ function Editor({
 }
 
 /**
- * The Notes place (tier2-design.md section 3): the editor when a note is being written, then the
- * notes, newest first. The list is one Tab stop; Up and Down move between notes, Delete removes
- * the focused one, and focus then goes to the next note, or to "+" when none is left. A saved
- * note takes focus itself; Cancel puts focus on "+".
- * @returns The Notes place
+ * A list of notes, each its text, its target chips, when it was written and Delete. The list is
+ * one Tab stop; Up and Down move between notes, Delete removes the focused one, and focus then
+ * goes to the next note, or to `onEmptied` when none is left. The Notes place lists every note;
+ * the inspector's Notes tab lists the notes about what it shows.
+ * @param props - Component props
+ * @param props.notes - The notes, in the order shown
+ * @param props.pending - The note to focus once the list has drawn it; a note just saved sets it
+ * @param props.onEmptied - Called when Delete removes the last note, to put focus somewhere
+ * @returns The list
  */
-export function NotesPlace(): React.JSX.Element {
+export function NoteList({
+    notes,
+    pending: given,
+    onEmptied,
+}: Readonly<{
+    notes: readonly Note[];
+    pending?: React.RefObject<string | null>;
+    onEmptied?: () => void;
+}>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    const version = useNotesVersion(session);
-    const editing = useWorkspaceState((state) => state.noteDraft !== null);
-    const notes = session?.notes.list() ?? [];
     const [active, setActive] = useState(0);
     const items = useRef<(HTMLLIElement | null)[]>([]);
-    const plus = useRef<HTMLSpanElement>(null);
+    const own = useRef<string | null>(null);
     // The note to focus once the list has drawn it: the next one after a delete.
-    const pending = useRef<string | null>(null);
+    const pending = given ?? own;
     const current = Math.min(active, Math.max(notes.length - 1, 0));
     useEffect(() => {
-        const index = (session?.notes.list() ?? []).findIndex((note) => note.id === pending.current);
+        const index = notes.findIndex((note) => note.id === pending.current);
         if (index >= 0) {
             pending.current = null;
             setActive(index);
             items.current[index]?.focus();
         }
-    }, [version, session]);
-    const focusWhenDrawn = (id: string): void => {
-        pending.current = id;
-    };
+    }, [notes, pending]);
+    if (session === null || notes.length === 0) {
+        return null;
+    }
 
     const focusAt = (index: number): void => {
         setActive(index);
         items.current[index]?.focus();
     };
-    const focusPlus = (): void => {
-        plus.current?.querySelector("button")?.focus();
-    };
     const remove = (index: number): void => {
         const note = notes.at(index);
-        if (session === null || note === undefined) {
+        if (note === undefined) {
             return;
         }
-        // The next note, or the one above when the last one goes, or "+" when none is left.
+        // The next note, or the one above when the last one goes, or onEmptied when none is left.
         const next = notes.at(index + 1) ?? (index > 0 ? notes.at(index - 1) : undefined);
         if (next === undefined) {
-            focusPlus();
+            onEmptied?.();
         } else {
-            focusWhenDrawn(next.id);
+            pending.current = next.id;
         }
         session.notes.remove(note.id);
     };
     const openRun = (run: string): void => {
         store.set({ inspected: { kind: "run-row", id: run } });
+    };
+
+    return (
+        <ul className="nt-list" aria-label="Notes">
+            {notes.map((note, index) => {
+                const status = session.notes.status(note.id);
+                const tabbable = index === current;
+                return (
+                    <li // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- a note in a roving list; arrow keys move between notes, as the ARIA practices describe
+                        key={note.id}
+                        ref={(node) => {
+                            items.current[index] = node;
+                        }}
+                        tabIndex={tabbable ? 0 : -1} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex -- the roving tab stop of the note list
+                        aria-label={note.text}
+                        className="nt-note"
+                        onFocus={(event) => {
+                            if (event.target === event.currentTarget) {
+                                setActive(index);
+                            }
+                        }}
+                        onKeyDown={(event) => {
+                            if (event.target !== event.currentTarget) {
+                                return;
+                            }
+                            if (event.key === "ArrowDown" && index < notes.length - 1) {
+                                event.preventDefault();
+                                focusAt(index + 1);
+                            } else if (event.key === "ArrowUp" && index > 0) {
+                                event.preventDefault();
+                                focusAt(index - 1);
+                            } else if (event.key === "Delete") {
+                                event.preventDefault();
+                                remove(index);
+                            }
+                        }}
+                    >
+                        <Text
+                            size="sm"
+                            className="nt-note-text"
+                            td={note.done === undefined ? undefined : "line-through"}
+                        >
+                            {note.text}
+                        </Text>
+                        {note.tags !== undefined && (
+                            <Group gap={4} aria-label="Tags">
+                                {note.tags.map((tag) => (
+                                    <Pill key={tag} size="xs">
+                                        {tag}
+                                    </Pill>
+                                ))}
+                            </Group>
+                        )}
+                        <div className="nt-note-foot">
+                            <Chips
+                                session={session}
+                                targets={note.targets}
+                                states={status.targets.map((target) => targetStateWords(target.state))}
+                                tabbable={tabbable}
+                                note={note.text}
+                                onOpen={(target) => {
+                                    openTarget(session, note, target, openRun);
+                                }}
+                            />
+                            <Text size="xs" c="dimmed">
+                                {[note.author, noteTimeWords(note.time, note.edited)]
+                                    .filter((part) => part !== undefined)
+                                    .join(", ")}
+                            </Text>
+                            <Tooltip label={note.done === undefined ? "Mark done" : "Mark open"}>
+                                <ActionIcon
+                                    variant={note.done === undefined ? "subtle" : "light"}
+                                    size="sm"
+                                    aria-label={`${note.done === undefined ? "Mark done" : "Mark open"}: ${noteName(note.text)}`}
+                                    aria-pressed={note.done !== undefined}
+                                    tabIndex={tabbable ? 0 : -1}
+                                    onClick={() => {
+                                        session.notes.update(note.id, { done: note.done === undefined });
+                                    }}
+                                >
+                                    <GLYPHS.check size={14} aria-hidden />
+                                </ActionIcon>
+                            </Tooltip>
+                            <Tooltip label="Delete note">
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="sm"
+                                    aria-label={`Delete note: ${noteName(note.text)}`}
+                                    tabIndex={tabbable ? 0 : -1}
+                                    onClick={() => {
+                                        remove(index);
+                                    }}
+                                >
+                                    <GLYPHS.delete size={14} aria-hidden />
+                                </ActionIcon>
+                            </Tooltip>
+                        </div>
+                    </li>
+                );
+            })}
+        </ul>
+    );
+}
+
+/** The Notes place's filter and order: every field "all" or null shows every note. */
+interface NoteView {
+    readonly status: "all" | "open" | "done";
+    readonly tag: string | null;
+    readonly author: string | null;
+    readonly sort: NoteSort;
+}
+
+const ALL_NOTES: NoteView = { status: "all", tag: null, author: null, sort: "newest" };
+
+/**
+ * The filter row over the notes: Status, Tag and Author (each only once a note has one), and Sort.
+ * @param props - Component props
+ * @param props.view - The filter and order now
+ * @param props.tags - Every tag in use
+ * @param props.authors - Every author in use
+ * @param props.onChange - Called with the new filter and order
+ * @returns The row
+ */
+function NoteFilters({
+    view,
+    tags,
+    authors,
+    onChange,
+}: Readonly<{
+    view: NoteView;
+    tags: readonly string[];
+    authors: readonly string[];
+    onChange: (view: NoteView) => void;
+}>): React.JSX.Element {
+    const pick = (
+        label: string,
+        value: string,
+        data: { value: string; label: string }[],
+        set: (v: string) => void,
+    ): React.JSX.Element => (
+        <Select
+            size="xs"
+            label={label}
+            data={data}
+            value={value}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: false }}
+            style={{ flex: "1 1 6rem", minWidth: 0 }}
+            onChange={(picked) => {
+                if (picked !== null) {
+                    set(picked);
+                }
+            }}
+        />
+    );
+    const anyOf = (values: readonly string[]): { value: string; label: string }[] => [
+        { value: "", label: "All" },
+        ...values.map((value) => ({ value, label: value })),
+    ];
+    return (
+        <Group gap={6} px="md" py={4} wrap="wrap" align="flex-end">
+            {pick(
+                "Status",
+                view.status,
+                [
+                    { value: "all", label: "All" },
+                    { value: "open", label: "Open" },
+                    { value: "done", label: "Done" },
+                ],
+                (status) => {
+                    onChange({ ...view, status: status as NoteView["status"] });
+                },
+            )}
+            {tags.length > 0 &&
+                pick("Tag", view.tag ?? "", anyOf(tags), (tag) => {
+                    onChange({ ...view, tag: tag === "" ? null : tag });
+                })}
+            {authors.length > 0 &&
+                pick("Author", view.author ?? "", anyOf(authors), (author) => {
+                    onChange({ ...view, author: author === "" ? null : author });
+                })}
+            {pick(
+                "Sort",
+                view.sort,
+                [
+                    { value: "newest", label: "Newest" },
+                    { value: "oldest", label: "Oldest" },
+                    { value: "element", label: "Element" },
+                ],
+                (sort) => {
+                    onChange({ ...view, sort: sort as NoteSort });
+                },
+            )}
+        </Group>
+    );
+}
+
+/**
+ * The Notes place (tier2-design.md section 3): the editor when a note is being written, the
+ * filter row, then the notes, newest first unless the reader picked another order (`NoteList`). A saved note takes focus itself; Cancel, or deleting the last
+ * note, puts focus on "+".
+ * @returns The Notes place
+ */
+export function NotesPlace(): React.JSX.Element {
+    const { session } = useWorkspace();
+    // Re-reads the notes on every change to them, or to what their targets point at.
+    useNotesVersion(session);
+    const editing = useWorkspaceState((state) => state.noteDraft !== null);
+    const [view, setView] = useState(ALL_NOTES);
+    const any = (session?.notes.counts().notes ?? 0) > 0;
+    const tags = session?.notes.tags() ?? [];
+    const authors = session?.notes.authors() ?? [];
+    // A tag or author no note carries any more shows every note again.
+    const tag = view.tag !== null && tags.includes(view.tag) ? view.tag : undefined;
+    const author = view.author !== null && authors.includes(view.author) ? view.author : undefined;
+    const notes =
+        session === null
+            ? []
+            : sortNotes(
+                  session,
+                  session.notes.list({
+                      ...(view.status === "all" ? {} : { done: view.status === "done" }),
+                      ...(tag === undefined ? {} : { tag }),
+                      ...(author === undefined ? {} : { author }),
+                  }),
+                  view.sort,
+              );
+    const plus = useRef<HTMLSpanElement>(null);
+    // The note to focus once the list has drawn it: the one just saved.
+    const pending = useRef<string | null>(null);
+    const focusWhenDrawn = (id: string): void => {
+        pending.current = id;
+    };
+    const focusPlus = (): void => {
+        plus.current?.querySelector("button")?.focus();
     };
 
     return (
@@ -294,89 +577,15 @@ export function NotesPlace(): React.JSX.Element {
                     tooltip over the note just written. A closed one hands focus to "+", where it
                     was opened, rather than dropping it to the page. */}
                 <Editor onSaved={focusWhenDrawn} onClosed={focusPlus} />
+                {any && <NoteFilters view={view} tags={tags} authors={authors} onChange={setView} />}
                 {notes.length === 0 ? (
                     !editing && (
                         <Text size="sm" c="dimmed" px="md" py="xs">
-                            No notes.
+                            {any ? "No matching notes." : "No notes."}
                         </Text>
                     )
                 ) : (
-                    <ul className="nt-list" aria-label="Notes" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                        {session !== null &&
-                            notes.map((note, index) => {
-                                const status = session.notes.status(note.id);
-                                const tabbable = index === current;
-                                return (
-                                    <li // NOSONAR(S6847): a note in a roving list; arrow keys move between notes, as the ARIA practices describe
-                                        key={note.id}
-                                        ref={(node) => {
-                                            items.current[index] = node;
-                                        }}
-                                        tabIndex={tabbable ? 0 : -1} // NOSONAR(S6845): the roving tab stop of the note list
-                                        aria-label={note.text}
-                                        className="nt-note"
-                                        style={{ padding: "6px 16px" }}
-                                        onFocus={(event) => {
-                                            if (event.target === event.currentTarget) {
-                                                setActive(index);
-                                            }
-                                        }}
-                                        onKeyDown={(event) => {
-                                            if (event.target !== event.currentTarget) {
-                                                return;
-                                            }
-                                            if (event.key === "ArrowDown" && index < notes.length - 1) {
-                                                event.preventDefault();
-                                                focusAt(index + 1);
-                                            } else if (event.key === "ArrowUp" && index > 0) {
-                                                event.preventDefault();
-                                                focusAt(index - 1);
-                                            } else if (event.key === "Delete") {
-                                                event.preventDefault();
-                                                remove(index);
-                                            }
-                                        }}
-                                    >
-                                        <Stack gap={4}>
-                                            <Text
-                                                size="sm"
-                                                style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
-                                            >
-                                                {note.text}
-                                            </Text>
-                                            <Chips
-                                                session={session}
-                                                targets={note.targets}
-                                                states={status.targets.map((target) => targetStateWords(target.state))}
-                                                tabbable={tabbable}
-                                                note={note.text}
-                                                onOpen={(target) => {
-                                                    openTarget(session, note, target, openRun);
-                                                }}
-                                            />
-                                            <Group gap={4} justify="space-between" wrap="nowrap">
-                                                <Text size="xs" c="dimmed">
-                                                    {noteTimeWords(note.time, note.edited)}
-                                                </Text>
-                                                <Tooltip label="Delete note">
-                                                    <ActionIcon
-                                                        variant="subtle"
-                                                        size="sm"
-                                                        aria-label={`Delete note: ${noteName(note.text)}`}
-                                                        tabIndex={tabbable ? 0 : -1}
-                                                        onClick={() => {
-                                                            remove(index);
-                                                        }}
-                                                    >
-                                                        <GLYPHS.delete size={14} aria-hidden />
-                                                    </ActionIcon>
-                                                </Tooltip>
-                                            </Group>
-                                        </Stack>
-                                    </li>
-                                );
-                            })}
-                    </ul>
+                    <NoteList notes={notes} pending={pending} onEmptied={focusPlus} />
                 )}
             </ControlSection>
         </section>

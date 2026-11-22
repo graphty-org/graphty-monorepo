@@ -1,0 +1,146 @@
+/* graphty-shader 1
+{
+    "id": "colorblind-patterns",
+    "name": "Patterns",
+    "place": "paint",
+    "categories": [
+        "Pattern"
+    ],
+    "cost": "light",
+    "motion": "still",
+    "reads": [
+        "color",
+        "light"
+    ],
+    "webgpu": "translate",
+    "params": [
+        {
+            "name": "pattern",
+            "type": "integer",
+            "default": 0,
+            "min": 0,
+            "max": 7,
+            "varies": true,
+            "choices": [
+                {
+                    "value": 0,
+                    "plainName": "Diagonal stripes",
+                    "glyph": {
+                        "path": "M3 9L9 3M3 15L15 3M3 21L21 3M9 21L21 9M15 21L21 15",
+                        "outline": true
+                    }
+                },
+                {
+                    "value": 1,
+                    "plainName": "Horizontal stripes",
+                    "glyph": {
+                        "path": "M3 6H21M3 12H21M3 18H21",
+                        "outline": true
+                    }
+                },
+                {
+                    "value": 2,
+                    "plainName": "Dots",
+                    "glyph": {
+                        "path": "M4 6a2 2 0 1 0 4 0a2 2 0 1 0 -4 0ZM4 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0ZM4 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0ZM10 6a2 2 0 1 0 4 0a2 2 0 1 0 -4 0ZM10 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0ZM10 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0ZM16 6a2 2 0 1 0 4 0a2 2 0 1 0 -4 0ZM16 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0ZM16 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0Z"
+                    }
+                },
+                {
+                    "value": 3,
+                    "plainName": "Checker",
+                    "glyph": {
+                        "path": "M3 3h6v6h-6ZM15 3h6v6h-6ZM9 9h6v6h-6ZM3 15h6v6h-6ZM15 15h6v6h-6Z"
+                    }
+                },
+                {
+                    "value": 4,
+                    "plainName": "Cross-hatch",
+                    "glyph": {
+                        "path": "M3 9L9 3M3 15L15 3M3 21L21 3M9 21L21 9M15 21L21 15M3 15L9 21M3 9L15 21M3 3L21 21M9 3L21 15M15 3L21 9",
+                        "outline": true
+                    }
+                },
+                {
+                    "value": 5,
+                    "plainName": "Rings",
+                    "glyph": {
+                        "path": "M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0ZM6 12a6 6 0 1 0 12 0a6 6 0 1 0 -12 0ZM3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0Z",
+                        "outline": true
+                    }
+                },
+                {
+                    "value": 6,
+                    "plainName": "Diamonds",
+                    "glyph": {
+                        "path": "M6 2.5L9.5 6L6 9.5L2.5 6ZM18 2.5L21.5 6L18 9.5L14.5 6ZM12 8.5L15.5 12L12 15.5L8.5 12ZM6 14.5L9.5 18L6 21.5L2.5 18ZM18 14.5L21.5 18L18 21.5L14.5 18Z"
+                    }
+                },
+                {
+                    "value": 7,
+                    "plainName": "Solid",
+                    "glyph": {
+                        "path": "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "density",
+            "type": "number",
+            "default": 5,
+            "min": 2,
+            "max": 8,
+            "primary": true
+        },
+        {
+            "name": "contrast",
+            "type": "number",
+            "default": 0.7,
+            "min": 0,
+            "max": 1
+        },
+        {
+            "name": "rotate",
+            "type": "number",
+            "default": 0,
+            "min": 0,
+            "max": 3.14
+        }
+    ]
+}
+*/
+// Patterns: one of eight inks over the fill color, so nodes read apart without color.
+
+// 1 inside the ink of pattern k, anti-aliased. q is in node radii, f the cycles per radius.
+float patternInk(int k, vec2 q, float f) {
+    if (k == 0) { float x = (q.x + q.y) * f * 0.7071; return fillAA(abs(fract(x) - 0.5) - 0.22); }
+    if (k == 1) { float x = q.y * f; return fillAA(abs(fract(x) - 0.5) - 0.2); }
+    if (k == 2) { vec2 g = fract(q * f) - 0.5; return fillAA(length(g) - 0.26); }
+    if (k == 3) { vec2 g = fract(q * f * 0.5) - 0.5; return fillAA(g.x * g.y); }
+    if (k == 4) {
+        float la = fillAA(0.36 - abs(fract((q.x + q.y) * f * 0.7071) - 0.5));
+        float lb = fillAA(0.36 - abs(fract((q.x - q.y) * f * 0.7071) - 0.5));
+        return max(la, lb);
+    }
+    if (k == 5) { float x = length(q) * f; return fillAA(abs(fract(x) - 0.5) - 0.22); }
+    if (k == 6) { vec2 g = abs(fract(q * f * 0.6) - 0.5); return fillAA(g.x + g.y - 0.32); }
+    return 0.0;
+}
+
+vec4 shade(NodeInput n) {
+    // At least ~7 px per cycle, so small nodes stay legible.
+    float f = clamp(n.pixelSize / 7.0, 1.5, density);
+    vec2 q = rot2(rotate) * n.uv;
+    float ink = patternInk(pattern, q, f);
+    vec3 base = n.color.rgb;
+    // Dark ink on a light fill, light ink on a dark one.
+    vec3 inkColor = luminance(base) > 0.45 ? base * (1.0 - contrast) : mix(base, vec3(1.0), contrast);
+    vec3 c = mix(base, inkColor, ink);
+    // A little modeling from the key light, so a sphere reads round without losing the print.
+    float diffuse = max(dot(n.normal, lightDir), 0.0);
+    c *= 0.86 + 0.14 * diffuse;
+    // The outline, where the surface turns away from the camera, so shapes separate.
+    float facing = clamp(-n.normal.z, 0.0, 1.0);
+    c = mix(c, vec3(0.08), fillAA(facing - 0.3));
+    return vec4(c, n.color.a);
+}

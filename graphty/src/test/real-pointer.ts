@@ -88,6 +88,17 @@ export async function dragTo(element: Element, to: { x: number; y: number }): Pr
 }
 
 /**
+ * Moves the mouse onto the middle of an element and leaves it there, as a reader hovers for a
+ * tooltip. `userEvent.hover` waits for the element to be still, which a bar a few pixels wide in a
+ * scaled test frame may never be to its eyes.
+ * @param element - What the pointer rests on.
+ */
+export async function hoverOver(element: Element): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...middleOf(element) });
+}
+
+/**
  * Turns the mouse wheel over the middle of an element, as the reader's wheel does.
  * @param element - What the pointer is over.
  * @param deltaY - How far, in CSS pixels; negative scrolls up.
@@ -295,4 +306,52 @@ export async function inBrowserZone(zone: string, run: () => Promise<void>): Pro
     } finally {
         await session.send("Emulation.setTimezoneOverride", { timezoneId: "" });
     }
+}
+
+/**
+ * Puts a finger down on the middle of an element, moves it down in steps, and lets the browser
+ * cancel the touch there (`touchCancel`, so the page gets `pointercancel`), as when the system
+ * takes the gesture away mid-drag.
+ * @param element - Where the finger goes down.
+ * @param distance - How far the finger moves down before the cancel, in CSS pixels.
+ */
+export async function touchDragCancelled(element: Element, distance: number): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const { x, y } = middleOf(element);
+    const steps = 10;
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    for (let step = 1; step <= steps; step++) {
+        await session.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: [{ x, y: y + (distance * step) / steps }],
+        });
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}
+
+/**
+ * Drags a file from outside the window over the middle of an element and holds it there, as a
+ * reader brings a file in from the desktop.
+ * @param element - What the drag is over.
+ * @param file - The file's path on disk.
+ */
+export async function dragFileOver(element: Element, file: string): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const at = middleOf(element);
+    const data = { items: [], files: [file], dragOperationsMask: 1 };
+    await session.send("Input.dispatchDragEvent", { type: "dragEnter", ...at, data });
+    await session.send("Input.dispatchDragEvent", { type: "dragOver", ...at, data });
+}
+
+/**
+ * Lets go of a file dragged over an element with `dragFileOver`, dropping it there.
+ * @param element - Where it is dropped.
+ * @param file - The file's path on disk.
+ */
+export async function dropFileOn(element: Element, file: string): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const data = { items: [], files: [file], dragOperationsMask: 1 };
+    await session.send("Input.dispatchDragEvent", { type: "drop", ...middleOf(element), data });
 }

@@ -1,5 +1,5 @@
 /**
- * The renderer honouring the session's two masks.
+ * The renderer honoring the session's two masks.
  *
  * What is under test is the pass that brings the meshes into line with the selection mask and the
  * visibility mask: which render state each element lands in, that `showContext` turns a hidden
@@ -168,7 +168,12 @@ describe("UpdateManager view masks", () => {
      */
     function buildManager(): UpdateManager {
         // Every node is built here, as under renderPath "objects"; the mask walk reads the built ones.
-        const dataManager = { nodes, edges, nodeMap: { built: () => nodes.values() } } as unknown as DataManager;
+        const dataManager = {
+            nodes,
+            edges,
+            nodeMap: { built: () => nodes.values(), builtOf: (id: string) => nodes.get(id) },
+            edgeMap: { builtView: () => edges },
+        } as unknown as DataManager;
         const observable = { add: () => null, remove: () => true };
         const scene = {
             onAfterRenderObservable: observable,

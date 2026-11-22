@@ -1,4 +1,4 @@
-import { PanelField, Popout } from "@graphty/compact-mantine";
+import { FileSource, PanelField, Popout } from "@graphty/compact-mantine";
 import { assetFileExtensions } from "@graphty/graphty-element/catalog";
 import type { AssetSource, CodedFact, GraphSession } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
@@ -7,13 +7,16 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { fileStem, pictureName } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { ModelChip } from "./ModelChip";
-import { AddressForm, FileInput, SectionHeading } from "./ModelsPopover";
-import { chipLine, modelChip } from "./modelWords";
+import { SectionHeading } from "./ModelsPopover";
+import { chipLine } from "./modelWords";
 import { roveTiles, tileStop } from "./tileRoving";
 import { useStillOpen } from "./useStillOpen";
+import { logUnexpected } from "./words";
 
-/** The files the chooser offers; a drop is not filtered, and the element says what arrived. */
+/** The field's error for a 3D model given where a picture goes; Use as model sits under it. */
+const NOT_A_PICTURE = "Not a picture: this file is a 3D model";
+
+/** The files the chooser and the drop target take; the element says what arrived. */
 const ACCEPT = assetFileExtensions("image").join(",");
 
 /** The pop-over's width, as every Style panel pop-over. */
@@ -35,7 +38,7 @@ function useThumbnail(session: GraphSession | null, ref: string): string | undef
             setUrl(undefined);
             return undefined;
         }
-        const [bytes] = [...session.assets.files(record.id).values()];
+        const bytes = [...session.assets.files(record.id).values()].at(0);
         if (bytes === undefined) {
             setUrl(undefined);
             return undefined;
@@ -160,9 +163,9 @@ function useStray(session: GraphSession | null, opened: boolean, onLetGo: () => 
 
 /**
  * The Picture pop-over (node-models design 13.7), opened by the Picture line: the pictures this
- * project holds, a field for a picture's address, Choose picture and a drop anywhere on it. What
+ * project holds, then compact-mantine's file loader: a picture's address, Choose picture and a drop. What
  * arrives is added through `session.assets.add`; a picture is picked as it is accepted; a model
- * offers Use as model; any other refusal is a chip.
+ * offers Use as model; any other refusal is the field's error.
  * @param props - Component props
  * @param props.opened - whether it is open
  * @param props.anchor - the row it opens beside
@@ -184,9 +187,7 @@ export function PicturePopover({
     const [busy, setBusy] = useState(false);
     const [problem, setProblem] = useState<CodedFact | null>(null);
     const [model, setModel] = useState<ArrivedModel | null>(null);
-    const [url, setUrl] = useState("");
     const [focused, setFocused] = useState<string | undefined>(undefined);
-    const chooser = useRef<HTMLInputElement | null>(null);
     const clearModel = useCallback(() => {
         setModel(null);
     }, []);
@@ -239,6 +240,7 @@ export function PicturePopover({
         const live = start();
         settle(source, given, live)
             .catch((error: unknown) => {
+                logUnexpected("assets.add", error, []);
                 if (live()) {
                     refuse({ code: "E_MODEL_PARSE", params: { message: String(error) } });
                 }
@@ -252,13 +254,20 @@ export function PicturePopover({
         .list()
         .filter((r) => r.kind === "image" && r.state === "accepted")
         .reverse();
-    const pasted = url.trim();
     const chosen = current === undefined ? undefined : (session.assets.find(current)?.id ?? current);
     const stop = tileStop(
         own.map((r) => r.id),
         focused,
         chosen,
     );
+    // What went wrong is the field's error, as the dialog's address says it: a model given here
+    // (Use as model sits under it), else any other refusal.
+    let fieldError: string | undefined;
+    if (model !== null) {
+        fieldError = NOT_A_PICTURE;
+    } else if (problem !== null) {
+        fieldError = chipLine(problem);
+    }
 
     return (
         <Popout
@@ -278,26 +287,11 @@ export function PicturePopover({
                 closeLabel="Close Picture"
             >
                 <Popout.Content>
-                    <Stack
-                        gap={8}
-                        data-testid="picture-popover"
-                        onDragOver={(event) => {
-                            if (event.dataTransfer.types.includes("Files")) {
-                                event.preventDefault();
-                            }
-                        }}
-                        onDrop={(event) => {
-                            event.preventDefault();
-                            const [file] = [...event.dataTransfer.files];
-                            if (file !== undefined) {
-                                add(file, file.name);
-                            }
-                        }}
-                    >
+                    <Stack gap={8} data-testid="picture-popover">
                         {own.length === 0 ? null : (
                             <>
                                 <SectionHeading>In this project</SectionHeading>
-                                <div // NOSONAR(S6819): an ARIA group naming a list of tile buttons; a fieldset would draw its own border and legend
+                                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming a list of tile buttons; a fieldset would draw its own border and legend
                                     className="ws-model-list"
                                     role="group"
                                     aria-label="In this project"
@@ -335,59 +329,31 @@ export function PicturePopover({
                                 </div>
                             </>
                         )}
-                        <AddressForm
-                            name="Picture address"
-                            submitName="Add picture address"
-                            value={url}
-                            busy={busy}
-                            autofocus={own.length === 0}
-                            onChange={setUrl}
+                        <FileSource
+                            submitOnBlur
+                            barUnderField
+                            variant="drop"
+                            url
+                            accept={ACCEPT}
+                            label="Choose picture"
+                            placeholder="Picture address"
+                            openLabel="Add"
+                            hint="Or drop a picture here"
+                            progress={busy ? null : undefined}
+                            disabled={busy}
+                            error={fieldError}
                             onDiscard={() => {
                                 store.set({ announcement: "Address discarded" });
                             }}
-                            onSubmit={() => {
-                                if (pasted !== "" && !busy) {
-                                    add(pasted, pasted);
-                                }
+                            onFiles={([file]) => {
+                                add(file, file.name);
+                            }}
+                            onUrl={(address) => {
+                                add(address, address);
                             }}
                         />
-                        <Group gap={4}>
-                            <Button
-                                size="compact-xs"
-                                variant="default"
-                                leftSection={<GLYPHS.upload size={12} aria-hidden />}
-                                aria-label="Choose picture"
-                                aria-disabled={busy || undefined}
-                                onClick={() => {
-                                    if (!busy) {
-                                        chooser.current?.click();
-                                    }
-                                }}
-                            >
-                                Choose picture
-                            </Button>
-                            <FileInput
-                                chooser={chooser}
-                                accept={ACCEPT}
-                                onFiles={([file]) => {
-                                    add(file, file.name);
-                                }}
-                            />
-                        </Group>
-                        <Text size="xs" c="var(--cm-text-secondary)">
-                            Or drop a picture here
-                        </Text>
-                        {problem === null ? null : (
-                            <Group gap={4}>
-                                <ModelChip chip={modelChip(problem)} />
-                            </Group>
-                        )}
                         {model === null ? null : (
                             <Group gap={4} wrap="nowrap">
-                                <ModelChip
-                                    chip={{ word: "Not a picture", tip: "this file is a 3D model" }}
-                                    tone="warning"
-                                />
                                 <Tooltip label={`Use ${model.name} as model`}>
                                     <Button
                                         size="compact-xs"

@@ -114,7 +114,7 @@ Think-aloud: "'Attribute' isn't my word, but it sounds like 'size by a column'."
 
 `node $T/real.mjs --step $S --click-at 1380,256` -> 11.png
 
-Saw: "Find an attribute": Influence, Influence rank, Influence percentile; id and name greyed out
+Saw: "Find an attribute": Influence, Influence rank, Influence percentile; id and name grayed out
 ("Cannot be used: Holds groups, not amounts").
 
 ### 12. Pick Influence

@@ -88,6 +88,7 @@ export class TestGraph {
         this.sets = createSetsApi({
             edgeMember: (id: EdgeId) =>
                 sessionEdgeMember(this.snapshot(), id, (row) => this.bags.get(this.counterAt(row)), this.path),
+            hasNode: (id: NodeId) => this.snapshot().ids.indexOf(id) !== INVALID_INDEX,
         });
         this.setsStore = setsStoreOf(this.sets);
     }
@@ -213,7 +214,7 @@ export class TestGraph {
                             this.bags.set(this.counterOfRow(known), fields);
                         }
 
-                        store.touch();
+                        store.account();
                         continue;
                     }
                 }
@@ -252,7 +253,7 @@ export class TestGraph {
     removeNode(id: NodeId): void {
         if (this.store.builder.hasNode(id)) {
             this.store.builder.removeNode(id);
-            this.store.touch();
+            this.store.account();
         }
     }
 
@@ -264,7 +265,7 @@ export class TestGraph {
         const row = this.liveRow(counter);
         if (row !== INVALID_INDEX) {
             this.store.builder.removeEdge(row);
-            this.store.touch();
+            this.store.account();
         }
     }
 
@@ -344,7 +345,7 @@ export class TestGraph {
         }
 
         builder.setGraphValue(PAIRS_ORDERED_ATTRIBUTE, ordered ? 1 : 0, { dtype: "u8" });
-        this.store.touch();
+        this.store.account();
         resumeEdgeCounter(this.counter, last);
         this.byFileId = new Map();
     }

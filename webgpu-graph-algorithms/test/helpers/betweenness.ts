@@ -18,6 +18,7 @@ import {
 import { type GpuContext } from "../../src/context.js";
 import { brandesOracle } from "../oracle/betweenness.js";
 import { edgeConvention, scoreError, vertexConvention } from "./centrality-check.js";
+import { refusedReport } from "./check-report.js";
 import { KARATE_EDGES, layeredEdges, pathEdges, randomEdges, snapshotOf, wideAndNarrowEdges } from "./graphs.js";
 import { type CheckReport, mergeReports, ratioOf } from "./sabotage.js";
 
@@ -36,19 +37,17 @@ export function limitsForK(n: number, k: number): BetweennessTuning["limits"] {
 }
 
 /**
- * One sample, a throw counting as the maximal miss.
+ * One sample, a refused result (E_VALIDATION) counting as the maximal miss; any other error is rethrown.
  * @param label - the sample's name
  * @param measure - the error / tolerance ratio
  * @returns the report
  */
 async function sample(label: string, measure: () => Promise<number>): Promise<CheckReport> {
-    let worst: number;
     try {
-        worst = await measure();
-    } catch {
-        worst = Infinity;
+        return { worst: await measure(), worstLabel: label, samples: 1 };
+    } catch (err) {
+        return refusedReport(label, err);
     }
-    return { worst, worstLabel: label, samples: 1 };
 }
 
 /**

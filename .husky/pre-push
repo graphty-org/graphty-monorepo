@@ -22,9 +22,15 @@ printf '%s\n' "$PUSH_REFS" | "$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1
 PUSH_BASE_REF=${PUSH_BASE_REF:-$(node "$GATE_DIR/tools/push-base.mjs")} || exit 1
 export PUSH_BASE_REF
 
-# Secret scan of every file this branch changes since it left that branch. It runs here as
+# Secret scan of every line each commit since this branch left that branch adds, so a secret a later
+# commit removes is still refused. It runs here as
 # well as in pre-commit because a commit made with a temporary core.hooksPath skips pre-commit.
 PREPUSH_ROOT="$PWD" "$GATE_DIR/tools/scan-secrets.sh" "$(git merge-base "$PUSH_BASE_REF" HEAD)" HEAD || exit 1
 
 # No pile of images added outside the folders that hold them (tools/check-committed-images.mjs).
 node "$GATE_DIR/tools/check-committed-images.mjs" || exit 1
+
+# American spelling in the prose and comments of the lines this push adds (tools/check-spelling.mjs, #671): the
+# owner's issue asks for it here as well as in CI's lint job, and it takes seconds. Spelling already on untouched
+# lines never blocks. `node tools/check-spelling.mjs --fix <file>` rewrites a file.
+node "$GATE_DIR/tools/check-spelling.mjs" --diff "$PUSH_BASE_REF" || exit 1

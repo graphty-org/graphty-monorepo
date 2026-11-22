@@ -110,7 +110,6 @@ describe("the caveats a run is filled in with", () => {
         assert.isFalse(run.caveats.converged);
         assert.strictEqual(run.caveats.iterations, 7);
         assert.isFalse(run.caveats.exact, "stopping at the cap publishes what the run has, marked inexact");
-        assert.strictEqual(run.caveats.partialReason, "iteration cap reached");
         assert.deepStrictEqual(run.caveats.partialCause, { code: "partial.iteration-cap", params: {} });
         assert.isTrue(run.partial, "a result that stopped at its cap is partial, as its caveats say (#933)");
     });
@@ -121,10 +120,10 @@ describe("the caveats a run is filled in with", () => {
         const run = element.run("acme-silent");
         await run;
 
-        assert.include(
-            run.caveats.notes,
-            "acme-silent: no edge was measured -- did the function return NaN or undefined for every edge?",
-        );
+        assert.deepInclude(run.caveats.facts, {
+            code: "defined.nothing-measured",
+            params: { algorithm: "acme-silent", kind: "edge" },
+        });
     });
 });
 

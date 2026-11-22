@@ -133,10 +133,12 @@ const locationMapOptionsSchema = defineOptions({
         },
     },
     unplaced: {
-        schema: z.enum(["tray", "leave"]).default("tray"),
+        schema: z.enum(["tray", "leave", "hide"]).default("tray"),
         meta: {
             label: "Unplaced Nodes",
-            description: "Nodes with no usable location: in a row beside the map, or left where they were",
+            description:
+                "Nodes with no usable location: in a row beside the map, left where they were, or not " +
+                "drawn (with their edges) while the layout is shown; each way they are still reported",
             advanced: true,
         },
     },
@@ -167,29 +169,35 @@ const locationMapOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    nodeScale: {
-        schema: z.enum(["scene", "screen"]).default("scene"),
-        meta: {
-            label: "Node Scale",
-            description:
-                "How node sizes are read: in scene units, which grow as the camera zooms in, or on screen, " +
-                "where a node keeps its size at any zoom",
-            advanced: true,
-        },
-    },
     flatNodeScale: {
         schema: z.number().positive().default(1),
         meta: {
             label: "Flat Node Scale",
             description:
-                "How many times larger a flat map's nodes are drawn with Node Scale on screen, so a map " +
-                "drawn large leaves them big enough to see; a globe's nodes keep their size",
+                "How many times larger a flat map's nodes are drawn when their size space is screen, so a " +
+                "map drawn large leaves them big enough to see; a globe's nodes keep their size",
             advanced: true,
         },
     },
 });
 
-const LocationMapLayoutConfig = z.strictObject({
+/**
+ * Drop a saved or passed `nodeScale`, which the `node.sizeSpace` style option replaced, so an old
+ * project, option string or `layout.set` call still builds the layout.
+ * @param value - The options as given.
+ * @returns Them, without `nodeScale`.
+ */
+function dropNodeScale(value: unknown): unknown {
+    if (typeof value !== "object" || value === null || !("nodeScale" in value)) {
+        return value;
+    }
+
+    const rest: Record<string, unknown> = { ...value };
+    delete rest.nodeScale;
+    return rest;
+}
+
+const LocationMapLayoutShape = z.strictObject({
     ...SimpleLayoutConfig.shape,
     location: z.string().nullable().default(null),
     latitude: z.string().nullable().default(null),
@@ -200,9 +208,8 @@ const LocationMapLayoutConfig = z.strictObject({
     extent: z.enum(["data", "world"]).default("data"),
     size: z.number().positive().default(100),
     mapScale: z.number().positive().default(1),
-    unplaced: z.enum(["tray", "leave"]).default("tray"),
+    unplaced: z.enum(["tray", "leave", "hide"]).default("tray"),
     overlap: z.enum(["spread", "stack"]).default("spread"),
-    nodeScale: z.enum(["scene", "screen"]).default("scene"),
     flatNodeScale: z.number().positive().default(1),
     map: Basemap.nullable().default(null),
     gazetteer: z.union([z.string().min(1), z.literal(false)]).default(GAZETTEER_URL),
@@ -210,6 +217,7 @@ const LocationMapLayoutConfig = z.strictObject({
     /** The view's dimension, set by the element alone; a 3D view may lay the map out with `dim` 2. */
     view: z.union([z.literal(2), z.literal(3)]).optional(),
 });
+const LocationMapLayoutConfig = z.preprocess(dropNodeScale, LocationMapLayoutShape);
 type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
 
 /**
@@ -223,8 +231,9 @@ type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
  * gazetteer the `gazetteer` option names, fetched on first use; a city is narrowed by a country
  * or region column (`nodeLocationWithinPath`, else one found by name).
  *
- * Nodes with no usable location go to a tray below the map (or stay where they were) and are
- * reported as `W_LOCATION_UNPARSED` and `W_LOCATION_OUT_OF_RANGE`; they are never put at latitude
+ * Nodes with no usable location go to a tray below the map (or stay where they were, or are not
+ * drawn, their edges with them, under `unplaced: "hide"`) and are always reported in the frame's
+ * `unplaced` ids and as `W_LOCATION_UNPARSED` and `W_LOCATION_OUT_OF_RANGE`; they are never put at latitude
  * 0, longitude 0. The 2D view always draws a 2D (flat) map with straight edges; in the 3D view
  * `mapDimension` picks the 3D map, a globe (the default), or the 2D map with edges arced above it.
  * Each answer publishes {@link LocationMapLayout.geoFrame}, which the map and the edges' default
@@ -286,6 +295,23 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
      */
     static getOptionsForDimension(dimension: 2 | 3): object {
         return { dim: dimension, view: dimension };
+    }
+
+    /**
+     * The scene length that sizes a node of size 1 on the map under `node.sizeSpace: "screen"`:
+     * the data's drawn extent, over `flatNodeScale` on a flat map and over `mapScale` on a globe
+     * (a globe's radius is set so it spans `size` too). Null before the first answer.
+     * @returns The length, or null.
+     */
+    override get nodeScreenReference(): number | null {
+        const frame = this.geoFrame;
+        if (frame === null) {
+            return null;
+        }
+
+        // ponytail: a globe divides `mapScale` back out, so `mapScale` does not thin its nodes;
+        // dropping the division there too makes them six times smaller at the app's scale.
+        return frame.surface === "flat" ? frame.size / this.config.flatNodeScale : frame.size / frame.mapScale;
     }
 
     /**
@@ -423,21 +449,10 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
     }
 
     /**
-     * The frame a run would publish over the graph as it stands, without moving a node: over the
-     * part a run lays out, so a node the layout leaves out does not widen it.
+     * The frame a run would publish over the graph as it stands, without moving a node.
      * @param m - The placement module.
      */
     #restoreFrame(m: typeof import("./locationMap/place")): void {
-        this.inKeptPart(() => {
-            this.#restoreFrameNow(m);
-        });
-    }
-
-    /**
-     * {@link LocationMapLayoutEngine.#restoreFrame} over the graph `graph` answers now.
-     * @param m - The placement module.
-     */
-    #restoreFrameNow(m: typeof import("./locationMap/place")): void {
         const n = this.graph.nodeCount;
         const columns = this.#dataColumns(n);
         const answer = resolveLocation(this.#choice(), columns, (name) => named(columns, name), this.#places());

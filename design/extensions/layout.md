@@ -1,6 +1,7 @@
 # Layout extension point
 
-Status: draft specification against graphty-element 2.6.1. Shared rules are in `README.md`.
+Status: specification, first written against graphty-element 2.6.1. `defineLayout` shipped in
+graphty-element 3.0.1. Shared rules, and how to read "the next major", are in `README.md`.
 
 Normative files: `layout.d.ts`, `descriptors.schema.json#/$defs/LayoutDescriptor` and
 `#/$defs/AuthoredLayoutDescriptor`, and this document.
@@ -23,8 +24,8 @@ Grounding: owner's list of official points (2026-09-21) and his parity test requ
 
 A first layout is written with `defineLayout` (`simple-tier.md` section 4.2): an id, the options
 in short form, and `place(graph, context)`, which returns a map from node id to `[x, y]` or
-`[x, y, z]` in scene units. A node the map leaves out is unplaced. Nothing here runs in 2.6.1
-(`simple-tier.md`, status).
+`[x, y, z]` in scene units. A node the map leaves out is unplaced. `defineLayout` is exported from
+`@graphty/graphty-element/extend` since 3.0.1.
 
 ```ts
 import { defineLayout } from "@graphty/graphty-element/extend";
@@ -49,7 +50,7 @@ defineLayout({
 ```
 
 The element compiles the definition to the snapshot layout registration of section 2
-(`SnapshotLayoutRegistration`): the descriptor with every catalogue member defaulted, the graph
+(`SnapshotLayoutRegistration`): the descriptor with every catalog member defaulted, the graph
 view built from the snapshot, the coordinate array filled from the map (NaN for an unplaced
 node), pinned and held nodes copied over whatever `place` returned, the view dimension as
 `context.dimensions`, no hidden scaling, a seeded `context.random()`, and abort, progress and
@@ -87,14 +88,14 @@ result paths and are not in it, so a layout cannot today place nodes by a comput
 computed as a distance, a ring by betweenness). Resolving an `"attribute"` option that names a
 result path is open decision 17.
 
-**Weights.** `static honoursWeights = true` is published in the catalogue as "arranges a weighted
+**Weights.** `static honoursWeights = true` is published in the catalog as "arranges a weighted
 graph differently", but this contract gives a plugin no declared way to read weights. The only
 route today is the protected `pairWeights(edges)` helper of `LayoutEngine` (the one the built-in
 Kamada-Kawai and ForceAtlas2 engines use), which `layout.d.ts` did not declare and which the
 migration's static-layout work item deletes in a minor release. Until the snapshot layout contract
 (open decision 14) gives weights a route, a plugin SHOULD NOT declare `honoursWeights`, and a
 plugin that calls `pairWeights` relies on a helper that section 7 item 4 now requires the
-migration to keep until the next major. Parsing `Edge.data.weight` by hand ignores the element's
+migration to keep until a release announces its removal. Parsing `Edge.data.weight` by hand ignores the element's
 configured weight key and its handling of parallel edges.
 
 `AuthoredLayoutDescriptor` rules:
@@ -129,7 +130,7 @@ The element drives an engine in this order. An engine MAY rely on it.
    those keys: `scalingFactor`, which every `SimpleLayoutEngine` understands, is refused with
    `E_UNKNOWN_OPTION` unless the plugin declares it in `descriptor.options` (section 5 item 7).
 2. **Load**: `addNodes(...)`/`addNode(...)` for every node, then `addEdges(...)`/`addEdge(...)`.
-3. **Initialise**: `await init()`. The element draws no frame with this layout before `init`
+3. **Initialize**: `await init()`. The element draws no frame with this layout before `init`
    settles. A throw from `init` fails the `setLayout` call and leaves the previous layout running.
 4. **Scope** (only when `static scoped` is true and the consumer passed a scope):
    `setHoldMask(mask, rows)` after `init`, and again after every renumbering.
@@ -158,7 +159,7 @@ scoped layout. It is not a warm start: nothing guarantees a row still carries th
 layout's coordinates when a new engine is constructed, and nothing is handed to `init`. An engine
 is also not told when a node's attributes change (so a batch layout keyed on an attribute stays
 stale after an edit). A warm-start argument and attribute-change notification are open decision
-27; if `heldPosition` is adopted there, `readNodePosition` is deprecated in its favour or kept
+27; if `heldPosition` is adopted there, `readNodePosition` is deprecated in its favor or kept
 as its implementation, and the decision says which.
 
 **When `setLayout` resolves.** The specification does not state whether the promise `setLayout`
@@ -218,7 +219,7 @@ Obligations:
 | Disposed on switch                                                                    | `dispose`                                          | "is disposed when the consumer switches..."                                                            |
 | Told 2D or 3D; options kept across a switch                                           | `static getOptionsForDimension` (section 3 step 1) | "is told whether the element is drawing in two dimensions or three", "keeps the consumer's options..." |
 | Batch placement in one pass, scaled                                                   | `SimpleLayoutEngine`, `scalingFactor`              | "a static engine built on SimpleLayoutEngine" block                                                    |
-| Listed in the catalogue, found by name, answers which arrangement it is               | `session.catalog.layouts()`, `layoutIdForEngine`   | "being offerable, and not only reachable" block                                                        |
+| Listed in the catalog, found by name, answers which arrangement it is                 | `session.catalog.layouts()`, `layoutIdForEngine`   | "being offerable, and not only reachable" block                                                        |
 | Says whether it reads weights                                                         | `static honoursWeights`                            | "has the catalogue answer whether it reads weights..."                                                 |
 | Lays out a scope, holding everything else still                                       | `static scoped`, `setLayout(id, opts, { scope })`  | "a scope" block                                                                                        |
 | Coded failures from construction and `init`; previous layout kept                     | `setLayout` rejection                              | "how a failure reaches the consumer" block                                                             |
@@ -330,7 +331,7 @@ parity suite covers construction and `init` only.
    removes the per-call node and edge objects. A plugin extends `SimpleLayoutEngine` and reads
    `_nodes`, `_edges`, `positions` and `Node.data`, as the worked example does, and a weighted
    plugin may call the protected `pairWeights(edges)` (section 2). The migration MUST keep all of
-   those working for plugins (an adapter) until the next major, or ship the snapshot contract
+   those working for plugins (an adapter) until a release announces their removal, or ship the snapshot contract
    first (README section 10 item 2). Its plan deletes `pairWeights` and `pairWeightKey` in the
    dual-API window, which is a minor release; by README section 6.2 removing a protected helper
    is a contract major.
@@ -367,8 +368,8 @@ configuration.
 | settles                         | a live engine reports `isSettled` within the step budget the kit allows (a warning, with the step count, when not)                                                              |
 | makes no network request        | with the network APIs of README section 9.4 item 2 trapped, a full lifecycle makes no call (mistake detection only)                                                             |
 | is deterministic with a seed    | when a `"seed"` option is declared, two runs with the same seed give identical positions                                                                                        |
-| honours pins and drags          | a pinned node does not move across 100 steps; a node set with `setNodePosition` stays there                                                                                     |
-| honours a hold                  | when `scoped`, no held row moves and the scoped rows do                                                                                                                         |
+| honors pins and drags           | a pinned node does not move across 100 steps; a node set with `setNodePosition` stays there                                                                                     |
+| honors a hold                   | when `scoped`, no held row moves and the scoped rows do                                                                                                                         |
 | forgets removed elements        | after `removeNode`, `nodes` no longer yields it                                                                                                                                 |
 | does not depend on record order | with a `"seed"` option, the same graph loaded in two record orders gives identical positions (a warning, with the moved nodes, when not)                                        |
 | survives awkward ids            | on a graph whose node ids include `__proto__`, `constructor` and `toString`, every node gets its own position (README section 9.2 item 6)                                       |
@@ -484,8 +485,8 @@ await graph.setLayout("acmechain-tiers", { tierAttribute: "supplier_tier", spaci
 - `SimpleLayoutEngine.positions` is a plain object keyed by node id, so a node whose id is
   `__proto__` writes the object's prototype instead of a row (README section 9.2 item 6); the
   fix is a `Map` or a null-prototype object, which changes a published member's type and so
-  waits for the snapshot contract or the next major.
-- `KNOWN_LAYOUT_IDS` omits `spiral` and `planar`, two built-in arrangements the catalogue
+  waits for the snapshot contract or a release that announces the change.
+- `KNOWN_LAYOUT_IDS` omits `spiral` and `planar`, two built-in arrangements the catalog
   publishes (README section 5 item 4).
 - The published `Node` and `Edge` are the full render classes, so a layout cannot be unit-tested
   without a cast (section 2).

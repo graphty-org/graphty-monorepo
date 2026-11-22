@@ -50,7 +50,7 @@ interface LinkPredictionOptions extends Record<string, unknown> {
 }
 
 /**
- * Link prediction: scores every pair of nodes that is not already joined by how many neighbours
+ * Link prediction: scores every pair of nodes that is not already joined by how many neighbors
  * the two share, and keeps the best.
  */
 export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOptions> {
@@ -97,7 +97,7 @@ export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOpt
 
         const { method, topK } = this.schemaOptions;
 
-        context.report({ phase: "Scoring pairs", total: null });
+        context.report({ phase: "scoring-pairs", total: null });
         const member = METHODS[method];
         const { snapshot, run } = this.accelerated(member, "undirected");
         const { value: ranked, precision } = await run((dispatch, s) =>

@@ -19,6 +19,7 @@ import { canvasMeasure, withDrawnFonts } from "./graphviz/fonts";
 import {
     clusterMargins,
     edgeBends,
+    edgeCurves,
     edgeLabelPlaces,
     type EdgeLabelsAt,
     edgeLabelsLeftOut,
@@ -31,6 +32,7 @@ import { graphvizStructure } from "./graphviz/structure";
 import { type DotStructure, POINTS_PER_UNIT, toDot } from "./graphviz/toDot";
 import { type GroupMargins, laidGroupMargins } from "./groupMargins";
 import type { EdgePosition } from "./LayoutEngine";
+import { seedSchema } from "./seedOption";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
@@ -104,7 +106,7 @@ const DOT_OPTIONS: OptionsSchema = {
 /** The options of the force engines. */
 const FORCE_OPTIONS: OptionsSchema = {
     seed: {
-        schema: z.number().int().nonnegative().optional(),
+        schema: seedSchema,
         meta: { label: "Seed", description: "The start seed; the same seed gives the same drawing" },
     },
     overlap: {
@@ -156,7 +158,7 @@ export function graphvizError(reason: GraphvizFailureCode, params: Readonly<Reco
 }
 
 /**
- * The options of one engine, as its catalogue entry publishes them.
+ * The options of one engine, as its catalog entry publishes them.
  * @param engine - the engine
  * @returns the schema
  */
@@ -240,6 +242,7 @@ async function computeWith(
 ): Promise<{
     positions: F32;
     bends: ReadonlyMap<number, string>;
+    curves: ReadonlyMap<number, NonNullable<EdgePosition["laidCurve"]>>;
     ends: ReadonlyMap<number, NonNullable<EdgePosition["lineEnds"]>>;
     labels: ReadonlyMap<number, EdgeLabelsAt>;
     xlabels: ReadonlyMap<number, readonly [number, number] | null>;
@@ -250,6 +253,7 @@ async function computeWith(
         return {
             positions: new Float32Array(0),
             bends: new Map(),
+            curves: new Map(),
             ends: new Map(),
             labels: new Map(),
             xlabels: new Map(),
@@ -285,7 +289,7 @@ async function computeWith(
 
     // graph-io reads a spline into bends as it does for a file that stores its routes, and says which font the element
     // draws a `fontname` in, which is the font Graphviz must size the label in
-    const { graphvizFont, graphvizPosBends } = await import("@graphty/graph-io/dot");
+    const { graphvizFont, graphvizPosBends, graphvizPosCurve } = await import("@graphty/graph-io/dot");
     const measure = canvasMeasure();
     const handed = measure === null ? structure : withDrawnFonts(structure, graphvizFont, measure);
     const dot = toDot(input.stored, attributes, sizes, extents, groups, handed, engine === "patchwork");
@@ -306,6 +310,7 @@ async function computeWith(
     return {
         positions: fromJson(reply.json, n).map((value) => value * scale),
         bends: edgeBends(reply.json, structure.edges ?? [], graphvizPosBends),
+        curves: edgeCurves(reply.json, structure.edges ?? [], graphvizPosCurve),
         ends: edgeLineEnds(reply.json, structure.edges ?? []),
         labels: edgeLabelsAt(reply.json, structure.edges ?? []),
         xlabels: new Map(
@@ -372,7 +377,10 @@ function edgeLabelsAt(
  * What the graph's data says about the layout besides node sizes: the edges in the order they arrived with their
  * Graphviz attributes, each group's cluster attributes, and the file's rank subgraphs.
  * @param input - the run's input
- * @param nodes - the layout's nodes
+ * @param rows - each row's data, by row of `input.stored` (a row drawn with no `Node` included), and the data
+ *     manager's rank subgraphs
+ * @param rows.records - each row's data
+ * @param rows.ranks - the rank subgraphs
  * @param edges - the layout's edges, in the order they arrived
  * @param followers - the groups drawn round their members, by row: handed over as clusters
  * @param withOutlines - also hand over each node's outline (its `shape`), for a run that routes edges between
@@ -383,7 +391,10 @@ function edgeLabelsAt(
  */
 export function layoutStructure(
     input: SnapshotLayoutInput,
-    nodes: readonly Node[],
+    rows: {
+        readonly records: readonly (Readonly<Record<string | number, unknown>> | undefined)[];
+        readonly ranks: readonly RankSet[];
+    },
     edges: readonly Edge[],
     followers: ReadonlyMap<number, readonly number[]>,
     withOutlines = false,
@@ -392,46 +403,56 @@ export function layoutStructure(
     const { ids } = input.stored;
     const groups = new Map<number, Readonly<Record<string, unknown>>>();
     const data = new Map<number, Readonly<Record<string, unknown>>>();
-    for (const node of nodes) {
-        const row = ids.indexOf(node.id);
-        // A node the run leaves out (hidden under `layout.visibleOnly`) has no row in its graph.
-        if (row === INVALID_INDEX) {
-            continue;
+    // A row the run leaves out (hidden under `layout.visibleOnly`) is not in its graph, so has no record.
+    rows.records.forEach((record, row) => {
+        if (record === undefined) {
+            return;
         }
 
         if (followers.has(row)) {
-            groups.set(row, node.data);
+            groups.set(row, record);
         } else if (withOutlines || labelSized) {
-            data.set(row, node.data);
+            data.set(row, record);
         }
-    }
+    });
 
-    // An engine driven without an element has nodes whose parent holds no data manager.
-    const host: { getDataManager?: () => { readonly rankSets: readonly RankSet[] } } | undefined =
-        nodes[0]?.parentGraph;
-    const ranks = host?.getDataManager?.().rankSets ?? [];
     return graphvizStructure(
         (id) => ids.indexOf(id),
         edges,
         groups,
-        ranks,
+        rows.ranks,
         withOutlines || labelSized ? data : undefined,
         labelSized ? { idOf: (row) => ids.idOf(row) } : undefined,
     );
 }
 
+/** The route Graphviz laid an edge along: its bends when it did not draw it straight, and its measured curve. */
+export type LaidRoute = Pick<EdgePosition, "bends" | "laidCurve">;
+
 /**
- * The bends Graphviz laid each edge along, by edge.
- * @param bends - each route's `bends` text, by place in the list handed over
+ * The routes Graphviz laid each edge along, by edge.
+ * @param laid - each route's `bends` text and its measured curve, by place in the list handed over
+ * @param laid.bends - the `bends` texts
+ * @param laid.curves - the curves
  * @param edgeOf - the edge at each place
- * @returns each routed edge's bends, flat pairs
+ * @returns each routed edge's bends, flat pairs, and its curve
  */
-export function routesOf(bends: ReadonlyMap<number, string>, edgeOf: readonly Edge[]): Map<Edge, readonly number[]> {
-    const routes = new Map<Edge, readonly number[]>();
-    for (const [k, text] of bends) {
+export function routesOf(
+    laid: {
+        readonly bends: ReadonlyMap<number, string>;
+        readonly curves?: ReadonlyMap<number, NonNullable<EdgePosition["laidCurve"]>>;
+    },
+    edgeOf: readonly Edge[],
+): Map<Edge, LaidRoute> {
+    const routes = new Map<Edge, LaidRoute>();
+    for (const [k, laidCurve] of laid.curves ?? []) {
+        routes.set(edgeOf[k], { laidCurve });
+    }
+
+    for (const [k, text] of laid.bends) {
         const pairs = parseBends(text);
         if (pairs !== null) {
-            routes.set(edgeOf[k], pairs);
+            routes.set(edgeOf[k], { ...routes.get(edgeOf[k]), bends: pairs });
         }
     }
 
@@ -450,7 +471,7 @@ export function routesOf(bends: ReadonlyMap<number, string>, edgeOf: readonly Ed
  * @param options.timeoutMs - how long Graphviz may take
  * @param followers - the groups drawn round their members, by row: handed over as clusters
  * @param structure - the edges with their attributes, the nodes' outlines and the clusters' attributes
- * @returns each routed edge's bends, by place in `structure.edges`
+ * @returns each routed edge's bends, and its measured curve, by place in `structure.edges`
  */
 export async function pinnedRoutes(
     input: SnapshotLayoutInput,
@@ -463,7 +484,10 @@ export async function pinnedRoutes(
     },
     followers: ReadonlyMap<number, readonly number[]>,
     structure: DotStructure,
-): Promise<ReadonlyMap<number, string>> {
+): Promise<{
+    bends: ReadonlyMap<number, string>;
+    curves: ReadonlyMap<number, NonNullable<EdgePosition["laidCurve"]>>;
+}> {
     const n = input.graph.nodeCount;
     const points = new Float32Array(2 * n);
     for (let row = 0; row < n; row++) {
@@ -471,11 +495,14 @@ export async function pinnedRoutes(
         points[2 * row + 1] = (positions[dim * row + 1] * POINTS_PER_UNIT) / options.scale;
     }
 
-    const { bends } = await computeWith("neato", input, { ...options, maxNodes: Number.POSITIVE_INFINITY }, followers, {
-        ...structure,
-        positions: points,
-    });
-    return bends;
+    const { bends, curves } = await computeWith(
+        "neato",
+        input,
+        { ...options, maxNodes: Number.POSITIVE_INFINITY },
+        followers,
+        { ...structure, positions: points },
+    );
+    return { bends, curves };
 }
 
 /** How far, as a share of their distance, two nodes may sit from where Graphviz laid them and keep its line ends. */
@@ -486,7 +513,7 @@ type GraphvizLayoutClass = (new (opts: object) => SnapshotLayoutEngine) & {
     readonly type: string;
     readonly maxDimensions: number;
     readonly zodOptionsSchema: OptionsSchema;
-    readonly honoursWeights: boolean;
+    readonly honorsWeights: boolean;
     readonly scoped: boolean;
 };
 
@@ -505,13 +532,13 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         protected readonly dimensions = 2 as const;
         protected readonly options: Readonly<Record<string, unknown>>;
         /** The route Graphviz laid each edge along, as bends, for the edges it did not draw straight. */
-        private routes = new Map<Edge, readonly number[]>();
+        private routes = new Map<Edge, LaidRoute>();
         /**
          * Where Graphviz starts and ends each edge's line, for nodes Graphviz shaped as the element draws them, with the
          * line between the two centers Graphviz laid them at (`dx, dy`), which those ends hold for.
          */
         private lineEnds = new Map<Edge, { at: NonNullable<EdgePosition["lineEnds"]>; chord: readonly number[] }>();
-        /** Where Graphviz put each labelled edge's label and end labels, as `along, across` its two ends. */
+        /** Where Graphviz put each labeled edge's label and end labels, as `along, across` its two ends. */
         private labelPlaces = new Map<Edge, EdgeLabelsAt>();
         /** Where Graphviz put each node's external label, right and down of its center in scene units, by node id as text. */
         private xlabelPlaces = new Map<string, readonly [number, number] | null>();
@@ -539,13 +566,13 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
             // handed over as a cluster of its members, not as a node with room of its own.
             const structure = layoutStructure(
                 input,
-                this._nodes,
+                { records: this.rowRecords(input.stored.nodeCount), ranks: this.rankSets() },
                 this._edges,
                 this.followerGroups,
                 false,
                 this.options.nodeSize === "label",
             );
-            const { positions, bends, ends, labels, xlabels, margins } = await computeWith(
+            const { positions, bends, curves, ends, labels, xlabels, margins } = await computeWith(
                 engine,
                 input,
                 this.options,
@@ -557,7 +584,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 // each cluster is drawn as far past its members as Graphviz drew it: its margin, its
                 // label and the edges it routes inside it
                 laidGroupMargins.set(this, margins);
-                this.routes = routesOf(bends, structure.edgeOf);
+                this.routes = routesOf({ bends, curves }, structure.edgeOf);
                 // only a node Graphviz shaped from its own attributes has the outline Graphviz ended the line on; a
                 // node handed over at its drawn size goes as a circle or a box, whatever the element draws
                 const chord = (k: number): number[] => {
@@ -567,7 +594,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 this.lineEnds =
                     this.options.nodeSize === "label"
                         ? new Map([...ends].map(([k, at]) => [structure.edgeOf[k], { at, chord: chord(k) }]))
-                        : new Map();
+                        : new Map<Edge, { at: NonNullable<EdgePosition["lineEnds"]>; chord: readonly number[] }>();
                 this.labelPlaces = new Map([...labels].map(([k, place]) => [structure.edgeOf[k], place]));
                 this.xlabelPlaces = new Map(
                     [...xlabels].map(([row, place]) => [String(input.stored.ids.idOf(row)), place]),
@@ -602,7 +629,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
          */
         override getEdgePosition(e: Edge): EdgePosition {
             const ends = super.getEdgePosition(e);
-            const bends = this.routes.get(e);
+            const route = this.routes.get(e);
             // the ends hold only while the two nodes are where Graphviz laid them, one against the other: a node moved
             // since (dragged, pinned elsewhere) leaves its line cut at the outlines again
             const laid = this.lineEnds.get(e);
@@ -614,7 +641,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
             const lineEnds = moved ? undefined : laid.at;
             return {
                 ...ends,
-                ...(bends === undefined ? {} : { bends }),
+                ...route,
                 ...(lineEnds === undefined ? {} : { lineEnds }),
                 ...this.labelPlaces.get(e),
             };

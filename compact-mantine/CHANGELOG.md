@@ -1,3 +1,17 @@
+## 0.9.41 (2026-11-12)
+
+### 🚀 Features
+
+- **compact-mantine:** usePopout hook closes a pop-out from inside it ([#315](https://github.com/graphty-org/graphty-monorepo/issues/315))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.43
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
 ## 0.9.40 (2026-11-10)
 
 ### 🚀 Features

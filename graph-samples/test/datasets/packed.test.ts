@@ -86,6 +86,10 @@ describe("a small dataset's subpath", () => {
 function nodeValues(snapshot: GraphSnapshot): Record<string, unknown[]> {
     const out: Record<string, unknown[]> = {};
     for (const column of snapshot.nodes) {
+        // fetchDataset adds the position column from the dataset's own plain columns (positions.ts)
+        if (column.meta.role === "position") {
+            continue;
+        }
         out[column.meta.name] = Array.from({ length: snapshot.nodeCount }, (_, i) => {
             const v = column.value(i);
             return typeof v === "number" && Number.isNaN(v) ? null : v;

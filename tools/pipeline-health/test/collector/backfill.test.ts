@@ -434,6 +434,18 @@ describe("backfill", () => {
         expect(homes(store, "run")).toHaveLength(0);
         expect(await getCursor(store, runsCursor(REPO))).toBeUndefined();
     });
+
+    it("fails on a failed cursor read instead of re-reading the whole range (#7275)", async () => {
+        const store = new MemoryStore();
+        const get = store.get.bind(store);
+        store.get = (key) =>
+            key.pk === `CURSOR#${runsCursor(REPO)}`
+                ? Promise.reject(new Error("ProvisionedThroughputExceededException"))
+                : get(key);
+        const f = fake();
+        await expect(backfill(options(store, f))).rejects.toThrow("ProvisionedThroughputExceededException");
+        expect(listCalls(f.urls)).toEqual([]);
+    });
 });
 
 describe("the all-issues load", () => {

@@ -32,6 +32,7 @@ export {
     PopoutButton,
     PopoutManager,
     PopoutRegion,
+    usePopout,
     usePopoutManager,
     usePopoutRegion,
 } from "./components/popout";

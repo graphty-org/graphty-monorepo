@@ -31,12 +31,14 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 | `layout-progress`                                              | A layout reported how far its arrangement has got                                                                                                                                                                                                                   | `{ layoutType, fraction, message? }`                             |
 | `graph-started`                                                | The render loop started                                                                                                                                                                                                                                             | `{ timestamp }`                                                  |
 | `layout-changed`                                               | A new layout is now running                                                                                                                                                                                                                                         | `{ layoutType, options }`                                        |
+| `layout-updated`                                               | The running layout moved the nodes after nodes were added                                                                                                                                                                                                           | `{ nodeCount }`                                                  |
 | `layout-warning`                                               | A layout could not place every node (`W_NO_POSITION`) or ignored options (`W_UNKNOWN_OPTION`), a 2D view replaced `dim` (`W_DIMENSION_OVERRIDDEN`), or an edge weight's meaning was assumed or unreadable (`W_WEIGHT_MEANING_ASSUMED`, `W_WEIGHT_MEANING_MISMATCH`) | `{ layoutType, code, params }`                                   |
 | `operation-cancelled`                                          | A queued operation was aborted: the whole queue was cleared (`queue-cleared`) or this one operation was cancelled (`cancelled`)                                                                                                                                     | `{ id, code }`                                                   |
 | `stats-update`                                                 | Every 60 graph updates, with the performance counters                                                                                                                                                                                                               | `{ totalUpdates, stats }`                                        |
 | `input-enabled-changed`                                        | `setInputEnabled()` switched canvas input on or off                                                                                                                                                                                                                 | `{ enabled }`                                                    |
 | `xr-session-started`                                           | A VR or AR session started                                                                                                                                                                                                                                          | `{ mode, requestedReferenceSpace, referenceSpace }`              |
 | `xr-session-ended`                                             | A VR or AR session ended, left by the element or ended by the headset                                                                                                                                                                                               | `{ mode, cause }`                                                |
+| `xr-menu-select`                                               | The reader pressed an item of the in-headset menu (`xr.menu`)                                                                                                                                                                                                       | `{ id }`                                                         |
 | `input:pointer-down`, `input:pointer-move`, `input:pointer-up` | A pointer pressed, moved or released on the canvas                                                                                                                                                                                                                  | `{ x, y }` (the DOM event's `clientX`, `clientY`)                |
 | `input:wheel`                                                  | The wheel turned over the canvas                                                                                                                                                                                                                                    | `{ deltaX, deltaY, deltaZ, deltaMode }`                          |
 | `input:touch-start`, `input:touch-move`                        | Touches started or moved on the canvas                                                                                                                                                                                                                              | `{ array: [{ x, y }, ...] }`                                     |
@@ -54,12 +56,10 @@ when data arrives should skip those, or it starts the work again on every undo. 
 [Undo and History](./undo#following-changes).
 
 `code` on `operation-cancelled` says why the operation stopped: `"queue-cleared"` or
-`"cancelled"`. Write the words you show from it. The detail also carries `reason`, an English
-sentence (`"Queue cleared"`, `"Manual cancellation"`); it is deprecated and is removed in the next
-major release, so read `code` instead.
+`"cancelled"`. Write the words you show from it.
 
 There is no edge-click event. Edge meshes are not pickable, so nothing could emit one; it returns,
-with a serialisable detail, when edge picking lands.
+with a serializable detail, when edge picking lands.
 
 ### The two load events count different things, and say so in their field names
 
@@ -98,6 +98,13 @@ about that load -- `data-loading-progress`, `data-loading-complete`, `data-loadi
 `data-loaded` (in `details.loadId`) -- carries the same `loadId`. A load started by assigning the
 `dataSource` / `dataSourceConfig` pair has an id too, on its events. When two loads overlap, the id
 says which one a report is about.
+
+### `source:loaded` or `data-loaded`
+
+Use the session's `source:loaded` (`graphty-source-loaded` on the element) to react to a load you
+or the reader asked for, and `data-loaded` to react to the graph's data changing for any reason.
+`data-loaded` also fires when undo, redo or a restore brings data back; `source:loaded` never does,
+and neither does opening a project. See [graphty-source-loaded](#graphty-source-loaded).
 
 ## JavaScript API
 
@@ -154,7 +161,9 @@ graph.on("error", ({ error, context }) => {
 
 ## DOM Events
 
-Listen via standard `addEventListener` on the Web Component:
+Listen via standard `addEventListener` on the Web Component. These events bubble and are composed,
+except `error`, which fires only on the element itself so that `window.onerror` and error reporters
+never mistake it for an uncaught exception:
 
 ```javascript
 const element = document.querySelector("graphty-element");
@@ -233,6 +242,11 @@ element.addEventListener("graphty-selection-change", (e) => {
     // `added` and `removed` are the ids that moved; `nodes` and `edges` are how many the
     // selection holds NOW.
     console.log(`${nodes} nodes and ${edges} edges selected`, added, removed);
+    // A reader's change on the canvas says how it was made: `cause` is "user" and `via` is
+    // "click" (a node, an edge or empty canvas), "box" (a Shift-drag region) or "keys" (Escape
+    // through attachKeymap). An API call has no `via`, even one made with { cause: "user" }.
+    const { cause, via } = e.detail;
+    if (cause === "user" && via !== undefined) console.log("the reader selected by", via);
 });
 
 // A filter, the time window or the context flag changed what is showing. Every producer arrives
@@ -312,6 +326,38 @@ element.addEventListener("graphty-project-status", (e) => {
 
 On the session the same change is `project:status`. See [Project Files](./project-file).
 
+### graphty-source-loaded
+
+A load you or the reader asked for added a source to the graph, or replaced one in place: one
+event per source, once the load is in. The detail says which source it was and where it came
+from, never what it holds: no file name, URL or parameters.
+
+| Field       | What it is                                                                                          |
+| ----------- | --------------------------------------------------------------------------------------------------- |
+| `source`    | The source's key in `session.data.sources()`                                                        |
+| `kind`      | `"file"`, `"url"`, `"server"`, `"sample"` or `"join"`, the same kind `sources()` lists              |
+| `format`    | For a file or a URL: the format read, such as `"graphml"`                                           |
+| `sourceId`  | For a network source: its id                                                                        |
+| `mode`      | `"replace"` or `"merge"`                                                                            |
+| `sample`    | For a catalog sample: `{ datasetId }`, `{ generatorId }` or, for a network example, `{ exampleId }` |
+| `callerKey` | The `callerKey` you passed to the load, unchanged                                                   |
+| `replaced`  | For a source replaced in place under the same key: `"replaceSource"` or `"reloadSource"`            |
+
+```javascript
+element.addEventListener("graphty-source-loaded", (e) => {
+    const { kind, format, sample, callerKey } = e.detail;
+    if (callerKey === "tutorial") showNextStep();
+    console.log(kind, format ?? sample);
+});
+```
+
+Every load method publishes it: `session.data.import`, a prepared draft's `load()`, `loadExample`,
+`loadDataset` and `generate`. `replaceSource` publishes it with `replaced: "replaceSource"` and
+`mode: "merge"`, and `reloadSource` and `remap` with `replaced: "reloadSource"`. Opening a
+project, undo, redo, a restore and `runPendingSourceLoad` (which fills a source a project already
+listed) publish none. A failed load publishes none; it ends `progress:changed` with an `error`
+instead. On the session the same event is `source:loaded`.
+
 ### Autosave events
 
 With the `autosave` attribute on, four more events report what autosave does. They live on the
@@ -349,10 +395,25 @@ element.addEventListener("graphty-note-change", (e) => {
 On the session the same change is `note:changed`, whose payload also carries the frozen record as
 `note`. See [Notes](./notes#hearing-about-changes).
 
+### graphty-skybox-loaded and graphty-skybox-failed
+
+A skybox background's image (`element.background = { backgroundType: "skybox", data }`) has
+arrived, once per new image, or could not be loaded. Setting the image already shown fires neither.
+
+```javascript
+element.addEventListener("graphty-skybox-loaded", (e) => {
+    const { url } = e.detail; // the background's `data`
+});
+element.addEventListener("graphty-skybox-failed", (e) => {
+    const { code, params } = e.detail; // "E_IMAGE_LOAD", params.url: its first 256 characters
+});
+```
+
 ### graphty-warning
 
 A notice that stops nothing, as a code and its parameters (`e.detail.code`, `e.detail.params`).
-Today the one code is `W_ANTIALIAS_LATE`: `antialias` was changed after the engine was built. See
+The codes are `W_ANTIALIAS_LATE` and `W_PRESERVE_DRAWING_BUFFER_LATE`: `antialias` or
+`preserveDrawingBuffer` was changed after the engine was built. See
 [Renderer](./renderer#smoothing-antialias).
 
 ### style-changed
@@ -513,6 +574,27 @@ graph.on("data-cleared", () => {
     console.log("the graph is empty");
 });
 ```
+
+### Follow every data change on the session
+
+A session -- the element's, or one from `createGraphSession()` with no view -- publishes
+`data:changed` once per change to the data: a load, an add, a removal, an attribute edit, and an
+undo, redo or restore of any of them. It arrives right after the change, so `data.node(id)` already
+reads the new values:
+
+```typescript
+const session = createGraphSession();
+session.on("data:changed", ({ added, removed, updated, fields, cause }) => {
+    console.log(added.nodes, removed.edges, updated.nodes, fields.nodes, cause);
+});
+await session.data.addNodes([{ id: "a", type: "host" }]); // added.nodes: ["a"], cause: "command"
+await session.data.updateNodes([{ id: "a", values: { type: "service" } }]); // fields.nodes: ["type"]
+await session.undo(); // updated.nodes: ["a"], cause: "undo"
+```
+
+Load progress is `progress:changed` with `task: "load"` (see
+[graphty-progress-change](#graphty-progress-change)); the load's `data:changed` follows when it
+commits.
 
 ### Loading Indicator
 

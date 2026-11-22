@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
+import { coordinateSystemOf, GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { createRegistry, type ImportInput } from "../../src/index.js";
@@ -224,6 +224,26 @@ const CASES: readonly Case[] = [
         dims: 2,
     },
     {
+        name: "GraphML from Gephi: its x / y keys, y up, in Gephi's own unit",
+        file: join(CONFORMANCE, "graphml", "graphology", "miserables.graphml"),
+        format: "graphml",
+        // Gephi declares the keys float: f32 values
+        expect: { 11: [Math.fround(-87.93029), Math.fround(6.8120565), 0] },
+        units: "file",
+        yAxis: "up",
+        dims: 2,
+        tool: "gephi",
+    },
+    {
+        name: "XGMML graphics x / y: already y up",
+        file: join(CORPUS, "xgmml", "cytoscape3-small.xgmml"),
+        format: "xgmml",
+        expect: {},
+        units: "file",
+        yAxis: "up",
+        dims: 2,
+    },
+    {
         name: "Cytoscape session (cys): already y up",
         file: join(CORPUS, "cys", "karate-3x.cys"),
         format: "cys",
@@ -260,6 +280,14 @@ describe("extractPositions over each format's samples", () => {
         }
         expect(p.coords.length).toBe(3 * snapshot.nodeCount);
         expect(p.bounds).not.toBeNull();
+        // the position column describes the same y direction to a consumer that reads no format
+        const column = snapshot.nodes.byRole("position");
+        if (column !== null) {
+            const system = coordinateSystemOf(column.meta);
+            expect(system.kind).toBe("cartesian");
+            expect(system.yAxis).toBe(c.yAxis);
+            expect(system.order).toEqual(["x", "y", "z"]);
+        }
     });
 
     it("an unchanged column keeps the values the file wrote (the conversion is computed, not stored)", async () => {
@@ -360,7 +388,8 @@ describe("the JSON marker rule", () => {
             }),
             "json",
         );
-        expect(vis.positions?.source.yAxis).toBe("down");
+        // the importer stores the position flipped to y up, as it does Cytoscape's
+        expect(vis.positions?.source.yAxis).toBe("up");
         expect(vis.positions?.units).toBe("px");
         expect(at(vis.snapshot, vis.positions as FilePositions, "a")).toEqual([1, -2, 0]);
     });
@@ -436,9 +465,45 @@ describe("notes", () => {
         expect(note?.params.samples).toEqual(["x", "y"]);
     });
 
-    it("W_POSITIONS_NOT_READ: CSV x / y columns are not read", async () => {
-        const { positions } = await load("id,x,y\na,1,2\nb,3,4\n", "csv");
-        expect(codes(positions)).toEqual([POSITION_ISSUE.NOT_READ]);
+    it("W_POSITIONS_GUESSED: CSV x / y / z columns, in any case, are read by their names, y up", async () => {
+        const { snapshot, positions } = await load("id,X,Y,z\na,1,2,5\nb,3,4,6\n", "csv");
+        expect(positions?.usable).toBe(true);
+        expect(positions?.source.yAxis).toBe("up");
+        expect(positions?.dims).toBe(3);
+        expect(at(snapshot, positions as FilePositions, "a")).toEqual([1, 2, 5]);
+        const note = positions?.notes.find((n) => n.code === POSITION_ISSUE.GUESSED);
+        expect(note?.params.samples).toEqual(["X", "Y", "z"]);
+        expect(codes(positions)).toEqual([POSITION_ISSUE.GUESSED]);
+    });
+
+    it("CSV x / y columns that hold text are not positions", async () => {
+        const { positions } = await load("id,x,y\na,left,top\nb,right,bottom\n", "csv");
+        expect(positions).toBeNull();
+    });
+
+    it("W_POSITIONS_GUESSED: a plain JSON node list's x / y, but not vis.js or graphology's", async () => {
+        const plain = await load(JSON.stringify({ nodes: [{ id: "a", x: 1, y: 2 }] }), "json");
+        expect(codes(plain.positions)).toEqual([POSITION_ISSUE.GUESSED]);
+        const sigma = await load(
+            JSON.stringify({ options: { type: "mixed" }, nodes: [{ key: "a", attributes: { x: 1, y: 2 } }] }),
+            "json",
+        );
+        expect(codes(sigma.positions)).not.toContain(POSITION_ISSUE.GUESSED);
+    });
+
+    it("a geographic position column is places on the Earth, not a drawing: no positions", () => {
+        const b = new GraphBuilder({ directed: true });
+        const pos = b.declareNodeColumn({
+            name: "position",
+            dtype: "f64",
+            components: 3,
+            role: "position",
+            coordinates: { kind: "geographic", dims: 2 },
+        });
+        b.setNodeValue(pos, b.addNode("a"), [2.35, 48.86, 0]);
+        b.setNodeValue(pos, b.addNode("b"), [-0.13, 51.51, 0]);
+        const importer = { format: "test" } as GraphImporter;
+        expect(extractPositions(importer, b.freeze(), { issues: [] } as unknown as ImportReport)).toBeNull();
     });
 
     it("a file with no positions and no position-like columns gives null", async () => {

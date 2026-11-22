@@ -178,7 +178,7 @@ export function hypot(a: number, b: number): number {
     }
     const p = x / max;
     const q = y / max;
-    return Math.sqrt(p * p + q * q) * max; // NOSONAR(S7769): this is Math.hypot's own sum, inlined for speed
+    return Math.sqrt(p * p + q * q) * max; // eslint-disable-line unicorn/prefer-modern-math-apis -- this is Math.hypot's own sum, inlined for speed
 }
 
 /** The cells {@link repulsionOn} has still to visit, kept from call to call. */
@@ -381,9 +381,7 @@ export function stepSupportPoints(
             const [px, py] = repulsionOn(root, n + j, x, y, forces);
             const [sx, sy] = springsAndGravity(x, y, ends[j], center, forces);
             const damping = DAMPING[forces.model];
-            const speedX = integrate(velocities, points, 2 * j, px + sx, damping, unit);
-            const speedY = integrate(velocities, points, 2 * j + 1, py + sy, damping, unit);
-            fastest = Math.max(fastest, speedX, speedY);
+            fastest = Math.max(fastest, integrate(velocities, points, 2 * j, [px + sx, py + sy], damping, unit));
         }
         counted.steps = fastest > REST_SPEED ? 0 : counted.steps + 1;
         moving = counted.steps < CALM_STEPS;
@@ -511,29 +509,38 @@ function falling(f: (s: number) => number): number | null {
 }
 
 /**
- * One step of one coordinate of a support point under its force, as vis-network integrates a body (its damping,
- * timestep and maximum speed).
+ * One step of a support point under its force, as vis-network integrates a body (its damping, timestep and maximum
+ * speed), with the speed held to the maximum as a whole, in the direction it has: vis-network holds each axis to it
+ * apart, and a point thrown at full speed toward a node that throws it back as hard then came back to exactly where
+ * it was, every other step -- the middle it started from, so its edge was drawn straight (#8094).
  * @param velocities - Every velocity; updated.
  * @param points - Every point, in scene units; updated.
- * @param at - Which coordinate.
- * @param force - The force on it.
+ * @param at - The point's x; its y follows.
+ * @param force - The force on it, x and y.
  * @param damping - The damping.
  * @param unit - Scene units per force unit.
- * @returns Its new speed.
+ * @returns Its new speed along the faster axis.
  */
 function integrate(
     velocities: Float64Array,
     points: Float64Array,
     at: number,
-    force: number,
+    force: readonly [number, number],
     damping: number,
     unit: number,
 ): number {
-    const v = velocities[at];
-    const next = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, v + (force - damping * v) * TIMESTEP));
-    velocities[at] = next;
-    points[at] += next * TIMESTEP * unit;
-    return Math.abs(next);
+    let vx = velocities[at] + (force[0] - damping * velocities[at]) * TIMESTEP;
+    let vy = velocities[at + 1] + (force[1] - damping * velocities[at + 1]) * TIMESTEP;
+    const speed = hypot(vx, vy);
+    if (speed > MAX_VELOCITY) {
+        vx *= MAX_VELOCITY / speed;
+        vy *= MAX_VELOCITY / speed;
+    }
+    velocities[at] = vx;
+    velocities[at + 1] = vy;
+    points[at] += vx * TIMESTEP * unit;
+    points[at + 1] += vy * TIMESTEP * unit;
+    return Math.max(Math.abs(vx), Math.abs(vy));
 }
 
 /**

@@ -44,14 +44,16 @@ afterEach(() => {
  */
 async function openWithGraph(): Promise<{ session: GraphSession; store: WorkspaceStore }> {
     const store = createWorkspaceStore({ project: { name: "Givers", id: 1 }, inspected: { kind: "everything-row" } });
-    let last = "";
+    // Each announcement is said once, as the workspace's live region keys its words by the count:
+    // the same words announced again are said again.
+    let last = 0;
     stopListening = store.subscribe(() => {
-        const words = store.get().announcement;
-        if (words !== last && words !== "") {
+        const { announcement: words, announced } = store.get();
+        if (announced !== last && words !== "") {
             const offerListed = document.querySelector('[role=listbox] [role=group][aria-label="Rule"]') !== null;
             said.push({ words, offerListed });
         }
-        last = words;
+        last = announced;
     });
     render(<Workspace store={store} />);
     let element: HTMLElementTagNameMap["graphty-element"] | null = null;

@@ -36,7 +36,9 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { issueInName } from "../branch-note.mjs";
 
+import { git as runGit } from "../lib/git.mjs";
 import { call, config } from "../results/client.mjs";
 import { acceptsIn } from "./resume.mjs";
 
@@ -62,8 +64,8 @@ const NOTHING_AFFECTED = ["graph-format"];
  */
 export function referencesHold(merge, issue) {
     if (!issue) return false;
-    const branch = /^Merge pull request #\d+ from [^/\s]+\/(?:[\w.-]+\/)?(\d+)-/.exec(merge.subject ?? "");
-    if (branch && Number(branch[1]) === Number(issue)) return true;
+    const branch = /^Merge pull request #\d+ from [^/\s]+\/(\S+)/.exec(merge.subject ?? "")?.[1];
+    if (branch && issueInName(branch) === Number(issue)) return true;
     return new RegExp(String.raw`(^|[^\w/])#${issue}\b|graphty-monorepo/issues/${issue}\b`).test(merge.messages ?? "");
 }
 
@@ -140,8 +142,7 @@ export const visualProjects = (cfg) =>
         ]),
     );
 
-const git = (args, opts = {}) =>
-    execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...opts }).trim();
+const git = (args, opts = {}) => runGit(args, { stdio: ["ignore", "pipe", "pipe"], ...opts });
 const gitOk = (args) => {
     try {
         git(args);

@@ -200,7 +200,7 @@ checkStep(step: UnionStep, options: { side; within; host: "selector" | "filter" 
   starting all with Keep and Except steps; an `any` of leaves is one branch per leaf starting none;
   anything else is `null`. Writing a converted form back is the consumer's choice.
 - `checkStep` returns the refusal the element would give writing that step on that host, such as
-  `circular-scope` for a filter-graph run read in a filter, so the picker greys it with the element's
+  `circular-scope` for a filter-graph run read in a filter, so the picker grays it with the element's
   reason.
 
 ## 6. Runs: limits and consent

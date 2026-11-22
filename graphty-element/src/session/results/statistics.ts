@@ -9,12 +9,12 @@
  *
  * Those places are worth naming, since each one cost a consumer a bug:
  *
- * - **Every value identical.** Naive min-max normalisation divides by zero and naive log banding
+ * - **Every value identical.** Naive min-max normalization divides by zero and naive log banding
  *   asks for the logarithm of a zero-width range. Both are ordinary results: a graph where every
  *   node has two edges is not a degenerate input.
  * - **Values spanning orders of magnitude.** That is the case log banding exists for, and it is
  *   the case a shifted transform silently ruins: banding on `log10(value + 1)` is very nearly
- *   linear for a column that lies below 1, such as normalised PageRank, so a chart captioned
+ *   linear for a column that lies below 1, such as normalized PageRank, so a chart captioned
  *   "log scale" comes out linear with every node in the first bar. The transform here is
  *   `log10(value)` over the positive part of the domain, with zeros and negatives in a leading
  *   bin of their own.
@@ -74,7 +74,7 @@ const NO_BINS: readonly HistogramBin[] = Object.freeze([]);
 const NORMALIZATIONS: readonly Normalization[] = Object.freeze(["max", "min-max", "none"]);
 
 /**
- * Tell whether a value is one of the normalisations a result may declare.
+ * Tell whether a value is one of the normalizations a result may declare.
  * @param value - The value to test.
  * @returns True when the value is a member of {@link NORMALIZATIONS}.
  */
@@ -132,13 +132,15 @@ interface ColumnStatistics {
     readonly max: number;
     /** The average measured value, or NaN when nothing was measured. */
     readonly mean: number;
+    /** The compensated sum of the measured values, 0 when nothing was measured. */
+    readonly sum: number;
     /** The middle measured value, or NaN when nothing was measured. */
     readonly median: number;
     /**
      * How many measured entries sit exactly at {@link ColumnStatistics.min}.
      *
-     * This is the number that says whether a colour ramp is about to paint most of the graph one
-     * colour, which is a thing a reader needs to be told rather than left to notice.
+     * This is the number that says whether a color ramp is about to paint most of the graph one
+     * color, which is a thing a reader needs to be told rather than left to notice.
      */
     readonly tiedAtMin: number;
     /**
@@ -164,6 +166,7 @@ const EMPTY_STATISTICS: Omit<ColumnStatistics, "length"> = Object.freeze({
     min: Number.NaN,
     max: Number.NaN,
     mean: Number.NaN,
+    sum: 0,
     median: Number.NaN,
     tiedAtMin: 0,
     smallestPositive: null,
@@ -234,6 +237,7 @@ export function computeColumnStatistics(column: NumericColumnSource): ColumnStat
         min,
         max,
         mean: sum / measured,
+        sum,
         median,
         tiedAtMin,
         smallestPositive: Number.isFinite(smallestPositive) ? smallestPositive : null,
@@ -396,14 +400,14 @@ export function analyzeColumn(column: NumericColumnSource): AnalyzedColumn {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Normalisation
+// Normalization
 // ---------------------------------------------------------------------------------------------
 
 /**
  * Scale one value the way a metric declares its values are scaled.
  *
  * The two rules are not interchangeable, and which one a metric uses is the metric's own fact:
- * max normalisation answers "what share of the top element's score is this", min-max answers
+ * max normalization answers "what share of the top element's score is this", min-max answers
  * "where does this sit between the bottom and the top". A zero denominator yields 0 rather than
  * NaN, because every element being equal is an ordinary result rather than an error.
  * @param value - The raw value.
@@ -565,7 +569,6 @@ export function topOfRanking(ranking: readonly RankingEntry[], n: number, ties: 
     return Object.freeze({
         entries: ranking.slice(0, end),
         leftOut: null,
-        reason: null,
         threshold: end < ranking.length ? ranking[end].value : null,
     });
 }
@@ -589,7 +592,6 @@ function topWithinLimit(ranking: readonly RankingEntry[], n: number): TopRanking
         return Object.freeze({
             entries: ranking.slice(0, taken),
             leftOut: null,
-            reason: null,
             threshold: taken < ranking.length ? ranking[taken].value : null,
         });
     }
@@ -601,15 +603,10 @@ function topWithinLimit(ranking: readonly RankingEntry[], n: number): TopRanking
     }
 
     const count = end - taken;
-    const kept = taken === 0 ? "none are" : `only the top ${String(taken)} are`;
-    const reason =
-        `${String(count)} tie at ${String(value)}, and taking them would make ${String(taken + count)}, ` +
-        `more than the ${String(n)} asked for, so ${kept} taken.`;
 
     return Object.freeze({
         entries: ranking.slice(0, taken),
         leftOut: Object.freeze({ value, count }),
-        reason,
         threshold: value,
     });
 }
@@ -636,7 +633,7 @@ interface HistogramRequest extends HistogramOptions {
  * Ask before captioning a chart "log scale": a column with no positive values, or whose positive
  * values all sit at one magnitude, has no logarithmic layout, and {@link buildHistogram} lays it
  * out linearly rather than refusing to draw it. A caption derived from the request instead of
- * from this answer is how a linear chart ends up labelled logarithmic.
+ * from this answer is how a linear chart ends up labeled logarithmic.
  * @param statistics - The column's statistics.
  * @returns True when a logarithmic layout would really be applied.
  */
@@ -742,7 +739,7 @@ function linearBandPlan(min: number, max: number, binCount: number, integerValue
  *
  * The transform is `log10(value)` over the positive part of the domain and nothing else. Banding
  * on `log10(value + 1)` looks like the same thing and is not: for a column that lies below 1 --
- * normalised PageRank is the everyday case -- the shift makes the transform very nearly linear,
+ * normalized PageRank is the everyday case -- the shift makes the transform very nearly linear,
  * so the bands come out evenly spaced in the raw value, almost every element lands in the first
  * bar, and the chart above the caption "log scale" is a linear chart.
  *

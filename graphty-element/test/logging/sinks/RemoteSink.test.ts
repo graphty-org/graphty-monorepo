@@ -4,7 +4,7 @@ import { createRemoteSink } from "../../../src/logging/sinks/RemoteSink.js";
 import { LogLevel, type LogRecord } from "../../../src/logging/types.js";
 
 describe("RemoteSink", () => {
-    let fetchSpy: MockInstance;
+    let fetchSpy: MockInstance<typeof fetch>;
 
     beforeEach(() => {
         // Mock fetch
@@ -60,7 +60,7 @@ describe("RemoteSink", () => {
             vi.runAllTimers();
 
             assert.isTrue(fetchSpy.mock.calls.length > 0);
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as { sessionId: string };
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as { sessionId: string };
             assert.isTrue(body.sessionId.startsWith("custom-prefix-"));
         });
     });
@@ -81,7 +81,7 @@ describe("RemoteSink", () => {
             vi.runAllTimers();
 
             assert.strictEqual(fetchSpy.mock.calls.length, 1);
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as { logs: unknown[] };
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as { logs: unknown[] };
             assert.strictEqual(body.logs.length, 3);
         });
 
@@ -163,7 +163,7 @@ describe("RemoteSink", () => {
             vi.runAllTimers();
 
             assert.strictEqual(fetchSpy.mock.calls.length, 1);
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as { logs: unknown[] };
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as { logs: unknown[] };
             // Only 1 log should be sent (throttled duplicates)
             assert.strictEqual(body.logs.length, 1);
         });
@@ -207,7 +207,7 @@ describe("RemoteSink", () => {
             vi.runAllTimers();
 
             assert.strictEqual(fetchSpy.mock.calls.length, 1);
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as { logs: unknown[] };
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as { logs: unknown[] };
             assert.strictEqual(body.logs.length, 3);
         });
     });
@@ -232,7 +232,7 @@ describe("RemoteSink", () => {
             vi.runAllTimers();
 
             assert.isTrue(fetchSpy.mock.calls.length > 0);
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as {
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as {
                 sessionId: string;
                 logs: { time: string; level: string; message: string }[];
             };
@@ -258,7 +258,7 @@ describe("RemoteSink", () => {
 
             vi.runAllTimers();
 
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as {
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as {
                 logs: { message: string }[];
             };
             const { logs } = body;
@@ -266,6 +266,30 @@ describe("RemoteSink", () => {
 
             assert.isTrue(message.includes("key"));
             assert.isTrue(message.includes("value"));
+        });
+
+        test("removes credentials from the line and the structured data it sends", () => {
+            const sink = createRemoteSink({ serverUrl: "https://example.com/log" });
+            sink.write(
+                createTestRecord({
+                    message: "401: bad key sk-ant-api03-abcdefgh",
+                    data: {
+                        apiKey: "plainvalue",
+                        token: "sk-live-1234567890",
+                        url: "https://x.example/?key=abc123",
+                        nodes: 3,
+                    },
+                }),
+            );
+            vi.runAllTimers();
+
+            const sent = fetchSpy.mock.calls[0][1]?.body as string;
+            assert.notInclude(sent, "sk-ant-api03-abcdefgh");
+            assert.notInclude(sent, "sk-live-1234567890");
+            assert.notInclude(sent, "abc123");
+            assert.notInclude(sent, "plainvalue");
+            const body = JSON.parse(sent) as { logs: { data?: Record<string, unknown> }[] };
+            assert.strictEqual(body.logs[0].data?.nodes, 3);
         });
 
         test("should include error stack in message", () => {
@@ -281,7 +305,7 @@ describe("RemoteSink", () => {
 
             vi.runAllTimers();
 
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as {
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as {
                 logs: { message: string }[];
             };
             const { logs } = body;

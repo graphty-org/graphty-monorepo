@@ -28,8 +28,8 @@ import type { HighlightSpec, MarkSpec, TemplatePosition } from "../styles/Styles
 import { findRow, rowsOf, type StyleRowId, type StyleRowPin, type StyleRowPlace } from "../styles/tree";
 import type { HistoryCode } from "../types";
 
-/** The values of `style.patch`'s discriminant: one per styles verb that reaches it. */
-const STYLE_PATCH_ACTIONS = Object.freeze([
+/** The values of `style.patch`'s discriminant (`action`): one per styles verb that reaches it. */
+export const STYLE_PATCH_ACTIONS = Object.freeze([
     "add",
     "update",
     "remove",
@@ -47,7 +47,8 @@ const STYLE_PATCH_ACTIONS = Object.freeze([
     "lockRow",
     "hideRow",
     "deleteRow",
-    "restoreStartingRows",
+    "duplicateRow",
+    "addDefaultRows",
 ] as const);
 
 /** `style.patch`: one change to the stack, said the way the styles verb that made it says it. */
@@ -56,7 +57,7 @@ export type StylePatchCommand =
           readonly op: "style.patch";
           readonly action: "add";
           readonly spec: LayerSpec;
-          /** Which neighbour to sit next to; the top of the stack when absent. */
+          /** Which neighbor to sit next to; the top of the stack when absent. */
           readonly at?: LayerPosition;
       }
     | {
@@ -65,7 +66,7 @@ export type StylePatchCommand =
           readonly id: LayerId;
           /** Applied over the layer's specification one key deep; `undefined` clears a key. */
           readonly patch: Partial<LayerSpec>;
-          /** Keep the layer when the patch takes its last value away (`styles.update`'s `keepEmpty`). */
+          /** `styles.update`'s `keepEmpty`: kept for callers; every layer may write nothing. */
           readonly keepEmpty?: boolean;
       }
     | { readonly op: "style.patch"; readonly action: "remove"; readonly id: LayerId }
@@ -86,7 +87,7 @@ export type StylePatchCommand =
           readonly op: "style.patch";
           readonly action: "highlight";
           readonly spec: Omit<HighlightSpec, "run"> & { readonly run: RunId };
-          /** Placed beneath the authored layers driving the same colour, as auto-apply places it. */
+          /** Placed beneath the authored layers driving the same color, as auto-apply places it. */
           readonly beneathAuthored?: boolean;
       }
     | {
@@ -110,8 +111,11 @@ export type StylePatchCommand =
           /** Where it goes; the top of the unpinned top-level rows when absent. */
           readonly at?: StyleRowPlace;
       }
-    /** Add back whichever of the starting rows (Everything, Selected, Hovered) the stack lacks. */
-    | { readonly op: "style.patch"; readonly action: "restoreStartingRows" }
+    /**
+     * Write the default rows once, as plain data (the project setting `startingRows` turning on);
+     * with `timelineHidden`, only the timeline's Timeline Hidden row (the timeline turning on).
+     */
+    | { readonly op: "style.patch"; readonly action: "addDefaultRows"; readonly timelineHidden?: true }
     | { readonly op: "style.patch"; readonly action: "renameRow"; readonly id: StyleRowId; readonly name: string }
     | { readonly op: "style.patch"; readonly action: "moveRow"; readonly id: StyleRowId; readonly to: StyleRowPlace }
     | { readonly op: "style.patch"; readonly action: "pinRow"; readonly id: StyleRowId; readonly pin: StyleRowPin }
@@ -120,9 +124,16 @@ export type StylePatchCommand =
     | { readonly op: "style.patch"; readonly action: "deleteRow"; readonly id: StyleRowId }
     | {
           readonly op: "style.patch";
+          readonly action: "duplicateRow";
+          readonly id: StyleRowId;
+          /** The copy's name; the source's when absent. */
+          readonly name?: string;
+      }
+    | {
+          readonly op: "style.patch";
           readonly action: "addRow";
           readonly spec: RowSpec;
-          /** Which neighbour to sit next to; the top of the stack when absent. */
+          /** Which neighbor to sit next to; the top of the stack when absent. */
           readonly at?: LayerPosition;
       }
     | { readonly op: "style.patch"; readonly action: "writeRow"; readonly id: LayerId; readonly write: RowWrite };
@@ -143,7 +154,7 @@ interface StyleTemplateCommand {
     readonly templateId?: string;
     /** Where the layers go; the top of the stack when absent. */
     readonly at?: TemplatePosition;
-    /** What to do with the document's shaders: hold them (absent), run them, or leave them out. */
+    /** What to do with the document's shaders: hold them (absent), run them, or refuse to run them (still kept, held, so a save carries them). */
     readonly shaders?: "run" | "hold" | "refuse";
 }
 
@@ -174,10 +185,18 @@ export interface StyleService {
      * @returns The check's result.
      */
     validate?(spec: LayerSpec): ValidationResult;
+    /**
+     * The id a command that adds a layer or a folder will give it, against the stack as it
+     * stands, so the step's fact can name it before it runs.
+     * @param command - The command.
+     * @returns The id: a row's for a row of two parts; undefined for a command that adds none.
+     */
+    mintedId?(command: StylePatchCommand): string | undefined;
 }
 
 /** What a style op's step is keyed on: the stack, one frozen value. */
-const STYLES_KEY = ["styles"] as const;
+// A write may copy a catalog shader into the project in its own step (the style service's execute).
+const STYLES_KEY = ["styles", "shaders"] as const;
 
 /**
  * The name of a layer in the stack, for a label.
@@ -214,51 +233,86 @@ function rowOf(state: ProjectState, id: StyleRowId): string {
  * The fact of a `style.patch` step.
  * @param command - The command.
  * @param state - The state before it runs.
- * @returns `style.add-layer` with the layer's name, and the like.
+ * @param services - The session's services, whose style compiler knows the id an added layer gets.
+ * @param services.styles - The style compiler.
+ * @returns `style.add-layer` with the layer's name and id, and the like.
  */
-function patchFact(command: StylePatchCommand, state: ProjectState): CodedFact<HistoryCode> {
+function patchFact(
+    command: StylePatchCommand,
+    state: ProjectState,
+    services: { readonly styles?: StyleService },
+): CodedFact<HistoryCode> {
+    const minted = (): string | null => services.styles?.mintedId?.(command) ?? null;
     switch (command.action) {
         case "add":
         case "addRow":
-            return { code: "style.add-layer", params: { layer: command.spec.name } };
+            return { code: "style.add-layer", params: { layer: command.spec.name, layerId: minted() } };
         case "writeRow":
-            return { code: "style.update-layer", params: { layer: layerOf(state, command.id), channels: [] } };
+            return { code: "style.update-layer", params: { ...layerParams(state, command.id), channels: [] } };
         case "removeBySource":
             return { code: "style.remove-layers", params: { count: command.ids.length } };
         case "highlight":
             return { code: "style.highlight", params: { run: command.spec.run } };
         case "mark":
-            return { code: "style.add-layer", params: { layer: command.spec.name ?? command.spec.run } };
+            return {
+                code: "style.add-layer",
+                params: { layer: command.spec.name ?? command.spec.run, layerId: minted() },
+            };
         case "resolveToStatic":
             return {
                 code: "style.fix-channel",
-                params: { channel: command.channel, layer: layerOf(state, command.id) },
+                params: { channel: command.channel, ...layerParams(state, command.id) },
             };
         case "addFolder":
-            return { code: "style.add-folder", params: { name: command.name } };
+            return { code: "style.add-folder", params: { name: command.name, rowId: minted() } };
         case "renameRow":
-            return { code: "style.rename-row", params: { row: rowOf(state, command.id), name: command.name } };
+            return { code: "style.rename-row", params: { ...rowParams(state, command.id), name: command.name } };
         case "moveRow":
-            return { code: "style.move-row", params: { row: rowOf(state, command.id) } };
+            return { code: "style.move-row", params: rowParams(state, command.id) };
         case "deleteRow":
-            return { code: "style.delete-row", params: { row: rowOf(state, command.id) } };
-        case "restoreStartingRows":
-            return { code: "style.restore-starting-rows", params: {} };
+            return { code: "style.delete-row", params: rowParams(state, command.id) };
+        case "duplicateRow":
+            return {
+                code: "style.duplicate-row",
+                params: { ...rowParams(state, command.id), copyId: minted() },
+            };
+        case "addDefaultRows":
+            return { code: "style.add-default-rows", params: {} };
         case "pinRow":
-            return { code: "style.pin-row", params: { row: rowOf(state, command.id), pin: command.pin } };
+            return { code: "style.pin-row", params: { ...rowParams(state, command.id), pin: command.pin } };
         case "lockRow":
-            return { code: "style.lock-row", params: { row: rowOf(state, command.id), locked: command.locked } };
+            return { code: "style.lock-row", params: { ...rowParams(state, command.id), locked: command.locked } };
         case "hideRow":
-            return { code: "style.hide-row", params: { row: rowOf(state, command.id), hidden: command.hidden } };
+            return { code: "style.hide-row", params: { ...rowParams(state, command.id), hidden: command.hidden } };
         case "update":
             return {
                 code: "style.update-layer",
-                params: { layer: layerOf(state, command.id), channels: changedChannels(command, state) },
+                params: { ...layerParams(state, command.id), channels: changedChannels(command, state) },
             };
         default:
             // remove and move: one layer, named.
-            return { code: `style.${command.action}-layer`, params: { layer: layerOf(state, command.id) } };
+            return { code: `style.${command.action}-layer`, params: layerParams(state, command.id) };
     }
+}
+
+/**
+ * A fact's params naming a layer: its name, and its id, so two layers of one name stay apart.
+ * @param state - The state.
+ * @param id - The layer.
+ * @returns `layer` and `layerId`.
+ */
+function layerParams(state: ProjectState, id: LayerId): { layer: string; layerId: LayerId } {
+    return { layer: layerOf(state, id), layerId: id };
+}
+
+/**
+ * A fact's params naming a row of the style tree: its name, and its id.
+ * @param state - The state.
+ * @param id - The row.
+ * @returns `row` and `rowId`.
+ */
+function rowParams(state: ProjectState, id: StyleRowId): { row: string; rowId: StyleRowId } {
+    return { row: rowOf(state, id), rowId: id };
 }
 
 /**
@@ -330,8 +384,10 @@ function patchLabel(command: StylePatchCommand, state: ProjectState): string {
             return `${command.hidden ? "Hid" : "Showed"} "${rowOf(state, command.id)}"`;
         case "deleteRow":
             return `Deleted "${rowOf(state, command.id)}"`;
-        case "restoreStartingRows":
-            return "Restored the starting layers";
+        case "duplicateRow":
+            return `Duplicated "${rowOf(state, command.id)}"`;
+        case "addDefaultRows":
+            return "Added the default layers";
         default:
             return "Changed the style layers";
     }
@@ -371,7 +427,9 @@ const stylePatch: UndoableDefinition<StylePatchCommand> = {
         kind: "undoable",
         label: patchLabel,
         fact: patchFact,
-        // A drag of a colour picker is one step: updates of the same keys of one layer merge.
+        // A drag of a color picker is one step: consecutive updates of the same keys of one layer
+        // merge while each changes only channels the step already changes (History's
+        // sameChannels), whatever the time between them. A transaction is a step of its own.
         coalesce: (command) =>
             command.action === "update" ? `style:${command.id}:${Object.keys(command.patch).sort().join(",")}` : null,
     },

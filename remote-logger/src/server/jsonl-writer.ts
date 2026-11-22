@@ -9,6 +9,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { assertSafeMarker } from "./marker-utils.js";
+
 /**
  * A JSONL log entry.
  */
@@ -47,6 +49,9 @@ interface MarkerState {
     writeLock: Promise<void>;
 }
 
+/** Default number of marker files kept open at once. */
+const DEFAULT_MAX_OPEN_FILES = 64;
+
 /**
  * JSONL file writer that streams log entries to disk.
  *
@@ -55,23 +60,37 @@ interface MarkerState {
  */
 export class JsonlWriter {
     private readonly baseDir: string;
+    /** Open handles, least recently written first */
     private readonly markerStates = new Map<string, MarkerState>();
+    private readonly maxOpenFiles: number;
     private closed = false;
 
     /**
      * Create a new JsonlWriter.
      * @param baseDir - Base directory for log files (e.g., os.tmpdir()/remote-logger)
+     * @param maxOpenFiles - Marker files kept open at once; the least recently written is closed beyond it (default: 64)
      */
-    constructor(baseDir: string) {
+    constructor(baseDir: string, maxOpenFiles = DEFAULT_MAX_OPEN_FILES) {
         this.baseDir = baseDir;
+        this.maxOpenFiles = maxOpenFiles;
+    }
+
+    /**
+     * The number of marker files open now.
+     * @returns The count of open file handles
+     */
+    getOpenFileCount(): number {
+        return this.markerStates.size;
     }
 
     /**
      * Get the file path for a project marker.
      * @param projectMarker - The project marker
      * @returns Full path to the JSONL file
+     * @throws {Error} If the marker could name a path outside its own directory
      */
     getFilePath(projectMarker: string): string {
+        assertSafeMarker(projectMarker);
         return path.join(this.baseDir, projectMarker, "logs.jsonl");
     }
 
@@ -179,7 +198,18 @@ export class JsonlWriter {
     private ensureMarkerState(projectMarker: string): MarkerState {
         let state = this.markerStates.get(projectMarker);
 
-        if (!state) {
+        if (state) {
+            // Mark it most recently used
+            this.markerStates.delete(projectMarker);
+            this.markerStates.set(projectMarker, state);
+        } else {
+            if (this.markerStates.size >= this.maxOpenFiles) {
+                const idlest = this.markerStates.keys().next().value;
+                if (idlest !== undefined) {
+                    this.forgetMarker(idlest);
+                }
+            }
+
             const filePath = this.getFilePath(projectMarker);
             const dir = path.dirname(filePath);
 
@@ -226,6 +256,8 @@ export class JsonlWriter {
         const state = this.markerStates.get(projectMarker);
         if (state) {
             try {
+                // Write what is buffered first; a write still chained on the lock then finds an empty buffer
+                this.flushBuffer(state);
                 fs.closeSync(state.fd);
             } catch {
                 // Ignore close errors
@@ -235,8 +267,9 @@ export class JsonlWriter {
     }
 
     /**
-     * Clean up old project log files based on directory modification time.
-     * Removes entire project directories that haven't been modified within the retention period.
+     * Clean up old project log files based on when they were last written.
+     * Removes entire project directories whose log file (or, without one, the directory itself) has not been
+     * modified within the retention period. Appending changes the file's time, not the directory's.
      * @param retentionDays - Number of days to retain logs
      * @returns Number of project directories removed
      */
@@ -263,10 +296,14 @@ export class JsonlWriter {
                 const dirPath = path.join(this.baseDir, entry.name);
 
                 try {
-                    const stats = fs.statSync(dirPath);
+                    let lastWriteMs = fs.statSync(dirPath).mtimeMs;
+                    const logFile = path.join(dirPath, "logs.jsonl");
+                    if (fs.existsSync(logFile)) {
+                        lastWriteMs = Math.max(lastWriteMs, fs.statSync(logFile).mtimeMs);
+                    }
 
-                    // Check if directory is older than retention period
-                    if (stats.mtimeMs < cutoffMs) {
+                    // Check if the directory was last written before the retention period
+                    if (lastWriteMs < cutoffMs) {
                         this.forgetMarker(entry.name);
 
                         // Remove the directory

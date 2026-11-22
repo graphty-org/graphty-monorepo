@@ -10,10 +10,18 @@
  *   - no breaking change: a `!` in the title or a commit subject, or a `BREAKING CHANGE:` footer, fails
  *     unless a code owner approved the head; a commit master's release-not-breaking.json lists is the owner's
  *     ruling that it is not breaking, and is skipped;
+ *   - saved format: a change to the save-file checks (graphty-element/test/saved-format/, their exceptions
+ *     list among them, tools/check-saved-format-allowlist.mjs, graphty-element/eslint.config.js that turns its lint
+ *     rule on, and the shipped and revoked shader hash lists) fails unless a code owner approved the head,
+ *     since anyone can type the `Saved-Format-Exception-Approved:` trailer the push check reads
+ *     (design/architecture/self-contained-save-files.md, 2.6);
  *   - baselines signed: a change to a PNG or story settings file under visual-baselines/ (review
  *     records aside) needs the owner's signed approval of the head's tree, checked with master's own
  *     visual-review/trusted/gate.mjs (`git archive`, never the pull request's copy);
  *   - Proof: a pull request by the agent account has a non-empty `## Proof` section;
+ *   - known failures: no closing keyword (description or commit) for an issue the head's style fidelity
+ *     known-failure records still cite, whoever approved it: the merge would close it and fail master's
+ *     `npm run fidelity:issues` (issue #8888);
  *   - fresh review: a pull request by the agent account has a review, by that account or a code owner,
  *     marked `<!-- fresh-review <patch id> -->` with the patch id of its own diff (`patchId` below), so a
  *     merge of master keeps the review and a change to the branch's own diff needs a new one.
@@ -40,6 +48,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { judge, LISTS as SAVED_FORMAT_LISTS } from "./check-saved-format-allowlist.mjs";
 import { check as testIntegrity } from "./check-test-integrity.mjs";
 import { ruledNotBreaking } from "./release-not-breaking.mjs";
 
@@ -48,7 +57,22 @@ export const AGENT = "graphty-agent";
 export const OWNER = "apowers313";
 export const DEPENDABOT = "dependabot[bot]";
 const BASELINES = "visual-baselines";
+/**
+ * The files that decide what a save file may name and still be self-contained: only a code owner widens them.
+ * @param f a changed path
+ * @returns boolean
+ */
+export const isSavedFormatGuard = (f) =>
+    f.startsWith("graphty-element/test/saved-format/") ||
+    f === "tools/check-saved-format-allowlist.mjs" ||
+    // Spreads the lint rule in: deleting that line switches the rule off.
+    f === "graphty-element/eslint.config.js" ||
+    // A listed shipped hash is trusted wherever a file carries it, so adding one grants trust.
+    f === "graphty-element/src/catalog/shipped-shader-hashes.json" ||
+    f === "graphty-element/src/catalog/revoked-shader-hashes.json";
 const APPROVALS = "visual-review-approvals";
+/** The self-contained kinds' rows: a change that only adds lines adds a kind, which needs no owner. */
+const SAVED_FORMAT_KINDS = "graphty-element/test/saved-format/kinds.ts";
 
 const git = (cwd, args, input) =>
     execFileSync("git", args, { cwd, input, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["pipe", "pipe", "pipe"] });
@@ -202,6 +226,91 @@ export function revertedMerge(cwd, { base, mergeBase, head, text }) {
 }
 
 /**
+ * The saved-format guard paths a pull request changes that need a code owner. A change limited to
+ * the exception lists (and lines added to the kinds' rows) needs one only when the allowlist check's
+ * judge says it widens them; anything else under the guard always does.
+ * @param cwd the repository
+ * @param mergeBase the merge base
+ * @param head the head
+ * @param files the changed paths
+ * @returns the paths that need a code owner, or none
+ */
+export function savedFormatNeedingOwner(cwd, mergeBase, head, files) {
+    const guarded = files.filter(isSavedFormatGuard);
+    if (guarded.length === 0 || !guarded.every((f) => f === SAVED_FORMAT_LISTS || f === SAVED_FORMAT_KINDS)) {
+        return guarded;
+    }
+    if (guarded.includes(SAVED_FORMAT_KINDS)) {
+        const stat = tryGit(cwd, ["diff", "--numstat", mergeBase, head, "--", SAVED_FORMAT_KINDS]) ?? "-";
+        if (stat.split("\t")[1] !== "0") return guarded;
+    }
+    const lists = (rev) => {
+        try {
+            return { lists: JSON.parse(git(cwd, ["show", `${rev}:${SAVED_FORMAT_LISTS}`])), shipped: [], revoked: [] };
+        } catch {
+            return { lists: {}, shipped: [], revoked: [] };
+        }
+    };
+    const { needsOwner, forbidden } = judge(lists(mergeBase), lists(head), []);
+    return needsOwner.length + forbidden.length === 0 ? [] : guarded;
+}
+
+/**
+ * The files graphty-element/scripts/fidelity-issues.ts reads (its FILES, relative to graphty-element): master's
+ * Checks job fails on a known failure there whose cited issues are all closed. A test keeps the two lists equal.
+ */
+export const KNOWN_FAILURE_FILES = ["test/fidelity/oracle-known-failures.json", "test/fidelity/baseline-scores.json"];
+
+/**
+ * The issues a closing keyword names (GitHub's: fix, close, resolve and their -es/-ed forms, colon allowed; #N,
+ * graphty-org/graphty-monorepo#N or the issue's URL), the same forms tools/pr-open.sh's member_lines reads.
+ * @param text a description or commit messages
+ * @returns the numbers
+ */
+export function closedIssues(text = "") {
+    const re =
+        /\b(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?)\s*:?\s+(?:https:\/\/github\.com\/graphty-org\/graphty-monorepo\/issues\/|graphty-org\/graphty-monorepo#|#)(\d+)\b/giu;
+    return [...new Set([...text.matchAll(re)].map((m) => Number(m[1])))];
+}
+
+/**
+ * Every issue a known-failure reason cites at a commit, read as fidelity-issues.ts reads them (floors.ts
+ * citedIssues: `#N` not inside a word, an entity or `##`).
+ * @param cwd the repository
+ * @param rev the commit
+ * @returns a Set of issue numbers
+ */
+export function knownFailureIssues(cwd, rev) {
+    const cited = new Set();
+    for (const f of KNOWN_FAILURE_FILES) {
+        const text = tryGit(cwd, ["show", `${rev}:graphty-element/${f}`]);
+        if (text === null) continue;
+        for (const { reason } of JSON.parse(text).reasons ?? []) {
+            for (const m of String(reason).matchAll(/(?<![\w&#])#(\d{1,5})(?!\w)/gu)) cited.add(Number(m[1]));
+        }
+    }
+    return cited;
+}
+
+/**
+ * The problems of closing an issue the head's known-failure records still cite: the merge closes it, and master's
+ * next full run fails `npm run fidelity:issues` on every record citing only it (issue #8888).
+ * @param cwd the repository
+ * @param head the head
+ * @param text the description and commit messages: what GitHub reads closing keywords from
+ * @returns problems
+ */
+export function closesCitedProblems(cwd, head, text) {
+    const cited = knownFailureIssues(cwd, head);
+    return closedIssues(text)
+        .filter((n) => cited.has(n))
+        .map(
+            (n) =>
+                `Known failures: this pull request closes #${n}, which graphty-element/test/fidelity known-failure records still cite; merging closes it and fails master's fidelity:issues check. Use "Refs #${n}" (in the description and in any new commit), or take the records off with npm run fidelity:ratchet`,
+        );
+}
+
+/**
  * What kind of pull request this is, for the exemptions.
  * @param cwd the repository
  * @param pr `{ base, mergeBase, head, author, byDependabot, text, files }`; byDependabot false when a
@@ -300,9 +409,17 @@ export function prIntegrity(cwd, pr) {
             "Breaking change: the title or a commit is marked `!` or has a BREAKING CHANGE footer; it needs a code owner's approval of the head",
         );
     }
+    const savedFormat = savedFormatNeedingOwner(cwd, mergeBase, pr.head, files);
+    if (!approved && !kind.revert && savedFormat.length) {
+        problems.push(
+            `Saved format: ${savedFormat.join(", ")} decide what a save file may name; a change needs a code owner's approval of the head`,
+        );
+    }
     if (!kind.revert && changesBaselines(files)) {
         problems.push(...pr.baselineProblems(mergeBase).map((p) => `Baselines signed: ${p}`));
     }
+    // no exemption and no approval: closing the issue breaks master whoever merges it
+    problems.push(...closesCitedProblems(cwd, pr.head, [pr.body ?? "", ...messages].join("\n")));
     if (kind.agent && !exempt) problems.push(...agentProblems(cwd, full));
     return { kind, problems };
 }
@@ -356,6 +473,19 @@ export function onlyDependabot(commits) {
 }
 
 async function main(argv) {
+    // tools/pr-open.sh: `--closes-known <rev>` judges the description and commit messages on stdin against <rev>'s
+    // records; `--known-issues <rev>` prints the issues they cite, one per line.
+    const k = argv.indexOf("--known-issues");
+    if (k !== -1) {
+        for (const n of knownFailureIssues(process.cwd(), argv[k + 1])) console.log(n);
+        return 0;
+    }
+    const c = argv.indexOf("--closes-known");
+    if (c !== -1) {
+        const found = closesCitedProblems(process.cwd(), argv[c + 1], readFileSync(0, "utf8"));
+        for (const p of found) console.error(p);
+        return found.length ? 1 : 0;
+    }
     const i = argv.indexOf("--base");
     const base = i === -1 ? "origin/master" : argv[i + 1];
     const cwd = process.cwd();

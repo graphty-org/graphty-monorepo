@@ -31,7 +31,7 @@ export default class RunningTests {
      * @param id - the file or test
      */
     note(mark, id) {
-        appendFileSync(this.file, `${mark} ${id}\n`);
+        appendFileSync(this.file, `${mark} ${id}\t${Date.now()}\n`);
     }
 
     /**

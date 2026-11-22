@@ -28,14 +28,13 @@ function block(over: Partial<LegendBlock>): LegendBlock {
         kind: "sequential",
         swatches: [],
         facts: [],
-        departures: [],
         ...over,
     };
 }
 
 const byLayer = { row: (b: LegendBlock) => b.layerId, entry: (b: LegendBlock) => b.layerId };
 
-const swatch = (over: Partial<LegendSwatch>): LegendSwatch => ({ label: "x", value: 0, ...over });
+const swatch = (over: Partial<LegendSwatch>): LegendSwatch => ({ value: 0, ...over });
 
 describe("the legend card's words", () => {
     it("titles a section with the property and the row", () => {
@@ -117,7 +116,7 @@ describe("the legend card's words", () => {
                 kind: "categorical",
                 swatches: [
                     swatch({ value: 1, color: "#4e79a7", count: 1200 }),
-                    swatch({ label: "x", role: "other", color: "#cccccc", count: 4 }),
+                    swatch({ role: "other", color: "#cccccc", count: 4 }),
                 ],
                 overflow: { hidden: 28 },
             }),
@@ -158,10 +157,10 @@ describe("the legend card's words", () => {
     });
 
     it("keys no value the binding hides, and no block whose every value is hidden", () => {
-        const shown = swatch({ label: "Group 1", value: 1, color: "#0072b2" });
+        const shown = swatch({ value: 1, color: "#0072b2" });
         const groups = block({
             kind: "categorical",
-            swatches: [shown, swatch({ label: "Group 2", value: 2, color: "#e69f00", hidden: true })],
+            swatches: [shown, swatch({ value: 2, color: "#e69f00", hidden: true })],
         });
         const gone = block({ layerId: "gone", kind: "categorical", swatches: [swatch({ value: 3, hidden: true })] });
         assert.deepEqual(keyBlocks([groups, gone]), [{ ...groups, swatches: [shown] }]);
@@ -184,6 +183,60 @@ describe("the legend card's words", () => {
         ];
         assert.deepEqual(keyBlocks(blocks), [halo]);
         assert.equal(sectionTitle(halo, "Key people"), "Halo: Key people");
+    });
+
+    it("keys no edge line shape: a route, bends or curve is drawn, not read", () => {
+        const color = block({ layerId: "color", channel: "edge.color", kind: "literal" });
+        const blocks = [
+            block({
+                layerId: "graphml",
+                channel: "edge.bends",
+                kind: "categorical",
+                swatches: [swatch({ value: "0 0 10 10" }), swatch({ value: "5 5" })],
+            }),
+            block({ layerId: "graphml", channel: "edge.curvature", kind: "literal" }),
+            block({ layerId: "graphml", channel: "edge.sourcePort", kind: "literal" }),
+            color,
+        ];
+        assert.deepEqual(keyBlocks(blocks), [color]);
+        assert.deepEqual(keyBlocks(blocks.slice(0, 3)), []);
+    });
+
+    it("keys a file's defaults by their look, not their text faces, bare numbers or parts drawn as nothing", () => {
+        const color = block({ layerId: "defaults", channel: "node.color", kind: "literal" });
+        const shape = block({
+            layerId: "defaults",
+            channel: "node.shape",
+            kind: "literal",
+            swatches: [swatch({ value: "round-rectangle", paints: "round-rectangle" })],
+        });
+        const fixed = (channel: LegendBlock["channel"], value: string | number, layerId = "defaults"): LegendBlock =>
+            block({ layerId, channel, kind: "literal", swatches: [swatch({ value, paints: value })] });
+        const blocks = [
+            color,
+            shape,
+            fixed("node.labelFont", "DejaVu Sans"),
+            fixed("node.labelColor", "#000000"),
+            fixed("edge.arrowHeadTextFont", "DejaVu Sans", "drawing"),
+            fixed("node.cornerFraction", 0.125),
+            fixed("node.opacity", 1),
+            fixed("node.sizeMode", "uniform"),
+            fixed("node.borderPosition", "inside"),
+            fixed("node.borderWidth", 0),
+            block({ layerId: "defaults", channel: "node.borderColor", kind: "literal" }),
+            fixed("edge.arrowHead", "none"),
+            block({ layerId: "defaults", channel: "edge.arrowHeadColor", kind: "literal" }),
+            block({
+                layerId: "order",
+                channel: "node.drawOrder",
+                kind: "categorical",
+                swatches: [swatch({ value: 2 })],
+            }),
+        ];
+        assert.deepEqual(keyBlocks(blocks), [color, shape]);
+        // An arrowhead's color is keyed where its layer draws one.
+        const capColor = block({ layerId: "caps", channel: "edge.arrowHeadColor", kind: "literal" });
+        assert.deepEqual(keyBlocks([fixed("edge.arrowHead", "none"), capColor]), [capColor]);
     });
 
     it("keys no layer whose every element a filter step hides, and keeps one that still reaches some", () => {
@@ -411,7 +464,6 @@ describe("the words for a block of some elements", () => {
         kind: "sequential",
         swatches: [],
         facts: [],
-        departures: [],
         scope: { count: 3, of: 24 },
         ...over,
     });

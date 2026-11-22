@@ -14,6 +14,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     target: "node",
     place: "paint",
     categories: Object.freeze(["Glass"]),
+    tags: Object.freeze(["glass", "3D"]),
     params: Object.freeze([
         Object.freeze({
             name: "frost",

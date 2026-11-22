@@ -3,13 +3,18 @@
  * view names the one it uses (`cy:visualStyle`); the view's elements carry only their bypasses
  * (`lockedVisualProperties`). The import reads the style the imported network's view names, resolved the way
  * Cytoscape draws it (bypass over mapping over default), with Cytoscape's renderer fallbacks for what the style
- * leaves unset. A 2.x session's network files carry every element's resolved values, read like XGMML, and its
- * hidden elements come back invisible. The writer emits the graph's styles as a named style, bypasses and columns.
+ * leaves unset. A 2.x session's style is its `session_vizmap.props`, converted to the same form (vizmap-props.ts),
+ * read the same way without bypasses: Cytoscape ignores the resolved values its network files carry. A 2.x session
+ * without a style file falls back to those resolved values, read like XGMML. Its hidden elements come back
+ * invisible. A style file on its own reads the same way over any graph (readCytoscapeStyleFile). The writer emits the
+ * graph's styles as a named style, bypasses and columns.
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { nonEmpty } from "../../styles/columns.js";
+import { exactFromBlock } from "../../styles/cytoscape/exact.js";
 import {
     type CytoscapeMapping,
     type CytoscapeStyle,
@@ -19,18 +24,22 @@ import {
     typedKey,
     weightColumnFallback,
 } from "../../styles/cytoscape/mappings.js";
-import { type CytoscapeElements, edgeEnds, resolveCytoscape } from "../../styles/cytoscape/resolve.js";
+import {
+    type CytoscapeBypass,
+    type CytoscapeElements,
+    edgeEnds,
+    fileCreationOrder,
+    resolveCytoscape,
+} from "../../styles/cytoscape/resolve.js";
 import { cytoscapeRules } from "../../styles/cytoscape/translate.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { dataCell } from "../../styles/plan/resolve.js";
 import type { ImporterStyles, ReaderOutput, StyleReadContext, StyleTarget } from "../../styles/types.js";
 import {
-    exactFromBlock,
     graphicsBypasses,
     graphStyleOf,
     hiddenToVisible,
     hideWhatCytoscapeHides,
-    nonEmpty,
     readXgmmlStyles,
 } from "../xgmml/styles.js";
 import { HIDDEN_COLUMN } from "./constants.js";
@@ -43,8 +52,13 @@ import type { XmlNode } from "./session.js";
 export interface SessionStyleSource {
     /** "3" for a 3.x session, "2" for a 2.x one. */
     readonly era: "2" | "3";
-    /** The root element of `session_vizmap.xml`, or null when the session has none or it cannot be read. */
+    /**
+     * The root element of `session_vizmap.xml` (or of a 2.x `session_vizmap.props`, converted), or null when the
+     * session has none or it cannot be read.
+     */
     readonly vizmap: XmlNode | null;
+    /** The style file's name, for notes; `session_vizmap.xml` when absent. */
+    readonly entry?: string;
     /** Why `session_vizmap.xml` could not be read, or null. */
     readonly problem: string | null;
     /** The style the imported view names, or null. */
@@ -63,7 +77,7 @@ export interface SessionStyleSource {
  */
 export function readSessionStyles(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles {
     const kept = context.kept as SessionStyleSource | undefined;
-    if (kept?.era === "2") {
+    if (kept?.era === "2" && kept.vizmap === null) {
         return readXgmmlStyles(snapshot, context, { tool: "cytoscape-fallbacks", hiddenColumn: HIDDEN_COLUMN });
     }
     const notes = new StyleNotes();
@@ -74,7 +88,13 @@ export function readSessionStyles(snapshot: GraphSnapshot, context: StyleReadCon
         if (target === "edge") {
             weightColumnFallback(style.edge, kept?.weightFrom ?? null, snapshot.edges);
         }
-        out[target] = sessionTargetStyles(snapshot, target, style, { notes, budget: context.budget }, out.node.values);
+        out[target] = sessionTargetStyles(
+            snapshot,
+            target,
+            style,
+            { notes, budget: context.budget, bypasses: kept?.era !== "2" },
+            out.node.values,
+        );
     }
     return {
         canonical: true,
@@ -98,9 +118,14 @@ export function readSessionStyles(snapshot: GraphSnapshot, context: StyleReadCon
 function sessionStyle(kept: SessionStyleSource | undefined, notes: StyleNotes): CytoscapeStyle {
     if (kept?.vizmap === null || kept?.vizmap === undefined) {
         const problem = kept?.problem ?? null;
-        notes.add(problem === null ? STYLE_ISSUE.NO_VIZMAP : STYLE_ISSUE.UNREADABLE, null, "session_vizmap.xml", {
-            sample: problem ?? "absent",
-        });
+        notes.add(
+            problem === null ? STYLE_ISSUE.NO_VIZMAP : STYLE_ISSUE.UNREADABLE,
+            null,
+            kept?.entry ?? "session_vizmap.xml",
+            {
+                sample: problem ?? "absent",
+            },
+        );
         return emptyCytoscapeStyle();
     }
     return cytoscapeStyleFromVizmap(kept.vizmap, kept.visualStyle, notes);
@@ -114,6 +139,8 @@ function sessionStyle(kept: SessionStyleSource | undefined, notes: StyleNotes): 
  * @param work - where problems are noted, and the work budget
  * @param work.notes - where problems are noted
  * @param work.budget - the work budget
+ * @param work.bypasses - whether the elements' graphics are all read as bypasses; false for a 2.x session, whose
+ * standard graphics Cytoscape ignores
  * @param nodes - the nodes' values, when reading the edges
  * @returns the reader output for the target
  */
@@ -121,13 +148,14 @@ function sessionTargetStyles(
     snapshot: GraphSnapshot,
     target: StyleTarget,
     style: CytoscapeStyle,
-    work: { readonly notes: StyleNotes; readonly budget: StyleReadContext["budget"] },
+    work: { readonly notes: StyleNotes; readonly budget: StyleReadContext["budget"]; readonly bypasses: boolean },
     nodes: ReaderOutput["values"],
 ): ReaderOutput {
     const { notes } = work;
     const table = target === "node" ? snapshot.nodes : snapshot.edges;
     const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
     sharedColumnFallback(style[target], (column) => table.has(column));
+    nameColumnFallback(style[target], (column) => table.has(column));
     dropMismatchedKeys(style[target], (column) => table.get(column)?.meta.origin?.type ?? null, notes, target);
     for (const m of style[target].mappings.values()) {
         if (!table.has(m.column)) {
@@ -137,14 +165,17 @@ function sessionTargetStyles(
     const elements: CytoscapeElements = {
         count: n,
         value: (column, i) => (table.has(column) ? dataCell(table, column, i) : null),
-        bypasses: graphicsBypasses(table, target, n, notes),
-        ...(target === "edge" ? { ends: edgeEnds(snapshot, nodes) } : {}),
+        bypasses: work.bypasses
+            ? graphicsBypasses(table, target, n, notes)
+            : graphicsBypasses(table, target, n, notes).map((b) => without2xGraphics(b)),
+        // desktop creates a session's nodes and edges in the order its network file lists them
+        ...(target === "edge" ? { ends: { ...edgeEnds(snapshot, nodes), created: fileCreationOrder(snapshot) } } : {}),
     };
     const values = resolveCytoscape(target, style, elements, work);
     hiddenToVisible(table, HIDDEN_COLUMN, n, values);
     hideWhatCytoscapeHides(snapshot, target, nodes, values);
     // a session graphty wrote: a value its style writes as the nearest Cytoscape value is the block's
-    exactFromBlock(snapshot, target, values);
+    exactFromBlock(snapshot, target, values, "desktop", fileCreationOrder(snapshot));
     const { rules, columns } = cytoscapeRules(target, style, elements, work);
     return { values: nonEmpty(values), rules, columns };
 }
@@ -180,6 +211,11 @@ function cytoscapeStyleFromVizmap(root: XmlNode, name: string | null, notes: Sty
         for (const child of section?.children ?? []) {
             readVizmapEntry(style, kind, child);
         }
+    }
+    // a style that does not state it locks node width and height, as Cytoscape's NodeSizeDependencyFactory does
+    // (2.x styles leave it out when it is on)
+    if (!style.node.dependencies.has("nodeSizeLocked")) {
+        style.node.dependencies.set("nodeSizeLocked", true);
     }
     return style;
 }
@@ -273,4 +309,67 @@ function continuousPoints(
             value: p.attrs.get("equalValue"),
             above: p.attrs.get("greaterValue"),
         }));
+}
+
+/**
+ * Points every mapping over `name` at `label` when the graph holds only the label: XGMML keeps an element's name in
+ * its `label` attribute, which Cytoscape reads as the `name` column and graph-io as the `label` column (a 2.x
+ * session's networks, a style file read over an XGMML graph).
+ * @param style - the target's style, changed in place
+ * @param has - whether the graph holds a column
+ */
+function nameColumnFallback(style: CytoscapeStyle["node"], has: (column: string) => boolean): void {
+    if (has("name") || !has("label")) {
+        return;
+    }
+    for (const [vp, m] of style.mappings) {
+        if (m.column === "name") {
+            style.mappings.set(vp, { ...m, column: "label" });
+        }
+    }
+}
+
+/**
+ * The visual properties of the standard XGMML and 2.x graphics attributes Cytoscape does not read from a session's
+ * network files (cytoscape-impl io-impl ReadDataManager `PATTERN2X`: `type fill w h size width outline`, the
+ * transparencies, label fonts, line types and arrows); the style gives them instead.
+ */
+const IGNORED_2X_GRAPHICS: ReadonlySet<string> = new Set([
+    "NODE_SHAPE",
+    "NODE_FILL_COLOR",
+    "NODE_WIDTH",
+    "NODE_HEIGHT",
+    "NODE_SIZE",
+    "NODE_BORDER_WIDTH",
+    "NODE_BORDER_PAINT",
+    "NODE_TRANSPARENCY",
+    "NODE_LABEL_FONT_FACE",
+    "NODE_BORDER_LINE_TYPE",
+    "EDGE_WIDTH",
+    "EDGE_STROKE_UNSELECTED_PAINT",
+    "EDGE_TRANSPARENCY",
+    "EDGE_LABEL_FONT_FACE",
+    "EDGE_LINE_TYPE",
+    "EDGE_SOURCE_ARROW_SHAPE",
+    "EDGE_TARGET_ARROW_SHAPE",
+    "EDGE_SOURCE_ARROW_UNSELECTED_PAINT",
+    "EDGE_TARGET_ARROW_UNSELECTED_PAINT",
+]);
+
+/**
+ * One element's 2.x graphics without the attributes Cytoscape ignores in a session.
+ * @param bypass - the element's graphics as visual properties, or null
+ * @returns what is left, or null when nothing is
+ */
+function without2xGraphics(bypass: CytoscapeBypass): CytoscapeBypass {
+    if (bypass === null || bypass === undefined) {
+        return null;
+    }
+    const kept = new Map<string, unknown>();
+    for (const [vp, v] of bypass) {
+        if (!IGNORED_2X_GRAPHICS.has(vp)) {
+            kept.set(vp, v);
+        }
+    }
+    return kept.size > 0 ? kept : null;
 }

@@ -102,11 +102,11 @@ describe("LifecycleManager", () => {
     describe("error handling", () => {
         it("should handle initialization errors gracefully", () => {
             // Test with a malformed container
-            const badContainer = null;
+            const badContainer: unknown = null;
 
             // Should throw immediately on construction with null container
             assert.throws(() => {
-                new Graph(badContainer as any);
+                new Graph(badContainer as Element);
             }, /Graph constructor requires 'element' argument/);
         });
 

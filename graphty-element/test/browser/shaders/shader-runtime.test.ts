@@ -16,12 +16,10 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../../index.js";
 import type { LayerSpec, StyleDocument } from "../../../src/catalog/types";
-import { operationQueueOf } from "../../../src/Graph";
-import type { RenderManager } from "../../../src/managers/RenderManager";
-import { shadersControllerOf } from "../../../src/session/shaders";
+import { operationQueueOf, renderManagerOf } from "../../../src/Graph";
+import { shaderContentHash, shadersControllerOf } from "../../../src/session/shaders";
 import type { LazyShaderHost } from "../../../src/shaders/chunk";
 import { CRASH_MARKER_KEY } from "../../../src/shaders/crashMarker";
-import { sha256Hex } from "../../../src/utils/sha256";
 
 const WIDTH = 320;
 const HEIGHT = 240;
@@ -102,7 +100,7 @@ async function mounted(before?: (element: Graphty) => void): Promise<{ element: 
  * @returns The counts, live.
  */
 function ticks(element: Graphty): { readonly drawn: number; readonly rested: number } {
-    return (element.graph as unknown as { renderManager: RenderManager }).renderManager.ticks;
+    return renderManagerOf(element.graph).ticks;
 }
 
 /**
@@ -281,7 +279,7 @@ describe("shaders in the element's engine", () => {
     });
 
     it("writes the crash marker before it compiles, and holds a marked hash on the next load", async () => {
-        const hash = sha256Hex(TINT);
+        const hash = shaderContentHash(TINT);
         const written: string[] = [];
         const { setItem } = Storage.prototype;
         Storage.prototype.setItem = function (key: string, value: string): void {

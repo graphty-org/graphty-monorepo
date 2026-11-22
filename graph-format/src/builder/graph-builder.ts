@@ -477,6 +477,15 @@ export class GraphBuilder implements GraphBuilderContract {
     }
 
     /**
+     * Give every anonymous node its current index as a lasting id, so a later removal and freeze
+     * keeps it instead of renumbering it; a no-op once the builder holds ids.
+     */
+    keepIds(): void {
+        this.check();
+        this.staging.materialiseIds();
+    }
+
+    /**
      * Whether a live node has this id (total: an illegal id is simply absent).
      * @param id - the id
      * @returns true when present and alive
@@ -1610,7 +1619,7 @@ export class GraphBuilder implements GraphBuilderContract {
             }
             const explicit = staging.weightExplicit(e);
             const weight = explicit && staging.weight !== null ? staging.weight.get(e) : undefined;
-            const mirror = staging.pushEdge(v, u, weight); // NOSONAR(S2234): the mirror arc runs the other way on purpose
+            const mirror = staging.pushEdge(v, u, weight); // eslint-disable-line sonarjs/arguments-order -- the mirror arc runs the other way on purpose
             directedColumn.write(mirror, false);
             pairColumn.write(e, mirror);
             pairColumn.write(mirror, e);

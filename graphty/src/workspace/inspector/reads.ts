@@ -2,10 +2,12 @@
  * The inspector's reads of graphty-element that more than one view shares.
  */
 
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import {
     type Channel,
     type ExplainTarget,
     type GraphSession,
+    isGraphtyError,
     type NodeId,
     RESULT_SHAPE_CONTRACTS,
     type Run,
@@ -13,6 +15,24 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { runName } from "../runWords";
+
+const logger = GraphtyLogger.getLogger(["graphty", "inspector"]);
+
+/**
+ * Logs an element refusal a view hides, unless it is the one the view expects (the node or edge
+ * left the graph), so an element defect is reported rather than lost with the hidden section.
+ * @param read - the read that failed, for the log.
+ * @param error - what the element threw.
+ * @param expected - the code the view expects and hides quietly; omitted, every refusal is logged.
+ */
+export function hidden(read: string, error: unknown, expected?: string): void {
+    if (expected === undefined || !isGraphtyError(error) || error.code !== expected) {
+        logger.error("element read failed; its section is hidden", error instanceof Error ? error : undefined, {
+            read,
+            code: isGraphtyError(error) ? error.code : undefined,
+        });
+    }
+}
 
 /** A finished run with its result, and the field its result is read by. */
 interface FinishedRun {
@@ -151,20 +171,22 @@ export function measuredNoun(run: Run): "node" | "edge" {
 export function swatchOf(session: GraphSession, target: ExplainTarget): string | undefined {
     const channel: Channel = "node" in target ? "node.color" : "edge.color";
     try {
-        return hexOf(session.styles.explain(target).merged[channel]);
-    } catch {
+        return paintedHex(session.styles.explain(target).merged[channel]);
+    } catch (error) {
         // E_BAD_COMMAND: the element is gone.
+        hidden("styles.explain", error, "E_BAD_COMMAND");
         return undefined;
     }
 }
 
 /**
- * The `#rrggbb` of a color value as graphty-element paints it (a `ColorValue`, whose `hex` it
- * keeps beside the numbers).
+ * The hex of a color value exactly as graphty-element paints it (a `ColorValue`, whose `hex` it
+ * keeps beside the numbers), alpha digits included, for a swatch. The paint field's `#RRGGBB`
+ * (no alpha, upper case) is style/words.ts `hexOf`.
  * @param value - a painted value.
  * @returns the hex, or undefined when the value is not a color.
  */
-export function hexOf(value: unknown): string | undefined {
+export function paintedHex(value: unknown): string | undefined {
     if (typeof value === "object" && value !== null && "hex" in value && typeof value.hex === "string") {
         return value.hex;
     }

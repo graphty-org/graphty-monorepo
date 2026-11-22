@@ -8,8 +8,8 @@
 // cancelled() and always() and the implicit success() of an `if:` that names none of them; the needs graph decides
 // what runs (a job whose `if` is false is skipped, and a skipped or failed ancestor, a need's need too, skips a job
 // that only asks success());
-// a job's result comes from the row (default success; a lane can be failure, cancelled or timed_out, which ends a
-// job cancelled); a called workflow (`uses: ./.github/workflows/x.yml`) runs with the caller's github context and
+// a job's result comes from the row (default success; a lane can be failure, canceled or timed_out, which ends a
+// job canceled); a called workflow (`uses: ./.github/workflows/x.yml`) runs with the caller's github context and
 // the inputs its `with:` computes, and fails when one of its jobs fails; steps run in order with their `if`, and a
 // row stubs their outputs (the verdict's are computed by tools/full-run.mjs's own functions from the LANES the
 // workflow templates); attempt N+1 keeps attempt N's results and outputs for every job that did not fail and does not
@@ -144,7 +144,7 @@ function inputsFor(wf, event, given) {
 // file: the workflow's file name
 // sc: the row: github (the context), inputs, vars, results `{ path: result }` (a path is the job id, or
 // `<caller>/<job>` inside a called workflow), outputs `{ path: outputs }` (a job's outputs, instead of its steps'),
-// steps `{ path: { stepId: { outputs, fail } | (step) => ... } }`, cancelled (the run was cancelled), prior (the
+// steps `{ path: { stepId: { outputs, fail } | (step) => ... } }`, canceled (the run was canceled), prior (the
 // previous attempt's run, for a re-run of its failed jobs)
 // returns `{ jobs: { path: { result, outputs, steps, ran } }, conclusion, title, reads }`
 function simulate(file, sc) {
@@ -708,9 +708,18 @@ describe("the nightly path's scenario matrix", () => {
         assert.equal(ci.ref, H);
         ran(
             r,
-            ...["packages", "build", "lint", "checks", "docs", "test", "links", "performance", "story-tests"].map(
-                (j) => `ci/${j}`,
-            ),
+            ...[
+                "packages",
+                "build",
+                "lint",
+                "checks",
+                "docs",
+                "test",
+                "links",
+                "browser-benchmarks",
+                "performance",
+                "story-tests",
+            ].map((j) => `ci/${j}`),
         );
         ran(r, "ci/story-tests-merge", "ci/all-checks");
         skipped(
@@ -910,7 +919,7 @@ describe("the nightly path's scenario matrix", () => {
     });
 
     // run 40950661827 attempt 2: GitHub stopped CI's Performance Benchmarks (continue-on-error) after 18 minutes,
-    // the CI call ended cancelled although every job that gates passed, the LLM lane skipped and the verdict filed
+    // the CI call ended canceled although every job that gates passed, the LLM lane skipped and the verdict filed
     // "CI cancelled" as red with a bisect (#4556)
     it("(18) an advisory CI job cancelled, every gating job green: the CI lane passes and the LLM lane still runs", () => {
         const r = fullRun({ results: { "ci/performance": "cancelled" }, judged: { held: "" } });
@@ -919,7 +928,7 @@ describe("the nightly path's scenario matrix", () => {
         ran(r, "llm", "recapture", "verdict");
         skipped(r, ...RED_EARLY);
         assert.equal(r.jobs.verdict.outputs.state, "green-clean");
-        // a gating job that ends cancelled (its own timeout) still makes the lane red
+        // a gating job that ends canceled (its own timeout) still makes the lane red
         const gating = fullRun({ results: { "ci/performance": "cancelled", "ci/all-checks": "failure" }, judged: {} });
         assert.equal(gating.jobs.verdict.outputs.state, "red");
         skipped(gating, "llm");
@@ -1135,7 +1144,7 @@ describe("the nightly path's static rules", () => {
 
     // 2026-10-29/30 (#5052): a4c81c3 was held red by workflow skew alone (#4522); the green-images runs on e87f65b and
     // 6ee5bc7 could not hold, nightly sat 18 hours, and the owner was never offered a review
-    describe("(19) a red hold is replaced by a newer green run, never a hold awaiting the owner's review", () => {
+    describe("(19) a held head is replaced by a newer green run, even one awaiting the owner's review", () => {
         const A = "a4c81c3".padEnd(40, "0");
         const E = "e87f65b".padEnd(40, "0");
         const S = "6ee5bc7".padEnd(40, "0");
@@ -1160,18 +1169,27 @@ describe("the nightly path's static rules", () => {
             ran(r, "slot");
             assert.match(slotFacts(r).cause, /^waiting on the owner's screenshot review of e87f65b$/);
         });
-        it("green-images on 6ee5bc7 behind e87f65b awaiting review: nothing replaced, the review stays pending", () => {
+        // 2026-11-09 (#6604): three green runs waited 23 hours behind one held review; a newer green run replaces it
+        it("green-images on 6ee5bc7 behind e87f65b awaiting review: that hold ends and 6ee5bc7 is reviewed instead", () => {
             const r = fullRun({
                 pick: { sha: S, held: E },
                 judged: { held: E, heldState: "green-images", images: 4 },
             });
             const v = r.jobs.verdict;
-            assert.deepEqual([v.outputs.hold, v.outputs.replaced ?? ""], ["none", ""]);
-            assert.ok(!stepRan(r, "verdict", "hold"));
-            skipped(r, "keep_builds", "candidate_branch");
+            assert.deepEqual([v.outputs.state, v.outputs.hold, v.outputs.replaced], ["green-images", "start", E]);
+            ran(r, "keep_builds", "candidate_branch");
+            const b = r.jobs.candidate_branch.steps["Push channel/candidate"].env;
+            assert.deepEqual([b.REPLACED, b.HOLD, b.SHA], [E, "start", S], "e87f65b's branch goes, 6ee5bc7's comes");
             const ann = v.steps["Announce a red run, an owner item or changed screenshots"];
-            assert.equal(ann.env.HOLD ?? "", "", "not announced as held: release-status says it is not");
-            assert.match(slotFacts(r).cause, /review of the held e87f65b/);
+            assert.equal(ann.env.HOLD, "start", "announced as held, so the owner reviews the newest candidate");
+            assert.match(slotFacts(r).cause, /^waiting on the owner's screenshot review of 6ee5bc7$/);
+        });
+        it("green-clean behind a hold awaiting review: the hold ends and the commit promotes (#6604)", () => {
+            const r = fullRun({ pick: { sha: S, held: E }, judged: { held: E, heldState: "green-images" } });
+            const v = r.jobs.verdict;
+            assert.deepEqual([v.outputs.hold, v.outputs.replaced], ["replace", E]);
+            assert.equal(v.outputs.promote, "true");
+            ran(r, "version", "land", "candidate_branch");
         });
         it("green-clean behind the red hold: the hold ends, the commit promotes, the missed-slot alarm closes", () => {
             const r = fullRun({ pick: { sha: E, held: A }, judged: { held: A, heldState: "red" } });

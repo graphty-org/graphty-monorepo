@@ -3,7 +3,7 @@
  * node's box but on the outline of a small node drawn over it belongs to the small node (cys-affinity-purification);
  * and a shape inside a node at the end of a line of the node's own drawing (a chart's slice) is no arrowhead; but an
  * arrowhead lying over a flat node it does not end at, small beside that node, is its line's (json-vis-siblings: 31
- * of vis-network's 284 arrowheads, each over a neighbour's flat box, were read as free shapes), and at a crowded node it
+ * of vis-network's 284 arrowheads, each over a neighbor's flat box, were read as free shapes), and at a crowded node it
  * is the line's it lies along, not the line whose end its tip touches first (#4272).
  */
 import { assert, describe, it } from "vitest";
@@ -362,7 +362,7 @@ describe("edge ends at overlapping nodes", () => {
     });
 
     it("gives an arrowhead lying over a flat node it does not end at to its line", () => {
-        // vis-network: lines run on to the nodes' centers, the arrowhead at the target's outline; a neighbour's flat
+        // vis-network: lines run on to the nodes' centers, the arrowhead at the target's outline; a neighbor's flat
         // 30 x 8 box lies under the arrowhead, which is drawn after every node
         const flat = (id: string, cx: number, cy: number): PNode => node(id, cx, cy, 30, 8);
         const nodes = [node("s", 100, 200), flat("p", 300, 200), flat("q", 282, 203)];

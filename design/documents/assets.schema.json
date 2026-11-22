@@ -71,6 +71,11 @@
                     "const": "url",
                     "description": "Kept by URL: no files; the asset loads from source when the reader allows it, and a file whose digest is not sha256 is reported (W_MODEL_CHANGED). Absent: the files are embedded."
                 },
+                "plainName": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "description": "The reader's name for the model (assets.rename); a reader shows it in place of the main file's name."
+                },
                 "skipped": {
                     "type": "array",
                     "items": { "type": "string", "minLength": 1 },

@@ -306,7 +306,7 @@ describe("status, row by row of the design's table", () => {
             assert.strictEqual(statusOfSet(f, overKept).freshness, "current", kind);
 
             f.harness.store.builder.removeNode("b");
-            f.harness.store.touch();
+            f.harness.store.account();
             f.harness.session.data.snapshot();
 
             assert.deepStrictEqual(
@@ -767,7 +767,7 @@ describe("usedBy", () => {
 
         assert.deepStrictEqual(f.harness.session.sets.usedBy(base), [
             { kind: "set", id: reader, label: "Reader" },
-            { kind: "run", id: "pr", label: f.harness.session.runs.get("pr")?.label ?? "" },
+            { kind: "run", id: "pr", label: "Connections (Base)" },
         ]);
         assert.deepStrictEqual(f.harness.session.sets.usedBy("set_never"), []);
     });

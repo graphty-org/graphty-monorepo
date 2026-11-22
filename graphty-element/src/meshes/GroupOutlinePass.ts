@@ -24,24 +24,21 @@
  * Loaded with the shader runtime, never by a graph that names no shader.
  */
 
-import {
-    Buffer,
-    type Camera,
-    Color4,
-    Constants,
-    EffectRenderer,
-    Layer,
-    Matrix,
-    Mesh,
-    type Observer,
-    type RenderTargetTexture,
-    type Scene,
-    ShaderMaterial,
-    type TransformNode,
-    Vector3,
-    VertexData,
-    Viewport,
-} from "@babylonjs/core";
+import type { Observer } from "@babylonjs/core";
+import { Buffer } from "@babylonjs/core/Buffers/buffer.js";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { Layer } from "@babylonjs/core/Layers/layer.js";
+import { EffectRenderer } from "@babylonjs/core/Materials/effectRenderer.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import type { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture.js";
+import { Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Viewport } from "@babylonjs/core/Maths/math.viewport.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { fixedParamsOf, motionOf, type ShaderDescriptor, type ShaderParams } from "../catalog/shaders";
 import type { NodeId } from "../catalog/types";
@@ -59,6 +56,7 @@ import {
 import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
 import { uniformValueOf } from "../shaders/runtime/wrap";
 import { BACKGROUND_LAYER, type BackgroundTint } from "./BackgroundPass";
+import { FLAT_BACKDROP_LAYER } from "./FlatBackdrop";
 import { type SceneEffect, sceneEffect, sceneTarget, setParams, targetBytes } from "./sceneShaderEffect";
 
 /** The outline's name. */
@@ -1053,12 +1051,12 @@ export class GroupOutlinePass {
 }
 
 /**
- * Keep the scene's background layers in order: the background shader first, the outlines next,
- * every other layer after them.
+ * Keep the scene's background layers in order: a flat skybox and the background shader first, the
+ * outlines next, every other layer after them.
  * @param scene - The scene.
  */
 export function orderLayers(scene: Scene): void {
-    const order = [BACKGROUND_LAYER, OUTLINE_LAYER];
+    const order = [FLAT_BACKDROP_LAYER, BACKGROUND_LAYER, OUTLINE_LAYER];
     const rank = (name: string): number => (order.includes(name) ? order.indexOf(name) : order.length);
     scene.layers.sort((a, b) => rank(a.name) - rank(b.name));
 }

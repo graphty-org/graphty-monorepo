@@ -14,6 +14,9 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../src/session";
 import { channelsFor } from "../../src/session/styles/channels";
+import { disposedAfterEach } from "../helpers/disposed-after-each";
+
+const owned = disposedAfterEach();
 
 /** British spellings, each with the American one the catalog uses instead. */
 const BRITISH =
@@ -48,7 +51,7 @@ function texts(value: unknown, path: string, key: string, found: [string, string
 
 describe("the catalog's published text", () => {
     it("uses American spelling in every plain name and description", async () => {
-        const { catalog } = createGraphSession();
+        const { catalog } = owned(createGraphSession());
         const lists: Record<string, unknown> = {
             algorithms: catalog.algorithms(),
             layouts: catalog.layouts(),

@@ -1,148 +1,22 @@
 /**
- * Models and pictures dropped or chosen by the reader: reading what was dropped (files, a folder,
- * a .zip) and putting an accepted model or picture on nodes. Whether files are a model or a
- * picture, and whether one is fine, is graphty-element's call (`detectModelFormat`,
- * `detectAssetKind`, `session.assets.add`); this file only hands it the files and words the answer.
+ * Naming the models and pictures graphty-element holds, and drawing a model's picture. Whether
+ * files are a model or a picture, and whether one is fine, is graphty-element's call
+ * (`session.assets.add`).
  */
 
-import { detectAssetKind, detectModelFormat } from "@graphty/graphty-element/catalog";
+import type { ModelPreview } from "@graphty/graphty-element";
+import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import {
-    type AssetOffer,
-    type AssetRecord,
-    type AssetSource,
+    type CodedFact,
+    type CodedFactParam,
     type GraphSession,
     isAssetId,
+    isGraphtyError,
     type ModelChange,
 } from "@graphty/graphty-element/session";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import type { WorkspaceStore } from "../state/store";
-import { modelWords } from "../style/words";
-
-/** What was dropped: the files, and the same files as graphty-element's assets take them. */
-interface Dropped {
-    /** Every file, for asking the element what they are. */
-    readonly files: readonly File[];
-    /** For `session.assets.add`: the files, or a folder's files by path. */
-    readonly source: AssetSource;
-}
-
-/** The first bytes the element reads to tell a model (detectModelFormat reads up to 4 KB). */
-const HEAD_BYTES = 4096;
-
-/**
- * Every file under a dropped folder entry, by its path from the drop.
- * @param entry - the folder or file entry.
- * @param into - path to file.
- */
-async function walk(entry: FileSystemEntry, into: Map<string, File>): Promise<void> {
-    if (entry.isFile) {
-        const file = await new Promise<File>((resolve, reject) => {
-            (entry as FileSystemFileEntry).file(resolve, reject);
-        });
-        into.set(entry.fullPath.replace(/^\//, ""), file);
-        return;
-    }
-    const reader = (entry as FileSystemDirectoryEntry).createReader();
-    for (;;) {
-        const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => {
-            reader.readEntries(resolve, reject);
-        });
-        if (batch.length === 0) {
-            return;
-        }
-        await Promise.all(batch.map((child) => walk(child, into)));
-    }
-}
-
-/**
- * What a drop holds. Must be called during the drop event: the browser empties the transfer after.
- * @param transfer - the drop's data.
- * @returns the files, with a dropped folder's files keyed by their paths.
- */
-export async function readDrop(transfer: DataTransfer): Promise<Dropped> {
-    const files = [...transfer.files];
-    const entries = [...transfer.items].map((item) => item.webkitGetAsEntry());
-    if (!entries.some((entry) => entry?.isDirectory === true)) {
-        return { files, source: files };
-    }
-    const byPath = new Map<string, File>();
-    await Promise.all(entries.flatMap((entry) => (entry === null ? [] : [walk(entry, byPath)])));
-    return { files: [...byPath.values()], source: { files: byPath } };
-}
-
-/**
- * Whether any of the files is a 3D model, as graphty-element tells from each name and first bytes.
- * @param files - the files.
- * @returns true for a model, even one the element cannot load (it says why on add).
- */
-export async function holdsModel(files: readonly File[]): Promise<boolean> {
-    for (const file of files) {
-        const head = new Uint8Array(await file.slice(0, HEAD_BYTES).arrayBuffer());
-        if (detectModelFormat({ filename: file.name, head }) !== undefined) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/**
- * Whether any of the files is a 3D model or a picture, as graphty-element tells from each name and
- * first bytes (the node-models experiment).
- * @param files - the files.
- * @returns true for a model or a picture, even one the element cannot load (it says why on add).
- */
-export async function holdsAsset(files: readonly File[]): Promise<boolean> {
-    for (const file of files) {
-        const head = new Uint8Array(await file.slice(0, HEAD_BYTES).arrayBuffer());
-        if (detectAssetKind({ filename: file.name, head }) !== undefined) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/**
- * Hands files to the models waiting for parts first (`session.assets.offer`), so a picture reaches
- * the model that needs it; what no waiting model takes is left to add.
- * @param session - the element's session.
- * @param source - the files as `session.assets.add` takes them.
- * @param files - the same files, one by one.
- * @returns the parts supplied, and what is left to add (null when nothing is).
- */
-export async function offerFirst(
-    session: GraphSession,
-    source: AssetSource,
-    files: readonly File[],
-): Promise<{ readonly supplied: AssetOffer["supplied"]; readonly rest: AssetSource | null }> {
-    if (session.assets.waiting().length === 0 || files.length === 0) {
-        return { supplied: [], rest: source };
-    }
-    const offered = await session.assets.offer(files);
-    if (offered.supplied.length === 0) {
-        return { supplied: [], rest: source };
-    }
-    // ponytail: what is left loses its folder paths; a waiting model's parts arrive by name.
-    return { supplied: offered.supplied, rest: offered.rest.length === 0 ? null : [...offered.rest] };
-}
-
-/**
- * The files of a source handed over one by one: what a chooser or a drop gave.
- * @param source - the files.
- * @returns them, or none for a URL or bytes.
- */
-export function filesOf(source: AssetSource): File[] {
-    if (typeof source === "string" || source instanceof ArrayBuffer || source instanceof Uint8Array) {
-        return [];
-    }
-    if (source instanceof File) {
-        return [source];
-    }
-    if ("files" in source && source.files instanceof Map) {
-        return [...source.files.values()].filter((f): f is File => f instanceof File);
-    }
-    return [...(source as Iterable<unknown>)].filter((f): f is File => f instanceof File);
-}
+import { useWorkspace } from "../state/WorkspaceContext";
 
 /**
  * A file's name for the reader: the last part of its path or address, without its query, its
@@ -165,7 +39,8 @@ function addressOf(ref: string): string {
 }
 
 /**
- * A model's name for the reader: its main file without the extension, or a sample's name.
+ * A model's name for the reader: the name the reader gave it, its main file without the extension,
+ * or a sample's name.
  * @param session - the element's session.
  * @param ref - what a layer names: an asset id, the id a model had while it waited, or a URL.
  * @returns the name.
@@ -175,7 +50,9 @@ export function modelName(session: GraphSession, ref: string): string {
     if (sample !== undefined) {
         return sample.plainName;
     }
-    return fileStem(session.assets.find(ref)?.path ?? addressOf(ref)) || "Model";
+    // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
+    const record = session.assets.find(ref);
+    return record?.plainName ?? (fileStem(record?.path ?? addressOf(ref)) || "Model");
 }
 
 /**
@@ -185,128 +62,8 @@ export function modelName(session: GraphSession, ref: string): string {
  * @returns the name.
  */
 export function pictureName(session: GraphSession, ref: string): string {
+    // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
     return fileStem(session.assets.find(ref)?.path ?? addressOf(ref)) || "Picture";
-}
-
-/**
- * Adds the model and, once accepted, one undoable layer drawing it on the selected nodes, or on
- * every node when nothing is selected. A refused model is said in a notice.
- * @param session - the element's session.
- * @param store - the workspace store, for the notice.
- * @param source - the model's files.
- * @returns the record, or null when it was refused.
- */
-export async function putModelOnNodes(
-    session: GraphSession,
-    store: WorkspaceStore,
-    source: AssetSource,
-): Promise<AssetRecord | null> {
-    const record = await session.assets.add(source);
-    if (record.state !== "accepted") {
-        const [first] = record.problems;
-        store.set({ notice: { message: first === undefined ? "The model could not be added." : modelWords(first) } });
-        return null;
-    }
-    const { nodes } = session.selection;
-    const name = modelName(session, record.id);
-    await session.styles.add({
-        name,
-        target: "node",
-        selector: nodes.length > 0 ? { match: "ids", nodes } : { match: "everything" },
-        set: { "node.model": record.id },
-    });
-    store.set({
-        notice: {
-            message: nodes.length > 0 ? `Selected nodes drawn as ${name}` : `Nodes drawn as ${name}`,
-            action: {
-                label: "Undo",
-                run: () => {
-                    void session.undo();
-                },
-            },
-        },
-    });
-    return record;
-}
-
-/**
- * One undoable layer drawing a model or a picture on the selected nodes, or on every node when
- * nothing is selected, and the notice that says so with Undo.
- * @param session - the element's session.
- * @param store - the workspace store, for the notice.
- * @param record - the model or the picture: accepted, or a model waiting for parts.
- * @param message - the notice's words, when they are not "Nodes drawn as ...".
- */
-async function drawOnNodes(
-    session: GraphSession,
-    store: WorkspaceStore,
-    record: AssetRecord,
-    message?: string,
-): Promise<void> {
-    const { nodes } = session.selection;
-    const picture = record.kind === "image";
-    const name = picture ? pictureName(session, record.id) : modelName(session, record.id);
-    const layer = await session.styles.add({
-        name,
-        target: "node",
-        selector: nodes.length > 0 ? { match: "ids", nodes } : { match: "everything" },
-        set: picture ? { "node.texture": record.id } : { "node.model": record.id },
-    });
-    const drawn = `${picture ? "drawn with" : "drawn as"} ${name}`;
-    store.set({
-        // The new layer opens in the Style panel, so its Shape or Picture field (and a model's
-        // missing-parts chip) is in view.
-        inspected: { kind: "layer-row", id: layer.id, tab: "style" },
-        notice: {
-            message: message ?? (nodes.length > 0 ? `Selected nodes ${drawn}` : `Nodes ${drawn}`),
-            action: {
-                label: "Undo",
-                run: () => {
-                    void session.undo();
-                },
-            },
-        },
-    });
-}
-
-/**
- * With the node-models experiment on: hands the files to a model waiting for them first; else adds
- * them, and makes one undoable layer drawing the model (`node.model`) or the picture
- * (`node.texture`) on the selected nodes, or on every node when nothing is selected. A model
- * waiting for parts gets its layer too, so the Shape field names it and offers its parts; a model
- * finished by these files that no layer names yet is put on the nodes. A refusal is said in a
- * notice.
- * @param session - the element's session.
- * @param store - the workspace store, for the notice.
- * @param source - the model's or the picture's files.
- * @returns the record, or null when the files went to a waiting model or were refused.
- */
-export async function putAssetOnNodes(
-    session: GraphSession,
-    store: WorkspaceStore,
-    source: AssetSource,
-): Promise<AssetRecord | null> {
-    const { supplied, rest } = await offerFirst(session, source, filesOf(source));
-    if (rest === null) {
-        const [part] = supplied;
-        const finished = session.assets.find(part.ref);
-        if (finished?.state === "accepted" && session.assets.usedBy(part.ref).length === 0) {
-            await drawOnNodes(session, store, finished);
-            return null;
-        }
-        store.set({ notice: { message: `${part.fileName} added to ${modelName(session, part.ref)}` } });
-        return null;
-    }
-    const record = await session.assets.add(rest);
-    const waits = session.assets.waiting().some((w) => w.id === record.id);
-    if (record.state !== "accepted" && !waits) {
-        const [first] = record.problems;
-        store.set({ notice: { message: first === undefined ? "The model could not be added." : modelWords(first) } });
-        return null;
-    }
-    const [missing] = waits ? record.problems : [];
-    await drawOnNodes(session, store, record, missing === undefined ? undefined : modelWords(missing));
-    return record;
 }
 
 /**
@@ -330,12 +87,260 @@ export function useModelStates(session: GraphSession | null): readonly ModelChan
 }
 
 /**
- * A model's picture: a sample's catalog thumbnail. A model the reader added has none (the cube
- * stands in): graphty-element's `nodeThumbnail` draws only built-in shapes yet.
- * @param session - the element's session.
+ * Why graphty-element could not draw a model, from what `modelThumbnail` or `modelPreview` threw.
+ * @param error - what it threw.
+ * @returns the coded reason.
+ */
+export function failureOf(error: unknown): CodedFact {
+    return isGraphtyError(error)
+        ? { code: error.code, params: error.details as Readonly<Record<string, CodedFactParam>> }
+        : { code: "E_MODEL_PARSE", params: {} };
+}
+
+/**
+ * Why a live preview failed, when the model is to blame: undefined when the preview itself could
+ * not draw (no WebGL context for it, or the preview's drawing broke) -- the graph may draw the
+ * model well, so that never stops it being added.
+ * @param error - what `modelPreview` or its `update` rejected with.
+ * @returns the model's failure, or undefined.
+ */
+function modelFailureOf(error: unknown): CodedFact | undefined {
+    return isGraphtyError(error) && error.code !== "E_NO_WEBGL" ? failureOf(error) : undefined;
+}
+
+/** A model's picture as graphty-element drew it, or why it could not draw it. */
+interface ModelDraw {
+    /** The picture's URL, or undefined while it is drawn, failed, or for no model. */
+    readonly url: string | undefined;
+    /** Why graphty-element could not draw an accepted model (`modelThumbnail`'s rejection), or undefined. */
+    readonly failure: CodedFact | undefined;
+    /** Asks graphty-element to draw it again: for a decoder whose files did not load. */
+    readonly retry: () => void;
+}
+
+/**
+ * A model's picture, drawn by graphty-element as a node draws it (`modelThumbnail`), or a sample's
+ * shipped thumbnail, with the coded reason when graphty-element could not draw it. Drawn again
+ * when the model or its style changes.
  * @param ref - what a layer names, or undefined for no model.
+ * @param size - the picture's side in CSS pixels; it is drawn at the screen's pixel ratio.
+ * @param style - the node's style values the picture is drawn with (Up, Turn, Color...).
+ * @param standIn - also draw a model still waiting for parts, its missing pictures and materials
+ *     stood in for (`modelThumbnail`'s `standInMissing`).
+ * @returns the picture, the failure and a retry.
+ */
+function useModelDraw(
+    ref: string | undefined,
+    size: number,
+    style?: Readonly<Partial<Record<Channel, ChannelValue>>>,
+    standIn = false,
+): ModelDraw {
+    const { session, element } = useWorkspace();
+    // Read again when a model moves on, so a model that just got its parts is drawn.
+    useModelStates(session);
+    const [attempt, setAttempt] = useState(0);
+    const sample = ref === undefined ? undefined : session?.catalog.models().find((m) => m.id === ref)?.thumbnail;
+    // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
+    const record = ref === undefined || sample !== undefined ? undefined : session?.assets.find(ref);
+    const key =
+        record !== undefined && (record.state === "accepted" || standIn)
+            ? // The state too: a waiting model keeps its id and digest once its main file is picked.
+              JSON.stringify([ref, record.digest, record.state, size, style ?? null, attempt])
+            : undefined;
+    const [drawn, setDrawn] = useState<{
+        readonly key: string;
+        readonly url?: string;
+        readonly failure?: CodedFact;
+    } | null>(null);
+    useEffect(() => {
+        if (key === undefined || element === null) {
+            return undefined;
+        }
+        // Read back from the key, so a style object made anew on every render draws once.
+        const [asked, , , side, values] = JSON.parse(key) as [
+            string,
+            string,
+            string,
+            number,
+            Record<string, ChannelValue> | null,
+        ];
+        let live = true;
+        element
+            .modelThumbnail(asked, {
+                size: side * Math.ceil(window.devicePixelRatio || 1),
+                style: values ?? {},
+                standInMissing: standIn,
+            })
+            .then((url) => {
+                if (live) {
+                    setDrawn({ key, url });
+                }
+            })
+            .catch((error: unknown) => {
+                if (live) {
+                    setDrawn({ key, failure: failureOf(error) });
+                }
+            });
+        return () => {
+            live = false;
+        };
+    }, [key, element, standIn]);
+    const mine = drawn !== null && drawn.key === key ? drawn : undefined;
+    return {
+        url: sample ?? mine?.url,
+        failure: sample === undefined ? mine?.failure : undefined,
+        retry: () => {
+            setAttempt((n) => n + 1);
+        },
+    };
+}
+
+/**
+ * A model's picture (see {@link useModelDraw}): undefined while it is drawn and for a model that
+ * cannot be drawn (the cube stands in; the model's own chips say why).
+ * @param ref - what a layer names, or undefined for no model.
+ * @param size - the picture's side in CSS pixels.
+ * @param style - the node's style values the picture is drawn with.
  * @returns the picture's URL, or undefined.
  */
-export function modelThumbnail(session: GraphSession, ref: string | undefined): string | undefined {
-    return ref === undefined ? undefined : session.catalog.models().find((m) => m.id === ref)?.thumbnail;
+export function useModelPicture(
+    ref: string | undefined,
+    size: number,
+    style?: Readonly<Partial<Record<Channel, ChannelValue>>>,
+): string | undefined {
+    return useModelDraw(ref, size, style).url;
+}
+
+/** A model drawn live by graphty-element (`modelPreview`), or why it could not be drawn. */
+export interface ModelLive {
+    /** Whether the model is on the preview's canvas now. */
+    readonly drawn: boolean;
+    /** Whether it is being drawn again with new style values. */
+    readonly drawing: boolean;
+    /** Why graphty-element could not draw it, or undefined. */
+    readonly failure: CodedFact | undefined;
+    /** Whether the preview itself could not draw (no WebGL context for it): the model is not to blame. */
+    readonly unavailable: boolean;
+    /** Asks graphty-element to draw it again: for a decoder whose files did not load. */
+    readonly retry: () => void;
+    /** Turns the reader's view back to the first one. */
+    readonly resetView: () => void;
+}
+
+/**
+ * A model drawn live by graphty-element in an element of the page (`modelPreview`): the reader
+ * turns it by dragging and its clip plays. Drawn again with new style values as they change,
+ * keeping the reader's view; drawn anew when the model itself changes (its parts arrive).
+ * @param ref - what a layer names, or undefined for no model.
+ * @param host - the element the preview fills, or null before it is mounted.
+ * @param style - the node's style values it is drawn with.
+ * @param label - the preview's name for assistive technology.
+ * @param standIn - also draw a model still waiting for parts, with them stood in for.
+ * @param hiddenTextures - the model's pictures drawn without them (`modelPreview`'s
+ *     `hiddenTextures`); undefined draws the model's own list. A change draws a new preview.
+ * @returns whether it is drawn, the failure, a retry and a reset of the view.
+ */
+export function useModelPreview(
+    ref: string | undefined,
+    host: HTMLElement | null,
+    style: Readonly<Partial<Record<Channel, ChannelValue>>>,
+    label: string,
+    standIn = false,
+    hiddenTextures?: readonly string[],
+): ModelLive {
+    const { session, element } = useWorkspace();
+    useModelStates(session);
+    const [attempt, setAttempt] = useState(0);
+    // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
+    const record = ref === undefined ? undefined : session?.assets.find(ref);
+    const sample = ref !== undefined && session?.catalog.models().some((m) => m.id === ref) === true;
+    const key =
+        ref !== undefined && (sample || (record !== undefined && (record.state === "accepted" || standIn)))
+            ? JSON.stringify([ref, record?.digest, record?.state, attempt, hiddenTextures ?? null])
+            : undefined;
+    const styleKey = JSON.stringify(style);
+    // The style a new preview starts with: the latest, without making a new preview when it changes.
+    const startStyle = useRef(styleKey);
+    useEffect(() => {
+        startStyle.current = styleKey;
+    }, [styleKey]);
+    // The style the preview last drew with, so it is not drawn twice with the same values.
+    const drawnStyle = useRef<string | null>(null);
+    const [pending, setPending] = useState(0);
+    const [state, setState] = useState<{
+        readonly key: string;
+        readonly preview?: ModelPreview;
+        readonly failure?: CodedFact;
+        readonly unavailable?: boolean;
+    } | null>(null);
+    useEffect(() => {
+        if (key === undefined || element === null || host === null) {
+            return undefined;
+        }
+        const [asked, , , , hidden] = JSON.parse(key) as [string, unknown, unknown, unknown, string[] | null];
+        let live = true;
+        let made: ModelPreview | undefined;
+        const first = startStyle.current;
+        element
+            .modelPreview(asked, host, {
+                style: JSON.parse(first) as Record<string, ChannelValue>,
+                standInMissing: standIn,
+                ...(hidden === null ? {} : { hiddenTextures: hidden }),
+            })
+            .then((preview) => {
+                made = preview;
+                if (live) {
+                    drawnStyle.current = first;
+                    setState({ key, preview });
+                } else {
+                    preview.dispose();
+                }
+            })
+            .catch((error: unknown) => {
+                if (live) {
+                    const failure = modelFailureOf(error);
+                    setState({ key, failure, unavailable: failure === undefined });
+                }
+            });
+        return () => {
+            live = false;
+            made?.dispose();
+        };
+    }, [key, element, host, standIn]);
+    const mine = state !== null && state.key === key ? state : undefined;
+    const preview = mine?.preview;
+    useEffect(() => {
+        preview?.canvas.setAttribute("aria-label", label);
+        preview?.canvas.setAttribute("role", "img");
+    }, [preview, label]);
+    useEffect(() => {
+        if (preview === undefined || drawnStyle.current === styleKey) {
+            return;
+        }
+        drawnStyle.current = styleKey;
+        setPending((n) => n + 1);
+        preview
+            .update(JSON.parse(styleKey) as Record<string, ChannelValue>)
+            .catch((error: unknown) => {
+                const failure = modelFailureOf(error);
+                setState((now) =>
+                    now?.preview === preview ? { key: now.key, failure, unavailable: failure === undefined } : now,
+                );
+            })
+            .finally(() => {
+                setPending((n) => n - 1);
+            });
+    }, [preview, styleKey]);
+    return {
+        drawn: preview !== undefined,
+        drawing: preview !== undefined && pending > 0,
+        failure: mine?.failure,
+        unavailable: mine?.unavailable === true,
+        retry: () => {
+            setAttempt((n) => n + 1);
+        },
+        resetView: () => {
+            preview?.resetView();
+        },
+    };
 }

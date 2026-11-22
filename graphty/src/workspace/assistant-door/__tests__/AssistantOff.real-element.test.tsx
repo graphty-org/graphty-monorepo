@@ -44,13 +44,13 @@ describe("the Assistant with its experiment off", () => {
         await page.viewport(1440, 900);
     });
 
-    it("draws no rail button: the rail reads Graph, Data, Notes, then Settings", async () => {
+    it("draws no rail button: the rail reads Graph, Data, Views, Notes, then Settings", async () => {
         await open();
         const rail = screen.getByRole("toolbar", { name: "Places" });
         const names = within(rail)
             .getAllByRole("button")
             .map((button) => button.getAttribute("aria-label"));
-        assert.deepEqual(names, ["Graph", "Data", "Notes", "Settings"]);
+        assert.deepEqual(names, ["Graph", "Data", "Views", "Notes", "Settings"]);
     });
 
     it("lists no Assistant in Quick actions or Keyboard shortcuts", async () => {

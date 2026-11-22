@@ -15,7 +15,7 @@
  * exited and changed stamps. They are written on a repaint and never because an edge moved.
  */
 
-import type { Scene } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { drawingOf, motionOf, type ShaderParamDescriptor, type ShaderParams, timingOf } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
@@ -67,8 +67,10 @@ export interface EdgeStaticLook {
     readonly seed: number;
     /** The state bits (`EDGE_STATE_BITS`). */
     readonly bits: number;
-    /** Width at the target over width at the source. */
+    /** Width at the target over the line's width. */
     readonly taper: number;
+    /** Width at the source over the line's width. */
+    readonly taperSource: number;
     /** The entered, exited and changed stamps, scene time, or {@link EDGE_NEVER}. */
     readonly times: readonly [number, number, number];
 }
@@ -256,6 +258,41 @@ export class EdgeShaderDrawing {
     now(): number {
         return this.runtime?.uniforms.now() ?? EDGE_NEVER;
     }
+
+    /**
+     * An edge row was stored with no `Edge` (on "batched"): remember when, so the `Edge` built for
+     * it later plays the entrances an edge arriving now plays. Only the last
+     * {@link CAUSE_WINDOW_MS} of arrivals are kept, since an older one plays nothing.
+     * @param row - The edge's row.
+     */
+    rowArrived(row: number): void {
+        const now = performance.now();
+        for (const [old, at] of this.rowArrivals) {
+            if (now - at <= CAUSE_WINDOW_MS) {
+                break;
+            }
+
+            this.rowArrivals.delete(old);
+        }
+
+        this.rowArrivals.delete(row);
+        this.rowArrivals.set(row, now);
+    }
+
+    /**
+     * When an edge row stored with no `Edge` arrived, for the `Edge` built for it now.
+     * @param row - The edge's row.
+     * @returns The time by `performance.now()`; -Infinity when it arrived before this drawing
+     *   existed, or too long ago to play an entrance. A row built later is not an edge arriving:
+     *   built as one, every edge a layer's style pass builds played the entrance the layer's own
+     *   add must not play (issue #9438).
+     */
+    rowArrivalOf(row: number): number {
+        return this.rowArrivals.get(row) ?? Number.NEGATIVE_INFINITY;
+    }
+
+    /** When each edge row stored with no `Edge` arrived, oldest first; see {@link rowArrived}. */
+    private readonly rowArrivals = new Map<number, number>();
 
     /**
      * Decide whether a shader an edge starts carrying plays its entrance: when the edge arrived or
@@ -522,7 +559,7 @@ export function edgeStaticValues(
     out.set(look.colorB, 4);
     out.set(shader?.varying ?? [0, 0, 0, 0], 8);
     out.set([look.seed, shader?.row ?? 0, look.bits, look.taper], 12);
-    out.set([...look.times, 0], 16);
+    out.set([...look.times, look.taperSource], 16);
     return out;
 }
 

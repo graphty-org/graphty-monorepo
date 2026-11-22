@@ -20,6 +20,7 @@ import { compareIds } from "../../../src/catalog/sets/canonical";
 import { addToSum, EMPTY_SUM, hashEdgeMember, hashNodeId, membershipDigestOf } from "../../../src/catalog/sets/hash";
 import type { EdgeId, EdgeMember, NodeId, SetDefinition, SetDefinitionInput, SetId } from "../../../src/catalog/types";
 import { mintedEdgeId, pairsOrdered } from "../../../src/data/edgeIdentity";
+import { otherIdSpelling } from "../../../src/data/nodeIdSpelling";
 import { isGraphtyError } from "../../../src/errors";
 import { resolveSet, SetsCache } from "../../../src/session/sets/cache";
 import { resolvePath } from "../../../src/session/sets/path";
@@ -339,11 +340,22 @@ function held(model: Model, id: NodeId): NodeId {
         return id;
     }
 
-    if (typeof id === "number") {
-        return model.nodes.has(String(id)) ? String(id) : id;
-    }
+    const other = otherIdSpelling(id);
+    return other !== undefined && model.nodes.has(other) ? other : id;
+}
 
-    return /^-?\d+$/.test(id) && model.nodes.has(Number(id)) ? Number(id) : id;
+/**
+ * Whether a node a member edit names is the node a set holds: the same id, or its other integer
+ * spelling unless the graph holds both spellings as two nodes (the exact id wins).
+ * @param model - The model.
+ * @param named - The id the edit names.
+ * @param stored - The id the set holds.
+ * @returns True when they are one node.
+ */
+function sameNode(model: Model, named: NodeId, stored: NodeId): boolean {
+    return (
+        named === stored || (otherIdSpelling(named) === stored && !(model.nodes.has(named) && model.nodes.has(stored)))
+    );
 }
 
 /**
@@ -938,7 +950,7 @@ async function apply(op: Op, model: Model, real: Driver): Promise<void> {
             const prior = keysOf(set);
             if (op.op === "add-members") {
                 for (const node of nodes) {
-                    if (!set.nodes.some((held) => held === node)) {
+                    if (!set.nodes.some((held) => sameNode(model, node, held))) {
                         set.nodes.push(node);
                     }
                 }
@@ -949,13 +961,17 @@ async function apply(op: Op, model: Model, real: Driver): Promise<void> {
 
                 seedWrite(set.seeds, prior, keysOf(set), named);
             } else {
-                set.nodes = set.nodes.filter((held) => !nodes.some((node) => node === held));
+                set.nodes = set.nodes.filter((held) => !nodes.some((node) => sameNode(model, node, held)));
                 for (const [, member] of named) {
                     set.members.delete(edgeMemberKey(member));
                 }
 
                 for (const [key, member] of set.members) {
-                    if (nodes.some((node) => node === member.source || node === member.target)) {
+                    if (
+                        nodes.some(
+                            (node) => sameNode(model, node, member.source) || sameNode(model, node, member.target),
+                        )
+                    ) {
                         set.members.delete(key);
                     }
                 }

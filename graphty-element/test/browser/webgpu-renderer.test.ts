@@ -21,8 +21,8 @@ import { commands, userEvent } from "vitest/browser";
 
 import annotationSessionUrl from "../../../graph-io/test/corpus/styles/cys/cytoscape-tutorials-AnnotationExample.cys?url";
 import { GraphtyError } from "../../src/errors";
-import { Graph, operationQueueOf } from "../../src/Graph";
-import { forgetShaderCompilers, type RenderManager } from "../../src/managers/RenderManager";
+import { Graph, operationQueueOf, renderManagerOf } from "../../src/Graph";
+import { forgetShaderCompilers } from "../../src/managers/RenderManager";
 import { shadersControllerOf } from "../../src/session/shaders";
 import { VULKAN_GLSL_NAMES } from "../../src/shaders/runtime/wrap";
 import { defineShader } from "../../src/simple/defineShader";
@@ -61,7 +61,7 @@ afterEach(() => {
 });
 
 /**
- * Builds a graph asking for a renderer and initialises it.
+ * Builds a graph asking for a renderer and initializes it.
  * @param renderer - What to ask for; left out, nothing is asked.
  * @returns The graph.
  */
@@ -158,7 +158,7 @@ async function screenshot(graph: Graph, name: string): Promise<Uint8ClampedArray
 }
 
 /**
- * The share of pixels that are not the same colour in two pictures, and the share that are ink
+ * The share of pixels that are not the same color in two pictures, and the share that are ink
  * (not the background) in the first.
  * @param one - The first picture's pixels.
  * @param other - The second's.
@@ -382,7 +382,7 @@ describe("the element's renderer attribute", () => {
         });
         host.appendChild(element);
         await element.updateComplete;
-        for (let wait = 0; wait < 600 && !(initialized && element.graph.initialized); wait++) {
+        while (!(initialized && element.graph.initialized)) {
             await new Promise((resolve) => requestAnimationFrame(resolve));
         }
 
@@ -485,15 +485,6 @@ async function holdWebGPUOpening(
             assert.equal(graph.rendererStatus?.active, "webgpu", graph.rendererStatus?.reason ?? "");
         },
     };
-}
-
-/**
- * The graph's render manager, for what only it can say.
- * @param graph - The graph.
- * @returns Its render manager.
- */
-function renderManagerOf(graph: Graph): RenderManager {
-    return (graph as unknown as { renderManager: RenderManager }).renderManager;
 }
 
 describe.skipIf(!GPU_LANE)(`work started before WebGPU opens (${ADAPTER})`, () => {
@@ -692,7 +683,7 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         assert.isAbove(ink, 0.01, "the WebGL picture has almost nothing on it");
         // Anti-aliasing differs between the two back ends along every line; a missing line, cap
         // or glow is a whole shape. A tenth of the ink covers the first and not the second: the
-        // grey and blue lines alone are more than a quarter of it.
+        // gray and blue lines alone are more than a quarter of it.
         assert.isBelow(differ, ink / 10, "the WebGPU frame is not the WebGL frame");
 
         await animateEdges(webgl);

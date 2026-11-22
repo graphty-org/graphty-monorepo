@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { isolateGit, isolatedGitEnv } from "../isolated-git-env.mjs";
-import { acceptsIn, resumeDecision } from "./resume.mjs";
+import { acceptsIn, approvalOnMaster, resumeDecision } from "./resume.mjs";
 
 isolateGit();
 
@@ -61,6 +61,18 @@ describe("resumeDecision", () => {
         assert.match(stale.why, /an older head/);
         const behind = resumeDecision({ ...ok, older: true });
         assert.deepEqual([behind.run, behind.comment], [false, 7]);
+    });
+
+    it("tries a refused approval again on promote-nightly, from the run that judged it, never in a full slot (#6783)", () => {
+        const refused = { state: "refused", runId: 99, lane: "accept bbbbbbbbbbbb run 42" };
+        const d = resumeDecision({ ...ok, latest: refused });
+        assert.deepEqual([d.run, d.sourceRun], [true, "42"]);
+        assert.equal(resumeDecision({ ...ok, latest: refused, retry: false }).run, false, "a full slot's catch-up");
+        const lost = resumeDecision({ ...ok, latest: { ...refused, lane: "accept bbbbbbbbbbbb" } });
+        assert.match(lost.why, /names no run/);
+        // the owner's rejection or an abandon ends it for good
+        assert.equal(resumeDecision({ ...ok, latest: { state: "rejected", lane: "abandoned" } }).run, false);
+        assert.equal(resumeDecision({ ...ok, latest: { state: "green-images", runId: 7 } }).sourceRun, 7);
     });
 
     it("refuses a red run, an approval that is more than accept-only commits on the candidate, and one not merged", () => {
@@ -149,6 +161,19 @@ describe("resume.mjs check, on a real repository and a stand-in store", () => {
         };
     }
 
+    it("finds the approval on the master commit it is given, and none before it merged (#6604)", () => {
+        // the verdict reads a freshly fetched master, so a newer run never replaces a head whose approval merged
+        const { dir, h, p } = repo();
+        const cwd = process.cwd();
+        process.chdir(dir);
+        try {
+            assert.equal(approvalOnMaster(h, "HEAD"), p);
+            assert.equal(approvalOnMaster(h, "HEAD^1"), null);
+        } finally {
+            process.chdir(cwd);
+        }
+    });
+
     it("a full slot catches up on the held head's merged approval and names the run that judged it", async () => {
         const { dir, h, p } = repo();
         const store = { hold: { head: h, issue: null }, recent: [{ sha: h, state: "green-images", runId: 42 }] };
@@ -218,9 +243,15 @@ describe("resume.mjs record, a refused approval (#5835)", () => {
         ]) {
             writeFileSync(file, `#!/bin/sh\necho "${name} $*" >> "${log}"\n`, { mode: 0o755 });
         }
+        const posted = [];
         const server = createServer((req, res) => {
-            res.setHeader("content-type", "application/json");
-            res.end(JSON.stringify({ hold }));
+            let body = "";
+            req.on("data", (c) => (body += c));
+            req.on("end", () => {
+                if (req.method === "POST") posted.push(JSON.parse(body));
+                res.setHeader("content-type", "application/json");
+                res.end(JSON.stringify({ hold }));
+            });
         });
         await new Promise((r) => server.listen(0, "127.0.0.1", r));
         const script = new URL("./resume.mjs", import.meta.url).pathname;
@@ -232,7 +263,8 @@ describe("resume.mjs record, a refused approval (#5835)", () => {
                     PATH: `${join(dir, "bin")}:${process.env.PATH}`,
                     RESULTS_URL: `http://127.0.0.1:${server.address().port}`,
                     GRAPHTY_RESULTS_TOKEN: "t",
-                    STATE: "rejected",
+                    STATE: "refused",
+                    SOURCE_RUN: "42",
                     TESTED: H,
                     ACCEPT: A,
                     WHY: "the screenshot gate refused",
@@ -241,12 +273,14 @@ describe("resume.mjs record, a refused approval (#5835)", () => {
             child.on("exit", resolve);
         });
         server.close();
-        return { code, calls: readFileSync(log, "utf8") };
+        return { code, calls: readFileSync(log, "utf8"), posted };
     }
 
-    it("comments on the hold issue the store names, and fails the run", async () => {
-        const { code, calls } = await record({ head: H, issue: 77 });
+    it("records refused with the judging run, comments on the hold issue the store names, and fails the run", async () => {
+        const { code, calls, posted } = await record({ head: H, issue: 77 });
         assert.equal(code, 1);
+        // refused, never the owner's rejected (#6783), with the run a retry needs
+        assert.deepEqual(posted, [{ sha: H, state: "refused", lane: `accept ${A.slice(0, 12)} run 42` }]);
         assert.match(calls, /^gh issue comment 77 --body-file /m);
     });
 

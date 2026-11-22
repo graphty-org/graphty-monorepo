@@ -58,6 +58,9 @@ describe("inferSchema", () => {
         assert.strictEqual(Object.getPrototypeOf(optional), Object.prototype);
         assert.deepEqual(Object.keys(required), ["__proto__"]);
         assert.deepEqual(Object.keys(optional), ["a"]);
-        assert.strictEqual(Object.getOwnPropertyDescriptor(required, "__proto__")?.value.type, "any");
+        assert.strictEqual(
+            (Object.getOwnPropertyDescriptor(required, "__proto__")?.value as { type?: unknown } | undefined)?.type,
+            "any",
+        );
     });
 });

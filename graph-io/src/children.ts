@@ -283,7 +283,14 @@ export function childrenFromColumn(nodeCount: number, column: Column | null): Ch
     const references: number[] = [];
     if (column !== null) {
         const keep = (child: number, parent: number): void => {
-            if (!Number.isInteger(parent) || parent === INVALID_INDEX || parent >= nodeCount || parent === child) {
+            // a list column of i32 or f64 can carry a negative "no parent" sentinel such as -1
+            if (
+                !Number.isInteger(parent) ||
+                parent < 0 ||
+                parent === INVALID_INDEX ||
+                parent >= nodeCount ||
+                parent === child
+            ) {
                 dropped++;
                 return;
             }

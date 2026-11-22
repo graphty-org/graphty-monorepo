@@ -254,6 +254,8 @@ export interface DualServerOptions {
      * that port only and fail when it is taken, as the CLI does for an explicit --port or PORT.
      */
     maxPortNumber?: number;
+    /** Let /proxy/ reach loopback, private and link-local addresses (default: false) */
+    proxyAllowPrivate?: boolean;
 }
 
 /**
@@ -330,6 +332,7 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
         certPath,
         keyPath,
         maxPortNumber = MAX_PORT_NUMBER,
+        proxyAllowPrivate = false,
     } = options;
 
     // Create or use provided JSONL writer
@@ -401,7 +404,7 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
         });
 
         // Create and register the proxy instance
-        proxyInstance = createProxy(proxyBaseUrl, quiet);
+        proxyInstance = createProxy(proxyBaseUrl, quiet, proxyAllowPrivate);
         setProxy(proxyInstance);
     }
 

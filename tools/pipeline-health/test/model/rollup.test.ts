@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-    type Bucket,
     DAY,
     DIRTY_PK,
     dirtyKey,
@@ -14,7 +13,7 @@ import {
 } from "../../src/model/items.js";
 import { FULL_SHARD_BUDGET_MS } from "../../src/model/metrics.js";
 import { putRaw } from "../../src/model/raw.js";
-import { LEASE_KEY, LEASE_MS, loadSeries, recompute, windowValue } from "../../src/model/rollup.js";
+import { LEASE_KEY, LEASE_MS, loadSeries, recompute, storedBucket, windowValue } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { refold } from "../../src/recompute.js";
 import { job, MIN, obs, pr, run, T0 } from "./helpers.js";
@@ -91,12 +90,37 @@ describe("rollups", () => {
         );
         await recompute(store, T0);
         expect(await store.get(rollKey("ci.runner_wait", "5m", old))).toBeUndefined(); // not kept
-        const day = (await store.get(rollKey("ci.runner_wait", "1d", old))) as unknown as Bucket;
+        const dayKey = rollKey("ci.runner_wait", "1d", old);
+        const day = storedBucket((await store.get(dayKey)) ?? { ...dayKey });
         expect(day.n).toBe(4);
         // A late write into one hour of that day keeps the other hours.
         await putRaw(store, [job(99, { createdAt: old + 5 * HOUR, startedAt: old + 5 * HOUR + MIN })], T0);
         await recompute(store, T0);
-        expect(((await store.get(rollKey("ci.runner_wait", "1d", old))) as unknown as Bucket).n).toBe(5);
+        expect(storedBucket((await store.get(dayKey)) ?? { ...dayKey }).n).toBe(5);
+    });
+
+    it("a bucket recomputed unchanged writes nothing, and a change writes only the metric it changed (#6813)", async () => {
+        const store = new MemoryStore();
+        const at = T0 - 30 * MIN;
+        await putRaw(store, [job(1, { createdAt: at, startedAt: at + MIN, completedAt: at + 2 * MIN })], T0);
+        const first = await recompute(store, T0);
+        expect(first.items).toBeGreaterThan(0);
+        const puts: string[] = [];
+        const batch = store.batch.bind(store);
+        store.batch = (ops) => {
+            puts.push(...ops.flatMap((op) => ("put" in op && op.put.pk.startsWith("ROLL#") ? [op.put.pk] : [])));
+            return batch(ops);
+        };
+        // The same items again: every bucket is dirty, none changed.
+        await putRaw(store, [job(1, { createdAt: at, startedAt: at + MIN, completedAt: at + 2 * MIN })], T0);
+        expect(await recompute(store, T0)).toMatchObject({ items: 0 });
+        expect(puts).toEqual([]);
+        // An observation lands in the same 5-minute bucket: only its metric is written, at every step.
+        await putRaw(store, [obs("pr.open", 3, at + 3 * MIN)], T0);
+        await recompute(store, T0);
+        expect(puts.toSorted()).toEqual(["ROLL#pr.open#15m", "ROLL#pr.open#1d", "ROLL#pr.open#1h", "ROLL#pr.open#5m"]);
+        const day = rollKey("ci.runner_wait", "1d", floorTo(at, "1d"));
+        expect(storedBucket((await store.get(day)) ?? { ...day }).n).toBe(1);
     });
 
     it("merge ratio leaves a pull request still open (in CI) out, and counts it once it settles (#5400)", async () => {

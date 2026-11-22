@@ -1,12 +1,12 @@
 /**
- * @file The layout catalogue: the arrangements the element offers, and the engines behind them.
+ * @file The layout catalog: the arrangements the element offers, and the engines behind them.
  *
  * A public layout name says what the arrangement IS -- "force", "hierarchical", "circular" --
  * and never which library draws it. The element registers nineteen engines whose registered
  * names ARE their implementations ("ngraph", "d3", "forceatlas2"), and freezing those into the
  * public API makes swapping an implementation a rename every consumer can see. So the engine is
  * data on the descriptor instead: `LayoutDescriptor.engine` names the implementation the element
- * runs today, and replacing it is a catalogue edit rather than a breaking change.
+ * runs today, and replacing it is a catalog edit rather than a breaking change.
  *
  * More than one engine can draw one arrangement. `force` is drawn by ngraph today and could be
  * drawn by any of four others, so each entry lists every engine that can serve it, the default
@@ -24,32 +24,11 @@
  * placement that visits each node once rates "any", an iterative all-pairs force rates 2000.
  */
 
-import type { OptionsSchema } from "../config/OptionsSchema";
-import { ArfLayout } from "../layout/ArfLayoutEngine";
-import { BfsLayout } from "../layout/BfsLayoutEngine";
-import { BipartiteLayout } from "../layout/BipartiteLayoutEngine";
-import { CircularLayout } from "../layout/CircularLayoutEngine";
-import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
-import { FixedLayout } from "../layout/FixedLayoutEngine";
-import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
-import { GRAPHVIZ_PACKAGE, type GraphvizEngine } from "../layout/graphviz/engines";
-import { GRAPHVIZ_LAYOUTS } from "../layout/GraphvizLayoutEngine";
-import { GridLayout } from "../layout/GridLayoutEngine";
-import { KamadaKawaiLayout } from "../layout/KamadaKawaiLayoutEngine";
-import { LocationMapLayout } from "../layout/LocationMapLayoutEngine";
-import { MultipartiteLayout } from "../layout/MultipartiteLayoutEngine";
-import { NGraphEngine } from "../layout/NGraphLayoutEngine";
-import { PlanarLayout } from "../layout/PlanarLayoutEngine";
-import { RadialLayout } from "../layout/RadialLayoutEngine";
-import { RandomLayout } from "../layout/RandomLayoutEngine";
-import { ShellLayout } from "../layout/ShellLayoutEngine";
-import { SpectralLayout } from "../layout/SpectralLayoutEngine";
-import { SpiralLayout } from "../layout/SpiralLayoutEngine";
-import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
-import { SpringLayout } from "../layout/SpringLayoutEngine";
+import { GRAPHVIZ_PACKAGE, type GraphvizEngine, graphvizLayoutId } from "../layout/graphviz/engines";
 import type { CodedFact } from "../session/shared";
+import { layoutFacts } from "./engineFacts";
 import { registeredLayoutById } from "./layoutRegistry";
-import { optionsFromZod } from "./optionsFromZod";
+import { withDescriptionIds } from "./options";
 import type {
     DEPRECATED_LAYOUT_IDS,
     KNOWN_LAYOUT_IDS,
@@ -70,14 +49,28 @@ import type {
 export interface LayoutImplementation {
     /** The registered engine name, exactly as `LayoutEngine.getRegisteredTypes` reports it. */
     engine: string;
+    /** The engine's default name for a reader, such as "D3 Force". */
     plainName: string;
+    /** The library or algorithm the engine runs, such as "d3-force-3d". */
     technicalName: string;
     /**
-     * What this engine draws, in one sentence: catalog data, like a layout's own description.
+     * What this engine draws, in one English sentence.
      * @since 3.37.0
+     * @deprecated Word the engine from {@link LayoutImplementation.descriptionId} in the application.
      */
     description: string;
+    /**
+     * A stable id for what this engine draws, which an application keys its own words on:
+     * `layout.<layout id>:<engine>`, such as "layout.force:d3". Present on every built-in engine.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
+    /**
+     * How the engine places nodes: `"live"` moves them a step each frame until it settles,
+     * `"batch"` computes every position at once.
+     */
     kind: "live" | "batch";
+    /** The most dimensions the engine lays out in: 2 for a flat drawing only, 3 for 2D or 3D. */
     maxDimensions: 2 | 3;
     /** True for the engine the element runs when this layout is asked for by name. */
     isDefault: boolean;
@@ -94,12 +87,18 @@ export interface LayoutImplementation {
      * @since 3.20.0
      */
     fact: CodedFact<LayoutImplementationCode>;
+    /** The options this engine takes, in the same shape as every other catalog option. */
     options: readonly OptionDescriptor[];
     /**
      * Whether this engine arranges a graph differently when its edges carry weights.
      *
-     * Read off the engine class's own `static honoursWeights` rather than written here, so the
-     * catalogue cannot claim a weight channel an engine does not have.
+     * Read off the engine class's own `static honorsWeights` rather than written here, so the
+     * catalog cannot claim a weight channel an engine does not have.
+     */
+    honorsWeights: boolean;
+    /**
+     * The British spelling of {@link LayoutImplementation.honorsWeights}, always the same value.
+     * @deprecated Read `honorsWeights`. Removed in the next major.
      */
     honoursWeights: boolean;
     /** Whether this engine accepts a scope, read off the engine class's own `static scoped`. */
@@ -109,7 +108,7 @@ export interface LayoutImplementation {
      * declares it.
      *
      * `accelerator: true` means the engine is computed on hardware and has no processor
-     * implementation, so a picker greys the entry out when `capabilities.acceleration.state` says
+     * implementation, so a picker grays the entry out when `capabilities.acceleration.state` says
      * nothing is attached. It belongs to the ENGINE rather than to the arrangement: `force` is
      * drawn by six engines, five of which need nothing.
      */
@@ -153,20 +152,27 @@ export type LayoutImplementationCode =
  * An implementation as it is authored here. Which one is the default is decided by position, and
  * its fact is built from its code.
  */
-type LayoutImplementationSpec = Omit<LayoutImplementation, "isDefault" | "fact"> & {
+type LayoutImplementationSpec = Omit<LayoutImplementation, "isDefault" | "fact" | "descriptionId"> & {
     code: LayoutImplementationCode;
 };
 
 /**
  * Finish one authored implementation.
+ * @param layoutId - The arrangement it draws.
  * @param spec - The implementation as authored.
  * @param isDefault - Whether it is the arrangement's default engine.
  * @returns The published implementation.
  */
-function implementation(spec: LayoutImplementationSpec, isDefault: boolean): LayoutImplementation {
+function implementation(layoutId: string, spec: LayoutImplementationSpec, isDefault: boolean): LayoutImplementation {
     const { code, ...authored } = spec;
 
-    return { ...authored, isDefault, fact: { code, params: { engine: spec.engine } } };
+    return {
+        ...authored,
+        descriptionId: `layout.${layoutId}:${spec.engine}`,
+        options: withDescriptionIds(`layout.${spec.engine}`, spec.options),
+        isDefault,
+        fact: { code, params: { engine: spec.engine } },
+    };
 }
 
 /** One semantic layout, with every engine that can draw it. */
@@ -179,7 +185,9 @@ export interface LayoutCatalogEntry {
 
 /** A built-in layout name that no registered engine draws yet. */
 export interface UnservedLayout {
+    /** The built-in layout name. */
     id: (typeof KNOWN_LAYOUT_IDS)[number];
+    /** Why no engine draws it, in English for a developer reading a log. */
     reason: string;
 }
 
@@ -215,21 +223,17 @@ const LOCATION_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
     longitude: { type: "attribute", on: "node" },
 };
 
-/**
- * Emit one engine's options as plain JSON.
- * @param schema - The engine's Zod options schema.
- * @param overrides - Descriptor fields the schema cannot express, by option name.
- * @returns One option descriptor per option the engine declares.
- */
-function engineOptions(
-    schema: OptionsSchema,
-    overrides: Readonly<Record<string, Partial<OptionDescriptor>>> = {},
-): readonly OptionDescriptor[] {
-    return optionsFromZod(schema, { overrides });
+/** Everything about a layout that is not its default engine, as an entry is authored. */
+interface LayoutBase extends Omit<
+    LayoutDescriptor,
+    "engine" | "options" | "honorsWeights" | "honoursWeights" | "scoped" | "description" | "descriptionId"
+> {
+    /** What the layout does, in English: written to the published descriptor's deprecated field. */
+    description: string;
 }
 
 /**
- * Assemble one catalogue entry, taking the published descriptor's engine and options from the
+ * Assemble one catalog entry, taking the published descriptor's engine and options from the
  * default implementation so the two can never drift apart.
  * @param base - Everything about the layout that is not the implementation.
  * @param primary - The engine the element runs when this layout is asked for by name.
@@ -237,22 +241,24 @@ function engineOptions(
  * @returns The finished entry.
  */
 function entry(
-    base: Omit<LayoutDescriptor, "engine" | "options" | "honoursWeights" | "scoped">,
+    base: LayoutBase,
     primary: LayoutImplementationSpec,
     alternates: readonly LayoutImplementationSpec[] = [],
 ): LayoutCatalogEntry {
     return {
         descriptor: {
             ...base,
+            descriptionId: `layout.${base.id}`,
             engine: primary.engine,
-            options: primary.options,
-            honoursWeights: primary.honoursWeights,
+            options: withDescriptionIds(`layout.${primary.engine}`, primary.options),
+            honorsWeights: primary.honorsWeights,
+            honoursWeights: primary.honorsWeights,
             scoped: primary.scoped,
             ...(primary.requires === undefined ? {} : { requires: primary.requires }),
         },
         implementations: [
-            implementation(primary, true),
-            ...alternates.map((alternate) => implementation(alternate, false)),
+            implementation(base.id, primary, true),
+            ...alternates.map((alternate) => implementation(base.id, alternate, false)),
         ],
     };
 }
@@ -274,9 +280,7 @@ const ngraph: LayoutImplementationSpec = {
         "nodes and 1.8 seconds at a hundred thousand, so from two thousand nodes the element " +
         "draws this same arrangement on an accelerator instead, whenever one is attached.",
     code: "implementation.default-processor",
-    options: engineOptions(NGraphEngine.zodOptionsSchema, FORCE_OVERRIDE),
-    honoursWeights: NGraphEngine.honoursWeights,
-    scoped: NGraphEngine.scoped,
+    ...layoutFacts("ngraph", FORCE_OVERRIDE),
 };
 
 const d3: LayoutImplementationSpec = {
@@ -290,9 +294,7 @@ const d3: LayoutImplementationSpec = {
         "Choose it for d3's own tuning vocabulary -- alpha, alpha decay, velocity decay -- when " +
         "the arrangement has to match a d3 drawing elsewhere in the product.",
     code: "implementation.d3-tuning",
-    options: engineOptions(D3GraphEngine.zodOptionsSchema, CLUSTER_OVERRIDE),
-    honoursWeights: D3GraphEngine.honoursWeights,
-    scoped: D3GraphEngine.scoped,
+    ...layoutFacts("d3", CLUSTER_OVERRIDE),
 };
 
 const forceAtlas2: LayoutImplementationSpec = {
@@ -306,9 +308,7 @@ const forceAtlas2: LayoutImplementationSpec = {
         "Choose it for the Gephi look, and for the arrangement an accelerator reproduces first. " +
         "It keeps running until the layout settles and reheats on a drag or a pin.",
     code: "implementation.gephi-look",
-    options: engineOptions(ForceAtlas2Layout.zodOptionsSchema, FORCE_OVERRIDE),
-    honoursWeights: ForceAtlas2Layout.honoursWeights,
-    scoped: ForceAtlas2Layout.scoped,
+    ...layoutFacts("forceatlas2", FORCE_OVERRIDE),
 };
 
 const spring: LayoutImplementationSpec = {
@@ -322,9 +322,7 @@ const spring: LayoutImplementationSpec = {
         "Choose it when the arrangement must be reproducible from a seed: the same seed gives " +
         "the same settled shape.",
     code: "implementation.seed-reproducible",
-    options: engineOptions(SpringLayout.zodOptionsSchema, FORCE_OVERRIDE),
-    honoursWeights: SpringLayout.honoursWeights,
-    scoped: SpringLayout.scoped,
+    ...layoutFacts("spring", FORCE_OVERRIDE),
 };
 
 const springElectrical: LayoutImplementationSpec = {
@@ -339,9 +337,7 @@ const springElectrical: LayoutImplementationSpec = {
         "routes to on a graph big enough to need it. Ask for it by name to have it at any size: " +
         "it then needs an accelerator and says so when there is none.",
     code: "implementation.accelerator-only",
-    options: engineOptions(SpringElectricalLayout.zodOptionsSchema, FORCE_OVERRIDE),
-    honoursWeights: SpringElectricalLayout.honoursWeights,
-    scoped: SpringElectricalLayout.scoped,
+    ...layoutFacts("spring-electrical", FORCE_OVERRIDE),
     requires: { accelerator: true },
 };
 
@@ -356,9 +352,7 @@ const kamadaKawai: LayoutImplementationSpec = {
         "Choose it for a small graph whose drawn distances should match its graph distances. It " +
         "solves over every pair of nodes, so it is slow well before the other force engines are.",
     code: "implementation.distance-faithful",
-    options: engineOptions(KamadaKawaiLayout.zodOptionsSchema),
-    honoursWeights: KamadaKawaiLayout.honoursWeights,
-    scoped: KamadaKawaiLayout.scoped,
+    ...layoutFacts("kamada-kawai", SEED_OVERRIDE),
 };
 
 const arf: LayoutImplementationSpec = {
@@ -375,9 +369,7 @@ const arf: LayoutImplementationSpec = {
         "it spreads nodes evenly over a disc and groups show faintly if at all. The deprecated " +
         "layout name `force-2d` is this engine.",
     code: "implementation.two-dimensional",
-    options: engineOptions(ArfLayout.zodOptionsSchema, SEED_OVERRIDE),
-    honoursWeights: ArfLayout.honoursWeights,
-    scoped: ArfLayout.scoped,
+    ...layoutFacts("arf", SEED_OVERRIDE),
 };
 
 const circular: LayoutImplementationSpec = {
@@ -389,9 +381,7 @@ const circular: LayoutImplementationSpec = {
     description: "Places every node on one circle, in the order the nodes were loaded.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(CircularLayout.zodOptionsSchema),
-    honoursWeights: CircularLayout.honoursWeights,
-    scoped: CircularLayout.scoped,
+    ...layoutFacts("circular"),
 };
 
 const shell: LayoutImplementationSpec = {
@@ -403,9 +393,7 @@ const shell: LayoutImplementationSpec = {
     description: "Places each group of nodes on its own ring, around a shared center.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(ShellLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
-    honoursWeights: ShellLayout.honoursWeights,
-    scoped: ShellLayout.scoped,
+    ...layoutFacts("shell", GROUP_BY_OVERRIDE),
 };
 
 const radial: LayoutImplementationSpec = {
@@ -417,9 +405,7 @@ const radial: LayoutImplementationSpec = {
     description: "Places a root at the center and every other node on a ring by its distance from it.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(RadialLayout.zodOptionsSchema),
-    honoursWeights: RadialLayout.honoursWeights,
-    scoped: RadialLayout.scoped,
+    ...layoutFacts("radial"),
 };
 
 const grid: LayoutImplementationSpec = {
@@ -431,9 +417,7 @@ const grid: LayoutImplementationSpec = {
     description: "Places nodes in evenly spaced rows and columns, in the order the nodes were loaded.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(GridLayout.zodOptionsSchema),
-    honoursWeights: GridLayout.honoursWeights,
-    scoped: GridLayout.scoped,
+    ...layoutFacts("grid"),
 };
 
 const spiral: LayoutImplementationSpec = {
@@ -441,13 +425,11 @@ const spiral: LayoutImplementationSpec = {
     plainName: "Spiral",
     technicalName: "Archimedean spiral layout",
     kind: "batch",
-    maxDimensions: 2,
+    maxDimensions: 3,
     description: "Places nodes one after another along a spiral winding out from the center.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(SpiralLayout.zodOptionsSchema),
-    honoursWeights: SpiralLayout.honoursWeights,
-    scoped: SpiralLayout.scoped,
+    ...layoutFacts("spiral"),
 };
 
 const spectral: LayoutImplementationSpec = {
@@ -459,9 +441,7 @@ const spectral: LayoutImplementationSpec = {
     description: "Places nodes by the eigenvectors of the graph's Laplacian, so close-knit groups sit together.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(SpectralLayout.zodOptionsSchema),
-    honoursWeights: SpectralLayout.honoursWeights,
-    scoped: SpectralLayout.scoped,
+    ...layoutFacts("spectral"),
 };
 
 const planar: LayoutImplementationSpec = {
@@ -473,9 +453,7 @@ const planar: LayoutImplementationSpec = {
     description: "Places nodes so that no two edges cross, for the graphs where that is possible.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(PlanarLayout.zodOptionsSchema, SEED_OVERRIDE),
-    honoursWeights: PlanarLayout.honoursWeights,
-    scoped: PlanarLayout.scoped,
+    ...layoutFacts("planar", SEED_OVERRIDE),
 };
 
 const bfs: LayoutImplementationSpec = {
@@ -489,9 +467,7 @@ const bfs: LayoutImplementationSpec = {
         "The only engine that draws this arrangement. It orders each row by breadth-first " +
         "arrival and does not reduce edge crossings between rows.",
     code: "implementation.only-uncrossed-rows",
-    options: engineOptions(BfsLayout.zodOptionsSchema),
-    honoursWeights: BfsLayout.honoursWeights,
-    scoped: BfsLayout.scoped,
+    ...layoutFacts("bfs"),
 };
 
 const bipartite: LayoutImplementationSpec = {
@@ -503,9 +479,7 @@ const bipartite: LayoutImplementationSpec = {
     description: "Places the two groups of nodes in two facing columns.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(BipartiteLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
-    honoursWeights: BipartiteLayout.honoursWeights,
-    scoped: BipartiteLayout.scoped,
+    ...layoutFacts("bipartite", GROUP_BY_OVERRIDE),
 };
 
 const multipartite: LayoutImplementationSpec = {
@@ -517,9 +491,7 @@ const multipartite: LayoutImplementationSpec = {
     description: "Places each group of nodes in its own column, in the order the groups are given.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(MultipartiteLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
-    honoursWeights: MultipartiteLayout.honoursWeights,
-    scoped: MultipartiteLayout.scoped,
+    ...layoutFacts("multipartite", GROUP_BY_OVERRIDE),
 };
 
 const fixed: LayoutImplementationSpec = {
@@ -531,9 +503,7 @@ const fixed: LayoutImplementationSpec = {
     description: "Leaves every node exactly where the loaded data placed it.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(FixedLayout.zodOptionsSchema),
-    honoursWeights: FixedLayout.honoursWeights,
-    scoped: FixedLayout.scoped,
+    ...layoutFacts("fixed"),
 };
 
 const random: LayoutImplementationSpec = {
@@ -545,9 +515,7 @@ const random: LayoutImplementationSpec = {
     description: "Places every node at a random point.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(RandomLayout.zodOptionsSchema, SEED_OVERRIDE),
-    honoursWeights: RandomLayout.honoursWeights,
-    scoped: RandomLayout.scoped,
+    ...layoutFacts("random", SEED_OVERRIDE),
 };
 
 const locationMap: LayoutImplementationSpec = {
@@ -559,12 +527,28 @@ const locationMap: LayoutImplementationSpec = {
     description: "Places every node at the place its data names, on a flat map or a globe.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(LocationMapLayout.zodOptionsSchema, LOCATION_OVERRIDE),
-    honoursWeights: LocationMapLayout.honoursWeights,
-    scoped: LocationMapLayout.scoped,
+    ...layoutFacts("location-map", LOCATION_OVERRIDE),
 };
 
-/** What each Graphviz engine is, as the catalogue describes it. */
+/** The map projection's latitude and longitude options name node attributes. */
+const COORDINATES_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
+    latitude: { type: "attribute", on: "node" },
+    longitude: { type: "attribute", on: "node" },
+};
+
+const geographic: LayoutImplementationSpec = {
+    engine: "geographic",
+    plainName: "Map Projection",
+    technicalName: "Map projection layout",
+    kind: "batch",
+    maxDimensions: 2,
+    description: "Places every node at its latitude and longitude, projected onto a flat map, with no map drawn.",
+    reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
+    ...layoutFacts("geographic", COORDINATES_OVERRIDE),
+};
+
+/** What each Graphviz engine is, as the catalog describes it. */
 const GRAPHVIZ_ENTRIES: Readonly<
     Record<
         GraphvizEngine,
@@ -637,16 +621,16 @@ const GRAPHVIZ_ENTRIES: Readonly<
 };
 
 /**
- * One Graphviz engine as a catalogue entry: the arrangement and its only engine share the id.
+ * One Graphviz engine as a catalog entry: the arrangement and its only engine share the id.
  * @param engine - the engine
  * @returns the entry
  */
 function graphvizEntry(engine: GraphvizEngine): LayoutCatalogEntry {
-    const cls = GRAPHVIZ_LAYOUTS[engine];
+    const id = graphvizLayoutId(engine);
     const { plainName, technicalName, description, family, sizeRating } = GRAPHVIZ_ENTRIES[engine];
     return entry(
         {
-            id: cls.type,
+            id,
             plainName,
             technicalName,
             description,
@@ -657,16 +641,14 @@ function graphvizEntry(engine: GraphvizEngine): LayoutCatalogEntry {
             structuralInputs: [],
         },
         {
-            engine: cls.type,
+            engine: id,
             plainName,
             technicalName,
             kind: "batch",
             maxDimensions: 2,
             reason: "Graphviz's own engine, compiled to WebAssembly and run in a Worker.",
             code: "implementation.graphviz",
-            options: engineOptions(cls.zodOptionsSchema, SEED_OVERRIDE),
-            honoursWeights: cls.honoursWeights,
-            scoped: cls.scoped,
+            ...layoutFacts(id, SEED_OVERRIDE),
             description,
             requires: { package: GRAPHVIZ_PACKAGE },
         },
@@ -674,7 +656,7 @@ function graphvizEntry(engine: GraphvizEngine): LayoutCatalogEntry {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The catalogue
+// The catalog
 // ---------------------------------------------------------------------------------------------
 
 /** Every arrangement the element can place a graph with, and every engine that can draw it. */
@@ -762,7 +744,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             description: "Places nodes one after another along a spiral winding out from the center.",
             family: "geometric",
             kind: "batch",
-            maxDimensions: 2,
+            maxDimensions: 3,
             sizeRating: "any",
             structuralInputs: [],
         },
@@ -886,6 +868,22 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
         },
         locationMap,
     ),
+    entry(
+        {
+            id: "geographic",
+            plainName: "Map Projection",
+            technicalName: "Map projection layout",
+            description:
+                "Places every node at its latitude and longitude, projected onto a flat map (equirectangular, " +
+                "Web Mercator or Equal Earth), north up, with no map drawn under it.",
+            family: "special",
+            kind: "batch",
+            maxDimensions: 2,
+            sizeRating: "any",
+            structuralInputs: [],
+        },
+        geographic,
+    ),
     ...(["dot", "neato", "fdp", "sfdp", "circo", "twopi", "osage", "patchwork"] as const).map(graphvizEntry),
 ];
 
@@ -894,7 +892,7 @@ export const LAYOUT_DESCRIPTORS: readonly LayoutDescriptor[] = LAYOUT_CATALOG.ma
 
 /**
  * The built-in layout names no registered engine draws yet. Listed rather than omitted, because
- * a name that is in the type and missing from the catalogue is otherwise discovered by asking
+ * a name that is in the type and missing from the catalog is otherwise discovered by asking
  * for it and getting an error. Empty today: every built-in name has an engine.
  */
 export const UNSERVED_LAYOUT_IDS: readonly UnservedLayout[] = [];
@@ -956,7 +954,7 @@ export function arrangedDimension(choice: {
  *
  * The element's own arrangements first, then whatever a third party registered. A lookup that
  * missed registered layouts would leave the extension point half built: the entry would be
- * visible in a picker -- `catalog.layouts()` composes both halves -- and then be unrecognised the
+ * visible in a picker -- `catalog.layouts()` composes both halves -- and then be unrecognized the
  * moment a reader chose it.
  * @param id - The layout name.
  * @returns The descriptor, or undefined when nothing answers to that name.
@@ -968,7 +966,7 @@ export function layoutDescriptor(id: LayoutId): LayoutDescriptor | undefined {
 /**
  * Find one layout's whole entry, including the engines that are not the default.
  * @param id - The layout name.
- * @returns The entry, or undefined when nothing in the catalogue answers to that name.
+ * @returns The entry, or undefined when nothing in the catalog answers to that name.
  */
 export function layoutEntry(id: LayoutId): LayoutCatalogEntry | undefined {
     return LAYOUT_CATALOG.find((candidate) => candidate.descriptor.id === id);
@@ -978,7 +976,7 @@ export function layoutEntry(id: LayoutId): LayoutCatalogEntry | undefined {
  * Find the public layout name an engine serves, which is the question a consumer holding a
  * 1.x engine name needs answered to migrate.
  * @param engine - A registered engine name, such as "ngraph".
- * @returns The layout name, or undefined when no catalogue entry lists that engine.
+ * @returns The layout name, or undefined when no catalog entry lists that engine.
  */
 export function layoutIdForEngine(engine: string): LayoutId | undefined {
     const found = LAYOUT_CATALOG.find((candidate) =>

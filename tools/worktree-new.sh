@@ -5,7 +5,7 @@
 # records its owner; every branch is pushed).
 #
 # A bare `git worktree add` gives a checkout with no .env and no node_modules: tools that read
-# tokens from the checkout's .env (tools/sonar-gate.mjs) fail, and the
+# tokens from the checkout's .env (tools/results/client.mjs) fail, and the
 # commit-msg hook (`pnpm exec commitlint`) cannot run. This script adds the worktree, symlinks
 # the main checkout's .env into it (a link, so a token rotated in one place is rotated
 # everywhere) and runs `pnpm install --frozen-lockfile` there.
@@ -29,7 +29,7 @@
 #     [name]    the worktree's directory name (default: the branch, with / replaced by -)
 #     the issue, one of: --issue N, or --new-issue "<title>", or else a number of three or more digits
 #               in <branch> (fix/1234-scroll), which must be an open issue; --new-issue opens one
-#               labelled with a type (from the branch's prefix: fix/ bug, feat/ enhancement, docs/ documentation, else infrastructure, or --type),
+#               labeled with a type (from the branch's prefix: fix/ bug, feat/ enhancement, docs/ documentation, else infrastructure, or --type),
 #               --priority (default medium) and --effort (default medium)
 #     --owner   who owns the work, for the note (default: this Claude Code session)
 #     --full-images  check out the design/** images in full too (the design studio's worktree needs them)
@@ -85,10 +85,10 @@ if [ -n "$TRACKED" ]; then
     [ -n "$ISSUE" ] && [ -n "$NEW_ISSUE" ] && die "give --issue N or --new-issue \"<title>\", not both"
     [[ -z "$ISSUE" || "$ISSUE" =~ ^[0-9]+$ ]] || die "--issue takes a number, not $ISSUE"
     # An explicit --issue or --new-issue wins over a number in the branch's name, which may be a year or
-    # a pull request (integrate/pipeline-2026-10-24 once labelled pull request #2026 in-progress).
+    # a pull request (integrate/pipeline-2026-10-24 once labeled pull request #2026 in-progress).
     NAMED_ISSUE=""
     if [ -z "$ISSUE" ] && [ -z "$NEW_ISSUE" ]; then
-        NAMED_ISSUE=$(printf '%s\n' "$BRANCH" | grep -oE '(^|[^0-9])[0-9]{3,}' | head -1 | grep -oE '[0-9]+' || true)
+        NAMED_ISSUE=$(node "$HERE/branch-note.mjs" issue-of "$BRANCH" || true)
         ISSUE="$NAMED_ISSUE"
     fi
     [ -n "$ISSUE" ] || [ -n "$NEW_ISSUE" ] || die "every branch belongs to an issue: name it in the branch (fix/1234-topic), or give --issue N, or --new-issue \"<title>\""
@@ -172,7 +172,7 @@ if [ -n "$TRACKED" ]; then
     fi
     (cd "$DIR" && node "$HERE/branch-note.mjs" start --issue "$ISSUE" --branch "$BRANCH" --worktree "$DIR" \
         ${OWNER:+--owner "$OWNER"}) ||
-        echo "warning: issue #$ISSUE is not labelled or noted yet; run: node tools/branch-note.mjs start --issue $ISSUE --branch $BRANCH --worktree $DIR" >&2
+        echo "warning: issue #$ISSUE is not labeled or noted yet; run: node tools/branch-note.mjs start --issue $ISSUE --branch $BRANCH --worktree $DIR" >&2
 fi
 
 # husky (the prepare script) writes core.hooksPath to .git/config: run it under the lock, not inside the install.

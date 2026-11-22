@@ -344,6 +344,20 @@ describe("chronicJobs", () => {
         expect(chronicJobs([{ ...agg, job: "All Checks Pass", workflow: "ci.yml" }], NOW)).toEqual([]);
     });
 
+    it("does not judge bisect.yml's point jobs, which fail at a bad commit by design (#6710)", () => {
+        const runs: [number, boolean][] = [
+            [0.1, false],
+            [0.2, false],
+            [0.3, false],
+            [0.4, false],
+            [0.5, true],
+        ];
+        const point = { ...h(runs), workflow: "bisect.yml", job: "Point 9c90fdeaa2616c58f65097c85ff484b1793d6844" };
+        expect(chronicJobs([point], NOW)).toEqual([]);
+        expect(chronicJobs([{ ...point, workflow: "release.yml" }], NOW)).toHaveLength(1);
+        expect(chronicJobs([{ ...point, job: "Judge the round" }], NOW)).toHaveLength(1);
+    });
+
     it("does not judge a share of fewer than 4 runs, a recent first failure, or a job that stopped running", () => {
         expect(
             chronicJobs(
@@ -377,6 +391,26 @@ describe("chronicJobs", () => {
         expect(chronicJobs([h(removed.map(([d, ok]): [number, boolean] => [d - 2, ok]))], NOW)).toHaveLength(1);
     });
 
+    it("judges the share only over the last 7 days, so a fixed job is not chronic on older failures (#7369)", () => {
+        // Dependabot on 2026-11-12: passing since its fix, five failures 12 days before it
+        const dependabot: [number, boolean][] = [
+            [0.1, true],
+            [0.4, true],
+            [0.5, true],
+            [1.5, false],
+            [7.3, true],
+            [11.6, false],
+            [11.6, false],
+            [11.6, false],
+            [12.1, false],
+            [12.1, false],
+        ];
+        expect(chronicJobs([h(dependabot)], NOW)).toEqual([]);
+        // a week earlier, the same failures were recent and chronic
+        const before = dependabot.slice(4).map(([d, ok]): [number, boolean] => [d - 7, ok]);
+        expect(chronicJobs([h(before)], NOW)).toHaveLength(1);
+    });
+
     it("still judges a weekly job between its runs", () => {
         expect(
             chronicJobs(
@@ -389,6 +423,17 @@ describe("chronicJobs", () => {
                 NOW,
             ),
         ).toHaveLength(1);
+        expect(
+            chronicJobs(
+                [
+                    h([
+                        [8, false],
+                        [15, false],
+                    ]),
+                ],
+                NOW,
+            )[0],
+        ).toMatchObject({ runs: 2, failed: 2 });
     });
 
     it("reads each job's runs in order from the rollup's pass and fail times", () => {

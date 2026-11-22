@@ -37,6 +37,7 @@ export { createRunsApi } from "./RunsApi";
 export type {
     BatchResult,
     BatchStep,
+    BatchStepFailure,
     Caveats,
     EngineVersions,
     Precision,
@@ -62,10 +63,15 @@ export type {
     RunStatus,
     RunStyle,
     RunWindow,
+    StabilityOptions,
+    StabilityResult,
     StaleNote,
     StaleReason,
     StartOptions,
     SuggestionOutcome,
+    SweepOptions,
+    SweepResult,
+    SweepRow,
     WeightMeaning,
     WeightSkip,
 } from "./types";

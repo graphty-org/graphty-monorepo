@@ -4,7 +4,7 @@
  * One plain definition -- an id, options in short form, and ONE function (`node`, `edge`, `nodes`
  * or `groups`) -- becomes an ordinary `DeclaredAlgorithm` subclass registered through
  * `DeclaredAlgorithm.register`. Everything the element does for an advanced algorithm (the
- * catalogue entry, option validation, the run record, derived rankings and styles, progress,
+ * catalog entry, option validation, the run record, derived rankings and styles, progress,
  * cancellation, the cost estimate) it therefore does for this one, and parity holds by
  * construction.
  *
@@ -13,6 +13,7 @@
  * id mapping, the output, unmeasured values, caveats and the cost model.
  */
 
+import type { AlgorithmHost } from "../algorithms/host";
 import { communityFields, edgeMetricFields, nodeMetricFields } from "../algorithms/metrics/fields";
 import { DeclaredAlgorithm } from "../algorithms/results/DeclaredAlgorithm";
 import { communityFieldSpecs, metricFieldSpecs } from "../algorithms/results/fields";
@@ -26,8 +27,10 @@ import {
 import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { AlgorithmDescriptor, OptionDescriptor, ResultShape, SuggestedName } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors";
-import type { Graph } from "../Graph";
 import type { ResultElementValues } from "../session/results";
+import { caveat, type CaveatCode } from "../session/runs/caveatFacts";
+import type { CodedFact } from "../session/shared";
+import type { GraphSession } from "../session/types";
 import { quoteEach } from "../utils/quote-each";
 import {
     badDefinition,
@@ -64,7 +67,10 @@ interface CheckedAlgorithm {
 }
 
 /** A class `defineAlgorithm` generates: a concrete `DeclaredAlgorithm` the element constructs. */
-type GeneratedClass = (new (graph: Graph, options?: Record<string, unknown>) => DeclaredAlgorithm) & {
+type GeneratedClass = (new (
+    graph: AlgorithmHost | GraphSession,
+    options?: Record<string, unknown>,
+) => DeclaredAlgorithm) & {
     readonly type: string;
 };
 
@@ -229,7 +235,7 @@ function checkAlgorithm(definition: unknown): CheckedAlgorithm {
 }
 
 /**
- * The catalogue entry the element fills in for a definition.
+ * The catalog entry the element fills in for a definition.
  * @param algorithm - The checked definition.
  * @returns The descriptor.
  */
@@ -316,7 +322,7 @@ interface HoldClock {
 }
 
 /**
- * Call a whole-graph function once, timed, and await what it returns. A cancelled run's abort and
+ * Call a whole-graph function once, timed, and await what it returns. A canceled run's abort and
  * an element error pass through; anything else it throws is the author's failure.
  * @param algorithm - The checked definition.
  * @param view - The graph view the run reads.
@@ -338,7 +344,7 @@ async function callWholeGraph(
         clock.longest = Math.max(clock.longest, performance.now() - clock.resumed);
         return await pending;
     } catch (error) {
-        // A cancelled run's abort passes through as it is: it is not the author's failure.
+        // A canceled run's abort passes through as it is: it is not the author's failure.
         if (run.signal.aborted || isGraphtyError(error)) {
             throw error;
         }
@@ -410,8 +416,8 @@ function booleansNote(algorithm: CheckedAlgorithm, booleans: number): string {
 }
 
 /**
- * The notes a finished run closes with: nothing measured, the view's warnings, a long hold of the
- * page, and the paths the run read.
+ * What a finished run closes with: the view's warnings as notes, and as coded facts nothing
+ * measured, a long hold of the page, and the paths the run read.
  * @param algorithm - The checked definition.
  * @param view - The graph view the run read.
  * @param counts - The elements the function was asked about, those it measured, and the longest
@@ -420,41 +426,49 @@ function booleansNote(algorithm: CheckedAlgorithm, booleans: number): string {
  * @param counts.measured - The elements it measured.
  * @param counts.longest - The longest hold of the page in milliseconds.
  * @param notes - Written: the run's notes.
+ * @returns The run's facts.
  */
-function closingNotes(
+function closingFacts(
     algorithm: CheckedAlgorithm,
     view: GraphView,
     counts: { total: number; measured: number; longest: number },
     notes: string[],
-): void {
+): CodedFact<CaveatCode>[] {
     const { id, member } = algorithm;
-    const kind = member === "edge" ? "edge" : "node";
+    const facts: CodedFact<CaveatCode>[] = [];
     if (counts.total > 0 && counts.measured === 0) {
-        notes.push(`${id}: no ${kind} was measured -- did the function return NaN or undefined for every ${kind}?`);
+        facts.push(caveat("defined.nothing-measured", { algorithm: id, kind: member === "edge" ? "edge" : "node" }));
     }
 
     notes.push(...viewWarnings(view));
     if (counts.longest > LONG_TASK_MS) {
-        const fix =
-            member === "node" || member === "edge"
-                ? "each call should take a moment, with the slow work moved to a whole-graph function."
-                : "await context.progress(i / n) inside its loop.";
-        const advice = `${id}: ${member}() held the page for over ${String(LONG_TASK_MS)} ms at a time; ${fix}`;
-        notes.push(advice);
+        facts.push(caveat("defined.long-task", { algorithm: id, member, ms: LONG_TASK_MS }));
         if (!warnedLongTask.has(id)) {
             warnedLongTask.add(id);
-            console.warn(advice);
+            // A console warning for the author who wrote the function, not words for a reader.
+            const fix =
+                member === "node" || member === "edge"
+                    ? "each call should take a moment, with the slow work moved to a whole-graph function."
+                    : "await context.progress(i / n) inside its loop.";
+            console.warn(`${id}: ${member}() held the page for over ${String(LONG_TASK_MS)} ms at a time; ${fix}`);
         }
     }
 
     // The paths the run read, listed as its inputs; the weight it records is the path it READ as
-    // a weight, not the one it declared (simple-tier.md 2.3 rule 13). ponytail: a note until the
+    // a weight, not the one it declared (simple-tier.md 2.3 rule 13). ponytail: a fact until the
     // run record grows an inputs list with the advanced contract's input.columnAt (section 6).
     const inputs = viewInputs(view);
     if (inputs.length > 0) {
-        const read = inputs.map(({ target, path }) => `${target} ${JSON.stringify(path)}`).join(", ");
-        notes.push(`${id} read: ${read}.`);
+        facts.push(
+            caveat("defined.inputs-read", {
+                algorithm: id,
+                targets: inputs.map(({ target }) => target),
+                paths: inputs.map(({ path }) => path),
+            }),
+        );
     }
+
+    return facts;
 }
 
 /**
@@ -588,9 +602,14 @@ async function execute(
         member === "node" || member === "edge"
             ? { ...(await eachElement(algorithm, view, context, run, clock)), groupType: "integer" as const }
             : { ...(await wholeGraph(algorithm, view, context, run, clock, notes)), edges: [] };
-    closingNotes(algorithm, view, { total, measured: nodes.length + edges.length, longest: clock.longest }, notes);
+    const facts = closingFacts(
+        algorithm,
+        view,
+        { total, measured: nodes.length + edges.length, longest: clock.longest },
+        notes,
+    );
 
-    return outputOf(algorithm, view, { nodes, edges, groupType, notes, convergence });
+    return outputOf(algorithm, view, { nodes, edges, groupType, notes, facts, convergence });
 }
 
 /**
@@ -602,6 +621,7 @@ async function execute(
  * @param run.edges - The edge values.
  * @param run.groupType - The group field's type.
  * @param run.notes - The run's notes.
+ * @param run.facts - The run's coded facts.
  * @param run.convergence - What the author reported about convergence, if anything.
  * @returns The output.
  */
@@ -613,11 +633,12 @@ function outputOf(
         edges: ResultElementValues<string>[];
         groupType: "integer" | "string";
         notes: string[];
+        facts: CodedFact<CaveatCode>[];
         convergence: { converged: boolean; iterations: number } | undefined;
     },
 ): AlgorithmOutput {
     const { member, name } = algorithm;
-    const { nodes, edges, groupType, notes, convergence } = run;
+    const { nodes, edges, groupType, notes, facts, convergence } = run;
     const kind = member === "edge" ? "edge" : "node";
     const [weight] = viewWeightPaths(view);
     const fields =
@@ -635,6 +656,7 @@ function outputOf(
             direction: view.directed ? "directed" : "undirected",
             weight:
                 weight === undefined ? null : { attribute: weight, meaning: algorithm.weights?.meaning ?? "strength" },
+            facts,
             notes,
             ...convergence,
             // Stopping at a cap the caller set publishes what the run has, marked inexact
@@ -692,7 +714,10 @@ function generateClass(algorithm: CheckedAlgorithm): GeneratedClass {
             // ponytail: the view reads the session's snapshot and records directly -- the minimum
             // internal adapter until the advanced contract's snapshot layout, `input.column` and
             // `input.edgeId` (algorithm.md section 3) are built on master and replace it.
-            const view = createGraphView(viewSourceOf(this.graph.getSession()), {
+            // The run's input and nothing else: its scope's induced graph (the working graph's view
+            // of what is shown, or the whole graph only when the run named it), typed so the whole
+            // graph cannot be handed in its place.
+            const view = createGraphView(viewSourceOf(this.graph.getSession(), this.input("declared").subgraph()), {
                 id,
                 directed: algorithm.directed,
             });

@@ -31,9 +31,6 @@ function scriptEnable(): void {
         config: AiManagerConfig,
     ) {
         await real.call(this, { ...config, providerInstance: new MockLlmProvider() });
-        if (config.apiKey !== undefined) {
-            this.getApiKeyManager()?.setKey(config.provider, config.apiKey);
-        }
     });
 }
 

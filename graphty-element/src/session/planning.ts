@@ -19,7 +19,7 @@
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { planar } from "@graphty/layout";
 
-import { type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
+import { askedWeight, type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
 import { layoutAlias, layoutDescriptor, layoutEntry, layoutIdForEngine } from "../catalog/layouts";
 import type {
     AlgorithmDescriptor,
@@ -33,6 +33,7 @@ import type {
 } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
 import { GraphtyError } from "../errors/GraphtyError";
+import { forceAtlas2MaxIterFor } from "../layout/forceAtlas2Iterations";
 import { bestRole, cachedGazetteer, type Gazetteer, GAZETTEER_URL } from "../layout/locationMap/gazetteer";
 import {
     chosenLocation,
@@ -42,9 +43,12 @@ import {
     type LocationDesignation,
     resolveLocation,
 } from "../layout/locationMap/source";
-import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand } from "./commands/algo";
+import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand, AlgoRenameCommand } from "./commands/algo";
+import type { AnnotationsCommand } from "./commands/annotations";
+import type { AssetCommand } from "./commands/assets";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
+import type { DataDeriveCommand } from "./commands/derive";
 import type { BatchCommand } from "./commands/index";
 import type { LayoutCommand, LayoutSetCommand } from "./commands/layout";
 import type { NoteCommand } from "./commands/notes";
@@ -52,11 +56,14 @@ import type { PositionsCommand } from "./commands/positions";
 import type { SetCommand } from "./commands/sets";
 import type { ShaderCommand } from "./commands/shaders";
 import type { SourceExpandOpCommand } from "./commands/source-expand";
+import type { DataStepsSetCommand } from "./commands/source-steps";
 import type { StyleCommand } from "./commands/style";
+import type { TourCommand } from "./commands/tour";
 import type { ViewCommand } from "./commands/view";
 import type { VisibilityCommand } from "./commands/visibility";
 import {
     ASSUMED_ITERATION_BOUND,
+    bareBasis,
     type CostEstimate,
     type CostGateLimits,
     type CostInput,
@@ -97,7 +104,7 @@ export interface AlgorithmRunCommand {
     readonly params?: Readonly<Record<string, unknown>>;
     /** What it may look at. Defaults to the visible graph. */
     readonly scope?: Scope;
-    /** The seed for a randomised or sampled method. */
+    /** The seed for a randomized or sampled method. */
     readonly seed?: number;
     /** Ask for the approximate method at a chosen sample size. */
     readonly sample?: number;
@@ -128,15 +135,21 @@ export type SessionCommand =
     | AlgoLegacyCommand
     | AlgoRemoveCommand
     | AlgoMoveCommand
+    | AlgoRenameCommand
     | DataCommand
+    | DataDeriveCommand
     | DataIssuesCommand
     | SourceExpandOpCommand
+    | DataStepsSetCommand
     | StyleCommand
     | ShaderCommand
+    | AssetCommand
     | VisibilityCommand
     | SetCommand
     | NoteCommand
     | ViewCommand
+    | TourCommand
+    | AnnotationsCommand
     | ConfigSetCommand
     | PositionsCommand
     | LayoutCommand
@@ -309,6 +322,11 @@ export interface PlanningContext {
      */
     readonly inputTick?: () => number;
     /**
+     * Whether the session's `workingGraph` option is on: a run over what is shown then computes
+     * over the view whatever its algorithm declares (design/working-graph/design.md section 6).
+     */
+    readonly workingGraph?: () => boolean;
+    /**
      * The data's own revision: it moves on a freeze or an attribute write, never on a mask, so the
      * location columns are kept until a column or a value changes.
      */
@@ -326,7 +344,7 @@ export interface PlanningContext {
     /** What a filter-steps list would leave visible, step by step. */
     readonly previewSteps?: (steps: readonly FilterStep[]) => StepCounts;
     /** The weight the graph was loaded with, for the weight a run would read. */
-    readonly loadedWeight?: () => LoadedWeightFact | null;
+    readonly loadedWeight?: (scope?: Scope) => LoadedWeightFact | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -370,7 +388,7 @@ const DERIVATION_PER_KEPT_EDGE_SECONDS = 1.7e-7;
  * Build the cost model's inputs from a command and the session's own maintained facts.
  * @param context - What planning reads.
  * @param command - The command.
- * @param descriptor - The algorithm's catalogue entry, when it has one.
+ * @param descriptor - The algorithm's catalog entry, when it has one.
  * @returns The inputs, or why the scope could not be resolved.
  */
 function costInput(
@@ -401,9 +419,11 @@ function costInput(
     /* A run computes over a scope smaller than the graph only when its class declares a scoped
        input; every other one computes on the whole graph and is masked back, so it is estimated
        -- and refused -- over the whole graph: a small scope must not admit a whole-graph run. A
-       scoped one pays for deriving its input on top. */
+       scoped one pays for deriving its input on top. Over the working graph's view every class
+       computes over what is shown. */
     const whole = scope.nodeCount === statistics.nodeCount && scope.edgeCount === statistics.edgeCount;
-    const scoped = !whole && descriptor?.scopeInput === "subgraph";
+    const overView = spec === "visible" && context.workingGraph?.() === true;
+    const scoped = !whole && (descriptor?.scopeInput === "subgraph" || overView);
 
     return {
         input: {
@@ -477,16 +497,12 @@ export function keptSetScopes(context: PlanningContext): ScopeCandidate[] {
  *
  * Unavailable rather than computed over the whole graph: a number produced for a scope the run
  * would refuse is a confident answer to a question nobody asked, and it would gate a button on it.
- * @param descriptor - The algorithm's catalogue entry, when it has one.
+ * @param descriptor - The algorithm's catalog entry, when it has one.
  * @param refusal - Why the scope could not be resolved.
- * @param refusal.reason - The sentence, for the deprecated `reason`.
  * @param refusal.refusal - The coded fact.
  * @returns The estimate.
  */
-function unavailableEstimate(
-    descriptor: AlgorithmDescriptor | undefined,
-    { reason, refusal }: EstimateRefusal,
-): CostEstimate {
+function unavailableEstimate(descriptor: AlgorithmDescriptor | undefined, { refusal }: EstimateRefusal): CostEstimate {
     return Object.freeze({
         seconds: Number.POSITIVE_INFINITY,
         confidence: "unknown",
@@ -494,9 +510,8 @@ function unavailableEstimate(
         blocksFrame: false,
         cancellable: false,
         available: false,
-        reason,
         refusal,
-        basis: reason,
+        basisFacts: bareBasis("cost.refused"),
     });
 }
 
@@ -585,7 +600,7 @@ function planSteps(
  * What one command would do, what it would cost, and whether it would be allowed.
  *
  * The gate is asked the same question here that it is asked when the run starts, from the same
- * inputs, so the sentence on the confirmation dialog and the behaviour after the click cannot
+ * inputs, so the sentence on the confirmation dialog and the behavior after the click cannot
  * disagree: one policy, consulted twice.
  * @param context - What planning reads.
  * @param command - The command.
@@ -627,8 +642,7 @@ function planLayout(context: PlanningContext, command: LayoutSetCommand): Plan {
             : {
                   blocked: Object.freeze({
                       code: "E_OPTION_RANGE",
-                      // An unavailable layout's basis is its refusal sentence.
-                      reason: cost.basis,
+                      reason: layoutRefusalSentences.get(cost) ?? "",
                   }),
               }),
         cost,
@@ -653,8 +667,8 @@ function weighedCaveats(
     try {
         const reading = resolveRunWeight(
             descriptor?.weightMeaning ?? null,
-            command.params?.weight,
-            context.loadedWeight?.() ?? null,
+            askedWeight(command.params?.weight, descriptor?.options),
+            context.loadedWeight?.(command.scope ?? context.defaultScope) ?? null,
         );
         return {
             caveats: Object.freeze({
@@ -734,7 +748,7 @@ function planAlgorithmRun(context: PlanningContext, command: AlgorithmRunCommand
             effect,
             caveats: Object.freeze({
                 ...weighed,
-                method: descriptor?.technicalName ?? context.defaultCaveats.method,
+                method: descriptor?.key ?? context.defaultCaveats.method,
                 ...(command.seed === undefined ? {} : { seed: command.seed }),
             }),
         });
@@ -860,7 +874,7 @@ function layoutRefusal(
         return missingNode(graph, id, "start", options.start);
     }
 
-    // Radial centres on the best-connected node when no root is named, so only a named one can be missing.
+    // Radial centers on the best-connected node when no root is named, so only a named one can be missing.
     if (engine === "radial" && options.root !== undefined && options.root !== null) {
         return missingNode(graph, id, "root", options.root);
     }
@@ -1187,7 +1201,9 @@ function layoutEstimateNow(
     const { nodeCount: n, edgeCount: e } = context.statistics();
     const rates = context.calibration?.()?.rates ?? DEFAULT_COST_RATES;
     const declared = Number(options.maxIter ?? options.iterations);
-    const iterations = Number.isFinite(declared) && declared > 0 ? declared : ASSUMED_ITERATION_BOUND;
+    // ForceAtlas2 with no cap of its own runs for one scaled to the graph.
+    const bound = engine === "forceatlas2" ? forceAtlas2MaxIterFor(n) : ASSUMED_ITERATION_BOUND;
+    const iterations = Number.isFinite(declared) && declared > 0 ? declared : bound;
     // ponytail: rates borrowed from the algorithm model; time a layout run and fit its own when the
     // seconds start gating anything finer than "fast or slow".
     const seconds = {
@@ -1206,7 +1222,17 @@ function layoutEstimateNow(
         blocksFrame: kind === "batch" && seconds > 1 / 60,
         cancellable: true,
         available: true,
-        basis: `${costClass} layout "${id}" drawn by "${engine}" over n=${String(n)}, m=${String(e)}`,
+        basisFacts: Object.freeze({
+            nodes: n,
+            edges: e,
+            sizesScaled: false,
+            term: "class" as const,
+            iterations,
+            iterationsAssumed: !(Number.isFinite(declared) && declared > 0),
+            sample: null,
+            derivationSeconds: 0,
+            provenance: Object.freeze({ code: "cost.layout" as const, params: Object.freeze({ layout: id, engine }) }),
+        }),
     });
 }
 
@@ -1214,20 +1240,27 @@ function layoutEstimateNow(
  * The estimate a layout gets when it cannot run.
  * @param costClass - The class its engine falls in.
  * @param refusal - Why it cannot.
- * @param refusal.reason - The sentence, for the deprecated `reason`.
+ * @param refusal.reason - The sentence, for the plan's block.
  * @param refusal.refusal - The coded fact.
  * @returns The estimate.
  */
 function unavailableLayout(costClass: CostClass, { reason, refusal }: EstimateRefusal): CostEstimate {
-    return Object.freeze({
+    const estimate: CostEstimate = Object.freeze({
         seconds: Number.POSITIVE_INFINITY,
         confidence: "unknown",
         costClass,
         blocksFrame: false,
         cancellable: false,
         available: false,
-        reason,
         refusal,
-        basis: reason,
+        basisFacts: bareBasis("cost.refused"),
     });
+    layoutRefusalSentences.set(estimate, reason);
+    return estimate;
 }
+
+/**
+ * The sentence each unavailable layout estimate was refused with, for {@link PlanBlock.reason},
+ * which is still English. Keyed by the frozen estimate, which the layout cache hands back as is.
+ */
+const layoutRefusalSentences = new WeakMap<CostEstimate, string>();

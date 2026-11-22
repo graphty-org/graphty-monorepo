@@ -12,12 +12,17 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -147,7 +152,7 @@ function highlighted(session: GraphSession, node: string): string | undefined {
 async function greenAround(element: Element, node: string): Promise<number> {
     const at = element.nodeScreenPosition(node);
     assert.isTrue(at?.visible, `${node} is on screen`);
-    const shot = await element.captureScreenshot({ destination: { blob: true }, format: "png" });
+    const shot = await element.captureScreenshot({ format: "png" });
     const bitmap = await createImageBitmap(shot.blob);
     const scale = bitmap.width / element.clientWidth;
     const reach = (at?.radius ?? 0) * 1.6 * scale;
@@ -411,6 +416,31 @@ describe("the start page's graph", () => {
     });
 });
 
+describe("the start page's fact bar", () => {
+    it("counts as many layouts as the Layout list offers", async () => {
+        const { store } = await startPage();
+        const bar = screen.getByRole("complementary", { name: "graphty at a glance" });
+        const said = within(bar)
+            .getByText(/layouts$/)
+            .querySelector("b")?.textContent;
+        assert.isDefined(said, "the bar shows a layout count");
+
+        await commands.chooseNextFile(
+            "triangle.json",
+            "application/json",
+            JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], edges: [{ src: "a", dst: "b" }] }),
+        );
+        await openBy(store, () => userEvent.click(screen.getByRole("button", { name: /^Open a file/ })));
+        const tool = screen.getByRole("button", { name: "Layout" });
+        await waitFor(() => {
+            assert.isFalse(tool.hasAttribute("aria-disabled"));
+        });
+        await userEvent.click(tool);
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        assert.equal(Number(said), within(popover).getAllByRole("option").length);
+    });
+});
+
 describe("the start page's ways in", () => {
     it("opens the file chosen from Open a file as a project", async () => {
         const { store } = await startPage();
@@ -423,21 +453,6 @@ describe("the start page's ways in", () => {
         const opened = await openBy(store, () => userEvent.click(screen.getByRole("button", { name: /^Open a file/ })));
         assert.equal(store.get().project?.name, "triangle");
         assert.equal(opened.data.statistics().nodeCount, 3);
-    });
-
-    it("opens a model chosen from Open a file as a project drawing it, as a dropped one does", async () => {
-        const { store } = await startPage();
-
-        // An OBJ model is text: one triangle.
-        await commands.chooseNextFile("tri.obj", "text/plain", "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n");
-        const opened = await openBy(store, () => userEvent.click(screen.getByRole("button", { name: /^Open a file/ })));
-        assert.equal(store.get().project?.name, "tri");
-        await waitFor(() => {
-            const named = opened.styles.list().map((layer) => layer.set?.["node.model"]);
-            assert.isTrue(
-                named.some((ref) => typeof ref === "string" && opened.assets.find(ref)?.state === "accepted"),
-            );
-        });
     });
 
     it("reopens the newest recent project from Resume", async () => {

@@ -1,11 +1,25 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { AiCommandOptions, ExecutionResult } from "@graphty/graphty-element/ai";
-import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { type AiCommandOptions, AiConfigError, type ExecutionResult } from "@graphty/graphty-element/ai";
+import {
+    AI_EFFECT_CODES,
+    AI_PROVIDER_DESCRIPTORS,
+    AI_RESULT_CODES,
+    type AiEffect,
+    type AiResultCode,
+    type AiResultParams,
+} from "@graphty/graphty-element/catalog";
+import {
+    type GraphSession,
+    type GraphtyErrorCode,
+    isGraphtyError,
+    isGraphtyErrorCode,
+} from "@graphty/graphty-element/session";
 
+import { allowlisted, count } from "../../lib/analytics";
 import { goToComposer } from "../assistant-door/commands";
 import { type AssistantChoice, effortConfig } from "../assistant-door/provider";
 import { fileName, saveBlob } from "../export/choices";
+import { datasetBase } from "../start/open";
 import type { WorkspaceStore } from "../state/store";
 import { isAway, watchWaiting } from "./away";
 import { changeLines, endWords, isChange, MODEL_INSTRUCTIONS, WORDS } from "./words";
@@ -19,8 +33,26 @@ const links = new WeakMap<GraphtyElement, Promise<void>>();
 /** The elements whose exports are already saved, so setting one up again saves each file once. */
 const saving = new WeakSet<GraphtyElement>();
 
+/** The elements whose turns are already counted, so setting one up again counts each turn once. */
+const counting = new WeakSet<GraphtyElement>();
+
+/** The provider each element's assistant was last set up with, as `assistant_used` sends it. */
+const providers = new WeakMap<GraphtyElement, string>();
+
+/** The providers `assistant_used` names: the element's own, less its test-only ones. */
+const PROVIDERS: ReadonlySet<string> = new Set(
+    AI_PROVIDER_DESCRIPTORS.filter((entry) => !entry.testOnly).map((entry) => entry.id),
+);
+const RESULT_CODES: ReadonlySet<string> = new Set(AI_RESULT_CODES);
+const EFFECT_CODES: ReadonlySet<string> = new Set(AI_EFFECT_CODES);
+
+/** What the reader's next turn on the same message is, by the result that left it waiting. */
+const WAITS_FOR: Readonly<Partial<Record<string, "approval">>> = {
+    AI_CONFIRMATION_NEEDED: "approval",
+};
+
 /** Results that end a message for now and wait on the reader. */
-const WAITING = new Set<AiResultCode>(["AI_CONFIRMATION_NEEDED", "AI_QUESTION_ASKED"]);
+const WAITING = new Set<Failure["code"]>(["AI_CONFIRMATION_NEEDED", "AI_QUESTION_ASKED"]);
 
 /** What a message is about. */
 export type ScopeKind = NonNullable<AiCommandOptions["scope"]>;
@@ -57,6 +89,65 @@ function saveExports(element: GraphtyElement, store: WorkspaceStore): void {
 }
 
 /**
+ * Counts each of the element's turns once (`assistant_used`, design/graphty/usage-analytics.md
+ * section 4.1), from the element's own end of every turn: one the panel sent, a spoken one, an
+ * approval or an answer. Only codes and the provider's id are sent, never the words.
+ * @param element - the element.
+ */
+function countTurns(element: GraphtyElement): void {
+    if (counting.has(element)) {
+        return;
+    }
+    counting.add(element);
+    // The newest reader message counted, the effects of its turn counted so far, what the last
+    // turn left waiting (the next turn on the same message approves it), and whether the reader
+    // just answered a question. An answer shows as a reader entry of its own, so it is told apart
+    // by the element's ai-pending-resolved, sent just before the answered message goes on.
+    let reader: string | undefined;
+    let counted = 0;
+    let waiting: "approval" | undefined;
+    let answered = false;
+    element.addEventListener("ai-pending-resolved", ({ detail }) => {
+        answered = detail.kind === "question" && detail.code === "AI_COMPLETED";
+    });
+    const ended = (code: unknown): void => {
+        const messages = element.getAiConversation()?.messages ?? [];
+        const newest = messages.findLast((message) => message.role === "reader");
+        const fresh = newest?.id !== reader;
+        let step: "message" | "approval" | "answer" = fresh ? "message" : (waiting ?? "message");
+        if (answered) {
+            step = "answer";
+        }
+        answered = false;
+        if (fresh) {
+            reader = newest?.id;
+            counted = 0;
+        }
+        const { changes } = newestTurn(element);
+        const added = changes.slice(counted).map((effect) => allowlisted(effect.code, EFFECT_CODES));
+        counted = changes.length;
+        const outcome =
+            typeof code === "string" && (RESULT_CODES.has(code) || isGraphtyErrorCode(code)) ? code : "other";
+        waiting = WAITS_FOR[outcome];
+        count("assistant_used", {
+            provider: allowlisted(providers.get(element), PROVIDERS),
+            step,
+            voice: newest?.role === "reader" && newest.via === "voice",
+            outcome,
+            changed: added.length === 0 ? "none" : [...new Set(added)].sort((a, b) => a.localeCompare(b)).join(","),
+        });
+    };
+    // Every turn ends in exactly one of these two: a canceled one too (AI_CANCELLED), and one refused
+    // before it ran (a missing key, a stale approval) with ai-command-complete.
+    element.addEventListener("ai-command-complete", ({ detail }) => {
+        ended(detail.result.code);
+    });
+    element.addEventListener("ai-command-error", ({ detail }) => {
+        ended(detail.code);
+    });
+}
+
+/**
  * Sets up the element's assistant. The key is the element's: given here once, and back from storage
  * on every fresh element after that.
  * @param element - the element.
@@ -71,6 +162,7 @@ export function link(
     choice: AssistantChoice,
     apiKey?: string,
 ): Promise<void> {
+    providers.set(element, choice.provider);
     const ready = element
         .enableAiControl({
             provider: choice.provider,
@@ -84,10 +176,12 @@ export function link(
             instructions: MODEL_INSTRUCTIONS,
             questions: true,
             voice: { review: true, output: "off" },
+            datasetBaseUrl: datasetBase().baseUrl,
         })
         .then(() => {
             watchWaiting(element, store);
             saveExports(element, store);
+            countTurns(element);
             store.set((state) => ({ assistantLinks: state.assistantLinks + 1 }));
         });
     links.set(element, ready);
@@ -98,6 +192,32 @@ export function link(
         }
     });
     return ready;
+}
+
+/** How a setup or a message failed, as the element coded it. */
+export interface Failure {
+    readonly code: AiResultCode | GraphtyErrorCode;
+    readonly params: AiResultParams;
+}
+
+/**
+ * What the element threw, as its code and facts: a `GraphtyError` or an `AiConfigError` keeps its
+ * own; anything else is `fallback`.
+ * @param error - what was thrown.
+ * @param fallback - the code for a throw the element did not code.
+ * @returns the code and its facts.
+ */
+export function failureOf(error: unknown, fallback: AiResultCode): Failure {
+    if (isGraphtyError(error)) {
+        const params = Object.entries(error.details).filter(
+            (entry): entry is [string, string | number] => typeof entry[1] === "string" || typeof entry[1] === "number",
+        );
+        return { code: error.code, params: Object.fromEntries(params) };
+    }
+    if (error instanceof AiConfigError) {
+        return { code: error.code, params: error.params };
+    }
+    return { code: fallback, params: {} };
 }
 
 /**
@@ -201,13 +321,16 @@ async function follow(
             store.set({ announcement: WORDS["assistant.status.working"] });
         }
     }, WORKING_AFTER_MS);
-    let ended: { code: AiResultCode; params: AiResultParams; success: boolean };
+    let ended: Failure & { success: boolean };
+    // A throw while setting up is "not connected" unless the element coded it; one while running is a failure.
+    let stage: AiResultCode = "AI_NOT_ENABLED";
     try {
         await linked(element, store, choice);
+        stage = "AI_FAILED";
         const result = await running();
         ended = { code: result.code ?? "AI_FAILED", params: result.params ?? {}, success: result.success };
-    } catch {
-        ended = { code: "AI_NOT_ENABLED", params: {}, success: false };
+    } catch (error) {
+        ended = { ...failureOf(error, stage), success: false };
     }
     clearTimeout(working);
     if (!here() || WAITING.has(ended.code)) {
@@ -232,6 +355,9 @@ async function follow(
     }));
     if (isAway(store)) {
         noticeAway(element, store, lines, provenance, words?.line);
+    } else if (words?.failed === true && (element.getAiConversation()?.messages.length ?? 0) === 0) {
+        // No turn to draw the ending row under (a setup that failed before any chat): a notice says it.
+        store.set({ notice: { message: words.line, error: true } });
     }
 }
 

@@ -3,7 +3,8 @@
  * maxIdlePerClass eviction, trim, liveBytes / idleBytes accounting, the class cap at maxBufferSize (PLAN DECISION
  * 14), E_TOO_LARGE above it, E_INVALID_ARGUMENT for a foreign or double release, E_DISPOSED after destroyAll.
  * The pool allocates through the context's AllocationTracker, so every test but the table needs a device; none reads a
- * buffer back, so that device is Dawn's null backend (withNullBackendContext, issue #275).
+ * buffer back, so that device is Dawn's null backend (withNullBackendContext, issue #275) -- except the contents
+ * rule of issue #95, which reads buffers back on a real device.
  */
 
 import { type TestContext } from "vitest";
@@ -12,8 +13,8 @@ import { POOL_MAX_IDLE_PER_CLASS } from "../../src/constants.js";
 import { BufferUsage } from "../../src/device/webgpu-constants.js";
 import { isWebGpuGraphError } from "../../src/errors.js";
 import { BufferPool } from "../../src/memory/buffer-pool.js";
-import { withNullBackendContext } from "../helpers/device.js";
-import { requireGpu } from "../setup/gpu.js";
+import { readU32, withNullBackendContext } from "../helpers/device.js";
+import { acquire, requireGpu } from "../setup/gpu.js";
 
 const MIB = 1024 * 1024;
 const STORAGE = BufferUsage.STORAGE | BufferUsage.COPY_SRC | BufferUsage.COPY_DST;
@@ -212,5 +213,38 @@ describe("BufferPool on a device", () => {
             }).not.toThrow();
             await ctx.allocator.check();
         });
+    });
+
+    it("contents are undefined (issue #95): a fresh buffer reads zeros, a recycled one the previous user's bytes, and under poisonRecycled the 0xFF pattern", async (t: TestContext) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "buffer-pool-contents" });
+        try {
+            const pool = new BufferPool(ctx.device, ctx.allocator, ctx.caps.limits.maxBufferSize);
+            const words = 1024;
+            const a = pool.acquire(4 * words, STORAGE, "a");
+            expect(
+                Array.from(await readU32(ctx, a, words)).every((w) => w === 0),
+                "a fresh buffer is zeros",
+            ).toBe(true);
+            const written = Uint32Array.from({ length: words }, (_, i) => i + 1);
+            ctx.device.queue.writeBuffer(a, 0, written);
+            pool.release(a);
+            const b = pool.acquire(4 * words, STORAGE, "b");
+            expect(b).toBe(a);
+            expect(Array.from(await readU32(ctx, b, words)), "a recycled buffer keeps the previous bytes").toEqual(
+                Array.from(written),
+            );
+            pool.release(b);
+            pool.poisonRecycled = true;
+            const c = pool.acquire(4 * words, STORAGE, "c");
+            expect(c).toBe(a);
+            expect(
+                Array.from(await readU32(ctx, c, words)).every((w) => w === 0xffffffff),
+                "a recycled buffer is poisoned",
+            ).toBe(true);
+            pool.destroyAll();
+        } finally {
+            ctx.dispose();
+        }
     });
 });

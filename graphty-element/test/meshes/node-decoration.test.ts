@@ -414,6 +414,15 @@ describe("a chart", () => {
         assert.approximately(top.x1 - top.x0, 60, 1e-9);
     });
 
+    test("fills the plot box under the chart with its background, and none unset", () => {
+        const chart = { kind: "cells" as const, values: "3 5", colors: "#b7cce1", size: 0.5 };
+        assert.lengthOf(chartPieces(chart, 60, 60), 2);
+        const [back, ...cells] = chartPieces({ ...chart, backgroundColor: "#e8eae8", backgroundOpacity: 0.5 }, 60, 60);
+        assert.lengthOf(cells, 2);
+        assert.deepEqual(boxOf(back.outline), { x0: -15, y0: -15, x1: 15, y1: 15 });
+        assert.approximately(back.opacity, 0.5, 1e-9);
+    });
+
     test("draws nothing without values or colors", () => {
         assert.lengthOf(chartPieces(undefined, 60, 60), 0);
         assert.lengthOf(chartPieces({ values: "1 2" }, 60, 60), 0);

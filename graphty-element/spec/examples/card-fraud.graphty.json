@@ -1,0 +1,1455 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-document/v2.json",
+    "kind": "graphty-document",
+    "version": 2,
+    "id": "9b2f6d0e-3c41-4f7a-8e55-0a1d2c3b4e5f",
+    "name": "Card fraud, week 46",
+    "created": "2026-11-10T17:02:00.000Z",
+    "modified": "2026-11-14T18:00:00.000Z",
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "sections": {
+        "data": {
+            "$schema": "https://graphty.app/schema/documents/graphty-data/v2.json",
+            "kind": "graphty-data",
+            "version": 2,
+            "id": "d1a7c0de-0001-4000-8000-000000000001",
+            "created": "2026-11-10T17:02:00.000Z",
+            "modified": "2026-11-14T17:41:30.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+            "directed": true,
+            "repeatedEdges": "keep",
+            "sources": [
+                {
+                    "id": "reader",
+                    "kind": "reader",
+                    "origin": {
+                        "copy": "01JCBQ3G6J8M0P2R4T6W8Y1A3C"
+                    },
+                    "copy": {
+                        "operations": [
+                            {
+                                "op": "edit",
+                                "node": {
+                                    "space": "account",
+                                    "key": "acct-1003"
+                                },
+                                "column": "country",
+                                "value": "NG",
+                                "was": "GH"
+                            }
+                        ]
+                    },
+                    "loaded": "2026-11-14T17:41:30.000Z"
+                },
+                {
+                    "id": "src_01JCBP0A7Q3M5V8X2K4N6R9T1W",
+                    "label": "accounts",
+                    "kind": "file",
+                    "format": "csv",
+                    "options": {
+                        "delimiter": ",",
+                        "encoding": "utf-8",
+                        "header": true
+                    },
+                    "origin": {
+                        "name": "accounts-2026-11.csv",
+                        "size": 142,
+                        "mediaType": "text/csv",
+                        "copy": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4"
+                    },
+                    "mapping": {
+                        "nodes": {
+                            "key": "account_id",
+                            "space": "account",
+                            "renamed": {
+                                "holder": "label"
+                            }
+                        }
+                    },
+                    "settings": {
+                        "duplicateIds": "first"
+                    },
+                    "copy": {
+                        "nodes": {
+                            "account_id": ["acct-1001", "acct-1002", "acct-1003"],
+                            "label": ["Ana Ruiz", "Ben Ode", "Cy Lam"],
+                            "opened": ["2021-03-02", "2026-10-30", "2026-11-01"],
+                            "country": [null, "NG", "GH"]
+                        }
+                    },
+                    "columns": {
+                        "nodes": {
+                            "account_id": {
+                                "name": "account_id",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "label": {
+                                "name": "label",
+                                "dtype": "string",
+                                "nullable": false,
+                                "origin": {
+                                    "title": "holder"
+                                }
+                            },
+                            "opened": {
+                                "name": "opened",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "country": {
+                                "name": "country",
+                                "dtype": "string",
+                                "nullable": true
+                            }
+                        }
+                    },
+                    "loaded": "2026-11-14T17:40:00.000Z"
+                },
+                {
+                    "id": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                    "label": "Bank API: card activity, week 46",
+                    "kind": "network",
+                    "format": "json",
+                    "options": {
+                        "nodesPath": "counterparties",
+                        "edgesPath": "events",
+                        "maxRows": 50000
+                    },
+                    "origin": {
+                        "url": "https://api.example-bank.test/v1/activity?week=46",
+                        "credentials": {
+                            "slot": "bank-api-token"
+                        },
+                        "copy": "01JCBQ2F5H7K9M1P3R5T7W9Y2A",
+                        "etag": "\"a41f-46\"",
+                        "lastModified": "Fri, 14 Nov 2026 17:30:00 GMT"
+                    },
+                    "mapping": {
+                        "nodes": {
+                            "key": "id",
+                            "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                            "renamed": {
+                                "name": "label"
+                            }
+                        },
+                        "edges": {
+                            "edgeId": "event_id",
+                            "source": "account_id",
+                            "sourceSpace": "account",
+                            "target": "counterparty_id",
+                            "targetSpace": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                            "time": "time",
+                            "renamed": {
+                                "amt": "amount",
+                                "ts": "time"
+                            }
+                        }
+                    },
+                    "settings": {
+                        "duplicateIds": "first",
+                        "unmatched": "add"
+                    },
+                    "copy": {
+                        "nodes": {
+                            "id": ["merch-77", "dev-9f3"],
+                            "kind": ["merchant", "device"],
+                            "label": ["QuickGift Cards", "Android 9f3"],
+                            "mcc": ["5947", null]
+                        },
+                        "edges": {
+                            "event_id": ["pay-881", "pay-889", "pay-890", null, null],
+                            "account_id": ["acct-1001", "acct-1002", "acct-1003", "acct-1002", "acct-1003"],
+                            "counterparty_id": ["merch-77", "merch-77", "merch-77", "dev-9f3", "dev-9f3"],
+                            "event": ["payment", "payment", "payment", "device-login", "device-login"],
+                            "amount": [42.5, 980, 975, null, null],
+                            "time": [
+                                "2026-11-10T09:14:00Z",
+                                "2026-11-10T09:15:10Z",
+                                "2026-11-10T09:15:40Z",
+                                null,
+                                null
+                            ],
+                            "first_seen": [null, null, null, "2026-11-08T22:10:00Z", "2026-11-09T01:45:00Z"]
+                        }
+                    },
+                    "columns": {
+                        "nodes": {
+                            "id": {
+                                "name": "id",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "kind": {
+                                "name": "kind",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "label": {
+                                "name": "label",
+                                "dtype": "string",
+                                "nullable": false,
+                                "origin": {
+                                    "title": "name"
+                                }
+                            },
+                            "mcc": {
+                                "name": "mcc",
+                                "dtype": "string",
+                                "nullable": true
+                            }
+                        },
+                        "edges": {
+                            "event_id": {
+                                "name": "event_id",
+                                "dtype": "string",
+                                "nullable": true
+                            },
+                            "account_id": {
+                                "name": "account_id",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "counterparty_id": {
+                                "name": "counterparty_id",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "event": {
+                                "name": "event",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "amount": {
+                                "name": "amount",
+                                "dtype": "f64",
+                                "nullable": true,
+                                "origin": {
+                                    "title": "amt"
+                                }
+                            },
+                            "time": {
+                                "name": "time",
+                                "dtype": "string",
+                                "nullable": true,
+                                "origin": {
+                                    "title": "ts"
+                                }
+                            },
+                            "first_seen": {
+                                "name": "first_seen",
+                                "dtype": "string",
+                                "nullable": true
+                            }
+                        }
+                    },
+                    "loaded": "2026-11-14T17:42:00.000Z"
+                }
+            ],
+            "types": [
+                {
+                    "name": "account",
+                    "kind": "node",
+                    "plainName": "Account",
+                    "rules": [
+                        {
+                            "source": "src_01JCBP0A7Q3M5V8X2K4N6R9T1W"
+                        }
+                    ],
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "label": {
+                                "type": "string"
+                            },
+                            "opened": {
+                                "type": "string",
+                                "format": "date",
+                                "measurement": "time"
+                            },
+                            "country": {
+                                "type": "string",
+                                "measurement": "categorical"
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "merchant",
+                    "kind": "node",
+                    "plainName": "Merchant",
+                    "rules": [
+                        {
+                            "source": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                            "column": "kind",
+                            "values": ["merchant"]
+                        }
+                    ],
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "label": {
+                                "type": "string"
+                            },
+                            "mcc": {
+                                "type": "string",
+                                "measurement": "categorical"
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "device",
+                    "kind": "node",
+                    "plainName": "Device",
+                    "rules": [
+                        {
+                            "source": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                            "column": "kind",
+                            "values": ["device"]
+                        }
+                    ],
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "label": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "payment",
+                    "kind": "edge",
+                    "plainName": "Payment",
+                    "rules": [
+                        {
+                            "source": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                            "column": "event",
+                            "values": ["payment"]
+                        }
+                    ],
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "amount": {
+                                "type": "number",
+                                "measurement": "quantitative",
+                                "unit": "USD"
+                            },
+                            "time": {
+                                "type": "string",
+                                "format": "date-time",
+                                "measurement": "time"
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "used-device",
+                    "kind": "edge",
+                    "plainName": "Used device",
+                    "rules": [
+                        {
+                            "source": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                            "column": "event",
+                            "values": ["device-login"]
+                        }
+                    ],
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "first_seen": {
+                                "type": "string",
+                                "format": "date-time",
+                                "measurement": "time"
+                            }
+                        }
+                    }
+                }
+            ],
+            "conversions": [],
+            "issues": {
+                "ignored": [
+                    {
+                        "code": "padded-space",
+                        "kind": "node",
+                        "name": "label"
+                    }
+                ],
+                "kept": []
+            },
+            "joins": [
+                {
+                    "op": "join.add",
+                    "source": "src_01JCBP0A7Q3M5V8X2K4N6R9T1W"
+                },
+                {
+                    "op": "join.add",
+                    "source": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                    "clash": { "*": "keep", "label": "both" }
+                }
+            ],
+            "graph": {
+                "directed": true,
+                "multigraph": false,
+                "graph": {},
+                "nodes": [
+                    {
+                        "id": 0,
+                        "graphty.space": "account",
+                        "graphty.key": "acct-1001",
+                        "graphty.types": ["account"],
+                        "_source.loads": ["src_01JCBP0A7Q3M5V8X2K4N6R9T1W"],
+                        "account_id": "acct-1001",
+                        "label": "Ana Ruiz",
+                        "opened": "2021-03-02"
+                    },
+                    {
+                        "id": 1,
+                        "graphty.space": "account",
+                        "graphty.key": "acct-1002",
+                        "graphty.types": ["account"],
+                        "_source.loads": ["src_01JCBP0A7Q3M5V8X2K4N6R9T1W"],
+                        "account_id": "acct-1002",
+                        "label": "Ben Ode",
+                        "opened": "2026-10-30",
+                        "country": "NG"
+                    },
+                    {
+                        "id": 2,
+                        "graphty.space": "account",
+                        "graphty.key": "acct-1003",
+                        "graphty.types": ["account"],
+                        "_source.loads": ["src_01JCBP0A7Q3M5V8X2K4N6R9T1W"],
+                        "account_id": "acct-1003",
+                        "label": "Cy Lam",
+                        "opened": "2026-11-01",
+                        "country": "NG"
+                    },
+                    {
+                        "id": 3,
+                        "graphty.space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "graphty.key": "merch-77",
+                        "graphty.types": ["merchant"],
+                        "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                        "id (column)": "merch-77",
+                        "kind": "merchant",
+                        "label": "QuickGift Cards",
+                        "mcc": "5947"
+                    },
+                    {
+                        "id": 4,
+                        "graphty.space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "graphty.key": "dev-9f3",
+                        "graphty.types": ["device"],
+                        "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                        "id (column)": "dev-9f3",
+                        "kind": "device",
+                        "label": "Android 9f3"
+                    }
+                ],
+                "links": [
+                    {
+                        "source": 0,
+                        "target": 3,
+                        "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "graphty.key": "pay-881",
+                        "graphty.types": ["payment"],
+                        "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                        "event_id": "pay-881",
+                        "account_id": "acct-1001",
+                        "counterparty_id": "merch-77",
+                        "event": "payment",
+                        "amount": 42.5,
+                        "time": "2026-11-10T09:14:00Z"
+                    },
+                    {
+                        "source": 1,
+                        "target": 3,
+                        "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "graphty.key": "pay-889",
+                        "graphty.types": ["payment"],
+                        "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                        "event_id": "pay-889",
+                        "account_id": "acct-1002",
+                        "counterparty_id": "merch-77",
+                        "event": "payment",
+                        "amount": 980,
+                        "time": "2026-11-10T09:15:10Z"
+                    },
+                    {
+                        "source": 2,
+                        "target": 3,
+                        "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "graphty.key": "pay-890",
+                        "graphty.types": ["payment"],
+                        "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                        "event_id": "pay-890",
+                        "account_id": "acct-1003",
+                        "counterparty_id": "merch-77",
+                        "event": "payment",
+                        "amount": 975,
+                        "time": "2026-11-10T09:15:40Z"
+                    },
+                    {
+                        "source": 1,
+                        "target": 4,
+                        "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "graphty.key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3",
+                        "graphty.types": ["used-device"],
+                        "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                        "account_id": "acct-1002",
+                        "counterparty_id": "dev-9f3",
+                        "event": "device-login",
+                        "first_seen": "2026-11-08T22:10:00Z"
+                    },
+                    {
+                        "source": 2,
+                        "target": 4,
+                        "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "graphty.key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#4",
+                        "graphty.types": ["used-device"],
+                        "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                        "account_id": "acct-1003",
+                        "counterparty_id": "dev-9f3",
+                        "event": "device-login",
+                        "first_seen": "2026-11-09T01:45:00Z"
+                    }
+                ]
+            }
+        },
+        "style": {
+            "$schema": "https://graphty.app/schema/documents/graphty-style/v2.json",
+            "kind": "graphty-style",
+            "version": 2,
+            "id": "org.example-bank.fraud-review-style",
+            "name": "Fraud review style",
+            "description": "Highlights near-limit gift card payments and colors accounts by PageRank.",
+            "created": "2026-09-02T16:20:00.000Z",
+            "modified": "2026-11-12T21:05:00.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "authors": [
+                {
+                    "name": "Fraud analytics team",
+                    "uri": "https://example-bank.test/fraud"
+                }
+            ],
+            "license": "CC-BY-4.0",
+            "keywords": ["fraud", "card testing"],
+            "language": "en",
+            "dependencies": {
+                "columns": [
+                    {
+                        "kind": "edge",
+                        "name": "amount",
+                        "schema": {
+                            "type": "number",
+                            "measurement": "quantitative",
+                            "unit": "USD"
+                        }
+                    },
+                    {
+                        "kind": "node",
+                        "name": "mcc",
+                        "schema": {
+                            "type": "string",
+                            "measurement": "categorical"
+                        }
+                    }
+                ],
+                "types": ["merchant"],
+                "results": ["pagerank", "communities"]
+            },
+            "origin": {
+                "from": "https://example-bank.test/kits/fraud-team-kit.graphty.json"
+            },
+            "palettes": [
+                {
+                    "id": "org.example-bank.risk",
+                    "plainName": "Risk",
+                    "kind": "sequential",
+                    "colors": ["#2e7d32", "#f9a825", "#c62828"],
+                    "capacity": null,
+                    "colorblindSafe": []
+                }
+            ],
+            "layers": [
+                {
+                    "id": "base",
+                    "name": "Everything",
+                    "target": "node",
+                    "selector": {
+                        "match": "everything"
+                    },
+                    "set": {
+                        "node.shape": "sphere",
+                        "node.color": "#90a4ae"
+                    }
+                },
+                {
+                    "id": "merchants",
+                    "name": "Merchants",
+                    "target": "node",
+                    "selector": {
+                        "match": "type",
+                        "types": ["merchant"]
+                    },
+                    "set": {
+                        "node.shape": "box",
+                        "node.size": 2
+                    }
+                },
+                {
+                    "id": "big-payments",
+                    "name": "Big payments",
+                    "target": "edge",
+                    "selector": {
+                        "match": "expression",
+                        "where": "data.amount > `500`"
+                    },
+                    "set": {
+                        "edge.color": "#c62828",
+                        "edge.arrowHead": "normal",
+                        "edge.style": "solid"
+                    }
+                },
+                {
+                    "id": "device-rings",
+                    "name": "Device rings",
+                    "target": "node",
+                    "selector": {
+                        "match": "has",
+                        "path": "results.communities.group"
+                    },
+                    "encode": {
+                        "node.color": {
+                            "by": "results.communities.group",
+                            "scale": "ordinal",
+                            "palette": "okabe-ito",
+                            "overflow": "other"
+                        }
+                    },
+                    "source": {
+                        "by": "run",
+                        "runId": "communities",
+                        "algorithm": "louvain",
+                        "params": {
+                            "resolution": 1
+                        }
+                    }
+                },
+                {
+                    "id": "risk-score",
+                    "name": "Risk by PageRank",
+                    "target": "node",
+                    "selector": {
+                        "match": "has",
+                        "path": "results.pagerank.value"
+                    },
+                    "encode": {
+                        "node.color": {
+                            "by": "results.pagerank.value",
+                            "scale": "linear",
+                            "palette": "org.example-bank.risk"
+                        }
+                    }
+                },
+                {
+                    "id": "selected",
+                    "name": "Selected",
+                    "target": "node",
+                    "selector": {
+                        "match": "state",
+                        "state": "selected"
+                    },
+                    "set": {
+                        "node.outline": "#2457c5"
+                    }
+                }
+            ],
+            "valueLabels": [
+                {
+                    "path": "data.mcc",
+                    "value": "5947",
+                    "label": "Gift, card, novelty and souvenir shops"
+                }
+            ]
+        },
+        "recipe": {
+            "$schema": "https://graphty.app/schema/documents/graphty-recipe/v2.json",
+            "kind": "graphty-recipe",
+            "version": 2,
+            "id": "org.example-bank.card-testing-sweep",
+            "name": "Card-testing sweep",
+            "description": "Keeps the week's activity, ranks accounts, finds device rings and flags high-risk accounts.",
+            "created": "2026-08-19T15:00:00.000Z",
+            "modified": "2026-11-03T19:30:00.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "dependencies": {
+                "columns": [
+                    {
+                        "kind": "edge",
+                        "name": "time",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time",
+                            "measurement": "time"
+                        }
+                    },
+                    {
+                        "kind": "edge",
+                        "name": "amount",
+                        "schema": {
+                            "type": "number",
+                            "measurement": "quantitative",
+                            "unit": "USD"
+                        }
+                    }
+                ],
+                "types": ["account", "device"],
+                "sources": ["accounts"]
+            },
+            "namespace": "card_testing",
+            "commands": [
+                {
+                    "op": "graph.filter",
+                    "on": "edges",
+                    "where": "data.time >= '2026-11-09'",
+                    "description": "Only this week's activity."
+                },
+                {
+                    "op": "algo.run",
+                    "algorithm": "pagerank",
+                    "as": "pagerank",
+                    "params": {
+                        "dampingFactor": 0.85
+                    },
+                    "style": false
+                },
+                {
+                    "op": "algo.run",
+                    "algorithm": "louvain",
+                    "as": "communities",
+                    "params": {
+                        "resolution": 1
+                    },
+                    "scope": {
+                        "types": ["account", "device"]
+                    },
+                    "seed": 1873,
+                    "style": false,
+                    "description": "Accounts that share devices fall into one group."
+                },
+                {
+                    "op": "set.define",
+                    "id": "set_01JCBPX7K2M4Q8R1T5V9W3Y6ZA",
+                    "name": "High-risk accounts",
+                    "reading": "induced",
+                    "where": {
+                        "kind": "all",
+                        "of": [
+                            {
+                                "kind": "source",
+                                "sources": ["accounts"],
+                                "side": "nodes"
+                            },
+                            {
+                                "kind": "expression",
+                                "where": "results.pagerank.value > `0.2`"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "op": "layout.set",
+                    "id": "force",
+                    "algorithm": "ngraph",
+                    "dimension": 3,
+                    "options": {
+                        "seed": 52211
+                    }
+                }
+            ]
+        },
+        "settings": {
+            "$schema": "https://graphty.app/schema/documents/graphty-settings/v1.json",
+            "kind": "graphty-settings",
+            "version": 1,
+            "modified": "2026-11-14T17:50:00.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "dependencies": {
+                "columns": [
+                    {
+                        "kind": "edge",
+                        "name": "time",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time",
+                            "measurement": "time"
+                        }
+                    }
+                ]
+            },
+            "settings": {
+                "background": {
+                    "backgroundType": "color",
+                    "color": "#fafafa"
+                },
+                "runPlacement": "beneath",
+                "layoutTransition": {
+                    "transition": "glide",
+                    "seconds": 0.8
+                }
+            },
+            "playback": {
+                "mode": "sliding",
+                "step": "auto",
+                "missing": "outside",
+                "timeZone": "UTC"
+            }
+        },
+        "results": {
+            "$schema": "https://graphty.app/schema/documents/graphty-results/v2.json",
+            "kind": "graphty-results",
+            "version": 2,
+            "modified": "2026-11-14T17:58:00.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "bindsTo": {
+                "data": "d1a7c0de-0001-4000-8000-000000000001"
+            },
+            "runs": {
+                "card_testing__pagerank": {
+                    "namespace": "card_testing",
+                    "as": "pagerank",
+                    "algorithm": "pagerank",
+                    "params": {
+                        "dampingFactor": 0.85
+                    },
+                    "engine": {
+                        "element": "3.40.0",
+                        "algorithms": "2.1.2",
+                        "layout": "1.10.5"
+                    },
+                    "seed": null,
+                    "durationMs": 3,
+                    "bindsTo": {
+                        "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+                        "sources": {
+                            "reader": "01JCBQ3G6J8M0P2R4T6W8Y1A3C",
+                            "src_01JCBP0A7Q3M5V8X2K4N6R9T1W": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4",
+                            "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y": "01JCBQ2F5H7K9M1P3R5T7W9Y2A"
+                        }
+                    },
+                    "fields": [
+                        {
+                            "name": "value",
+                            "kind": "node",
+                            "type": "number"
+                        },
+                        {
+                            "name": "rank",
+                            "kind": "node",
+                            "type": "number"
+                        }
+                    ],
+                    "caveats": {
+                        "exact": true,
+                        "converged": true,
+                        "iterations": 21,
+                        "direction": "directed",
+                        "weight": null,
+                        "filterScope": true,
+                        "precision": "f64",
+                        "method": "pagerank",
+                        "facts": []
+                    },
+                    "nodes": {
+                        "refs": [
+                            {
+                                "space": "account",
+                                "key": "acct-1001"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1002"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1003"
+                            },
+                            {
+                                "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                                "key": "merch-77"
+                            },
+                            {
+                                "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                                "key": "dev-9f3"
+                            }
+                        ],
+                        "columns": {
+                            "value": [0.11, 0.24, 0.23, 0.31, 0.11],
+                            "rank": [4, 2, 3, 1, 4]
+                        }
+                    }
+                },
+                "card_testing__communities": {
+                    "namespace": "card_testing",
+                    "as": "communities",
+                    "algorithm": "louvain",
+                    "params": {
+                        "resolution": 1
+                    },
+                    "engine": {
+                        "element": "3.40.0",
+                        "algorithms": "2.1.2",
+                        "layout": "1.10.5"
+                    },
+                    "seed": 1873,
+                    "durationMs": 2,
+                    "bindsTo": {
+                        "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+                        "sources": {
+                            "reader": "01JCBQ3G6J8M0P2R4T6W8Y1A3C",
+                            "src_01JCBP0A7Q3M5V8X2K4N6R9T1W": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4",
+                            "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y": "01JCBQ2F5H7K9M1P3R5T7W9Y2A"
+                        }
+                    },
+                    "fields": [
+                        {
+                            "name": "group",
+                            "kind": "node",
+                            "type": "number"
+                        },
+                        {
+                            "name": "groupSize",
+                            "kind": "node",
+                            "type": "number"
+                        }
+                    ],
+                    "caveats": {
+                        "exact": true,
+                        "direction": "directed",
+                        "weight": null,
+                        "filterScope": true,
+                        "precision": "f64",
+                        "method": "louvain",
+                        "facts": []
+                    },
+                    "graph": {
+                        "modularity": 0.22,
+                        "groupCount": 2
+                    },
+                    "nodes": {
+                        "refs": [
+                            {
+                                "space": "account",
+                                "key": "acct-1001"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1002"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1003"
+                            },
+                            {
+                                "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                                "key": "dev-9f3"
+                            }
+                        ],
+                        "columns": {
+                            "group": [1, 0, 0, 0],
+                            "groupSize": [1, 3, 3, 3]
+                        }
+                    }
+                },
+                "route": {
+                    "algorithm": "dijkstra",
+                    "params": {
+                        "source": {
+                            "space": "account",
+                            "key": "acct-1002"
+                        },
+                        "target": {
+                            "space": "account",
+                            "key": "acct-1003"
+                        },
+                        "direction": "all"
+                    },
+                    "engine": {
+                        "element": "3.40.0",
+                        "algorithms": "2.1.2",
+                        "layout": "1.10.5"
+                    },
+                    "seed": null,
+                    "durationMs": 1,
+                    "bindsTo": {
+                        "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+                        "sources": {
+                            "reader": "01JCBQ3G6J8M0P2R4T6W8Y1A3C",
+                            "src_01JCBP0A7Q3M5V8X2K4N6R9T1W": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4",
+                            "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y": "01JCBQ2F5H7K9M1P3R5T7W9Y2A"
+                        }
+                    },
+                    "fields": [
+                        {
+                            "name": "distance",
+                            "kind": "node",
+                            "type": "number"
+                        }
+                    ],
+                    "caveats": {
+                        "exact": true,
+                        "direction": "directed",
+                        "weight": null,
+                        "precision": "f64",
+                        "method": "dijkstra",
+                        "facts": []
+                    },
+                    "nodes": {
+                        "refs": [
+                            {
+                                "space": "account",
+                                "key": "acct-1002"
+                            },
+                            {
+                                "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                                "key": "dev-9f3"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1003"
+                            }
+                        ],
+                        "columns": {
+                            "distance": [0, 1, 2]
+                        }
+                    }
+                }
+            },
+            "layout": {
+                "id": "force",
+                "algorithm": "ngraph",
+                "dimension": 3,
+                "options": {
+                    "seed": 52211
+                },
+                "seed": 52211,
+                "durationMs": 41,
+                "engine": {
+                    "element": "3.40.0",
+                    "algorithms": "2.1.2",
+                    "layout": "1.10.5"
+                },
+                "bindsTo": {
+                    "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+                    "sources": {
+                        "reader": "01JCBQ3G6J8M0P2R4T6W8Y1A3C",
+                        "src_01JCBP0A7Q3M5V8X2K4N6R9T1W": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4",
+                        "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y": "01JCBQ2F5H7K9M1P3R5T7W9Y2A"
+                    }
+                },
+                "nodes": {
+                    "refs": [
+                        {
+                            "space": "account",
+                            "key": "acct-1001"
+                        },
+                        {
+                            "space": "account",
+                            "key": "acct-1002"
+                        },
+                        {
+                            "space": "account",
+                            "key": "acct-1003"
+                        },
+                        {
+                            "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                            "key": "merch-77"
+                        },
+                        {
+                            "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                            "key": "dev-9f3"
+                        }
+                    ],
+                    "columns": {
+                        "x": [-3.2, 2, 2.6, 0, 4.1],
+                        "y": [1.1, 2.4, 1.5, 0, 3.3],
+                        "z": [0.4, -0.7, 0.9, 0, 0.2]
+                    }
+                }
+            }
+        },
+        "notes": {
+            "$schema": "https://graphty.app/schema/documents/graphty-notes/v2.json",
+            "kind": "graphty-notes",
+            "version": 2,
+            "modified": "2026-11-14T17:59:10.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "language": "en",
+            "bindsTo": {
+                "data": "d1a7c0de-0001-4000-8000-000000000001"
+            },
+            "notes": [
+                {
+                    "id": "note_01JCBQ4Z8N5V2W7XKD3M9RTF6A",
+                    "time": "2026-11-14T17:55:00.000Z",
+                    "targets": [
+                        {
+                            "node": {
+                                "space": "account",
+                                "key": "acct-1002"
+                            }
+                        },
+                        {
+                            "node": {
+                                "space": "account",
+                                "key": "acct-1003"
+                            }
+                        }
+                    ],
+                    "text": "Both opened in the two weeks before the burst, and both log in from **dev-9f3**.",
+                    "mediaType": "text/markdown",
+                    "author": "M. Okafor"
+                },
+                {
+                    "id": "note_01JCBQ9H2C7YB4F0S6NWEX1KPD",
+                    "time": "2026-11-14T17:57:20.000Z",
+                    "targets": [
+                        {
+                            "edge": {
+                                "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                                "key": "pay-889"
+                            }
+                        }
+                    ],
+                    "text": "980 USD, 30 seconds before pay-890 from the same device.",
+                    "mediaType": "text/markdown",
+                    "author": "M. Okafor"
+                },
+                {
+                    "id": "note_01JCBQBM5RZ3T8D1G4VAHQ7N2E",
+                    "time": "2026-11-14T17:58:00.000Z",
+                    "edited": "2026-11-14T17:59:10.000Z",
+                    "targets": [
+                        {
+                            "graph": true
+                        },
+                        {
+                            "result": "card_testing__pagerank"
+                        }
+                    ],
+                    "text": "Classic card testing: a small probe, then near-limit gift card buys.",
+                    "mediaType": "text/markdown",
+                    "author": "M. Okafor",
+                    "done": "2026-11-14T17:59:10.000Z"
+                }
+            ]
+        },
+        "view": {
+            "$schema": "https://graphty.app/schema/documents/graphty-view/v1.json",
+            "kind": "graphty-view",
+            "version": 1,
+            "modified": "2026-11-14T17:59:40.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "bindsTo": {
+                "data": "d1a7c0de-0001-4000-8000-000000000001"
+            },
+            "camera": {
+                "dimension": 3,
+                "controller": "orbit",
+                "position": {
+                    "x": 0,
+                    "y": 4,
+                    "z": 18
+                },
+                "target": {
+                    "x": 0.8,
+                    "y": 1.2,
+                    "z": 0
+                },
+                "pivotRotation": {
+                    "x": 0.22,
+                    "y": 0,
+                    "z": 0
+                },
+                "cameraDistance": 17.6
+            },
+            "views": [
+                {
+                    "name": "Device cluster",
+                    "camera": {
+                        "dimension": 3,
+                        "controller": "orbit",
+                        "position": {
+                            "x": 3,
+                            "y": 3,
+                            "z": 6
+                        },
+                        "target": {
+                            "x": 3,
+                            "y": 2.4,
+                            "z": 0
+                        },
+                        "pivotRotation": {
+                            "x": 0.1,
+                            "y": 0,
+                            "z": 0
+                        },
+                        "cameraDistance": 6
+                    }
+                }
+            ],
+            "selection": {
+                "nodes": [
+                    {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1003"
+                    }
+                ],
+                "edges": [
+                    {
+                        "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3"
+                    }
+                ]
+            },
+            "pinned": [
+                {
+                    "node": {
+                        "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "key": "merch-77"
+                    },
+                    "position": {
+                        "x": 0,
+                        "y": 0,
+                        "z": 0
+                    }
+                }
+            ],
+            "sets": [
+                {
+                    "id": "set_card_testing.01JCBPX7K2M4Q8R1T5V9W3Y6ZA",
+                    "name": "High-risk accounts",
+                    "definition": {
+                        "kind": "rule",
+                        "where": {
+                            "kind": "all",
+                            "of": [
+                                {
+                                    "kind": "source",
+                                    "sources": ["src_01JCBP0A7Q3M5V8X2K4N6R9T1W"],
+                                    "side": "nodes"
+                                },
+                                {
+                                    "kind": "expression",
+                                    "where": "results.pagerank.value > `0.2`"
+                                }
+                            ]
+                        },
+                        "reading": "induced"
+                    }
+                },
+                {
+                    "id": "set_01JCBR2D6F8H0K3M5P7S9V1X4Z",
+                    "name": "Escalate to case team",
+                    "definition": {
+                        "kind": "fixed",
+                        "nodes": [
+                            {
+                                "space": "account",
+                                "key": "acct-1002"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1003"
+                            },
+                            {
+                                "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                                "key": "dev-9f3"
+                            }
+                        ],
+                        "reading": "induced"
+                    }
+                }
+            ],
+            "visibility": {
+                "filter": {
+                    "on": "edges",
+                    "where": "data.time >= '2026-11-09'"
+                },
+                "window": {
+                    "attribute": "data.time",
+                    "from": "2026-11-09T00:00:00.000Z",
+                    "to": "2026-11-11T00:00:00.000Z"
+                },
+                "showContext": true,
+                "conditions": [],
+                "hidden": []
+            },
+            "timeline": {
+                "at": "2026-11-10T09:15:00.000Z"
+            },
+            "viewRotation": 0,
+            "framing": {
+                "extent": "drawn",
+                "padding": 0.1
+            },
+            "hiddenColumns": [
+                {
+                    "kind": "node",
+                    "name": "opened"
+                }
+            ],
+            "order": [
+                "base",
+                "merchants",
+                "big-payments",
+                "device-rings",
+                "risk-score",
+                "suspects",
+                "route",
+                "selected"
+            ],
+            "layers": [
+                {
+                    "id": "suspects",
+                    "name": "Suspects",
+                    "target": "node",
+                    "selector": {
+                        "match": "ids",
+                        "nodes": [
+                            {
+                                "space": "account",
+                                "key": "acct-1002"
+                            },
+                            {
+                                "space": "account",
+                                "key": "acct-1003"
+                            }
+                        ]
+                    },
+                    "set": {
+                        "node.outline": "#c62828"
+                    }
+                },
+                {
+                    "id": "route",
+                    "name": "Route from Ben Ode to Cy Lam",
+                    "target": "node",
+                    "selector": {
+                        "match": "has",
+                        "path": "results.route.distance"
+                    },
+                    "set": {
+                        "node.glow": "#f9a825"
+                    },
+                    "source": {
+                        "by": "run",
+                        "runId": "route",
+                        "algorithm": "dijkstra",
+                        "params": {
+                            "source": {
+                                "space": "account",
+                                "key": "acct-1002"
+                            },
+                            "target": {
+                                "space": "account",
+                                "key": "acct-1003"
+                            },
+                            "direction": "all"
+                        }
+                    }
+                }
+            ],
+            "runs": [
+                {
+                    "id": "card_testing__pagerank",
+                    "namespace": "card_testing",
+                    "as": "pagerank",
+                    "algorithm": "pagerank",
+                    "params": {
+                        "dampingFactor": 0.85
+                    },
+                    "scope": "graph",
+                    "replayable": false
+                },
+                {
+                    "id": "card_testing__communities",
+                    "namespace": "card_testing",
+                    "as": "communities",
+                    "algorithm": "louvain",
+                    "params": {
+                        "resolution": 1
+                    },
+                    "seed": 1873,
+                    "scope": {
+                        "types": ["account", "device"]
+                    },
+                    "replayable": false
+                },
+                {
+                    "id": "route",
+                    "name": "Ben Ode to Cy Lam",
+                    "algorithm": "dijkstra",
+                    "params": {
+                        "source": {
+                            "space": "account",
+                            "key": "acct-1002"
+                        },
+                        "target": {
+                            "space": "account",
+                            "key": "acct-1003"
+                        },
+                        "direction": "all"
+                    },
+                    "scope": "graph"
+                }
+            ],
+            "layout": {
+                "id": "force",
+                "algorithm": "ngraph",
+                "options": {
+                    "seed": 52211
+                },
+                "dimension": 3,
+                "engine": {
+                    "element": "3.40.0",
+                    "algorithms": "2.1.2",
+                    "layout": "1.10.5"
+                }
+            }
+        }
+    }
+}

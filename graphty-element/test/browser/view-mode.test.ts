@@ -10,6 +10,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import type { ViewMode } from "../../src/config";
 import { isGraphtyError } from "../../src/errors";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 
 describe("ViewMode API", () => {
     let graph: Graph;
@@ -127,14 +128,14 @@ describe("ViewMode API", () => {
             await graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
 
-            assert.strictEqual(graph.scene.metadata?.viewMode, "2d");
-            assert.isTrue(graph.scene.metadata?.twoD);
+            assert.strictEqual((graph.scene.metadata as GraphSceneMetadata | null)?.viewMode, "2d");
+            assert.isTrue((graph.scene.metadata as GraphSceneMetadata | null)?.twoD);
 
             await graph.setViewMode("3d");
             await operationQueueOf(graph).waitForCompletion();
 
-            assert.strictEqual(graph.scene.metadata?.viewMode, "3d");
-            assert.isFalse(graph.scene.metadata?.twoD);
+            assert.strictEqual((graph.scene.metadata as GraphSceneMetadata | null)?.viewMode, "3d");
+            assert.isFalse((graph.scene.metadata as GraphSceneMetadata | null)?.twoD);
         });
     });
 
@@ -220,8 +221,12 @@ describe("ViewMode API", () => {
             assert.strictEqual(graph.is2D(), twoD);
             assert.strictEqual(graph.styles.config.graph.viewMode, mode, "the configuration document");
             assert.strictEqual(graph.styles.config.graph.twoD, twoD, "and its deprecated twoD beside it");
-            assert.strictEqual(graph.scene.metadata?.viewMode, mode, "and the scene the renderer reads");
-            assert.strictEqual(graph.scene.metadata?.twoD, twoD);
+            assert.strictEqual(
+                (graph.scene.metadata as GraphSceneMetadata | null)?.viewMode,
+                mode,
+                "and the scene the renderer reads",
+            );
+            assert.strictEqual((graph.scene.metadata as GraphSceneMetadata | null)?.twoD, twoD);
         }
 
         it("agrees everywhere after a switch to 2D", async () => {
@@ -259,8 +264,15 @@ describe("ViewMode API", () => {
     describe("XR mode fallback", () => {
         // Note: XR modes will fall back to 3D when WebXR is not available
         it("should fall back to 3d when VR is not available", async () => {
-            // Try to switch to VR (should fail gracefully)
-            await graph.setViewMode("vr");
+            // Try to switch to VR: it fails, coded
+            const refused: unknown = await graph.setViewMode("vr").then(
+                () => undefined,
+                (error: unknown) => error,
+            );
+            assert.isTrue(
+                isGraphtyError(refused) && refused.code === "E_UNSUPPORTED",
+                "the entry did not reject, coded",
+            );
             await operationQueueOf(graph).waitForCompletion();
 
             // Should fall back to 3D since XR is not available in test environment
@@ -268,8 +280,15 @@ describe("ViewMode API", () => {
         });
 
         it("should fall back to 3d when AR is not available", async () => {
-            // Try to switch to AR (should fail gracefully)
-            await graph.setViewMode("ar");
+            // Try to switch to AR: it fails, coded
+            const refused: unknown = await graph.setViewMode("ar").then(
+                () => undefined,
+                (error: unknown) => error,
+            );
+            assert.isTrue(
+                isGraphtyError(refused) && refused.code === "E_UNSUPPORTED",
+                "the entry did not reject, coded",
+            );
             await operationQueueOf(graph).waitForCompletion();
 
             // Should fall back to 3D since XR is not available in test environment
@@ -354,7 +373,7 @@ describe("ViewMode API", () => {
 
             assert.isTrue(isGraphtyError(error) && error.code === "E_BAD_COMMAND", String(error));
             assert.strictEqual(graph.scene.activeCamera?.mode, Camera.ORTHOGRAPHIC_CAMERA);
-            assert.strictEqual(graph.scene.metadata.viewMode, "2d");
+            assert.strictEqual((graph.scene.metadata as GraphSceneMetadata).viewMode, "2d");
         });
 
         it("refuses the 2D camera in 3D and keeps the perspective one", async () => {

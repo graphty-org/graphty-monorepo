@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { GitHub } from "../../src/collector/github.js";
-import { markPrCaused, touched } from "../../src/collector/pr-caused.js";
+import { addUnmarked, markPrCaused, touched } from "../../src/collector/pr-caused.js";
 import { floorTo, rollKey, type RunItem, type TestItem } from "../../src/model/items.js";
 import { METRICS } from "../../src/model/metrics.js";
 import { putRaw } from "../../src/model/raw.js";
@@ -108,6 +108,36 @@ describe("markPrCaused", () => {
         expect(asked).toHaveLength(0);
     });
 
+    it("leaves out a test another pull request's run failed the same way, and unmarks that earlier run", async () => {
+        const store = new MemoryStore();
+        const file = "graphty-element/test/browser/pulled-edge-look.test.ts";
+        // Pull request 10's earlier run was counted on the test; pull request 11 now fails it too: a shared failure.
+        const earlier = run(501, 10, { completedAt: NOW - 3 * 60 * 60_000, prCaused: true });
+        await putRaw(
+            store,
+            [
+                earlier,
+                { ...failed(501, file, "draws a look"), seenAt: NOW - 3 * 60 * 60_000 },
+                failed(502, file, "draws a look"),
+                // Pull request 12's own earlier push failed this one: still its own work.
+                run(503, 12, { completedAt: NOW - 60 * 60_000, prCaused: true }),
+                { ...failed(503, file, "own test"), seenAt: NOW - 60 * 60_000 },
+                failed(504, file, "own test"),
+                // Pull request 13 fails a contract test that pull request 14 failed with another message: its own.
+                run(505, 14, { completedAt: NOW - 60 * 60_000, prCaused: true }),
+                { ...failed(505, file, "contract"), signature: "expected [ 'A.one' ] to deeply equal []" },
+                { ...failed(506, file, "contract"), signature: "expected [ 'B.two' ] to deeply equal []" },
+            ],
+            NOW,
+        );
+        const runs = [run(502, 11), run(504, 12), run(506, 13)];
+        const touchedEdge = ["graphty-element/src/Edge.ts"];
+        const { gh } = filesGitHub({ 11: touchedEdge, 12: touchedEdge, 13: touchedEdge });
+        const unmarked = await markPrCaused(store, gh, REPO, runs, NOW);
+        expect(runs.map((r) => r.prCaused)).toEqual([false, true, true]);
+        expect(unmarked.map((r) => [r.runId, r.prCaused])).toEqual([[501, false]]);
+    });
+
     it("judges no push, rerun, unfinished run or other workflow", async () => {
         const runs = [
             run(301, 7, { event: "push" }),
@@ -129,6 +159,18 @@ describe("markPrCaused", () => {
         const runs = [run(401, 8)];
         await markPrCaused(store, gh, REPO, runs, NOW);
         expect(runs[0].prCaused).toBeUndefined();
+    });
+});
+
+describe("addUnmarked", () => {
+    it("changes the cycle's newer copy of a run instead of adding the stored one", () => {
+        const newer = run(601, 20, { cause: "flaky", prCaused: true });
+        const items = [newer];
+        addUnmarked(items, [run(601, 20, { prCaused: false }), run(602, 21, { prCaused: false })]);
+        expect(items.map((i) => [i.runId, i.cause, i.prCaused])).toEqual([
+            [601, "flaky", false],
+            [602, "change", false],
+        ]);
     });
 });
 

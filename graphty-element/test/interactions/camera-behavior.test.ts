@@ -11,7 +11,7 @@ import { userEvent } from "vitest/browser";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
-import { click, type Point, press, release } from "../helpers/real-input";
+import { click, type Point, press, release, wheel } from "../helpers/real-input";
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -30,10 +30,12 @@ afterEach(() => {
 /**
  * A mounted element holding a small graph at fixed places, drawn.
  * @param viewMode - The view mode.
+ * @param before - Settings made before the element is attached and the graph loads.
  * @returns The element.
  */
-async function mounted(viewMode: "2d" | "3d"): Promise<Graphty> {
+async function mounted(viewMode: "2d" | "3d", before?: (element: Graphty) => void): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    before?.(element);
     element.style.display = "block";
     element.style.width = `${String(WIDTH)}px`;
     element.style.height = `${String(HEIGHT)}px`;
@@ -136,6 +138,137 @@ describe("camera.autoRotate", () => {
     });
 });
 
+/**
+ * The frame time the element is handed, added up from now, as it turns the camera by: each frame's
+ * time capped at the 100 ms `autoRotate` turns for at most, and uncapped, as `autoRotateResume` counts.
+ * @param element - The element.
+ * @returns The time so far, capped and uncapped, in milliseconds.
+ */
+function frameTime(element: Graphty): () => { capped: number; raw: number } {
+    const { graph } = element;
+    const original = graph.update.bind(graph);
+    const total = { capped: 0, raw: 0 };
+    graph.update = (frameMs: number): void => {
+        total.capped += Math.min(frameMs, 100);
+        total.raw += frameMs;
+        original(frameMs);
+    };
+    cleanups.push(() => {
+        graph.update = original;
+    });
+    return () => ({ ...total });
+}
+
+/**
+ * The angle turned between two camera states about the vertical axis, in radians, wrapped to (-pi, pi].
+ * @param from - The earlier state.
+ * @param to - The later state.
+ * @returns The angle.
+ */
+function turnedBetween(from: ReturnType<Graphty["getCameraState"]>, to: ReturnType<Graphty["getCameraState"]>): number {
+    const raw = angleAround(to) - angleAround(from);
+    return Math.atan2(Math.sin(raw), Math.cos(raw));
+}
+
+describe("camera.autoRotate speed and resume", () => {
+    it("turns by the speed times the frame time, however long the frames take", async () => {
+        const element = await mounted("3d");
+        element.layoutBehavior = { camera: { autoRotate: 0.5 } };
+        await drawnFrames(element.graph.getScene(), 2);
+        const elapsed = frameTime(element);
+        const before = element.getCameraState();
+
+        await drawnFrames(element.graph.getScene(), 20);
+
+        const after = element.getCameraState();
+        const expected = (0.5 * elapsed().capped) / 1000;
+        assert.isAbove(expected, 0, "frames were drawn");
+        assert.closeTo(Math.abs(turnedBetween(before, after)), expected, expected * 0.15 + 0.01);
+    });
+
+    it("waits after a wheel for the time autoRotateResume sets, then turns again", async () => {
+        const element = await mounted("3d", (el) => {
+            el.layoutBehavior = { camera: { autoRotate: 1, autoRotateResume: 400 } };
+        });
+        await drawnFrames(element.graph.getScene(), 2);
+
+        // Counted from the moment the wheel reaches the element, as the element counts its own wait:
+        // frames drawn while the wheel is still on its way to the page are not part of the wait.
+        const elapsed = frameTime(element);
+        let wheelAt = Number.NaN;
+        element.addEventListener(
+            "wheel",
+            () => {
+                wheelAt = elapsed().raw;
+            },
+            { capture: true, once: true },
+        );
+        const sinceWheel = (): number => elapsed().raw - wheelAt;
+        await wheel(element, EMPTY, 100);
+        while (Number.isNaN(wheelAt)) {
+            await drawnFrames(element.graph.getScene(), 1);
+        }
+        await drawnFrames(element.graph.getScene(), 2);
+        const held = camera(element);
+        const samples: { ms: number; camera: string }[] = [];
+        while (sinceWheel() < 700) {
+            await drawnFrames(element.graph.getScene(), 1);
+            samples.push({ ms: sinceWheel(), camera: camera(element) });
+        }
+
+        for (const sample of samples.filter((s) => s.ms < 300)) {
+            assert.strictEqual(sample.camera, held, `still at ${String(sample.ms)} ms after the wheel`);
+        }
+        assert.notStrictEqual(samples.at(-1)?.camera, held, "turning again once the reader left it alone");
+    });
+
+    it("stops for good at a key press with autoRotateResume never, until the setting changes", async () => {
+        const element = await mounted("3d");
+        // Focus for the key, before the turning starts: the click is a press of the reader's too.
+        await click(element, EMPTY);
+        element.layoutBehavior = { camera: { autoRotate: 1, autoRotateResume: "never" } };
+        await drawnFrames(element.graph.getScene(), 2);
+        const turning = camera(element);
+        await drawnFrames(element.graph.getScene(), 2);
+        assert.notStrictEqual(camera(element), turning, "turning before the key");
+
+        await userEvent.keyboard("{ArrowLeft}");
+        await drawnFrames(element.graph.getScene(), 12);
+        const held = camera(element);
+        await drawnFrames(element.graph.getScene(), 20);
+        assert.strictEqual(camera(element), held, "no turning after the reader's move");
+
+        element.layoutBehavior = { camera: { autoRotate: 2 } };
+        await drawnFrames(element.graph.getScene(), 5);
+        assert.notStrictEqual(camera(element), held, "a new speed starts it again");
+    });
+
+    it("still frames the graph when it loads with autoRotate on", async () => {
+        const distance = (element: Graphty): number => {
+            const { position, target } = element.getCameraState();
+            assert.isDefined(position);
+            assert.isDefined(target);
+            return Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z);
+        };
+        const still = await mounted("3d", (el) => {
+            el.layoutBehavior = { camera: { fitBounds: "turning" } };
+        });
+        const framed = distance(still);
+        still.remove();
+
+        const turning = await mounted("3d", (el) => {
+            el.layoutBehavior = { camera: { autoRotate: 1, fitBounds: "turning" } };
+        });
+
+        assert.closeTo(distance(turning), framed, framed * 0.02, "framed as far out as without turning");
+        for (const id of ["a", "b", "c"]) {
+            const at = turning.nodeScreenPosition(id);
+            assert.isDefined(at);
+            assert.isTrue(at.x >= 0 && at.x <= WIDTH && at.y >= 0 && at.y <= HEIGHT, `${id} is on the canvas`);
+        }
+    });
+});
+
 describe("camera.fitInsets", () => {
     it.each(["3d", "2d"] as const)("frames the %s graph in the area the insets leave", async (mode) => {
         const element = await mounted(mode);
@@ -211,25 +344,22 @@ describe("the keyboard", () => {
     it("a tap on an arrow key turns the 3D camera by a step the reader can see", async () => {
         const element = await mounted("3d");
         await click(element, EMPTY);
-        const before = element.getCameraState();
         const turning = framesTurning(element);
 
         await userEvent.keyboard("{ArrowLeft}");
         await drawnFrames(element.graph.getScene(), 20);
 
-        const after = element.getCameraState();
-        const turned = Math.abs(angleAround(after) - angleAround(before));
+        const turned = Math.abs(turning.turned());
         // Eight frames of 0.02 rad: 0.16 rad, about 9 degrees. userEvent sends the key's down and
         // up as two protocol commands, and on a busy machine frames are drawn between them: the
         // key was then held that many frames, and a hold longer than the step turns every frame.
-        const frames = turning();
+        const frames = turning.frames();
         assert.closeTo(turned, frames * 0.02, 0.03, `one tap turns the camera ${String(frames)} frames of 0.02 rad`);
     });
 
     it("quick taps each turn a full step", async () => {
         const element = await mounted("3d");
         await click(element, EMPTY);
-        const before = element.getCameraState();
         const turning = framesTurning(element);
 
         // Three taps: each owes its own eight frames, 0.48 rad in all when no frame is drawn while
@@ -238,8 +368,8 @@ describe("the keyboard", () => {
         await userEvent.keyboard("{ArrowLeft}{ArrowLeft}{ArrowLeft}");
         await drawnFrames(element.graph.getScene(), 40);
 
-        const turned = Math.abs(angleAround(element.getCameraState()) - angleAround(before));
-        const frames = turning();
+        const turned = Math.abs(turning.turned());
+        const frames = turning.frames();
         assert.isAtLeast(frames, 24, "three taps owe three steps");
         assert.closeTo(turned, frames * 0.02, 0.06, `three taps turn the camera ${String(frames)} frames of 0.02 rad`);
     });
@@ -248,14 +378,18 @@ describe("the keyboard", () => {
 /**
  * Count the frames an arrow key should turn the camera: every frame drawn while a key is down on
  * the element's canvas, and every frame of the eight each press owes, added up across presses.
+ * Also adds up the angle the camera turns, frame by frame: a key held for many frames on a busy
+ * machine turns it past half a circle, where the difference of two angles alone wraps around.
  * @param element - The element.
- * @returns A function returning the count so far.
+ * @returns The frames counted so far, and the angle turned so far in radians.
  */
-function framesTurning(element: Graphty): () => number {
+function framesTurning(element: Graphty): { frames: () => number; turned: () => number } {
     const { canvas } = element.graph;
     let down = false;
     let owed = 0;
     let frames = 0;
+    let last = element.getCameraState();
+    let turned = 0;
     const onDown = (evt: KeyboardEvent): void => {
         down = true;
         owed += evt.repeat ? 0 : 8;
@@ -268,13 +402,19 @@ function framesTurning(element: Graphty): () => number {
     const observer = element.graph.getScene().onBeforeRenderObservable.add(() => {
         frames += Number(down || owed > 0);
         owed = Math.max(0, owed - 1);
+        const now = element.getCameraState();
+        turned += turnedBetween(last, now);
+        last = now;
     });
     cleanups.push(() => {
         canvas.removeEventListener("keydown", onDown, { capture: true });
         canvas.removeEventListener("keyup", onUp, { capture: true });
         observer.remove();
     });
-    return () => frames;
+    return {
+        frames: () => frames,
+        turned: () => turned + turnedBetween(last, element.getCameraState()),
+    };
 }
 
 /**

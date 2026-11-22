@@ -255,6 +255,7 @@ export function stubResult(runId: RunId): RunResult {
         graph: {},
         node: () => undefined,
         edge: () => undefined,
+        ids: () => [],
         column: () => ({
             length: 0,
             get: () => Number.NaN,
@@ -269,9 +270,12 @@ export function stubResult(runId: RunId): RunResult {
         groupSizes: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
         summary: stubSummary,
         groupRanks: () => undefined,
+        groups: () => undefined,
         reading: () => "A stub result.",
         readingFact: () => ({ code: "reading.metric-empty", params: { field: "value" } }),
         band: () => undefined,
+        toTsv: () => "",
+        memberIds: () => [],
     };
 }
 

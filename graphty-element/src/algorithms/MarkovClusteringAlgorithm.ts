@@ -123,12 +123,12 @@ export class MarkovClusteringAlgorithm extends DeclaredAlgorithm<MarkovClusterin
         const { snapshot } = input.derived();
         const { inflation, expansion, maxIterations, selfLoops } = this.schemaOptions;
 
-        context.report({ phase: "Spreading flow", total: null });
+        context.report({ phase: "spreading-flow", total: null });
         const value = markovClustering(snapshot, { inflation, expansion, maxIterations, selfLoops });
         context.signal.throwIfAborted();
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
             nodes.push({ id: nodeId, values: { group: value.labels[snapshot.ids.indexOf(nodeId)] ?? 0 } });
         });
 

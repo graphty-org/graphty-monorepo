@@ -7,6 +7,7 @@ import { useRef } from "react";
 
 import { hasPendingEdit, isTypingTarget } from "../keys/keys";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { logUnexpected } from "./words";
 
 /** The notice a layer's refused rule leaves. */
 const RULE_REFUSED = "That rule could not be used for this layer";
@@ -20,12 +21,15 @@ const RULE_REFUSED = "That rule could not be used for this layer";
  * @param session - the element's session.
  * @param label - the step's label.
  * @param landed - called after each write has landed (or been refused).
+ * @param writing - told true when a write starts and false once the last one has landed (or been
+ *     refused), so what reads the layer (a count said aloud) can wait for what was just typed.
  * @returns the writer, and whether a write is on its way.
  */
 export function useStepWriter(
     session: GraphSession,
     label: string,
     landed: () => void,
+    writing?: (on: boolean) => void,
 ): { write: (patches: readonly LayerPatch[]) => void; busy: () => boolean } {
     const { store } = useWorkspace();
     const step = useRef<HistoryStepId | undefined>(undefined);
@@ -37,6 +41,7 @@ export function useStepWriter(
     return {
         busy: () => pending.current > 0,
         write: (patches) => {
+            writing?.(true);
             const active = document.activeElement;
             const typing = isTypingTarget(active) && hasPendingEdit(active) ? active : null;
             const merge = typing !== null && typing === typingIn.current;
@@ -69,12 +74,16 @@ export function useStepWriter(
                         store.set({ notice: null });
                     }
                 })
-                .catch(() => {
+                .catch((error: unknown) => {
+                    logUnexpected("styles.updateMany", error);
                     store.set({ notice: { message: RULE_REFUSED, error: true } });
                 })
                 .finally(() => {
                     landed();
                     pending.current -= 1;
+                    if (pending.current === 0) {
+                        writing?.(false);
+                    }
                 });
         },
     };

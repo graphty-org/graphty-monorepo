@@ -13,6 +13,7 @@ import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import { dataManagerInternals } from "../../src/managers/DataManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
 
@@ -55,17 +56,22 @@ async function mount(size: number): Promise<Graphty> {
 }
 
 /**
- * Assert every node was drawn again, live and in the scene.
+ * Assert every node was drawn again: each `Node`'s mesh live and in the scene, and on the
+ * `"batched"` path each row with no `Node` drawn by a batch again, with none built for it.
  * @param element - The element.
+ * @param size - The node count.
  */
-function assertRebuilt(element: Graphty): void {
+function assertRebuilt(element: Graphty, size: number): void {
     const { scene } = element.graph;
     const live = new Set(scene.meshes);
-    const nodes = [...element.graph.getDataManager().nodes.values()];
+    const manager = element.graph.getDataManager();
+    const nodes = [...dataManagerInternals.builtNodes(manager)];
     assert.isTrue(
         nodes.every((node) => !node.mesh.isDisposed() && live.has(node.mesh)),
         "every node mesh is live and in the scene",
     );
+    const rows = element.graph.getNodeBatches()?.columnRowCount ?? 0;
+    assert.strictEqual(nodes.length + rows, size, "every row drawn by its Node or a batch");
 }
 
 describe("switching between 2D and 3D", () => {
@@ -95,7 +101,8 @@ describe("switching between 2D and 3D", () => {
                         const visits = await visitsDuring(() => toTwoD(element));
                         await settled(element);
                         assert.strictEqual(element.graph.getViewMode(), "2d", "the scene is 2D");
-                        assertRebuilt(element);
+                        element.graph.update();
+                        assertRebuilt(element, size);
                         return visits;
                     } finally {
                         element.remove();

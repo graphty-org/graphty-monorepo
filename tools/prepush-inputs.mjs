@@ -58,16 +58,10 @@ import {
 import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { git as runGit } from "./lib/git.mjs";
 import { pushBaseRef } from "./push-base.mjs";
 
-const git = (root, args, input) =>
-    execFileSync("git", args, {
-        cwd: root,
-        encoding: "utf8",
-        input,
-        maxBuffer: 1 << 30,
-        stdio: ["pipe", "pipe", "ignore"],
-    });
+const git = (root, args, input) => runGit(args, { cwd: root, input, trim: false, stdio: ["pipe", "pipe", "ignore"] });
 const split0 = (s) => s.split("\0").filter(Boolean);
 const sha256 = (data) => createHash("sha256").update(data).digest("hex");
 
@@ -203,8 +197,8 @@ export function gateContext(root, gateRoot = GATE_ROOT) {
 const CHECKED_BASES = new Set(["origin/master", "origin/golden", "origin/golden-cut"]);
 
 /**
- * What a gate run measures "this push's changes" from (the affected packages, SonarQube's changed
- * lines): "checked" for a base the gate has already checked (CHECKED_BASES), else the base ref and its
+ * What a gate run measures "this push's changes" from (the affected packages, the duplicate code
+ * check): "checked" for a base the gate has already checked (CHECKED_BASES), else the base ref and its
  * merge base with HEAD. A branch stacked on an unlanded branch tests only its own commits, so its pass
  * must not cover a push measured from master or golden, which also holds the parent's commits.
  * @param root the checkout

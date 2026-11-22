@@ -7,7 +7,9 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
+import { GraphtyError } from "../../src/errors/GraphtyError";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
+import { withConsumerStrictState } from "./helpers";
 
 /** Sixty gene symbols around TP53: TP53, then G02 to G60. */
 const SYMBOLS = ["TP53", ...Array.from({ length: 59 }, (_unused, at) => `G${String(at + 2).padStart(2, "0")}`)];
@@ -181,7 +183,7 @@ describe("joining a table onto the graph", () => {
         session.dispose();
     });
 
-    it("keeps a clashing column both ways by default, or keeps or overwrites it", async () => {
+    it("keeps the graph's value of a clashing column by default, or keeps both or overwrites it", async () => {
         const session = await proteins();
         await session.data.updateNodes([{ id: "TP53", values: { tissue: "blood" } }]);
         const draft = await expression(session);
@@ -189,9 +191,13 @@ describe("joining a table onto the graph", () => {
         assert.deepEqual(draft.joinReport({ keys }).clashes, [{ column: "tissue", code: "clash" }]);
         await draft.load({ join: { keys } });
         assert.strictEqual(session.data.node("TP53")?.tissue, "blood");
-        assert.strictEqual(session.data.node("TP53")?.["tissue (tumor-expression.tsv)"], "lung");
+        assert.isUndefined(session.data.node("TP53")?.["tissue (tumor-expression.tsv)"]);
 
         const [join] = session.data.joins();
+        await session.data.editJoin(join.source, { keys, clash: { "*": "both" } });
+        assert.strictEqual(session.data.node("TP53")?.tissue, "blood");
+        assert.strictEqual(session.data.node("TP53")?.["tissue (tumor-expression.tsv)"], "lung");
+
         await session.data.editJoin(join.source, { keys, clash: { tissue: "overwrite" } });
         assert.strictEqual(session.data.node("TP53")?.tissue, "lung");
         assert.isUndefined(session.data.node("TP53")?.["tissue (tumor-expression.tsv)"]);
@@ -255,6 +261,29 @@ describe("joining a table onto the graph", () => {
         const plain = await session.data.prepare({ config: { file: new File([EXPRESSION], "e.tsv") } });
         assert.throws(() => plain.suggestJoin(), /onto/);
         await assertRejects(session.data.editJoin("s9", { keys: [] }), "E_SOURCE_UNKNOWN");
+        session.dispose();
+    });
+
+    it("takes the join back when its table is removed, as one undo step", async () => {
+        const session = await proteins();
+        await session.data.updateNodes([{ id: "TP53", values: { tissue: "blood" } }]);
+        const draft = await expression(session);
+        const { keys } = draft.suggestJoin();
+        await draft.load({ join: { keys, columns: ["log2fc", "tissue"], clash: { tissue: "overwrite" } } });
+        const [join] = session.data.joins();
+        assert.strictEqual(session.data.node("TP53")?.tissue, "lung");
+
+        await session.data.removeSource(join.source);
+        assert.isUndefined(session.data.node("G02")?.log2fc, "a value it wrote is gone");
+        assert.isUndefined(session.data.node("G02")?.tissue);
+        assert.strictEqual(session.data.node("TP53")?.tissue, "blood", "a value it overwrote is back");
+        assert.deepEqual(session.data.joins(), []);
+        assert.strictEqual(session.data.nodes().length, 60);
+
+        await session.undo();
+        assert.strictEqual(session.data.node("G02")?.log2fc, 0.1);
+        assert.strictEqual(session.data.node("TP53")?.tissue, "lung");
+        assert.strictEqual(session.data.joins().length, 1);
         session.dispose();
     });
 
@@ -392,6 +421,11 @@ describe("joining edges between the nodes a graph holds", () => {
         await draft.load({ join: { keys, ignoreCase: true, ignoreSpaces: true } });
         assert.strictEqual(session.data.nodes().length, 41);
         assert.isDefined(session.data.edges().find((edge) => edge.source === "S3" && edge.target === "S4"));
+
+        await session.data.removeSource(session.data.joins()[0].source);
+        assert.strictEqual(session.data.nodes().length, 40, "the end only the join made is gone");
+        assert.strictEqual(session.data.edges().length, 0);
+        assert.deepEqual(session.data.joins(), []);
         session.dispose();
     });
 
@@ -450,11 +484,8 @@ describe("join cost", () => {
      * @param size - how many
      * @returns the session and the join's key
      */
-    async function joined(size: number): Promise<{ session: GraphSession; key: string }> {
-        const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
-        const strict = scope.__GRAPHTY_STRICT_STATE__;
-        scope.__GRAPHTY_STRICT_STATE__ = false;
-        try {
+    function joined(size: number): Promise<{ session: GraphSession; key: string }> {
+        return withConsumerStrictState(async () => {
             const session = createGraphSession();
             await session.data.addNodes(Array.from({ length: size }, (_, at) => ({ id: `n${String(at)}` })));
             const rows = Array.from({ length: size }, (_, at) => `N${String(at)},${String(at)}`).join("\n");
@@ -464,9 +495,7 @@ describe("join cost", () => {
             );
             await draft.load({ join: { keys: [{ file: "name", graph: "id" }], ignoreCase: true } });
             return { session, key: session.data.joins()[0].source };
-        } finally {
-            scope.__GRAPHTY_STRICT_STATE__ = strict;
-        }
+        });
     }
 
     it("draft.joinReport on a key every element shares: no more than linear in the graph", async () => {
@@ -617,7 +646,41 @@ describe("what a join says about its rows", () => {
         await draft.load({ join: { shape: "node-values", keys: [{ file: "id", graph: "id" }], unmatchedRows: "add" } });
         assert.strictEqual(session.data.node("s9")?.name, "Fjord Metals");
         assert.strictEqual(session.data.node("s1")?.name, "Ana", "the matched node keeps its own");
-        assert.strictEqual(session.data.node("s1")?.["name (b.csv)"], "Anna");
+        assert.isUndefined(session.data.node("s1")?.["name (b.csv)"], "no clash rule keeps the graph's value alone");
+    });
+
+    it("shows the smaller, larger or mean value by a clash rule, and refuses a number rule on text", async () => {
+        const session = createGraphSession();
+        await session.data.import({
+            type: "csv",
+            config: { data: "id,amount,seen,label\ns1,10,2026-01-05,Ana\ns2,40,2026-01-01,Bo" },
+            name: "a.csv",
+        });
+        const draft = await tableDraft(
+            session,
+            "id,amount,seen,label\ns1,30,2026-01-02,Anna\ns2,20,2026-01-09,Bob",
+            "b.csv",
+        );
+        const keys = [{ file: "id", graph: "id" }];
+        await draft.load({
+            join: { shape: "node-values", keys, clash: { "*": "overwrite", amount: "mean", seen: "min" } },
+        });
+        assert.deepInclude(session.data.node("s1"), { amount: 20, seen: "2026-01-02", label: "Anna" });
+        assert.deepInclude(session.data.node("s2"), { amount: 30, seen: "2026-01-01", label: "Bob" });
+
+        const [join] = session.data.joins();
+        await session.data.editJoin(join.source, { shape: "node-values", keys, clash: { amount: "max", seen: "max" } });
+        assert.deepInclude(session.data.node("s1"), { amount: 30, seen: "2026-01-05", label: "Ana" });
+
+        const refused = await session.data
+            .editJoin(join.source, { shape: "node-values", keys, clash: { label: "min" } })
+            .then(
+                () => undefined,
+                (error: unknown) => error,
+            );
+        assert.instanceOf(refused, GraphtyError);
+        assert.strictEqual(refused.code, "E_CLASH_RULE_TYPE");
+        assert.deepInclude(refused.details, { column: "label", rule: "min" });
     });
 
     it("gives a new node a free id when its key value is another node's id", async () => {
@@ -877,5 +940,25 @@ describe("joining by an edge's two ends, new rows and a file's own kind", () => 
         assert.strictEqual(session.data.edges().length, 50, "the repeats of a new pair stay");
         assert.isDefined(session.data.node("user:admin"));
         assert.isDefined(session.data.node("host:admin"));
+    });
+});
+
+describe("joining on keys spelled as numbers or as text", () => {
+    it("matches a numeric node id to a table key read as text, and a text id to a number", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: 1 }, { id: 2 }, { id: 3 }, { id: "4" }, { id: "5" }]);
+        const table = ["key,score", "1,10", "2,20", "4,40", "9,90"].join("\n");
+        const draft = await session.data.prepare(
+            { config: { file: new File([table], "scores.csv") }, name: "scores.csv" },
+            { onto: "graph" },
+        );
+        const keys = [{ file: "key", graph: "id" }];
+        assert.deepInclude(draft.joinReport({ keys }), { matched: 3, notInGraph: 1, withoutValue: 2 });
+        await draft.load({ join: { keys } });
+        assert.strictEqual(session.data.node(1)?.score, 10);
+        assert.strictEqual(session.data.node(2)?.score, 20);
+        assert.strictEqual(session.data.node("4")?.score, 40);
+        assert.isUndefined(session.data.node(3)?.score);
+        session.dispose();
     });
 });

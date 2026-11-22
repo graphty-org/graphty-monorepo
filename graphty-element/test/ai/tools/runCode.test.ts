@@ -14,7 +14,8 @@ import { fakeDriver, Harness } from "../plans/driver";
 
 /**
  * The fake runner's programs, by source: each a host function over the bindings, as a program
- * would be. The runner enforces the call limit and the cancel the way the sandbox does.
+ * would be. The runner reports a cancel the way the sandbox does; the sandbox's own limits are tested
+ * against the real runner in test/browser/ai/program.test.ts.
  */
 const fake = vi.hoisted(() => {
     type Tools = Readonly<Record<string, (input: unknown) => Promise<unknown>>>;
@@ -28,13 +29,6 @@ const fake = vi.hoisted(() => {
         count: async (tools) => tools.query({ action: "count", where: "data.type == 'server'" }),
         // `view` is bound for its reads (list_saved); saving a view writes the project.
         save: async (tools) => tools.view({ action: "save", name: "from-code" }),
-        many: async (tools) => {
-            for (let call = 0; call < 65; call++) {
-                await tools.query({ action: "count" });
-            }
-
-            return "done";
-        },
         wait: (_tools, signal) =>
             new Promise((_resolve, reject) => {
                 signal.addEventListener("abort", () => {
@@ -57,29 +51,16 @@ vi.mock("../../../src/ai/engine/tanstack/program", () => ({
         fake.state.limits = limits;
         fake.state.bound = Object.keys(bindings).sort();
         fake.state.signal = signal;
-        let calls = 0;
-        const tools = Object.fromEntries(
-            Object.entries(bindings).map(([name, binding]) => [
-                name,
-                async (input: unknown): Promise<unknown> => {
-                    calls += 1;
-                    if (calls > limits.maxCalls) {
-                        throw new Error("program-call-limit");
-                    }
+        // A failure the runner reports, as it is: the controller only forwards it.
+        if (source === "fails") {
+            return { code: "AI_TOOL_FAILED", params: { tool: "run_code", cause: "program-call-limit" }, logs: ["log"] };
+        }
 
-                    return binding(input);
-                },
-            ]),
-        );
         try {
-            const value = await fake.programs[source](tools, signal);
+            const value = await fake.programs[source](bindings, signal);
             return { code: "AI_COMPLETED", params: {}, value, logs: [] };
         } catch {
-            let cause = signal.aborted ? "program-cancelled" : "program-threw";
-            if (calls > limits.maxCalls) {
-                cause = "program-call-limit";
-            }
-
+            const cause = signal.aborted ? "program-cancelled" : "program-threw";
             return { code: "AI_TOOL_FAILED", params: { tool: "run_code", cause }, logs: [] };
         }
     },
@@ -188,15 +169,16 @@ describe("run_code", () => {
         assert.strictEqual(harness.session.history.steps.length, steps, "no undo step");
     });
 
-    it("ends a program past 64 calls with program-call-limit", async () => {
+    it("hands the runner's failure to the model as the run_code result", async () => {
         const harness = await assistant({ inPageCode: true });
-        scriptProgram(harness, "many");
+        scriptProgram(harness, "fails");
 
         await harness.controller.execute("count a lot");
 
         const read = codeResult(harness.driver.requests);
         assert.strictEqual(read.code, "AI_TOOL_FAILED");
         assert.deepStrictEqual(read.params, { tool: "run_code", cause: "program-call-limit" });
+        assert.deepStrictEqual(read.data.logs, ["log"]);
     });
 
     it("aborts a running program when the message is cancelled", async () => {

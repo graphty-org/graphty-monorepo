@@ -1,9 +1,18 @@
-import type { GraphSession, LayerId, RowSpec, StyleRow, StyleRowPlace } from "@graphty/graphty-element/session";
+import {
+    type CodedFactParam,
+    type GraphSession,
+    isGraphtyError,
+    type LayerId,
+    type RowSpec,
+    type StyleRow,
+    type StyleRowPlace,
+} from "@graphty/graphty-element/session";
 
+import { showUndoNotice } from "../frame/undoNotice";
 import { errorWords } from "../project/words";
-import { hoverRecipe } from "../selection/hoverRecipe";
-import type { Notice, WorkspaceState, WorkspaceStore } from "../state/store";
+import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
+import { viewProblemWords } from "../toolbar/viewWords";
 import { findTreeRow, paintingParts } from "./rows";
 
 /**
@@ -18,6 +27,27 @@ export async function orNotice(store: WorkspaceStore, what: string, work: Promis
         await work;
     } catch (error) {
         store.set({ notice: { message: errorWords(`Could not ${what}`, error), error: true } });
+    }
+}
+
+/**
+ * Runs a write and, when the element refuses it, says why in a notice.
+ * @param store - the chrome store.
+ * @param what - what was being done, such as "rename View 1".
+ * @param work - the write.
+ */
+export async function orRefusal(store: WorkspaceStore, what: string, work: PromiseLike<unknown>): Promise<void> {
+    try {
+        await work;
+    } catch (error) {
+        const fact = isGraphtyError(error)
+            ? { code: error.code, params: error.details as Readonly<Record<string, CodedFactParam>> }
+            : null;
+        const words =
+            fact === null
+                ? errorWords(`Could not ${what}`, error)
+                : `Could not ${what}: ${viewProblemWords(fact) ?? fact.code}.`;
+        store.set({ notice: { message: words, error: true } });
     }
 }
 
@@ -125,28 +155,6 @@ export async function addLayer(session: GraphSession, store: WorkspaceStore, aft
 }
 
 /**
- * Hover highlight: the start page's hover look as a folder of four layers built with the selection
- * editor (`hoverRecipe`), one undo step, where Layer would put a new layer; it opens in the inspector.
- * @param session - the element's session.
- * @param store - the chrome store.
- * @returns the folder's id.
- */
-export async function addHoverHighlight(session: GraphSession, store: WorkspaceStore): Promise<string> {
-    const place = newLayerPlace(session, store.get().inspected);
-    const id = await session.transaction("adding Hover highlight", async (tx) => {
-        const folder = await tx.styles.addFolder("Hover highlight", place);
-        for (const spec of hoverRecipe()) {
-            const row = await tx.styles.addRow(spec);
-            // Each on top of the last: the recipe is bottom first.
-            await tx.styles.moveRow(row.id, { parent: folder.id });
-        }
-        return folder.id;
-    });
-    store.set({ page: "panels", place: "graph", inspected: { kind: "folder-row", id } });
-    return id;
-}
-
-/**
  * Deletes a row of the style tree (a layer, or a folder with everything in it), with an Undo
  * notice that lasts while the delete is still the step an undo would take back.
  * @param session - the element's session.
@@ -164,24 +172,13 @@ export async function deleteRow(session: GraphSession, store: WorkspaceStore, ro
         return step !== undefined && now?.kind === "undo" && now.step.id === step;
     };
     const kindWord = row.kind === "folder" ? "" : " layer";
-    const notice: Notice = {
-        message: fromRun ? `Deleted ${row.name}${kindWord}. Its results are kept.` : `Deleted ${row.name}.`,
-        action: {
-            label: "Undo",
-            run: () => {
-                if (isNext()) {
-                    void session.undo();
-                }
-            },
-        },
-    };
-    const off = session.on("history:changed", () => {
-        if (!isNext()) {
-            off();
-            store.set((state) => (state.notice === notice ? { notice: null } : {}));
-        }
-    });
-    store.set({ inspected: null, notice });
+    store.set({ inspected: null });
+    showUndoNotice(
+        session,
+        store,
+        fromRun ? `Deleted ${row.name}${kindWord}. Its results are kept.` : `Deleted ${row.name}.`,
+        isNext,
+    );
 }
 
 /**
@@ -380,7 +377,7 @@ export async function addFolderOf(session: GraphSession, name: string, ids: read
     return session.transaction(`adding ${name}`, async (tx) => {
         const tree = tx.styles.tree();
         const order = topFirst(tree);
-        const top = [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b))[0];
+        const top = [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b)).at(0);
         const found = top === undefined ? undefined : findTreeRow(tree, top);
         const parent = found?.folders.at(-1);
         const place =

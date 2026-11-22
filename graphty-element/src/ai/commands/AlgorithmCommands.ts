@@ -10,7 +10,7 @@ import { algorithmByLegacyKey } from "../../catalog/algorithms";
 import { registeredAlgorithmByKey } from "../../catalog/registry";
 import type { Graph } from "../../Graph";
 import { englishReading } from "../../session/results/reading";
-import { type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
+import { causeOf, type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
 
 /**
  * Schema for runAlgorithm parameters.
@@ -89,7 +89,7 @@ export const runAlgorithm: GraphCommand = {
                 };
             }
 
-            // The `namespace:type` address this command speaks, as the catalogue key and the base
+            // The `namespace:type` address this command speaks, as the catalog key and the base
             // parameters `graph.run` takes -- the same translation the element's own
             // `runAlgorithm` makes.
             const mapping =
@@ -98,7 +98,7 @@ export const runAlgorithm: GraphCommand = {
                 registeredAlgorithmByKey(type);
 
             if (mapping === undefined) {
-                // A plugin that declared no descriptor has no run and no result to summarise, so
+                // A plugin that declared no descriptor has no run and no result to summarize, so
                 // it keeps the 1.10 path, options and all.
                 await writerOf(graph, context).execute({
                     op: "algo.legacy",
@@ -154,6 +154,7 @@ export const runAlgorithm: GraphCommand = {
             return {
                 success: false,
                 message: `Failed to run algorithm ${namespace}:${type}: ${error instanceof Error ? error.message : String(error)}`,
+                ...causeOf(error),
             };
         }
     },

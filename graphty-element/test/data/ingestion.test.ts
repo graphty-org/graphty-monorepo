@@ -68,9 +68,9 @@ describe("ingestNode", () => {
         assert.strictEqual(store.getSnapshot().nodeCount, 2);
     });
 
-    it("invalidates the cached snapshot, which a merge alone would not", () => {
-        // builder.mutationCount counts neither a merge nor a column write, so the store's own
-        // revision counter is what makes a second read see the second record.
+    it("invalidates the cached snapshot on a merge, which builder.mutationCount alone would not", () => {
+        // A merge of a known id may change only the record, which lives in the session's slice and
+        // not in the builder, so the store is told its records changed and freezes again.
         const store = makeStore();
         ingestNode(store, "a", { id: "a" });
         const before = store.getSnapshot();

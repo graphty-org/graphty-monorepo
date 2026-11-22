@@ -14,12 +14,12 @@
  */
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import type { InputType } from "storybook/internal/types";
 
-import type { ShaderParamDescriptor, ShaderParams } from "../../src/catalog/shaders";
+import type { ShaderDescriptor, ShaderParams } from "../../src/catalog/shaders";
 import type { Graphty } from "../../src/graphty-element";
 import { assertGraphLoaded, assertNodesInFromEdges, drawn } from "../assertions";
 import { eventWaitingDecorator, isVisualCapture, waitForGraphSettled } from "../helpers";
+import { presetControls, presetParams } from "./presetControls";
 import { presetId, SCENE_PRESETS } from "./scenePresets";
 
 /** The communities' colors. */
@@ -115,70 +115,17 @@ function communities(layers: readonly LayerInput[], background: Graphty["backgro
 const DARK: Graphty["background"] = { backgroundType: "color", color: "#10141c" };
 
 /**
- * One parameter's Storybook control.
- * @param param - The parameter.
- * @returns The control.
- */
-function control(param: ShaderParamDescriptor): InputType {
-    if (param.type === "color") {
-        return { name: param.plainName, control: "color" };
-    }
-
-    if (param.type === "enum") {
-        return {
-            name: param.plainName,
-            control: "inline-radio",
-            options: (param.values ?? []).map((entry) => entry.value),
-        };
-    }
-
-    return {
-        name: param.plainName,
-        control: {
-            type: "range",
-            min: param.min as number,
-            max: param.max as number,
-            step: param.type === "integer" ? 1 : (param.step ?? 0.01),
-        },
-    };
-}
-
-/**
- * A preset's parameters as story controls, at their defaults, with some overridden.
+ * A scene preset's catalog entry.
  * @param id - The preset.
- * @param overrides - Defaults this story changes.
- * @returns The args and argTypes.
+ * @returns Its descriptor.
  */
-function controls(
-    id: string,
-    overrides: ShaderParams = {},
-): { args: Record<string, number | string | boolean>; argTypes: Record<string, InputType> } {
+function descriptorOf(id: string): ShaderDescriptor {
     const preset = SCENE_PRESETS.find((candidate) => candidate.descriptor.id === id);
     if (preset === undefined) {
         throw new Error(`"${id}" is not a scene preset`);
     }
 
-    const args: Record<string, number | string | boolean> = {};
-    const argTypes: Record<string, InputType> = {};
-    for (const param of preset.descriptor.params) {
-        args[param.name] = overrides[param.name] ?? (param.default as number | string);
-        argTypes[param.name] = control(param);
-    }
-
-    return { args, argTypes };
-}
-
-/**
- * Only the preset's own parameters from a story's args (Storybook adds its global args).
- * @param id - The preset.
- * @param args - The story's args.
- * @returns The parameters.
- */
-function paramsOf(id: string, args: Record<string, unknown>): ShaderParams {
-    const preset = SCENE_PRESETS.find((candidate) => candidate.descriptor.id === id);
-    return Object.fromEntries(
-        (preset?.descriptor.params ?? []).map((param) => [param.name, args[param.name] as number | string]),
-    );
+    return preset.descriptor;
 }
 
 const meta: Meta = {
@@ -213,10 +160,10 @@ async function settled(canvasElement: HTMLElement, story: string): Promise<void>
 function outlineStory(id: string, name: string, overrides: ShaderParams = {}): Story {
     return {
         name,
-        ...controls(id, overrides),
+        ...presetControls(descriptorOf(id), { overrides }),
         render: (args) => {
             const shader = presetId(id);
-            const params = paramsOf(id, args);
+            const params = presetParams(descriptorOf(id), args);
             return communities(
                 [
                     {
@@ -244,12 +191,12 @@ function outlineStory(id: string, name: string, overrides: ShaderParams = {}): S
 /** Gas, dust lanes and stars behind the graph, still at drift 0 until the camera moves. */
 export const Nebula: Story = {
     name: "Nebula",
-    ...controls("nebula"),
+    ...presetControls(descriptorOf("nebula")),
     render: (args) =>
         communities([], {
             backgroundType: "color",
             color: "#0b0614",
-            shader: { id: presetId("nebula"), params: paramsOf("nebula", args) },
+            shader: { id: presetId("nebula"), params: presetParams(descriptorOf("nebula"), args) },
         }),
     play: async ({ canvasElement }) => {
         await settled(canvasElement, "Shaders/Scene Presets Nebula");
@@ -259,7 +206,7 @@ export const Nebula: Story = {
 /** The nebula tinted by the groups of an outline layer: the gas takes each community's color. */
 export const NebulaTintedByGroups: Story = {
     name: "Nebula tinted by groups",
-    ...controls("nebula", { tintBy: "groups" }),
+    ...presetControls(descriptorOf("nebula"), { overrides: { tintBy: "groups" } }),
     render: (args) =>
         communities(
             [
@@ -281,7 +228,7 @@ export const NebulaTintedByGroups: Story = {
             {
                 backgroundType: "color",
                 color: "#0b0614",
-                shader: { id: presetId("nebula"), params: paramsOf("nebula", args) },
+                shader: { id: presetId("nebula"), params: presetParams(descriptorOf("nebula"), args) },
             },
         ),
     play: async ({ canvasElement }) => {
@@ -308,13 +255,18 @@ export const HullOutline = outlineStory("metaball-hull", "Hull outline", { look:
  */
 export const HullPerCommunityLayer: Story = {
     name: "Hull per community layer",
-    ...controls("metaball-hull", { look: "outline" }),
+    ...presetControls(descriptorOf("metaball-hull"), { overrides: { look: "outline" } }),
     render: (args) =>
         communities(
             COLORS.map((_, community) => ({
                 name: `Community ${String(community)}`,
                 set: {
-                    "node.shaders": [{ shader: presetId("metaball-hull"), params: paramsOf("metaball-hull", args) }],
+                    "node.shaders": [
+                        {
+                            shader: presetId("metaball-hull"),
+                            params: presetParams(descriptorOf("metaball-hull"), args),
+                        },
+                    ],
                 },
                 target: "node" as const,
                 selector: { match: "expression" as const, where: `data.community == \`${String(community)}\`` },

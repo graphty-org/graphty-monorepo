@@ -22,6 +22,7 @@ import {
     resolveStyles,
     styleFingerprint,
     type StyleRule,
+    unsettledStyles,
 } from "../../../src/styles/internal.js";
 import type { StyleProperty } from "../../../src/styles/types.js";
 import { editGraphmlNodeFill, replaceGraphmlBlock } from "../../styles/formats/graphml.js";
@@ -59,7 +60,10 @@ async function load(doc: string | Uint8Array, toolDefaults = true) {
     return { ...result, styles: result.styles };
 }
 
-const plain = (ex: ExtractedStyles): StyleRule[] => JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[];
+// the rules as planned, before values are settled for drawing (which depends on the program, so not the same after a
+// file graphty wrote is read back)
+const plain = (ex: ExtractedStyles): StyleRule[] =>
+    JSON.parse(JSON.stringify(unsettledStyles(ex).styles.rules)) as StyleRule[];
 
 const YED_HEAD = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -88,6 +92,69 @@ describe("GraphML styles: yEd", () => {
         // a font Java may not have is drawn in Dialog's face
         expect(resolveStyles(styles, "node", "labelFont", snapshot)[n5]).toBe("Comic Sans MS, DejaVu Sans, sans-serif");
         expect(resolveStyles(styles, "node", "labelPosition", snapshot)[n5]).toBe("bottom");
+    });
+
+    it("reads a node's second label as its external label, where yEd stored its box", async () => {
+        // yed-graphml-specimen-labels configuration-er-labels: the attributes under an entity's name, set left
+        const label = (box: string, attrs: string, text: string): string =>
+            `<y:NodeLabel ${box} ${attrs} modelName="internal" modelPosition="t">${text}</y:NodeLabel>`;
+        const node = (id: string, labels: string): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="56" width="76" x="0" y="0"/>` +
+            `${labels}</y:ShapeNode></data></node>`;
+        const doc = [
+            YED_HEAD,
+            node(
+                "two",
+                label('x="17.4" y="4" width="41.2" height="17"', "", "Entity") +
+                    label('x="2" y="22" width="28.8" height="30"', 'alignment="left"', "id\nname"),
+            ),
+            node(
+                "three",
+                label('x="0" y="0" width="10" height="17"', "", "a") +
+                    label('x="0" y="20" width="10" height="17"', "", "b") +
+                    label('x="0" y="40" width="10" height="17"', "", "c"),
+            ),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        const two = snapshot.ids.indexOf("two");
+        const of = (property: StyleProperty): unknown => resolveStyles(styles, "node", property, snapshot)[two];
+        expect(of("label")).toBe("Entity");
+        expect(of("xlabel")).toBe("id\nname");
+        // the box's middle from the node's: 2 + 14.4 - 38 right, 22 + 15 - 28 down
+        expect(of("xlabelOffsetX")).toBeCloseTo(-21.6, 6);
+        expect(of("xlabelOffsetY")).toBeCloseTo(9, 6);
+        expect(of("xlabelTextAlign")).toBe("left");
+        // a third label is not drawn, and noted
+        const extra = styles.styles.notes.find((n) => n.code === "W_STYLE_EXTRA_LABELS");
+        expect(extra?.elements).toEqual([snapshot.ids.indexOf("three")]);
+        expect(resolveStyles(styles, "node", "xlabel", snapshot)[snapshot.ids.indexOf("three")]).toBe("b");
+    });
+
+    it("reads a second label in its own color and font, placed by the internal model when yEd stored only its size", async () => {
+        // graphml-synthetic-nodes label-corners-sw: "second label" in #990000 at internal b, its box 96 x 18
+        const attrs = (at: string): string =>
+            `fontSize="12" height="18.0" width="96" modelName="internal" modelPosition="${at}"`;
+        const doc = [
+            YED_HEAD,
+            '<node id="n"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>',
+            `<y:NodeLabel ${attrs("t")} fontFamily="Dialog" fontStyle="plain" textColor="#000000">a</y:NodeLabel>`,
+            `<y:NodeLabel ${attrs("b")} fontFamily="Courier New" fontStyle="bolditalic" textColor="#990000">b</y:NodeLabel>`,
+            "</y:ShapeNode></data></node>",
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        const of = (property: StyleProperty): unknown => resolveStyles(styles, "node", property, snapshot)[0];
+        expect(of("xlabel")).toBe("b");
+        // 4 in from the bottom: 30 - 4 - 9 = 17 down from the top, 2 below the middle
+        expect(of("xlabelOffsetX")).toBe(0);
+        expect(of("xlabelOffsetY")).toBe(2);
+        expect(of("xlabelColor")).toBe("#990000");
+        expect(of("xlabelFont")).toMatch(/^Courier New/);
+        expect(of("xlabelWeight")).toBe("bold");
+        expect(of("xlabelItalic")).toBe(true);
+        expect(of("labelColor")).toBe("#000000");
+        expect(styles.styles.notes.some((n) => n.code === "W_STYLE_EXTRA_LABELS")).toBe(false);
     });
 
     it("keeps a preserved label's leading line break, which yEd draws as a blank first line", async () => {
@@ -216,6 +283,24 @@ describe("GraphML styles: yEd", () => {
             null,
         ]);
         expect(resolveStyles(styles, "node", "labelOffsetY", snapshot)).toEqual([null, null, 4, null, null, -2, null]);
+    });
+
+    it("lines up a label's lines by its alignment, in a box sized to its words too", async () => {
+        // yed-graphml-specimen-labels.svg: `alignment-left` draws "ab" under the start of "Wide line", `alignment-right`
+        // under its end, in a label box yEd sized to the words (autoSizePolicy="content")
+        const node = (id: string, align: string): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="40" width="60" x="0" y="0"/>` +
+            `<y:NodeLabel alignment="${align}" autoSizePolicy="content" modelName="internal" modelPosition="c" ` +
+            `x="0.1" y="5" width="59.8" height="30">Wide line\nab</y:NodeLabel></y:ShapeNode></data></node>`;
+        const doc = [
+            YED_HEAD,
+            node("left", "left"),
+            node("center", "center"),
+            node("right", "right"),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelTextAlign", snapshot)).toEqual(["left", "center", "right"]);
     });
 
     it("reads yEd's inside places (t, b, l, r, tl, ...) as inside and n, s, e, w, nw, ... as outside, with no model named", async () => {
@@ -376,7 +461,7 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "label", snapshot)[i]).toBe("Variable Binding");
     });
 
-    it("reads a TableNode's header and lanes as bands in its table colors", async () => {
+    it("reads a TableNode's header and lanes as bands in its fill and lane colors", async () => {
         const table = (id: string, props: string, rows: string, cols: string, insets: string): string =>
             `<node id="${id}"><data key="d6"><y:TableNode configuration="YED_TABLE_NODE">` +
             '<y:Geometry height="90.0" width="150.0" x="0" y="0"/><y:Fill color="#ECF5FF" color2="#0042F440"/>' +
@@ -397,6 +482,17 @@ describe("GraphML styles: yEd", () => {
                 col(150),
                 'top="30.0" left="0.0"',
             ),
+            table(
+                "styled",
+                [
+                    prop("lane.color.main", "#C0C0C0"),
+                    prop("lane.color.alternating", "#FFCC00"),
+                    '<y:Property class="java.lang.String" name="yed.table.lane.style" value="LANE_STYLE_ROWS"/>',
+                ].join(""),
+                row + row,
+                col(150),
+                'top="30.0"',
+            ),
             table("plain", prop("lane.color.main", "#C0C0C0"), row + row, col(150), 'top="30.0"'),
             table(
                 "cols",
@@ -412,8 +508,11 @@ describe("GraphML styles: yEd", () => {
         const colors = resolveStyles(styles, "node", "stripeColors", snapshot);
         const sizes = resolveStyles(styles, "node", "stripeSizes", snapshot);
         const direction = resolveStyles(styles, "node", "stripeDirection", snapshot);
-        expect([colors[at("rows")], sizes[at("rows")]]).toEqual([
-            "#ff9999 #c0c0c0 #ffcc00",
+        // yEd paints the table's header in its fill and, with no lane style, every lane in the main color
+        // (yed-graphml-specimen-groups)
+        expect([colors[at("rows")], sizes[at("rows")]]).toEqual(["#ecf5ff #c0c0c0", "0.333333 0.666667"]);
+        expect([colors[at("styled")], sizes[at("styled")]]).toEqual([
+            "#ecf5ff #c0c0c0 #ffcc00",
             "0.333333 0.333333 0.333333",
         ]);
         // a color the table leaves unset is the node's fill; one lane color unset is the other
@@ -425,6 +524,28 @@ describe("GraphML styles: yEd", () => {
         ]);
         expect(direction[at("rows")]).toBeNull();
         expect(resolveStyles(styles, "node", "shape", snapshot)[at("rows")]).toBe("rectangle");
+    });
+
+    it("paints a PanelNode and a DemoGroup GenericGroupNode as yEd draws them", async () => {
+        const group = (id: string, conf: string): string =>
+            `<node id="${id}" yfiles.foldertype="group"><data key="d6"><y:ProxyAutoBoundsNode><y:Realizers active="0">` +
+            `<y:GenericGroupNode configuration="${conf}"><y:Geometry height="90.0" width="150.0" x="0" y="0"/>` +
+            '<y:Fill color="#F5F5F5" transparent="false"/>' +
+            '<y:BorderStyle color="#505050" raised="false" type="dashed" width="1.0"/>' +
+            `</y:GenericGroupNode></y:Realizers></y:ProxyAutoBoundsNode></data><graph id="${id}:"/></node>`;
+        const doc = [YED_HEAD, group("panel", "PanelNode"), group("demo", "DemoGroup"), "</graph></graphml>"].join(
+            "\n",
+        );
+        const { snapshot, styles } = await load(doc);
+        const at = (id: string): number => snapshot.ids.indexOf(id);
+        const get = (property: StyleProperty, id: string): unknown =>
+            resolveStyles(styles, "node", property, snapshot)[at(id)];
+        const panel: StyleProperty[] = ["fill", "fillGradient", "fillGradientAngle", "borderColor"];
+        const demo: StyleProperty[] = ["fillOpacity", "borderColor", "borderWidth", "borderStyle"];
+        // a ramp from white into the fill, the line at 0.8 of its color (yed-graphml-specimen-groups)
+        expect(panel.map((p) => get(p, "panel"))).toEqual(["#ffffff", "#f5f5f5", 90, "#404040"]);
+        // a frame in the fill round an unpainted inside, no dashed line
+        expect(demo.map((p) => get(p, "demo"))).toEqual([0, "#f5f5f5", 1, "solid"]);
     });
 
     it("reads no fill for transparent and hasColor=false fills, gradients into color2, alpha last", async () => {
@@ -552,7 +673,7 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
             "polygon",
             "polygon",
-            "other:database",
+            "database",
             "diamond",
             "hexagon",
             "polygon",
@@ -588,7 +709,7 @@ describe("GraphML styles: yEd", () => {
             `<node id="${id}"><data key="d6"><y:GenericNode configuration="com.yworks.bpmn.Artifact.withShadow"><y:Geometry height="50" width="35" x="0" y="0"/><y:StyleProperties><y:Property class="com.yworks.yfiles.bpmn.view.BPMNTypeEnum" name="com.yworks.bpmn.type" value="${type}"/></y:StyleProperties></y:GenericNode></data></node>`;
         const doc = `${YED_HEAD}${artifact("a", "ARTIFACT_TYPE_DATA_OBJECT")}${artifact("b", "ARTIFACT_TYPE_DATA_STORE")}${artifact("c", "ARTIFACT_TYPE_REQUEST_MESSAGE")}</graph></graphml>`;
         const { snapshot, styles } = await load(doc, false);
-        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["polygon", "other:database", "rectangle"]);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["polygon", "database", "rectangle"]);
         // the top right corner (y up) is cut
         expect(resolveStyles(styles, "node", "shapePoints", snapshot)).toEqual([
             "-1,-1 1,-1 1,0.4 0.2,1 -1,1",
@@ -1041,7 +1162,7 @@ describe("GraphML styles: yFiles 3", () => {
             ),
         );
         const shape = resolveStyles(styles, "node", "shape", snapshot);
-        expect(shape[snapshot.ids.indexOf("corners-top")]).toBe("other:top-round-rectangle");
+        expect(shape[snapshot.ids.indexOf("corners-top")]).toBe("top-round-rectangle");
         expect(shape[snapshot.ids.indexOf("scale-corner-size")]).toBe("round-rectangle");
     });
 
@@ -1340,6 +1461,36 @@ describe("GraphML styles: writing", () => {
         expect(text).toContain('<y:Fill color="#E8EEF7" transparent="false" color2="#B7C9E3"/>');
         expect(text).toContain('modelName="internal" modelPosition="tr"');
         expect(text).toContain('modelName="eight_pos" modelPosition="n"');
+    });
+
+    it("notes a gradient on a node with no fill color, which a y:Fill cannot hold", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        const snapshot = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                node: {
+                    values: {
+                        fillGradient: ["#b7c9e3"],
+                        fillGradientColors: ["#ffffff #0000ff #ffffff"],
+                        fillGradientStops: ["0 0.5 1"],
+                    },
+                },
+                fingerprint: styleFingerprint(snapshot),
+            },
+            { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") },
+        );
+        const losses = registry.checkExport(snapshot, "graphml", { styles });
+        expect(
+            losses
+                .filter((l) => l.code === "W_STYLE_APPROXIMATED")
+                .map((l) => [l.style?.target, l.style?.property, l.count]),
+        ).toEqual([
+            ["node", "fillGradient", 1],
+            ["node", "fillGradientColors", 1],
+            ["node", "fillGradientStops", 1],
+        ]);
     });
 
     it("an outside edit of a yEd color comes back as its fill and ramp only; any other new exception fails", async () => {

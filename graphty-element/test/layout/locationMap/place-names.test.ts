@@ -16,8 +16,9 @@ import type { Edge } from "../../../src/Edge";
 import { layoutEngineInternals } from "../../../src/layout/LayoutEngine";
 import { loadGazetteer, normalizePlace, readPlaces } from "../../../src/layout/locationMap/gazetteer";
 import type { LocationMapFrame } from "../../../src/layout/locationMap/place";
+import { detectSource } from "../../../src/layout/locationMap/source";
 import { LocationMapLayout } from "../../../src/layout/LocationMapLayoutEngine";
-import type { Node } from "../../../src/Node";
+import { fakeNode } from "../../helpers/layout-fakes";
 
 /** The address the stubbed fetch answers; anything else is refused. */
 const BASE = "https://gazetteer.test/v1/";
@@ -73,9 +74,7 @@ async function place(
     options: Record<string, unknown> = {},
 ): Promise<{ at: (id: string) => { x: number; y: number }; frame: LocationMapFrame | null }> {
     const parentGraph = { getStyles: () => ({ config: session.config }) };
-    const nodes = session.data
-        .nodes()
-        .map((record) => ({ id: record.id, index: -1, data: record, parentGraph }) as unknown as Node);
+    const nodes = session.data.nodes().map((record) => fakeNode(record.id, { index: -1, data: record, parentGraph }));
     const layout = new LocationMapLayout({ gazetteer: BASE, dim: 2, ...options });
     layoutEngineInternals.addNodes(layout, nodes);
     layoutEngineInternals.addEdges(layout, [] as Edge[]);
@@ -268,6 +267,12 @@ describe("the gazetteer", () => {
         assert.strictEqual(countries.lat[0], countries.lat[1]);
         assert.strictEqual(countries.lat[0], countries.lat[2]);
         assert.strictEqual(countries.lat[3], countries.lat[4]);
+    });
+
+    it("never reads a column of one-letter labels as places by a region's one-letter postal code", async () => {
+        const g = await loadGazetteer(BASE, "auto");
+        assert.isNull(detectSource([{ name: "label", values: ["A", "B"] }], g));
+        assert.deepInclude(readPlaces(["Baa", "Baa Atoll"], "region", null, g), { unmatched: [] });
     });
 
     it('splits "City, CC" at its last comma under auto, and narrows a city by a region name', async () => {

@@ -6,7 +6,7 @@
  * is called, how far it has got, whether it can be stopped, what qualifies the numbers it will
  * produce, and -- once it finishes -- the result itself. A call that returns nothing forces
  * every consumer to go looking for its own answer somewhere else, and an analysis that cannot be
- * watched or stopped is unusable on a graph big enough to be worth analysing.
+ * watched or stopped is unusable on a graph big enough to be worth analyzing.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM: a run is plain data plus a promise, published
  * from the Node-safe `./session` entry point.
@@ -18,13 +18,15 @@
 
 import type {
     AlgorithmKey,
-    EdgeId,
     EdgeReading,
     FieldDescriptor,
+    FilterCondition,
     LayerId,
     NodeId,
+    OptionDescriptor,
     PaletteId,
     ResultShape,
+    RuleTree,
     RunId,
     Scope,
     ScopeInput,
@@ -33,9 +35,12 @@ import type {
 import type { GraphtyErrorCode } from "../../errors/codes";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { JournalId } from "../journal";
+import type { ResultComparison } from "../results/compare";
 import type { ResultSummary, RunResult } from "../results/types";
-import type { CodedFact } from "../shared";
+import type { ResolvedScope } from "../scope/ScopeApi";
+import type { CodedFact, CodedFactParam } from "../shared";
 import type { StyleSuggestion } from "../styles/derive";
+import type { TimeWindow } from "../visibility/filter";
 import type { CaveatCode, PartialCode } from "./caveatFacts";
 
 // ---------------------------------------------------------------------------------------------
@@ -108,7 +113,7 @@ export function isTerminalRunStatus(status: RunStatus): boolean {
  * The moments a watcher is told about: the four of a run's own life, and the two of history.
  *
  * Coarser than {@link RunStatus} on purpose: a status bar draws the same thing for a run that
- * failed and one that was cancelled -- it stops showing progress and reads the record -- so the
+ * failed and one that was canceled -- it stops showing progress and reads the record -- so the
  * distinction belongs in the record the notification carries rather than in the notification's
  * own name. "removed" and "restored" are an undo, a redo or a restore taking a finished run out
  * of the project and putting it back; nothing was computed for either.
@@ -137,6 +142,16 @@ export interface RunChange {
      * execution's `end` from a new one's.
      */
     readonly generation: number;
+    /**
+     * Present when the session ran this algorithm by itself rather than on a caller's request:
+     * `"time-window"` when the time window moved, or the time results policy changed to `"rerun"`;
+     * `"project"` when opening a project (a file, or restored autosaved work) brought back a run
+     * it saved. Absent for a run a caller started or re-ran.
+     *
+     * OPEN UNION: triggers may be added in a minor release; handle one you do not know.
+     * @since 3.40.0
+     */
+    readonly trigger?: "time-window" | "project";
 }
 
 /**
@@ -147,8 +162,18 @@ export interface RunChange {
  * reader a lie they will time their patience against.
  */
 export interface Progress {
-    /** What the run is doing now, in words a progress line can show. */
+    /**
+     * What the run is doing now, as a code an application words: `"queued"`, `"running"` and
+     * `"failed"` for the run itself, or the step an algorithm names, in kebab case
+     * (`"iterating"`, `"grouping-nodes"`, `"reading-scores"`). Never a sentence.
+     */
     readonly phase: string;
+    /**
+     * The figures the phase is about, by name: `{ maxIterations }` while `"iterating"`, the
+     * member's `{ algorithm }` while a batch is `"running"`. Absent when the phase has none.
+     * @since 3.40.0
+     */
+    readonly params?: Readonly<Record<string, CodedFactParam>>;
     /** Whether the total is known. False means the run cannot say how much is left. */
     readonly determinate: boolean;
     /** How many units are done. */
@@ -159,7 +184,11 @@ export interface Progress {
     readonly fraction: number | null;
     /** How much longer, in milliseconds, or null when that cannot be projected. */
     readonly etaMs: number | null;
-    /** A sentence about the current step, when the run has one to offer. */
+    /**
+     * Text an algorithm registered by a consumer chose to report, passed through as it wrote it.
+     * graphty-element's own algorithms never fill it: word {@link Progress.phase} and
+     * {@link Progress.params}.
+     */
     readonly message?: string;
 }
 
@@ -169,7 +198,6 @@ export type StaleReason = "data-changed" | "scope-changed" | "window-moved";
 /**
  * The time window a run over the visible graph was computed in, and what it left visible then.
  * Numbers only: `from` and `to` are epoch milliseconds (or ordinal values), half-open.
- * @experimental timeline
  * @beta
  */
 export interface RunWindow {
@@ -203,7 +231,6 @@ export interface StaleNote {
     /**
      * With `reason: "window-moved"`: the window the run was computed in, `{ code: "window-moved",
      * params: { from, to, nodes, edges } }`.
-     * @experimental timeline
      * @beta
      */
     readonly window?: CodedFact<"window-moved">;
@@ -246,9 +273,11 @@ export interface WeightMeaning {
 /**
  * Why a run left a weight unread. `code` is `"weight.meaning-mismatch"`; `params.attribute` is the
  * column, `params.meaning` what the weight means (null when nobody said), and `params.reads` the
- * meaning the algorithm reads.
+ * meaning the algorithm reads. Under the `source-steps` experiment, `"weight.meaning-mixed"`:
+ * the edges' weights do not share one meaning, or some edges' sources read no weight, so the run
+ * reads none (design 8.6); `params.sources` lists the sources of the edges.
  */
-export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
+export type WeightSkip = CodedFact<"weight.meaning-mismatch" | "weight.meaning-mixed">;
 
 /**
  * What qualifies a run's numbers.
@@ -267,7 +296,7 @@ export interface Caveats {
     readonly exact: boolean;
     /** How many elements the approximation sampled. Present only when `exact` is false. */
     readonly sampleSize?: number;
-    /** The seed a sampled or randomised run used, so it can be reproduced. */
+    /** The seed a sampled or randomized run used, so it can be reproduced. */
     readonly seed?: number | null;
     /** Whether an iterative algorithm reached its convergence threshold. */
     readonly converged?: boolean;
@@ -281,7 +310,6 @@ export interface Caveats {
     readonly windowScope?: boolean;
     /**
      * The time window a run over the visible graph was computed in, and its visible counts.
-     * @experimental timeline
      * @beta
      */
     readonly window?: RunWindow;
@@ -301,22 +329,19 @@ export interface Caveats {
     readonly weightSkipped?: WeightSkip;
     /** The arithmetic that produced these numbers. */
     readonly precision: Precision;
-    /** Which method computed them, such as "dijkstra" or "brandes-sampled". */
+    /**
+     * Which method computed them, as an identifier: the algorithm's key unless the algorithm names
+     * a method of its own, such as "dijkstra" or "stoer-wagner". Never reader-facing text; an
+     * application names it.
+     */
     readonly method: string;
     /**
      * Why a run stopped before it finished, when it did, as a code and its values. Present when
      * the run resolved with `partial` set, whatever stopped it: a time box, a cancellation, a
-     * batch that did not finish, or the algorithm's own iteration cap. Absent for a run an
-     * extension stopped and explained only in words, in {@link Caveats.partialReason}.
+     * batch that did not finish, or the algorithm's own iteration cap.
      * @since 3.18.0
      */
     readonly partialCause?: CodedFact<PartialCode>;
-    /**
-     * Why a run stopped before it finished, as an English sentence. Present exactly when the run
-     * resolved with `partial` set.
-     * @deprecated Word {@link Caveats.partialCause} yourself. Removed in the next major.
-     */
-    readonly partialReason?: string;
     /**
      * Anything else a reader should know, one fact per remark, in the order a reader reads them.
      * See {@link CaveatCode} for every code and its parameters.
@@ -324,8 +349,9 @@ export interface Caveats {
      */
     readonly facts: readonly CodedFact<CaveatCode>[];
     /**
-     * The same remarks as English sentences, followed by any sentence an extension wrote in words.
-     * @deprecated Word {@link Caveats.facts} yourself. Removed in the next major.
+     * Sentences an extension wrote itself, in its own words (`context.note()` in
+     * `defineAlgorithm`, or the `notes` an algorithm's caveats declare). The element's own
+     * remarks are in {@link Caveats.facts} only, never here. Empty for every built-in algorithm.
      */
     readonly notes: readonly string[];
 }
@@ -334,37 +360,7 @@ export interface Caveats {
 // Scope, as a run records it
 // ---------------------------------------------------------------------------------------------
 
-/**
- * A scope specification resolved against the graph as it stands.
- *
- * Declared here because a run carries the scope it ran over and the scope API has not landed.
- * It moves to the scope module when that arrives; nothing should declare a second one in the
- * meantime.
- */
-export interface ResolvedScope {
-    /**
-     * The nodes in scope. Lazy: built on the first read, then the same set on every read. It yields
-     * each id as the graph holds it, but `has` takes an integer id written either way: with node
-     * `34` in scope, `nodes.has("34")` is true.
-     */
-    readonly nodes: ReadonlySet<NodeId>;
-    /** The edges in scope. Lazy: built on the first read, then the same set on every read. */
-    readonly edges: ReadonlySet<EdgeId>;
-    /** How many nodes are in scope. */
-    readonly nodeCount: number;
-    /** How many edges are in scope. */
-    readonly edgeCount: number;
-    /**
-     * Equal digests mean equal scopes, which is how staleness is derived rather than tracked.
-     * Versioned: `d1:` and 16 hex digits, comparable only within one session and store. Computed
-     * on first read.
-     */
-    readonly digest: string;
-    /** What was asked for, before it was resolved. */
-    readonly spec: Scope;
-    /** When it was resolved, as an ISO 8601 timestamp. */
-    readonly resolvedAt: string;
-}
+export type { ResolvedScope } from "../scope/ScopeApi";
 
 /** The scope a run ran over, in the structured-cloneable form a record carries. */
 export interface RunScopeRecord {
@@ -397,14 +393,34 @@ export interface RunScopeRecord {
     /**
      * For a scope over the visible graph: the time window in force when it resolved, or null when
      * there was none. Absent for every other scope.
-     * @experimental timeline
      * @beta
      */
     readonly window?: RunWindow | null;
+    /**
+     * What the live keywords in the scope stood for when it resolved, so the same scope can be
+     * resolved again later (a project open computes a saved run again under it). Absent for a
+     * scope that names neither `"visible"` nor `"selection"`.
+     */
+    readonly live?: {
+        /** For `"visible"`: the filter, its conditions and the time window in force. */
+        readonly visible?: {
+            /** The filter rule tree in force, or null when there was none. */
+            readonly filter: RuleTree | null;
+            /** The filter conditions in force, in order; empty when there were none. */
+            readonly conditions: readonly FilterCondition[];
+            /** The time window in force, or null when there was none. */
+            readonly window: TimeWindow | null;
+        };
+        /** For `"selection"`: the selected node ids, sorted. */
+        readonly selection?: readonly NodeId[];
+    };
 }
 
+/** What a scope's live keywords stood for when a run resolved it. */
+export type RunLiveScope = NonNullable<RunScopeRecord["live"]>;
+
 /** What a run records about the set its scope named, beside the resolution. */
-export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading" | "dataDigest" | "window">;
+export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading" | "dataDigest" | "window" | "live">;
 
 /** Which versions of which packages produced a result. */
 export interface EngineVersions {
@@ -415,7 +431,7 @@ export interface EngineVersions {
     /** The layout package version. */
     readonly layout: string;
     /**
-     * The versions of any registered extensions that produced these numbers, by catalogue key.
+     * The versions of any registered extensions that produced these numbers, by catalog key.
      *
      * WHY IT IS HERE. The three fixed fields above name the element and its two sibling packages,
      * which is everything when the element's own algorithm did the work. A run of a THIRD PARTY's
@@ -449,7 +465,7 @@ export type QueuePolicy = (typeof QUEUE_POLICIES)[number];
  * type the command executor takes when that lands; there is one of it, not two.
  */
 export interface RunOptions {
-    /** A signal that cancels the work. Cancelling rejects with an AbortError. */
+    /** A signal that cancels the work. Canceling rejects with an AbortError. */
     readonly signal?: AbortSignal;
     /** Called as the work advances, with the run's current progress. */
     readonly onProgress?: (progress: Progress) => void;
@@ -474,7 +490,7 @@ export interface StartOptions extends RunOptions {
      * edges by session edge id; the run records their stable form.
      */
     readonly scope?: ScopeInput;
-    /** The seed for a randomised or sampled method, so a run can be reproduced. */
+    /** The seed for a randomized or sampled method, so a run can be reproduced. */
     readonly seed?: number;
     /**
      * Stop after this many milliseconds and publish what was computed.
@@ -530,16 +546,16 @@ export interface RunLayers {
 /**
  * What a run paints when it first completes.
  *
- * - `true`, or left off: the colour suggestion its result shape calls for.
+ * - `true`, or left off: the color suggestion its result shape calls for.
  * - `false`: nothing. The numbers are published and no layer is added.
- * - `{ size }`: the colour suggestion, plus a size encoding of the same field. For a run whose
+ * - `{ size }`: the color suggestion, plus a size encoding of the same field. For a run whose
  *   result is a node measurement (shape `"node-metric"`: PageRank, degree, betweenness and the
  *   rest) that is a node size: `size: true` sizes nodes from 1 (the default node size, so the
  *   least important node looks unchanged) to 3. For a run whose result is an edge measurement
  *   (shape `"edge-metric"`: max flow, edge betweenness) it is an edge width: `size: true` draws
  *   edges from the default edge width to twice it. `size: [min, max]` uses that range, in the
  *   channel's own units. `size: false` or left off adds no size. For any other result shape the
- *   size is ignored, without an error, exactly as the colour suggestion itself depends on the
+ *   size is ignored, without an error, exactly as the color suggestion itself depends on the
  *   shape.
  * - `{ name }`: what to call the layers it adds, in place of the run's label. An application that
  *   names algorithms in its own words passes the name its reader picked the algorithm by. Combines
@@ -556,7 +572,7 @@ export type RunStyle =
           /**
            * `"layers"`: a run that partitions the nodes (shape `"community"`: Louvain, Leiden, label
            * propagation, connected components) paints each group as a layer of its own instead of one
-           * layer colouring every group: a folder named for the run (`name`, else the run's label)
+           * layer coloring every group: a folder named for the run (`name`, else the run's label)
            * holding one node layer per group, largest on top, each selecting
            * `<group path> == <value>` and setting the color the one layer would have painted that group. A re-run
            * keeps each layer on the group sharing most of its members and adds a layer at the bottom
@@ -609,7 +625,7 @@ export interface RunSpec {
     readonly params?: Readonly<Record<string, unknown>>;
     /** What it may look at, as {@link StartOptions.scope}. */
     readonly scope?: ScopeInput;
-    /** The seed for a randomised or sampled method. */
+    /** The seed for a randomized or sampled method. */
     readonly seed?: number;
     /** The id to give the run. */
     readonly as?: RunId;
@@ -625,20 +641,36 @@ export interface BatchStep {
     readonly runId?: RunId;
     /** Whether it succeeded. */
     readonly ok: boolean;
-    /** Why it did not, when it did not. */
-    readonly reason?: string;
+    /** Why it did not, when it did not; absent when it succeeded. */
+    readonly failure?: BatchStepFailure;
+}
+
+/**
+ * Why one member of a batch did not succeed, as a code an application words.
+ *
+ * - `"not-started"`: the batch was stopped before this member started.
+ * - `"canceled"`: the batch, or an undo, stopped this member while it ran.
+ * - Any {@link GraphtyErrorCode}: the member was refused or failed with that error; `details` are
+ *   the error's own details.
+ * @since 3.40.0
+ */
+export interface BatchStepFailure {
+    /** What happened. */
+    readonly code: "not-started" | "canceled" | GraphtyErrorCode;
+    /** The facts behind it: the error's details, or empty. */
+    readonly details: Readonly<Record<string, unknown>>;
 }
 
 /**
  * What a batch produced.
  *
- * A cancelled batch KEEPS the members that already completed: they are results somebody paid
+ * A canceled batch KEEPS the members that already completed: they are results somebody paid
  * for, and throwing them away because a later member was stopped would be the element deciding
  * on the consumer's behalf that partial work is worthless.
  */
 export interface BatchResult {
-    /** What the batch is called. */
-    readonly label: string;
+    /** What the caller named the batch (`batch(specs, { label })`), or null when it named none. */
+    readonly label: string | null;
     /** How many members it had. */
     readonly total: number;
     /** How many finished. */
@@ -647,6 +679,89 @@ export interface BatchResult {
     readonly partial: boolean;
     /** How each member turned out, in specification order. */
     readonly steps: readonly BatchStep[];
+}
+
+/**
+ * What a sweep takes besides the option it varies: the parameters held fixed, and the rest as
+ * {@link RunSpec} and `batch()` take them.
+ * @since 3.51.0
+ */
+export interface SweepOptions extends RunOptions {
+    /** The algorithm's other parameters, the same for every value. */
+    readonly params?: Readonly<Record<string, unknown>>;
+    /** What every run may look at, as {@link StartOptions.scope}. */
+    readonly scope?: ScopeInput;
+    /** The seed every run uses, so the values are compared on the same start. */
+    readonly seed?: number;
+    /** What each run paints on first completion; see {@link RunStyle}. Defaults to `false`. */
+    readonly style?: RunStyle;
+    /** The sweep's label, as `batch()` takes it. */
+    readonly label?: string;
+}
+
+/**
+ * One value of a sweep and what its run found.
+ * @since 3.51.0
+ */
+export interface SweepRow {
+    /** The value the option was set to. */
+    readonly value: unknown;
+    /** Whether its run succeeded. */
+    readonly ok: boolean;
+    /** The run it started, absent when it never started. */
+    readonly runId?: RunId;
+    /** Why it did not succeed; absent when it did. */
+    readonly failure?: BatchStepFailure;
+    /** The run's bounded result (its `groupCount`, its top elements, its statistics); absent unless it succeeded. */
+    readonly summary?: ResultSummary;
+    /** The run's graph-level values (a modularity, a component count); absent unless it succeeded. */
+    readonly graph?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * What a sweep produced: the batch it ran, and one row per value in the order given.
+ * @since 3.51.0
+ */
+export interface SweepResult extends BatchResult {
+    /** The option the sweep varied. */
+    readonly option: OptionDescriptor["name"];
+    /** One row per value, in the order the values were given. */
+    readonly rows: readonly SweepRow[];
+}
+
+/**
+ * What a stability run takes besides the seeds: the parameters, the field to compare, and the rest
+ * as `sweep()` takes them.
+ * @since 3.58.0
+ */
+export interface StabilityOptions extends Omit<SweepOptions, "seed"> {
+    /** The result field to compare between seeds; the result's primary field when absent. */
+    readonly field?: string;
+}
+
+/**
+ * What a stability run produced: one row per seed, every pair of seeds that both finished
+ * compared, and the means over those pairs.
+ * @since 3.58.0
+ */
+export interface StabilityResult extends BatchResult {
+    /** One row per seed, in the order given; a row's `value` is its seed. */
+    readonly rows: readonly SweepRow[];
+    /** Every pair of finished seeds compared, as `results.compare()` compares two runs, in seed order. */
+    readonly pairs: readonly ResultComparison[];
+    /**
+     * The mean adjusted Rand index over the pairs (`agreement` of each partition comparison): 1 when
+     * every seed found the same grouping. Undefined for a field that is not a grouping, or with no
+     * pair that has one.
+     */
+    readonly agreement: number | undefined;
+    /** The mean adjusted mutual information over the pairs; undefined as `agreement` is. */
+    readonly adjustedMutualInformation: number | undefined;
+    /**
+     * The mean Spearman correlation over the pairs, for a field that is a measurement (a ranking);
+     * undefined for a grouping, or with no pair that has one.
+     */
+    readonly correlation: number | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -678,12 +793,6 @@ export interface RunRecord {
     /** The run id. */
     readonly id: RunId;
     /**
-     * What the run is called, computed by the element.
-     * @deprecated Word the run from its `algorithm`, {@link RunRecord.distinguishedBy} and
-     *   {@link RunRecord.siblingsDifferBy} yourself. Removed in the next major.
-     */
-    readonly label: string;
-    /**
      * The option this run's name was suggested by, once it left its default: what tells it apart
      * from a run of the same algorithm at the defaults. Null for a run at the defaults, a run the
      * caller named with `as`, a batch, and a run of an algorithm registered with its own
@@ -698,10 +807,15 @@ export interface RunRecord {
      * @since 3.18.0
      */
     readonly siblingsDifferBy: readonly string[] | null;
+    /**
+     * The name the reader gave the run with {@link RunsApi.rename}, or null while it has none.
+     * @since 3.40.0
+     */
+    readonly name: string | null;
 
     /** Which algorithm ran. */
     readonly algorithm: AlgorithmKey;
-    /** The parameters it ran with, canonicalised. */
+    /** The parameters it ran with, canonicalized. */
     readonly params: Readonly<Record<string, unknown>>;
     /** The seed it used, or null when it needed none. */
     readonly seed: number | null;
@@ -713,7 +827,7 @@ export interface RunRecord {
     readonly startedAt: string | null;
     /** How long it took, in milliseconds, or null until it finishes. */
     readonly durationMs: number | null;
-    /** Whether it stopped early and published what it had: true exactly when `caveats.partialReason` is set. */
+    /** Whether it stopped early and published what it had: true exactly when `caveats.partialCause` is set. */
     readonly partial: boolean;
     /** Why its numbers no longer describe what is on screen, when they do not. */
     readonly stale: StaleNote | null;
@@ -755,17 +869,6 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     /** The run id: stable, selector-safe, and author-assignable through `as`. */
     readonly id: RunId;
     /**
-     * What to call the run.
-     *
-     * Computed by the element, never by the consumer: the algorithm's plain name on its own
-     * while it is the only run of that algorithm, gaining the parameter that differs in
-     * parentheses the moment a sibling exists. One string, used by the layer row, the legend,
-     * the journal and every export.
-     * @deprecated Word the run from its `algorithm`, {@link Run.distinguishedBy} and
-     *   {@link Run.siblingsDifferBy} yourself. Removed in the next major.
-     */
-    readonly label: string;
-    /**
      * The option this run's name was suggested by, once it left its default: what tells it apart
      * from a run of the same algorithm at the defaults. Null for a run at the defaults, a run the
      * caller named with `as`, a batch, and a run of an algorithm registered with its own
@@ -783,7 +886,7 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
 
     /** Which algorithm is running. */
     readonly algorithm: AlgorithmKey;
-    /** The parameters it is running with, canonicalised. */
+    /** The parameters it is running with, canonicalized. */
     readonly params: Readonly<Record<string, unknown>>;
     /** What it is allowed to look at, resolved against the graph as it stood when it started. */
     readonly scope: ResolvedScope;
@@ -803,7 +906,7 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly durationMs: number | null;
     /**
      * Whether it stopped early and published what it had. Not a failure. True exactly when
-     * `caveats.partialReason` is set, whatever stopped it -- a time box or an iteration cap.
+     * `caveats.partialCause` is set, whatever stopped it -- a time box or an iteration cap.
      */
     readonly partial: boolean;
     /** Why its numbers no longer describe what is on screen, when they do not. */
@@ -857,8 +960,8 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
      * What this run suggests be drawn from it.
      *
      * Derived from the run's own shape and the fields it published, never from a block of styling
-     * written per algorithm: a measurement suggests a colour over the elements it measured, a
-     * grouping suggests a categorical colour, a route or a chosen set suggests a mark, and a
+     * written per algorithm: a measurement suggests a color over the elements it measured, a
+     * grouping suggests a categorical color, a route or a chosen set suggests a mark, and a
      * table of pairs, a time series or a bare fact suggests nothing at all.
      *
      * The element applies these itself on a run's first completion unless `{ style: false }` was
@@ -978,7 +1081,7 @@ export interface RunPainting {
      * - `"decided"`: `suggestions` is the decision; empty when the run had nothing to draw.
      * - `"pending"`: the run has not finished, or it is a batch member and the batch has not.
      * - `"opted-out"`: started with `style: false`.
-     * - `"not-succeeded"`: it failed or was cancelled.
+     * - `"not-succeeded"`: it failed or was canceled.
      * - `"no-styles"`: this session has no style stack.
      * - `"unknown"`: the run was recorded without a decision, so none is known.
      */
@@ -1040,6 +1143,52 @@ export interface RunsApi {
      */
     batch(specs: readonly RunSpec[], options?: RunOptions & { readonly label?: string }): Run<BatchResult>;
     /**
+     * Run one algorithm once per value of one of its options (a parameter sweep), as one batch
+     * with one progress stream and one cancel, and resolve to one row per value: what each run
+     * found, ready for a comparison table or a chart. Each value is its own listed run, and one
+     * undo takes them all away. A canceled sweep keeps the values that finished.
+     * @example
+     * ```ts
+     * const sweep = await session.runs.sweep("louvain", "resolution", [0.5, 1, 2], { seed: 1 });
+     * for (const row of sweep.rows) {
+     *     console.log(row.value, row.summary?.groupCount, row.graph?.modularity);
+     * }
+     * ```
+     * @param algorithm - Which algorithm.
+     * @param option - The option to vary, as the algorithm's catalog `options` name it.
+     * @param values - The values to try, in order.
+     * @param options - The parameters held fixed, the scope, the seed, the style, the label and
+     *   the ordinary run options.
+     * @returns A run over the sweep, resolving to its rows.
+     * @since 3.51.0
+     */
+    sweep(
+        algorithm: AlgorithmKey,
+        option: OptionDescriptor["name"],
+        values: readonly unknown[],
+        options?: SweepOptions,
+    ): Run<SweepResult>;
+    /**
+     * Run one algorithm once per seed, as one batch, and compare what the seeds found: how much a
+     * randomized algorithm's answer depends on its seed. Every pair of seeds that finished is
+     * compared as `results.compare()` compares two runs, and the result carries the means: the
+     * agreement of a grouping (adjusted Rand index and adjusted mutual information), or the
+     * correlation of a ranking. Each seed is its own listed run, with the id
+     * `<algorithm>_seed_<seed>`, and one undo takes them all away.
+     * @example
+     * ```ts
+     * const stability = await session.runs.stability("louvain", [1, 2, 3, 4, 5]);
+     * console.log(stability.agreement, stability.adjustedMutualInformation);
+     * ```
+     * @param algorithm - Which algorithm.
+     * @param seeds - The seeds to run it with, in order.
+     * @param options - Its parameters, the field to compare, the scope, the style, the label and the
+     *   ordinary run options.
+     * @returns A run over the batch, resolving to the rows, the pairs and their means.
+     * @since 3.58.0
+     */
+    stability(algorithm: AlgorithmKey, seeds: readonly number[], options?: StabilityOptions): Run<StabilityResult>;
+    /**
      * One run, by id.
      * @param id - The run id.
      * @returns The run, or undefined when this session holds none with that id.
@@ -1084,6 +1233,23 @@ export interface RunsApi {
      *     `E_BAD_COMMAND` when `before` is one of the run's own layers.
      */
     move(id: RunId, before: LayerId | null, options?: { readonly signal?: AbortSignal }): Promise<void>;
+    /**
+     * Give a finished run the reader's own name, as one step that undo takes back. The name shows
+     * as {@link RunRecord.name}; null takes it away.
+     *
+     * ```ts
+     * const run = await session.runs.start("pagerank");
+     * await session.runs.rename(run.runId, "Influence");
+     * session.runs.get(run.runId)?.record.name; // "Influence"
+     * await session.undo(); // back to null
+     * ```
+     * @param id - The run id.
+     * @param name - The new name, 1 to 1,024 characters and not all spaces, or null.
+     * @returns Settles once the name is recorded. Rejects with `E_UNKNOWN_RUN` for a run this
+     *     session holds no finished result of, and `E_OPTION_RANGE` for an empty or overlong name.
+     * @since 3.40.0
+     */
+    rename(id: RunId, name: string | null): Promise<void>;
     /**
      * Which style layers read a run.
      *

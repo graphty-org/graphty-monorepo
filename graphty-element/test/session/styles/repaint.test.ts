@@ -7,14 +7,14 @@
  * budget itself is asserted next door, in `repaint.bench.test.ts`.
  */
 
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it } from "vitest";
 
+import { addPastedShaderSource, shaderDescriptor } from "../../../src/catalog/shaderRegistry";
 import type { LayerSpec, Path } from "../../../src/catalog/types";
 import {
     type CompiledLayer,
     createStylesApi,
     type ElementLayerSpec,
-    type RepaintContext,
     type SessionStylesApi,
     type StyleChange,
 } from "../../../src/session/styles/index";
@@ -33,6 +33,7 @@ import {
     type RepaintSources,
     type ResolvedStyle,
 } from "../../../src/session/styles/repaint";
+import { quietContext } from "../helpers";
 
 /** One element's columns, keyed by the path a selector or a binding names. */
 type Row = Readonly<Record<Path, unknown>>;
@@ -63,11 +64,6 @@ const ELEMENT_BASE: ElementLayerSpec = {
     selector: { match: "everything" },
     set: { "node.color": "#333333" },
 };
-
-/** A context that never cancels and reports to nobody. */
-function quietContext(): RepaintContext {
-    return { signal: new AbortController().signal, report: () => undefined };
-}
 
 interface Harness {
     /** The engine under test. */
@@ -135,7 +131,7 @@ function makeHarness(rows: readonly Row[] = NODES, extra: Partial<RepaintSources
     };
 }
 
-/** The colour one node is painted, as a hex string, or "unpainted". */
+/** The color one node is painted, as a hex string, or "unpainted". */
 function colorOf(engine: RepaintEngine, index: number): string {
     const style: ResolvedStyle = engine.styleOf("node", index);
 
@@ -148,7 +144,16 @@ function paintedNodes(harness: Harness): number {
 }
 
 describe("a layer a pass already painted (issue #5897)", () => {
+    // A layer's use names a project shader; this harness has no session, so it stands in for a
+    // project that holds a copy of the catalog's uncertainty-aura.
+    let stopProject: (() => void) | undefined;
+    afterEach(() => stopProject?.());
+
     it("is not applied a second time by the repaint its own add asks for", async () => {
+        stopProject = addPastedShaderSource({
+            descriptor: (id) => (id === "uncertainty-aura" ? shaderDescriptor(id) : undefined),
+            ids: () => ["uncertainty-aura"],
+        });
         const h = makeHarness();
         await h.paintAll();
         await h.styles.add({

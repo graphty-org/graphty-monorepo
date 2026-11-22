@@ -4,19 +4,18 @@
  * node's mesh so they move, hide and go with it. Each is a source mesh cached under the node's
  * style key, so every node of one style shares it and pays for one instance.
  */
-import {
-    type AbstractMesh,
-    Color3,
-    DynamicTexture,
-    type InstancedMesh,
-    Mesh,
-    type Scene,
-    StandardMaterial,
-    Texture,
-    VertexData,
-} from "@babylonjs/core";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { NodeStyleConfig } from "../config";
+import { pendingWorkOf } from "../managers/PendingWork";
 import { fontFamilies, noteLabelFont } from "./labelFonts";
 import type { LabelTableImage } from "./labelTable";
 import type { MeshCache } from "./MeshCache";
@@ -555,8 +554,9 @@ function buildImage(
      * loaded gives way to the next in line, and with none left draws nothing and holds no frame back.
      * @param sources - The URLs still to try, in order.
      * @param failed - The URL that failed last, if one did.
+     * @param standsFor - When the first source is a picture redrawn by {@link redraw}, the URL it was drawn from.
      */
-    const load = (sources: readonly string[], failed?: string): void => {
+    const load = (sources: readonly string[], failed?: string, standsFor?: string): void => {
         const [src, ...rest] = sources;
         if (src === undefined) {
             mat.diffuseTexture = null;
@@ -578,7 +578,11 @@ function buildImage(
             },
             () => {
                 texture.dispose();
-                load(rest, src);
+                if (standsFor === undefined) {
+                    redraw(src, rest);
+                } else {
+                    load(rest, standsFor);
+                }
             },
             // Babylon.js reads a `data:` URL itself only in base64; any other (an SVG written out as text) it loads
             // as an image only when handed the URL as the picture's buffer
@@ -590,6 +594,51 @@ function buildImage(
         texture.wrapV =
             repeat === "repeat" || repeat === "repeat-y" ? Texture.WRAP_ADDRESSMODE : Texture.CLAMP_ADDRESSMODE;
         mat.diffuseTexture = texture;
+    };
+    /**
+     * A picture Babylon.js could not decode itself, decoded by the browser instead and drawn again as a PNG it can:
+     * on WebGPU Babylon.js decodes every picture with `createImageBitmap`, which cannot read an SVG that an `<img>`
+     * shows. One the browser cannot show either gives way to the next in line.
+     * @param src - The picture's URL.
+     * @param rest - The URLs to try after it.
+     */
+    const redraw = (src: string, rest: readonly string[]): void => {
+        const release = pendingWorkOf(scene)?.begin("picture", "a node's picture is redrawn as a bitmap to draw");
+        const settle = (png: string | null): void => {
+            if (!mesh.isDisposed()) {
+                if (png === null) {
+                    load(rest, src);
+                } else {
+                    load([png, ...rest], undefined, src);
+                }
+            }
+            release?.();
+        };
+        const picture = new Image();
+        // drawn on a canvas that is read back: a picture from another origin must not taint it
+        picture.crossOrigin = "anonymous";
+        picture.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = picture.naturalWidth;
+            canvas.height = picture.naturalHeight;
+            const ctx = canvas.getContext("2d");
+            if (ctx === null || canvas.width === 0 || canvas.height === 0) {
+                settle(null);
+                return;
+            }
+            ctx.drawImage(picture, 0, 0);
+            let png: string | null = null;
+            try {
+                png = canvas.toDataURL("image/png");
+            } catch {
+                // a tainted canvas: the picture's server does not allow it to be read
+            }
+            settle(png);
+        };
+        picture.onerror = () => {
+            settle(null);
+        };
+        picture.src = src;
     };
     load([image.src ?? "", image.fallback ?? ""].filter((u) => u !== ""));
     mat.useAlphaFromDiffuseTexture = true;

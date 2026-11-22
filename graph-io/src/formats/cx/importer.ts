@@ -81,9 +81,10 @@ import {
     UNKNOWN_PARENT_CODE,
     WIDENED_CODE,
 } from "../../common/codes.js";
+import { scanCxDocument } from "../../common/cx-import.js";
 import { DirectionResolver } from "../../common/direction.js";
-import { IdCoercer } from "../../common/ids.js";
-import { textChunks, throwIfAborted } from "../../common/input.js";
+import { IdCoercer, ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
+import { throwIfAborted } from "../../common/input.js";
 import {
     type AspectEvent,
     cxId,
@@ -94,13 +95,11 @@ import {
     headText,
     inexactLiteral,
     isRecord,
-    JsonScanError,
     keptPrecision,
     plainJson,
     positionDecl,
     reportSharedBlock,
     reportTooDeep,
-    scanAspects,
     zDecl,
 } from "../../common/json-elements.js";
 import {
@@ -111,6 +110,7 @@ import {
     reportUnusedOptions,
     type ResolvedImportOptions,
     resolveImportOptions,
+    zAsOption,
 } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
@@ -125,7 +125,6 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { ORIGINAL_ID_ATTRIBUTE, zAsOption } from "../cx2/importer.js";
 import { blockOfAspect, type CxStyleSource, readCxStyles } from "./styles.js";
 
 /** The format name. */
@@ -1159,21 +1158,9 @@ async function readDocument(
         unknownNames: new Set<string>(),
         lastBlock: -1,
     };
-    let sinceCheck = 0;
-    try {
-        for await (const event of scanAspects(textChunks(input, report, options), report)) {
-            if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
-                sinceCheck = 0;
-                throwIfAborted(options.signal);
-            }
-            readAspectEvent(scan, event);
-        }
-    } catch (err) {
-        if (err instanceof JsonScanError) {
-            report.fail(err.empty ? EMPTY_INPUT_CODE : SYNTAX_CODE, err.message, { line: err.line });
-        }
-        throw err;
-    }
+    await scanCxDocument(input, report, options, (event) => {
+        readAspectEvent(scan, event);
+    });
     finishDocument(scan);
     return doc;
 }
@@ -3446,8 +3433,9 @@ class CxReader {
     /** Read functionTerms as a json column on the nodes they name. */
     private readFunctionTerms(): void {
         const terms: [number, unknown][] = [];
-        for (const { value } of aspect(this.doc, "functionTerms")) {
-            if (!isRecord(value)) {
+        for (const held of aspect(this.doc, "functionTerms")) {
+            const value = this.provenanceRecord(held, "functionTerms");
+            if (value === null) {
                 continue;
             }
             const row = this.targetRow("node", value.po, "functionTerms entry");
@@ -3463,8 +3451,9 @@ class CxReader {
     /** Read reifiedEdges as a u32 node column referring to edges. */
     private readReifiedEdges(): void {
         const reified: [number, number][] = [];
-        for (const { value } of aspect(this.doc, "reifiedEdges")) {
-            if (!isRecord(value)) {
+        for (const held of aspect(this.doc, "reifiedEdges")) {
+            const value = this.provenanceRecord(held, "reifiedEdges");
+            if (value === null) {
                 continue;
             }
             const node = refId(value.node);
@@ -3519,16 +3508,59 @@ class CxReader {
     }
 
     /**
+     * A provenance element as an object, or null with E_BAD_ASPECT_BLOCK when it is not one.
+     * @param held - the element
+     * @param name - the aspect
+     * @returns the element, or null
+     */
+    private provenanceRecord(held: Held, name: string): Record<string, unknown> | null {
+        if (isRecord(held.value)) {
+            return held.value;
+        }
+        this.report.error(
+            "parse-error",
+            BAD_ASPECT_BLOCK_CODE,
+            `a ${name} element is ${shown(held.value)}, not an object; skipped`,
+            { line: held.line, element: name },
+        );
+        return null;
+    }
+
+    /**
+     * A citation or support id, or null with E_INVALID_ID when it is not an integer.
+     * @param raw - the id as written
+     * @param name - the aspect
+     * @param line - the element's line
+     * @returns the id, or null
+     */
+    private provenanceId(raw: unknown, name: string, line: number): NodeId | null {
+        const id = refId(raw);
+        if (id === null) {
+            this.report.error(
+                "validation-error",
+                CX_ISSUE.INVALID_ID,
+                `a ${name} element has the id ${shown(raw)}, not an integer id; ignored`,
+                { line, element: name },
+            );
+        }
+        return id;
+    }
+
+    /**
      * An extension table of a provenance aspect: an f64 `id` column and one json column per field.
      * @param name - the table name
      * @param elements - the elements
      */
     private extensionTable(name: string, elements: readonly Held[]): void {
-        const records = elements.map((h) => h.value).filter(isRecord);
+        const aspectName = name.slice("cx:".length);
+        const records = elements.flatMap((held) => {
+            const record = this.provenanceRecord(held, aspectName);
+            return record === null ? [] : [{ record, line: held.line }];
+        });
         if (records.length === 0) {
             return;
         }
-        const fields = [...new Set(records.flatMap((r) => Object.keys(r)).filter((k) => k !== "@id"))];
+        const fields = [...new Set(records.flatMap(({ record }) => Object.keys(record)).filter((k) => k !== "@id"))];
         const names = new Set(["id"]);
         const decls: ColumnDecl[] = [
             { name: "id", dtype: "f64", nullable: true },
@@ -3550,8 +3582,10 @@ class CxReader {
         const precision = (digits: string): void => {
             this.precision(name, digits);
         };
-        for (const record of records) {
-            const id = refId(record["@id"]);
+        for (const { record, line } of records) {
+            const raw = record["@id"];
+            // a citation written with no id keeps its row with a null id; one with a bad id is reported
+            const id = raw === undefined || raw === null ? null : this.provenanceId(raw, aspectName, line);
             if (typeof id === "string") {
                 precision(id);
             }
@@ -3570,13 +3604,23 @@ class CxReader {
      */
     private linkColumn(aspectName: string, domain: "node" | "edge", column: "citations" | "supports"): void {
         const links = new Map<number, number[]>();
-        for (const { value } of aspect(this.doc, aspectName)) {
-            if (!isRecord(value)) {
+        for (const held of aspect(this.doc, aspectName)) {
+            const value = this.provenanceRecord(held, aspectName);
+            if (value === null) {
                 continue;
             }
             const targets = Array.isArray(value.po) ? (value.po as unknown[]) : [value.po];
-            const ids = (Array.isArray(value[column]) ? (value[column] as unknown[]) : [])
-                .map(refId)
+            const listed = value[column];
+            if (listed !== undefined && !Array.isArray(listed)) {
+                this.report.error(
+                    "validation-error",
+                    BAD_VALUE_CODE,
+                    `a ${aspectName} element has the ${column} ${shown(listed)}, not a list of ids; read as empty`,
+                    { line: held.line, element: aspectName },
+                );
+            }
+            const ids = (Array.isArray(listed) ? (listed as unknown[]) : [])
+                .map((raw) => this.provenanceId(raw, aspectName, held.line))
                 .filter((id): id is NodeId => id !== null)
                 .map(Number);
             for (const raw of targets) {

@@ -150,6 +150,26 @@ describe("VercelAiProvider", () => {
      * retired claude-3-haiku-20240307 and Google retired gemini-2.0-flash. These pin which model
      * id each default is.
      */
+    // Gemini sends arguments as a JSON object, never as text that could fail to parse.
+    describe.each(["openai", "anthropic"] as const)("%s: a call whose argument text does not parse", (type) => {
+        it("stays in the response flagged invalid, with no arguments, and is never started", async () => {
+            const { reply } = providerApiFixture(type);
+            reply({ toolCalls: [{ id: "c1", name: "findNodes", arguments: '{"selector": "red-no' }] });
+            const provider = new VercelAiProvider(type);
+            provider.configure({ apiKey: KEYS[type] });
+            const log: string[] = [];
+
+            await provider.generateStream([{ role: "user", content: "find a" }], [FIND], recording(log));
+            reply({ toolCalls: [{ id: "c1", name: "findNodes", arguments: '{"selector": "red-no' }] });
+            const response = await provider.generate([{ role: "user", content: "find a" }], [FIND]);
+
+            assert.deepStrictEqual(log, ["complete:1"]);
+            assert.deepStrictEqual(response.toolCalls, [
+                { id: "c1", name: "findNodes", arguments: {}, invalidArguments: true },
+            ]);
+        });
+    });
+
     describe("default models", () => {
         it.each([
             ["openai", "gpt-4o"],

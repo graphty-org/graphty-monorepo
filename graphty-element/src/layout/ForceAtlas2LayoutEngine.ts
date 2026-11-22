@@ -2,7 +2,7 @@
  * @file The ForceAtlas2 layout: the Gephi arrangement, computed on the CPU or on an accelerator.
  *
  * It used to be a one-shot pass -- run `forceatlas2Layout` over a node and edge list, publish the
- * answer, stop -- which is why the catalogue called it a batch layout. It is now a steppable
+ * answer, stop -- which is why the catalog called it a batch layout. It is now a steppable
  * simulation from `@graphty/layout`, so it keeps running until the arrangement settles and reheats
  * on a drag or a pin, and the element decides at every load whether the simulation is the CPU's or
  * the accelerator's.
@@ -14,6 +14,7 @@ import { z } from "zod";
 import { defineOptions, type OptionsSchema } from "../config";
 import { clusterByOption, clusterStrengthOption } from "./clusterForce";
 import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
+import { seedSchema } from "./seedOption";
 import { SimulationLayoutEngine } from "./SimulationLayoutEngine";
 
 /**
@@ -30,10 +31,12 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
         },
     },
     maxIter: {
-        schema: z.number().int().positive().default(100),
+        // NULL SCALES IT TO THE GRAPH: see `forceAtlas2MaxIterFor`. A fixed 100 left a
+        // 10,000-node graph as a ball (issue #9293).
+        schema: z.number().int().positive().nullable().default(null),
         meta: {
             label: "Max Iterations",
-            description: "Maximum number of simulation iterations",
+            description: "Maximum number of simulation iterations (scaled to the graph's size if null)",
         },
     },
     jitterTolerance: {
@@ -55,7 +58,7 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
     },
     gravity: {
         // NONNEGATIVE, not positive: zero gravity is a legal ForceAtlas2 setting -- nothing pulls
-        // the graph towards the centre and the components drift apart -- and it is what the
+        // the graph towards the center and the components drift apart -- and it is what the
         // Storybook slider has always offered as its lowest value.
         schema: z.number().nonnegative().default(1),
         meta: {
@@ -99,7 +102,7 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
     nodeGap: nodeGapOption,
     nodeGapFront: nodeGapFrontOption,
     seed: {
-        schema: z.number().nullable().default(null),
+        schema: seedSchema,
         meta: {
             label: "Random Seed",
             description: "Seed for reproducible layout",
@@ -138,7 +141,7 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
  *
  * Every member is a static the element reads: `LayoutManager` builds the bridge itself, with the
  * graph's acceleration controller, so this class never runs a layout of its own. It declares no
- * `static descriptor` because its arrangement is authored in the layout catalogue, where it sits
+ * `static descriptor` because its arrangement is authored in the layout catalog, where it sits
  * under `force`.
  */
 export class ForceAtlas2Layout extends SimulationLayoutEngine {
@@ -154,7 +157,7 @@ export class ForceAtlas2Layout extends SimulationLayoutEngine {
      * the CPU and the accelerator alike. Kamada-Kawai reads a distance and inverts a strength; the
      * two engines disagree about the arithmetic so that they agree about the meaning.
      */
-    static override readonly honoursWeights: boolean = true;
+    static override readonly honorsWeights: boolean = true;
     static readonly zodOptionsSchema: OptionsSchema = forceAtlas2LayoutOptionsSchema;
 
     /**

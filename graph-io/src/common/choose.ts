@@ -13,6 +13,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../types.js";
+import { isReadableStream, normalizeInput, streamChunks, throwIfAborted } from "./input.js";
 import { chooseGraph } from "./options.js";
 import { ImportReportBuilder } from "./report.js";
 
@@ -36,7 +37,7 @@ export async function importChosenGraph<O>(
     if (importAll === undefined) {
         return importer.import(input, sink, options);
     }
-    const replay = await replayable(input);
+    const replay = await replayable(normalizeInput(input), options?.signal ?? null);
     const scratch: GraphBuilder[] = [];
     await importAll(replay, (i) => (scratch[i] = new GraphBuilder({ directed: false })), {
         ...options,
@@ -59,31 +60,38 @@ export async function importChosenGraph<O>(
 }
 
 /**
- * The input as a string or bytes that can be read twice.
- * @param input - the input
- * @returns the same text or bytes, or the stream's bytes
+ * The input in a form that can be read twice: a string or bytes as they are, a stream or async
+ * iterable as its chunks, replayed unchanged so the importer decodes them exactly as it would the
+ * original (text chunks stay text). The signal is checked before every chunk and a stream is
+ * canceled when the read stops early.
+ * @param input - the input, normalized
+ * @param signal - the cancellation signal, or null
+ * @returns the string, the bytes, or an async iterable of the same chunks
  */
-async function replayable(input: ImportInput): Promise<string | Uint8Array> {
+async function replayable(
+    input: ImportInput,
+    signal: AbortSignal | null,
+): Promise<string | Uint8Array | AsyncIterable<string | Uint8Array>> {
+    throwIfAborted(signal);
     if (typeof input === "string" || input instanceof Uint8Array) {
         return input;
     }
-    const parts: Uint8Array[] = [];
-    const encoder = new TextEncoder();
-    if (typeof (input as ReadableStream<Uint8Array>).getReader === "function") {
-        const reader = (input as ReadableStream<Uint8Array>).getReader();
-        for (let r = await reader.read(); !r.done; r = await reader.read()) {
-            parts.push(r.value);
-        }
-    } else {
-        for await (const chunk of input as AsyncIterable<string | Uint8Array>) {
-            parts.push(typeof chunk === "string" ? encoder.encode(chunk) : chunk);
-        }
+    const chunks: (string | Uint8Array)[] = [];
+    for await (const chunk of isReadableStream(input) ? streamChunks(input, signal) : input) {
+        throwIfAborted(signal);
+        chunks.push(chunk);
     }
-    const out = new Uint8Array(parts.reduce((n, p) => n + p.byteLength, 0));
-    let offset = 0;
-    for (const part of parts) {
-        out.set(part, offset);
-        offset += part.byteLength;
-    }
-    return out;
+    return {
+        [Symbol.asyncIterator](): AsyncIterator<string | Uint8Array> {
+            let position = 0;
+            return {
+                next: (): Promise<IteratorResult<string | Uint8Array>> =>
+                    Promise.resolve(
+                        position < chunks.length
+                            ? { done: false, value: chunks[position++] }
+                            : { done: true, value: undefined },
+                    ),
+            };
+        },
+    };
 }

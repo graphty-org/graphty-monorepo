@@ -18,6 +18,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     target: "node",
     place: "paint",
     categories: Object.freeze(["Iridescent"]),
+    tags: Object.freeze(["shiny"]),
     params: Object.freeze([
         Object.freeze({ name: "foil", plainName: "Foil", type: "number", default: 0.9, min: 0, max: 1, primary: true }),
         Object.freeze({ name: "sweepSpeed", plainName: "Sweep speed", type: "number", default: 0.35, min: 0, max: 2 }),

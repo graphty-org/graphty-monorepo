@@ -5,6 +5,7 @@
 
 // Provider factory
 import type { AiProviderId } from "../../catalog/ai";
+import { GraphtyError } from "../../errors/GraphtyError";
 import { MockLlmProvider } from "./MockLlmProvider";
 import type { LlmProvider } from "./types";
 import { VercelAiProvider } from "./VercelAiProvider";
@@ -29,7 +30,7 @@ export { MockLlmProvider } from "./MockLlmProvider";
 export type { VercelProviderType } from "./VercelAiProvider";
 export { VercelAiProvider } from "./VercelAiProvider";
 // Re-export types from WebLlmProvider (types are erased at runtime, safe to import)
-export type { ProgressCallback, WebLlmModelInfo, WebLlmProviderOptions } from "./WebLlmProvider";
+export type { ProgressCallback, WebLlmModelInfo, WebLlmProgressStage, WebLlmProviderOptions } from "./WebLlmProvider";
 // NOTE: WebLlmProvider class is NOT exported directly. Use getWebLlmProviderClass() instead.
 
 /** All supported provider types; their facts are `AI_PROVIDER_DESCRIPTORS` in `./catalog`. */
@@ -54,7 +55,8 @@ export async function getWebLlmProviderClass(): Promise<typeof import("./WebLlmP
  * Create an LLM provider instance.
  * @param type - The type of provider to create
  * @returns An LLM provider instance
- * @throws Error if type is "webllm" - use createWebLlmProvider() instead
+ * @throws A `GraphtyError` with `E_UNSUPPORTED` (`details.reason` `"async-provider"`) for
+ *     `"webllm"`, which loads asynchronously: use `loadWebLlmProvider()`.
  */
 export function createProvider(type: ProviderType): LlmProvider {
     if (type === "mock") {
@@ -62,10 +64,12 @@ export function createProvider(type: ProviderType): LlmProvider {
     }
 
     if (type === "webllm") {
-        throw new Error(
-            "WebLlmProvider cannot be created synchronously. " +
-                "Use createWebLlmProvider() or getWebLlmProviderClass() instead.",
-        );
+        throw new GraphtyError({
+            code: "E_UNSUPPORTED",
+            message: "The webllm provider loads asynchronously: use loadWebLlmProvider().",
+            source: "config",
+            details: { reason: "async-provider", provider: type },
+        });
     }
 
     return new VercelAiProvider(type);

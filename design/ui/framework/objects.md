@@ -43,7 +43,7 @@ filter step; layout settings; note; saved view; the Look; recipe; the rest of th
   `information-architecture.md` 3, and 11 for why the list is in the left panel).
 - **Relationships.** Painted value to its layer, style layer to its selector, style layer to the run
   that made it, recipe to what it brought (`output-homes.md` 4).
-- **Verbs.** Add style layer; Color by, Size by, Width by, Label with; Highlight; Override; Fix at
+- **Verbs.** Add style layer; Color by, Size by, Width by, Label with; Highlight; Override (adds an ordinary layer); Fix at
   <value>, Edit a copy; Reset, Reset to default, Clear; Hide, Show; Move up, Move down; Fade others
   (`output-homes.md` 3.6, 3.4).
 - **Where it is drawn.** The Styles list card (`interface-templates.md` 9); the style-layer editor
@@ -63,8 +63,7 @@ filter step; layout settings; note; saved view; the Look; recipe; the rest of th
 - **Element.** `styles.list()`, `styles.encode`, `styles.legend()`, `styles.explain()`
   (`implementation-mapping.md` 5, the card table); what is owed, the "Style layers and encodings"
   area of `element-needs.md`.
-- **Doors.** 20, A measurement level per attribute; 26, Whether a finished run paints; 31,
-  Overrides, Base style and the stack order; 58, The legend and not-drawn notice; 84, A category's
+- **Doors.** 20, A measurement level per attribute; 26, Whether a finished run paints; 58, The legend and not-drawn notice; 84, A category's
   color fixed at first paint; 85, What a Look is; 5, Project parts and graph parts (the stored
   order).
 
@@ -104,7 +103,6 @@ filter step; layout settings; note; saved view; the Look; recipe; the rest of th
   attributes), which produces one object guide rather than several partial ones; cited for its
   method as the team's reviews described it, not re-read for this document
 - Open decisions cited (`one-way-doors.md`): 5, Project parts and graph parts; 20, A measurement
-  level per attribute; 26, Whether a finished run paints; 27, Identifier lists as rule sets; 31,
-  Overrides, Base style and the stack order; 39, Selection of one object as a whole; 58, The
+  level per attribute; 26, Whether a finished run paints; 27, Identifier lists as rule sets; 39, Selection of one object as a whole; 58, The
   legend and not-drawn notice; 84, A category's color fixed at first paint; 85, What a Look is; 89,
   The form of element-minted ids

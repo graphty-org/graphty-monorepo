@@ -49,6 +49,10 @@ const STOP_WORDS = new Set([
     "this",
     "that",
     "graph",
+    // Request filler: "make all the nodes red" is about nodes and red, not all-pairs paths.
+    "all",
+    "every",
+    "make",
 ]);
 
 /**
@@ -57,10 +61,14 @@ const STOP_WORDS = new Set([
  * @returns Its tokens.
  */
 function tokens(text: string): string[] {
-    return text
-        .toLowerCase()
-        .split(/[^a-z0-9]+/)
-        .filter((word) => word.length > 0 && !STOP_WORDS.has(word));
+    return (
+        text
+            .toLowerCase()
+            .split(/[^a-z0-9]+/)
+            .filter((word) => word.length > 0 && !STOP_WORDS.has(word))
+            // A plural matches its singular: "nodes" finds node.color as a whole word.
+            .map((word) => (word.length > 3 && word.endsWith("s") && !word.endsWith("ss") ? word.slice(0, -1) : word))
+    );
 }
 
 /** A search over entries. */

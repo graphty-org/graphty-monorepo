@@ -13,7 +13,8 @@ import { baseSession } from "../helpers/project-session";
 describe("buildParts", () => {
     it("builds the rest part without reading the graph's ids, unless an edge is selected", async () => {
         const session = await baseSession();
-        const snapshot = vi.spyOn(session.data, "snapshot");
+        // The whole graph is read by name, through the store (wholeGraph).
+        const snapshot = vi.spyOn(session.data.store, "getSnapshot");
         buildParts(session, new Set(["rest"]), new Map(), new Map());
         assert.strictEqual(snapshot.mock.calls.length, 0, "no snapshot read with nothing selected");
 

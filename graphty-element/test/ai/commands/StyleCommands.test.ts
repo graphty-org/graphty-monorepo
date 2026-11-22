@@ -17,15 +17,14 @@ import { clearStyles, findAndStyleEdges, findAndStyleNodes } from "../../../src/
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
 import type { Layer, SessionStylesApi } from "../../../src/session/styles";
-import { CHANNEL_DESCRIPTORS, NODE_OUTLINE_CAVEAT } from "../../../src/session/styles/channels";
-import { createMockContext, createTestGraph } from "../../helpers/test-graph";
+import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
 
 describe("StyleCommands", () => {
     let graph: Graph;
     let context: CommandContext;
 
     beforeEach(() => {
-        graph = createTestGraph();
+        graph = createMockTestGraph();
         context = createMockContext(graph);
     });
 
@@ -308,7 +307,7 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
         it("applies an arrow's own colour, size and opacity instead of refusing them", async () => {
             // THIS COMMAND ADVERTISED ALL THREE TO THE MODEL AND THEN ANSWERED "unsupported".
             // A model asked for a red arrow, was told the element has no channel for it, and the
-            // reader saw a grey one -- while `EdgeStyle` declared the field and the renderer drew
+            // reader saw a gray one -- while `EdgeStyle` declared the field and the renderer drew
             // it. The refusal was correct at the time and the gap was in the channel table.
             const result = await findAndStyleEdges.execute(
                 graph,
@@ -341,14 +340,7 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
             assert.notInclude(result.message, "was not applied");
         });
 
-        it("answers an outline width with the reason the element publishes for it", async () => {
-            // THE OUTLINE ITSELF IS DRAWN -- `NodeEffects.applyOutlineEffect` rings the node --
-            // so this is not "outlines do not work". It is narrower: the ring's width is a fixed
-            // share of the node's size, so a channel for a width would be a channel that claims
-            // to paint and does not.
-            //
-            // What is asserted is that the refusal carries a REASON, and that the reason is the
-            // element's own published words rather than a second wording living in the AI layer.
+        it("applies an outline's width on nodes instead of refusing it", async () => {
             const result = await findAndStyleNodes.execute(
                 graph,
                 {
@@ -360,9 +352,8 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
             );
 
             assert.strictEqual(result.success, true);
-            assert.include(result.message, "outlineWidth was not applied");
-            assert.include(result.message, NODE_OUTLINE_CAVEAT);
-            assert.strictEqual(CHANNEL_DESCRIPTORS["node.outline"].caveat, NODE_OUTLINE_CAVEAT);
+            assert.notInclude(result.message, "was not applied");
+            assert.strictEqual(layerNamed("thick-outline")?.set?.["node.outlineWidth"], 4);
         });
     });
 
@@ -564,14 +555,14 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
     });
 
     /**
-     * Regression test for Issue #4: CSS color names must reach the renderer as colours.
+     * Regression test for Issue #4: CSS color names must reach the renderer as colors.
      *
      * The bug: the command stored the raw string, and the mesh built its material with
      * `Color3.FromHexString()`, which only reads hex -- so a name like "red" failed silently and
      * the node came out black.
      *
      * WHERE THE CONVERSION LIVES NOW. The command writes what it was given straight into the
-     * channel, and the channel converts: every colour channel takes any CSS colour and publishes
+     * channel, and the channel converts: every color channel takes any CSS color and publishes
      * it as a parsed value. So these read the PAINT rather than the layer, which is the only
      * reading that says what a node is actually drawn in.
      */
@@ -579,7 +570,7 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
         /**
          * What the style stack resolved for one node, once every layer has been applied.
          * @param index - The node's dense index.
-         * @returns Its colour as the renderer will write it into the instance.
+         * @returns Its color as the renderer will write it into the instance.
          */
         function nodeColor(index: number): { r: number; g: number; b: number; a: number } | null {
             return graph.getStylePainter().nodePaint(index)?.color ?? null;
@@ -629,7 +620,7 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
                 context,
             );
 
-            // An edge carries its colour in its style rather than beside it, because the edge
+            // An edge carries its color in its style rather than beside it, because the edge
             // renderer has no per-instance state. "green" is #008000, not the #00FF00 that
             // "lime" is.
             assert.strictEqual(graph.getStylePainter().edgePaint(0)?.style.line?.color, "#008000");

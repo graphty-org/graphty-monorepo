@@ -13,18 +13,19 @@ export class UnionFind {
 
     /**
      * Creates a new UnionFind data structure with the given elements.
-     * @param elements - Array of elements to initialize the data structure with
+     * @param elements - Array of elements to initialize the data structure with; a repeated element is added once
      */
     constructor(elements: NodeId[]) {
         this.parent = new Map();
         this.rank = new Map();
-        this.componentCount = elements.length;
 
         // Initialize each element as its own parent with rank 0
         for (const element of elements) {
             this.parent.set(element, element);
             this.rank.set(element, 0);
         }
+
+        this.componentCount = this.parent.size;
     }
 
     /**
@@ -90,7 +91,8 @@ export class UnionFind {
      * Check if two elements are in the same connected component
      * @param elementA - The first element to check
      * @param elementB - The second element to check
-     * @returns True if both elements are in the same component, false otherwise
+     * @returns True if both elements are in the same component, false otherwise (also false when
+     * either element was never added; use hasElement to check membership)
      */
     connected(elementA: NodeId, elementB: NodeId): boolean {
         try {

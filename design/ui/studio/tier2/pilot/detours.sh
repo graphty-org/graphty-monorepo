@@ -9,7 +9,7 @@
 # REAL_DIST=<frozen build> serves that build (design/ui/studio/tool/README.md).
 # LANES=<n> runs that many walks at once (default 2; each takes one of the machine's 4 browsers).
 set -u
-# a step that finds nothing to act on fails the walk (tool/README.md, "Scripted walks")
+# a step that finds nothing to act on fails the walk (tool/REFERENCE.md, "Scripted walks")
 export REAL_MISS_FAILS=1
 ST=$(cd "$(dirname "$0")/../.." && pwd)
 HERE=${HERE:-$ST/tmp/detours}

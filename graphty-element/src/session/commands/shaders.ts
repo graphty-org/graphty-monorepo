@@ -64,10 +64,10 @@ const shaderSet: UndoableDefinition<ShaderSetCommand> = {
     lane: { kind: "immediate" },
     execute: (command, ctx) => {
         const { id, text } = command;
-        if (!isShaderId(id, true) || !(text === null || typeof text === "string")) {
+        if (!isShaderId(id) || !(text === null || typeof text === "string")) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
-                message: 'A project shader is { id: "<namespace>/<name>", text }, or text null to remove it.',
+                message: "A project shader is { id, text }, or text null to remove it.",
                 source: "style",
                 details: { id },
             });

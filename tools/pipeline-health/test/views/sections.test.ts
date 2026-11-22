@@ -6,7 +6,7 @@ import { recompute } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { SLAS } from "../../src/sla/config.js";
 import { evaluate } from "../../src/sla/engine.js";
-import { Reads } from "../../src/views/members.js";
+import { iso, Reads } from "../../src/views/members.js";
 import { causes, holders, shared, superseded } from "../../src/views/sections.js";
 import type { BarsSection, TableSection } from "../../web/src/contract.js";
 import { MIN, run, T0 } from "../model/helpers.js";
@@ -96,6 +96,7 @@ describe("sections from the collector's snapshots", () => {
                     "CodeQL, push": { running: 1, queued: 0, macos: 0 },
                 },
                 noJobs: { "CI, push": { runs: 2, since: T0 - 10 * MIN } },
+                stuck: { "Lint PR Title, pull_request_target": { runs: 6, since: T0 - 1472 * MIN } },
                 saturated: [],
             },
             [SNAPSHOT.superseded]: { at: T0, rows: [{ workflow: "CodeQL", runId: 7, pr: 3, newerAt: T0 - MIN }] },
@@ -109,6 +110,11 @@ describe("sections from the collector's snapshots", () => {
         expect(b.notes?.[0]).toMatchObject({
             code: "runners.queued_runs",
             params: { runs: 2, workflow: "CI", event: "push" },
+        });
+        // A run stuck at GitHub on a merged pull request is listed with its age, apart from the queue (#7358).
+        expect(b.notes?.[1]).toMatchObject({
+            code: "runners.stuck_runs",
+            params: { runs: 6, workflow: "Lint PR Title", event: "pull_request_target", since: iso(T0 - 1472 * MIN) },
         });
         const t = (await superseded(r)) as TableSection;
         expect(t.rows[0].cells).toMatchObject({ run: { v: "CodeQL" }, pr: { n: 3 } });

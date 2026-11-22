@@ -12,6 +12,8 @@ import {
     BC_BACKWARD_LEVELS_PER_SUBMIT,
     BC_BATCH_BUDGET_FRACTION,
     BC_EDGE_PARALLEL_GAMMA,
+    BC_EDGE_PARALLEL_MAX_SKEW,
+    BC_EDGE_PARALLEL_MIN_NODES,
     BC_MAX_BATCH,
     BEAMER_BETA,
     BORUVKA_ROUNDS_PER_SUBMIT,
@@ -268,6 +270,8 @@ describe("constants.ts (contract 3.2)", () => {
         expect(BC_BATCH_BUDGET_FRACTION).toBe(0.25);
         expect(BC_MAX_BATCH).toBe(256);
         expect(BC_EDGE_PARALLEL_GAMMA).toBe(2);
+        expect(BC_EDGE_PARALLEL_MIN_NODES).toBe(28_000);
+        expect(BC_EDGE_PARALLEL_MAX_SKEW).toBe(32);
         expect(BC_BACKWARD_LEVELS_PER_SUBMIT).toBe(64);
     });
 

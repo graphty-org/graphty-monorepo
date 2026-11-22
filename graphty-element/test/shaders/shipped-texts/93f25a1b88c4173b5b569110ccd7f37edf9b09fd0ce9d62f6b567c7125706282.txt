@@ -1,0 +1,106 @@
+/* graphty-shader 1
+{
+    "id": "edge-change",
+    "name": "Edge change",
+    "place": "along",
+    "categories": [
+        "Change"
+    ],
+    "cost": "light",
+    "motion": "still",
+    "reach": 2,
+    "blend": "over",
+    "reads": [
+        "color",
+        "opacity",
+        "times"
+    ],
+    "webgpu": "translate",
+    "params": [
+        {
+            "name": "flashColor",
+            "type": "color",
+            "default": "#e8f4ff",
+            "primary": true,
+            "plainName": "Color"
+        },
+        {
+            "name": "arriveTime",
+            "type": "number",
+            "default": {
+                "by": "since.matched",
+                "domain": [
+                    0,
+                    0.5
+                ],
+                "range": [
+                    0,
+                    0.5
+                ]
+            }
+        },
+        {
+            "name": "changeTime",
+            "type": "number",
+            "default": {
+                "by": "since.changed",
+                "domain": [
+                    0,
+                    0.5
+                ],
+                "range": [
+                    0,
+                    0.5
+                ]
+            }
+        },
+        {
+            "name": "leaveTime",
+            "type": "number",
+            "default": {
+                "by": "since.unmatched",
+                "domain": [
+                    0,
+                    0.5
+                ],
+                "range": [
+                    0,
+                    0.5
+                ]
+            }
+        }
+    ]
+}
+*/
+// Edge change: a hot front draws in when the edge arrives or changes; it shrinks out when removed.
+vec4 shade(EdgeInput e) {
+    float s = abs(e.side);
+    vec3 base = e.color.rgb;
+    if (e.sinceExited >= 0.0) {
+        float k = leaveTime / 0.5;
+        if (k >= 1.0 || abs(e.t - 0.5) > 0.5 * (1.0 - k)) {
+            return vec4(0.0);
+        }
+        float line = 1.0 - smoothstep(0.8, 1.0, s);
+        float a = e.color.a * line * (1.0 - 0.5 * k);
+        return vec4(mix(base, vec3(0.6, 0.1, 0.1), k), a);
+    }
+
+    float since = min(arriveTime, e.sinceChanged < 0.0 ? 0.5 : changeTime);
+    if (since < 0.0 || since >= 0.5) {
+        return vec4(0.0);
+    }
+    float k = since / 0.5;
+    float grow = clamp(since / 0.3, 0.0, 1.0);
+    if (e.t > grow) {
+        return vec4(0.0);
+    }
+    float heat = (1.0 - k) * (1.0 - k);
+    float tip = exp(-(grow - e.t) * max(e.lengthPx, 1.0) / 6.0) * step(grow, 0.999);
+    float width = 1.0 + heat;
+    float line = 1.0 - smoothstep(width - 0.25, width, s);
+    vec3 hot = mix(blackbody(heat) * (1.0 + heat), flashColor, heat * heat);
+    vec3 col = mix(mix(base, hot, clamp(heat * 1.3, 0.0, 1.0)), flashColor, tip);
+    float a = clamp(line * max(heat, tip), 0.0, 1.0);
+    return vec4(col, a);
+}

@@ -115,10 +115,15 @@
             "label": "Rolling screenshot captures (results store)",
             "yellowAfterMs": 3600000,
             "notSetUp": "the results store's URL and token are not in SSM yet (owner step, design/visual-testing/early-capture.md)"
+        },
+        "grouping-ledger": {
+            "label": "Issue-grouping ledger (local, daily)",
+            "yellowAfterMs": 172800000,
+            "notSetUp": "no daily reading posted yet: issue-round appends tools/issue-groups.mjs metrics to tmp/issue-round/grouping-metrics.jsonl and the local collector posts it"
         }
     },
     "runnerLimits": {
-        "linux_windows": 500,
+        "linux_windows": 300,
         "macos": 50
     },
     "prBudgetsMin": {
@@ -317,6 +322,87 @@
             "minN": 20,
             "slowWindow": "7d",
             "sources": ["collector"]
+        },
+        {
+            "id": "pr.issues_per_merge",
+            "category": "pull_requests",
+            "label": "Issues closed per merged PR",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "issues.per_merged_pr"
+            },
+            "ok": [">=", 1.3],
+            "fail": ["<", 0.88],
+            "slowWindow": "7d",
+            "sources": ["grouping-ledger"]
+        },
+        {
+            "id": "pr.multi_issue_share",
+            "category": "pull_requests",
+            "label": "Merged PRs closing 2+ issues",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "issues.multi_issue_share"
+            },
+            "ok": [">=", 0.15],
+            "fail": ["<", 0.023],
+            "slowWindow": "7d",
+            "sources": ["grouping-ledger"]
+        },
+        {
+            "id": "pr.runner_minutes_per_issue",
+            "category": "pull_requests",
+            "label": "Runner-minutes per issue closed",
+            "window": "slow",
+            "measure": {
+                "type": "rate_per_last",
+                "metric": "ci.runner_minutes",
+                "per": "issues.per_merged_pr"
+            },
+            "ok": ["<=", 800],
+            "minN": 10,
+            "slowWindow": "7d",
+            "sources": ["collector", "grouping-ledger"]
+        },
+        {
+            "id": "pr.group_released_share",
+            "category": "pull_requests",
+            "label": "Grouped issues released as not part",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "issues.group_released_share"
+            },
+            "ok": ["<=", 0.1],
+            "fail": [">", 0.15],
+            "slowWindow": "7d",
+            "sources": ["grouping-ledger"]
+        },
+        {
+            "id": "pr.groups_ready",
+            "category": "pull_requests",
+            "label": "Finished branches not opened",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "issues.groups_ready"
+            },
+            "slowWindow": "7d",
+            "sources": ["grouping-ledger"]
+        },
+        {
+            "id": "pr.groups_combinable",
+            "category": "pull_requests",
+            "label": "Finished branches that can open together",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "issues.groups_combinable"
+            },
+            "slowWindow": "7d",
+            "sources": ["grouping-ledger"]
         },
         {
             "id": "pr.automerge_green_stuck",
@@ -525,6 +611,20 @@
             "sources": ["ci-results"]
         },
         {
+            "id": "ci.full_group_deadline",
+            "category": "ci",
+            "label": "Test group near its deadline",
+            "window": "slow",
+            "measure": {
+                "type": "group_deadline",
+                "metric": "ci.full_group_member_time"
+            },
+            "ok": ["<=", 0.8],
+            "fail": [">", 0.9],
+            "slowWindow": "7d",
+            "sources": ["ci-results"]
+        },
+        {
             "id": "ci.runner_minutes_per_merge",
             "category": "ci",
             "label": "Runner-minutes per merge",
@@ -723,6 +823,14 @@
                 "metric": "flaky.net_change"
             },
             "ok": ["<=", 0],
+            "also": [
+                {
+                    "metric": "flaky.net_added"
+                },
+                {
+                    "metric": "flaky.net_resolved"
+                }
+            ],
             "fail": [">", 3],
             "slowWindow": "7d",
             "sources": ["ci-results"]
@@ -1083,17 +1191,17 @@
                 "dim": "aws",
                 "projected": false
             },
-            "ok": ["<=", 8],
-            "fail": [">", 10],
+            "ok": ["<=", 40],
+            "fail": [">", 50],
             "sources": ["billing"],
             "alert": {
                 "afterMs": 3600000,
                 "priority": 0,
                 "floorMs": 604800000,
-                "value": [">", 8],
-                "title": "Health alerts stop at $10 AWS spend (forecast {pace}): raise the limit?",
-                "text": "AWS hosting for the dashboard: {value} spent so far, about {pace} by {end} at this pace. At $10 the dashboard's AWS Budget locks it, which stops the dashboard and these alerts.",
-                "action": "Pick one: raise the dashboard's own AWS Budget from $10 to $15 (still under the $20 project spend limit), or have the agents find and cut what grew.",
+                "value": [">", 40],
+                "title": "Health alerts stop at $50 AWS spend (forecast {pace}): raise the limit?",
+                "text": "AWS hosting for the dashboard: {value} spent so far, about {pace} by {end} at this pace. At $50 the dashboard's AWS Budget locks it, which stops the dashboard and these alerts.",
+                "action": "Pick one: raise the dashboard's own AWS Budget above $50, or have the agents find and cut what grew.",
                 "daytime": true,
                 "then": "Tell any Claude session your choice; it applies it."
             }

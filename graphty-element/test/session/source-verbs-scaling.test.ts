@@ -13,6 +13,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, defineSource, type GraphSession, registerSource } from "../../session";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
+import { withConsumerStrictState } from "./helpers";
 
 /** The two graph sizes: big enough that a quadratic path is 16x, small enough to stay cheap. */
 const SIZES = [200, 800] as const;
@@ -99,14 +100,7 @@ registerSource(
  * @returns The session.
  */
 function fresh(): GraphSession {
-    const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
-    const strict = scope.__GRAPHTY_STRICT_STATE__;
-    scope.__GRAPHTY_STRICT_STATE__ = false;
-    try {
-        return createGraphSession();
-    } finally {
-        scope.__GRAPHTY_STRICT_STATE__ = strict;
-    }
+    return withConsumerStrictState(() => createGraphSession());
 }
 
 /**

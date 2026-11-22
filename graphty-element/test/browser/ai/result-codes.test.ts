@@ -23,6 +23,7 @@ import type { LlmProvider, LlmResponse } from "../../../src/ai/providers/types";
 import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
 import { installAssistantTools } from "../../../src/ai/tools/install";
 import { Graph } from "../../../src/Graph";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 
 const reached = new Set<string>();
 
@@ -342,16 +343,24 @@ describe("AI command result codes", () => {
         assert.strictEqual(seen(await manager.execute("hello")).code, "AI_NOT_ENABLED");
         manager.dispose();
         assert.strictEqual(seen(await manager.execute("hello")).code, "AI_DISPOSED");
+        assert.strictEqual(seen(await manager.retry()).code, "AI_DISPOSED");
+    });
+
+    it("AI_NO_PREVIOUS_COMMAND: a retry before any command ran", async () => {
+        const manager = new AiManager();
+        assert.strictEqual(seen(await manager.retry()).code, "AI_NOT_ENABLED");
+        const graph = await createTestGraph();
+        manager.init(graph, { provider: "mock" });
+        assert.strictEqual(seen(await manager.retry()).code, "AI_NO_PREVIOUS_COMMAND");
+        manager.dispose();
+        cleanupTestGraph(graph);
     });
 
     it("AI_CONFIG_INVALID: enableAiControl rejects helpers that cannot run, and builds no assistant", async () => {
         // A graph's methods with only the fields enableAiControl reads: no scene is needed, since it
         // rejects before building anything.
-        const graph = Object.assign(Object.create(Graph.prototype) as Graph, {
-            aiManager: null,
-            aiGeneration: 0,
-            aiEnabling: Promise.resolve(),
-        });
+        const graph = Object.create(Graph.prototype) as Graph;
+        Object.assign(graph, { aiManager: null, aiGeneration: 0, aiEnabling: Promise.resolve() });
 
         const error: unknown = await Graph.prototype.enableAiControl
             .call(graph, {
@@ -364,7 +373,7 @@ describe("AI command result codes", () => {
         const { code, params } = error;
         reached.add(code);
         assert.deepInclude(params, { agent: "counter", field: "commands", reason: "unknown-command" });
-        assert.isNull((graph as unknown as { aiManager: unknown }).aiManager);
+        assert.isNull(graph.getAiManager());
     });
 
     afterAll(() => {

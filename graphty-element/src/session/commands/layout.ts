@@ -2,8 +2,10 @@
  * @file The layout ops: which layout draws the graph and in how many dimensions, and the two
  * exempt controls beside them.
  *
- * - `layout.set`: choose the layout (a catalogue id, the engine that draws it, its options, and
+ * - `layout.set`: choose the layout (a catalog id, the engine that draws it, its options, and
  *   optionally what it runs over). One undoable step.
+ * - `layout.rerun`: run the current layout again from the start, as choosing it again would, with
+ *   its own step (`layout.rerun`), so undo names a re-run rather than a change of layout.
  * - `layout.scope`: change what layouts run over, keeping the layout. One undoable step, written
  *   at once so a layout still waiting for its turn carries it; the `layout` hook restarts the
  *   running layout over it. Never refused for a scope that resolves to nothing.
@@ -16,7 +18,7 @@
  *
  * `layout.set` and `view.dimension` are slot-holding writers (design/undo/undo-design.md section
  * 4.7): they take the arrangement they began from, write the slice, then have the renderer build
- * the engine and spend its pre-steps inside their slot. Cancelled or made obsolete while the
+ * the engine and spend its pre-steps inside their slot. Canceled or made obsolete while the
  * pre-steps run, they publish nothing, and the rollback puts the previous layout and the previous
  * coordinates back. See design sections 3.2, 4.7, 6.4 and 11.4.
  */
@@ -31,9 +33,9 @@ import type { PositionEntry } from "../types";
 /** `layout.set`: choose the layout that draws the graph. */
 export interface LayoutSetCommand {
     readonly op: "layout.set";
-    /** The catalogue id, such as `"force"`. A registered engine name is read as the id it serves. */
+    /** The catalog id, such as `"force"`. A registered engine name is read as the id it serves. */
     readonly id: LayoutId;
-    /** The engine that draws it, such as `"d3"`; the catalogue's default engine for `id` when absent. */
+    /** The engine that draws it, such as `"d3"`; the catalog's default engine for `id` when absent. */
     readonly engine?: string;
     /** The engine's options. */
     readonly options?: Readonly<Record<string, unknown>>;
@@ -46,6 +48,11 @@ export interface LayoutSetCommand {
     readonly coalesce?: string;
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
+}
+
+/** `layout.rerun`: run the current layout again from the start, keeping its engine, options and scope. */
+interface LayoutRerunCommand {
+    readonly op: "layout.rerun";
 }
 
 /** `layout.scope`: change what layouts run over; `"graph"` for the whole graph. */
@@ -77,7 +84,12 @@ interface ViewImmersiveCommand {
 
 /** Every layout op. */
 export type LayoutCommand =
-    LayoutSetCommand | LayoutScopeCommand | ViewDimensionCommand | LayoutTransportCommand | ViewImmersiveCommand;
+    | LayoutSetCommand
+    | LayoutRerunCommand
+    | LayoutScopeCommand
+    | ViewDimensionCommand
+    | LayoutTransportCommand
+    | ViewImmersiveCommand;
 
 /** The renderer's layout, as the layout ops reach it. A session that draws nothing has none. */
 export interface LayoutService {
@@ -85,7 +97,7 @@ export interface LayoutService {
      * Build or reconfigure the engine for a choice just written, and spend its pre-steps, inside
      * the command's slot: the `layout` hook, run inline.
      * @param choice - The choice, as the slice now holds it.
-     * @param signal - Fires when the command is cancelled or made obsolete; the pre-steps then
+     * @param signal - Fires when the command is canceled or made obsolete; the pre-steps then
      *     stop without publishing anything.
      * @param explicitScope - Whether the command named the scope, the only case in which a scope
      *     the engine cannot hold, or that holds nothing, is refused.
@@ -103,6 +115,13 @@ export interface LayoutService {
      * @returns Settles once the device session has started or ended; rejects when it cannot.
      */
     immersive(mode: "vr" | "ar" | null): Promise<void>;
+    /**
+     * Whether the layout runs again when the filters change what is shown: the session reads the
+     * working graph, or `layout.visibleOnly` is on. A filter edit then takes the arrangement it
+     * began from, so its undo puts every node back.
+     * @returns True when it does.
+     */
+    followsFilters?(): boolean;
 }
 
 /**
@@ -208,6 +227,32 @@ const layoutSet: UndoableDefinition<LayoutSetCommand> = {
     },
 };
 
+const layoutRerun: UndoableDefinition<LayoutRerunCommand> = {
+    op: "layout.rerun",
+    moves: true,
+    draws: true,
+    // With nothing drawn no node would move: the step would record nothing.
+    renderer: true,
+    keys: () => ["layout"],
+    // `layout-update`, not `layout-set`: a re-run must not cancel a layout chosen before it and
+    // still waiting, and a layout chosen after it cancels it.
+    lane: { kind: "queued", category: "layout-update" },
+    undo: {
+        kind: "undoable",
+        label: (_command, state) => `Re-ran the ${(state.layout ?? DEFAULT_LAYOUT).id} layout`,
+        fact: (_command, state) => ({ code: "layout.rerun", params: { layout: (state.layout ?? DEFAULT_LAYOUT).id } }),
+    },
+    execute: async (_command, ctx) => {
+        const service = serviceOf(ctx.services.layout, "run again");
+        // A new value of the same choice: the engine is rebuilt for a new value, compared by
+        // identity (`LayoutManager.isCurrent`), so the layout starts over.
+        const current = ctx.state.layout ?? DEFAULT_LAYOUT;
+        const choice = withScope({ ...current, options: Object.freeze({ ...current.options }) }, current.scope);
+        ctx.draft.layout = choice;
+        await service.apply(choice, ctx.signal, false);
+    },
+};
+
 const layoutScope: UndoableDefinition<LayoutScopeCommand> = {
     op: "layout.scope",
     // The layout it restarts moves the nodes in scope; where they come to rest is this step's.
@@ -299,4 +344,11 @@ const viewImmersive: ExemptDefinition<ViewImmersiveCommand> = {
 };
 
 /** The layout ops' definitions. */
-export const LAYOUT_DEFINITIONS = [layoutSet, layoutScope, viewDimension, layoutTransport, viewImmersive] as const;
+export const LAYOUT_DEFINITIONS = [
+    layoutSet,
+    layoutRerun,
+    layoutScope,
+    viewDimension,
+    layoutTransport,
+    viewImmersive,
+] as const;

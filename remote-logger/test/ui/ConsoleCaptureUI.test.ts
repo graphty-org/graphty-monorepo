@@ -441,6 +441,175 @@ describe("ConsoleCaptureUI", () => {
         });
     });
 
+    describe("formatting values that are not strings", () => {
+        test("formats an Error with its name, message and stack", () => {
+            ui = new ConsoleCaptureUI();
+            const err = new TypeError("bad input");
+            err.stack = "TypeError: bad input\n    at here";
+            console.error(err);
+            expect(ui.getLogs()).toContain("TypeError: bad input\nTypeError: bad input\n    at here");
+        });
+
+        test("formats an Error that has no stack", () => {
+            ui = new ConsoleCaptureUI();
+            const err = new Error("no stack");
+            err.stack = undefined;
+            console.error(err);
+            expect(ui.getLogs().endsWith("[ERROR] Error: no stack\n")).toBe(true);
+        });
+
+        test("falls back to String() for a value JSON cannot serialize", () => {
+            ui = new ConsoleCaptureUI();
+            const circular: Record<string, unknown> = {};
+            circular.self = circular;
+            console.log(circular);
+            expect(ui.getLogs()).toContain("[LOG] [object Object]");
+        });
+    });
+
+    describe("menu actions", () => {
+        test("Copy Logs copies the logs and closes the menu", async () => {
+            ui = new ConsoleCaptureUI();
+            console.log("copied by menu");
+            document.getElementById("console-capture-btn")?.click();
+            const menu = document.getElementById("console-capture-menu");
+            expect(menu?.style.display).toBe("block");
+
+            document.getElementById("cc-copy")?.click();
+            expect(menu?.style.display).toBe("none");
+            await vi.waitFor(() => {
+                expect(clipboardWriteTextMock).toHaveBeenCalledTimes(1);
+            });
+            expect(clipboardWriteTextMock.mock.calls[0][0]).toContain("copied by menu");
+        });
+
+        test("Download downloads the logs and closes the menu", () => {
+            ui = new ConsoleCaptureUI();
+            const createObjectURL = vi.fn().mockReturnValue("blob:menu");
+            global.URL.createObjectURL = createObjectURL;
+            global.URL.revokeObjectURL = vi.fn();
+            document.getElementById("console-capture-btn")?.click();
+
+            document.getElementById("cc-download")?.click();
+
+            expect(createObjectURL).toHaveBeenCalledTimes(1);
+            expect(document.getElementById("console-capture-menu")?.style.display).toBe("none");
+        });
+
+        test("window.__console__.copy and .download reach the same actions", async () => {
+            ui = new ConsoleCaptureUI();
+            const createObjectURL = vi.fn().mockReturnValue("blob:global");
+            global.URL.createObjectURL = createObjectURL;
+            global.URL.revokeObjectURL = vi.fn();
+            console.log("global actions");
+
+            await window.__console__?.copy();
+            window.__console__?.download();
+
+            expect(clipboardWriteTextMock.mock.calls[0][0]).toContain("global actions");
+            expect(createObjectURL).toHaveBeenCalledTimes(1);
+        });
+
+        test("opening Show Logs twice leaves a single modal", () => {
+            ui = new ConsoleCaptureUI();
+            document.getElementById("cc-show")?.click();
+            document.getElementById("cc-show")?.click();
+            expect(document.querySelectorAll("#console-logs-modal")).toHaveLength(1);
+        });
+    });
+
+    describe("copy feedback and fallbacks", () => {
+        let originalExecCommand: typeof document.execCommand | undefined;
+
+        beforeEach(() => {
+            originalExecCommand = document.execCommand;
+            vi.useFakeTimers();
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+            Object.defineProperty(document, "execCommand", {
+                value: originalExecCommand,
+                writable: true,
+                configurable: true,
+            });
+        });
+
+        function setExecCommand(impl: () => boolean): Mock<() => boolean> {
+            const mock = vi.fn(impl);
+            Object.defineProperty(document, "execCommand", { value: mock, writable: true, configurable: true });
+            return mock;
+        }
+
+        function removeClipboard(): void {
+            Object.defineProperty(navigator, "clipboard", { value: undefined, writable: true, configurable: true });
+        }
+
+        const button = (): HTMLElement | null => document.getElementById("console-capture-btn");
+
+        test("a successful clipboard copy shows a check mark, then the clipboard icon again", async () => {
+            ui = new ConsoleCaptureUI();
+            await ui.copyLogs();
+            expect(button()?.innerHTML).toBe("✅");
+            vi.advanceTimersByTime(1500);
+            expect(button()?.innerHTML).toBe("📋");
+        });
+
+        test("without the Clipboard API it copies through a hidden textarea", async () => {
+            removeClipboard();
+            const exec = setExecCommand(() => true);
+            ui = new ConsoleCaptureUI();
+            console.log("via textarea");
+
+            await ui.copyLogs();
+
+            expect(exec).toHaveBeenCalledWith("copy");
+            expect(button()?.innerHTML).toBe("✅");
+            expect(document.querySelector("textarea")).toBeNull();
+        });
+
+        test("a refused textarea copy shows a cross and prints the logs instead", async () => {
+            removeClipboard();
+            setExecCommand(() => false);
+            ui = new ConsoleCaptureUI();
+            console.log("printed as fallback");
+
+            await ui.copyLogs();
+
+            expect(button()?.innerHTML).toBe("❌");
+            const logs = ui.getLogs();
+            expect(logs).toContain("Failed to copy to clipboard");
+            expect(logs.split("printed as fallback").length).toBeGreaterThan(2);
+            vi.advanceTimersByTime(1500);
+            expect(button()?.innerHTML).toBe("📋");
+        });
+
+        test("a throwing textarea copy shows a cross", async () => {
+            removeClipboard();
+            setExecCommand(() => {
+                throw new Error("not allowed");
+            });
+            ui = new ConsoleCaptureUI();
+
+            await ui.copyLogs();
+
+            expect(button()?.innerHTML).toBe("❌");
+            expect(document.querySelector("textarea")).toBeNull();
+        });
+
+        test("a rejected clipboard write warns and falls back to the textarea", async () => {
+            clipboardWriteTextMock.mockRejectedValueOnce(new Error("denied"));
+            const exec = setExecCommand(() => true);
+            ui = new ConsoleCaptureUI();
+
+            await ui.copyLogs();
+
+            expect(ui.getLogs()).toContain("[WARN] Clipboard API failed, using fallback");
+            expect(exec).toHaveBeenCalledWith("copy");
+            expect(button()?.innerHTML).toBe("✅");
+        });
+    });
+
     describe("initConsoleCaptureUI", () => {
         test("should create and return ConsoleCaptureUI instance", () => {
             ui = initConsoleCaptureUI();

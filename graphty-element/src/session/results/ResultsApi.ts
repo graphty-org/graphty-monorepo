@@ -5,7 +5,7 @@
  * matches on, what a filter reads and what an expression editor completes. Nobody types it by
  * hand: {@link ResultsApi.path} builds it from the run, and the field defaults to the one the
  * run's shape declares primary, because a caller holding a `Run` should not have to open the
- * catalogue to learn that a centrality's number is called `value`.
+ * catalog to learn that a centrality's number is called `value`.
  *
  * The other half is the one an editor needs. `roots` publishes every run that has a result
  * together with the fields it carries, so an unknown `results.*` path can be answered with the
@@ -17,12 +17,14 @@
  */
 
 import type { FieldDescriptor, Path, Query, ResultShape, RunId } from "../../catalog/types";
-import type { RunDistinction } from "../runs/types";
 // The DEEP path on purpose. `../styles` re-exports StylesApi, which imports this file, so
 // importing the barrel here closes a cycle; `predicate` itself reaches only a type and the error
 // class, so this edge is one-way.
+import { GraphtyError } from "../../errors/GraphtyError";
+import type { RunDistinction } from "../runs/types";
 import type { ResultRef } from "../shared";
 import { quotePath } from "../styles/predicate";
+import { compareResults, type CompareSide, type ResultComparison } from "./compare";
 import {
     RESULT_ROOT,
     resultPath,
@@ -142,8 +144,6 @@ export function suggestResultPaths(
 export interface ResultsRunEntry {
     /** The run id, which is the path segment under `results`. */
     readonly id: RunId;
-    /** What to call the run in a completion list. */
-    readonly label: string;
     /** The option the run's name was suggested by; none when absent. */
     readonly distinguishedBy?: RunDistinction | null;
     /** What tells the run apart from listed runs of its algorithm sharing its name; none when absent. */
@@ -316,6 +316,43 @@ class Results implements ResultsApi {
     }
 
     /**
+     * Compare two runs' results element by element.
+     * @param a - The first run, or `{ run, field }`.
+     * @param b - The second run, or `{ run, field }`.
+     * @returns The comparison.
+     */
+    compare(a: RunRef | CompareSide, b: RunRef | CompareSide): ResultComparison {
+        const first = this.#finished(a);
+        const second = this.#finished(b);
+
+        return compareResults(first.result, second.result, first.field, second.field);
+    }
+
+    /**
+     * One side of a comparison, resolved to a finished result.
+     * @param side - The run, or `{ run, field }`.
+     * @returns The result and the field asked for.
+     * @throws E_UNKNOWN_RUN when the session holds no finished run by that name.
+     */
+    #finished(side: RunRef | CompareSide): { result: RunResult; field: string | undefined } {
+        const isSide = typeof side === "object" && "run" in side;
+        const run = isSide ? side.run : side;
+        const result = this.get(run);
+        if (result === undefined) {
+            const id = runIdOf(run);
+            const available = this.roots.map((root) => root.runId);
+            throw new GraphtyError({
+                code: "E_UNKNOWN_RUN",
+                source: "run",
+                message: `There is no finished run called "${id}" in this session.`,
+                details: { run: id, available, candidates: nearestNames(id, available) },
+            });
+        }
+
+        return { result, field: isSide ? side.field : undefined };
+    }
+
+    /**
      * Every run that has published a result, as an expression editor reads them.
      * @returns One root per finished run, in the order the runs were started.
      */
@@ -327,7 +364,6 @@ class Results implements ResultsApi {
                 roots.push(
                     Object.freeze({
                         runId: entry.id,
-                        label: entry.label,
                         distinguishedBy: entry.distinguishedBy ?? null,
                         siblingsDifferBy: entry.siblingsDifferBy ?? null,
                         fields: entry.result.fields,

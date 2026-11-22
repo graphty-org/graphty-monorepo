@@ -14,10 +14,12 @@ import { canonNumber, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText, htmlLabelSpans } from "../../styles/canon/text.js";
 import { spreadRamp } from "../../styles/canon/yed-gradient.js";
+import { YED_LABEL_CHARACTER, YED_LABEL_LINE } from "../../styles/canon/yed-label.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { valueColumns } from "../../styles/columns.js";
 import type { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
-import type { StyleDialect, StyleProperty, StyleTarget, StyleWorkBudget } from "../../styles/types.js";
+import type { StyleDialect, StyleTarget, StyleWorkBudget } from "../../styles/types.js";
 import { META_KEY } from "./constants.js";
 import {
     BPMN_ARTIFACTS,
@@ -39,12 +41,10 @@ import {
     treeChild,
     treeChildren,
     treeText,
-    valueColumns,
-    YED_LABEL_CHARACTER,
-    YED_LABEL_LINE,
     type YedOutline,
     type YedRead,
 } from "./styles-yed.js";
+import { yedNodePicture } from "./styles-yed-drawing.js";
 import {
     bpmnPicture,
     groupIconPicture,
@@ -374,13 +374,14 @@ function putGradient(refs: References, g: StyleObject, owner: string, put: PutVa
     const repeats = Math.max(...along) - Math.min(...along);
     const small = (repeats + 3) * 2 * stops.length <= MAX_UNROLLED_STOPS;
     const unrolls = !spans && len2 > 0 && small && (spread === "reflect" || spread === "repeat");
-    if (g.tag !== "LinearGradient" || !(spans || unrolls) || colors.length < 2 || colors.length !== stops.length) {
-        noteAt(at("fill"), STYLE_ISSUE.GRADIENT, owner);
-        return;
-    }
-    if (unrolls) {
+    if (unrolls && g.tag === "LinearGradient" && colors.length === stops.length) {
         const ramp = spreadRamp({ colors, stops: offsets }, spread, Math.min(...along), Math.max(...along));
         [colors, offsets] = [[...ramp.colors], [...ramp.stops]];
+    }
+    // a ramp far longer than its box (endPoint 1e10) crosses it in less than a rounding step and unrolls to nothing
+    if (g.tag !== "LinearGradient" || !(spans || unrolls) || colors.length < 2 || colors.length !== offsets.length) {
+        noteAt(at("fill"), STYLE_ISSUE.GRADIENT, owner);
+        return;
     }
     put("fillGradient", colors.at(-1) ?? null);
     put("fillGradientAngle", num6(((((Math.atan2(dy, dx) * 180) / Math.PI) % 360) + 360) % 360));
@@ -645,6 +646,67 @@ function readShinyPlateStyle(refs: References, style: StyleObject, size: Size | 
 }
 
 /**
+ * Reads the demos' FlowchartNodeStyle: its `type`'s outline, drawn as yEd's flowchart palette draws the same type, kept
+ * to its own proportions in the middle of the box (yEd Live 8.5.16 draws start2 in a 56 x 36 box as a circle 36 across),
+ * and the lines yEd Live draws inside a predefined process, an internal storage, a direct data and a database and beside
+ * a sequential data, as the node's picture. A style with
+ * no `type` draws a data parallelogram, the style's default (yed-live-graphml-specimen-node-shapes-p3: `default` and
+ * `flowchart-data` are the same parallelogram).
+ * @param refs - the references
+ * @param style - the style
+ * @param size - the node's size, where it has one
+ * @param fill - writes the fill and returns its `#rrggbb` color
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readFlowchartStyle(
+    refs: References,
+    style: StyleObject,
+    size: Size | null,
+    fill: (v: unknown) => string | null,
+    put: PutValue,
+    at: SiteOf,
+): void {
+    const type = treeAttr(style.e, "type") ?? "data";
+    const outline = type === "annotation" ? null : configurationOutline(`flowchart.${type}`);
+    if (outline === null) {
+        if (type !== "annotation") {
+            noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, type.slice(0, MAX_STYLE_VALUE_LENGTH));
+        }
+        put("shape", "rectangle");
+    } else {
+        putOutline(outline, size?.width ?? null, size?.height ?? null, put);
+    }
+    fill(prop(style, "fill") ?? FLOWCHART_FILL);
+    // an annotation's box has no outline (its bracket is not drawn)
+    if (type === "annotation") {
+        put("borderWidth", 0);
+        return;
+    }
+    const stroke = strokeOf(refs, prop(style, "stroke") ?? BLACK);
+    putStroke(stroke, put, at);
+    const lined = stroke !== null && stroke !== NULL && stroke.color !== null && stroke.color !== NULL;
+    // drawn over the outline's box: a sequential data's middle square
+    const aspect = outline?.aspect;
+    const width = size === null || aspect === undefined ? size?.width : Math.min(size.width, size.height * aspect);
+    const picture =
+        size === null || width === undefined || !lined
+            ? null
+            : yedNodePicture({
+                  kind: `flowchart.${type}`,
+                  width,
+                  height: aspect === undefined ? size.height : width / aspect,
+                  line: canonColor(stroke.color.raw, stroke.color.dialect, at("borderColor"))?.color ?? null,
+                  border: canonNumber(stroke.width, at("borderWidth")) ?? 1,
+              });
+    if (picture !== null) {
+        put("image", picture);
+        put("imageFit", "fill");
+        put("imageClip", "none");
+    }
+}
+
+/**
  * Reads the yFiles for HTML 2.6 node styles yEd Live wrote before yFiles 3, and the demos' FlowchartNodeStyle:
  * BevelNodeStyle and PanelNodeStyle (painted from their `color`), ShinyPlateNodeStyle (an outline only where `stroke`
  * is set) and FlowchartNodeStyle (its `type`'s outline, drawn as yEd's flowchart palette draws the same type).
@@ -677,29 +739,9 @@ function readStyle26(refs: References, style: StyleObject, size: Size | null, pu
             fill(prop(style, "fill") ?? BLACK);
             readShinyPlateStyle(refs, style, size, put, at);
             return true;
-        case "FlowchartNodeStyle": {
-            const type = treeAttr(style.e, "type") ?? "";
-            const outline = type === "" || type === "annotation" ? null : configurationOutline(`flowchart.${type}`);
-            if (outline === null && type !== "" && type !== "annotation") {
-                noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, type.slice(0, MAX_STYLE_VALUE_LENGTH));
-            }
-            // its outline as yEd draws the type, kept to its own proportions in the middle of the box (yEd Live
-            // 8.5.16 draws start2 in a 56 x 36 box as a circle 36 across: yed-live-graphml-specimen-node-shapes-p3)
-            if (outline === null) {
-                put("shape", "rectangle");
-            } else {
-                putOutline(outline, size?.width ?? null, size?.height ?? null, put);
-            }
-            fill(prop(style, "fill") ?? FLOWCHART_FILL);
-            // an annotation's box has no outline (its bracket is not drawn); a style without a type draws the same
-            // box, outlined
-            if (type === "annotation") {
-                put("borderWidth", 0);
-            } else {
-                putStroke(strokeOf(refs, prop(style, "stroke") ?? BLACK), put, at);
-            }
+        case "FlowchartNodeStyle":
+            readFlowchartStyle(refs, style, size, fill, put, at);
             return true;
-        }
         default:
             return false;
     }
@@ -919,7 +961,7 @@ function putBpmnPicture(
 const UML_NAME_DROP = 13;
 
 /**
- * The words of a UMLClassModel: its name's neighbours and its two sections.
+ * The words of a UMLClassModel: its name's neighbors and its two sections.
  * @param model - the model's element
  * @returns the words
  */
@@ -1051,7 +1093,7 @@ function readGroupPanel(
     const position = treeAttr(style.e, "tabPosition") ?? "TOP";
     // its corners rounded by `cornerRadius`, 4 unset, collapsed or not (yed-live-graphml-specimen-groups-p2.svg:
     // arcs of 4, of 12 for corner-radius-12, none for corner-radius-0)
-    putRounded(treeAttr(style.e, "cornerRadius"), GROUP_CORNER_RADIUS, put, at);
+    const radius = putRounded(treeAttr(style.e, "cornerRadius"), GROUP_CORNER_RADIUS, put, at);
     putGroupIcon(refs, style, size, collapsed, position, put, at);
     if (collapsed) {
         putPaint(tabFill, "fill", "fillOpacity", put, at);
@@ -1059,6 +1101,7 @@ function readGroupPanel(
     }
     putPaint(paintOf(refs, prop(style, "contentAreaFill") ?? "#FFFFFFFF", null), "fill", "fillOpacity", put, at);
     if (position === "NONE") {
+        putUntabbedPanel(size, radius, put);
         return;
     }
     putPaint(tabFill, "stripeColors", null, put, at);
@@ -1068,6 +1111,23 @@ function readGroupPanel(
         return Number((depth / (i % 2 === 0 ? size.height : size.width)).toFixed(6));
     });
     put("stripeFrame", insets.join(" "));
+}
+
+/**
+ * Draws an open GroupNodeStyle with no tab as yEd Live 8.5.16 does: its panel alone, `GROUP_FRAME` in from every side
+ * of its box (yed-live-graphml-specimen-groups `tab-position-none`, stored 150 x 80 and drawn 142 x 72), its corners
+ * rounded as a tabbed group's panel is: 2 inside a corner of 4, 8 inside one of 12 (`-p2` `corner-radius-12`).
+ * ponytail: the panel's radius is fitted to those two corners, max(r - 4, r / 2); measure another to refine it.
+ * @param size - the group's stored size
+ * @param radius - its outline's corner radius, or null where it is not a number
+ * @param put - receives the values
+ */
+function putUntabbedPanel(size: Size, radius: number | null, put: PutValue): void {
+    put("width", Math.max(size.width - 2 * GROUP_FRAME, 0));
+    put("height", Math.max(size.height - 2 * GROUP_FRAME, 0));
+    if (radius !== null && radius > 0) {
+        put("cornerRadius", Math.max(radius - GROUP_FRAME, radius / 2));
+    }
 }
 
 /**
@@ -1198,9 +1258,12 @@ function readNodeStyle(
         put("fillOpacity", 0);
     }
     putPaint(fill, "fill", "fillOpacity", put, at);
-    // a GroupNodeStyle with no stroke draws no outline (yed-live-graphml-specimen-groups `default`)
+    // a GroupNodeStyle with no stroke draws no outline (yed-live-graphml-specimen-groups `default`), nor does an open
+    // one with no tab, whatever its stroke: yEd Live paints its panel alone (`tab-position-none`)
     const stroke = prop(style, "stroke");
-    putStroke(stroke === undefined && style.tag === "GroupNodeStyle" ? NULL : strokeOf(refs, stroke), put, at);
+    const group = style.tag === "GroupNodeStyle";
+    const untabbed = group && !collapsed && treeAttr(style.e, "tabPosition") === "NONE";
+    putStroke((stroke === undefined && group) || untabbed ? NULL : strokeOf(refs, stroke), put, at);
     putStyleOutline(style, size, put, at);
     const shape = style.tag === "ShapeNodeStyle" ? shapeKey(treeAttr(style.e, "shape")) : null;
     putIntrinsicSize(refs, style, shape, size, put);
@@ -1530,13 +1593,21 @@ function readBpmnEdgeStyle(refs: References, st: StyleObject, put: PutValue, at:
     put("lineStyle", look.line);
     put("sourceArrow", canonEnum("arrow", look.source, "yfiles3", at("sourceArrow")));
     put("targetArrow", canonEnum("arrow", look.target, "yfiles3", at("targetArrow")));
-    const [length, width] = BPMN_SOURCE_SIZES.get(look.source) ?? [null, null];
-    put("sourceArrowLength", length);
-    put("sourceArrowWidth", width);
+    for (const end of ["source", "target"] as const) {
+        const [length, width] = BPMN_HEAD_SIZES.get(look[end]) ?? [null, null];
+        put(`${end}ArrowLength`, length);
+        put(`${end}ArrowWidth`, width);
+    }
 }
 
-/** The length and width of a BPMN edge's source heads against the normal head's (yed-live-graphml-specimen-edges-lines-p3.svg). */
-const BPMN_SOURCE_SIZES: ReadonlyMap<string, readonly [number, number]> = new Map([["diamond-open", [16 / 8, 8 / 6]]]);
+/**
+ * The length and width of a BPMN edge's heads against the normal head's (yed-live-graphml-specimen-edges-lines-p3.svg):
+ * a conditional flow's 16 x 8 diamond, and an association's two arms, 4 long and 6 wide (M 4,0 L 8,3 L 4,6).
+ */
+const BPMN_HEAD_SIZES: ReadonlyMap<string, readonly [number, number | null]> = new Map([
+    ["diamond-open", [16 / 8, 8 / 6]],
+    ["OPEN", [4 / 8, null]],
+]);
 
 /**
  * Reads one end's arrow of an edge style: its type, and for an arrow element its color, drawn hollow in its
@@ -1565,6 +1636,7 @@ function readEdgeArrow(
         hollow = open !== null && open !== NULL;
         putPaint(open !== null && open !== NULL ? open.color : fill, `${end}ArrowColor`, null, put, at);
         readArrowSize(refs, a.e, type.toUpperCase(), end, put, at);
+        readArrowCrop(a.e, end, put, at);
     } else if (typeof a === "string") {
         type = a;
     }
@@ -1619,6 +1691,20 @@ function readArrowSize(
         (type === "CHEVRON" ? CHEVRON_WIDTH : 1);
     put(`${end}ArrowLength`, along === 1 ? null : along);
     put(`${end}ArrowWidth`, across === 1 ? null : across);
+}
+
+/**
+ * Reads an arrow element's `cropLength`: yEd Live moves the arrow and the line's end that far back from the node
+ * (yed-live-graphml-specimen-arrows arrow-crop-length-6: its tip sits 6 further off the outline than a plain head's).
+ * @param arrow - the arrow element
+ * @param end - which end
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readArrowCrop(arrow: unknown, end: "source" | "target", put: PutValue, at: SiteOf): void {
+    const crop = treeAttr(arrow, "cropLength");
+    const gap = crop === undefined ? null : canonNumber(crop, at(`${end}NodeGap`));
+    put(`${end}NodeGap`, gap !== null && gap > 0 ? gap : null);
 }
 
 /**
@@ -1720,6 +1806,9 @@ function readEdgeGeometry(
         points = (flattenCubic(controls) ?? controls).slice(1, -1);
         put("curved", false);
     }
+    if (loop && points.length === 0 && st?.tag === "PolylineEdgeStyle") {
+        points = cornerLoop(s);
+    }
     const arc = !loop && st?.tag === "ArcEdgeStyle" ? arcEdgeControl(st.e, line) : null;
     if (arc !== null) {
         points = [arc];
@@ -1734,6 +1823,27 @@ function readEdgeGeometry(
     if (bends !== null && st?.tag === "PolylineEdgeStyle" && Number(smoothing) > 0) {
         put("curved", true);
     }
+}
+
+/** How far out past its node's sides yFiles runs a self-loop it was given no bends for (`cornerLoop`). */
+const CORNER_LOOP_REACH = 20;
+
+/**
+ * The bends yFiles draws a self-loop with when the file gives it none: up from the top side's middle, round the node's
+ * top left corner `CORNER_LOOP_REACH` out, and in to the left side's middle (graphml-yfiles-html-ss13-tree
+ * n0::n150's loop, as yEd Live 8.5 draws it; graphty-element drew its own teardrop on the right).
+ * ponytail: the ends are at the sides' middles, as for ports at the center; a loop between other ports keeps them.
+ * @param box - the node's center x, y, width and height
+ * @returns the three bends
+ */
+function cornerLoop(box: Float64Array): BendPoint[] {
+    const [x, y, w, h] = box;
+    const [left, top] = [x - w / 2 - CORNER_LOOP_REACH, y - h / 2 - CORNER_LOOP_REACH];
+    return [
+        [x, top],
+        [left, top],
+        [left, y],
+    ];
 }
 
 /** yFiles' label positions (2.6 compass names and yFiles 3 side names, lowercase without `_`) as neutral sides. */
@@ -2311,7 +2421,71 @@ function readEdgeLabelPlace(refs: References, label: unknown, words: string, pat
 }
 
 /**
- * Reads an element's labels: the first one with text; further ones are noted for the element.
+ * How far in from its node's side yEd Live 8.5.16 draws an interior model's label box, and the height of each of its
+ * lines over its font size (yed-live-graphml-specimen-labels two-labels: 10px "Top" and "Bottom" in boxes 12 tall, 2 in
+ * from the node's top and bottom).
+ */
+const YFILES_INTERIOR_INSET = 2;
+const YFILES_LABEL_BOX_LINE = 1.2;
+
+/**
+ * Reads a node's second label as its external label (`xlabel`) when it is drawn as the first one is (the same style,
+ * not markup) and an interior model puts it against a side: centered in the box yEd Live draws there.
+ * @param refs - the references
+ * @param first - the node's first label
+ * @param second - its second label and words
+ * @param second.l - the `y:Label` element
+ * @param second.raw - its words
+ * @param size - the node's size
+ * @param put - receives the values
+ * @param at - the sites
+ * @returns whether it is drawn as the external label
+ */
+function readSecondLabel(
+    refs: References,
+    first: unknown,
+    second: { l: unknown; raw: string },
+    size: Size,
+    put: PutValue,
+    at: SiteOf,
+): boolean {
+    const styleOf = (l: unknown): Resolved => refs.deref(treeAttr(l, "Style") ?? treeChild(l, "Label.Style"));
+    const ls = styleOf(second.l);
+    const position = labelPositionOf(refs, second.l);
+    const parameter = layoutParameter(refs, second.l);
+    if (
+        ls === null ||
+        ls === NULL ||
+        typeof ls !== "object" ||
+        ls.tag !== "LabelStyle" ||
+        JSON.stringify(ls) !== JSON.stringify(styleOf(first)) ||
+        parameter === null ||
+        parameter.tag.includes("Stretch") ||
+        !position.startsWith("inside-")
+    ) {
+        return false;
+    }
+    const fontSize = labelFontSize(refs, second.l);
+    const lines = second.raw.split("\n");
+    const half = [
+        (Math.max(...lines.map((l) => l.length)) * YED_LABEL_CHARACTER * fontSize) / 2,
+        (lines.length * YFILES_LABEL_BOX_LINE * fontSize) / 2,
+    ];
+    const toward = (low: string, high: string): number =>
+        Number(position.includes(high)) - Number(position.includes(low));
+    const gap = YFILES_INTERIOR_INSET + modelGap(refs, parameter);
+    // both are written: with neither set, an external label sits outside the node's top left corner
+    const middle = (side: number, extent: number, i: number): number =>
+        side === 0 ? 0 : Math.round(1000 * side * (extent / 2 - gap - half[i])) / 1000;
+    put("xlabel", canonText(second.raw, at("xlabel")));
+    put("xlabelOffsetX", middle(toward("left", "right"), size.width, 0));
+    put("xlabelOffsetY", middle(toward("top", "bottom"), size.height, 1));
+    return true;
+}
+
+/**
+ * Reads an element's labels: the first one with text, a node's second as its external label where it is drawn as
+ * one; further ones are noted for the element.
  * @param refs - the references
  * @param data - the `<data>` content of the NodeLabels or EdgeLabels key
  * @param put - receives the values
@@ -2334,7 +2508,8 @@ function readLabels(
     if (worded.length === 0) {
         return;
     }
-    if (worded.length > 1) {
+    const second = size !== null && worded.length > 1 && readSecondLabel(refs, worded[0].l, worded[1], size, put, at);
+    if (worded.length > (second ? 2 : 1)) {
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(worded.length)} labels`);
     }
     const label = worded[0].l;
@@ -2357,7 +2532,7 @@ function readLabels(
     }
     readLabelBox(refs, ls, put, at);
     readLabelFont(refs.deref(prop(ls, "font")), put, at);
-    readLabelLayout(ls, put);
+    readLabelLayout(ls, labelFontSize(refs, label), put);
     if (at("label").target === "node") {
         put("labelRotation", stretchTurn(refs, label));
     }
@@ -2449,7 +2624,7 @@ function markupRuns(markup: string, at: SiteOf): MarkupRun[] {
         }
     };
     // each alternative is one negated character class, so a token is matched once per character, over a capped text
-    const tokens = markup.slice(0, MAX_STYLE_VALUE_LENGTH).matchAll(/<[^>]*>|[^<]+/g); // NOSONAR(typescript:S5852): linear, no nested or overlapping quantifier
+    const tokens = markup.slice(0, MAX_STYLE_VALUE_LENGTH).matchAll(/<[^>]*>|[^<]+/g); // linear, no nested or overlapping quantifier
     for (const [token] of tokens) {
         const tag = markupTag(token);
         if (tag === null) {
@@ -2625,20 +2800,32 @@ const TEXT_ALIGNS: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
- * How a label style's `wrapping` fits its words to its `maximumSize`'s width, as yEd Live 8.5.16 draws them: a 2.6
- * `CHARACTER` label broken between any letters and a `WORD` label at its spaces (yed-live-graphml-specimen-labels-p3),
- * and a 3.0 label, whose box is one line tall, cut between letters with an ellipsis for `TRIM_CHARACTER_ELLIPSIS`,
- * `WRAP_CHARACTER_ELLIPSIS` and `WRAP_WORD_ELLIPSIS` (-p2: "A long la..." for all three).
+ * How a label style's `wrapping` fits its words to its `maximumSize`, as yEd Live 8.5.16 draws them: broken between
+ * any letters (`anywhere`) or at spaces, cut to the lines its box holds, and with `ellipsis` the last line kept runs on
+ * with the rest, cut with an ellipsis. A `TRIM_` wrapping keeps one line (yed-live-graphml-specimen-labels-p2, whose
+ * box holds one line: "A long lab" for TRIM_CHARACTER and WRAP_CHARACTER, "A long" for TRIM_WORD and WRAP_WORD,
+ * "A long la..." for the three others ending in ELLIPSIS; -p3, whose box holds two: "Wrap" / "this" for WORD and
+ * "Wrap" / "this t..." for WORD_ELLIPSIS).
  */
-const WRAPPINGS: ReadonlyMap<string, readonly StyleProperty[]> = new Map([
-    ["CHARACTER", ["labelWrapAnywhere"]],
-    ["CHARACTER_ELLIPSIS", ["labelWrapAnywhere"]],
-    ["WORD", []],
-    ["WORD_ELLIPSIS", []],
-    ["TRIM_CHARACTER_ELLIPSIS", ["labelWrapEllipsis"]],
-    ["WRAP_CHARACTER_ELLIPSIS", ["labelWrapEllipsis"]],
-    ["WRAP_WORD_ELLIPSIS", ["labelWrapEllipsis"]],
-]);
+interface Wrapping {
+    readonly anywhere: boolean;
+    readonly ellipsis: boolean;
+    readonly trim: boolean;
+}
+const WRAPPINGS: ReadonlyMap<string, Wrapping> = new Map(
+    ["CHARACTER", "CHARACTER_ELLIPSIS", "WORD", "WORD_ELLIPSIS"].flatMap((name): [string, Wrapping][] => {
+        const anywhere = name.startsWith("CHARACTER");
+        const ellipsis = name.endsWith("_ELLIPSIS");
+        return [
+            [name, { anywhere, ellipsis, trim: false }],
+            [`WRAP_${name}`, { anywhere, ellipsis, trim: false }],
+            [`TRIM_${name}`, { anywhere, ellipsis, trim: true }],
+        ];
+    }),
+);
+
+/** How tall yEd Live 8.5.16 draws a label's line, in its font's size: 18 apart at 12px (yFiles' line spacing 0.5). */
+const YFILES_LINE_HEIGHT = 1.5;
 
 /** The corner radius yEd Live 8.5.16 draws a `ROUND_RECTANGLE` label box with: rx="5" at 10 and at 12 px. */
 const LABEL_BOX_CORNER = 5;
@@ -2646,22 +2833,28 @@ const LABEL_BOX_CORNER = 5;
 /**
  * Reads how a label style lays its words out: their alignment, its box's rounded corners and its wrapping.
  * @param ls - the label style
+ * @param size - the size its words are drawn at
  * @param put - receives the values
  */
-function readLabelLayout(ls: StyleObject, put: PutValue): void {
+function readLabelLayout(ls: StyleObject, size: number, put: PutValue): void {
     put("labelTextAlign", TEXT_ALIGNS.get(treeAttr(ls.e, "horizontalTextAlignment") ?? "") ?? null);
     if (treeAttr(ls.e, "shape") === "ROUND_RECTANGLE") {
         put("labelCornerRadius", LABEL_BOX_CORNER);
     }
-    // ponytail: the lines past the box's height (yEd Live drops them, or ends the last with an ellipsis) are kept
     const wrap = WRAPPINGS.get(treeAttr(ls.e, "wrapping") ?? "");
-    const width = Number((treeAttr(ls.e, "maximumSize") ?? "").split(",")[0]);
+    const [width, height] = (treeAttr(ls.e, "maximumSize") ?? "").split(",").map(Number);
     if (wrap === undefined || !Number.isFinite(width) || width <= 0) {
         return;
     }
     put("labelWrapWidth", width);
-    for (const property of wrap) {
-        put(property, true);
+    if (wrap.anywhere) {
+        put("labelWrapAnywhere", true);
+    }
+    // ponytail: yEd Live's line height measured at 10 and 12px only; a box of another font may hold a line more or less
+    const lines = wrap.trim ? 1 : Math.floor(height / (size * YFILES_LINE_HEIGHT));
+    if (Number.isFinite(lines)) {
+        put("labelMaxLines", Math.max(1, lines));
+        put("labelMaxLinesEllipsis", wrap.ellipsis);
     }
 }
 

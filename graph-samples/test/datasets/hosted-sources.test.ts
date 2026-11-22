@@ -25,6 +25,7 @@ interface HostedSources {
         cacheDir: string,
         options?: { fromOriginalHost?: boolean; fetchImpl?: typeof fetch },
     ) => Promise<string>;
+    hostedDrift: (built: object[], recorded: readonly object[]) => string[];
 }
 
 /** scripts/hosted-sources.mjs, which build-hosted.mjs and refresh-sources.mjs use. */
@@ -169,5 +170,38 @@ describe("sources", () => {
         await expect(fetchSource({ ...source, file: "b.gz" }, cache, { fetchImpl: bad })).rejects.toThrow(
             /source changed/,
         );
+    });
+});
+
+// The deploy fails rather than publish files that differ from the committed hosted.ts (#6884)
+describe("hostedDrift", () => {
+    const recorded: {
+        name: string;
+        nodes: number;
+        bytes: number;
+        sha256: string;
+        attributes: Record<string, string>;
+    }[] = [
+        { name: "road-ny", nodes: 3, bytes: 10, sha256, attributes: { longitude: "f64" } },
+        { name: "com-dblp", nodes: 5, bytes: 20, sha256, attributes: {} },
+    ];
+
+    it("finds nothing when the built metadata is the recorded metadata", async () => {
+        const { hostedDrift } = await hostedSources();
+        expect(hostedDrift(structuredClone(recorded), recorded)).toEqual([]);
+    });
+
+    it("names a dataset rebuilt with other bytes or other metadata", async () => {
+        const { hostedDrift } = await hostedSources();
+        const built = structuredClone(recorded);
+        built[0].sha256 = "0".repeat(64);
+        built[1].attributes = { label: "string" };
+        expect(hostedDrift(built, recorded)).toEqual(["road-ny", "com-dblp"]);
+    });
+
+    it("names a dataset built but not recorded, and one recorded but not built", async () => {
+        const { hostedDrift } = await hostedSources();
+        const built = [structuredClone(recorded[0]), { ...recorded[1], name: "ogbn-arxiv" }];
+        expect(hostedDrift(built, recorded)).toEqual(["ogbn-arxiv", "com-dblp"]);
     });
 });

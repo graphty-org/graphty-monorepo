@@ -31,7 +31,7 @@ afterEach(() => {
  */
 async function atRest(graph: Graph): Promise<void> {
     await graph.waitForSettled();
-    for (let wait = 0; wait < 600 && graph.getLayoutManager().running; wait++) {
+    while (graph.getLayoutManager().running) {
         await nextFrame();
     }
 
@@ -156,7 +156,7 @@ describe("the arrangement under undo, on a renderer", () => {
         assert.isTrue(session.positions.pinned.has("n2"), "the pin is a step of the session");
         assert.isTrue(session.positions.isPinned(row()));
         assert.isTrue(graph.getNode("n2")?.isPinned());
-        assert.strictEqual(session.history.steps.at(-1)?.label, "Pinned a node");
+        assert.deepEqual(session.history.steps.at(-1)?.fact, { code: "positions.pin", params: { count: 1 } });
 
         await session.undo();
         assert.isFalse(session.positions.pinned.has("n2"));

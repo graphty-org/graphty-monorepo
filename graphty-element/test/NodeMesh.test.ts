@@ -81,12 +81,14 @@ describe("NodeMesh", () => {
         });
 
         test("throws error for unknown shape", () => {
+            // A name the shape type does not list, which is the input under test.
+            const unknownShape: string = "unknown-shape";
             assert.throws(
                 () =>
                     NodeMesh.createMeshWithoutCache(
                         { styleId: "test", is2D: false, size: 1 },
 
-                        { shape: { type: "unknown-shape" as any, size: 1 } },
+                        { shape: { type: unknownShape as z.infer<typeof NodeShapes>, size: 1 } },
                     ),
                 "unknown shape: unknown-shape",
             );
@@ -371,11 +373,13 @@ describe("NodeMesh", () => {
             };
 
             NodeMesh.registerShapeCreator("custom", customCreator);
+            // A registered shape is any string; the style type lists only the built-in ones.
+            const custom: string = "custom";
 
             const mesh = NodeMesh.createMeshWithoutCache(
                 { styleId: "test", is2D: false, size: 2 },
 
-                { shape: { type: "custom" as any, size: 2 } },
+                { shape: { type: custom as z.infer<typeof NodeShapes>, size: 2 } },
             );
 
             assert.equal(mesh.name, "custom-shape");

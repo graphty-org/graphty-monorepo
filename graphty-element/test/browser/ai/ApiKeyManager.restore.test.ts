@@ -96,20 +96,50 @@ describe("ApiKeyManager restore after reload", () => {
         assert.strictEqual(after.getKey("google"), "g-custom");
     });
 
-    it("leaves keys saved by the old encrypt-storage format untouched, and the first save replaces them", async () => {
-        // encrypt-storage's crypto-js output, which Web Crypto cannot read
-        const legacy = "U2FsdGVkX1+legacy+crypto+js+ciphertext";
-        localStorage.setItem("@graphty-ai-keys:keys", legacy);
+    describe("keys saved before Web Crypto, by encrypt-storage", () => {
+        // Real encrypt-storage 2.16.6 output (crypto-js AES), as graphty-element saved it until
+        // it moved to Web Crypto: the built-in key, and a passphrase under the default salt.
+        const legacy = {
+            keys: "U2FsdGVkX1/sq9EA8z95LjKN1yArQEHeA5Lm9383/O7yb84JhdVeMTPnoTQPd8Fj0V/KfQAFiwUv7ZwiJj1iaRxROrGfa+vTECS25/pQxgA=",
+            defaultProvider: "U2FsdGVkX1/QMQwi+8DRaiOSZPtC7O7HvWSI4SDskhM=",
+            extras: "U2FsdGVkX1/RkQPghY1qAgJZ9k8EWIysfP+exj9qT6fa2o2ifSZcupHDIqEOTOSLo4Khs0ncbPy0YIW4H7wvFgi3X2+2uA5lPx5gEuiOIVU=",
+            passphraseKeys: "U2FsdGVkX1+ZIqgE/PILhkyeScmz+UnWP1rydBWwJAgLKqV6mwHKvWYJbyvUXJbA",
+        };
 
-        const after = await reload();
-        assert.strictEqual(after.isPersistenceEnabled(), false, "nothing readable to restore");
-        await after.enablePersistence();
-        assert.deepStrictEqual(after.getConfiguredProviders(), [], "the reader enters the keys again");
-        assert.strictEqual(localStorage.getItem("@graphty-ai-keys:keys"), legacy);
+        it("restores them with the built-in key and saves them again in the new format", async () => {
+            localStorage.setItem("@graphty-ai-keys:keys", legacy.keys);
+            localStorage.setItem("@graphty-ai-keys:default-provider", legacy.defaultProvider);
+            localStorage.setItem("@graphty-ai-keys:extras", legacy.extras);
 
-        after.setKey("openai", "sk-entered-again");
-        await after.ready();
-        assert.strictEqual((await reload()).getKey("openai"), "sk-entered-again");
+            const migrated = await reload();
+            assert.strictEqual(migrated.isPersistenceEnabled(), true);
+            assert.strictEqual(migrated.getKey("openai"), "sk-saved-by-3x");
+            assert.strictEqual(migrated.getKey("anthropic"), "sk-ant-saved-by-3x");
+            assert.strictEqual(migrated.getDefaultProvider(), "anthropic");
+            assert.deepStrictEqual(migrated.getStoredItem("sources"), [{ host: "db.example", token: "t-3x" }]);
+            for (const item of ["keys", "default-provider", "extras"]) {
+                const stored = localStorage.getItem(`@graphty-ai-keys:${item}`) ?? "";
+                assert.isTrue(stored.startsWith("gk1:"), `${item} is saved in the new format`);
+            }
+
+            const after = await reload();
+            assert.strictEqual(after.getKey("openai"), "sk-saved-by-3x");
+            assert.strictEqual(after.getDefaultProvider(), "anthropic");
+        });
+
+        it("unlocks them with the passphrase they were saved under, and not with a wrong one", async () => {
+            localStorage.setItem("@graphty-pass:keys", legacy.passphraseKeys);
+
+            const wrong = new ApiKeyManager({ prefix: "@graphty-pass" });
+            await wrong.enablePersistenceWithPassphrase("wrong guess");
+            assert.isUndefined(wrong.getKey("google"));
+            assert.strictEqual(localStorage.getItem("@graphty-pass:keys"), legacy.passphraseKeys, "left untouched");
+
+            const right = new ApiKeyManager({ prefix: "@graphty-pass" });
+            await right.enablePersistenceWithPassphrase("correct horse battery");
+            assert.strictEqual(right.getKey("google"), "g-passphrase-3x");
+            assert.isTrue(localStorage.getItem("@graphty-pass:keys")?.startsWith("gk1:"));
+        });
     });
 
     it("saves keys that were in memory before persistence was enabled", async () => {

@@ -18,6 +18,7 @@ import type { AiStatus } from "../src/ai/AiStatus";
 import { registerProviderApiEngine } from "../src/ai/engine/load";
 import type { AiEngine } from "../src/ai/engine/types";
 import { ApiKeyManager } from "../src/ai/keys/ApiKeyManager";
+import { getWebLlmProviderClass } from "../src/ai/providers";
 import type { MockLlmProvider } from "../src/ai/providers/MockLlmProvider";
 import type { WebLlmProvider } from "../src/ai/providers/WebLlmProvider";
 import { type GraphtyElement } from "../src/graphty-element";
@@ -31,6 +32,7 @@ import {
     holds,
     renderedElement,
 } from "./assertions";
+import { type RealInput, realInput } from "./helpers";
 
 // Sample network infrastructure graph
 const SAMPLE_NODES = [
@@ -75,18 +77,10 @@ const SAMPLE_EDGES = [
 const keyManager = new ApiKeyManager();
 const PERSISTENCE_KEY = "graphty-ai-showcase";
 
-// Check WebGPU availability
+// Whether this browser can run WebLLM: the element's own WebGPU check.
 async function checkWebGPU(): Promise<boolean> {
-    if (typeof navigator === "undefined" || !("gpu" in navigator)) {
-        return false;
-    }
-
-    try {
-        const adapter = await navigator.gpu?.requestAdapter();
-        return Boolean(adapter);
-    } catch {
-        return false;
-    }
+    const WebLlm = await getWebLlmProviderClass();
+    return WebLlm.isWebGPUAvailable();
 }
 
 // Available WebLLM models that support tool calling
@@ -176,19 +170,6 @@ function getAvailableMemory(): { available: number | null; total: number | null 
     }
 }
 
-// Voice graph interface
-interface VoiceGraph {
-    getVoiceAdapter: () => { isSupported: boolean };
-    startVoiceInput: (options: {
-        continuous?: boolean;
-        interimResults?: boolean;
-        onTranscript?: (text: string, isFinal: boolean) => void;
-        onStart?: (started: boolean, error?: string) => void;
-    }) => boolean;
-    stopVoiceInput: () => void;
-    isVoiceActive: () => boolean;
-}
-
 // Main setup function
 async function setupShowcase(): Promise<void> {
     const element = document.querySelector<GraphtyElement>("graphty-element");
@@ -237,9 +218,7 @@ async function setupShowcase(): Promise<void> {
         return;
     }
 
-    // The element is upgraded, so its graph exists.
     await customElements.whenDefined("graphty-element");
-    const graph = element.graph as VoiceGraph & GraphtyElement["graph"];
 
     // State
     let isConnected = false;
@@ -461,7 +440,8 @@ async function setupShowcase(): Promise<void> {
                     }
 
                     let lastProgressText = "";
-                    webllmProvider.onProgress((progress, text) => {
+                    webllmProvider.onProgress((progress, stage, detail) => {
+                        const text = detail ?? stage;
                         lastProgressText = text;
                         if (ui.webllmProgressFill) {
                             ui.webllmProgressFill.style.width = `${progress * 100}%`;
@@ -504,25 +484,24 @@ async function setupShowcase(): Promise<void> {
 
                         // Show error with helpful suggestion
                         if (ui.connectionStatus) {
-                            ui.connectionStatus.innerHTML = suggestClearCache
-                                ? `✗ ${helpfulMessage} <button id="suggest-clear-cache" style="margin-left: 8px; padding: 4px 8px; cursor: pointer;">Clear Cache</button>`
-                                : `✗ ${helpfulMessage}`;
+                            // The message carries WebLLM's own error text, so it goes in as text,
+                            // never as HTML.
+                            ui.connectionStatus.textContent = `\u2717 ${helpfulMessage}`;
                             ui.connectionStatus.className = "status-error";
 
-                            // Add click handler for suggested clear cache button
                             if (suggestClearCache) {
-                                const suggestBtn = document.getElementById("suggest-clear-cache");
-                                if (suggestBtn) {
-                                    suggestBtn.addEventListener("click", () => {
-                                        void clearWebLlmCache().then((result) => {
-                                            if (result.cleared && ui.connectionStatus) {
-                                                ui.connectionStatus.textContent =
-                                                    "Cache cleared. Try connecting again.";
-                                                ui.connectionStatus.className = "";
-                                            }
-                                        });
+                                const suggestBtn = document.createElement("button");
+                                suggestBtn.textContent = "Clear Cache";
+                                suggestBtn.style.cssText = "margin-left: 8px; padding: 4px 8px; cursor: pointer;";
+                                suggestBtn.addEventListener("click", () => {
+                                    void clearWebLlmCache().then((result) => {
+                                        if (result.cleared && ui.connectionStatus) {
+                                            ui.connectionStatus.textContent = "Cache cleared. Try connecting again.";
+                                            ui.connectionStatus.className = "";
+                                        }
                                     });
-                                }
+                                });
+                                ui.connectionStatus.append(" ", suggestBtn);
                             }
                         }
 
@@ -535,12 +514,12 @@ async function setupShowcase(): Promise<void> {
                     }
 
                     // Enable AI with the initialized provider instance
-                    await graph.enableAiControl({
+                    await element.enableAiControl({
                         provider: "webllm",
                         providerInstance: webllmProvider,
                     });
                 } else if (provider === "mock") {
-                    await graph.enableAiControl({ provider: "mock" });
+                    await element.enableAiControl({ provider: "mock" });
                 } else {
                     // Cloud provider
                     const apiKey = ui.apiKeyInput?.value.trim();
@@ -548,7 +527,7 @@ async function setupShowcase(): Promise<void> {
                         throw new Error("Please enter an API key");
                     }
 
-                    await graph.enableAiControl({
+                    await element.enableAiControl({
                         provider: provider as "openai" | "anthropic" | "google",
                         apiKey,
                     });
@@ -564,7 +543,7 @@ async function setupShowcase(): Promise<void> {
                 }
 
                 // Subscribe to status updates
-                graph.onAiStatusChange(updateStatus);
+                element.onAiStatusChange(updateStatus);
 
                 isConnected = true;
                 if (ui.connectionStatus) {
@@ -606,7 +585,7 @@ async function setupShowcase(): Promise<void> {
 
     // Disconnect handler
     ui.disconnectBtn.addEventListener("click", () => {
-        graph.disableAiControl();
+        element.disableAiControl();
         isConnected = false;
         webllmProvider = null;
 
@@ -639,7 +618,7 @@ async function setupShowcase(): Promise<void> {
         ui.sendBtn.disabled = true;
 
         try {
-            const result = await graph.aiCommand(value);
+            const result = await element.aiCommand(value);
 
             let output = result.message;
             if (result.data) {
@@ -668,7 +647,7 @@ async function setupShowcase(): Promise<void> {
 
     // Voice input
     if (ui.voiceBtn) {
-        const adapter = graph.getVoiceAdapter();
+        const adapter = element.getVoiceAdapter();
         if (!adapter.isSupported) {
             ui.voiceBtn.disabled = true;
             ui.voiceBtn.title = "Voice input not supported in this browser";
@@ -680,7 +659,7 @@ async function setupShowcase(): Promise<void> {
             }
 
             if (isVoiceActive) {
-                graph.stopVoiceInput();
+                element.stopVoiceInput();
                 ui.voiceBtn.textContent = "🎤";
                 ui.voiceBtn.className = "action-btn voice";
                 isVoiceActive = false;
@@ -691,7 +670,7 @@ async function setupShowcase(): Promise<void> {
                 ui.voiceBtn.textContent = "⏳";
                 ui.voiceBtn.disabled = true;
 
-                graph.startVoiceInput({
+                element.startVoiceInput({
                     continuous: true,
                     interimResults: true,
                     onStart: (started, error) => {
@@ -724,7 +703,7 @@ async function setupShowcase(): Promise<void> {
 
                             if (shouldAutoExecute) {
                                 // Auto-execute: send command immediately
-                                void graph.aiCommand(text, { via: "voice" }).then((result) => {
+                                void element.aiCommand(text, { via: "voice" }).then((result) => {
                                     ui.responseOutput.textContent = result.message;
                                     logCommand(
                                         `🎤 ${text}`,
@@ -2066,7 +2045,12 @@ export const RunCode: Story = {
 
         // The model was sent the program's value, and it is the graph's own mean degree.
         const provider = element?.getAiManager()?.getProvider() as QueuedProvider | undefined;
-        const sent = (provider?.sent.at(-1) ?? []).find((message) => message.toolCallId === "code1")?.content ?? "";
+        // The engine gives each call its own id, so find the run_code call by name, then its result.
+        const history = provider?.sent.at(-1) ?? [];
+        const callId = history
+            .flatMap((message) => message.toolCalls ?? [])
+            .find((call) => call.name === "run_code")?.id;
+        const sent = history.find((message) => message.toolCallId === callId)?.content ?? "";
         const json = sent.slice(sent.indexOf("{"), sent.lastIndexOf("}") + 1);
         const value = (JSON.parse(json === "" ? "{}" : json) as { data?: { value?: unknown } }).data?.value;
         const { nodes, edges } = before.session.status.counts;
@@ -2189,13 +2173,39 @@ function scriptSpeech(): (() => void) | undefined {
 }
 
 /**
+ * Press the left button on a button and hold it: the browser's own pointer under the test runner
+ * (`realInput`), Storybook's replay in its own UI.
+ * @param button - The button to hold.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
+ * @returns Lets go of the button.
+ */
+async function holdDown(button: HTMLButtonElement, input: RealInput | undefined): Promise<() => Promise<void>> {
+    if (input !== undefined) {
+        const box = button.getBoundingClientRect();
+        const middle = { x: box.width / 2, y: box.height / 2 };
+        await input.press(button, middle);
+        return () => input.release(button, middle);
+    }
+    // One user for the whole press, so the release lets go of the button the press holds.
+    const user = userEvent.setup();
+    await user.pointer({ keys: "[MouseLeft>]", target: button });
+    return () => user.pointer({ keys: "[/MouseLeft]", target: button });
+}
+
+/**
+ 
  * Hold the page's talk button, as a reader does, until the recognizer has heard `utterance`, then
  * let go.
  * @param canvasElement - Where the story was rendered.
  * @param utterance - What the reader says.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
  * @returns How the press ended (`ai-voice-end`'s code).
  */
-async function speak(canvasElement: HTMLElement, utterance: string): Promise<string | undefined> {
+async function speak(
+    canvasElement: HTMLElement,
+    utterance: string,
+    input: RealInput | undefined,
+): Promise<string | undefined> {
     const element = await renderedElement(canvasElement, "the story rendered no <graphty-element>");
     const talk = canvasElement.querySelector<HTMLButtonElement>("#talk");
     await holds(talk !== null, "the page has no talk button");
@@ -2209,13 +2219,11 @@ async function speak(canvasElement: HTMLElement, utterance: string): Promise<str
             { once: true },
         );
     });
-    // One user for the whole press, so the release lets go of the button the press holds.
-    const user = userEvent.setup();
-    await user.pointer({ keys: "[MouseLeft>]", target: talk as HTMLButtonElement });
+    const letGo = await holdDown(talk as HTMLButtonElement, input);
     await waitFor(() => {
         need(canvasElement.querySelector("#voice-status")?.textContent === utterance, `"${utterance}" was not heard`);
     });
-    await user.pointer({ keys: "[/MouseLeft]", target: talk as HTMLButtonElement });
+    await letGo();
     return ended;
 }
 
@@ -2268,7 +2276,7 @@ export const Voice: Story = {
 
         return root;
     },
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, parameters }) => {
         if (!navigator.webdriver) {
             return;
         }
@@ -2280,7 +2288,8 @@ export const Voice: Story = {
         const support = await element.getAiVoiceSupport();
         await holds(support.input.path === "browser", `speech would be heard by ${support.input.path}`);
 
-        const first = await speak(canvasElement, "Color the servers red");
+        const input = realInput(parameters);
+        const first = await speak(canvasElement, "Color the servers red", input);
         await holds(first === "AI_COMPLETED", `the first press ended ${String(first)}`);
         await waitFor(() => {
             need(element.getAiConversation()?.messages.length === 2, "the spoken request was not answered");
@@ -2296,14 +2305,14 @@ export const Voice: Story = {
             "the page's transcript does not show the spoken message",
         );
 
-        await speak(canvasElement, "Remove the monitoring node");
+        await speak(canvasElement, "Remove the monitoring node", input);
         await waitFor(() => {
             need(element.getPendingAiApprovals().length === 1, "the spoken removal was not held for approval");
         });
         await holds(before.session.status.counts.nodes === 12, "the node was removed before the reader approved");
 
         // Answered by voice: "Yes." approves the held request, and is not sent as a message.
-        await speak(canvasElement, "Yes.");
+        await speak(canvasElement, "Yes.", input);
         await waitFor(() => {
             need(before.session.status.counts.nodes === 11, "saying yes did not remove the monitoring node");
         });
@@ -2366,7 +2375,7 @@ export const LiveVoice: Story = {
 
         return root;
     },
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, parameters }) => {
         await readyPage(canvasElement);
         const before = await drawn(canvasElement, "AI Control Live voice");
         await assertGraphLoaded(before, { nodes: 12, edges: 20 });
@@ -2382,15 +2391,14 @@ export const LiveVoice: Story = {
         // Hold "Hold to talk" with the real pointer, then let go.
         const talk = canvasElement.querySelector<HTMLButtonElement>("#talk");
         await holds(talk !== null, "the page has no talk button");
-        const user = userEvent.setup();
-        await user.pointer({ keys: "[MouseLeft>]", target: talk as HTMLButtonElement });
+        const letGo = await holdDown(talk as HTMLButtonElement, realInput(parameters));
         await waitFor(() => {
             need(
                 canvasElement.querySelector("#voice-status")?.textContent === "Listening (live)",
                 "the press did not start a live conversation",
             );
         });
-        await user.pointer({ keys: "[/MouseLeft]", target: talk as HTMLButtonElement });
+        await letGo();
 
         await waitFor(() => {
             need(

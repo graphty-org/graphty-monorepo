@@ -1,13 +1,14 @@
 /**
  * @file Reading a load again with changed choices (`data.reloadSource`): another source column,
- * the kinds of the ends, scoped ids; the choices kept with the load; one undo step; and the edge
- * weight meaning setting.
+ * the kinds of the ends, scoped ids; the choices kept with the load; one undo step; work in
+ * proportion to the graph; and the edge weight meaning setting.
  */
 
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, defineSource, registerSource } from "../../session";
 import type { GraphSession } from "../../src/session/types";
+import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
 
 registerSource(
     defineSource({
@@ -60,6 +61,19 @@ describe("data.reloadSource", () => {
         assert.isUndefined(source.loadKey);
     });
 
+    it("gives back what a load this session read was read from, and nothing for one it did not", async () => {
+        const session = await loaded();
+        const [{ key }] = session.data.sources();
+        const file = session.data.sourceInput(key)?.config.file;
+        assert.instanceOf(file, File);
+        assert.strictEqual(file.name, "auth-log.csv");
+        assert.isUndefined(session.data.sourceInput("nope"));
+
+        const generated = createGraphSession();
+        await generated.data.generate("complete", { n: 3 });
+        assert.isUndefined(generated.data.sourceInput(generated.data.sources()[0].key));
+    });
+
     it("reads the load again with kinds, as one undo step", async () => {
         const session = await loaded();
         const [{ key }] = session.data.sources();
@@ -100,6 +114,17 @@ describe("data.reloadSource", () => {
         assert.include(ids(session), "alice");
         assert.deepEqual(session.data.sources()[0].choices?.mapping, {
             tables: { rows: { rowsAre: "edges", source: "user", target: "host", sourceKind: "user" } },
+        });
+    });
+
+    it("lays a mapping named by side over the table read as that side (#9078)", async () => {
+        const session = await loaded();
+        const [{ key }] = session.data.sources();
+        await session.data.reloadSource(key, { mapping: { edges: { source: "ip" } } });
+        assert.include(ids(session), "10.0.0.1");
+        assert.notInclude(ids(session), "alice");
+        assert.deepEqual(session.data.sources()[0].choices?.mapping, {
+            tables: { rows: { rowsAre: "edges", source: "ip", target: "host" } },
         });
     });
 
@@ -144,6 +169,33 @@ describe("data.reloadSource", () => {
             assert.strictEqual((error as { code?: string }).code, "E_UNSUPPORTED");
             assert.strictEqual((error as { details?: { reason?: string } }).details?.reason, "not-reloadable");
         }
+    });
+
+    it("SessionDataApi.reloadSource: no more than linear in the graph", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const rows = Array.from(
+                    { length: size },
+                    (_unused, at) => `u${String(at)},h${String((at + 1) % size)},10.0.0.${String(at % 250)}`,
+                );
+                const session = createGraphSession();
+                await session.data.import(
+                    { config: { file: new File([["user,host,ip", ...rows].join("\n")], "auth.csv") } },
+                    { mapping: { rowsAre: "edges", source: "user", target: "host" } },
+                );
+                const [{ key }] = session.data.sources();
+                const visits = await visitsDuring(() =>
+                    session.data.reloadSource(key, {
+                        mapping: { sourceKind: "user", targetKind: "host" },
+                        kindIds: "scoped",
+                    }),
+                );
+                assert.strictEqual(session.data.statistics().edgeCount, size);
+                session.dispose();
+                return visits;
+            },
+            { sizes: [200, 800], growth: "linear", counter: "elements visited by SessionDataApi.reloadSource" },
+        );
     });
 });
 

@@ -895,6 +895,10 @@ the secondary and primary buttons on the right.
 
 Inside a tooltip the chip sits at the end of the sentence with a 6px gap.
 In a menu row it is right-aligned. In a palette row it is the last cell.
+On a button or an action row it follows the label after a 6px gap, as in
+`Accept [A]`: every command with a binding shows its key on the visible
+control that runs it (principles.md, Rules, "Every shortcut is on a visible
+control").
 
 ### Dropdown menu (top bar Export, Views menu, header menus, row menus)
 
@@ -987,7 +991,7 @@ the icon on a toggled row. Anchored below its trigger with a 4px gap.
 The second row is the hover state. A row with a trailing ellipsis in its
 label ("Save view...") opens a dialog (6.3). Disabled rows: `color: #5f6873`
 and no hover. Views menu order (5.6): Reset view `Shift+0`, Top `7`, Front
-`1`, Side `3`, Isometric (3D only), Follow selection (toggle), divider, Save
+`1`, Side `3`, Isometric (3D only), Focus selected (toggle), divider, Save
 view..., divider, Show minimap `M`, Show legend `L`, divider, Enter VR, Enter
 AR (only when the browser reports support). Export menu (5.1): Image, Data.
 
@@ -1931,12 +1935,14 @@ below is complete; copy it verbatim and change only the text.
 
 Overrides of earlier sections:
 
-- Section 9 "Key chip": the chip's allowed hosts are now closed. A binding
-  appears in exactly four places -- a tooltip bubble (last element of the
-  sentence, 6px gap), a menu row (right-aligned), a palette row (last cell),
-  and the shortcuts table. Never inside a button, an action row, a switch row
-  or a section header, and never in a trailing column that carries data on
-  other rows of the same list.
+- Section 9 "Key chip": the chip's allowed hosts are a button or an action
+  row (after the label, 6px gap), a menu row (right-aligned), a palette row
+  (last cell), a tooltip bubble (last element of the sentence, 6px gap) and
+  the shortcuts table. The control that runs a bound command always carries
+  its chip; the tooltip and the shortcuts table only repeat it. Never in a
+  switch row or a section header, and never in a trailing column that carries
+  data on other rows of the same list. (Owner rule, 2026-10-25: a binding
+  seen only on hover is not usable.)
 - Section 4 "Tooltip bubble": the same bubble at `max-width: 250px` is the info
   circle popover (below). The bubble is also the home for a technical name that
   a 24px slot cannot hold, and for the "Learn more" docs link.
@@ -1989,7 +1995,7 @@ Resting:
 </div>
 ```
 
-Hovered, focused or open (the only difference is the colour):
+Hovered, focused or open (the only difference is the color):
 
 ```html
 <div
@@ -2326,14 +2332,15 @@ eye-off, lock, unlock, tag. Consolidated: the pushpin adopts the upright form
 (`<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>`),
 the gear the rail form, the funnel `<path d="M2.5 3.5h11l-4.25 5v4.25l-2.5 1.25V8.5z"></path>`,
 the bookmark the ViewsMenu ribbon, and zoom-to-selection the corner brackets
-with a centre dot.
+with a center dot.
 
 ### Subtle action row (5.6, replaces the boxed action with an inline key chip)
 
 The corrected shape. Transparent at rest, no border, 24px tall, full panel
-width, 4px radius, a 14px leading icon in the dimmed colour, an 11px label at
-weight 500, hover as its only chrome. The binding is in the tooltip, never in
-the row. The trailing slot carries data about the action or nothing.
+width, 4px radius, a 14px leading icon in the dimmed color, an 11px label at
+weight 500, hover as its only chrome. A bound action shows its key chip right
+after the label (6px gap) and repeats it in the tooltip. The trailing slot
+carries data about the action or nothing, never the key.
 
 Wrong (do not draw this; it reads as a disabled text field with a suffix):
 a 24px box with `background: transparent; border: 1px solid #48525c;
@@ -2367,8 +2374,12 @@ Right, resting:
             <circle cx="8" cy="8" r="2"></circle>
         </svg>
     </span>
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+    <span style="flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
         >Zoom to selection</span
+    >
+    <span
+        style="flex: 0 0 auto; display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;"
+        >F</span
     >
 </div>
 ```
@@ -2396,10 +2407,14 @@ With the trailing data slot (a count, a target or a Coming tag -- never a key):
             <path d="M4 2.5h8a1 1 0 0 1 1 1v10l-5-3-5 3v-10a1 1 0 0 1 1-1z"></path>
         </svg>
     </span>
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+    <span style="flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
         >Save as subgraph</span
     >
-    <span style="flex: 0 0 auto; font-size: 11px; font-weight: 400; color: #7a828e;">new layer</span>
+    <span
+        style="flex: 0 0 auto; display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;"
+        >Shift+S</span
+    >
+    <span style="flex: 0 0 auto; margin-left: auto; font-size: 11px; font-weight: 400; color: #7a828e;">new layer</span>
 </div>
 ```
 
@@ -2410,9 +2425,10 @@ selection (F). Select something first"). The hover fill is `#374047`, not
 `#2a3035`, and the leading icon is mandatory: a transparent row is otherwise
 not obviously clickable in a dense panel.
 
-Key chip treatment: in an artboard the binding is the native `title` attribute
-and is spelled in parentheses at the end of the sentence -- `title="Show
-legend (L)"`. In the product it is the VOCAB key chip at the end of the tooltip
+Key chip treatment: the row shows the key chip after the label, as in the
+snippets above. The tooltip repeats it: in an artboard as the native `title`
+attribute, spelled in parentheses at the end of the sentence -- `title="Show
+legend (L)"`; in the product as the VOCAB key chip at the end of the tooltip
 sentence after a 6px gap. Two chips are not bindings in disguise and stay where
 they are: the top bar `Cmd K` pill and the `/` hint inside a search input, both
 printed inside a real input where a hint belongs.
@@ -2509,7 +2525,7 @@ word; a collapsed group header carries only the card count, with the tooltip
 
 Every time string is derived from the Time role's unit family. Draw the unit
 select with its chevron only in the Date and time case; Number and Ordered
-category render a static unit label in the dimmed colour.
+category render a static unit label in the dimmed color.
 
 Date and time -- window size with a unit select, step in days:
 
@@ -2856,7 +2872,7 @@ Copy these verbatim.
 | Auto-fix toast                        | `Set 14 edge weights to 1. Undo`                                                                                                                                                                                                                                                                        |
 | XR return                             | `Back from VR` with `2 notes, 1 run (Find groups), 12 nodes expanded, 3 selected`                                                                                                                                                                                                                       |
 | XR history group                      | `VR session 14:21 - 14:39`, child rows marked `by voice, in VR`                                                                                                                                                                                                                                         |
-| XR note marks                         | `Dictated` chip; `Flagged in VR 14:32` in the placeholder colour                                                                                                                                                                                                                                        |
+| XR note marks                         | `Dictated` chip; `Flagged in VR 14:32` in the placeholder color                                                                                                                                                                                                                                         |
 | XR refusals                           | `About 40 s -- run this at the desk` / `52 attributes -- read them at the desk` / `Reduced detail to keep the view smooth`                                                                                                                                                                              |
 | Narrow the view card                  | `Filter by type, attribute, or a result you have already run.`                                                                                                                                                                                                                                          |
 
@@ -3044,7 +3060,7 @@ drawn in a field slot; a concept with no entry keeps its word.
 | scale, square root | `<path d="M2.5 13.5C4.5 5 8 2.5 13.5 2.5"></path>`                                                                                                    |
 | scale, linear      | `<line x1="2.5" y1="13.5" x2="13.5" y2="2.5"></line>`                                                                                                 |
 | scale, log         | `<path d="M2.5 13.5C8 13.5 11.5 11 13.5 2.5"></path>`                                                                                                 |
-| colour             | the 14px swatch itself, no SVG                                                                                                                        |
+| color              | the 14px swatch itself, no SVG                                                                                                                        |
 
 Letters are allowed in the slot in place of a glyph, at 11px `#7a828e`, from
 this closed set only: `N` nodes, `E` edges, `W` weight, `D` depth, `K` k.
@@ -3410,7 +3426,7 @@ reverted.
 ### RT-4 Ramp row
 
 The value is drawn at row size, so the sentence describing it is deleted. Two
-forms: a size wedge and a colour ramp. The trailing slot holds the scale-curve
+forms: a size wedge and a color ramp. The trailing slot holds the scale-curve
 glyph, which opens the RT-3 group of three.
 
 ```html
@@ -3440,7 +3456,7 @@ glyph, which opens the RT-3 group of three.
 </div>
 ```
 
-Colour form: replace the wedge div with the section 9 gradient bar at
+Color form: replace the wedge div with the section 9 gradient bar at
 `height: 14px; border-radius: 2px; border: 1px solid #48525c;`.
 
 This one row replaces `Age 45 to 68 maps to sizes 1.0 to 2.0, square root
@@ -3679,7 +3695,7 @@ Sections keep a fixed order regardless of which members render.
 
 ### RT-9 Chart row
 
-A distribution drawn instead of the numbers that summarise it. One pitch (32px,
+A distribution drawn instead of the numbers that summarize it. One pitch (32px,
 a 24px sparkline) or two (64px, a 56px histogram). Never any other height.
 Always label the two axis ends, so the chart degrades into a picture of the
 table it replaced.
@@ -3818,7 +3834,7 @@ labels` preference, and the thing that makes an icon-first panel defensible to
 a first-time user. In that mode an RT-1 pair row becomes two RT-1 single rows
 and the panel roughly doubles in height. Every layout must survive it: a pair
 degrades to two singles, never to a two-line stack. Draw the row as a section 4
-labelled control with the glyph kept in the field:
+labeled control with the glyph kept in the field:
 
 ```html
 <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
@@ -4273,12 +4289,12 @@ header row whose gear the pop-out belongs to.
 
 ### Canvas toolbar (5.6, 5.1)
 
-The 5.6 navigation cluster, rotated and moved to the bottom centre of the live
-canvas rect. Centred with `left: 50%; transform: translateX(-50%)`, never on the
+The 5.6 navigation cluster, rotated and moved to the bottom center of the live
+canvas rect. Centered with `left: 50%; transform: translateX(-50%)`, never on the
 window. Bottom offset is 12 above whatever the canvas floor currently is: **12**
 plain, **82** with the time slider on, **272** with the Data table drawer open,
 **342** with both. The item set is fixed -- nothing appears or disappears with
-selection -- because a centred bar that changes width moves every item under the
+selection -- because a centered bar that changes width moves every item under the
 pointer.
 
 Derived width, desktop: `3 + 60 + 12 + (28*4 + 2*3) + 12 + 36 + 3 + 2 borders =
@@ -5011,8 +5027,9 @@ gives is the line count, never a fact (FLOOR-1.9 rule 1).
 </div>
 ```
 
-The binding stays in the title (REGISTER-1.5 section 1); the label never carries
-a key chip.
+The binding stays in the title (REGISTER-1.5 section 1); the label carries no
+key chip while the verb is unshipped (section 10, "Coming tag"). Once it ships,
+the chip follows the label (section 9, "Key chip").
 
 ### 13.3 A section name that does not fit is not shortened; the circle beside it moves
 
@@ -5149,7 +5166,7 @@ above move to its chevron: `#d5d7da` when anything behind the gear deviates,
 ### 14.2 The pop-out caret
 
 6px, on the pop-out's leading edge -- the left edge for an inspector pop-out,
-the right edge for an activity-panel one -- at the vertical centre of its
+the right edge for an activity-panel one -- at the vertical center of its
 opener's row, clamped 12px inside the pop-out's own corners. It ships with the
 pop-out shell, not per case, and it is not drawn once the opener has scrolled
 out of the region (14.3 replaces it there).
@@ -5251,7 +5268,7 @@ its header grammar, its min / median / max ramp with the scale word always
 printed, its Okabe-Ito and product ramps, its clamp line and its
 `not measured (N nodes)` row. Three things change (DECISIONS-1.8 C3, C6):
 
-- **No state-row block on canvas.** LEGEND-1.8 section 5's colour-agnostic
+- **No state-row block on canvas.** LEGEND-1.8 section 5's color-agnostic
   state swatches are not discarded -- they move to the export legend (14.6)
   and to Help's "What the marks mean".
 - **No category counts on canvas.** The `space-between` count span comes off
@@ -5307,7 +5324,7 @@ Content, in this order, with no cap and no compaction:
 3. Every departure line: the clamp line, `not measured (N nodes)`, the
    sampling caveat.
 4. One state row per state drawn in the exported frame, in LEGEND-1.8 section
-   5's order and with its colour-agnostic swatch, because a static figure has
+   5's order and with its color-agnostic swatch, because a static figure has
    no filter strip, no status bar and no result card to name them.
 
 At 2x the block is drawn at 2x: 22px headers, 20px rows, 512px width, 12px
@@ -5398,7 +5415,7 @@ header's mark and the gear's two inks.
 The layout `Parameters` block, which is the product owner's own example -- "a
 layout panel would show a couple common parameters and have an advanced gear for
 the rest". An open chevron; the section name at the value ink `#d5d7da` because
-the section holds values; the RT-1 pair `Edge length 30` and `Pull to centre
+the section holds values; the RT-1 pair `Edge length 30` and `Pull to center
 -1.2`; the bound `Edge weight` attribute field; and one gear in the trailing
 slot at the dimmed ink, because everything behind it sits at its default.
 
@@ -5415,8 +5432,8 @@ is D3. Nobody opens the Layout section to do nothing.
 Field slots: `Edge length` takes the register **width** glyph, an extent, which
 is the same reuse TimeSlider already makes for `Window size`. `Pull to centre`
 has no register entry, and a 108px half-field cannot hold the words `Pull to
-centre` plus a value, so this is the one new **field glyph** in 1.9 -- four
-chevrons pointing inward at a centre dot -- and it is owed to `REGISTER-1.5.md`
+center` plus a value, so this is the one new **field glyph** in 1.9 -- four
+chevrons pointing inward at a center dot -- and it is owed to `REGISTER-1.5.md`
 section 1 on the same terms as the field glyphs in section 11. It is not the
 `locate` glyph (concentric circles with ticks) and not `zoom to fit` (four corner
 brackets, pointing outward). Every field keeps a `title` equal to the word its
@@ -5654,12 +5671,12 @@ Owned by `CONTRAST-DIVERGENCE.md`. \*\*The palette in section 1 is what the
 artboards paint, and it is not to be reconciled with `compact-mantine`. The
 library's `PANEL_INK` is what ships, and it is not to be reconciled with section
 
-1. Five colour roles disagree on purpose; every other colour is the same colour
+1. Five color roles disagree on purpose; every other color is the same color
    in both, and a sixth disagreement is a bug in one of them, not a sixth
    divergence.\*\*
 
 `compact-mantine` was made WCAG 2.2 AA compliant in a hardening pass and the
-boards were not. Both artefacts stand. On the colour a shipped control paints,
+boards were not. Both artifacts stand. On the color a shipped control paints,
 the library governs and a board is a picture of an earlier decision; on layout,
 composition, density and register, this directory governs and the library is a
 consumer of it. Keep drawing section 1's values. The reasoning, the arithmetic
@@ -5681,7 +5698,7 @@ name their scheme.
 ### 16.2 The accent is a fifth, and a different kind
 
 `compact-mantine` sets no `primaryColor` and no `primaryShade`, so its accent
-and status colours are stock Mantine -- `#1971c2` dark / `#228be6` light,
+and status colors are stock Mantine -- `#1971c2` dark / `#228be6` light,
 `#fab005`, `#40c057`, `#fa5252` -- and not the values in section 1. Keep drawing
 `#4a7ee8` and the designloom status set; the instruction at the end of `###
 Accent` stands, and the mockup accent in fact measures better on every ground it
@@ -5693,12 +5710,12 @@ left open.
 
 The hexes in the JSDoc on `panel.ts`'s `ACCENT`, `WARNING`, `SUCCESS` and
 `DANGER` still quote section 1's values. They are stale comments, not the
-shipped colours.
+shipped colors.
 
 ### 16.3 An unlisted disagreement is a bug, not a divergence
 
 The five roles above are the whole list. If a board and a running panel disagree
-about any other colour, one of them has drifted and it is to be traced and
+about any other color, one of them has drifted and it is to be traced and
 fixed, not added to the list. A board that paints a hex found neither in section
 1 nor in the shared `dark[]` ramp is the defect regardless of what the library
 does -- the palette is closed. Extending the list is a decision made the way the

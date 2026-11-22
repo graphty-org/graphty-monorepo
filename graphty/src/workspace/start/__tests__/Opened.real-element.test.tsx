@@ -1,7 +1,7 @@
 /**
  * The workspace's `opened` on the REAL graphty-element: a sample opened from the start screen
  * settles it only once the whole open is done -- the graph read, its history started and focus
- * handed to the graph's heading -- and a sample that cannot be read rejects it with the reason.
+ * handed to the graph's heading -- and a file at an address that cannot be read leaves the Network data panel open with the reason.
  * It is what every test waits on after an open, never the node count, which arrives first (#3544).
  */
 
@@ -11,13 +11,11 @@ import "@graphty/graphty-element";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { openBy } from "../../../test/open";
 import { sampleTile } from "../../../test/samples-dialog";
-import { render, screen } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-import { openUrl } from "../open";
 
 describe("opened: an open's whole run", () => {
     it("settles once the sample is read, its history started and focus is on its heading", async () => {
@@ -34,18 +32,28 @@ describe("opened: an open's whole run", () => {
         assert.isNull(store.get().notice);
     });
 
-    it("rejects with the load's error when the file cannot be read, as the notice says", async () => {
+    it("keeps the Network data panel open and says why when a file at an address cannot be read", async () => {
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
-        let failure: unknown;
-        await openBy(store, async () => {
-            openUrl(store, new URL("/no-such-sample.graphml", location.href).href);
-            await Promise.resolve();
-        }).catch((error: unknown) => {
-            failure = error;
+        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        const chooser = await screen.findByRole("dialog", { name: "Open network data" });
+        await userEvent.click(within(chooser).getByRole("button", { name: /^Load from URL/ }));
+        const form = await screen.findByRole("form", { name: "Network data" });
+        await userEvent.type(
+            within(form).getByRole("textbox", { name: "URL" }),
+            new URL("/no-such-sample.graphml", location.href).href,
+        );
+        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        const failure = await waitFor(() => {
+            const chip = form.querySelector("[data-code]");
+            assert.isNotNull(chip, "the form shows why the load failed");
+            return chip;
         });
-        assert.instanceOf(failure, Error);
-        assert.isNull(store.get().project, "a failed open goes back to the start screen");
-        assert.isTrue(store.get().notice?.error);
+        assert.notMatch(failure.textContent ?? "", /^[EW]_/, "the reason is in words, never the raw code");
+        assert.isNotNull(screen.queryByRole("form", { name: "Network data" }), "the panel stays for another try");
+        const session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        )?.session;
+        assert.equal(session?.data.sources().length, 0, "nothing was loaded");
     });
 });

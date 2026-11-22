@@ -8,7 +8,7 @@ Command: `node tool/real.mjs --start rounds/round-2/sessions/r2-s53 empty` -> 01
 
 Saw: a dark start page. "Open project or file...", "New from data...", recent projects (empty),
 and a "Samples" column with Les Miserables (77 characters) at the top, "Good for a first look at
-communities and who holds the story together." A usage-data banner at the bottom. The grey
+communities and who holds the story together." A usage-data banner at the bottom. The gray
 description text is small and low contrast -- I had to lean in.
 
 Next: say "No thanks" to the usage data (supplier data, no thank you), then open Les Miserables.
@@ -17,7 +17,7 @@ Next: say "No thanks" to the usage data (supplier data, no thank you), then open
 
 Command: `--step ... --click "No thanks" --click "Les Miserables"` -> 02.png
 
-Saw: a network of blue dots and grey lines -- the hairball I expected, no names on any dot. Right
+Saw: a network of blue dots and gray lines -- the hairball I expected, no names on any dot. Right
 panel says Nodes 77, Edges 254, Density, Components 1. Left panel: a search box, "Selection",
 "Everything". Bottom-left hint: "Analyze [flask] in the toolbar (Shift+A) to add results here".
 At the bottom of the drawing there is a small toolbar: a flask, a chart-ish icon, "3D", a
@@ -45,7 +45,7 @@ Command: `--step ... --type "group"` -> 04.png
 Saw: heading "Find groups". Louvain ("Start here", "Which nodes form densely linked groups"),
 Leiden, Label propagation, Girvan-Newman, Markov, Spectral, Hierarchical. Seven ways to do the
 same thing is too many for me, but "Start here" settles it -- I take the one the tool recommends.
-The grey explanation lines are tiny.
+The gray explanation lines are tiny.
 
 Next: click Louvain.
 
@@ -76,7 +76,7 @@ Command: `--step ... --click "Group 1"` (tool: matched the list row) -> 07.png
 
 Saw: Group 1 is highlighted in the list, with an eye icon. The right panel switched to "Group 1,
 from Communities, Oct 7", Style tab open, showing its fill color E69F00. That is not what I asked
-for -- I wanted the names. The dots on the drawing did not change and nothing is labelled.
+for -- I wanted the names. The dots on the drawing did not change and nothing is labeled.
 
 Hesitation: why would clicking a group open its paint color? I expected a member list.
 
@@ -122,6 +122,6 @@ largest is Group 1 with 20 characters. Three of them: Valjean, Fauchelevent, Mar
       top-left of the drawing covers part of the network.
     - Seven grouping methods with no hint why I would choose one over another; "Resolution" means
       nothing to me. And would I get the same 6 groups if I ran it again? I did not check.
-    - Small grey description text throughout is hard for me to read.
+    - Small gray description text throughout is hard for me to read.
 - So what for my job: the grouping was quick and readable. Whether it means anything on my
   supplier data, where Tier 2 links are mostly missing, is another question.

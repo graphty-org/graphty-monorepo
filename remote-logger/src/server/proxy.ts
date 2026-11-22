@@ -6,8 +6,10 @@
  * @module server/proxy
  */
 
-import type * as http from "node:http";
+import * as dns from "node:dns";
+import * as http from "node:http";
 import * as https from "node:https";
+import * as net from "node:net";
 
 import httpProxy from "http-proxy";
 import { defaultTreeAdapter, type DefaultTreeAdapterMap, html as parse5Html, parse, serialize } from "parse5";
@@ -202,6 +204,61 @@ function isHtmlContentType(contentType: string | undefined): boolean {
     return contentType.includes("text/html");
 }
 
+/** Largest HTML response the proxy buffers to inject the logger; larger pages pass through unmodified. */
+const MAX_INJECTED_HTML_BYTES = 16 * 1024 * 1024;
+
+/**
+ * Send an upstream response on unmodified: its headers (with the body's own length and
+ * encoding, since the body is untouched), any chunks already read, then the rest as it arrives.
+ * @param proxyRes - The upstream response
+ * @param res - The response to the client
+ * @param statusCode - The status to send
+ * @param headers - The filtered headers to send
+ * @param readChunks - Body chunks already read from the upstream response
+ */
+function passThrough(
+    proxyRes: http.IncomingMessage,
+    res: http.ServerResponse,
+    statusCode: number,
+    headers: Record<string, string | string[]>,
+    readChunks: Buffer[],
+): void {
+    for (const name of ["content-length", "content-encoding"]) {
+        const value = proxyRes.headers[name];
+        if (value !== undefined) {
+            headers[name] = value;
+        }
+    }
+    res.writeHead(statusCode, headers);
+    res.flushHeaders();
+    for (const chunk of readChunks) {
+        res.write(chunk);
+    }
+    proxyRes.pipe(res);
+}
+
+/**
+ * Decode an HTML body with the charset its Content-Type declares, or failing that the
+ * one a <meta> tag near the start declares, or UTF-8.
+ * @param body - The raw HTML bytes
+ * @param contentType - The upstream Content-Type header
+ * @returns The decoded HTML
+ */
+function decodeHtml(body: Buffer, contentType: string | undefined): string {
+    const charsetPattern = /charset\s*=\s*["']?([\w.:-]+)/i;
+    const declared =
+        charsetPattern.exec(contentType ?? "")?.[1] ??
+        charsetPattern.exec(body.subarray(0, 1024).toString("latin1"))?.[1];
+    if (declared) {
+        try {
+            return new TextDecoder(declared).decode(body);
+        } catch {
+            // An unknown label: fall back to UTF-8
+        }
+    }
+    return body.toString("utf-8");
+}
+
 /**
  * Validate that a URL is a valid proxy target.
  * @param targetUrl - The URL to validate
@@ -214,6 +271,83 @@ export function isValidProxyTarget(targetUrl: string): boolean {
     } catch {
         return false;
     }
+}
+
+/**
+ * Addresses the proxy refuses to reach unless private targets are allowed: unspecified,
+ * loopback, RFC 1918 private, carrier-grade NAT, link-local (including the 169.254.169.254
+ * cloud metadata service) and IPv6 unique-local. IPv4-mapped IPv6 addresses match too.
+ */
+const PRIVATE_ADDRESSES = new net.BlockList();
+for (const [address, prefix] of [
+    ["0.0.0.0", 8],
+    ["10.0.0.0", 8], // eslint-disable-line sonarjs/no-hardcoded-ip -- a range the proxy refuses, not an address it uses
+    ["100.64.0.0", 10], // eslint-disable-line sonarjs/no-hardcoded-ip -- a range the proxy refuses, not an address it uses
+    ["127.0.0.0", 8],
+    ["169.254.0.0", 16], // eslint-disable-line sonarjs/no-hardcoded-ip -- a range the proxy refuses, not an address it uses
+    ["172.16.0.0", 12], // eslint-disable-line sonarjs/no-hardcoded-ip -- a range the proxy refuses, not an address it uses
+    ["192.168.0.0", 16], // eslint-disable-line sonarjs/no-hardcoded-ip -- a range the proxy refuses, not an address it uses
+] as const) {
+    PRIVATE_ADDRESSES.addSubnet(address, prefix, "ipv4");
+}
+for (const [address, prefix] of [
+    ["::", 128],
+    ["::1", 128],
+    ["fc00::", 7], // eslint-disable-line sonarjs/no-hardcoded-ip -- a range the proxy refuses, not an address it uses
+    ["fe80::", 10], // eslint-disable-line sonarjs/no-hardcoded-ip -- a range the proxy refuses, not an address it uses
+] as const) {
+    PRIVATE_ADDRESSES.addSubnet(address, prefix, "ipv6");
+}
+
+/**
+ * Check whether an IP address is loopback, private, link-local or unspecified.
+ * @param address - An IPv4 or IPv6 address (IPv6 without brackets)
+ * @returns True if the address is one the proxy refuses by default; false for anything that is not an IP
+ */
+export function isPrivateAddress(address: string): boolean {
+    const family = net.isIP(address);
+    if (family === 0) {
+        return false;
+    }
+    return PRIVATE_ADDRESSES.check(address, family === 6 ? "ipv6" : "ipv4");
+}
+
+type LookupCallback = (
+    err: NodeJS.ErrnoException | null,
+    address: string | dns.LookupAddress[],
+    family?: number,
+) => void;
+
+/**
+ * A DNS lookup for the proxy's outgoing connections that fails when a name resolves to a
+ * private address. It runs at connect time, so a name cannot pass a check and then
+ * resolve somewhere else for the connection.
+ * @param hostname - The host name to resolve
+ * @param options - The lookup options Node passes
+ * @param callback - Receives the addresses, or an error for a private one
+ */
+function publicOnlyLookup(hostname: string, options: dns.LookupOptions, callback: LookupCallback): void {
+    dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
+        if (err) {
+            callback(err, []);
+            return;
+        }
+        const refused = addresses.find((a) => isPrivateAddress(a.address));
+        if (refused) {
+            callback(
+                new Error(
+                    `Refusing to proxy ${hostname}: it resolves to the private address ${refused.address} (start the server with --proxy-allow-private to allow it)`,
+                ),
+                [],
+            );
+            return;
+        }
+        if (options.all) {
+            callback(null, addresses);
+        } else {
+            callback(null, addresses[0].address, addresses[0].family);
+        }
+    });
 }
 
 /** Result of creating a proxy instance. */
@@ -234,15 +368,22 @@ export interface ProxyInstance {
  * Create a proxy instance that injects the remote-logger into HTML responses.
  * @param proxyBasePath - Base path for the proxy (e.g., "/proxy/")
  * @param quiet - Suppress terminal output
+ * @param allowPrivate - Let the proxy reach loopback, private and link-local addresses
+ *   (default false: anyone who can reach the server could otherwise use it to reach
+ *   services only this machine can see)
  * @returns A proxy instance with handleRequest and close methods
  */
-export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstance {
+export function createProxy(proxyBasePath: string, quiet: boolean, allowPrivate = false): ProxyInstance {
+    const lookup = allowPrivate ? undefined : publicOnlyLookup;
+    const httpAgent = new http.Agent({ lookup });
+
     // Custom TLS agent to avoid JA3 fingerprint-based blocking by CDNs.
     // Fastly, Akamai, etc. blocklist Node.js's default TLS fingerprint.
     // Using a custom sigalgs list changes the fingerprint without restricting
     // TLS version, so sites that only support TLS 1.2 still work.
+    // Upstream certificates are verified (Node's default).
     const httpsAgent = new https.Agent({
-        rejectUnauthorized: false,
+        lookup,
         sigalgs:
             "ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256:ecdsa_secp384r1_sha384:rsa_pss_rsae_sha384:rsa_pkcs1_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha512",
     });
@@ -251,45 +392,51 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
         selfHandleResponse: true,
         changeOrigin: true,
         followRedirects: false,
-        secure: false,
     });
 
     proxy.on("proxyRes", (proxyRes, req, res) => {
+        const headers = proxiedHeaders(proxyRes.headers, proxyBasePath);
+        const contentType = proxyRes.headers["content-type"];
+        const statusCode = proxyRes.statusCode ?? 200;
+
+        if (!isHtmlContentType(contentType)) {
+            // Pass the body through as it arrives, so streams (server-sent events,
+            // long polls) reach the browser and large files are never held in memory
+            passThrough(proxyRes, res, statusCode, headers, []);
+            return;
+        }
+
         const chunks: Buffer[] = [];
-
-        proxyRes.on("data", (chunk: Buffer) => {
+        let size = 0;
+        const onData = (chunk: Buffer): void => {
             chunks.push(chunk);
-        });
-
-        proxyRes.on("end", () => {
-            const body = Buffer.concat(chunks);
-
-            const headers = proxiedHeaders(proxyRes.headers, proxyBasePath);
-
-            const contentType = proxyRes.headers["content-type"];
-            const statusCode = proxyRes.statusCode ?? 200;
-
-            if (isHtmlContentType(contentType)) {
-                const html = body.toString("utf-8");
-                const reqExtra = req as http.IncomingMessage & { _proxyTargetUrl?: string; _proxyScriptUrl?: string };
-                const originalUrl = reqExtra._proxyTargetUrl;
-                const reqScriptUrl = reqExtra._proxyScriptUrl ?? "/remote-logger.js";
-                const baseHref = originalUrl ? `${proxyBasePath}${extractOrigin(originalUrl)}/` : proxyBasePath;
-                const modified = injectScript(html, reqScriptUrl, baseHref);
-
-                headers["content-type"] = "text/html; charset=utf-8";
-                headers["cache-control"] = "no-cache, no-store";
-
-                res.writeHead(statusCode, headers);
-                res.end(modified);
-            } else {
-                if (body.length > 0) {
-                    headers["content-length"] = String(body.length);
-                }
-                res.writeHead(statusCode, headers);
-                res.end(body);
+            size += chunk.length;
+            if (size > MAX_INJECTED_HTML_BYTES) {
+                // Too large to rewrite: send it unmodified, without the logger
+                proxyRes.off("data", onData);
+                proxyRes.off("end", onEnd);
+                passThrough(proxyRes, res, statusCode, headers, chunks);
             }
-        });
+        };
+        const onEnd = (): void => {
+            const body = Buffer.concat(chunks);
+            const html = decodeHtml(body, contentType);
+            const reqExtra = req as http.IncomingMessage & { _proxyTargetUrl?: string; _proxyScriptUrl?: string };
+            const originalUrl = reqExtra._proxyTargetUrl;
+            const reqScriptUrl = reqExtra._proxyScriptUrl ?? "/remote-logger.js";
+            const baseHref = originalUrl ? `${proxyBasePath}${extractOrigin(originalUrl)}/` : proxyBasePath;
+            const modified = injectScript(html, reqScriptUrl, baseHref);
+
+            // The page is now UTF-8 whatever it arrived in; the header charset
+            // overrides any <meta charset> left in the document
+            headers["content-type"] = "text/html; charset=utf-8";
+            headers["cache-control"] = "no-cache, no-store";
+
+            res.writeHead(statusCode, headers);
+            res.end(modified);
+        };
+        proxyRes.on("data", onData);
+        proxyRes.on("end", onEnd);
     });
 
     proxy.on("error", (err, _req, res) => {
@@ -318,6 +465,19 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
         if (!isValidProxyTarget(targetUrl)) {
             res.writeHead(400, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Invalid target URL. Must start with http:// or https://" }));
+            return;
+        }
+
+        // Literal IP hosts never reach the agent's lookup, so check them here
+        const { hostname: urlHost } = new URL(targetUrl);
+        const hostname = urlHost.startsWith("[") ? urlHost.slice(1, -1) : urlHost;
+        if (!allowPrivate && isPrivateAddress(hostname)) {
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(
+                JSON.stringify({
+                    error: `Refusing to proxy the private address ${hostname} (start the server with --proxy-allow-private to allow it)`,
+                }),
+            );
             return;
         }
 
@@ -350,16 +510,18 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
         // Use a standard Chrome UA to avoid bot detection
         req.headers["user-agent"] = CHROME_UA;
 
-        const proxyOptions: httpProxy.ServerOptions = { target };
-        if (targetUrl.startsWith("https://")) {
-            proxyOptions.agent = httpsAgent;
-        }
+        const proxyOptions: httpProxy.ServerOptions = {
+            target,
+            agent: targetUrl.startsWith("https://") ? httpsAgent : httpAgent,
+        };
 
         proxy.web(req, res, proxyOptions);
     };
 
     const close = (): void => {
         proxy.close();
+        httpAgent.destroy();
+        httpsAgent.destroy();
     };
 
     return { handleRequest, close };

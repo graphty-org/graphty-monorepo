@@ -31,6 +31,12 @@ export interface ToolCall {
     name: string;
     /** Arguments to pass to the tool */
     arguments: Record<string, unknown>;
+    /**
+     * The model's argument text was not a JSON object (malformed, or not an object): `arguments`
+     * is empty, and the call should be refused as invalid rather than run. Such a call is in the
+     * response's `toolCalls` but is not passed to `StreamCallbacks.onToolCall`.
+     */
+    invalidArguments?: true;
 }
 
 /**
@@ -55,7 +61,9 @@ export interface LlmResponse {
     toolCalls: ToolCall[];
     /** Token usage information */
     usage?: {
+        /** Tokens the request sent to the model. */
         promptTokens: number;
+        /** Tokens the model wrote in reply. */
         completionTokens: number;
     };
 }

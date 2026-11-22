@@ -1,4 +1,4 @@
-import { offeredSamples, START_SAMPLES, type StartSample } from "../../data/sampleManifest";
+import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
 import { type Command, defineRegistration } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
 import { unlessUnsaved } from "../project/actions";
@@ -9,7 +9,7 @@ import { chooseAndOpenFile, openSample, pasteSource } from "./open";
  * @param sample - the sample.
  * @returns the command id.
  */
-export function sampleCommandId(sample: StartSample): string {
+function sampleCommandId(sample: StartSample): string {
     return `sample.open.${sample.id}`;
 }
 
@@ -20,7 +20,6 @@ const SAMPLE_COMMANDS: Command[] = START_SAMPLES.map((sample) => ({
     group: "Project",
     keywords: ["sample", "example", "dataset"],
     description: sample.sentence,
-    shown: () => offeredSamples().includes(sample),
     run: (ctx) => {
         unlessUnsaved(ctx, () => {
             openSample(ctx.workspace, sample);
@@ -31,7 +30,7 @@ const SAMPLE_COMMANDS: Command[] = START_SAMPLES.map((sample) => ({
 /**
  * The Start screen package's commands: Open project or file... and New from data..., the two ways
  * in on the start screen, also on the File list; and the Sources "+" doors to add data: File...,
- * Samples... and Paste (data prototype spec section 3.2); and one per start-screen sample. Network
+ * Samples..., Generator... and Paste (data prototype spec section 3.2); and one per start-screen sample. Network
  * data... is the server package's (server/commands.ts).
  */
 export const registration = defineRegistration({
@@ -59,6 +58,16 @@ export const registration = defineRegistration({
             keywords: ["add", "source", "example"],
             run: (ctx) => {
                 ctx.workspace.set({ dialog: "samples" });
+            },
+        },
+        {
+            id: "data.generate",
+            label: "Generator...",
+            group: "Data",
+            keywords: ["add", "source", "generate", "random"],
+            run: (ctx) => {
+                // The Samples dialog, opened on graph-samples' generators.
+                ctx.workspace.set({ dialog: "generators" });
             },
         },
         {

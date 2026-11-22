@@ -30,18 +30,22 @@ describe("a label's wrap width", () => {
      * @param options.text - Its words.
      * @param options.wrapWidth - Its wrap width, or none.
      * @param options.wrapTrailingSpace - Whether the space after a word must fit too.
+     * @param options.wrapSkipEndSpace - Whether a line's last word is measured without a space after it.
      * @param options.wrapEllipsis - Whether a line that does not fit is cut with an ellipsis.
      * @param options.wrapAnywhere - Whether a line may break between any two letters.
      * @param options.wrapSpaceCount - How many blanks a blank counts as.
+     * @param options.maxLines - The most lines drawn.
      * @returns The plane's size.
      */
     function planeOf(options: {
         text: string;
         wrapWidth?: number;
         wrapTrailingSpace?: boolean;
+        wrapSkipEndSpace?: boolean;
         wrapEllipsis?: boolean;
         wrapAnywhere?: boolean;
         wrapSpaceCount?: number;
+        maxLines?: number;
     }): {
         width: number;
         height: number;
@@ -100,6 +104,9 @@ describe("a label's wrap width", () => {
         assert.closeTo(height(false), planeOf({ text: "aa aa\naa aa" }).height, 1e-9);
         // a space after every word, the last one's too, as Cytoscape desktop measures
         assert.closeTo(height(true), planeOf({ text: "aa\naa\naa\naa" }).height, 1e-9);
+        // with wrapSkipEndSpace, the line's last word has no space after it, as Cytoscape.js measures
+        const skipped = planeOf({ text: "aa aa aa aa", wrapWidth, wrapTrailingSpace: true, wrapSkipEndSpace: true });
+        assert.closeTo(skipped.height, planeOf({ text: "aa\naa\naa aa" }).height, 1e-9);
     });
 
     test("with wrapTrailingSpace, keeps whole a line that fits without the space after its last word", () => {
@@ -152,5 +159,26 @@ describe("a label's wrap width", () => {
             planeOf({ text: "aa aa", wrapWidth, wrapSpaceCount }).height;
         assert.closeTo(height(), planeOf({ text: "aa aa" }).height, 1e-9);
         assert.closeTo(height(3), planeOf({ text: "aa\naa" }).height, 1e-9);
+    });
+
+    test("with maxLines, keeps that many wrapped lines and ends the last one in an ellipsis", () => {
+        const one = planeOf({ text: WORDS });
+        const wrapWidth = one.width / 3;
+        const wrapped = planeOf({ text: WORDS, wrapWidth });
+        assert.isAtLeast(Math.round(wrapped.height / one.height), 3, "three lines or more uncapped");
+        const capped = planeOf({ text: WORDS, wrapWidth, maxLines: 2 });
+        assert.strictEqual(Math.round(capped.height / one.height), 2, "two lines");
+        assert.isAtMost(capped.width, wrapWidth + margin() + 1e-6, "no line wider than the width");
+        // a label with no more lines than the cap is drawn whole
+        assert.closeTo(planeOf({ text: WORDS, wrapWidth, maxLines: 99 }).height, wrapped.height, 1e-9);
+    });
+
+    test("with maxLines and no wrap width, cuts a label's own lines and marks the cut", () => {
+        const three = planeOf({ text: "aa\nbb\ncc" });
+        const two = planeOf({ text: "aa\nbb" });
+        const capped = planeOf({ text: "aa\nbb\ncc", maxLines: 2 });
+        assert.closeTo(capped.height, two.height, 1e-9, "two lines");
+        assert.isAbove(capped.width, two.width, "the last line kept ends in an ellipsis");
+        assert.isBelow(capped.height, three.height);
     });
 });

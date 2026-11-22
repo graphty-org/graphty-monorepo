@@ -9,7 +9,7 @@
  *
  * The hash is a pure function of the topology: it covers `directed`, the four counts, `rowPtr`,
  * `colIdx`, `weights` (as raw f32 bit patterns), `arcToEdge` and `edgeToArc`. An identity permutation
- * is hashed as the sequence 0..len-1 WITHOUT materialising it, so two snapshots with the same
+ * is hashed as the sequence 0..len-1 WITHOUT materializing it, so two snapshots with the same
  * topology hash identically whether or not their getters were touched (P11). Nothing here depends on
  * the arena, the id map or the columns.
  */
@@ -17,6 +17,7 @@
 import { isColumnDetached } from "../columns/column.js";
 import { GraphFormatError } from "../errors.js";
 import { type Column, type GraphSnapshot } from "../types/index.js";
+import { jsonKey } from "../util/json-key.js";
 import { unsupportedDtype } from "../util/typed-array.js";
 
 /** Lane A: the 32-bit FNV-1a offset basis. */
@@ -187,7 +188,10 @@ function mixColumn(hasher: Fnv1aHasher, column: Column): void {
             mixColumn(hasher, column.child);
             break;
         case "json":
-            hasher.text(JSON.stringify(column.values));
+            hasher.word(column.values.length);
+            for (const value of column.values) {
+                hasher.text(jsonKey(value));
+            }
             break;
         default:
             unsupportedDtype(dtype);
@@ -214,7 +218,7 @@ export function hashColumn(column: Column): string {
  * The content hash of a snapshot's topology (design section 9.3): `directed`, the four counts, then
  * `rowPtr`, `colIdx`, `weights` (raw f32 bit patterns; an absent array hashes as length 0),
  * `arcToEdge` and `edgeToArc`, with an identity permutation hashed as 0..len-1 without being
- * materialised (P11: the digest does not depend on which getters were touched).
+ * materialized (P11: the digest does not depend on which getters were touched).
  * @param snapshot - the snapshot to hash
  * @returns the 16-character hex digest
  */

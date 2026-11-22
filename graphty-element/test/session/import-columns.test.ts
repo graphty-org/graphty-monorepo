@@ -1,0 +1,423 @@
+/**
+ * @file The typed door (design/rendering/row-renderer.md, stage 28): `session.data.importColumns`
+ * loads a graph from column arrays as one undoable step, and the graph it makes is the one the
+ * record doors (`addNodes`, `addEdges`) make from the same rows. Under the "batched" render path a
+ * forward add of nodes, and of edges, records each as one range entry in the op log, which undo and redo take
+ * back and put again in one go.
+ */
+
+import { assert, describe, it } from "vitest";
+
+import { identityColumnsOf, identityCounters } from "../../src/data/edgeIdentity";
+import type { GraphStore } from "../../src/data/GraphStore";
+import type { GraphSession } from "../../src/session";
+import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
+import { dataDigest } from "../../src/session/project/digest";
+import { RecordMap, recordsBuilt } from "../../src/session/project/recordMap";
+import { assertScalesLinearly } from "../helpers/cost";
+
+/**
+ * The digest of the session's graph slice and snapshot.
+ * @param session - The session.
+ * @returns The digest.
+ */
+function digest(session: GraphSession): string {
+    return dataDigest(dispatcherOf(session).state.graph, () => session.data.snapshot());
+}
+
+/**
+ * The graph builder's id map: null while every node's id is its own row (graph-format design 6.6).
+ * @param session - The session.
+ * @returns The map, or null when the builder keeps none.
+ */
+function idMapOf(session: GraphSession): unknown {
+    // The graph's store and the builder's staging are private: this reads the one fact the stage is about.
+    const { store } = dispatcherOf(session).graph as unknown as { store: GraphStore };
+    return (store.builder as unknown as { staging: { idToIndex: unknown } }).staging.idToIndex;
+}
+
+/** Five nodes in a ring with a chord; node 4 has no edge of its own besides the ring. */
+const SOURCES = new Uint32Array([0, 1, 2, 3, 4, 0]);
+const TARGETS = new Uint32Array([1, 2, 3, 4, 0, 2]);
+const WEIGHTS = new Float32Array([1, 2, 3, 4, 5, 0.5]);
+const IDS = ["a", "b", "c", "d", "e"];
+const POSITIONS = new Float32Array([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0.5, 0.5, 1]);
+
+/**
+ * The same graph through the record doors, as one step.
+ * @param session - The session.
+ */
+async function byRecords(session: GraphSession): Promise<void> {
+    await session.transaction("records", async (tx) => {
+        await tx.data.addNodes(
+            IDS.map((id, row) => ({
+                id,
+                position: [POSITIONS[row * 3], POSITIONS[row * 3 + 1], POSITIONS[row * 3 + 2]],
+                group: row % 2,
+            })),
+        );
+        await tx.data.addEdges(
+            [...SOURCES].map((source, at) => ({
+                source: IDS[source],
+                target: IDS[TARGETS[at]],
+                weight: WEIGHTS[at],
+                kind: at === 5 ? "chord" : "ring",
+            })),
+        );
+    });
+}
+
+/**
+ * The graph through the typed door.
+ * @param session - The session.
+ */
+async function byColumns(session: GraphSession): Promise<void> {
+    await session.data.importColumns({
+        sources: SOURCES,
+        targets: TARGETS,
+        nodeCount: IDS.length,
+        ids: IDS,
+        weights: WEIGHTS,
+        positions: POSITIONS,
+        attributes: {
+            nodes: { group: IDS.map((_, row) => row % 2) },
+            edges: { kind: [...SOURCES].map((_, at) => (at === 5 ? "chord" : "ring")) },
+        },
+    });
+}
+
+describe("session.data.importColumns", () => {
+    for (const batched of [false, true]) {
+        const path = batched ? "batched" : "objects";
+
+        it(`makes the graph the record doors make, on the ${path} path`, async () => {
+            const records = createElementSession({}, { batched: () => batched });
+            const columns = createElementSession({}, { batched: () => batched });
+            await byRecords(records);
+            await byColumns(columns);
+            assert.deepStrictEqual(columns.data.count(), { nodes: 5, edges: 6 });
+            assert.strictEqual(digest(columns), digest(records));
+        });
+
+        it(`is one step that undo takes back and redo puts again, on the ${path} path`, async () => {
+            const session = createElementSession({}, { batched: () => batched });
+            const empty = digest(session);
+            const steps = session.history.steps.length;
+            await byColumns(session);
+            const loaded = digest(session);
+            assert.strictEqual(session.history.steps.length, steps + 1);
+            await session.undo();
+            assert.strictEqual(digest(session), empty);
+            assert.deepStrictEqual(session.data.count(), { nodes: 0, edges: 0 });
+            await session.redo();
+            assert.strictEqual(digest(session), loaded);
+            await session.undo();
+            await session.redo();
+            assert.strictEqual(digest(session), loaded);
+        });
+    }
+
+    for (const batched of [false, true]) {
+        it(`seeds each node's file position again when redo puts the nodes back, on the ${batched ? "batched" : "objects"} path`, async () => {
+            const session = createElementSession({}, { batched: () => batched });
+            await byColumns(session);
+            await session.undo();
+            const { store } = dispatcherOf(session).graph as unknown as { store: GraphStore };
+            const seeded: unknown[] = [];
+            const set = store.builder.setNodeValue.bind(store.builder);
+            store.builder.setNodeValue = (column, index, value) => {
+                if (column === store.seedColumn) {
+                    seeded[index] = [...(value as number[])];
+                }
+
+                set(column, index, value);
+            };
+            await session.redo();
+            assert.deepStrictEqual(
+                seeded,
+                IDS.map((_, row) => [POSITIONS[row * 3], POSITIONS[row * 3 + 1], POSITIONS[row * 3 + 2]]),
+            );
+        });
+    }
+
+    it("holds a batched importColumns' records as columns, built on each read (stage 29)", async () => {
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            const before = recordsBuilt.count;
+            await byColumns(session);
+            // The batched load builds short-lived records as it reads its rows (the objects path
+            // builds its records up front, untagged); none is kept: the slice holds places.
+            const built = recordsBuilt.count - before;
+            assert.strictEqual(built > 0, batched, `records built by the load: ${String(batched)}`);
+            const slice = dispatcherOf(session).state.graph;
+            assert.instanceOf(slice.nodes, RecordMap);
+            assert.instanceOf(slice.edges, RecordMap);
+            const keptNodes = (slice.nodes as RecordMap<unknown>).heldRecords();
+            const keptEdges = (slice.edges as RecordMap<unknown>).heldRecords();
+            assert.deepStrictEqual(
+                [keptNodes, keptEdges],
+                batched ? [0, 0] : [IDS.length, SOURCES.length],
+                `records the slice keeps: ${String(batched)}`,
+            );
+            const added = (kind: string): readonly unknown[] => {
+                for (const { command } of session.journal.entries) {
+                    if (
+                        command.op === "data.apply" &&
+                        command.mutation.kind === kind &&
+                        "records" in command.mutation
+                    ) {
+                        return command.mutation.records;
+                    }
+                }
+
+                return [];
+            };
+            const nodes = added("add-nodes");
+            const edges = added("add-edges");
+            assert.strictEqual(nodes.length, IDS.length);
+            assert.strictEqual(edges.length, SOURCES.length);
+            // The batched journal builds its records when read and keeps them only while they are held.
+            assert.strictEqual(nodes[1], nodes[1]);
+            const { graph } = dispatcherOf(session).state;
+            const node = graph.nodes.get("b");
+            assert.deepStrictEqual(node, { id: "b", position: [1, 0, 0], group: 1 });
+            assert.deepStrictEqual(nodes[1], node);
+            assert.deepStrictEqual([...graph.edges.values()][1], edges[1]);
+            // A record from columns is built afresh on each read and never kept by the slice:
+            // reading every record (a style pass does) must not hold a million of them.
+            assert.strictEqual(graph.nodes.get("b") === node, !batched, `slice keeps the record: ${String(batched)}`);
+            assert.deepStrictEqual(graph.nodes.get("b"), node);
+            assert.isTrue(Object.isFrozen(node));
+            // Each read after the load builds the record again: the journal's two record lists, read
+            // once each, three node reads and one edge iteration from the slice.
+            assert.strictEqual(
+                recordsBuilt.count - before - built,
+                batched ? IDS.length + SOURCES.length + 3 + SOURCES.length : 0,
+            );
+        }
+    });
+
+    it("keeps the journal's commands as plain data on both paths, the batched one building its records on read", async () => {
+        const commands: unknown[] = [];
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            await byColumns(session);
+            const entries = session.journal.entries.map((entry) => entry.command);
+            // What a consumer does with plain data: clone it to a worker or IndexedDB, freeze it.
+            const cloned = structuredClone(entries);
+            const deepFreeze = (value: unknown): void => {
+                if (typeof value === "object" && value !== null && !ArrayBuffer.isView(value)) {
+                    Object.freeze(value);
+                    Object.values(value).forEach(deepFreeze);
+                }
+            };
+            deepFreeze(entries);
+            for (const command of entries) {
+                if (command.op === "data.apply" && "records" in command.mutation) {
+                    const { records } = command.mutation;
+                    assert.isTrue(Array.isArray(records));
+                    assert.strictEqual(records[0], records[0], `the same record twice: ${String(batched)}`);
+                    // The batched journal holds the columns: its records are built on each read.
+                    const held = Object.getOwnPropertyDescriptor(command.mutation, "records");
+                    assert.strictEqual(held?.get !== undefined, batched, `records built on read: ${String(batched)}`);
+                }
+            }
+
+            commands.push(cloned);
+        }
+
+        assert.deepStrictEqual(commands[1], commands[0]);
+    });
+
+    it("builds the records again from columns after undo and redo on the batched path", async () => {
+        const session = createElementSession({}, { batched: () => true });
+        await byColumns(session);
+        const loaded = digest(session);
+        await session.undo();
+        await session.redo();
+        assert.strictEqual(digest(session), loaded);
+    });
+
+    it("copies the columns, so writing the caller's arrays after the call changes no record", async () => {
+        const session = createElementSession({}, { batched: () => true });
+        const ids = [...IDS];
+        const positions = POSITIONS.slice();
+        await session.data.importColumns({ sources: SOURCES, targets: TARGETS, nodeCount: 5, ids, positions });
+        ids[1] = "changed";
+        positions[3] = 99;
+        assert.deepStrictEqual(dispatcherOf(session).state.graph.nodes.get("b"), { id: "b", position: [1, 0, 0] });
+    });
+
+    it("numbers the nodes by row when no ids are given", async () => {
+        const session = createElementSession({});
+        await session.data.importColumns({ sources: [0, 1], targets: [1, 2], nodeCount: 4 });
+        assert.deepStrictEqual(session.data.count(), { nodes: 4, edges: 2 });
+        assert.deepStrictEqual(
+            session.data.nodes().map((node) => node.id),
+            [0, 1, 2, 3],
+        );
+    });
+
+    it("keeps no id map for nodes numbered by row on the batched path, and the objects path's on objects", async () => {
+        const batched = createElementSession({}, { batched: () => true });
+        const objects = createElementSession({}, { batched: () => false });
+        for (const session of [batched, objects]) {
+            await session.data.importColumns({ sources: SOURCES, targets: TARGETS, nodeCount: 5 });
+        }
+
+        assert.isNull(idMapOf(batched));
+        assert.isNotNull(idMapOf(objects));
+        assert.strictEqual(digest(batched), digest(objects));
+
+        // A named node joining later builds the map, and every row keeps its id.
+        for (const session of [batched, objects]) {
+            await session.data.addNodes([{ id: "late" }]);
+            await session.data.addEdges([{ source: "late", target: 0 }]);
+        }
+
+        assert.isNotNull(idMapOf(batched));
+        assert.deepStrictEqual(batched.data.snapshot().ids.toArray(), [0, 1, 2, 3, 4, "late"]);
+        assert.strictEqual(digest(batched), digest(objects));
+        await batched.undo();
+        await objects.undo();
+        assert.strictEqual(digest(batched), digest(objects));
+    });
+
+    it("refuses columns that do not line up, adding nothing", async () => {
+        const session = createElementSession({});
+        const bad = [
+            { sources: [0, 1], targets: [1], nodeCount: 2 },
+            { sources: [0, 2], targets: [1, 1], nodeCount: 2 },
+            { sources: [0], targets: [1], nodeCount: 2, ids: ["a"] },
+            { sources: [0], targets: [1], nodeCount: 2, weights: [] },
+            { sources: [0], targets: [1], nodeCount: 2, positions: [0, 0, 0] },
+            { sources: [0], targets: [1], nodeCount: 2, attributes: { nodes: { x: [1] } } },
+            { sources: [-1], targets: [1], nodeCount: 2 },
+        ];
+        for (const columns of bad) {
+            let code: unknown;
+            try {
+                await session.data.importColumns(columns);
+            } catch (error) {
+                ({ code } = error as { code?: unknown });
+            }
+
+            assert.strictEqual(code, "E_BAD_COMMAND", JSON.stringify(columns));
+        }
+
+        assert.deepStrictEqual(session.data.count(), { nodes: 0, edges: 0 });
+    });
+
+    it("keeps a batched load of edges as one range entry, retaining less than one op per edge", async () => {
+        const bytes: number[] = [];
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            await session.data.addEdges(
+                Array.from({ length: 20_000 }, (_, i) => ({ source: i % 100, target: (i * 31 + 1) % 100 })),
+            );
+            bytes.push(session.history.steps.at(-1)?.bytes ?? 0);
+        }
+
+        const [objects, batched] = bytes;
+        // Each edge op costs 48 bytes of its own; the range costs that once and 16 per edge.
+        assert.isAtLeast(objects - batched, 20_000 * 31, `objects ${String(objects)}, batched ${String(batched)}`);
+    });
+
+    it("keeps a batched load of nodes as one range entry, retaining less than one op per node", async () => {
+        const bytes: number[] = [];
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            await session.data.addNodes(Array.from({ length: 20_000 }, (_, i) => ({ id: `n${String(i)}` })));
+            bytes.push(session.history.steps.at(-1)?.bytes ?? 0);
+        }
+
+        const [objects, batched] = bytes;
+        // Each node op costs 48 bytes of its own; the range costs that once and 20 per node.
+        assert.isAtLeast(objects - batched, 20_000 * 27, `objects ${String(objects)}, batched ${String(batched)}`);
+    });
+
+    for (const batched of [false, true]) {
+        it(`undoes and redoes nodes merged into existing ones, on the ${batched ? "batched" : "objects"} path`, async () => {
+            const session = createElementSession({}, { batched: () => batched });
+            await session.data.addNodes([{ id: "a", x: 1 }, { id: "b" }]);
+            await session.data.addEdges([{ source: "b", target: "z" }]);
+            const before = digest(session);
+            // "a" and "z" already have rows ("z" made by the edge, with no record); "c" is new.
+            await session.data.addNodes([{ id: "a", x: 2 }, { id: "c" }, { id: "z", y: 3 }]);
+            const after = digest(session);
+            assert.deepStrictEqual(session.data.count(), { nodes: 4, edges: 1 });
+            await session.undo();
+            assert.strictEqual(digest(session), before);
+            assert.deepStrictEqual(session.data.count(), { nodes: 3, edges: 1 });
+            await session.redo();
+            assert.strictEqual(digest(session), after);
+        });
+    }
+
+    it("hashes no minted edge id while a batched typed load freezes, and reads the objects path's identity", async () => {
+        const columns = { sources: SOURCES, targets: TARGETS, nodeCount: IDS.length, ids: IDS };
+        const identities = [];
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            identityCounters.sessionEdgeHashes = 0;
+            await session.data.importColumns(columns);
+            const snapshot = session.data.snapshot();
+            assert.strictEqual(identityCounters.sessionEdgeHashes, batched ? 0 : SOURCES.length, String(batched));
+            // Read on demand: what a saved set or a digest needs, equal on both paths.
+            identities.push(identityColumnsOf(snapshot));
+            // Undo and redo complete the same edges again.
+            const loaded = digest(session);
+            await session.undo();
+            await session.redo();
+            assert.strictEqual(digest(session), loaded);
+            assert.deepStrictEqual(identityColumnsOf(session.data.snapshot()), identities.at(-1));
+            // An edge removed and put back by undo keeps its identity.
+            await session.data.removeEdges([session.data.edges()[2].id]);
+            await session.undo();
+            assert.strictEqual(digest(session), loaded);
+        }
+
+        assert.deepStrictEqual(identities[1], identities[0]);
+    });
+
+    it("gives an edge added after a file import the objects path's identity on the batched path", async () => {
+        const data = JSON.stringify({
+            nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+            edges: [
+                { source: "a", target: "b" },
+                { source: "b", target: "c" },
+            ],
+        });
+        const results = [];
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            await session.data.import({ type: "json", config: { data } });
+            await session.data.addEdges([
+                { source: "c", target: "a" },
+                { source: "a", target: "c" },
+            ]);
+            // A removal undone rebuilds the store; an edge deferred after it is marked in the rebuilt one.
+            await session.data.removeEdges([session.data.edges()[3].id]);
+            await session.undo();
+            await session.data.addEdges([{ source: "b", target: "a" }]);
+            results.push({ hash: [...identityColumnsOf(session.data.snapshot()).edgeHash], digest: digest(session) });
+        }
+
+        assert.notDeepEqual(results[1].hash.slice(4, 8), [0, 0, 0, 0]);
+        assert.notDeepEqual(results[1].hash.slice(8), [0, 0]);
+        assert.deepStrictEqual(results[1], results[0]);
+    });
+
+    it("retains history in proportion to the edges it loads", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const session = createElementSession({}, { batched: () => true });
+                const sources = Uint32Array.from({ length: size }, (_, i) => i % 100);
+                const targets = Uint32Array.from({ length: size }, (_, i) => (i * 31 + 1) % 100);
+                await session.data.importColumns({ sources, targets, nodeCount: 100 });
+                return session.history.steps.at(-1)?.bytes ?? 0;
+            },
+            { sizes: [2_000, 8_000], counter: "bytes the step retains" },
+        );
+    });
+});

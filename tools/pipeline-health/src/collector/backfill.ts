@@ -128,14 +128,16 @@ interface RunsCursor {
 }
 
 /**
- * A cursor's `{ day, page, hour }`, or undefined when there is none or it cannot be read (then start over: writes are idempotent).
+ * A cursor's `{ day, page, hour }`, or undefined when there is none or it cannot be parsed (then start over: writes are
+ * idempotent). A failed store read throws.
  * @param store - the table to read from
  * @param name - the cursor's name
  * @returns the parsed cursor with its day as epoch ms, or undefined
  */
 async function readCursor(store: Store, name: string): Promise<(RunsCursor & { day: number }) | undefined> {
+    // A failed store read throws: only a corrupt cursor starts over, never a throttle (#7275).
+    const raw = await getCursor(store, name);
     try {
-        const raw = await getCursor(store, name);
         const c = raw ? (JSON.parse(raw) as RunsCursor & { day: string }) : undefined;
         if (c && Number.isFinite(Date.parse(c.day))) {
             return { day: Date.parse(c.day), page: c.page, ...(c.hour === undefined ? {} : { hour: c.hour }) };

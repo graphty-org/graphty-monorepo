@@ -11,11 +11,13 @@ import { isolateGit } from "./isolated-git-env.mjs";
 
 import {
     AGENT,
+    closedIssues,
     DEPENDABOT,
     findingId,
     onlyDependabot,
     hasProof,
     isBreaking,
+    KNOWN_FAILURE_FILES,
     masterBaselineCheck,
     ownerApproved,
     patchId,
@@ -173,6 +175,60 @@ describe("prIntegrity", () => {
         assert.deepEqual(prIntegrity(r.dir, pr(r, { reviews: [review("owner", "APPROVED", head)] })).problems, []);
     });
 
+    for (const path of [
+        "graphty-element/test/saved-format/saved-format-lists.json",
+        "tools/check-saved-format-allowlist.mjs",
+        "graphty-element/eslint.config.js",
+        "graphty-element/src/catalog/shipped-shader-hashes.json",
+    ]) {
+        it(`fails a change to ${path} unless a code owner approved the head`, () => {
+            const r = repo();
+            r.git("switch", "-q", "-c", "b");
+            const widened = '{"exceptions":[{"kind":"palette","paths":["a.palette"],"catalogs":["palettes"]}]}\n';
+            const head = r.commit("test: widen the save-file checks", {
+                [path]: path.endsWith("saved-format-lists.json") ? widened : "{}\n",
+            });
+            assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Saved format: /);
+            assert.match(prIntegrity(r.dir, pr(r, { author: DEPENDABOT })).problems.join(), /^Saved format: /);
+            assert.deepEqual(prIntegrity(r.dir, pr(r, { reviews: [review("owner", "APPROVED", head)] })).problems, []);
+        });
+    }
+
+    it("lets a change that only narrows the exception lists and adds a kind's row through", () => {
+        const lists = "graphty-element/test/saved-format/saved-format-lists.json";
+        const kinds = "graphty-element/test/saved-format/kinds.ts";
+        const r = repo();
+        r.commit("test: the lists", {
+            [lists]:
+                '{"selfContained":["shaders"],"exceptions":[{"kind":"palette","paths":["a"],"catalogs":["palettes"]}]}\n',
+            [kinds]: "export const KINDS = [\n    shaders,\n];\n",
+        });
+        r.git("switch", "-q", "-c", "b");
+        r.commit("test: carry palettes", {
+            [lists]: '{"selfContained":["shaders","palettes"],"exceptions":[]}\n',
+            [kinds]: "export const KINDS = [\n    shaders,\n    palettes,\n];\n",
+        });
+        assert.deepEqual(prIntegrity(r.dir, pr(r)).problems, []);
+        r.commit("test: rewrite a row", { [kinds]: "export const KINDS = [\n    palettes,\n];\n" });
+        assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Saved format: .*kinds\.ts/);
+    });
+
+    it("lets a mechanical revert change the save-file checks", () => {
+        const r = repo();
+        r.git("switch", "-q", "-c", "feature");
+        r.commit("test: a saved-format list", { "graphty-element/test/saved-format/saved-format-lists.json": "{}\n" });
+        r.git("switch", "-q", "master");
+        r.git("merge", "-q", "--no-ff", "--no-edit", "feature");
+        const m = r.git("rev-parse", "HEAD");
+        r.git("switch", "-q", "-c", "revert");
+        r.git("revert", "--no-edit", "-m", "1", m);
+        assert.deepEqual(prIntegrity(r.dir, pr(r)).problems, []);
+        // anything else in a saved-format file still needs the owner
+        r.git("switch", "-q", "-c", "other", m);
+        r.commit("test: unrelated", { "graphty-element/test/saved-format/x.test.ts": "x\n" });
+        assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Saved format: /);
+    });
+
     it("skips a breaking commit master's release-not-breaking.json lists, but not one the branch lists", () => {
         const r = repo();
         r.git("switch", "-q", "-c", "b");
@@ -312,6 +368,50 @@ describe("prIntegrity", () => {
         r.git("switch", "-q", "-c", "c");
         r.commit("chore: record", { "visual-baselines/reviews/1.json": "{}" });
         assert.deepEqual(prIntegrity(r.dir, pr(r, { baselineProblems: unsigned })).problems, []);
+    });
+});
+
+describe("known failures (#8888)", () => {
+    const known = (...issues) =>
+        JSON.stringify({ reasons: issues.map((n) => ({ reason: `scene drift tracked by #${n}`, added: {} })) });
+
+    it("closedIssues reads GitHub's closing keywords and forms, not Refs", () => {
+        assert.deepEqual(
+            closedIssues(
+                "Fixes #1\ncloses: #2 resolved graphty-org/graphty-monorepo#3\nFixed https://github.com/graphty-org/graphty-monorepo/issues/4\nRefs #5 #6",
+            ),
+            [1, 2, 3, 4],
+        );
+    });
+
+    it("lists the files fidelity-issues.ts reads", () => {
+        const src = readFileSync(join(ROOT, "graphty-element/scripts/fidelity-issues.ts"), "utf8");
+        const files = /const FILES = (\[[^\]]*\])/u.exec(src)[1];
+        assert.deepEqual(JSON.parse(files), KNOWN_FAILURE_FILES);
+    });
+
+    it("refuses closing an issue the head's records cite, in the description or a commit, whoever approved", () => {
+        const r = repo();
+        r.git("checkout", "-q", "-b", "fix/9-x");
+        const head = r.commit("fix(tools): one scene\n\nCloses #8", {
+            "graphty-element/test/fidelity/oracle-known-failures.json": known(7),
+            "graphty-element/test/fidelity/baseline-scores.json": known(8),
+        });
+        const owner = [review("owner", "APPROVED", head)];
+        const { problems } = prIntegrity(r.dir, pr(r, { body: "Fixes #7\n\n## Proof\n\nok\n", reviews: owner }));
+        assert.equal(problems.length, 2, problems.join("\n"));
+        assert.match(problems[0], /closes #7, which .* still cite.*Refs #7.*fidelity:ratchet/u);
+        assert.match(problems[1], /closes #8,/u);
+    });
+
+    it("passes Refs for a cited issue and Fixes for one no record cites", () => {
+        const r = repo();
+        r.git("checkout", "-q", "-b", "fix/9-x");
+        r.commit("fix(tools): one scene\n\nRefs #7", {
+            "graphty-element/test/fidelity/oracle-known-failures.json": known(7),
+        });
+        const { problems } = prIntegrity(r.dir, pr(r, { body: "Refs #7\nFixes #9\n\n## Proof\n\nok\n" }));
+        assert.deepEqual(problems, []);
     });
 });
 

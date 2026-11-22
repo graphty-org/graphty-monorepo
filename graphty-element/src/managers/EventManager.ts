@@ -1,8 +1,9 @@
-import { Observable } from "@babylonjs/core";
+import { Observable } from "@babylonjs/core/Misc/observable.js";
 import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId } from "../catalog/types";
-import type { ImportReport } from "../data/report";
+import type { ErrorAggregator } from "../data/ErrorAggregator";
+import { type ImportReport, loadErrorOf } from "../data/report";
 import type {
     DataLoadingCompleteEvent,
     DataLoadingErrorEvent,
@@ -71,18 +72,9 @@ export class EventManager implements Manager {
         return this.graphObservable as Observable<GraphErrorEvent>;
     }
 
-    // Track observers for cleanup
-    // Using any here is required due to BabylonJS Observable/Observer type limitations
-    private readonly observers = new Map<
-        symbol,
-        {
-            type: "graph" | "node" | "edge";
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            observable: any;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            observer: any;
-        }
-    >();
+    // Each listener's removal, keyed by the id addListener returned; the closure keeps the
+    // observer paired with the observable it was added to.
+    private readonly observers = new Map<symbol, () => void>();
 
     // Error handling configuration
     private readonly errorRetryCount = 3;
@@ -102,8 +94,8 @@ export class EventManager implements Manager {
      */
     dispose(): void {
         // Clear all observers
-        for (const { observable, observer } of this.observers.values()) {
-            observable.remove(observer);
+        for (const remove of this.observers.values()) {
+            remove();
         }
         this.observers.clear();
 
@@ -284,9 +276,8 @@ export class EventManager implements Manager {
 
     /**
      * Emits a graph or AI event on the graph channel, which `addListener` and the element's DOM
-     * forwarder both deliver. The name must be one the `GraphEvent` or `AiEvent` union declares
-     * (or one of the few legacy names in `UndeclaredEventType`), so a new undeclared name fails to
-     * compile here rather than reaching listeners untyped.
+     * forwarder both deliver. The name must be one the `GraphEvent` or `AiEvent` union declares,
+     * so a new undeclared name fails to compile here rather than reaching listeners untyped.
      * @param type - A declared graph or AI event type
      * @param data - The event's fields besides `type`
      */
@@ -296,14 +287,13 @@ export class EventManager implements Manager {
     }
 
     /**
-     * Emits a graph event under any name.
-     * @param type - Event type identifier
-     * @param data - Event data payload
-     * @deprecated Use {@link EventManager.emit}, which accepts only declared event names. This
-     * method will accept only those names in the next major release.
+     * Emits a graph or AI event: the same as {@link EventManager.emit}.
+     * @param type - A declared graph or AI event type
+     * @param data - The event's fields besides `type`
+     * @deprecated Use {@link EventManager.emit}.
      */
-    emitGraphEvent(type: string, data: Record<string, unknown>): void {
-        this.emit(type as EmittableEventType, data);
+    emitGraphEvent(type: EmittableEventType, data: Record<string, unknown>): void {
+        this.emit(type, data);
     }
 
     // Data Loading Events
@@ -378,30 +368,19 @@ export class EventManager implements Manager {
     /**
      * Emits a summary of all data loading errors after import completes
      * @param format - Data format that was loaded
-     * @param totalErrors - Total number of errors encountered
-     * @param message - Summary message describing errors
-     * @param detailedReport - Detailed error report
-     * @param primaryCategory - Primary error category
-     * @param suggestion - Suggested fix for the errors
+     * @param errors - The errors the load recorded
      * @param loadId - Which load this is, when it is one
      */
-    emitDataLoadingErrorSummary(
-        format: string,
-        totalErrors: number,
-        message: string,
-        detailedReport: string,
-        primaryCategory?: string,
-        suggestion?: string,
-        loadId?: number,
-    ): void {
+    emitDataLoadingErrorSummary(format: string, errors: ErrorAggregator, loadId?: number): void {
+        const { totalErrors, primaryCategory, byCategory, fields } = errors.getSummary();
         const event: DataLoadingErrorSummaryEvent = {
             type: "data-loading-error-summary",
             format,
+            code: "load-errors",
+            params: { totalErrors, byCategory, fields },
+            errors: errors.getErrors().map(loadErrorOf),
             totalErrors,
             primaryCategory,
-            message,
-            suggestion,
-            detailedReport,
             ...(loadId === undefined ? {} : { loadId }),
         };
         this.graphObservable.notifyObservers(event);
@@ -419,6 +398,7 @@ export class EventManager implements Manager {
      * @param report - What the load did, including which endpoint spelling resolved
      * @param loadId - Which load this is, when it is one
      */
+    // eslint-disable-next-line max-params -- public API (api/index.api.md): grouping these parameters is a breaking change
     emitDataLoadingComplete(
         format: string,
         nodesLoaded: number,
@@ -516,6 +496,7 @@ export class EventManager implements Manager {
             case "lifecycle-initialized":
             case "lifecycle-disposed":
             case "skybox-loaded":
+            case "skybox-failed":
             case "operation-queue-active":
             case "operation-queue-idle":
             case "operation-batch-complete":
@@ -525,6 +506,7 @@ export class EventManager implements Manager {
             case "layout-progress":
             case "operation-obsoleted":
             case "animation-progress":
+            case "animation-canceled":
             case "animation-cancelled":
             case "screenshot-enhancing":
             case "screenshot-ready":
@@ -541,14 +523,30 @@ export class EventManager implements Manager {
             case "selection-changed":
             case "graph-started":
             case "layout-changed":
+            case "layout-updated":
             case "layout-warning":
             case "limits-warning":
             case "basemap-status":
+            case "render-lost":
+            case "render-restored":
+            case "operation-canceled":
             case "operation-cancelled":
             case "stats-update":
             case "input-enabled-changed":
+            case "input-initialized":
+            case "input-config-updated":
+            case "input-pointer-lock-changed":
+            case "input-recording-started":
+            case "input-recording-stopped":
+            case "input-playback-completed":
+            case "reduced-motion-changed":
+            case "tour-progress":
+            case "tour-ended":
+            case "views-changed":
+            case "overview-changed":
             case "xr-session-started":
             case "xr-session-ended":
+            case "xr-menu-select":
             case "input:pointer-down":
             case "input:pointer-move":
             case "input:pointer-up":
@@ -565,6 +563,7 @@ export class EventManager implements Manager {
             case "ai-command-start":
             case "ai-command-complete":
             case "ai-command-error":
+            case "ai-command-canceled":
             case "ai-command-cancelled":
             case "ai-stream-chunk":
             case "ai-stream-tool-call":
@@ -592,11 +591,7 @@ export class EventManager implements Manager {
                         callback(event);
                     }
                 });
-                this.observers.set(id, {
-                    type: "graph",
-                    observable: this.graphObservable,
-                    observer,
-                });
+                this.observers.set(id, () => this.graphObservable.remove(observer));
                 break;
             }
 
@@ -612,11 +607,7 @@ export class EventManager implements Manager {
                         callback(event);
                     }
                 });
-                this.observers.set(id, {
-                    type: "node",
-                    observable: this.nodeObservable,
-                    observer,
-                });
+                this.observers.set(id, () => this.nodeObservable.remove(observer));
                 break;
             }
 
@@ -628,11 +619,7 @@ export class EventManager implements Manager {
                         callback(event);
                     }
                 });
-                this.observers.set(id, {
-                    type: "edge",
-                    observable: this.edgeObservable,
-                    observer,
-                });
+                this.observers.set(id, () => this.edgeObservable.remove(observer));
                 break;
             }
 
@@ -652,12 +639,12 @@ export class EventManager implements Manager {
      * @returns True if listener was removed, false if not found
      */
     removeListener(id: symbol): boolean {
-        const entry = this.observers.get(id);
-        if (!entry) {
+        const remove = this.observers.get(id);
+        if (!remove) {
             return false;
         }
 
-        entry.observable.remove(entry.observer);
+        remove();
         this.observers.delete(id);
         return true;
     }

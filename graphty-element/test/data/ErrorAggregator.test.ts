@@ -92,146 +92,33 @@ describe("ErrorAggregator", () => {
             assert.strictEqual(summary.primaryCategory, "parse-error");
         });
 
-        it("should generate message for missing column errors", () => {
-            aggregator.addError({
-                message: "Missing source",
-                category: "missing-column",
-                field: "source",
-            });
-            aggregator.addError({
-                message: "Missing target",
-                category: "missing-column",
-                field: "target",
-            });
+        it("counts each category and names the fields, without words", () => {
+            aggregator.addError({ message: "Missing source", category: "missing-column", field: "source" });
+            aggregator.addError({ message: "Missing target", category: "missing-column", field: "target" });
+            aggregator.addError({ message: "Bad quote", category: "parse-error", line: 3 });
 
             const summary = aggregator.getSummary();
-            assert.match(summary.message, /missing column/i);
-            assert.match(summary.suggestion ?? "", /source, target/i);
-        });
-
-        it("should generate message for parse errors", () => {
-            for (let i = 0; i < 10; i++) {
-                aggregator.addError({
-                    message: `Parse error ${i}`,
-                    category: "parse-error",
-                    line: i,
-                });
-            }
-
-            const summary = aggregator.getSummary();
-            assert.match(summary.message, /parsing error/i);
-            assert.match(summary.suggestion ?? "", /format.*encoding/i);
-        });
-
-        it("should generate message for missing value errors", () => {
-            aggregator.addError({
-                message: "Missing value",
-                category: "missing-value",
-                field: "id",
-            });
-            aggregator.addError({
-                message: "Missing value",
-                category: "missing-value",
-                field: "name",
-            });
-
-            const summary = aggregator.getSummary();
-            assert.match(summary.message, /missing required values/i);
-            assert.match(summary.suggestion ?? "", /id, name/i);
-        });
-
-        it("should generate message for validation errors", () => {
-            aggregator.addError({
-                message: "Invalid type",
-                category: "validation-error",
-            });
-            aggregator.addError({
-                message: "Invalid format",
-                category: "validation-error",
-            });
-
-            const summary = aggregator.getSummary();
-            assert.match(summary.message, /validation error/i);
-            assert.match(summary.suggestion ?? "", /format and types/i);
+            assert.deepStrictEqual(summary.byCategory, { "missing-column": 2, "parse-error": 1 });
+            assert.deepStrictEqual(summary.fields, ["source", "target"]);
+            assert.notProperty(summary, "message");
+            assert.notProperty(summary, "suggestion");
         });
 
         it("should handle no errors", () => {
             const summary = aggregator.getSummary();
             assert.strictEqual(summary.totalErrors, 0);
-            assert.strictEqual(summary.message, "No errors");
+            assert.strictEqual(summary.primaryCategory, undefined);
+            assert.deepStrictEqual(summary.byCategory, {});
+            assert.deepStrictEqual(summary.fields, []);
         });
 
-        it("should generate generic message for unknown category", () => {
+        it("counts errors with no category as unknown", () => {
             aggregator.addError({ message: "Generic error 1" });
             aggregator.addError({ message: "Generic error 2" });
 
             const summary = aggregator.getSummary();
-            assert.match(summary.message, /Found \d+ errors/);
-        });
-    });
-
-    describe("getUserFriendlyMessage", () => {
-        it("should combine message and suggestion", () => {
-            aggregator.addError({
-                message: "Missing source column",
-                category: "missing-column",
-                field: "source",
-            });
-
-            const message = aggregator.getUserFriendlyMessage();
-            assert.match(message, /missing column/i);
-            assert.match(message, /Suggestion:/);
-        });
-
-        it("should not include suggestion when not available", () => {
-            const message = aggregator.getUserFriendlyMessage();
-            assert.strictEqual(message, "No errors");
-        });
-    });
-
-    describe("getDetailedReport", () => {
-        it("should include summary, suggestion, and error details", () => {
-            aggregator.addError({
-                message: "Parse error 1",
-                category: "parse-error",
-                line: 5,
-            });
-            aggregator.addError({
-                message: "Parse error 2",
-                category: "parse-error",
-                line: 10,
-                field: "name",
-            });
-
-            const report = aggregator.getDetailedReport();
-            assert.match(report, /Found \d+ errors/);
-            assert.match(report, /Suggestion:/);
-            assert.match(report, /Detailed Errors/);
-            assert.match(report, /PARSE-ERROR/);
-            assert.match(report, /Parse error 1.*\[line 5\]/);
-            assert.match(report, /Parse error 2.*\[line 10\].*\[field: name\]/);
-        });
-
-        it("should truncate error lists to 10 per category", () => {
-            for (let i = 0; i < 15; i++) {
-                aggregator.addError({
-                    message: `Error ${i}`,
-                    category: "test-category",
-                });
-            }
-
-            const report = aggregator.getDetailedReport();
-            assert.match(report, /and 5 more/);
-        });
-
-        it("should show multiple categories", () => {
-            aggregator.addError({ message: "E1", category: "cat1" });
-            aggregator.addError({ message: "E2", category: "cat2" });
-            aggregator.addError({ message: "E3", category: "cat1" });
-
-            const report = aggregator.getDetailedReport();
-            assert.match(report, /CAT1.*\(2 errors\)/s);
-            assert.match(report, /CAT2.*\(1 errors\)/s);
+            assert.deepStrictEqual(summary.byCategory, { unknown: 2 });
+            assert.strictEqual(summary.primaryCategory, "unknown");
         });
     });
 
@@ -293,9 +180,6 @@ describe("ErrorAggregator", () => {
 
             const errors = aggregator.getErrors();
             assert.strictEqual(errors[0].line, 42);
-
-            const report = aggregator.getDetailedReport();
-            assert.match(report, /\[line 42\]/);
         });
 
         it("should handle errors without line numbers", () => {
@@ -331,24 +215,10 @@ describe("ErrorAggregator", () => {
                 });
             }
 
-            const message = aggregator.getUserFriendlyMessage();
-            assert.match(message, /Found 23 errors.*missing column/i);
-            assert.match(message, /Suggestion.*source/i);
-        });
-
-        it("should handle malformed CSV scenario", () => {
-            // Simulate parsing errors from malformed CSV
-            for (let i = 1; i <= 15; i++) {
-                aggregator.addError({
-                    message: `Unclosed quote at line ${i}`,
-                    category: "parse-error",
-                    line: i,
-                });
-            }
-
             const summary = aggregator.getSummary();
-            assert.match(summary.message, /parsing error/i);
-            assert.match(summary.suggestion ?? "", /format.*encoding/i);
+            assert.strictEqual(summary.totalErrors, 23);
+            assert.strictEqual(summary.primaryCategory, "missing-column");
+            assert.deepStrictEqual(summary.fields, ["source"]);
         });
 
         it("should handle validation failure scenario", () => {
@@ -366,7 +236,8 @@ describe("ErrorAggregator", () => {
             });
 
             const summary = aggregator.getSummary();
-            assert.match(summary.message, /validation error/i);
+            assert.deepStrictEqual(summary.byCategory, { "validation-error": 2 });
+            assert.deepStrictEqual(summary.fields, ["id", "weight"]);
         });
     });
 });

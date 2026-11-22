@@ -593,10 +593,47 @@ export const MEMBER: Record<MemberId, MemberText> = {
         red: "No red line. Past 5% (yellow): more PRs than usual arrive with their own tests failing, so authors should run the tests they changed before opening the PR.",
         nOf: "runs",
     },
+    "pull-requests.issues_per_merge": {
+        name: "Issues closed per merged PR",
+        short: "issues closed per merged PR",
+        def: "Issues closed by the PRs merged into master over 7 days, per merged PR: the closing links in each PR's description plus the Fixes, Closes or Resolves lines in its commits (merges of master left out). Fixing related issues in one PR raises it; that is the point of issue grouping. From the issue-grouping ledger, read once a day.",
+        red: "Below 0.88, the level before grouping began: grouping is not adding issues to PRs. The target is 1.3 or more.",
+    },
+    "pull-requests.multi_issue_share": {
+        name: "Merged PRs closing 2+ issues",
+        short: "merged PRs closing 2+ issues",
+        def: "Share of the PRs merged into master over 7 days that close two or more issues, in %, counted as in Issues closed per merged PR. From the issue-grouping ledger, read once a day.",
+        red: "Below 2.3%, the level before grouping began. The target is 15% or more.",
+    },
+    "pull-requests.runner_minutes_per_issue": {
+        name: "Runner-minutes per issue closed",
+        short: "runner-minutes per issue closed",
+        def: "Runner-minutes per merge (CI page) divided by Issues closed per merged PR, over 7 days: what CI spends to close one issue. It falls as PRs fix more issues each. Shows nothing while either is missing.",
+        red: "No red line. Over 800 (yellow): closing an issue costs about what it did before grouping began.",
+        nOf: "merged",
+    },
+    "pull-requests.group_released_share": {
+        name: "Grouped issues released",
+        short: "grouped issues released",
+        def: "Share of the issues the grouping ledger put in groups that a job then released as not part of its branch, in %: how often the grouping rules put together issues that did not belong together. Read from the local ledger once a day.",
+        red: "Over 15%: the grouping rules group unrelated issues; issue-round lowers the group size cap (design/ci/issue-grouping.md section 9).",
+    },
+    "pull-requests.groups_ready": {
+        name: "Finished branches not opened",
+        short: "finished branches not opened",
+        def: "Groups in the grouping ledger whose branch is finished but whose PR is not opened yet. Read from the local ledger once a day.",
+        red: "No target: a fact. Finished branches waiting can still take related issues before they open.",
+    },
+    "pull-requests.groups_combinable": {
+        name: "Finished branches that can open together",
+        short: "families of finished branches that can open together",
+        def: "Families of finished, unopened branches in the grouping ledger that can each open as one PR, with the branches they hold. Read from the local ledger once a day.",
+        red: "No target: a fact. Each family opened as one PR saves the CI runs of the others.",
+    },
     "pull-requests.automerge_green_stuck": {
         name: "Green but not merging",
         short: "green but not merging",
-        def: "PRs that are green with auto-merge on and still unmerged 2 h later.",
+        def: "PRs that are green with auto-merge on, not in conflict with master, and still unmerged 2 h later.",
         red: "2 or more: merging itself is broken (branch rules or GitHub). The PRs are named in this row; an agent checks why they do not merge.",
     },
     "pull-requests.automerge_armed_long": {
@@ -676,6 +713,12 @@ export const MEMBER: Record<MemberId, MemberText> = {
         short: "full-run shards over budget",
         def: "Full-run test shards whose 7-day median time is over their own time budget. Shard times below shows each shard's median against its budget (the line in its bar). While CI test results sends too little, this row says NO DATA rather than count from data that may be missing.",
         red: "3 or more: full runs are slowing down and may hit their timeouts. Agents speed up or split the shards listed over budget in Shard times.",
+    },
+    "ci.group_deadline": {
+        name: "Test group near its deadline",
+        short: "test group near its deadline",
+        def: "A full run's test group runs its members one after another in one step, stopped at a deadline. This is the slowest group's newest full run: its members' times added up (with 10 s between members) as a % of that deadline. Test groups in Shard times below lists every group and the members slower than their measured time in tools/ci-test-matrix.mjs.",
+        red: "Over 90%: the next slow runner cancels the group before its last members run. Agents move a member out of the group or speed it up; a member marked slower than its entry gets its GROUP_MEMBER_SECONDS remeasured.",
     },
     "ci.runner_minutes": {
         name: "Runner-minutes per merge",
@@ -1190,8 +1233,10 @@ const S: Record<string, (p: P) => string> = {
             .join(" "),
     "note.queued_run": (p) => [`run ${runLink(num(p, "run"))}`, ...(p.workflow ? [str(p, "workflow")] : [])].join(", "),
     "note.hung_jobs": (p) => and(arr(p, "jobs").map(esc)),
+    "note.flaky_no_issue": (p) => and(arr(p, "tests").map((t) => esc(t))),
     "ci.longest_queued.note": () => "a master build run, no job yet",
     "flaky.flake_rate.note": (p) => `results since ${at(p, "since")}`,
+    "note.combinable_branches": (p) => `${fmtN(num(p, "n"))} ${num(p, "n") === 1 ? "branch" : "branches"}`,
     "flaky.net_new.note": (p) => `${fmtN(num(p, "added"))} new, ${fmtN(num(p, "resolved"))} resolved`,
     "releases.workflows.note": (p) => `newest run failed: ${str(p, "workflow")}, ${fmtN(num(p, "runs"))} in a row`,
     "releases.held.note": (p) => `candidate held ${fmtN(num(p, "h"))} h`,
@@ -1308,6 +1353,8 @@ const S: Record<string, (p: P) => string> = {
     "runners.macos": (p) => `(${fmtN(num(p, "jobs"))} on macOS)`,
     "runners.queued_runs": (p) =>
         `Also queued: ${fmtN(num(p, "runs"))} ${str(p, "workflow")} runs (${event(String(p.event ?? ""))}) with no job created yet, the oldest since ${at(p, "since")}.`,
+    "runners.stuck_runs": (p) =>
+        `Stuck at GitHub: ${fmtN(num(p, "runs"))} ${str(p, "workflow")} runs (${event(String(p.event ?? ""))}) of pull requests no longer open, queued since ${at(p, "since")}; not counted as queued.`,
     "runners.one_repo": (p) =>
         `All in ${str(p, "repo")}; no other graphty-org repository ran a job in ${fmtN(num(p, "h"))} h.`,
 
@@ -1345,6 +1392,7 @@ const S: Record<string, (p: P) => string> = {
         `month to date, projected to ${esc(String(p.month_end ?? "").slice(5))}; the line is the range by day`,
     "costs.money_by_workflow": () => "Money by workflow, this month so far, USD",
     "costs.value_by_workflow": () => "List-price value by workflow, not money, this month so far, USD",
+    "costs.aws_by_service": () => "AWS by service, this month so far, USD",
     "cost.t4.rate": (p) =>
         `machine.dev, on demand ${fmtN(num(p, "usd_min"))} USD/min, +${fmtN(num(p, "boot_min"))} min boot per job`,
     "cost.llm.rate": (p) =>

@@ -1,5 +1,7 @@
 # Only the owner accepts Chromatic changes
 
+> Status: Chromatic was removed from the repository and CI on 2026-10-11 (commit 31665f3000), so the Chromatic steps below are history. The rule itself stands for its replacement: only the owner accepts a changed screenshot in visual-review (root CLAUDE.md, "Secrets, checks and what only the owner does"; .github/workflows/README.md, "Visual review").
+
 Date: 2026-09-27
 Decided by: the owner, in the comments of issue #217
 Changes: how every Chromatic project in this repository is operated, and the Chromatic section of

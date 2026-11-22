@@ -83,7 +83,7 @@ export class EdgeBetweennessCentralityAlgorithm extends DeclaredAlgorithm<EdgeBe
         const drawn = k === null ? undefined : Math.min(k, snapshot.nodeCount);
         const sampled = drawn !== undefined;
 
-        context.report({ phase: "Tracing shortest paths", total: null });
+        context.report({ phase: "tracing-shortest-paths", total: null });
         const { value, precision } = await run((dispatch, s) =>
             dispatch.edgeBetweennessCentrality(s, sampled ? { k: drawn } : undefined),
         );
@@ -91,7 +91,7 @@ export class EdgeBetweennessCentralityAlgorithm extends DeclaredAlgorithm<EdgeBe
 
         // Each of the element's own edges reads the score of the edge it merged into.
         const edges: ResultElementValues<EdgeId>[] = [];
-        await forEachChunked(context, "Reading scores", scoped, (edge) => {
+        await forEachChunked(context, "reading-scores", scoped, (edge) => {
             const merged = edgeRemap === null ? edge.row : (edgeRemap[edge.row] ?? INVALID_INDEX);
             const score = merged === INVALID_INDEX ? undefined : value.scores[merged];
             edges.push({ id: edge.id, values: score === undefined ? {} : { value: score } });

@@ -20,6 +20,7 @@ import React, { useEffect, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { AddButton } from "./Section";
 import { ParamControl } from "./ShaderParams";
+import { GEAR_FIELDS } from "./shaderSlots";
 import { CLOCK_WORDS, clockWords, EDITOR_WORDS, type ShaderTab } from "./words";
 
 /** The gear's width, as the style rows' pop-outs. */
@@ -27,20 +28,6 @@ const GEAR_WIDTH = 240;
 
 /** The value of the Starts select that means no clock. */
 const NO_CLOCK = "none";
-
-/**
- * The fields in a row's gear, whose problems mark the gear. `clock` is the dialog's name for a
- * problem with a default bound to a clock, which the gear's Starts fields edit.
- */
-export const GEAR_FIELDS: ReadonlySet<string> = new Set([
-    "plainName",
-    "min",
-    "max",
-    "step",
-    "values",
-    "varies",
-    "clock",
-]);
 
 /** A problem on one field of one parameter row. */
 interface ParamMark {
@@ -207,7 +194,7 @@ function ChoiceRows({ row, rowName, invalid, onChange }: Readonly<ChoiceRowsProp
             <Text size="xs">{EDITOR_WORDS.choices}</Text>
             {values.map((choice, index) => (
                 <Group
-                    key={String(index)} // NOSONAR(S6479): a choice is its position; keying by its label would remount the field mid-word
+                    key={String(index)} // eslint-disable-line react/no-array-index-key -- a choice is its position; keying by its label would remount the field mid-word
                     gap={4}
                     wrap="nowrap"
                 >
@@ -557,7 +544,7 @@ function ParamRow({
     });
     const insertLabel = canInsert ? EDITOR_WORDS.insert(rowName) : EDITOR_WORDS.insertNeedsCursor;
     return (
-        <div // NOSONAR(S6819): the row is a CSS grid, which a fieldset does not lay out as one
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- the row is a CSS grid, which a fieldset does not lay out as one
             className="ws-param-row"
             role="group"
             aria-label={rowName}
@@ -697,7 +684,7 @@ export function ShaderParamRows({
         >
             {rows.map((row, index) => (
                 <ParamRow
-                    key={String(index)} // NOSONAR(S6479): a row is its position (the element addresses rows by index); its name is being typed
+                    key={String(index)} // eslint-disable-line react/no-array-index-key -- a row is its position (the element addresses rows by index); its name is being typed
                     row={row}
                     index={index}
                     marked={new Set(marks.filter((mark) => mark.index === index).map((mark) => mark.field))}

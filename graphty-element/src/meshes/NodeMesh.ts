@@ -1,29 +1,25 @@
 // Installs Mesh.prototype.createInstance, which createModelInstance calls.
 import "@babylonjs/core/Meshes/instancedMesh.js";
 
-import {
-    AbstractMesh,
-    type BaseTexture,
-    Color3,
-    Color4,
-    DynamicTexture,
-    type ICanvasGradient,
-    type ICanvasRenderingContext,
-    type InstancedMesh,
-    Material,
-    Matrix,
-    Mesh,
-    MeshBuilder,
-    Scene,
-    StandardMaterial,
-    TransformNode,
-    VertexBuffer,
-} from "@babylonjs/core";
+import type { BaseTexture, ICanvasGradient, ICanvasRenderingContext, InstancedMesh } from "@babylonjs/core";
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Material } from "@babylonjs/core/Materials/material.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import type { ModelTemplate } from "../models/ModelCache";
+import { addGradientStops } from "./edgeGradient";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
@@ -35,16 +31,21 @@ import {
     outlineSlab,
     projectedVertices,
     ringSlab,
+    ringVertexData,
     setLabelBox,
 } from "./NodeShapeGeometry";
 import {
     borderRing,
     convexHull,
+    drawnAgainstBox,
     flatShapeOutline,
+    inUnitBox,
     isFlatShape,
     mitredEdges,
     offsetOutline,
     type Point2,
+    type RingPiece,
+    sharpTwinOf,
     type WaveShape,
 } from "./shapeOutlines";
 
@@ -72,6 +73,19 @@ interface NodeMeshCreateOptions {
  */
 export const NODE_EXTENT_PER_SIZE = 1.5;
 
+/** The flat shapes an edge ends on without their outline: their box is it, or the ellipse in it is (`surfaceReach`). */
+const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellipse"]);
+
+/**
+ * The opacity a node's style draws its body at (`node.opacity`), as its source mesh's visibility.
+ * @param texture - The style's texture.
+ * @returns The opacity, 1 when the style names none.
+ */
+export function styleOpacity(texture: NodeStyleConfig["texture"]): number {
+    const color = texture?.color;
+    return typeof color === "object" && "opacity" in color ? (color.opacity ?? 1) : 1;
+}
+
 /** How deep a node drawn flat is, as a fraction of its smaller side: thin, but never zero. */
 const THIN_DEPTH_RATIO = 0.02;
 
@@ -79,40 +93,76 @@ const THIN_DEPTH_RATIO = 0.02;
 const SHADOW_LAYERS = 4;
 
 /**
- * How far apart along the 2D camera's view, in scene units, the front faces of two neighbouring
+ * How far apart along the 2D camera's view, in scene units, the front faces of two neighboring
  * `zIndex` levels are drawn. Far above the depth buffer's resolution at the 2D camera's range,
  * and far below anything a reader could see in an orthographic view.
  */
 const Z_INDEX_STEP = 0.05;
 
 /**
- * In a 2D view, move a node mesh's geometry back so its front face sits `-zIndex` steps behind
- * the plane every edge and every node at `zIndex` 0 is drawn on (the 2D camera looks along +z).
- * Its position stays the node's own, so edges, picking and the layout see no difference; only the
- * depth test does. A 3D view, and a node at 0 or with no `zIndex`, are left exactly as they were.
+ * The nearest node in front of the camera that draws an instance of a ring.
+ * @param ring - The ring's source mesh.
+ * @param view - The camera's view matrix.
+ * @param ahead - 1 where the camera looks along +z in its view, -1 where along -z.
+ * @param at - Set to that node's middle in the camera's view.
+ * @returns The node, or null when none is in front of the camera.
+ */
+function nearestDrawing(ring: Mesh, view: Matrix, ahead: number, at: Vector3): TransformNode | null {
+    const middle = new Vector3();
+    let nearest: TransformNode | null = null;
+    let distance = Infinity;
+    for (const instance of ring.instances) {
+        const node = instance.parent as TransformNode | null;
+        if (node === null || !instance.isEnabled()) {
+            continue;
+        }
+        Vector3.TransformCoordinatesToRef(node.getAbsolutePosition(), view, middle);
+        if (middle.z * ahead > 0 && middle.z * ahead < distance) {
+            [nearest, distance] = [node, middle.z * ahead];
+            at.copyFrom(middle);
+        }
+    }
+
+    return nearest;
+}
+
+/**
+ * Move a node mesh's geometry back so its front face sits `-zIndex` steps behind the plane every
+ * edge and every node at `zIndex` 0 is drawn on (both views look along +z). Its position stays the
+ * node's own, so edges, picking and the layout see no difference; only the depth test does. In a
+ * 3D view only a flat shape moves: a group from a file drawn flat around its members at their own
+ * depth would otherwise be thicker than they are and hide them, while moving a solid back by its
+ * depth would shift it visibly. A node at 0 or with no `zIndex` is left exactly as it was.
  * @param mesh - The source mesh, before any instance is made of it.
  * @param shape - The node's shape block.
  * @param is2D - Whether the graph is drawn in 2D.
  */
 function placeByZIndex(mesh: Mesh, shape: NodeStyleConfig["shape"], is2D: boolean): void {
     const zIndex = shape?.zIndex ?? 0;
-    if (!is2D) {
-        return;
-    }
-
     if (zIndex >= 0) {
-        placeByDrawOrder(mesh, shape?.drawOrder);
+        if (is2D) {
+            placeByDrawOrder(mesh, shape?.drawOrder);
+        }
+
         return;
     }
 
     mesh.refreshBoundingInfo();
+    if (!is2D) {
+        const { extendSize } = mesh.getBoundingInfo().boundingBox;
+        // a flat shape is THIN_DEPTH_RATIO of its smaller side deep; twice that leaves room for rounding
+        if (extendSize.z > 2 * THIN_DEPTH_RATIO * Math.min(extendSize.x, extendSize.y)) {
+            return;
+        }
+    }
+
     const front = mesh.getBoundingInfo().boundingBox.minimum.z;
     mesh.bakeTransformIntoVertices(Matrix.Translation(0, 0, -zIndex * Z_INDEX_STEP - front));
     mesh.refreshBoundingInfo();
 }
 
 /**
- * How far apart along the 2D camera's view the front faces of two neighbouring `drawOrder`
+ * How far apart along the 2D camera's view the front faces of two neighboring `drawOrder`
  * levels are drawn: about ten times the depth buffer's resolution at the 2D camera's range, so
  * the 101 levels together stay well under a unit deep.
  */
@@ -179,10 +229,10 @@ function segmentsOf(detail: MeshDetail | undefined, low = LOW_DETAIL_SEGMENTS): 
  * and is ample for a node-sized mesh; raising it multiplies the ceiling described on
  * MAX_GRADIENT_TEXTURES_PER_SCENE by the square of the change.
  */
+const GRADIENT_TEXTURE_SIZE = 128;
+
 /** The smallest size a node mesh is built at; a size of 0 draws this, never hidden. */
 const MIN_NODE_SIZE = 1e-3;
-
-const GRADIENT_TEXTURE_SIZE = 128;
 
 /**
  * Hard ceiling on how many distinct gradient ramps may be allocated for one scene.
@@ -191,8 +241,9 @@ const GRADIENT_TEXTURE_SIZE = 128;
  * `NodeMesh.getGradientTexture`: a `calculatedStyle` expression produces a distinct style value,
  * and therefore a distinct material, per node, so a gradient computed per node would otherwise
  * allocate a texture per node. At 32 the worst case is about 2 MB, which is affordable; past the
- * ceiling the material falls back to the gradient's first stop as a flat colour rather than
- * allocating without bound.
+ * ceiling the material falls back to the gradient's first stop as a flat color rather than
+ * allocating without bound. It counts gradients some material still draws: a texture is disposed
+ * and its slot freed when the last material using it is disposed.
  */
 const MAX_GRADIENT_TEXTURES_PER_SCENE = 32;
 
@@ -200,9 +251,10 @@ const MAX_GRADIENT_TEXTURES_PER_SCENE = 32;
  * Gradient ramps interned per scene, keyed by the gradient VALUE rather than by style id.
  *
  * A WeakMap so the whole table is collected with the scene it belongs to -- textures never leak
- * between scenes, and a test that builds and drops a scene leaves nothing behind.
+ * between scenes, and a test that builds and drops a scene leaves nothing behind. `users` counts
+ * the live materials drawing the texture.
  */
-const gradientTextureCache = new WeakMap<Scene, Map<string, DynamicTexture>>();
+const gradientTextureCache = new WeakMap<Scene, Map<string, { texture: DynamicTexture; users: number }>>();
 
 /** A gradient color with an alpha under full: `#rgba` or `#rrggbbaa`. */
 const SEE_THROUGH = /^#(?:[0-9a-f]{3}[0-9a-e]|[0-9a-f]{6}(?!ff)[0-9a-f]{2})$/i;
@@ -220,7 +272,7 @@ interface ColorObject {
 }
 
 /**
- * A gradient colour normalised out of the `AdvancedColorStyle` discriminated union.
+ * A gradient color normalized out of the `AdvancedColorStyle` discriminated union.
  *
  * `radial` distinguishes the two gradient members of that union. `direction` is meaningless for
  * the radial form and is pinned to 0 there so the cache key below stays canonical -- two radial
@@ -424,7 +476,7 @@ export class NodeMesh {
             typeof createOptions.texture.color === "object" &&
             "opacity" in createOptions.texture.color
         ) {
-            mesh.visibility = createOptions.texture.color.opacity ?? 1;
+            mesh.visibility = styleOpacity(createOptions.texture);
         }
 
         return mesh;
@@ -444,7 +496,7 @@ export class NodeMesh {
      */
     static createModelInstance(template: ModelTemplate, shape: NodeStyleConfig["shape"], name: string): InstancedMesh {
         const [first, ...rest] = template.groups;
-        const root = first.createInstance(name);
+        const root = modelInstance(first, name);
         root.isPickable = true;
         root.instancedBuffers.color = new Color4(1, 1, 1, 1);
         // The box only: a pointer move tests no model triangle (design section 3.8).
@@ -452,7 +504,7 @@ export class NodeMesh {
         root.intersects = (ray, fastCheck, trianglePredicate, _onlyBoundingInfo, worldToUse, skipBoundingInfo) =>
             intersects(ray, fastCheck, trianglePredicate, true, worldToUse, skipBoundingInfo);
         for (const group of rest) {
-            const part = group.createInstance(`${name}-part`);
+            const part = modelInstance(group, `${name}-part`);
             part.parent = root;
             part.isPickable = false;
             part.instancedBuffers.color = new Color4(1, 1, 1, 1);
@@ -682,8 +734,23 @@ export class NodeMesh {
 
         const build = type === "none" ? bodilessSlab : outlineSlab;
         const mesh = build(type, this.flatOutline(shape, extents), extents.z ?? extents.across, scene);
-        if ((shape.rotation ?? 0) % 360 !== 0) {
-            setLabelBox(mesh, this.unturnedFlatOutline(shape, extents));
+        // a rounded polygon's label is placed against its sharp twin's box, the node's own width and height, as
+        // Cytoscape.js places it: its rounded apex is lower than the box's top (json-cyjs-synth-nodes round-triangle)
+        // the twins named in shapeOutlines' ROUNDED are node shapes too
+        const sharp = sharpTwinOf(type) as NonNullable<NodeStyleConfig["shape"]>["type"];
+        if (shape.stretchPoints === false) {
+            // corners drawn where they say need not reach the box (yEd's star6 is 0.866 of its width): its label is
+            // placed against the node's own box, as yEd places it (gml-synthetic-coverage star6 labels)
+            const [w, h] = [(extents.x ?? extents.across) / 2, (extents.y ?? extents.across) / 2];
+            setLabelBox(mesh, [
+                [-w, -h],
+                [w, h],
+            ]);
+        } else if ((shape.rotation ?? 0) % 360 !== 0 || sharp !== undefined) {
+            setLabelBox(
+                mesh,
+                this.unturnedFlatOutline(sharp === undefined ? shape : { ...shape, type: sharp }, extents),
+            );
         }
 
         return mesh;
@@ -731,16 +798,12 @@ export class NodeMesh {
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
-            const mesh = ringSlab(
-                "node-border",
-                borderRing(outline, width, border?.style ?? "solid", wave),
-                depth,
-                scene,
-            );
-            placeByZIndex(mesh, shape, options.is2D);
-            mesh.material = this.createBorderMaterial(border?.color ?? "#000000", opacity, scene);
+            const piecesOf = (round: Point2[]): RingPiece[] => borderRing(round, width, border?.style ?? "solid", wave);
+            const color = border?.color ?? "#000000";
 
-            return mesh;
+            const ring = { outline, depth, piecesOf, flat, color, opacity };
+
+            return this.borderSlab("node-border", ring, shape, options, fill, scene);
         });
 
         instance.sourceMesh.isPickable = false;
@@ -792,17 +855,17 @@ export class NodeMesh {
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             // each further ring (`count`, Graphviz's peripheries) starts the offset beyond the one before
             const step = width + Math.max(0, (outerBorder?.offset ?? 0) * perSize);
-            const pieces = Array.from({ length: Math.floor(outerBorder?.count ?? 1) }, (_, i) => {
-                const at = gap + i * step;
-                // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
-                const base = at > 0 ? mitredEdges(outline, [at])[0] : outline;
-                return borderRing(base, width, outerBorder?.style ?? "solid");
-            }).flat();
-            const mesh = ringSlab("node-outer-border", pieces, depth, scene);
-            placeByZIndex(mesh, shape, options.is2D);
-            mesh.material = this.createBorderMaterial(outerBorder?.color ?? "#000000", opacity, scene);
+            const piecesOf = (round: Point2[]): RingPiece[] =>
+                Array.from({ length: Math.floor(outerBorder?.count ?? 1) }, (_, i) => {
+                    const at = gap + i * step;
+                    // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
+                    const base = at > 0 ? mitredEdges(round, [at])[0] : round;
+                    return borderRing(base, width, outerBorder?.style ?? "solid");
+                }).flat();
+            const color = outerBorder?.color ?? "#000000";
+            const ring = { outline, depth, piecesOf, flat, color, opacity };
 
-            return mesh;
+            return this.borderSlab("node-outer-border", ring, shape, options, fill, scene);
         });
 
         instance.sourceMesh.isPickable = false;
@@ -850,7 +913,12 @@ export class NodeMesh {
             const own = halo?.shape;
             const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
             let outline: Point2[];
-            if (own !== undefined && isFlatShape(own)) {
+            const ownOutline = own !== undefined && isFlatShape(own);
+            // drawn as a ring from the middle out, so it fills the whole shape
+            const piecesOf = (round: Point2[]): RingPiece[] => [
+                { inner: round.map((): Point2 => [0, 0]), outer: round, closed: true },
+            ];
+            if (ownOutline) {
                 outline = flatShapeOutline(
                     own,
                     (sized.x ?? sized.across) + 2 * pad,
@@ -864,13 +932,7 @@ export class NodeMesh {
             fill.computeWorldMatrix(true);
             const box = fill.getBoundingInfo().boundingBox;
             const depth = THIN_DEPTH_RATIO * Math.max(sized.across, MIN_NODE_SIZE);
-            // drawn as a ring from the middle out, so it fills the whole shape
-            const mesh = ringSlab(
-                `node-${kind}`,
-                [{ inner: outline.map((): Point2 => [0, 0]), outer: outline, closed: true }],
-                depth,
-                scene,
-            );
+            const mesh = ringSlab(`node-${kind}`, piecesOf(outline), depth, scene);
             // just behind the node's back, or just before its front (2D looks along +z)
             const gap = depth * 0.01;
             const at = kind === "underlay" ? box.maximum.z + gap + depth / 2 : box.minimum.z - gap - depth / 2;
@@ -881,6 +943,9 @@ export class NodeMesh {
                 }
                 mesh.setVerticesData(VertexBuffer.PositionKind, positions);
                 mesh.refreshBoundingInfo();
+            }
+            if (!ownOutline && !flat && !options.is2D) {
+                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, pad)));
             }
             mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
 
@@ -941,16 +1006,14 @@ export class NodeMesh {
             const key = `node-shadow-${String(layer)}-${options.styleId}-${options.is2D ? "2d" : "3d"}`;
             const instance = cache.get(key, () => {
                 const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
-                const outline = offsetOutline(nodeOutline, pad).map(([x, y]): Point2 => [x + dx, y + dy]);
+                const piecesOf = (round: Point2[]): RingPiece[] => {
+                    const outline = offsetOutline(round, pad).map(([x, y]): Point2 => [x + dx, y + dy]);
+                    return [{ inner: outline.map((): Point2 => [dx, dy]), outer: outline, closed: true }];
+                };
                 fill.computeWorldMatrix(true);
                 const box = fill.getBoundingInfo().boundingBox;
                 const depth = THIN_DEPTH_RATIO * Math.max(sized.across, MIN_NODE_SIZE);
-                const mesh = ringSlab(
-                    "node-shadow",
-                    [{ inner: outline.map((): Point2 => [dx, dy]), outer: outline, closed: true }],
-                    depth,
-                    scene,
-                );
+                const mesh = ringSlab("node-shadow", piecesOf(nodeOutline), depth, scene);
                 // behind the node's back and its underlay (2D looks along +z), the outermost layer furthest
                 const gap = depth * 0.01;
                 const at = box.maximum.z + (depth + gap) * (1 + count - layer) + depth / 2;
@@ -961,6 +1024,9 @@ export class NodeMesh {
                     }
                     mesh.setVerticesData(VertexBuffer.PositionKind, positions);
                     mesh.refreshBoundingInfo();
+                }
+                if (!flat && !options.is2D) {
+                    this.followView(mesh, fill, depth, piecesOf);
                 }
                 mesh.material = this.createBorderMaterial(shadow?.color ?? "#000000", share, scene);
 
@@ -1008,6 +1074,94 @@ export class NodeMesh {
         mesh.isPickable = false;
 
         return mesh;
+    }
+
+    /**
+     * The fill of a group drawn over its members' box, as a source mesh of its own: the shape built at the box's own
+     * width and height, as its border is ({@link NodeMesh.createGroupBorder}), then shrunk by the stretch the group's
+     * mesh is drawn under, so the stretched instance draws it at the box's size. Stretching the shared fill instead
+     * stretched a rounded rectangle's corners into long ellipses (issue #8194). Drawn with the shared source's
+     * material, opacity and draw settings; the caller disposes it (never its material).
+     * @param from - The shared source the group's instance is drawn from now.
+     * @param shape - The group's flat shape.
+     * @param extents - The box's drawn size.
+     * @param extents.x - Its width.
+     * @param extents.y - Its height.
+     * @param extents.z - Its depth.
+     * @param stretch - The scaling the group's instance is drawn under.
+     * @param stretch.x - Across its width.
+     * @param stretch.y - Across its height.
+     * @param stretch.z - Across its depth.
+     * @param is2D - Whether the view is 2D.
+     * @returns The source, or null for a shape that is not flat.
+     */
+    static createGroupFill(
+        from: Mesh,
+        shape: NodeStyleConfig["shape"],
+        extents: { x: number; y: number; z: number },
+        stretch: { x: number; y: number; z: number },
+        is2D: boolean,
+    ): Mesh | null {
+        if (shape?.type === undefined || !isFlatShape(shape.type)) {
+            return null;
+        }
+
+        const scene = from.getScene();
+        const mesh = this.createFlatShape(shape, { across: Math.max(extents.x, extents.y), ...extents }, scene);
+        mesh.bakeTransformIntoVertices(Matrix.Scaling(1 / stretch.x, 1 / stretch.y, 1 / stretch.z));
+        // placed along z in the source's own units, as the shared source was, so it is drawn at the same depth
+        placeByZIndex(mesh, shape, is2D);
+        mesh.name = `${from.name}-group`;
+        mesh.material = from.material;
+        mesh.visibility = from.visibility;
+        mesh.renderingGroupId = from.renderingGroupId;
+        mesh.alphaIndex = from.alphaIndex;
+        mesh.renderOutline = from.renderOutline;
+        mesh.outlineWidth = from.outlineWidth;
+        mesh.outlineColor = from.outlineColor;
+        mesh.isPickable = from.isPickable;
+        mesh.isVisible = false;
+        for (const kind of Object.keys(from.instancedBuffers ?? {})) {
+            mesh.registerInstancedBuffer(kind, from.getVertexBuffer(kind)?.getSize() ?? 4);
+            mesh.instancedBuffers[kind] = from.instancedBuffers[kind] as unknown;
+        }
+        mesh.position.copyFrom(from.position);
+        mesh.freezeWorldMatrix();
+
+        return mesh;
+    }
+
+    /**
+     * A hidden instance of a shared source, keeping it alive while nothing drawn instances it: the mesh cache
+     * disposes a source with no instance left, and its material with it.
+     * @param source - The shared source.
+     * @returns The instance; dispose it to let the source go.
+     */
+    static keepSource(source: Mesh): InstancedMesh {
+        const kept = source.createInstance(`${source.name}-kept`);
+        kept.setEnabled(false);
+        return kept;
+    }
+
+    /**
+     * The outline a line ends on for a flat shape whose outline is neither its box nor the ellipse in it (a star, a
+     * diamond, a cross, Pajek's man and woman): its fill's outline in units of its box's half size.
+     * @param createOptions - The node's shape and border.
+     * @param size - The node's size, when its shape gives none.
+     * @param fill - The node's own mesh, whose outline a solid's face is.
+     * @returns The outline, counter-clockwise, or null for a shape whose box or ellipse is its outline, or that is not
+     *     flat.
+     * @internal
+     */
+    static reachOutlineOf(createOptions: NodeMeshCreateOptions, size: number, fill: AbstractMesh): Point2[] | null {
+        const { shape } = createOptions;
+        const type = shape?.type;
+        const outlined =
+            type !== undefined &&
+            isFlatShape(type) &&
+            !BOX_OR_ELLIPSE.has(type) &&
+            !(type === "polygon" && drawnAgainstBox(shape?.points));
+        return outlined ? inUnitBox(this.faceOf(createOptions, size, fill).outline) : null;
     }
 
     /**
@@ -1079,16 +1233,144 @@ export class NodeMesh {
         return grow === 1 ? outline : outline.map(([x, y]): Point2 => [x * grow, y * grow]);
     }
 
-    private static solidOutline(fill: AbstractMesh): Point2[] {
+    /**
+     * A border or outer border ring's source mesh: built round its outline, placed by the node's z-index, in its
+     * color, and for a solid in a 3D view kept on the outline the camera sees.
+     * @param name - The mesh's name.
+     * @param ring - The ring.
+     * @param ring.outline - The node's outline the ring is built round first.
+     * @param ring.depth - How deep the ring is along z.
+     * @param ring.piecesOf - The ring's pieces round an outline.
+     * @param ring.flat - Whether the node's shape is flat.
+     * @param ring.color - The ring's color.
+     * @param ring.opacity - The ring's opacity, 0..1.
+     * @param shape - The node's shape block.
+     * @param options - The node's mesh options.
+     * @param fill - The node's own mesh.
+     * @param scene - The scene.
+     * @returns The mesh.
+     */
+    private static borderSlab(
+        name: string,
+        ring: {
+            outline: Point2[];
+            depth: number;
+            piecesOf: (outline: Point2[]) => RingPiece[];
+            flat: boolean;
+            color: string;
+            opacity: number;
+        },
+        shape: NodeStyleConfig["shape"],
+        options: NodeMeshOptions,
+        fill: AbstractMesh,
+        scene?: Scene,
+    ): Mesh {
+        const mesh = ringSlab(name, ring.piecesOf(ring.outline), ring.depth, scene);
+        placeByZIndex(mesh, shape, options.is2D);
+        if (!ring.flat && !options.is2D) {
+            this.followView(mesh, fill, ring.depth, ring.piecesOf);
+        }
+        mesh.material = this.createBorderMaterial(ring.color, ring.opacity, scene);
+
+        return mesh;
+    }
+
+    private static solidOutline(fill: AbstractMesh, view?: Matrix, at?: Vector3): Point2[] {
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
 
-        return convexHull(projectedVertices(source));
+        return convexHull(projectedVertices(source, view, at));
     }
 
     /**
-     * The border's material: its colour, unlit, so a border reads as the colour a file gave it in
+     * Keep a solid's ring (its border, outer border, underlay, overlay or shadow) on the outline the solid shows the
+     * camera. The ring turns to face the camera in a 3D view, but a solid's outline changes shape as the camera goes
+     * round it (an icosahedron's is a decagon from one side and a hexagon from another), and with perspective the
+     * near half of it is drawn larger than the far half, so a ring built once from the outline seen along z was drawn
+     * turned against the solid (issue #9272). The ring is rebuilt, at the depth it was placed at, whenever the
+     * outline the camera sees changes.
+     *
+     * ponytail: one ring per style, drawn round the outline the nearest node drawing it shows; a node of the style
+     * much further away or across the view shows a slightly different one. A ring per node if that shows.
+     * @param mesh - The ring's source mesh, which every node of the style instances.
+     * @param fill - The node's mesh, whose source's vertices the outline is the hull of.
+     * @param depth - How deep the ring is along z.
+     * @param piecesOf - The ring's pieces round an outline of the solid.
+     */
+    private static followView(
+        mesh: Mesh,
+        fill: AbstractMesh,
+        depth: number,
+        piecesOf: (outline: Point2[]) => RingPiece[],
+    ): void {
+        const scene = mesh.getScene();
+        const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
+        const [toView, turn] = [new Matrix(), new Matrix()];
+        const [scale, at] = [new Vector3(), new Vector3()];
+        const quaternion = new Quaternion();
+        let seen = "";
+        let drawn: Point2[] = [];
+        const observer = scene.onBeforeRenderObservable.add(() => {
+            const camera = scene.activeCamera;
+            if (camera === null || source.isDisposed()) {
+                return;
+            }
+
+            const view = camera.getViewMatrix();
+            const ahead = scene.useRightHandedSystem ? -1 : 1;
+            const nearest = nearestDrawing(mesh, view, ahead, at);
+            if (nearest === null) {
+                return;
+            }
+
+            const world = nearest.getWorldMatrix();
+            const key = `${String(view.updateFlag)}|${String(nearest.uniqueId)}|${String(world.updateFlag)}`;
+            if (key === seen) {
+                return;
+            }
+
+            seen = key;
+            world.decompose(scale, quaternion);
+            Matrix.FromQuaternionToRef(quaternion, turn);
+            turn.multiplyToRef(view, toView);
+            toView.setTranslationFromFloats(0, 0, 0);
+            const box = mesh.getBoundingInfo().boundingBox;
+            let outline: Point2[];
+            if (camera.mode === Camera.PERSPECTIVE_CAMERA) {
+                at.scaleInPlace(1 / scale.x);
+                // looking into the ring, its inner wall is seen down to the face away from the camera, drawn smaller
+                // than the node's middle by as much: that face's inner edge is put on the solid's outline
+                const back = (at.z + (ahead > 0 ? box.maximum.z : box.minimum.z)) / at.z;
+                outline = this.solidOutline(source, toView, at).map(([x, y]): Point2 => [x * back, y * back]);
+            } else {
+                outline = this.solidOutline(source, toView);
+            }
+            const same =
+                outline.length === drawn.length &&
+                outline.every(([x, y], i) => Math.abs(x - drawn[i][0]) < 1e-6 && Math.abs(y - drawn[i][1]) < 1e-6);
+            if (same) {
+                return;
+            }
+
+            drawn = outline;
+            // kept at the depth it was placed at (behind the node, by z-index)
+            const shift = box.minimum.z + depth / 2;
+            const data = ringVertexData(piecesOf(outline), depth);
+            const positions = data.positions ?? [];
+            for (let z = 2; z < positions.length; z += 3) {
+                positions[z] += shift;
+            }
+            data.applyToMesh(mesh, true);
+            mesh.refreshBoundingInfo();
+        });
+        mesh.onDisposeObservable.addOnce(() => {
+            scene.onBeforeRenderObservable.remove(observer);
+        });
+    }
+
+    /**
+     * The border's material: its color, unlit, so a border reads as the color a file gave it in
      * 2D and 3D alike, the way an edge's line does.
-     * @param color - The border colour.
+     * @param color - The border color.
      * @param opacity - The border's opacity, 0..1.
      * @param scene - The scene.
      * @returns The frozen material.
@@ -1124,17 +1406,17 @@ export class NodeMesh {
     /**
      * Builds the StandardMaterial for a node mesh.
      *
-     * THE DEFECT THIS FIXES: `extractColor` answers only two of the three colour forms the zod
+     * THE DEFECT THIS FIXES: `extractColor` answers only two of the three color forms the zod
      * schema accepts -- a bare hex string and `{colorType: "solid"}`. For `"gradient"` and
      * `"radial-gradient"` it returns undefined, and this function used to read
      * `if (color3) { ... }` with NO else branch. The consequence was not a wrong gradient: the
-     * StandardMaterial kept its stock colour, so a gradient node rendered flat white/grey with no
-     * colour applied at all. That is the product owner's report, "gradient color strips don't
+     * StandardMaterial kept its stock color, so a gradient node rendered flat white/gray with no
+     * color applied at all. That is the product owner's report, "gradient color strips don't
      * currently work", and it was made more galling by the fact that the schema accepted the
      * value (see config/common.ts `AdvancedColorStyle`), so `Styles.getNodeIdForStyle` interned a
      * fresh style id and `NodeMesh.create` allocated a whole cached mesh for it. The user paid the
-     * full interning cost and got no pixels back. Every colour form the schema accepts must now
-     * produce a visible colour, or the schema and the renderer have drifted again.
+     * full interning cost and got no pixels back. Every color form the schema accepts must now
+     * produce a visible color, or the schema and the renderer have drifted again.
      *
      * HOW A GRADIENT IS PAINTED: a canvas-drawn ramp in a `DynamicTexture`, assigned to
      * `diffuseTexture` in 3D and to `emissiveTexture` in 2D (2D sets `disableLighting`, so only
@@ -1153,7 +1435,7 @@ export class NodeMesh {
      * That is a real difference in appearance, it needs a screenshot review rather than a unit
      * test, and the alternative (a second, pre-dimmed texture per gradient) doubles the GPU memory
      * discussed on `getGradientTexture`.
-     * @param createOptions - Creation options carrying the texture colour and effects
+     * @param createOptions - Creation options carrying the texture color and effects
      * @param is2D - Whether the scene is rendering in 2D mode
      * @param scene - Babylon.js scene, required to allocate a gradient texture
      * @returns The material to attach to the cached node mesh
@@ -1175,7 +1457,7 @@ export class NodeMesh {
     /**
      * Write a new node material's properties; see {@link NodeMesh.createMaterial}.
      * @param mat - The material, which no mesh draws yet.
-     * @param createOptions - Creation options carrying the texture colour and effects
+     * @param createOptions - Creation options carrying the texture color and effects
      * @param is2D - Whether the scene is rendering in 2D mode
      * @param scene - Babylon.js scene, required to allocate a gradient texture
      */
@@ -1187,14 +1469,16 @@ export class NodeMesh {
     ): void {
         const styleColor = createOptions.texture?.color;
         let color3 = this.extractColor(styleColor);
-        const gradient = color3 ? undefined : this.extractGradient(styleColor);
-        const gradientTexture = gradient ? this.getGradientTexture(gradient, scene) : undefined;
+        const { picture } = createOptions;
+        const hasPicture = picture !== undefined && picture !== null;
+        const gradient = color3 || hasPicture ? undefined : this.extractGradient(styleColor);
+        const gradientTexture = gradient ? this.getGradientTexture(gradient, mat, scene) : undefined;
 
         if (gradient && !gradientTexture) {
             // The ramp could not be allocated -- no scene, no 2D canvas in this environment, or
             // the per-scene texture budget is spent. Fall back to the first stop so the node still
-            // carries a colour. This mirrors what Node.ts already does for rich-text label
-            // backgrounds, and it is strictly better than the old behaviour of drawing nothing:
+            // carries a color. This mirrors what Node.ts already does for rich-text label
+            // backgrounds, and it is strictly better than the old behavior of drawing nothing:
             // a flat approximation of a gradient is legible, an unstyled default is not.
             const [firstStop] = gradient.colors;
             if (firstStop) {
@@ -1203,11 +1487,11 @@ export class NodeMesh {
             }
         }
 
-        // `node.unlit` draws a 3D node the way 2D draws every node: its own colour, no light.
+        // `node.unlit` draws a 3D node the way 2D draws every node: its own color, no light.
         const unlit = is2D || createOptions.effect?.unlit === true;
 
-        if (createOptions.picture !== undefined && createOptions.picture !== null) {
-            this.setUpPictureMaterial(mat, createOptions, createOptions.picture, is2D, unlit);
+        if (hasPicture) {
+            this.setUpPictureMaterial(mat, createOptions, picture, is2D, unlit);
         } else {
             this.setUpColorMaterial(mat, gradientTexture, color3, unlit, scene);
         }
@@ -1225,7 +1509,7 @@ export class NodeMesh {
      * @param createOptions - Creation options carrying the shape
      * @param picture - The picture the node draws
      * @param is2D - Whether the scene is rendering in 2D mode
-     * @param unlit - Whether the node draws its own colour with no light
+     * @param unlit - Whether the node draws its own color with no light
      */
     private static setUpPictureMaterial(
         mat: StandardMaterial,
@@ -1255,11 +1539,11 @@ export class NodeMesh {
     }
 
     /**
-     * Write a node material's gradient or flat colour; see {@link NodeMesh.setUpMaterial}.
+     * Write a node material's gradient or flat color; see {@link NodeMesh.setUpMaterial}.
      * @param mat - The material, which no mesh draws yet.
      * @param gradientTexture - The gradient ramp, when the style has one that could be allocated
-     * @param color3 - The flat colour, when the style has one
-     * @param unlit - Whether the node draws its own colour with no light
+     * @param color3 - The flat color, when the style has one
+     * @param unlit - Whether the node draws its own color with no light
      * @param scene - Babylon.js scene, whose lighting a lit node material follows
      */
     private static setUpColorMaterial(
@@ -1296,11 +1580,11 @@ export class NodeMesh {
                 lightNodeMaterial(mat, sceneLighting(scene));
 
                 // THE COLOUR ABOVE IS USUALLY NEUTRAL WHITE, because nodes that differ only in
-                // colour share this material and carry their own colour in a per-instance buffer
+                // color share this material and carry their own color in a per-instance buffer
                 // instead. Babylon multiplies that buffer in after it clamps the light term, which
-                // flattens every surface lit past four fifths into one patch of unshaded colour --
+                // flattens every surface lit past four fifths into one patch of unshaded color --
                 // so the plugin moves the multiply inside the clamp and the node looks round
-                // again. On a material whose instances carry no colour it changes nothing.
+                // again. On a material whose instances carry no color it changes nothing.
                 //
                 // BEFORE freeze(): a frozen material stops re-evaluating its shader defines, and a
                 // plugin is a define.
@@ -1325,19 +1609,19 @@ export class NodeMesh {
     }
 
     /**
-     * Normalises the two gradient members of `AdvancedColorStyle` into one shape.
+     * Normalizes the two gradient members of `AdvancedColorStyle` into one shape.
      *
      * Kept separate from `extractColor` on purpose: `extractColor` answers "is there a single flat
-     * colour here", and several callers rely on it returning undefined for a gradient. Widening it
+     * color here", and several callers rely on it returning undefined for a gradient. Widening it
      * to also mean "or a gradient" would change what undefined means at every call site.
      *
      * A gradient with a single stop is still returned. It cannot be PAINTED -- the stop offsets are
      * `i / (colors.length - 1)`, which is a division by zero for one stop, and a one-stop ramp is a
-     * flat colour anyway -- so `getGradientTexture` refuses it and `createMaterial` falls back to
+     * flat color anyway -- so `getGradientTexture` refuses it and `createMaterial` falls back to
      * that one stop. Returning undefined here instead would send the node back to the unstyled
      * default, which is the exact defect this whole change removes.
      * @param color - The `texture.color` value taken straight off the parsed style
-     * @returns The normalised gradient, or undefined if this is not a paintable gradient
+     * @returns The normalized gradient, or undefined if this is not a paintable gradient
      */
     private static extractGradient(color: unknown): GradientColor | undefined {
         if (typeof color !== "object" || color === null) {
@@ -1392,22 +1676,28 @@ export class NodeMesh {
      *      style ids that differ only in shape or size share one texture, and a per-node
      *      calculated gradient that happens to repeat a value shares one too.
      *   2. A hard ceiling of MAX_GRADIENT_TEXTURES_PER_SCENE. Beyond it this returns undefined and
-     *      `createMaterial` falls back to the first stop as a flat colour. A graph with more than
+     *      `createMaterial` falls back to the first stop as a flat color. A graph with more than
      *      that many genuinely distinct gradients is a calculated gradient in disguise, and a flat
      *      approximation is a far better outcome than exhausting GPU memory. The ceiling is the
      *      reason this code does not need to know whether a gradient came from a calculated value:
      *      provenance is invisible here, but unbounded allocation is not.
      *
      * The cache is a WeakMap keyed by scene, so the entries die with the scene and never leak
-     * across scenes or across tests. `MeshCache` disposes a source mesh's material but never its
-     * textures, so a cached texture stays valid across a 2D/3D switch.
-     * @param gradient - The normalised gradient to paint
+     * across scenes or across tests. Each entry counts the materials drawing it: `MeshCache`
+     * disposes a source mesh's material (never its textures), and the last material's disposal
+     * disposes the texture and frees its slot, so the ceiling counts gradients in use rather than
+     * every gradient the scene has ever seen (issue #7122).
+     * @param gradient - The normalized gradient to paint
+     * @param mat - The material that will draw the texture, holding it until disposed
      * @param scene - Babylon.js scene that will own the texture
      * @returns The shared texture, or undefined if one cannot or should not be allocated
      */
-    private static getGradientTexture(gradient: GradientColor, scene?: Scene): DynamicTexture | undefined {
-        // One stop cannot make a ramp: the stop offsets below are `i / (colors.length - 1)`, which
-        // is NaN for a single stop and throws in `addColorStop`. The caller paints it flat.
+    private static getGradientTexture(
+        gradient: GradientColor,
+        mat: StandardMaterial,
+        scene?: Scene,
+    ): DynamicTexture | undefined {
+        // One stop is no ramp: the caller paints it flat, which needs no texture.
         if (!scene || gradient.colors.length < 2) {
             return undefined;
         }
@@ -1416,26 +1706,34 @@ export class NodeMesh {
 
         let sceneCache = gradientTextureCache.get(scene);
         if (!sceneCache) {
-            sceneCache = new Map<string, DynamicTexture>();
+            sceneCache = new Map();
             gradientTextureCache.set(scene, sceneCache);
         }
 
-        const cached = sceneCache.get(key);
-        if (cached) {
-            return cached;
+        let entry = sceneCache.get(key);
+        if (!entry) {
+            if (sceneCache.size >= MAX_GRADIENT_TEXTURES_PER_SCENE) {
+                return undefined;
+            }
+            const texture = this.createGradientTexture(gradient, scene, key);
+            if (!texture) {
+                return undefined;
+            }
+            entry = { texture, users: 0 };
+            sceneCache.set(key, entry);
         }
 
-        if (sceneCache.size >= MAX_GRADIENT_TEXTURES_PER_SCENE) {
-            return undefined;
-        }
-
-        const texture = this.createGradientTexture(gradient, scene, key);
-        if (!texture) {
-            return undefined;
-        }
-
-        sceneCache.set(key, texture);
-        return texture;
+        const held = entry;
+        const cache = sceneCache;
+        held.users++;
+        mat.onDisposeObservable.addOnce(() => {
+            held.users--;
+            if (held.users === 0 && cache.get(key) === held) {
+                cache.delete(key);
+                held.texture.dispose();
+            }
+        });
+        return held.texture;
     }
 
     /**
@@ -1444,7 +1742,7 @@ export class NodeMesh {
      * WHY THE CANVAS IS SQUARE RATHER THAN A 256x1 STRIP: a one-pixel-tall strip cannot represent
      * a gradient whose direction has any vertical component. At direction 90 the endpoint maths
      * below reduces to y1 = 0, y2 = 1, so the entire ramp is squeezed into a single row of pixels
-     * and the node renders as one flat colour -- exactly the defect this whole change exists to
+     * and the node renders as one flat color -- exactly the defect this whole change exists to
      * remove, reintroduced for half the directions. A square canvas costs more memory per texture,
      * which is why the count is capped in `getGradientTexture` rather than the size shaved here.
      *
@@ -1457,7 +1755,7 @@ export class NodeMesh {
      * `OffscreenCanvas`, which Node does not define). Throwing there would take down node creation
      * for a style that the schema says is valid; returning undefined lets `createMaterial` paint
      * the first stop instead.
-     * @param gradient - The normalised gradient to paint
+     * @param gradient - The normalized gradient to paint
      * @param scene - Babylon.js scene that will own the texture
      * @param key - The interning key, reused as the texture name so it is identifiable in the
      * Babylon inspector
@@ -1481,9 +1779,7 @@ export class NodeMesh {
                 : this.createLinearRamp(ctx, gradient.direction, size);
 
             const { colors, stops } = gradient;
-            for (let i = 0; i < colors.length; i++) {
-                ramp.addColorStop(stops?.[i] ?? i / (colors.length - 1), colors[i] ?? "transparent");
-            }
+            addGradientStops(ramp, colors, stops);
 
             ctx.fillStyle = ramp;
             ctx.fillRect(0, 0, size, size);
@@ -1511,7 +1807,7 @@ export class NodeMesh {
      *
      * Lifted verbatim from the rich-text label background painter so node fills and label fills
      * agree on what "direction 45" means. Zero degrees runs left to right; the angle sweeps the
-     * endpoints around the canvas centre.
+     * endpoints around the canvas center.
      * @param ctx - The DynamicTexture's 2D context
      * @param direction - Gradient direction in degrees, 0 to 360
      * @param size - Width and height of the square canvas
@@ -1660,4 +1956,20 @@ export class NodeMesh {
             scene,
         );
     }
+}
+
+/**
+ * An instance of a model template's group, answering for the group's own locked box. Babylon
+ * sizes an instance of a skinned source from its raw vertices, and an animated template's are in
+ * the file's units (its bones place and fit them), so a Fox was boxed 150 times too large and the
+ * camera framed the graph by that box (issue #8607).
+ * @param group - The template's group.
+ * @param name - The instance's name.
+ * @returns The instance.
+ */
+function modelInstance(group: Mesh, name: string): InstancedMesh {
+    const instance = group.createInstance(name);
+    const { minimum, maximum } = group.getBoundingInfo();
+    instance.buildBoundingInfo(minimum, maximum);
+    return instance;
 }

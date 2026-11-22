@@ -78,6 +78,20 @@ describe("keys a dialog or the Assistant panel keeps", () => {
         });
     });
 
+    it("the element brings back the selection an Esc cleared, with no undo step", async () => {
+        const { session } = await selected();
+        const steps = session.history.steps.length;
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.strictEqual(session.selection.size, 0);
+        });
+        assert.sameMembers([...(session.selection.previous()?.nodes ?? [])], ["a", "b", "c", "d"]);
+
+        session.selection.restore({ cause: "user" });
+        assert.sameMembers([...session.selection.nodes], ["a", "b", "c", "d"]);
+        assert.strictEqual(session.history.steps.length, steps, "no undo step was recorded");
+    });
+
     it("Mod+I with Settings open leaves Settings open and the focus in it", async () => {
         const { store } = await selected();
         const dialog = await openSettings();

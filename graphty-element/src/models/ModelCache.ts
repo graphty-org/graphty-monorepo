@@ -19,17 +19,20 @@
  * first model only (./loadModel).
  */
 
-import type { BaseTexture, Mesh, Observer, Scene } from "@babylonjs/core";
+import type { BaseTexture, Observer } from "@babylonjs/core";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { LayerId } from "../catalog/types";
 import type { NodeStyleConfig } from "../config";
 import { isGraphtyError } from "../errors";
 import type { GraphContext } from "../managers/GraphContext";
-import type { AssetRecord, AssetsApiInternal } from "../session/assets/AssetsApi";
+import type { AssetRecord, AssetsApiInternal, ModelSummary } from "../session/assets/AssetsApi";
 import type { NetworkApiInternal } from "../session/network";
 import type { CodedFact } from "../session/shared";
 import type { SessionStylesApi } from "../session/styles/StylesApi";
 import type { ModelChange, ModelState, SessionEventMap } from "../session/types";
+import type { TemplateAnimation } from "./animateTemplate";
 import { decideFetch, layersNaming } from "./fetchGate";
 import { loadChunk, loadModel, ModelLoadFailure } from "./loadModel";
 import { TextureCache } from "./TextureCache";
@@ -42,10 +45,44 @@ export interface TemplateOptions {
     readonly turn: number;
     readonly center: "bounds" | "origin";
     readonly fit: "contain" | "stretch";
-    /** Paint every material flat, in the node's colour. */
+    /** Paint every material flat, in the node's color. */
     readonly replace: boolean;
+    /** `node.modelTint: "untextured"`: a part with no picture and no vertex colors draws flat. */
+    readonly untextured?: boolean;
+    /**
+     * `node.modelTint: false`, set by a layer: the model keeps its own colors even when they are only
+     * plain grays, which otherwise draw in the node's color while the channel is unset.
+     */
+    readonly ownColors?: boolean;
+    /** `node.unlit`: every material draws its own color with no light. */
+    readonly unlit?: boolean;
+    /** `node.wireframe`: every material draws as wires. */
+    readonly wireframe?: boolean;
+    /** `node.modelDoubleSided`: "file" keeps each material's own choice. */
+    readonly doubleSided?: boolean | "file";
+    /** `node.modelAnimation` names a clip: the clips are baked, and its nodes can play them. */
+    readonly animated?: boolean;
     /** `node.texture`: the picture every material takes as its base color texture. */
     readonly image?: BaseTexture | null;
+}
+
+/** What a node's effects ask of its model's materials, beside its shape block. */
+export interface ModelLook {
+    readonly unlit?: boolean;
+    readonly wireframe?: boolean;
+}
+
+/**
+ * The instanced buffer a model part's tint is written to: Babylon's "instanceColor" on a group
+ * with vertex colors (its shaders multiply it into them), "color" on every other group.
+ * @param source - The part's source mesh, one of a template's groups.
+ * @param source.instancedBuffers - Its instanced buffers, by kind.
+ * @returns The buffer's kind.
+ */
+export function tintBufferOf(source: {
+    readonly instancedBuffers?: Record<string, unknown>;
+}): "color" | "instanceColor" {
+    return source.instancedBuffers?.instanceColor === undefined ? "color" : "instanceColor";
 }
 
 /** One model, ready to instance: centered, fitted to a unit box, compiled and frozen. */
@@ -55,6 +92,12 @@ export interface ModelTemplate {
      * box is the whole model's, which is what a node is picked and culled by.
      */
     readonly groups: readonly Mesh[];
+    /**
+     * The groups that take the node's color whatever `node.modelTint` says: parts the file gives no
+     * material and no vertex colors, every part under "replace", and parts with no picture and no
+     * vertex colors under "untextured".
+     */
+    readonly follows: ReadonlySet<Mesh>;
     /** The fitted extents: the largest is 1 under "contain", each is 1 under "stretch". */
     readonly size: { readonly x: number; readonly y: number; readonly z: number };
     /** The fitted bounding sphere's radius about the node's center. */
@@ -62,6 +105,8 @@ export interface ModelTemplate {
     readonly triangles: number;
     readonly materials: number;
     readonly transparent: boolean;
+    /** The clips its nodes can play, when it was built animated and the file has any. */
+    readonly animation?: TemplateAnimation;
     dispose(): void;
 }
 
@@ -70,8 +115,14 @@ export interface ModelUser {
     isDisposed(): boolean;
     /** Draw the node again from its current paint. */
     updateStyle(): void;
-    /** What the node draws now: its template, whether it is tinted, and whether a layer coloured it. */
-    modelDrawn(): { readonly template: ModelTemplate | null; readonly tinted: boolean; readonly colored: boolean };
+    /** What the node draws now: its template, whether it is tinted, and whether a layer colored it. */
+    modelDrawn(): {
+        readonly template: ModelTemplate | null;
+        readonly tinted: boolean;
+        readonly colored: boolean;
+        /** The clip `node.modelAnimation` names, or null. */
+        readonly clip?: string | null;
+    };
 }
 
 /** What the cache reads from the session. */
@@ -89,10 +140,14 @@ interface Entry {
     readonly ref: string;
     /** The `node.texture` its template is built with. */
     readonly image?: string;
+    /** The model's pictures it is built without. */
+    readonly hidden: readonly string[];
     template: ModelTemplate | null;
     readonly users: Set<ModelUser>;
     /** The shape block that first asked for it, to load again after a part is supplied. */
     readonly shape: NonNullable<NodeStyleConfig["shape"]>;
+    /** What the node's effects asked of the materials. */
+    readonly look: ModelLook;
     /** Frames since no layer named it and no node drew it; -1 while it is in use. */
     idle: number;
     /** Whether a load is under way, so a second trigger does not prepare a second copy. */
@@ -126,35 +181,86 @@ const TRANSPARENT_NODES = 100;
 /**
  * The geometry options a node's shape block asks for.
  * @param shape - The shape block.
- * @param format - The model's format, which settles a "detected" up axis.
+ * @param upAxis - The model summary's up axis, which settles a "detected" one.
+ * @param look - What the node's effects ask of the materials.
  * @returns The options.
  */
-function optionsOf(shape: NonNullable<NodeStyleConfig["shape"]>, format: string): TemplateOptions {
+export function optionsOf(
+    shape: NonNullable<NodeStyleConfig["shape"]>,
+    upAxis: ModelSummary["upAxis"],
+    look: ModelLook = {},
+): TemplateOptions {
     const asked = shape.modelSourceUp ?? "detected";
-    // glTF's loader converts +Y up itself; an STL is taken as Z up; OBJ and PLY as Y up.
-    const detected = format === "stl" ? "z" : "y";
+    // glTF's loader converts +Y up itself; an STL is taken as Z up, OBJ and PLY as Y up.
+    const detected = upAxis === "unknown" ? "y" : upAxis;
     return {
         up: asked === "detected" ? detected : asked,
         turn: shape.modelTurn ?? 0,
         center: shape.modelCenter ?? "bounds",
         fit: shape.modelFit ?? "contain",
         replace: shape.modelTint === "replace",
+        untextured: shape.modelTint === "untextured",
+        ownColors: ownColors(shape),
+        unlit: look.unlit === true,
+        wireframe: look.wireframe === true,
+        doubleSided: sidesOf(shape),
+        animated: animationOf(shape) !== null,
     };
+}
+
+/**
+ * The clip `node.modelAnimation` names: null for none (still).
+ * @param shape - The shape block.
+ * @returns The clip's name, or null.
+ */
+export function animationOf(shape: NodeStyleConfig["shape"]): string | null {
+    const clip = shape?.modelAnimation;
+    return typeof clip === "string" && clip !== "" ? clip : null;
+}
+
+/**
+ * Whether a layer set `node.modelTint` to false (read by name as well as by value), so a model of
+ * plain grays keeps them instead of taking the node's color.
+ * @param shape - The shape block.
+ * @returns True for an explicit false.
+ */
+function ownColors(shape: NonNullable<NodeStyleConfig["shape"]>): boolean {
+    const tint = shape.modelTint as unknown;
+    return tint === false || tint === "false";
+}
+
+/**
+ * `node.modelDoubleSided`, read by name as well as by value.
+ * @param shape - The shape block.
+ * @returns True, false, or "file" for the file's own choice.
+ */
+function sidesOf(shape: NonNullable<NodeStyleConfig["shape"]>): boolean | "file" {
+    const sides = shape.modelDoubleSided as unknown;
+    if (sides === true || sides === "true") {
+        return true;
+    }
+
+    return sides === false || sides === "false" ? false : "file";
 }
 
 /**
  * The cache key of a node's shape block: the model and the options that change its geometry.
  * @param shape - The shape block.
+ * @param look - What the node's effects ask of the materials.
  * @returns The key.
  */
-function keyOf(shape: NonNullable<NodeStyleConfig["shape"]>): string {
+function keyOf(shape: NonNullable<NodeStyleConfig["shape"]>, look: ModelLook): string {
     return JSON.stringify([
         shape.model,
         shape.modelSourceUp ?? "detected",
         shape.modelTurn ?? 0,
         shape.modelCenter ?? "bounds",
         shape.modelFit ?? "contain",
-        shape.modelTint === "replace",
+        shape.modelTint === "replace" || shape.modelTint === "untextured" ? shape.modelTint : ownColors(shape),
+        sidesOf(shape),
+        animationOf(shape) !== null,
+        look.unlit === true,
+        look.wireframe === true,
     ]);
 }
 
@@ -200,6 +306,8 @@ export class ModelCache {
     private readonly entries = new Map<string, Entry>();
     private readonly status = new Map<string, RefStatus>();
     private readonly queue: (() => Promise<void>)[] = [];
+    /** Stops the loads under way when the cache goes with its scene: a slow model holds no load slot. */
+    private readonly stopped = new AbortController();
     private running = 0;
     private readonly dirty = new Set<Entry>();
     private flushScheduled = false;
@@ -299,23 +407,34 @@ export class ModelCache {
      * @param user - The node asking; it is repainted when the template becomes drawable.
      * @param shape - Its shape block.
      * @param image - The `node.texture` the node names, which every material takes.
+     * @param look - What the node's effects ask of the materials (`node.unlit`, `node.wireframe`).
      * @returns The template, or null.
      */
-    templateFor(user: ModelUser, shape: NodeStyleConfig["shape"], image?: string): ModelTemplate | null {
+    templateFor(
+        user: ModelUser,
+        shape: NodeStyleConfig["shape"],
+        image?: string,
+        look: ModelLook = {},
+    ): ModelTemplate | null {
         const ref = shape?.model;
         if (shape === undefined || typeof ref !== "string" || ref === "") {
             return null;
         }
 
-        const key = JSON.stringify([keyOf(shape), image ?? null]);
+        // The pictures the model's own settings draw it without (`assets.setDefaults`).
+        // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
+        const hidden = this.session.assets.find(ref)?.defaults?.hiddenTextures ?? [];
+        const key = JSON.stringify([keyOf(shape, look), image ?? null, hidden]);
         let entry = this.entries.get(key);
         if (entry === undefined) {
             entry = {
                 key,
                 ref,
+                hidden,
                 ...(image === undefined || image === "" ? {} : { image }),
                 template: null,
                 shape,
+                look,
                 users: new Set(),
                 idle: -1,
             };
@@ -390,7 +509,7 @@ export class ModelCache {
     }
 
     /**
-     * The layers a reader added that colour nodes, for `W_MODEL_COLOR_IGNORED`.
+     * The layers a reader added that color nodes, for `W_MODEL_COLOR_IGNORED`.
      * @returns Their ids.
      */
     private colorLayers(): LayerId[] {
@@ -518,13 +637,21 @@ export class ModelCache {
             this.settle(ref, "accepted", [...record.problems]);
             try {
                 const files = this.session.assets.files(record.id);
-                const container = await loadModel(this.scene, files, record.path ?? "", record.format, record.skipped);
+                const container = await loadModel(
+                    this.scene,
+                    files,
+                    record.path ?? "",
+                    record.format,
+                    record.skipped,
+                    entry.hidden,
+                    this.stopped.signal,
+                );
                 const chunk = await loadChunk();
                 entry.template = await chunk.prepareTemplate(
                     this.scene,
                     container,
                     `graphty-model-${String(++templates)}`,
-                    { ...optionsOf(shape, record.format), image },
+                    { ...optionsOf(shape, this.session.assets.inspect(record.id).upAxis, entry.look), image },
                     () => chunk.neutralEnvironment(this.scene),
                 );
                 if (!this.entries.has(entry.key)) {
@@ -541,6 +668,10 @@ export class ModelCache {
 
                 this.requestRepaint(entry);
             } catch (error) {
+                if (this.stopped.signal.aborted) {
+                    // Stopped with the scene: there is nothing left to tell.
+                    return;
+                }
                 const fact =
                     error instanceof ModelLoadFailure
                         ? error.fact
@@ -638,11 +769,12 @@ export class ModelCache {
     /**
      * The nodes drawing an entry now.
      * @param entry - The entry.
-     * @returns How many, and whether a coloured one is untinted.
+     * @returns How many, and whether a colored one is untinted.
      */
-    private drawing(entry: Entry): { nodes: number; colorIgnored: boolean } {
+    private drawing(entry: Entry): { nodes: number; colorIgnored: boolean; clips: Set<string> } {
         let nodes = 0;
         let colorIgnored = false;
+        const clips = new Set<string>();
         for (const user of entry.users) {
             if (user.isDisposed()) {
                 entry.users.delete(user);
@@ -653,10 +785,13 @@ export class ModelCache {
             if (drawn.template !== null && drawn.template === entry.template) {
                 nodes++;
                 colorIgnored ||= drawn.colored && !drawn.tinted;
+                if (typeof drawn.clip === "string") {
+                    clips.add(drawn.clip);
+                }
             }
         }
 
-        return { nodes, colorIgnored };
+        return { nodes, colorIgnored, clips };
     }
 
     /**
@@ -674,11 +809,23 @@ export class ModelCache {
         let nodes = 0;
         let colorIgnored = false;
         let transparent = false;
+        const unknown = new Set<string>();
         for (const entry of entries) {
             const drawn = this.drawing(entry);
             nodes += drawn.nodes;
             colorIgnored ||= drawn.colorIgnored;
             transparent ||= entry.template?.transparent === true;
+            const animation = entry.template?.animation;
+            for (const clip of drawn.clips) {
+                if (animation !== undefined && !animation.clips.has(clip)) {
+                    unknown.add(clip);
+                }
+            }
+            for (const note of animation?.notes ?? []) {
+                if (!problems.some((fact) => fact.code === note.code)) {
+                    problems.push(note);
+                }
+            }
         }
 
         // Only a model on screen is "drawn": a template kept for a moment after its layer went is not.
@@ -706,6 +853,13 @@ export class ModelCache {
                 code: "W_MODEL_BUDGET",
                 params: { nodes: scene.nodes, triangles: scene.triangles, budget },
             });
+        }
+
+        const available = [
+            ...(entries.find((entry) => entry.template?.animation)?.template?.animation?.clips.keys() ?? []),
+        ];
+        for (const name of unknown) {
+            problems.push({ code: "W_MODEL_ANIMATION_UNKNOWN", params: { name, available } });
         }
 
         if (colorIgnored) {
@@ -797,7 +951,7 @@ export class ModelCache {
 
     /**
      * After a style change: count which templates some layer still names, and say again what is
-     * worth saying about every drawn model (a layer may have coloured it, or tinted it).
+     * worth saying about every drawn model (a layer may have colored it, or tinted it).
      */
     private recount(): void {
         // The nodes take the change on the frame that drains it, so the report waits for that frame.
@@ -847,8 +1001,9 @@ export class ModelCache {
         }
     }
 
-    /** Free every template and stop listening. */
+    /** Free every template, stop every load under way and stop listening. */
     private dispose(): void {
+        this.stopped.abort();
         this.unwatch();
         this.unwatchSupplied();
         this.unwatchAllowed();

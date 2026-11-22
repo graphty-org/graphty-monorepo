@@ -17,16 +17,18 @@ import { readerImport } from "./graph-io-import";
 /** The graph value the groups of the loaded files are kept under. */
 export const GROUPS_VALUE = "groups";
 
-/** One group with no stored position, and the nodes it holds. */
+/** One group, and the nodes it holds. */
 export interface NodeGroup {
     /** The group node. */
     readonly group: NodeIdType;
     /** The nodes it holds directly. */
     readonly members: readonly NodeIdType[];
+    /** True when the file stores the group's own position, which it keeps instead of following its members. */
+    readonly placed?: true;
 }
 
 /**
- * The groups with no stored position in the file a reader last read.
+ * The groups in the file a reader last read, those with a stored position marked `placed`.
  * @param reader - The data source.
  * @param heldId - The id the graph holds a node under, for an id it may spell the other way.
  * @returns The groups; empty when the reader read no graph-io import or the file nests nothing.
@@ -55,23 +57,50 @@ export async function readGroups(
     };
     const out: NodeGroup[] = [];
     for (const [row, members] of children) {
-        if (coords !== null && !Number.isNaN(coords[3 * row])) {
-            continue;
-        }
-
-        out.push({ group: idOf(row), members: members.map(idOf) });
+        const placed = coords !== null && !Number.isNaN(coords[3 * row]);
+        out.push({ group: idOf(row), members: members.map(idOf), ...(placed ? { placed } : {}) });
     }
 
     return out;
 }
 
 /**
- * The groups a graph value holds, read defensively: anything else reads as none.
+ * Every group a graph value holds, placed or not, read defensively: anything else reads as none.
+ * @param value - The graph value.
+ * @returns The groups.
+ */
+export function containersOf(value: unknown): readonly NodeGroup[] {
+    return Array.isArray(value) ? (value as NodeGroup[]) : [];
+}
+
+/**
+ * The groups a graph value holds that follow their members: those with no stored position.
  * @param value - The graph value.
  * @returns The groups.
  */
 export function groupsOf(value: unknown): readonly NodeGroup[] {
-    return Array.isArray(value) ? (value as NodeGroup[]) : [];
+    return containersOf(value).filter((group) => group.placed !== true);
+}
+
+/**
+ * The groups after plain node records named their parents: each new member joins its group,
+ * which follows its members unless it was already a placed group.
+ * @param prior - The groups held before.
+ * @param joined - Each group and the nodes the records put in it.
+ * @returns The groups.
+ */
+export function withMembers(
+    prior: readonly NodeGroup[],
+    joined: ReadonlyMap<NodeIdType, readonly NodeIdType[]>,
+): NodeGroup[] {
+    const out = new Map(prior.map((group) => [group.group, group]));
+    for (const [group, members] of joined) {
+        const held = out.get(group);
+        const kept = held?.members ?? [];
+        out.set(group, { ...held, group, members: [...new Set([...kept, ...members])] });
+    }
+
+    return [...out.values()];
 }
 
 /** The graph value the rank subgraphs of the loaded files are kept under. */

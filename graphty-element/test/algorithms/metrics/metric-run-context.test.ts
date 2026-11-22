@@ -2,11 +2,12 @@ import { assert, describe, it, vi } from "vitest";
 
 import { BetweennessCentralityAlgorithm } from "../../../src/algorithms/BetweennessCentralityAlgorithm";
 import { DegreeAlgorithm } from "../../../src/algorithms/DegreeAlgorithm";
+import { EigenvectorCentralityAlgorithm } from "../../../src/algorithms/EigenvectorCentralityAlgorithm";
 import { detachedRunContext, METRIC_CHUNK_SIZE, walkInChunks } from "../../../src/algorithms/metrics/context";
 import type { MetricRunContext } from "../../../src/algorithms/metrics/types";
 import { YIELD_BUDGET_MS } from "../../../src/algorithms/results/types";
 import type { RunProgressReport } from "../../../src/session/runs";
-import { createMockGraph } from "../../helpers/mockGraph";
+import { createSessionGraph } from "../../helpers/session-graph";
 
 /** A context that remembers everything a measurement told it. */
 interface Recording {
@@ -161,7 +162,7 @@ describe("detachedRunContext", () => {
 
 describe("a metric run through a run context", () => {
     it("publishes under the run id the context names", async () => {
-        const graph = await createMockGraph({ dataPath: "./data4.json" });
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const recording = recordingContext();
         const algorithm = new DegreeAlgorithm(graph);
 
@@ -169,23 +170,38 @@ describe("a metric run through a run context", () => {
 
         assert.isDefined(result);
         assert.strictEqual(result.runId, "connections-2");
-        // The catalogue declares "results.$.value"; the result names the run it belongs to (#354).
+        // The catalog declares "results.$.value"; the result names the run it belongs to (#354).
         assert.strictEqual(result.fields[0].path, "results.connections-2.value");
     });
 
     it("reports what it is doing", async () => {
-        const graph = await createMockGraph({ dataPath: "./data4.json" });
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const recording = recordingContext();
 
         await new BetweennessCentralityAlgorithm(graph).measureRun(recording.context);
 
         const phases = recording.reports.map((report) => report.phase);
-        assert.include(phases, "tracing shortest paths");
-        assert.include(phases, "reading scores");
+        assert.include(phases, "tracing-shortest-paths");
+        assert.include(phases, "reading-scores");
+    });
+
+    it("reports eigenvector progress as codes with figures, never a sentence", async () => {
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
+        const recording = recordingContext();
+
+        await new EigenvectorCentralityAlgorithm(graph, { maxIterations: 500 }).measureRun(recording.context);
+
+        const iterating = recording.reports.find((report) => report.phase === "iterating");
+        assert.deepEqual(iterating?.params, { maxIterations: 500 });
+        assert.include(
+            recording.reports.map((report) => report.phase),
+            "reading-scores",
+        );
+        assert.isTrue(recording.reports.every((report) => report.message === undefined));
     });
 
     it("refuses to start once the run has been cancelled", async () => {
-        const graph = await createMockGraph({ dataPath: "./data4.json" });
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const controller = new AbortController();
         const recording = recordingContext(controller.signal);
         const algorithm = new DegreeAlgorithm(graph);

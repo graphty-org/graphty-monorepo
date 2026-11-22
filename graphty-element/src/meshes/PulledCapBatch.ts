@@ -1,7 +1,11 @@
 // Installs Mesh.prototype.thinInstanceSetBuffer and its siblings, which this module calls.
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import { type BaseTexture, Color3, type Mesh, type Scene, type ShaderMaterial } from "@babylonjs/core";
+import type { BaseTexture } from "@babylonjs/core";
+import type { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { batchUploadFrames } from "./FrameRoster";
 
@@ -47,11 +51,11 @@ export interface PulledCapPlace {
     headGap: number;
     /** The cap's own gap back from the head end (`Edge.capGap`). */
     capGap: number;
-    /** How far the cap's centre sits behind its tip at node scale 1 (`EdgeMesh.calculateArrowPosition`). */
+    /** How far the cap's center sits behind its tip at node scale 1 (`EdgeMesh.calculateArrowPosition`). */
     centreBack: number;
     /** Its length at node scale 1. */
     size: number;
-    /** Its colour, as a hex string. */
+    /** Its color, as a hex string. */
     colour: string;
 }
 

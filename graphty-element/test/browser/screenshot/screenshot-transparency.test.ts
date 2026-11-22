@@ -1,7 +1,6 @@
 import { afterEach, assert, expect, test } from "vitest";
 
 import type { Graph } from "../../../src/Graph";
-import { ScreenshotErrorCode } from "../../../src/screenshot/ScreenshotError.js";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
@@ -43,8 +42,8 @@ test("transparent background with JPEG format throws error", async () => {
             format: "jpeg",
         }),
     ).rejects.toMatchObject({
-        name: "ScreenshotError",
-        code: ScreenshotErrorCode.TRANSPARENT_REQUIRES_PNG,
+        name: "GraphtyError",
+        code: "E_BAD_COMMAND",
     });
 });
 

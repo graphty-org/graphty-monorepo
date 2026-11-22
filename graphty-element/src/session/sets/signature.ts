@@ -21,10 +21,10 @@
  * A definition whose inputs the context cannot enumerate (a query with no path reader, say) has
  * no signature: `null`, and it is never cached.
  *
- * Signatures are memoised per read epoch -- the store, the serial, the session input tick and
+ * Signatures are memoized per read epoch -- the store, the serial, the session input tick and
  * the identity of the saved-scope map and the kept-set list -- so a chain of sets naming one
  * base walks the base once. Without a tick the context cannot tell when an attribute or a token
- * moved, so nothing is memoised.
+ * moved, so nothing is memoized.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -58,7 +58,7 @@ export function keptDefinition(id: SetId, context: ResolveContext): SetDefinitio
     );
 }
 
-/** Invocation counts the complexity tests read. `walks`: saved-scope and kept-set parts computed, not memoised. */
+/** Invocation counts the complexity tests read. `walks`: saved-scope and kept-set parts computed, not memoized. */
 export const signatureCounters = { walks: 0 };
 
 const identities = new WeakMap<object, number>();
@@ -268,6 +268,30 @@ function statePart(context: ResolveContext): string {
 }
 
 /**
+ * The part of a Top-N or percentile leaf: its path, and, ranked among what is shown, the visible
+ * masks too, since its members move with them.
+ * @param where - The leaf.
+ * @param context - What the resolution reads.
+ * @param parts - The epoch memo, or null.
+ * @param seen - The ids followed so far.
+ * @returns The part, or null when its inputs cannot be enumerated.
+ */
+function thresholdPart(
+    where: Extract<RuleTree, { readonly kind: "threshold" }>,
+    context: ResolveContext,
+    parts: Map<unknown, string | null> | null,
+    seen: Set<ScopeId>,
+): string | null {
+    const path = pathPart(where.path, context);
+    if (where.within !== "visible" || path === null) {
+        return path;
+    }
+
+    const base = scopePart("visible", context, parts, seen);
+    return base === null ? null : `${path}@${base}`;
+}
+
+/**
  * The part of a rule's `where`: a query's paths, or each leaf's inputs in tree order.
  * @param where - The query or tree.
  * @param context - What the resolution reads.
@@ -303,6 +327,7 @@ function rulePart(
             // Follow or hold, the members move exactly when the run's current execution does.
             return runPart(String(runIdOfRef(where.item.result)), context);
         case "threshold":
+            return thresholdPart(where, context, parts, seen);
         case "by-size":
             return pathPart(where.path, context);
         case "union":
@@ -576,7 +601,7 @@ function definitionPart(
 ): string | null {
     switch (definition.kind) {
         case "fixed":
-            // `in`, not a read: reading `edges` would materialise a fixed set's compact members.
+            // `in`, not a read: reading `edges` would materialize a fixed set's compact members.
             return "edges" in definition ? `f${seedsPart(context.sets?.seedsOf(id))}` : "f";
         case "path":
             return `p${seedsPart(context.sets?.seedsOf(id))}`;

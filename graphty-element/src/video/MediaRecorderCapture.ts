@@ -1,33 +1,54 @@
-import { GraphtyLogger, type Logger } from "../logging";
+import { cameraRefusal, stateProblem } from "../camera/mode.js";
+import { GraphtyError } from "../errors/GraphtyError.js";
+import type { Graph } from "../Graph.js";
+import { captureError } from "../screenshot/captureError.js";
 import { VIDEO_CONSTANTS } from "../screenshot/constants.js";
-import { ScreenshotError, ScreenshotErrorCode } from "../screenshot/ScreenshotError.js";
-import type { AnimationOptions, AnimationResult } from "./VideoCapture.js";
-
-const logger: Logger = GraphtyLogger.getLogger(["graphty", "video", "recorder"]);
+import { outputSize } from "./estimation.js";
+import { type AnimationOptions, type AnimationResult, calculateDropRate } from "./VideoCapture.js";
 
 /**
- * Error thrown when animation capture is cancelled by the user
+ * The error a canceled recording rejects with: a `GraphtyError` with the code `E_CANCELED`, so a
+ * caller switches on `code` as for every other failure; its `name` stays `"AnimationCancelledError"`.
  */
-export class AnimationCancelledError extends Error {
+export class AnimationCancelledError extends GraphtyError {
+    /** Always `"AnimationCancelledError"`. */
+    override readonly name: string = "AnimationCancelledError";
+
     /**
      * Creates a new AnimationCancelledError
      */
     constructor() {
-        super("Animation capture cancelled");
-        this.name = "AnimationCancelledError";
+        super({ code: "E_CANCELED", message: "Animation capture cancelled", source: "view" });
     }
 }
 
-/**
- * Configuration options for MediaRecorderCapture
- */
-interface MediaRecorderCaptureConfig {
+/** Why a recording failed on its own, as `E_CAPTURE_FAILED`'s `details.reason`. */
+export type RecordingFailure = "hidden" | "resized" | "interrupted" | "replaced" | "mode-changed";
+
+/** How the caller of `captureRealtime` follows and ends a recording it times itself. */
+export interface RecordingControl {
+    /** Called once, when the recorder hands over its first data: the recording's clock starts. */
+    onStart?: () => void;
     /**
-     * Enable debug logging for codec detection and capture process.
-     * @default false
+     * The length the recording is expected to have when `options.duration` is absent, for the
+     * frames it expects; the caller then ends it with `stop()` and reports progress itself.
      */
-    debug?: boolean;
+    lengthMs?: number;
 }
+
+/**
+ * The American spelling of {@link AnimationCancelledError}: the same class, so `instanceof` works
+ * with either name. The error's `name` stays `"AnimationCancelledError"`.
+ * @alias AnimationCancelledError
+ */
+export const AnimationCanceledError = AnimationCancelledError;
+/** The American spelling of {@link AnimationCancelledError}. */
+export type AnimationCanceledError = AnimationCancelledError;
+
+/**
+ * Calls `onFrame` after every frame the graph draws, until the returned function is called.
+ */
+export type FrameSource = (onFrame: () => void) => () => void;
 
 /**
  * MediaRecorder wrapper with codec detection, Safari support, and cancellation handling.
@@ -50,7 +71,7 @@ interface MediaRecorderCaptureConfig {
  * 3. The reject callback is called synchronously after stopping
  * 4. References are cleared after rejection to prevent double-handling
  *
- * This guarantees that a cancelled capture will always reject with
+ * This guarantees that a canceled capture will always reject with
  * AnimationCancelledError, never accidentally resolve with partial data.
  */
 export class MediaRecorderCapture {
@@ -58,28 +79,21 @@ export class MediaRecorderCapture {
     private activeRecorder: MediaRecorder | null = null;
     /** Flag to track cancellation state - set BEFORE stopping recorder */
     private isCancelled = false;
+    /** Set by stop(): the recording ends before its duration and keeps what it has */
+    private stoppedEarly = false;
     /** Stored reject callback for cancellation - cleared after use */
     private cancelReject: ((error: Error) => void) | null = null;
-    /** Debug logging enabled */
-    private readonly debug: boolean;
+    /** A failure that came before the recorder existed: the recording starts failed. */
+    private pendingFailure: "cancelled" | RecordingFailure | null = null;
+    /** Set once the recording has settled: a failure after it fails nothing. */
+    private settled = false;
 
     /**
      * Creates a new MediaRecorderCapture instance
-     * @param config - Configuration options for the recorder
+     * @param frames - The frames the graph draws: each is copied to a resized recording and counted.
      */
-    constructor(config: MediaRecorderCaptureConfig = {}) {
-        this.debug = config.debug ?? false;
-    }
+    constructor(private readonly frames: FrameSource) {}
 
-    /**
-     * Log a debug message if debug mode is enabled
-     * @param message - The message to log
-     */
-    private log(message: string): void {
-        if (this.debug) {
-            logger.debug(message);
-        }
-    }
     /**
      * Detects browser and returns best supported codec
      *
@@ -95,92 +109,137 @@ export class MediaRecorderCapture {
      * @returns MIME type string for the selected codec
      */
     private getSupportedCodec(requestedFormat?: "webm" | "mp4" | "auto"): string {
-        // Debug: Log codec support detection
-        this.log("[MediaRecorder] Codec Detection:");
-        this.log(`  - Requested format: ${requestedFormat ?? "auto"}`);
-        this.log(`  - VP9 support: ${MediaRecorder.isTypeSupported("video/webm;codecs=vp9")}`);
-        this.log(`  - VP8 support: ${MediaRecorder.isTypeSupported("video/webm;codecs=vp8")}`);
-        this.log(`  - MP4 support: ${MediaRecorder.isTypeSupported("video/mp4")}`);
-        this.log(`  - WebM (no codec) support: ${MediaRecorder.isTypeSupported("video/webm")}`);
-
         // If user explicitly requested a format, try that first
         if (requestedFormat === "mp4") {
             if (MediaRecorder.isTypeSupported("video/mp4")) {
-                this.log("  → Selected: video/mp4 (user requested)");
                 return "video/mp4";
             }
 
-            throw new ScreenshotError("MP4 not supported in this browser", ScreenshotErrorCode.UNSUPPORTED_FORMAT);
+            throw captureError("E_UNSUPPORTED", "MP4 not supported in this browser", {
+                reason: "format",
+                format: "mp4",
+            });
         }
 
         if (requestedFormat === "webm") {
             if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
-                this.log("  → Selected: video/webm;codecs=vp9 (user requested WebM)");
                 return "video/webm;codecs=vp9";
             }
 
             if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8")) {
-                this.log("  → Selected: video/webm;codecs=vp8 (user requested WebM)");
                 return "video/webm;codecs=vp8";
             }
 
-            throw new ScreenshotError("WebM not supported in this browser", ScreenshotErrorCode.UNSUPPORTED_FORMAT);
+            throw captureError("E_UNSUPPORTED", "WebM not supported in this browser", {
+                reason: "format",
+                format: "webm",
+            });
         }
 
         // Auto-detect best format (default)
         // Try WebM first (better compression, open format)
         if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
-            this.log("  → Selected: video/webm;codecs=vp9 (auto - best quality)");
             return "video/webm;codecs=vp9";
         }
 
         if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8")) {
-            this.log("  → Selected: video/webm;codecs=vp8 (auto - fallback)");
             return "video/webm;codecs=vp8";
         }
 
         // Fall back to MP4 for Safari
         if (MediaRecorder.isTypeSupported("video/mp4")) {
-            this.log("  → Selected: video/mp4 (auto - Safari fallback)");
             return "video/mp4";
         }
 
         // Try without codec specification (browser will choose)
         if (MediaRecorder.isTypeSupported("video/webm")) {
-            this.log("  → Selected: video/webm (auto - no codec specified)");
             return "video/webm";
         }
 
-        throw new ScreenshotError(
+        throw captureError(
+            "E_UNSUPPORTED",
             "No supported video formats found. Browser may not support MediaRecorder API.",
-            ScreenshotErrorCode.UNSUPPORTED_FORMAT,
+            { reason: "format" },
         );
     }
 
     /**
      * Captures video in realtime using MediaRecorder API.
-     * Streams canvas frames directly to a video blob as the animation plays.
+     * Streams canvas frames to a video blob as the animation plays -- the canvas itself, or a copy
+     * at the size asked for -- and counts the frames the graph draws while it records.
      * @param canvas - The HTML canvas element to capture
      * @param options - Animation capture options
      * @param onProgress - Optional callback for progress updates (0-100)
+     * @param control - For a recording the caller times itself: when its clock starts, and its
+     *     expected length.
      * @returns Animation result with blob and metadata
      */
     async captureRealtime(
         canvas: HTMLCanvasElement,
         options: AnimationOptions,
         onProgress?: (progress: number) => void,
+        control: RecordingControl = {},
     ): Promise<AnimationResult> {
+        try {
+            return await this.record(canvas, options, onProgress, control);
+        } finally {
+            this.settled = true;
+        }
+    }
+
+    /**
+     * Record, as `captureRealtime` describes.
+     * @param canvas - The canvas.
+     * @param options - The options.
+     * @param onProgress - Progress, 0 to 100.
+     * @param control - The caller's timing.
+     * @returns The recording.
+     */
+    private async record(
+        canvas: HTMLCanvasElement,
+        options: AnimationOptions,
+        onProgress: ((progress: number) => void) | undefined,
+        control: RecordingControl,
+    ): Promise<AnimationResult> {
+        // Failed or canceled while the caller was still getting ready (placing stop 0).
+        const failed = this.pendingFailure;
+        if (failed !== null) {
+            throw failed === "cancelled" ? new AnimationCancelledError() : recordingFailure(failed);
+        }
+
         // Reset cancellation state for new capture
         this.isCancelled = false;
+        this.stoppedEarly = false;
         this.cancelReject = null;
+
+        // A hidden tab draws no frames, so nothing would be recorded.
+        if (document.visibilityState === "hidden") {
+            throw recordingFailure("hidden");
+        }
 
         const codec = this.getSupportedCodec(options.format);
         const fps = options.fps ?? VIDEO_CONSTANTS.DEFAULT_FPS;
-        const width = options.width ?? canvas.width;
-        const height = options.height ?? canvas.height;
-
-        // Get canvas stream
-        const stream = canvas.captureStream(fps);
+        const output = outputCanvas(canvas, options);
+        const context = output === canvas ? null : output.getContext("2d");
+        const { width, height } = output;
+        // Fitted inside the output with the canvas's aspect, centered; the margins left are black.
+        const scale = Math.min(width / canvas.width, height / canvas.height);
+        const drawWidth = canvas.width * scale;
+        const drawHeight = canvas.height * scale;
+        const left = (width - drawWidth) / 2;
+        const top = (height - drawHeight) / 2;
+        if (context) {
+            context.fillStyle = "#000";
+            context.fillRect(0, 0, width, height);
+        }
+        const stream = output.captureStream(fps);
+        // Timed by `duration`, or by the caller, who stops it.
+        const timed = options.duration;
+        const expectedFrames = Math.floor(((timed ?? control.lengthMs ?? 0) / 1000) * fps);
+        // The copy's fit is computed once, so the source keeps its pixel size or the recording fails.
+        const sourceWidth = canvas.width;
+        const sourceHeight = canvas.height;
+        const counter = frameCounter(fps, expectedFrames);
 
         // Create MediaRecorder
         const recorderOptions: MediaRecorderOptions = {
@@ -201,7 +260,7 @@ export class MediaRecorderCapture {
             // Store reject for cancellation
             this.cancelReject = reject;
 
-            // Check if already cancelled before starting
+            // Check if already canceled before starting
             if (this.isCancelled) {
                 this.activeRecorder = null;
                 this.cancelReject = null;
@@ -209,9 +268,26 @@ export class MediaRecorderCapture {
                 return;
             }
 
+            const stopFrames = this.frames(() => {
+                if (canvas.width !== sourceWidth || canvas.height !== sourceHeight) {
+                    this.fail("resized");
+                    return;
+                }
+                // Copied in the same task the graph drew in, while the drawing buffer still holds it.
+                context?.drawImage(canvas, left, top, drawWidth, drawHeight);
+                counter.frame();
+            });
+            const onVisibility = (): void => {
+                if (document.visibilityState === "hidden") {
+                    this.fail("hidden");
+                }
+            };
+            document.addEventListener("visibilitychange", onVisibility);
+            let startedAt = 0;
             let progressInterval: ReturnType<typeof setInterval> | undefined;
             let durationTimer: ReturnType<typeof setTimeout> | undefined;
             let started = false;
+            let startTime = 0;
 
             // Ended with the recording: a canvas capture track left live keeps the browser copying
             // every frame of the canvas for a recorder that is gone.
@@ -219,6 +295,8 @@ export class MediaRecorderCapture {
                 clearInterval(progressInterval);
                 clearTimeout(durationTimer);
                 clearTimeout(startTimer);
+                stopFrames();
+                document.removeEventListener("visibilitychange", onVisibility);
                 stream.getTracks().forEach((track) => {
                     track.stop();
                 });
@@ -236,31 +314,37 @@ export class MediaRecorderCapture {
                 started = true;
                 clearTimeout(startTimer);
 
-                const startTime = Date.now();
+                startTime = Date.now();
+                counter.start();
+                control.onStart?.();
+                if (timed === undefined) {
+                    return;
+                }
+
                 progressInterval = setInterval(() => {
-                    // Stop progress tracking if cancelled
+                    // Stop progress tracking if canceled
                     if (this.isCancelled) {
                         clearInterval(progressInterval);
                         return;
                     }
 
                     const elapsed = Date.now() - startTime;
-                    const progress = Math.min(100, (elapsed / options.duration) * 100);
+                    const progress = Math.min(100, (elapsed / timed) * 100);
                     onProgress?.(progress);
 
-                    if (elapsed >= options.duration) {
+                    if (elapsed >= timed) {
                         clearInterval(progressInterval);
                     }
                 }, VIDEO_CONSTANTS.PROGRESS_INTERVAL_MS);
 
                 durationTimer = setTimeout(() => {
                     clearInterval(progressInterval);
-                    // Only stop if not already cancelled
+                    // Only stop if not already canceled
                     if (!this.isCancelled && recorder.state !== "inactive") {
                         recorder.stop();
                         onProgress?.(100);
                     }
-                }, options.duration);
+                }, timed);
             };
 
             recorder.ondataavailable = (e) => {
@@ -275,13 +359,20 @@ export class MediaRecorderCapture {
                 this.activeRecorder = null;
                 this.cancelReject = null;
 
-                // If cancelled, don't resolve - the rejection has already happened
+                // If canceled, don't resolve - the rejection has already happened
                 if (this.isCancelled) {
                     return;
                 }
 
                 const blob = new Blob(chunks, { type: recorder.mimeType });
-                const expectedFrames = Math.floor((options.duration / 1000) * fps);
+                // A recording stopped early (stop()) lasts until it stopped, not the duration asked.
+                const ran = started ? Date.now() - startTime : 0;
+                let duration = timed ?? Math.round(performance.now() - startedAt);
+                let framesExpected = expectedFrames;
+                if (this.stoppedEarly && timed !== undefined) {
+                    duration = Math.min(timed, ran);
+                    framesExpected = Math.floor((duration / 1000) * fps);
+                }
 
                 // Determine format from MIME type
                 // Safari/iOS sometimes returns empty blob.type, so we fall back to requested codec
@@ -292,27 +383,19 @@ export class MediaRecorderCapture {
                         ? "mp4"
                         : "webm";
 
-                // Debug logging for format detection
-                this.log(
-                    `[MediaRecorder] Codec requested: ${codec}, Blob MIME type: "${blob.type}", Detected format: ${format}`,
-                );
-
-                // We can't accurately count frames with MediaRecorder in realtime mode
-                // So we assume all frames were captured unless we detect issues
-                const framesCaptured = expectedFrames;
-                const framesDropped = 0;
+                const { framesCaptured } = counter;
 
                 resolve({
                     blob,
                     metadata: {
-                        duration: options.duration,
+                        duration,
                         fps,
                         format,
                         width,
                         height,
                         framesCaptured,
-                        framesDropped,
-                        dropRate: 0,
+                        framesDropped: framesExpected - framesCaptured,
+                        dropRate: calculateDropRate(framesCaptured, framesExpected),
                     },
                 });
             };
@@ -322,9 +405,7 @@ export class MediaRecorderCapture {
                 this.activeRecorder = null;
                 this.cancelReject = null;
                 const errorMsg = e instanceof ErrorEvent ? e.message : "Unknown error";
-                reject(
-                    new ScreenshotError(`MediaRecorder error: ${errorMsg}`, ScreenshotErrorCode.VIDEO_CAPTURE_FAILED),
-                );
+                reject(captureError("E_CAPTURE_FAILED", `MediaRecorder error: ${errorMsg}`, { media: "video" }));
             };
 
             const startTimer = setTimeout(() => {
@@ -336,9 +417,10 @@ export class MediaRecorderCapture {
                 this.isCancelled = true;
                 finish();
                 reject(
-                    new ScreenshotError(
+                    captureError(
+                        "E_CAPTURE_FAILED",
                         `MediaRecorder produced no data in ${String(VIDEO_CONSTANTS.RECORDER_START_TIMEOUT_MS)} ms`,
-                        ScreenshotErrorCode.VIDEO_CAPTURE_FAILED,
+                        { media: "video" },
                     ),
                 );
                 if (recorder.state !== "inactive") {
@@ -348,41 +430,69 @@ export class MediaRecorderCapture {
 
             // A timeslice, so the recorder reports its first data as soon as the encoder runs
             // rather than only at stop(); that first data starts the clock.
+            startedAt = performance.now();
             recorder.start(VIDEO_CONSTANTS.PROGRESS_INTERVAL_MS);
         });
     }
 
     /**
-     * Cancel an ongoing capture.
+     * Fail an ongoing capture: it rejects with `E_CANCELED` (an `AnimationCancelledError`) or with
+     * `E_CAPTURE_FAILED` `{ media: "video", reason }`, and never resolves with what it recorded.
      *
-     * The cancellation flow is carefully ordered to avoid race conditions:
-     * 1. Set `isCancelled` flag first (prevents onstop from resolving)
+     * The flow is ordered to avoid race conditions:
+     * 1. Set `isCancelled` first, so the `onstop` that follows does not resolve
      * 2. Stop the recorder (may trigger onstop asynchronously)
-     * 3. Reject the promise synchronously (guarantees cancellation error)
-     * 4. Clear state (prevents double-handling)
-     * @returns true if a capture was cancelled, false if no capture was in progress
+     * 3. Reject synchronously, before onstop can run
+     * 4. Clear state, so nothing handles it twice
+     * @param reason - `"cancelled"`, or why the recording failed.
+     * Before the recorder exists, the failure is kept and the recording rejects with it when it
+     * starts.
+     * @returns True if a capture was failed, false if none was in progress.
+     */
+    fail(reason: "cancelled" | RecordingFailure): boolean {
+        const recorder = this.activeRecorder;
+        if (!recorder) {
+            if (this.settled || this.pendingFailure !== null) {
+                return false;
+            }
+            this.pendingFailure = reason;
+            return true;
+        }
+
+        this.isCancelled = true;
+        this.activeRecorder = null;
+        // Kept, so a later call finds the recording already failed before its finally has run.
+        this.pendingFailure = reason;
+        if (recorder.state !== "inactive") {
+            recorder.stop();
+        }
+
+        const reject = this.cancelReject;
+        this.cancelReject = null;
+        reject?.(reason === "cancelled" ? new AnimationCancelledError() : recordingFailure(reason));
+        return true;
+    }
+
+    /**
+     * Cancel an ongoing capture: it rejects with `E_CANCELED`.
+     * @returns true if a capture was canceled, false if no capture was in progress
      */
     cancel(): boolean {
-        if (!this.activeRecorder) {
+        return this.fail("cancelled");
+    }
+
+    /**
+     * End an ongoing capture now and keep what was recorded: the capture's promise resolves with
+     * the video so far, as if its duration had run out. A recording the caller times (no
+     * `duration`) ends this way.
+     * @returns true if a capture was stopped, false if no capture was in progress
+     */
+    stop(): boolean {
+        if (!this.activeRecorder || this.isCancelled || this.activeRecorder.state === "inactive") {
             return false;
         }
-
-        // Step 1: Set flag BEFORE stopping - onstop handler checks this
-        this.isCancelled = true;
-
-        // Step 2: Stop the recorder (may trigger onstop asynchronously)
-        if (this.activeRecorder.state !== "inactive") {
-            this.activeRecorder.stop();
-        }
-
-        // Step 3: Reject synchronously - this happens before onstop can check isCancelled
-        if (this.cancelReject) {
-            this.cancelReject(new AnimationCancelledError());
-            this.cancelReject = null;
-        }
-
-        // Step 4: Clear state to prevent any further handling
-        this.activeRecorder = null;
+        this.stoppedEarly = true;
+        this.activeRecorder.stop();
         return true;
     }
 
@@ -402,4 +512,115 @@ export class MediaRecorderCapture {
     getMimeType(format?: "webm" | "mp4" | "auto"): string {
         return this.getSupportedCodec(format);
     }
+}
+
+/**
+ * The error a recording fails with for a reason of its own.
+ * @param reason - Why it failed.
+ * @returns The `E_CAPTURE_FAILED` error.
+ */
+function recordingFailure(reason: RecordingFailure): GraphtyError {
+    return captureError("E_CAPTURE_FAILED", `the recording failed: ${reason}`, { media: "video", reason });
+}
+
+/**
+ * The canvas a recording takes its frames from: the graph's own, or a copy at the size asked for.
+ * One side given keeps the canvas's aspect; both given fit the picture inside them.
+ * @param canvas - The graph's canvas.
+ * @param options - The capture's options.
+ * @returns The canvas to record.
+ */
+function outputCanvas(canvas: HTMLCanvasElement, options: AnimationOptions): HTMLCanvasElement {
+    const { width, height } = outputSize(canvas, options);
+    if (width === canvas.width && height === canvas.height) {
+        return canvas;
+    }
+    const output = document.createElement("canvas");
+    output.width = width;
+    output.height = height;
+    return output;
+}
+
+/**
+ * Counts the frames a recording receives: of the frames the graph draws after `start()`, at most
+ * one in each 1/fps slot, and no more than the recording expects. Slots are centered on the first
+ * frame counted, so a graph drawing at the recording's own rate is not counted as dropping frames
+ * for a millisecond's jitter.
+ * @param fps - The recording's frame rate.
+ * @param expectedFrames - The frames the recording expects.
+ * @returns The counter.
+ */
+function frameCounter(
+    fps: number,
+    expectedFrames: number,
+): { start: () => void; frame: () => void; readonly framesCaptured: number } {
+    const interval = 1000 / fps;
+    let started = false;
+    let origin: number | undefined;
+    let lastSlot = -1;
+    let framesCaptured = 0;
+    return {
+        start: () => {
+            started = true;
+        },
+        frame: () => {
+            if (!started) {
+                return;
+            }
+            const now = performance.now();
+            origin ??= now;
+            const slot = Math.round((now - origin) / interval);
+            if (slot !== lastSlot && slot < expectedFrames) {
+                lastSlot = slot;
+                framesCaptured++;
+            }
+        },
+        get framesCaptured() {
+            return framesCaptured;
+        },
+    };
+}
+
+/**
+ * Stand the camera where a stationary recording asked, with zoom-to-fit held off, until the
+ * returned function puts it back. The camera is there for the recording, not placed by the reader,
+ * so the element's own framing goes on as before afterwards.
+ * @param graph - The graph being recorded.
+ * @param camera - The camera state or named view to record from.
+ * @returns Puts the camera, its placement and zoom-to-fit back.
+ */
+export async function holdCameraForCapture(
+    graph: Graph,
+    camera: NonNullable<AnimationOptions["camera"]>,
+): Promise<() => Promise<void>> {
+    // While immersive the headset owns the camera: refused before anything is changed.
+    const immersive = stateProblem({}, graph.getViewMode());
+    if (immersive !== null) {
+        throw cameraRefusal(immersive);
+    }
+    // A capture's camera replaces a playing tour. Ended first, so what is saved below to put back
+    // is the pre-tour framing and placement, not the tour's.
+    graph.replaceTour();
+    const updateManager = graph.getUpdateManager();
+    const zoomToFitWasEnabled = updateManager.isZoomToFitEnabled();
+    if (zoomToFitWasEnabled) {
+        updateManager.disableZoomToFit();
+    }
+    const original = graph.getCameraState();
+    const restorePlacement = graph.saveCameraPlacement();
+    const restore = async (): Promise<void> => {
+        // The internal path: putting the camera back is no camera API call, so ends no tour.
+        await graph.applyCaptureCamera(original);
+        restorePlacement();
+        if (zoomToFitWasEnabled) {
+            updateManager.enableZoomToFit();
+        }
+    };
+    try {
+        await graph.setCameraState("view" in camera ? { preset: camera.view } : camera);
+    } catch (error: unknown) {
+        await restore();
+        throw error;
+    }
+    return restore;
 }

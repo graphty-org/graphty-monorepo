@@ -43,10 +43,7 @@ describe("operation-cancelled code", () => {
         const id = await startBlockingOperation(queueManager);
         queueManager.clear();
 
-        assert.deepEqual(
-            events.map((e) => [e.id, e.code, e.reason]),
-            [[id, "queue-cleared", "Queue cleared"]],
-        );
+        assert.deepEqual(events, [{ type: "operation-cancelled", id, code: "queue-cleared" }]);
     });
 
     it("reports cancelled when one operation is cancelled", async () => {
@@ -57,9 +54,6 @@ describe("operation-cancelled code", () => {
         const id = await startBlockingOperation(queueManager);
         assert.isTrue(queueManager.cancelOperation(id));
 
-        assert.deepEqual(
-            events.map((e) => [e.id, e.code, e.reason]),
-            [[id, "cancelled", "Manual cancellation"]],
-        );
+        assert.deepEqual(events, [{ type: "operation-cancelled", id, code: "cancelled" }]);
     });
 });

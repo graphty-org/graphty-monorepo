@@ -193,7 +193,7 @@ const PARSERS: Record<LocationFormat, (value: unknown) => LatLon | LocationError
                 return locationError("syntax", value);
             }
             try {
-                const parsed = new CoordinateParser(text.replaceAll(/deg/gi, "°"));
+                const parsed = new CoordinateParser(text.replaceAll(/deg/gi, "\u00b0"));
                 return checked(parsed.getLatitude(), parsed.getLongitude(), value);
             } catch {
                 return locationError("syntax", value);

@@ -183,7 +183,9 @@ describe("neo4j corpus (design 16.5)", () => {
         it("typed-properties.csv", async () => {
             const { snapshot, report } = await load(neo4jText("typed-properties.csv"));
             expect(snapshot.ids.toArray()).toEqual([1, 2, 3]);
-            expect(snapshot.nodes.value("p", 0)).toEqual({ x: 1.5, y: 2, crs: "cartesian" });
+            // the point property is the position
+            expect(snapshot.nodes.byRole("position")?.meta.name).toBe("p");
+            expect(Array.from(snapshot.nodes.value("p", 0) as ArrayLike<number>)).toEqual([1.5, 2, 0]);
             expect(snapshot.nodes.value("zdt.text", 0)).toBe("2024-02-29T13:45:00+02:00");
             expect(snapshot.nodes.value("l", 1)).toBe(-12);
             expect(snapshot.nodes.value("ld", 0)).toEqual([0.5, 1.5]);
@@ -262,7 +264,10 @@ describe("neo4j corpus (design 16.5)", () => {
                 if (name === "too-many-bad-cells.csv") {
                     expect(err.report.truncated).toBe(true);
                     expect(err.report.errorCount).toBe(101);
-                    expect(err.report.counts.skippedNodes).toBe(100);
+                    // a bad cell leaves its property unset and keeps the node, as neo4j-admin does
+                    // the 101st node is in the sink when its bad cell ends the import, and is counted
+                    expect(err.report.counts.nodes).toBe(101);
+                    expect(err.report.counts.skippedNodes).toBe(0);
                 } else {
                     expect(err.report.truncated).toBe(false);
                 }

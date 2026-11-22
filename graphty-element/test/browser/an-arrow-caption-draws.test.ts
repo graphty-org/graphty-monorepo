@@ -5,11 +5,10 @@
  * since 1.x -- `arrowHead.text` and `arrowTail.text`, what Graphviz calls a headlabel and a
  * taillabel -- and `Edge` has built, positioned and disposed one all along. No style channel
  * wrote either, so no layer, theme or saved style document could ask for a caption, and the only
- * evidence one had ever been drawn was a visual-regression baseline from 1.x. The 307-line test
- * beside this one never constructs an Edge: every case in it either asserts that an object
- * literal holds what was just written into that literal, or builds a bare `RichTextLabel`.
+ * evidence one had ever been drawn was a visual-regression baseline from 1.x. Where a caption sits
+ * against its arrow cap, for each location and offset, is `Edge.arrowText.test.ts`.
  *
- * So this file is the missing half, and it asks the questions that decided whether the capability
+ * This file asks the questions that decided whether the capability
  * was published or deleted: does a caption reach the screen at all, does it reach the screen when
  * a layer is added to a graph a reader is already looking at, and does the APPEARANCE a layer
  * asks for reach it -- which is the half the old builder dropped, reading seven of the block's
@@ -57,7 +56,7 @@ const PIXEL_CHANGE = 32;
 /** Above this alpha a pixel on a caption's texture counts as drawn rather than as empty canvas. */
 const INK_ALPHA = 24;
 
-/** How many pixels of a colour must be on a caption's canvas before it counts as drawn in it. */
+/** How many pixels of a color must be on a caption's canvas before it counts as drawn in it. */
 const ENOUGH = 20;
 
 describe("a caption at the end of an arrow", () => {
@@ -109,8 +108,8 @@ describe("a caption at the end of an arrow", () => {
     });
 
     /**
-     * Let the last repaint reach the scene, then count the frame's pixels by colour.
-     * @returns How many pixels fall in each coarse colour bucket.
+     * Let the last repaint reach the scene, then count the frame's pixels by color.
+     * @returns How many pixels fall in each coarse color bucket.
      */
     async function frame(): Promise<Uint32Array> {
         // The element's own word that the picture is final -- the queue drained, the layout
@@ -167,7 +166,7 @@ describe("a caption at the end of an arrow", () => {
     /**
      * What is actually drawn on one caption's own canvas.
      * @param caption - The caption, or null when the edge is not drawing one.
-     * @returns How many opaque pixels there are, and how many of each colour, quantised.
+     * @returns How many opaque pixels there are, and how many of each color, quantized.
      */
     function drawnOn(caption: RichTextLabel | null): { ink: number; counts: Map<string, number> } {
         const counts = new Map<string, number>();
@@ -189,7 +188,7 @@ describe("a caption at the end of an arrow", () => {
 
             ink++;
 
-            // Quantised to five bits a channel, so one anti-aliased letter is one colour rather
+            // Quantized to five bits a channel, so one anti-aliased letter is one color rather
             // than forty near-identical ones.
             const key = [image.data[at], image.data[at + 1], image.data[at + 2]]
                 .map((channel) => (channel >> 3).toString(16).padStart(2, "0"))
@@ -201,10 +200,10 @@ describe("a caption at the end of an arrow", () => {
     }
 
     /**
-     * How many pixels of one colour a caption's canvas holds.
+     * How many pixels of one color a caption's canvas holds.
      * @param drawn - What {@link drawnOn} read.
-     * @param hex - The colour asked for, as `#rrggbb`.
-     * @returns The count, in the same quantisation the reading uses.
+     * @param hex - The color asked for, as `#rrggbb`.
+     * @returns The count, in the same quantization the reading uses.
      */
     function pixelsOf(drawn: { counts: Map<string, number> }, hex: string): number {
         const key = [hex.slice(1, 3), hex.slice(3, 5), hex.slice(5, 7)]
@@ -333,9 +332,9 @@ describe("a caption at the end of an arrow", () => {
     it("draws the fields the old builder dropped, which is what publishing the style channel was for", async () => {
         const edge = edgeObject();
 
-        // A BORDER AND A TEXT OUTLINE, chosen because both are visible as colour on the caption's
+        // A BORDER AND A TEXT OUTLINE, chosen because both are visible as color on the caption's
         // own canvas and NEITHER was reachable before. The builder this replaced read seven of
-        // the block's fields -- the words, the font size, the two colours, the corner radius and
+        // the block's fields -- the words, the font size, the two colors, the corner radius and
         // the offset -- and dropped every other one on the floor, so a caption could not be given
         // a border or an outline by any route at all, not even by a caller writing the style out
         // by hand.

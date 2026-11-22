@@ -2,15 +2,14 @@ import { Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { TwoDCameraController } from "../../src/cameras/TwoDCameraController";
-import { InputController } from "../../src/cameras/TwoDInputController";
 import { Graph } from "../../src/Graph";
+import type { CameraState } from "../../src/screenshot/types";
 import { click, drag, holdKey, releaseHeldKeys, releaseKey, wheel } from "../helpers/real-input";
 import { cleanupTestGraph, createTestGraph, setBehavior } from "../helpers/testSetup";
 
 describe("2D Camera Controls", () => {
     let graph: Graph;
     let cameraController: TwoDCameraController;
-    let inputController: InputController;
 
     beforeEach(async () => {
         // Create test graph
@@ -24,15 +23,9 @@ describe("2D Camera Controls", () => {
         // Wait for the view change and the layout to finish on the queue
         await graph.waitForSettled();
 
-        // Get the camera controller
-        const cameraManager = graph.camera;
-        cameraController = (cameraManager as unknown as { activeCameraController: TwoDCameraController })
-            .activeCameraController;
-        assert.isDefined(cameraController, "Camera controller should be defined after switching to 2D mode");
-
-        // Access the input controller through camera manager
-        inputController = (cameraManager as unknown as { activeInputHandler: InputController }).activeInputHandler;
-        assert.isDefined(inputController, "Input controller should be defined");
+        const controller = graph.camera.getActiveController();
+        assert.instanceOf(controller, TwoDCameraController, "2D mode uses the 2D camera");
+        cameraController = controller;
     });
 
     afterEach(async () => {
@@ -55,120 +48,37 @@ describe("2D Camera Controls", () => {
         assert.notEqual(cameraController.camera.position.y, initialPos.y);
     });
 
-    test("keyboard WASD controls update velocity", async () => {
+    /** What a camera key moves, read from `getCameraState`. */
+    const PAN_Y = (state: CameraState): number => state.pan?.y ?? Number.NaN;
+    const PAN_X = (state: CameraState): number => state.pan?.x ?? Number.NaN;
+    const ZOOM = (state: CameraState): number => state.zoom ?? Number.NaN;
+    const ROLL = (state: CameraState): number => state.rotation ?? Number.NaN;
+
+    // Each key on a fresh graph, so nothing a key before it left coasting adds to its move.
+    test.for([
+        ["w", PAN_Y, 1],
+        ["s", PAN_Y, -1],
+        ["a", PAN_X, -1],
+        ["d", PAN_X, 1],
+        ["ArrowUp", PAN_Y, 1],
+        ["ArrowDown", PAN_Y, -1],
+        ["ArrowLeft", PAN_X, -1],
+        ["ArrowRight", PAN_X, 1],
+        ["+", ZOOM, 1],
+        ["=", ZOOM, 1],
+        ["-", ZOOM, -1],
+        ["q", ROLL, -1],
+        ["e", ROLL, 1],
+    ] as const)("the %s key moves the camera", async ([key, read, sign]) => {
         graph.canvas.focus();
+        const before = read(graph.getCameraState());
 
-        // Test W key (up)
-        await holdKey("w");
-        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-        inputController.applyKeyboardInertia();
+        await holdKey(key);
+        graph.camera.update();
+        const moved = read(graph.getCameraState()) - before;
+        await releaseKey(key);
 
-        assert.isTrue(cameraController.velocity.y > 0, "W key should increase Y velocity");
-
-        // Release, press the next key, reset and test S key (down)
-        await releaseKey("w");
-        await holdKey("s");
-        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-        inputController.applyKeyboardInertia();
-
-        assert.isTrue(cameraController.velocity.y < 0, "S key should decrease Y velocity");
-
-        // Release, press the next key, reset and test A key (left)
-        await releaseKey("s");
-        await holdKey("a");
-        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-        inputController.applyKeyboardInertia();
-
-        assert.isTrue(cameraController.velocity.x < 0, "A key should decrease X velocity");
-
-        // Release, press the next key, reset and test D key (right)
-        await releaseKey("a");
-        await holdKey("d");
-        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-        inputController.applyKeyboardInertia();
-
-        assert.isTrue(cameraController.velocity.x > 0, "D key should increase X velocity");
-    });
-
-    test("keyboard arrow keys work like WASD", async () => {
-        graph.canvas.focus();
-
-        // Test Arrow Up (like W)
-        await holdKey("ArrowUp");
-        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-        inputController.applyKeyboardInertia();
-
-        assert.isTrue(cameraController.velocity.y > 0, "Arrow Up should increase Y velocity");
-
-        // Release, press the next key, reset and test Arrow Down (like S)
-        await releaseKey("ArrowUp");
-        await holdKey("ArrowDown");
-        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-        inputController.applyKeyboardInertia();
-
-        assert.isTrue(cameraController.velocity.y < 0, "Arrow Down should decrease Y velocity");
-
-        // Release, press the next key, reset and test Arrow Left (like A)
-        await releaseKey("ArrowDown");
-        await holdKey("ArrowLeft");
-        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-        inputController.applyKeyboardInertia();
-
-        assert.isTrue(cameraController.velocity.x < 0, "Arrow Left should decrease X velocity");
-
-        // Release, press the next key, reset and test Arrow Right (like D)
-        await releaseKey("ArrowLeft");
-        await holdKey("ArrowRight");
-        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-        inputController.applyKeyboardInertia();
-
-        assert.isTrue(cameraController.velocity.x > 0, "Arrow Right should increase X velocity");
-    });
-
-    test("keyboard zoom controls update zoom velocity", async () => {
-        graph.canvas.focus();
-
-        // Test + key (zoom in)
-        await holdKey("+");
-        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-        inputController.applyKeyboardInertia();
-
-        assert.isTrue(cameraController.velocity.zoom < 0, "+ key should decrease zoom velocity (zoom in)");
-
-        // Release, press the next key, reset and test = key (alternative zoom in)
-        await releaseKey("+");
-        await holdKey("=");
-        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-        inputController.applyKeyboardInertia();
-
-        assert.isTrue(cameraController.velocity.zoom < 0, "= key should decrease zoom velocity (zoom in)");
-
-        // Release, press the next key, reset and test - key (zoom out)
-        await releaseKey("=");
-        await holdKey("-");
-        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-        inputController.applyKeyboardInertia();
-
-        assert.isTrue(cameraController.velocity.zoom > 0, "- key should increase zoom velocity (zoom out)");
-    });
-
-    test("keyboard rotation controls Q/E update rotate velocity", async () => {
-        graph.canvas.focus();
-
-        // Test Q key (rotate counter-clockwise)
-        await holdKey("q");
-        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-        inputController.applyKeyboardInertia();
-
-        assert.isTrue(cameraController.velocity.rotate > 0, "Q key should increase rotate velocity");
-
-        // Release, press the next key, reset and test E key (rotate clockwise)
-        await releaseKey("q");
-        await holdKey("e");
-        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-        inputController.applyKeyboardInertia();
-
-        assert.isTrue(cameraController.velocity.rotate < 0, "E key should decrease rotate velocity");
+        assert.isAbove(moved * sign, 0, `${key} moved the camera the expected way (moved ${moved})`);
     });
 
     test("mouse wheel zooms camera", async () => {
@@ -221,37 +131,25 @@ describe("2D Camera Controls", () => {
         assert.equal(canvas.getAttribute("tabindex"), "0");
     });
 
-    test("input controller can be enabled and disabled", () => {
-        assert.isTrue(
-            (inputController as unknown as { enabled: boolean }).enabled,
-            "Input controller should start enabled",
-        );
+    test("disabled input does not move the camera, and enabled input does again", async () => {
+        const { canvas } = graph;
+        canvas.focus();
 
-        inputController.disable();
-        assert.isFalse(
-            (inputController as unknown as { enabled: boolean }).enabled,
-            "Input controller should be disabled",
-        );
-
-        inputController.enable();
-        assert.isTrue(
-            (inputController as unknown as { enabled: boolean }).enabled,
-            "Input controller should be re-enabled",
-        );
-    });
-
-    test("keyboard input has no effect when disabled", async () => {
-        graph.canvas.focus();
-
-        // Disable input controller
-        inputController.disable();
-
-        // Try keyboard input
+        // Compared as JSON: the frame's inertia step turns a resting roll of 0 into -0, which is no move
+        const view = (): string => JSON.stringify(graph.getCameraState());
+        graph.camera.temporarilyDisableInput();
+        const before = view();
+        await drag(canvas, { x: 100, y: 100 }, { x: 200, y: 150 });
+        await wheel(canvas, { x: 100, y: 100 }, -100);
         await holdKey("w");
-        inputController.applyKeyboardInertia();
+        graph.camera.update();
+        assert.equal(view(), before, "neither mouse, wheel nor key moved the camera");
 
-        // Velocity should remain zero
-        assert.equal(cameraController.velocity.y, 0, "Keyboard input should have no effect when disabled");
+        // Let go of the key the disabled controller never heard, as a reader would before trying again
+        await releaseKey("w");
+        graph.camera.temporarilyEnableInput();
+        await drag(canvas, { x: 100, y: 100 }, { x: 200, y: 150 });
+        assert.notEqual(view(), before, "the drag moved the camera once input was enabled");
     });
 
     test("velocity components start at zero", () => {

@@ -37,6 +37,8 @@ const HOOK_ORDER: readonly DerivedSlice[] = [
     "valueLabels",
     // Before styles, whose layers name a pasted shader by id.
     "shaders",
+    // Before styles: a node draws its model with the model's own settings under its layers'.
+    "modelDefaults",
     "runs",
     // After runs, which a set may read; before styles and visibility, which read sets.
     "sets",
@@ -66,7 +68,17 @@ interface Pass {
 }
 
 /** The keyed slices: the maps and the set a pass copies key by key. */
-type KeyedSlice = "pins" | "config" | "runs" | "sets" | "views" | "notes" | "attributes" | "valueLabels" | "shaders";
+type KeyedSlice =
+    | "pins"
+    | "config"
+    | "runs"
+    | "sets"
+    | "views"
+    | "notes"
+    | "attributes"
+    | "valueLabels"
+    | "shaders"
+    | "modelDefaults";
 
 /** A copy of every keyed slice, owned by the lane and written by nothing else. */
 type Copies = { [S in KeyedSlice]: Map<unknown, unknown> | Set<unknown> };
@@ -87,6 +99,7 @@ function copyAll(state: ProjectState): Copies {
         attributes: new Map(state.attributes),
         valueLabels: new Map(state.valueLabels),
         shaders: new Map(state.shaders),
+        modelDefaults: new Map(state.modelDefaults),
     };
 }
 
@@ -176,6 +189,8 @@ export class DerivationLane {
     private readonly onError: (error: unknown) => void;
     private readonly hooks = new Map<DerivedSlice, DeriveHook[]>();
     private dirty = new Map<DerivedSlice, Set<string>>();
+    /** Keys touched with {@link DerivationLane.touchLater}, read when the next pass starts. */
+    private later: { readonly slice: DerivedSlice; readonly key: () => string }[] = [];
     /** How many writes each slice has had, whoever wrote it. */
     private readonly counts = new Map<DerivedSlice, number>();
     private shown: ProjectState;
@@ -300,10 +315,36 @@ export class DerivationLane {
     }
 
     /**
+     * Mark a key of a slice changed whose text is known only once the writes behind it stop: a
+     * forward batched add's edge range, which grows with every edge until a pass starts. `key` is
+     * called once, when the next pass takes the dirty set (or the dirty set is dropped), and a
+     * writer still adding afterwards touches a new key.
+     * @param slice - The slice.
+     * @param key - Gives the key.
+     */
+    touchLater(slice: DerivedSlice, key: () => string): void {
+        this.counts.set(slice, this.writes(slice) + 1);
+        this.later.push({ slice, key });
+        this.schedule();
+    }
+
+    /** Turn every key touched later into a dirty key. */
+    private settleLater(): void {
+        const { later } = this;
+        this.later = [];
+        for (const { slice, key } of later) {
+            const keys = this.dirty.get(slice) ?? new Set();
+            keys.add(key());
+            this.dirty.set(slice, keys);
+        }
+    }
+
+    /**
      * Take live state as what the picture shows, with nothing left to derive: the baseline is
      * drawn by the renderer's first draw, not by a pass.
      */
     adoptBaseline(): void {
+        this.settleLater();
         this.dirty.clear();
         this.shownCopies = copyAll(this.state);
         this.spare = copyAll(this.state);
@@ -358,12 +399,21 @@ export class DerivationLane {
     }
 
     /**
+     * Whether the lane is closed: its session is gone, and nothing it settles is told any more.
+     * @returns True once closed.
+     */
+    get isClosed(): boolean {
+        return this.closed;
+    }
+
+    /**
      * Stop deriving, for a session's `dispose()`: no pass starts after this, the pass running
      * calls no further hook, and whatever awaits a pass is released. A hook run after its
      * session was disposed would read a store that is already gone.
      */
     close(): void {
         this.closed = true;
+        this.settleLater();
         this.dirty.clear();
         const pending = this.next;
         this.next = null;
@@ -394,6 +444,7 @@ export class DerivationLane {
             const pass = this.next;
             this.current = pass;
             this.next = null;
+            this.settleLater();
             const { dirty } = this;
             this.dirty = new Map();
             const { restores } = this;

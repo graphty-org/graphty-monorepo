@@ -617,9 +617,36 @@ describe("tools/branch-note.mjs", () => {
         assert.equal(parseNote(body).done, "d");
     });
 
-    it("finds the issue number in a branch's name", () => {
-        assert.equal(issueInName("fix/1234-scroll"), 1234);
-        assert.equal(issueInName("issue-321"), 321);
-        assert.equal(issueInName("feat/v2-api"), null);
+    it("finds the issue only in digits right after a branch's type prefix (real branch names)", () => {
+        const cases = {
+            "fix/1234-scroll": 1234,
+            "fix/312-research-anomaly-detection-met": 312,
+            "ci/3448-pr-exec-355": 3448,
+            "revert/5949-selection-cards": 5949,
+            "fix/6896": 6896,
+            // a date, a commit id, or a number that is not right after the prefix is not an issue
+            "integrate/pipeline-2026-10-24": null,
+            "chore/deps-refresh-2026-11-11": null,
+            "fix/audit-advisories-2026-10-06": null,
+            "revert/a5512f0": null,
+            "revert/24cb065": null,
+            "check/golden-a253768": null,
+            "feat/issue-728": null,
+            "docs-3418-batching-trigger": null,
+            "fix/5349-3d-fit-distance": null,
+            "feat/v2-api": null,
+        };
+        for (const [branch, n] of Object.entries(cases)) assert.equal(issueInName(branch), n, branch);
+    });
+
+    it("issue-of prints a branch's issue, its branch.<b>.issue setting first", () => {
+        const repo = repoWith("issue-of", []);
+        const of = (b) => run(repo, process.execPath, note, "issue-of", b);
+        assert.equal(of("fix/1234-scroll").stdout.trim(), "1234");
+        const dated = of("integrate/pipeline-2026-10-24");
+        assert.equal(dated.status, 1);
+        assert.equal(dated.stdout, "");
+        git(repo, "config", "branch.revert/a5512f0.issue", "77");
+        assert.equal(of("revert/a5512f0").stdout.trim(), "77");
     });
 });

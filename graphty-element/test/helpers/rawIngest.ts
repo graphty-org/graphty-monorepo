@@ -43,7 +43,7 @@ export function ingestNode(
         store.builder.setNodeValue(store.seedColumn, index, seed);
     }
 
-    store.touch();
+    store.account();
     return { index, merged };
 }
 
@@ -78,7 +78,7 @@ export function ingestEdge(
 
     // Completed at the next freeze, or with the load open around it, as the graph primitives'.
     store.recordIngestedEdge(index, edgeId, fileId);
-    store.touch();
+    store.account();
     return { index, edgeId };
 }
 
@@ -110,6 +110,6 @@ export function ingestDeclaredDirection(store: GraphStore, directed: boolean, st
 
     builder.setDirected(directed);
     store.recordDirectionFromFile(statedBy);
-    store.touch();
+    store.account();
     return "applied";
 }

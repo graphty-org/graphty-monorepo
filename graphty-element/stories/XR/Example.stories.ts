@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { assertGraphLoaded, assertLayoutPlaced, drawn, holds } from "../assertions";
 import {
     eventWaitingDecorator,
-    remoteLoggingDecorator,
+    remoteLogging,
     renderFn,
     type StoryArgs,
     storySetup,
@@ -33,7 +33,8 @@ const meta: Meta = {
     title: "XR",
     component: "graphty-element",
     render: renderFn,
-    decorators: [eventWaitingDecorator, remoteLoggingDecorator],
+    decorators: [eventWaitingDecorator],
+    beforeEach: remoteLogging,
     parameters: {
         layout: "fullscreen",
         chromatic: {
@@ -66,7 +67,6 @@ type Story = StoryObj<StoryArgs>;
  *
  * Configuration:
  * - handTracking: true (required for two-hand gestures)
- * - controllers: true (for thumbstick pan and drag)
  * - zAxisAmplification: 10.0 (for node dragging)
  */
 export const Default: Story = {
@@ -99,9 +99,7 @@ export const Default: Story = {
             },
             input: {
                 handTracking: true, // Required for two-hand gestures
-                controllers: true, // For thumbstick pan and squeeze drag
                 nearInteraction: true,
-                physics: false,
                 zAxisAmplification: 10.0, // For node dragging
                 enableZAmplificationInDesktop: false,
             },

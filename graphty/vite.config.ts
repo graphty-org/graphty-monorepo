@@ -5,8 +5,10 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
 
 import { aliases, elementSourcePlugins } from "./vite.aliases";
+import { bootFilesPlugin } from "./vite.boot-files";
 import { buildStampPlugin } from "./vite.build-stamp";
 import { sampleDataPlugin } from "./vite.sample-data";
+import { workspaceSourcePlugin } from "./vite.workspace-source";
 
 /**
  * Serves the dev server's unversioned pre-bundled chunks with `no-cache` instead of Vite's
@@ -39,6 +41,30 @@ function unversionedDepsNotImmutable(): Plugin {
 }
 
 /**
+ * Serves the https dev server over HTTP/1.1 instead of HTTP/2.
+ *
+ * Vite always serves https over HTTP/2. Its dev server sends the app as roughly 1,400 separate
+ * modules, and on that connection iPad Safari (27.2) fails a few module requests at random without
+ * telling the page: the server finishes every stream, the file re-fetches fine, yet the import fails
+ * ("Importing a module script failed.") and the app cannot start (#6223). Over HTTP/1.1 it loads.
+ * Offering only `http/1.1` in the TLS handshake keeps https and makes every browser use HTTP/1.1.
+ * @returns The dev-server plugin.
+ */
+function http1DevServer(): Plugin {
+    return {
+        name: "graphty:http1-dev-server",
+        apply: "serve",
+        configureServer(server) {
+            // The TLS server reads this wire-format ALPN list for each new connection.
+            const tlsServer = server.httpServer as { ALPNProtocols?: Buffer } | null;
+            if (server.config.server.https && tlsServer) {
+                tlsServer.ALPNProtocols = Buffer.from("\x08http/1.1", "latin1");
+            }
+        },
+    };
+}
+
+/**
  * Loads the remote logger's browser script ahead of everything else in the dev server's page.
  * @param server - the log server's address.
  * @returns the Vite plugin.
@@ -53,18 +79,63 @@ function remoteLogScript(server: string): Plugin {
     };
 }
 
+/**
+ * Finds the Babylon.js modules that only a model or a map needs, so the `babylon` code-splitting
+ * group below can put them in a chunk of their own that the first frame does not wait for (#9217).
+ *
+ * graphty-element loads babylonjs-models, babylonjs-map and its own model chunk with a dynamic
+ * `import()`, but one group holding every Babylon.js module put what they reach into the chunk the
+ * first frame waits for: the model loaders (glTF, OBJ, FBX, USD, the PBR material) and, through
+ * babylonjs-map's `@babylonjs/core` barrel import, the rest of Babylon.js. This walks the module
+ * graph from the entry points, following every static import and every dynamic import except one
+ * into babylonjs-models, babylonjs-map or graphty-element's model chunk; a Babylon.js module the walk
+ * never reaches is needed only by those.
+ * @returns The build plugin, and the test the group's `name` uses.
+ */
+function lazyBabylon(): { plugin: Plugin; isLazy: (id: string) => boolean } {
+    const reached = new Set<string>();
+    const intoLazy = (id: string): boolean =>
+        /\/babylonjs-(models|map)\/|\/graphty-element\/src\/models\/chunk\.ts$/.test(id);
+    return {
+        plugin: {
+            name: "graphty:lazy-babylon",
+            apply: "build",
+            buildEnd() {
+                reached.clear();
+                const stack = [...this.getModuleIds()].filter((id) => this.getModuleInfo(id)?.isEntry);
+                for (let id = stack.pop(); id !== undefined; id = stack.pop()) {
+                    const info = reached.has(id) ? null : this.getModuleInfo(id);
+                    reached.add(id);
+                    if (info) {
+                        stack.push(...info.importedIds, ...info.dynamicallyImportedIds.filter((d) => !intoLazy(d)));
+                    }
+                }
+            },
+        },
+        isLazy: (id) => !reached.has(id),
+    };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
     // Load env file from monorepo root (one level up from this package).
     // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
     const monorepoRoot = resolve(__dirname, "..");
     const env = loadEnv(mode, monorepoRoot, "");
+    const babylonSplit = lazyBabylon();
     const plugins = [
         react(),
         ...elementSourcePlugins,
         unversionedDepsNotImmutable(),
+        http1DevServer(),
+        // The workspace packages from source, so rebuilding one cannot break a running dev server.
+        workspaceSourcePlugin(),
         // The commit and release tag in a <meta name="graphty-build">, read by Help > About.
         buildStampPlugin(),
+        // The files each loading step waits for, so the loading screen's log can measure them.
+        bootFilesPlugin(),
+        // Which Babylon.js modules only a model or a map needs (build only; see the `babylon` group).
+        babylonSplit.plugin,
         // graph-samples' datasets at graphty.app's path, from this machine (dev server only).
         sampleDataPlugin(),
         // The remote logger's script, first in the page so it hears a load that fails before the
@@ -92,6 +163,20 @@ export default defineConfig(({ mode }) => {
             // build (.github/workflows/ci.yml, "Upload graphty's source maps to Sentry").
             ...(process.env.SENTRY_RELEASE ? { __SENTRY_RELEASE__: JSON.stringify(process.env.SENTRY_RELEASE) } : {}),
         },
+        // A dependency the dev server first meets after the page is up -- the model loaders, fflate
+        // and the PBR material loaded with the first model -- is optimized then, and the page
+        // reloads under the reader: a chosen model file seemed to do nothing. graphty-element is reached through an import
+        // the scan does not follow, so its entry points and babylonjs-models are scanned too, and
+        // everything they can load is optimized at startup. Dev server only.
+        optimizeDeps: {
+            entries: ["index.html", "../graphty-element/src/**/*.ts", "!**/*.d.ts", "!**/*.test.ts"],
+            // babylonjs-models imports Babylon's FBX and USD loaders when such a model first loads.
+            include: [
+                "@babylonjs/loaders/FBX/fbxFileLoader.pure.js",
+                "@babylonjs/loaders/USD/usdFileLoader.pure.js",
+                "@babylonjs/core/Meshes/Builders/tubeBuilder.js",
+            ],
+        },
         server: {
             host: true,
             fs: {
@@ -104,26 +189,32 @@ export default defineConfig(({ mode }) => {
         build: {
             outDir: "dist",
             sourcemap: true,
-            rollupOptions: {
+            rolldownOptions: {
                 output: {
                     // Babylon.js in a chunk of its own. In one entry chunk with the app it made an
                     // 11 MB chunk whose 44 MB sourcemap took the build past Node's default heap
                     // (#2563). graphty-element (bundled from source, see vite.aliases.ts) is not
                     // named here: the app loads its renderer with a dynamic import
-                    // (src/elementLoader.ts), so Rollup puts it in a chunk of its own, and the
-                    // Node-safe entries the start page imports (session types, schema, catalog)
-                    // stay with the app instead of pulling Babylon.js into the first load.
-                    manualChunks(id) {
-                        // Vite's dynamic-import helper in a chunk of its own: left to Rollup it
-                        // lands in the Babylon.js chunk, and the first load then fetches all of
-                        // Babylon.js to get one small function.
-                        if (id.includes("vite/preload-helper")) {
-                            return "preload-helper";
-                        }
-                        if (id.includes("/node_modules/@babylonjs/")) {
-                            return "babylon";
-                        }
-                        return undefined;
+                    // (src/elementLoader.ts), so it gets a chunk of its own, and the Node-safe
+                    // entries the start page imports (session types, schema, catalog) stay with
+                    // the app instead of pulling Babylon.js into the first load.
+                    //
+                    // Vite's dynamic-import helper gets a chunk of its own, listed first so it
+                    // wins: left to the bundler it lands in the Babylon.js chunk, and every
+                    // import() in the first load then fetches all of Babylon.js before the start
+                    // page shows (issue #8225). Rolldown never passes the helper to a
+                    // `manualChunks` function, so this is a `codeSplitting` group.
+                    codeSplitting: {
+                        groups: [
+                            { name: "preload-helper", test: /vite\/preload-helper/, priority: 2 },
+                            // The Babylon.js code only a model or a map needs is a chunk of its own,
+                            // fetched with the first model or map, not before the first frame (#9217).
+                            {
+                                name: (id) => (babylonSplit.isLazy(id) ? "babylon-lazy" : "babylon"),
+                                test: /\/node_modules\/@babylonjs\//,
+                                priority: 1,
+                            },
+                        ],
                     },
                 },
             },

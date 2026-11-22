@@ -29,7 +29,7 @@ Three kernels keep `E_TOO_LARGE { path: "windowed", algorithm }` through `assert
 `sssp-relax` (the near-far queue relaxes arcs whose vertex may sit in any window and needs the
 whole adjacency in one binding), `bf-relax` (edge-parallel over `edgeList()`, whose arc range IS
 the dispatch range and which never had a window loop) and `closeness-sweep` (the bit-parallel
-claim reads every in-neighbour's word in one pass). So `sssp` on a weighted run, `bellmanFord`
+claim reads every in-neighbor's word in one pass). So `sssp` on a weighted run, `bellmanFord`
 and `closenessCentrality` refuse a windowed core; `sssp`'s unit-weight route, which runs the
 BFS, keeps its own `assertWholeCore` too, a choice the plan made before the lift and did not
 revisit. Whether that route should inherit the lift is open and the owner's.
@@ -102,3 +102,11 @@ Three conditions, counted:
   filter; the sweep needs a per-window claim pass).
 - The owner rules that `sssp`'s unit-weight route inherits the lift. That is one line -- the
   route's `assertWholeCore` -- and a record of its own that links back here.
+
+## Update 2026-11-10: the first condition holds
+
+Issue #471 added the windowed reverse view: `GraphResidency.reverseWindowed(s)` uploads a directed snapshot's reverse
+`colIdx` as arc windows (the same `planWindowLayout` the forward core uses) when it exceeds one binding, and
+`breadthFirstSearch` runs the bottom-up sweep once per reverse window. The directed refusal is gone, so the lift is
+whole for directed snapshots too. `sssp`'s unit-weight route runs the BFS directly, with no whole-core check of its
+own, so it inherits the lift; a test runs it on a windowed core.

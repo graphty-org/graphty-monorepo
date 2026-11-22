@@ -1,22 +1,19 @@
 /**
  * @file A label a layer asks for, checked against the pixels on the canvas.
  *
- * WHY THIS FILE EXISTS. Four test files mention the `node.label` channel and all four assert the
- * model: `test/managers/style-painter.test.ts` adds a layer that sets `node.label`, asks the
- * painter what it resolved, and finds the words and `enabled: true` -- which is true, and says
- * nothing about whether anything built a label. The leaf tests next to it
- * (`Edge.label.test.ts`, `Edge.arrowText.test.ts`, `label-attachOffset.test.ts`) construct a
- * `RichTextLabel` by hand, or declare a style object literal and assert the fields they just
- * typed. Between the painter's answer and the frame there was nothing at all, and that is
- * exactly where the defect lived: the painter reported a label on a node that had no label
- * object and no label mesh anywhere in the scene.
+ * WHAT IT CHECKS. `test/managers/style-painter.test.ts` adds a layer that sets `node.label` and
+ * asks the painter what it resolved, which says nothing about whether anything built a label.
+ * `Edge.label.test.ts`, `Edge.arrowText.test.ts` and `label-attachOffset.test.ts` read where a
+ * real node's or edge's label plane sits. This file reads the pixels: between the painter's
+ * answer and the frame is where the defect lived, the painter reporting a label on a node that
+ * had no label object and no label mesh anywhere in the scene.
  *
  * WHAT MAKES THIS DIFFERENT FROM THE OTHER PIXEL TEST. `style-paint-pixels.test.ts` samples the
  * MOST COLOURFUL pixel near a node and skips anything whose channel spread is under 24, because
- * grey is the background, the edges and a specular highlight. The default label is black text on
- * whitesmoke -- pure grey by that measure -- so the one instrument in the repository that reads
+ * gray is the background, the edges and a specular highlight. The default label is black text on
+ * whitesmoke -- pure gray by that measure -- so the one instrument in the repository that reads
  * pixels is calibrated to ignore precisely what a label is. Reading a label needs the inverse
- * measurement: count the NEAR-BLACK pixels in the neighbourhood, which is what this file does.
+ * measurement: count the NEAR-BLACK pixels in the neighborhood, which is what this file does.
  *
  * HOW EACH TEST IS MADE HONEST. Every measurement is taken twice in the same place -- once
  * before the edit and once after -- and the assertion is about the change. A count alone could
@@ -207,7 +204,7 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
      *
      * A SQUARE RATHER THAN A POINT, and a large one. A node's label is attached above the node
      * with an offset, an edge's at the midpoint of the line, and both are billboarded planes
-     * whose extent depends on how long the word is -- so the honest neighbourhood is "near
+     * whose extent depends on how long the word is -- so the honest neighborhood is "near
      * enough to belong to this element and nowhere near the other one", which for two nodes on
      * opposite sides of a circle is comfortably satisfied.
      * @param pixels - The frame.
@@ -478,7 +475,7 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
 
         assert.isDefined(before, "the words are on screen to begin with");
 
-        // Colour is an `instance` channel: one buffer write, no geometry, no text. The label
+        // Color is an `instance` channel: one buffer write, no geometry, no text. The label
         // must survive it as the very same object.
         await session.styles.add({
             name: "Node colour",
@@ -491,8 +488,8 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
         const after = await readFrame();
 
         // WHY IDENTITY AND NOT JUST PRESENCE. Building a `RichTextLabel` means a canvas, a
-        // dynamic texture and an upload, and doing that on every repaint of a labelled graph
-        // would turn a colour change from one buffer write into a texture rebuild per node --
+        // dynamic texture and an upload, and doing that on every repaint of a labeled graph
+        // would turn a color change from one buffer write into a texture rebuild per node --
         // paying for this fix on every frame that has nothing to do with text. The comparison
         // in `syncLabel` is what prevents it, and the same object coming back is the only
         // evidence that the comparison ran.

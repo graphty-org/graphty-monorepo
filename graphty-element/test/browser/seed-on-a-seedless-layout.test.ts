@@ -79,7 +79,7 @@ function mount(layout: string): Seen {
 }
 
 describe("a seed given to a layout that takes none", () => {
-    for (const layout of ["fixed", "circular", "grid", "shell", "spiral", "kamada-kawai"]) {
+    for (const layout of ["fixed", "circular", "grid", "shell", "spiral"]) {
         it(`${layout}: runs, and reports the seed as W_UNKNOWN_OPTION rather than an error`, async () => {
             const seen = mount(layout);
 
@@ -94,11 +94,13 @@ describe("a seed given to a layout that takes none", () => {
         });
     }
 
-    it("ngraph takes the seed, and reports nothing", async () => {
-        const seen = mount("ngraph");
-        await seen.settled;
-        assert.lengthOf(seen.errors, 0);
-        assert.lengthOf(seen.windowErrors, 0);
-        assert.isFalse(seen.warnings.some((w) => w.code === "W_UNKNOWN_OPTION"));
-    });
+    for (const layout of ["ngraph", "kamada-kawai"]) {
+        it(`${layout} takes the seed, and reports nothing`, async () => {
+            const seen = mount(layout);
+            await seen.settled;
+            assert.lengthOf(seen.errors, 0);
+            assert.lengthOf(seen.windowErrors, 0);
+            assert.isFalse(seen.warnings.some((w) => w.code === "W_UNKNOWN_OPTION"));
+        });
+    }
 });

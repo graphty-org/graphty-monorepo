@@ -19,8 +19,24 @@ export interface ParsedLoggingParams {
     level?: LogLevel;
     /** Per-module log level overrides (from module:level format) */
     moduleOverrides?: Map<string, LogLevel>;
-    /** URL of remote log server (if specified via graphty-element-remote-log param) */
+    /**
+     * URL of remote log server, from the graphty-element-remote-log param. Present only when its
+     * origin is in the `allowedRemoteLogOrigins` the caller passed.
+     */
     remoteLogUrl?: string;
+}
+
+/**
+ * Options for {@link parseLoggingURLParams}.
+ */
+export interface ParseLoggingURLParamsOptions {
+    /**
+     * Origins (such as `"http://localhost:9080"`) a page address may name as a remote log server.
+     * The graphty-element-remote-log param is ignored unless its origin is listed here, so a
+     * crafted link cannot send the page's logs to a server the embedder did not choose. Default:
+     * none, so the address never turns on remote logging.
+     */
+    allowedRemoteLogOrigins?: readonly string[];
 }
 
 /**
@@ -68,10 +84,12 @@ function applyModuleSpecs(result: ParsedLoggingParams, loggingValue: string): vo
  * - `?graphty-element-logging=layout,xr` - Enable specific modules
  * - `?graphty-element-logging=layout:debug,xr:info` - Enable modules with levels
  * - `?graphty-element-log-level=debug` - Set global log level
- * - `?graphty-element-remote-log=https://localhost:9080` - Send logs to remote server
+ * - `?graphty-element-remote-log=https://localhost:9080` - Send logs to remote server, only when
+ *   that origin is in `options.allowedRemoteLogOrigins`
+ * @param options - Which remote log servers the address may name
  * @returns Parsed logging parameters, or null if logging param is not present or disabled
  */
-export function parseLoggingURLParams(): ParsedLoggingParams | null {
+export function parseLoggingURLParams(options: ParseLoggingURLParamsOptions = {}): ParsedLoggingParams | null {
     // Check if we're in a browser environment
     if (typeof window === "undefined" || typeof URLSearchParams === "undefined") {
         return null;
@@ -106,28 +124,35 @@ export function parseLoggingURLParams(): ParsedLoggingParams | null {
         }
     }
 
-    // Parse remote log server URL if specified
-    if (remoteLogValue) {
-        // Validate it looks like a URL
-        if (isValidUrl(remoteLogValue)) {
-            result.remoteLogUrl = remoteLogValue;
-        }
+    // A remote server named by the address is used only when the embedder allowed its origin
+    if (remoteLogValue && isAllowedRemoteUrl(remoteLogValue, options.allowedRemoteLogOrigins ?? [])) {
+        result.remoteLogUrl = remoteLogValue;
     }
 
     return result;
 }
 
 /**
- * Check if a string is a valid URL.
- * @param urlString - The string to validate
- * @returns true if the string is a valid URL
+ * Origin of an http or https URL.
+ * @param urlString - The string to read
+ * @returns The URL's origin, or undefined when it is not an http or https URL
  */
-function isValidUrl(urlString: string): boolean {
+function httpOrigin(urlString: string): string | undefined {
     try {
         const url = new URL(urlString);
-        // Only allow http and https protocols
-        return url.protocol === "http:" || url.protocol === "https:";
+        return url.protocol === "http:" || url.protocol === "https:" ? url.origin : undefined;
     } catch {
-        return false;
+        return undefined;
     }
+}
+
+/**
+ * Check that a string is an http or https URL whose origin the embedder allowed.
+ * @param urlString - The string to validate
+ * @param allowedOrigins - Origins the embedder allowed
+ * @returns true if the URL may be used as a remote log server
+ */
+function isAllowedRemoteUrl(urlString: string, allowedOrigins: readonly string[]): boolean {
+    const origin = httpOrigin(urlString);
+    return origin !== undefined && allowedOrigins.some((allowed) => httpOrigin(allowed) === origin);
 }

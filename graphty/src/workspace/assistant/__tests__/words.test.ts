@@ -3,6 +3,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import {
+    approvalWords,
     askedRows,
     changeLines,
     effectLine,
@@ -27,6 +28,7 @@ const ROWS: readonly (readonly [string, Record<string, string | number>, string 
     ["AI_NO_RESPONSE", {}, "No answer came back.", AGAIN],
     ["AI_NOT_ENABLED", {}, "The assistant is not connected.", PROVIDER],
     ["AI_DISPOSED", {}, "The assistant is not connected.", PROVIDER],
+    ["AI_NO_PREVIOUS_COMMAND", {}, "There is no message to send again.", NONE],
     ["AI_KEY_MISSING", { provider: "google" }, "Add a key for Google.", PROVIDER],
     ["AI_KEY_REJECTED", { provider: "google" }, "Google refused the key.", PROVIDER],
     ["AI_CONFIG_INVALID", {}, "The AI provider settings cannot be used.", PROVIDER],
@@ -350,5 +352,27 @@ describe("isLookup", () => {
         );
         assert.isFalse(isLookup({ tool: "style", code: "AI_TOOL_FAILED", params: {} }));
         assert.isFalse(isLookup({ tool: "style" }), "a running step is not yet anything");
+    });
+});
+
+describe("approvalWords", () => {
+    it("states the provider and the cost of a paid call", () => {
+        const words = approvalWords({
+            id: "r1",
+            gate: "paid",
+            calls: [{ tool: "project", arguments: { action: "generate_background", prompt: "stars" } }],
+            preview: { provider: "google", model: "gemini-2.5-flash-image", costUsd: 0.039 },
+        });
+        assert.strictEqual(words.line, "About $0.04 (Google).");
+    });
+
+    it("states only the cost when the provider has no plain name", () => {
+        const words = approvalWords({
+            id: "r2",
+            gate: "paid",
+            calls: [{ tool: "project", arguments: { action: "generate_background", prompt: "stars" } }],
+            preview: { provider: "unknown-provider", costUsd: 0.039 },
+        });
+        assert.strictEqual(words.line, "About $0.04.");
     });
 });

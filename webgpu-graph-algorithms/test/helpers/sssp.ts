@@ -24,7 +24,7 @@ import { type GpuSsspResult } from "../../src/types/traversal.js";
 import { dijkstraOracle } from "../oracle/traversal.js";
 import { bitwiseReports } from "./frontier.js";
 import { type EdgeSpec, gridEdges, pathEdges, snapshotOf, xorshift } from "./graphs.js";
-import { noiseFloorFor } from "./noise-floor.js";
+import { resolveTolerance } from "./noise-floor.js";
 import { type CheckReport, mergeReports, ratioOf } from "./sabotage.js";
 import { predArcByRule } from "./traversal-check.js";
 
@@ -42,8 +42,6 @@ export const SSSP_TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number
 
 /** The absolute floor of the relative f32-versus-f64 comparison (a distance below it is compared absolutely). */
 const SSSP_ABS_FLOOR = 1e-6;
-
-const WRITE = process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
 
 /** The weight-2 path of P8-T9 Step 6: 64 nodes, every arc at 2, `delta 32` through the tuning seam. */
 const WEIGHT2_PATH_NODES = 64;
@@ -85,7 +83,7 @@ export function weightedEdges(edges: readonly EdgeSpec[], kind: WeightKind, seed
 
 /**
  * PD-27's first counterexample: the source `k` joined to `k - 1` at weight 1, then `k - 1, k - 2, ..., 0` chained at
- * weight 0 (undirected), so every plateau node's SMALLEST tight in-arc comes from its deeper neighbour and the
+ * weight 0 (undirected), so every plateau node's SMALLEST tight in-arc comes from its deeper neighbor and the
  * smallest-attaining-arc rule walks `j -> j - 1 -> ... -> 0 -> 1 -> 0` forever, while the plateau rule walks
  * `j -> j + 1 -> ... -> k`.
  * @param k - the source and the plateau's length
@@ -123,26 +121,11 @@ export function weightTwoPath(): EdgeSpec[] {
 }
 
 /**
- * The tolerance the f64 comparison uses: the derived value of benchmarks/results/noise-floor.json (noiseFloorFor),
- * asserted to sit under the design 9.7 cap with the basis row the caps table names, or the cap itself during a
- * recording run (GRAPHTY_NOISE_FLOOR_WRITE=1), when the derived value does not exist yet.
+ * The tolerance the f64 comparison uses: resolveTolerance over SSSP_TOLERANCE_CAPS (the design 9.7 cap).
  * @returns the tolerance value and its basis row
  */
 export function ssspTolerance(): { readonly value: number; readonly basis: string } {
-    const spec = SSSP_TOLERANCE_CAPS[SSSP_F32_VS_F64];
-    if (WRITE) {
-        return { value: spec.cap, basis: spec.basis };
-    }
-    const derived = noiseFloorFor(SSSP_F32_VS_F64);
-    if (derived.basis !== spec.basis) {
-        throw new Error(`${SSSP_F32_VS_F64}: the committed basis row ${derived.basis} is not ${spec.basis}`);
-    }
-    if (!(derived.value <= spec.cap)) {
-        throw new Error(
-            `${SSSP_F32_VS_F64}: the derived tolerance ${derived.value} is above the spec cap ${spec.cap} (a finding, spec 10.4)`,
-        );
-    }
-    return derived;
+    return resolveTolerance(SSSP_TOLERANCE_CAPS, SSSP_F32_VS_F64, "SSSP");
 }
 
 /**
@@ -247,7 +230,7 @@ export async function ssspReport(ctx: GpuContext): Promise<CheckReport> {
     const uniform = snapshotOf(weightedEdges(gridEdges(30, 30), "uniform", 11), { label: "sssp-report-uniform" });
     reports.push(...(await runReports(ctx, "grid30-uniform", uniform, 0, undefined, {})).reports);
     ctx.release(uniform);
-    // the <= case: an integer cutoff some node attains exactly (the centre's distance from the corner)
+    // the <= case: an integer cutoff some node attains exactly (the center's distance from the corner)
     const integer = snapshotOf(weightedEdges(gridEdges(30, 30), "integer", 12), { label: "sssp-report-integer" });
     const cutoff = dijkstraOracle(integer, 0, "f32").dist[465];
     reports.push(...(await runReports(ctx, "grid30-integer-cutoff", integer, 0, { cutoff }, {})).reports);

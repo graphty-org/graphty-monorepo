@@ -48,11 +48,11 @@ mockup down to the page where it is acted on:
   Team plan's limit: at 23:27, 56 Linux jobs and 1 macOS job were running against a limit of 60,
   235 jobs were queued, and five master builds had waited as queued runs since 22:22. CI: runner
   wait, longest queued now, saturated time. The Runners page names who held the runners.
-- **Two hours of cancelled master builds.** Every master build from 19:47 to 21:50 ended
+- **Two hours of canceled master builds.** Every master build from 19:47 to 21:50 ended
   `cancelled` when the Build job hung in the Sentry source-map upload (six of them at its 12-minute
   timeout), and master-guard raised nothing because it acted only on `failure` (#3558, #3560).
-  Master: red now, green time; CI: hangs. Earlier, ten builds created 18:02 to 18:47 were cancelled
-  by hand at 18:54 to free runners; GitHub names who cancelled them, so they are drawn gray as
+  Master: red now, green time; CI: hangs. Earlier, ten builds created 18:02 to 18:47 were canceled
+  by hand at 18:54 to free runners; GitHub names who canceled them, so they are drawn gray as
   "cancelled by hand", listed and not red.
 - **A master bug turned every pull request red on one check.** `Test (graphty-*)` failed in five
   open pull requests from 18:03 (#3572); earlier the Figma lock in `Checks` refused every branch
@@ -197,7 +197,7 @@ picker: a table or count covers the picked window, a chart covers 6 h at 1 h and
 2 merged in the last 1 h, so the last 6 h").
 
 - **Master**: a strip by minute, 6 h at the default (green, red, gray for cancels that are not failures:
-  superseded, or cancelled by hand); red spans with builds, cause and fix; shared failures with the
+  superseded, or canceled by hand); red spans with builds, cause and fix; shared failures with the
   pull requests failing, start, suspect merges and issue.
 - **Pull requests**: where the time goes for pull requests merged in the range (median minutes per
   stage: waiting for runners, checks running, red and being fixed, merging); "Waiting on the owner"
@@ -328,9 +328,9 @@ Shared definitions:
       priority waiting request for '<group>' exists". `ci.yml`'s push concurrency group is
       `ci-<sha>`, so no master build is ever superseded by another; the rule is kept for other
       workflows and for a later change of the group.
-    - **cancelled by hand**, gray, listed but not red: the run's cancel actor (from the run's
+    - **canceled by hand**, gray, listed but not red: the run's cancel actor (from the run's
       timeline, or an annotation naming a user, "The run was canceled by @<user>") is a person or a
-      session acting as one. The ten builds created 18:02 to 18:47 on 2026-10-25 and cancelled at
+      session acting as one. The ten builds created 18:02 to 18:47 on 2026-10-25 and canceled at
       18:54 to free runners were this.
     - **every other cancel is red**, including a job that ended at its own `timeout-minutes` (also a
       hang) and the Sentry cancels of 19:47 to 21:50.
@@ -510,7 +510,7 @@ branch; with a full page of open pull requests (50) nothing is left out.
 
 "Runner-minutes per merge" adds up every job's minutes (completed minus started, unrounded) by the kind of
 run that spent them -- pull request runs (every attempt, including pull requests that never merged), master
-push builds (cancelled ones too), full runs (`release.yml` and the workflows it calls) and other (bisect,
+push builds (canceled ones too), full runs (`release.yml` and the workflows it calls) and other (bisect,
 stress, hosts, dependabot, dispatches) -- and divides by the pull requests merged into master in the same
 window. The CI page shows each kind over 24 h and 7 d, so every change to the CI load shows its saving. The
 thresholds come from 2026-10-26: 387 over 7 d (511 in the Pacific day so far), so today's value is the edge of
@@ -518,7 +518,7 @@ the target and 1.5 times it is red; as a slow measure it is judged on its 7 days
 
 "Superseded runs running" counts only what nothing else cancels: runs of workflows without
 `cancel-in-progress` on `pull_request` (PR Integrity, CodeQL) whose pull request has a newer
-commit, and jobs with `if: always()` still running after their run was cancelled. `ci.yml` and
+commit, and jobs with `if: always()` still running after their run was canceled. `ci.yml` and
 `hosts.yml` cancel their own superseded pull request runs. It gets a state once it has fired on
 real data.
 
@@ -532,8 +532,9 @@ logic is unchanged, so a non-gating job still never fails a lane.
 
 - **Chronically failing jobs** (`ci.chronic_jobs`). Any job of a master push, a full run or another
   non-pull-request run, gating or not, bins and shards folded into their family, that failed in at
-  least half of its newest 10 finished runs (4 at least), or has failed in every run for 3 days
-  (however few). Cancelled and skipped jobs say nothing about a job and are not runs. An aggregator
+  least half of its newest 10 finished runs of the last 7 days (4 at least; older failures kept
+  Dependabot red for two weeks after its fix, issue #7369), or has failed in every run for 3 days
+  (however few). Canceled and skipped jobs say nothing about a job and are not runs. An aggregator
   (`All Checks Pass`) is not judged: it fails whenever any job it summarizes fails, so its share is the
   union of theirs, and it stood alone on the list at 8 of 10 while no lane was chronic (issue #6068).
   A job with no
@@ -558,7 +559,8 @@ logic is unchanged, so a non-gating job still never fails a lane.
   lists in its warning period, read hourly from master's ci.yml -- with its runs, failures and pass
   rate over 7 days in every run kind, pull requests included (`ci.job_outcome`), worst first, marked
   red at half or more failed. It makes the class visible; the chronic member is what judges it.
-- **Benchmark regressions** (`ci.bench_regressions`). The Performance Benchmarks job (algorithms)
+- **Benchmark regressions** (`ci.bench_regressions`). The Performance Benchmarks job (algorithms, and
+  `graphty-load`: the graphty app's landing page and graphty-element's connect-to-settled times, tools/load-time.mjs)
   and the T4 lane (webgpu-graph-algorithms) post each benchmark's result after the benchmark passed
   (`tools/results/post-benchmarks.mjs`, `POST /v1/benchmarks`, OIDC like the flaky feed, fire and
   forget), only from master's workflows. Each result names the machine that measured it (the
@@ -1008,7 +1010,7 @@ condition, and the words.
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
 | Master red now                       | FAILING for 3 h (agents normally fix it within the hour), not while the runners page's own condition holds or its page is still open (a slowdown does not hold it back; a GitHub API outage leaves master NO DATA, so it cannot page either); says how long and that no agent has fixed it, and asks the owner to restart the pipeline-round loop (or start one if none runs); links master's failing builds                                                                                                                                                                                                                                                                                                                                                 | 1 (0 at night) |
 | Untested master age                  | FAILING (no full run has tested master's oldest untested commit for 13 h) while no scheduled full run (mode full) has started for 13 h (`release.since_slot_ms`): the release scheduler Worker has stopped, and its Cloudflare account or GitHub App credential only the owner can renew; daytime only; a 24 h floor; asks the owner to have any Claude session find the cause and to make the credential it names                                                                                                                                                                                                                                                                                                                                           | 0              |
-| Runners not assigned                 | FAILING for 1 h while GitHub runs at most 5 jobs and at least 5 wait (an outage or account block, not a slowdown); counts Linux and Windows jobs in status `queued` over 2 min, and runs queued with no jobs yet (`ci.jobs_waiting_runner`); the page gives both counts and links GitHub's status page. The outage gate does not depend on the plan's 500-job limit                                                                                                                                                                                                                                                                                                                                                                                          | 1 (0 at night) |
+| Runners not assigned                 | FAILING for 1 h while GitHub runs at most 5 jobs and at least 5 wait (an outage or account block, not a slowdown); counts Linux and Windows jobs in status `queued` over 2 min, and runs queued with no jobs yet (`ci.jobs_waiting_runner`); the page gives both counts and links GitHub's status page. The outage gate does not depend on the plan's 300-job limit. A queued job created before a job that already runs (over 2 min earlier) waits on its own workflow (a matrix's `max-parallel`), not on GitHub, and is counted apart as `ci.jobs_held_by_run`; a run queued with no jobs created before such a job is stuck (GitHub dropped it), counted apart as `ci.runs_stuck`, and neither counts in the longest wait                                | 1 (0 at night) |
 | Nightly waiting on screenshot review | the open "Nightly held on" issue's newest verdict is green-images (all tests passed, changed screenshots) and it has waited 24 h for the owner's review; daytime only; again every 24 h while the hold waits (`repeatMs`); links the hold issue                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 0              |
 | Spend, T4, LLM                       | FAILING for 6 h, not before day 7 of the month unless month-to-date spend is already past red; daytime only; due together, one message; again every week while the forecast stays over (`repeatMs`, and a 7-day floor the group shares, so a member crossing its line after the group's page waits for the next one; a member red but short of its 6 h goes out with one that is due), so an overrun that lasts into the next month pages again from its day 7                                                                                                                                                                                                                                                                                               | 0              |
 | AWS                                  | for 1 h, spend past its $8 yellow line, with the Costs page's month-end projection as its forecast (billing data lags about a day, so this leaves room before the Budget's deny-all silences the collector at $10); its own page; daytime only; the title names the risk, losing these alerts, and asks to raise the limit                                                                                                                                                                                                                                                                                                                                                                                                                                   |

@@ -8,13 +8,15 @@ import React, { useEffect, useState } from "react";
 import { APP_GLOBE_SOURCE } from "../../constants/globe";
 import { groupsAnnouncement, pathAnnouncement, topAnnouncement } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
-import { selectedNameWords } from "../inspector/words";
+import { runFailureWords, selectedNameWords } from "../inspector/words";
 import { layoutWarningWords } from "../layout/refusalWords";
+import { RenderCount } from "../renderCount";
 import { runName } from "../runWords";
+import { BeforeAfterChip } from "../source-steps/BeforeAfterChip";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
+import { legendSections } from "./legendSections";
 import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
-import { PreviewKey } from "./PreviewKey";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
 
@@ -35,11 +37,13 @@ interface CanvasReading {
     readonly blocks: readonly LegendBlock[];
     readonly nodeCount: number;
     readonly edgeCount: number;
+    /** Nodes in the whole graph, shown or hidden: a filter that hides them all leaves a graph. */
+    readonly totalNodes: number;
     /** The load in flight, from the element's progress event, or null. */
     readonly load: ProgressChange | null;
 }
 
-const NOTHING: CanvasReading = { blocks: [], nodeCount: 0, edgeCount: 0, load: null };
+const NOTHING: CanvasReading = { blocks: [], nodeCount: 0, edgeCount: 0, totalNodes: 0, load: null };
 
 /**
  * Reads the legend, the node and edge counts and the load in flight from the session, again after every
@@ -62,6 +66,9 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
         let load: ProgressChange | null = null;
         // A run that ends after the session changed must not post a notice for the old session.
         let live = true;
+        // What the last read gave, so a read that gives the same draws nothing again: a style
+        // update the key does not show (an animation's, once a frame) redrew the card (#9423).
+        let last: string | null = null;
         const read = (): void => {
             // While the selection workspace draws its own key the canvas key is not drawn: it is
             // read again when the workspace closes, not on every edit (ws-polish 2).
@@ -69,8 +76,23 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
                 return;
             }
             const { nodeCount, edgeCount } = session.data.statistics();
+            const totalNodes = session.data.statistics({ scope: "all" }).nodeCount;
             const blocks = keyBlocks(dataBlocks(session));
-            setReading({ blocks, nodeCount, edgeCount, load });
+            // The card names and groups each block from the session (a layer's or a run's name, a
+            // run's folder), so its sections are part of what it draws: a rename changes no block.
+            const key = JSON.stringify([
+                blocks,
+                legendSections(session, blocks),
+                nodeCount,
+                edgeCount,
+                totalNodes,
+                load,
+            ]);
+            if (key === last) {
+                return;
+            }
+            last = key;
+            setReading({ blocks, nodeCount, edgeCount, totalNodes, load });
             // An effect is listed in a key that shows, and never opens it: a style write of an
             // effect is no reason for the key to appear.
             const keyHasEntries = blocks.some((block) => !isEffectBlock(block));
@@ -123,6 +145,12 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
                             : (pathAnnouncement(session, run) ?? topAnnouncement(session, run, name));
                     store.set({ announcement: said ?? `${name} ${ended}` });
                 }
+                // A failed run says so where the reader is, whatever started it; its row marks it too.
+                if (change.run.status === "failed") {
+                    const code = session.runs.get(change.run.id)?.error?.code;
+                    store.set({ notice: { message: runFailureWords(code), error: true } });
+                    return;
+                }
                 // The painting is decided once the element has finished painting for the run.
                 void session.styles.settled().then(() => {
                     if (!live) {
@@ -132,7 +160,7 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
                     if (groups !== null) {
                         store.set({ announcement: groups });
                     }
-                    const notice = runNotice(session, change.run.id);
+                    const notice = runNotice(session, change.run.id, name);
                     if (notice !== null) {
                         store.set({ notice });
                     }
@@ -158,9 +186,8 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
 const DETAILED_MAP_SPAN = 20;
 
 /**
- * The street map the app draws small data over: free, keyless and credited on the canvas, as
- * OpenStreetMap's tile usage policy asks (https://operations.osmfoundation.org/policies/tiles/);
- * the map only loads the tiles in view and never prefetches.
+ * The street map the app draws small data over: free and keyless; the map only loads the tiles in
+ * view and never prefetches (https://operations.osmfoundation.org/policies/tiles/).
  */
 const DETAILED_MAP_SOURCE = "openstreetmap";
 
@@ -203,7 +230,7 @@ function useDetailedMapForSmallData(): void {
 }
 
 /** The words a change of the map under a map layout is announced with, by its state. */
-const BASEMAP_STATE_WORDS: Readonly<Record<string, string>> = {
+const BASEMAP_STATE_WORDS: Readonly<Partial<Record<string, string>>> = {
     ready: "Map shown",
     fallback: "Map unavailable, showing Natural Earth",
 };
@@ -334,7 +361,9 @@ export function CanvasOverlays(): React.JSX.Element | null {
     const legendAsked = useWorkspaceState((state) => state.legendAsked);
     // The empty card's doors: the Sources "+" doors a first source most often comes through.
     const doors = [useCommand("data.add-file"), useCommand("data.samples")].filter((door) => door !== null);
-    const { blocks, nodeCount, edgeCount, load } = useCanvasReading(session, workspaceOpen);
+    // When filters hide every node the way back is the filters, never loading other data.
+    const filterDoors = [useCommand("filters.open")].filter((door) => door !== null);
+    const { blocks, nodeCount, edgeCount, totalNodes, load } = useCanvasReading(session, workspaceOpen);
     useLayoutWarningNotice();
     useDetailedMapForSmallData();
 
@@ -355,14 +384,16 @@ export function CanvasOverlays(): React.JSX.Element | null {
             />
         );
     } else if (nodeCount === 0) {
+        const hidden = totalNodes > 0;
+        const shownDoors = hidden ? filterDoors : doors;
         card = (
             <StateCard
                 icon={<GLYPHS.empty size={20} />}
-                title="No nodes to draw"
+                title={hidden ? "Every node is hidden" : "No nodes to draw"}
                 actions={
-                    doors.length === 0
+                    shownDoors.length === 0
                         ? undefined
-                        : doors.map((door) => (
+                        : shownDoors.map((door) => (
                               <Tooltip
                                   key={door.command.id}
                                   label={door.disabledReason}
@@ -384,15 +415,16 @@ export function CanvasOverlays(): React.JSX.Element | null {
     }
 
     return (
-        <>
-            {/* Asked for over nothing, the card says nothing is styled yet. */}
-            {/* While a selection is picked, the key says the styles are suspended and names its groups. */}
-            {legendShown && !workspaceOpen ? (
-                <PreviewKey session={session}>
-                    {keyed || legendAsked ? <LegendCard blocks={blocks} session={session} /> : null}
-                </PreviewKey>
-            ) : null}
-            {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
-        </>
+        <RenderCount id="canvas-overlays">
+            <>
+                {/* Asked for over nothing, the card says nothing is styled yet. */}
+                {/* While a selection is picked, the selection workspace draws its own key at its preview. */}
+                {legendShown && !workspaceOpen && (keyed || legendAsked) ? (
+                    <LegendCard blocks={blocks} session={session} />
+                ) : null}
+                {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
+                <BeforeAfterChip />
+            </>
+        </RenderCount>
     );
 }

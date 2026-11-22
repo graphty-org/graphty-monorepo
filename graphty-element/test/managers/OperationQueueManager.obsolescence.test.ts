@@ -1,12 +1,38 @@
 import { assert, beforeEach, describe, it } from "vitest";
 
 import { EventManager } from "../../src/managers/EventManager";
-import { OperationQueueManager } from "../../src/managers/OperationQueueManager";
+import { type OperationContext, OperationQueueManager } from "../../src/managers/OperationQueueManager";
+
+/** A promise with its resolver, so a test decides when an operation's work ends. */
+function gate(): { promise: Promise<void>; open: () => void } {
+    let open!: () => void;
+    const promise = new Promise<void>((resolve) => {
+        open = resolve;
+    });
+    return { promise, open };
+}
+
+/** Work that ends only when the operation's signal aborts, by rejecting with an AbortError. */
+function untilAborted(context: OperationContext): Promise<void> {
+    return new Promise<void>((_resolve, reject) => {
+        context.signal.addEventListener("abort", () => {
+            const error = new Error("Cancelled");
+            error.name = "AbortError";
+            reject(error);
+        });
+    });
+}
+
+interface Obsoleted {
+    id: string;
+    category: string;
+    obsoletedBy: string;
+}
 
 describe("Obsolescence Rules", () => {
     let eventManager: EventManager;
     let queueManager: OperationQueueManager;
-    let obsoletedEvents: { id: string; category: string; reason: string }[];
+    let obsoletedEvents: Obsoleted[];
     let startedOperations: string[];
     let completedOperations: string[];
 
@@ -17,196 +43,142 @@ describe("Obsolescence Rules", () => {
         startedOperations = [];
         completedOperations = [];
 
-        // Capture events
         eventManager.onGraphEvent.add((event) => {
+            const fields = event as Record<string, unknown>;
             if (event.type === "operation-obsoleted") {
                 obsoletedEvents.push({
-                    id: (event as Record<string, unknown>).id as string,
-                    category: (event as Record<string, unknown>).category as string,
-                    reason: (event as Record<string, unknown>).reason as string,
+                    id: fields.id as string,
+                    category: fields.category as string,
+                    obsoletedBy: fields.obsoletedBy as string,
                 });
             } else if (event.type === "operation-start") {
-                startedOperations.push(event.id as string);
+                startedOperations.push(fields.id as string);
             } else if (event.type === "operation-complete") {
-                completedOperations.push(event.id as string);
+                completedOperations.push(fields.id as string);
             }
         });
     });
 
-    it("should cancel layout-update when new data-add arrives", async () => {
+    it("should cancel a running layout-update when new data-add arrives", async () => {
+        const started = gate();
         const executedOps: string[] = [];
 
-        // Queue a layout-update
-        queueManager.queueOperation(
+        const layoutId = queueManager.queueOperation(
             "layout-update",
             async (context) => {
-                // Simulate long-running layout calculation
-                for (let i = 0; i < 10; i++) {
-                    if (context.signal.aborted) {
-                        throw new Error("AbortError");
-                    }
-
-                    context.progress.setProgress(i * 10);
-                    await new Promise((resolve) => setTimeout(resolve, 10));
-                }
+                started.open();
+                await untilAborted(context);
                 executedOps.push("layout-update");
             },
             { description: "Update layout positions" },
         );
 
-        // Once the layout is running, queue a data-add which should obsolete it
-        await eventManager.waitFor("operation-start");
+        await started.promise;
 
-        queueManager.queueOperation(
+        const dataId = queueManager.queueOperation(
             "data-add",
             () => {
                 executedOps.push("data-add");
             },
-            {
-                description: "Add new nodes",
-                obsoletes: ["layout-update"],
-            },
+            { description: "Add new nodes", obsoletes: ["layout-update"], skipTriggers: true },
         );
 
         await queueManager.waitForCompletion();
 
-        // The layout-update should have been cancelled
-        assert.isTrue(obsoletedEvents.some((e) => e.category === "layout-update"));
-        // Data-add should complete
-        assert.include(executedOps, "data-add");
-        // Layout-update should not complete if it was obsoleted
-        // (it may have completed if it was quick enough)
+        assert.deepEqual(obsoletedEvents, [{ id: layoutId, category: "layout-update", obsoletedBy: dataId }]);
+        assert.deepEqual(executedOps, ["data-add"]);
+        assert.deepEqual(completedOperations, [dataId]);
     });
 
-    it("should cancel algorithm-run when data changes", async () => {
+    it("should cancel a running algorithm-run when data changes", async () => {
+        const started = gate();
         const executedOps: string[] = [];
 
-        // Queue an algorithm operation
-        queueManager.queueOperation(
+        const algoId = queueManager.queueOperation(
             "algorithm-run",
             async (context) => {
-                // Simulate algorithm computation
-                for (let i = 0; i < 10; i++) {
-                    if (context.signal.aborted) {
-                        throw new Error("AbortError");
-                    }
-
-                    context.progress.setProgress(i * 10);
-                    await new Promise((resolve) => setTimeout(resolve, 10));
-                }
+                started.open();
+                await untilAborted(context);
                 executedOps.push("algorithm-run");
             },
             { description: "Run graph algorithm" },
         );
 
-        // Once the algorithm is running, queue data changes that should obsolete it
-        await eventManager.waitFor("operation-start");
+        await started.promise;
 
-        queueManager.queueOperation(
+        const updateId = queueManager.queueOperation(
             "data-update",
             () => {
                 executedOps.push("data-update");
             },
-            {
-                description: "Update node properties",
-                obsoletes: ["algorithm-run"],
-            },
+            { description: "Update node properties", obsoletes: ["algorithm-run"], skipTriggers: true },
         );
 
         await queueManager.waitForCompletion();
 
-        // Check that the algorithm was obsoleted
-        const obsoletedAlgo = obsoletedEvents.find((e) => e.category === "algorithm-run");
-        if (obsoletedAlgo) {
-            assert.isDefined(obsoletedAlgo);
-        }
-
-        // Data update should complete
-        assert.include(executedOps, "data-update");
+        assert.deepEqual(obsoletedEvents, [{ id: algoId, category: "algorithm-run", obsoletedBy: updateId }]);
+        assert.deepEqual(executedOps, ["data-update"]);
+        assert.deepEqual(completedOperations, [updateId]);
     });
 
     it("should apply custom obsolescence rules", async () => {
         const executedOps: string[] = [];
 
-        // Queue operation with custom obsolescence rule
-        queueManager.queueOperation(
+        const first = queueManager.queueOperation(
             "render-update",
-            async () => {
-                await new Promise((resolve) => setTimeout(resolve, 50));
+            () => {
                 executedOps.push("render-1");
             },
-            {
-                description: "Render update 1",
-            },
+            { description: "Render update 1" },
         );
 
-        // Queue another operation with custom rule to obsolete specific renders
-        queueManager.queueOperation(
+        // shouldObsolete is asked about every operation already in the queue
+        const second = queueManager.queueOperation(
             "render-update",
             () => {
                 executedOps.push("render-2");
             },
             {
                 description: "Render update 2",
-                shouldObsolete: (operation) => {
-                    // Custom logic: obsolete all other render-update operations
-                    // Since shouldObsolete is called for existing operations,
-                    // and this is the newest operation, we can obsolete all
-                    // other operations of the same category
-                    return operation.category === "render-update";
-                },
+                shouldObsolete: (operation) => operation.category === "render-update",
             },
         );
 
         await queueManager.waitForCompletion();
 
-        // One render should be obsoleted by the custom rule
-        obsoletedEvents.find((e) => e.category === "render-update");
-        // At least render-2 should execute
-        assert.include(executedOps, "render-2");
+        assert.deepEqual(obsoletedEvents, [{ id: first, category: "render-update", obsoletedBy: second }]);
+        assert.deepEqual(executedOps, ["render-2"], "the obsoleted body never ran");
+        assert.notInclude(startedOperations, first);
     });
 
-    it("should track running vs queued operations separately", async () => {
+    it("should obsolete queued operations and spare a running one with skipRunning", async () => {
+        const started = gate();
+        const release = gate();
         const executedOps: string[] = [];
-        const queuedOps: string[] = [];
 
-        // Start a long-running operation
-        queueManager.queueOperation(
-            "data-add",
-            async (context) => {
-                executedOps.push("running-data-add");
-                context.progress.setProgress(50);
-                await new Promise((resolve) => setTimeout(resolve, 100));
-                context.progress.setProgress(100);
+        // A running operation of a category the later operation obsoletes
+        const runningId = queueManager.queueOperation(
+            "algorithm-run",
+            async () => {
+                started.open();
+                await release.promise;
+                executedOps.push("running-algorithm");
             },
-            { description: "Currently running data operation" },
+            { description: "Currently running algorithm" },
         );
 
-        // Wait for it to start
-        await eventManager.waitFor("operation-start");
+        await started.promise;
 
-        // Queue more operations while first is running
-        queueManager.queueOperation(
+        // Queued behind it, and also of an obsoleted category
+        const queuedId = queueManager.queueOperation(
             "layout-update",
             () => {
-                queuedOps.push("queued-layout");
+                executedOps.push("queued-layout");
             },
             { description: "Queued layout operation" },
         );
 
-        queueManager.queueOperation(
-            "algorithm-run",
-            () => {
-                queuedOps.push("queued-algorithm");
-            },
-            { description: "Queued algorithm operation" },
-        );
-
-        // The implementation should track these separately
-        // and be able to obsolete queued operations without affecting running ones
-
-        // Queue an operation that obsoletes queued operations
-        queueManager.queueOperation(
+        const removeId = queueManager.queueOperation(
             "data-remove",
             () => {
                 executedOps.push("data-remove");
@@ -215,67 +187,52 @@ describe("Obsolescence Rules", () => {
                 description: "Remove data",
                 obsoletes: ["layout-update", "algorithm-run"],
                 skipRunning: true, // Only obsolete queued operations
+                skipTriggers: true,
             },
         );
 
+        release.open();
         await queueManager.waitForCompletion();
 
-        // Running operation should complete
-        assert.include(executedOps, "running-data-add");
-        // Obsoleting operation should complete
-        assert.include(executedOps, "data-remove");
-        // Queued operations may be obsoleted
+        assert.deepEqual(obsoletedEvents, [{ id: queuedId, category: "layout-update", obsoletedBy: removeId }]);
+        assert.deepEqual(executedOps, ["running-algorithm", "data-remove"]);
+        assert.include(completedOperations, runningId);
     });
 
     it("should allow conditional obsolescence with shouldObsolete", async () => {
         const results: string[] = [];
 
-        // Queue multiple operations
-        queueManager.queueOperation(
+        const nodeStyles = queueManager.queueOperation(
             "style-apply",
-            async () => {
-                await new Promise((resolve) => setTimeout(resolve, 20));
+            () => {
                 results.push("style-1");
             },
-            {
-                description: "Apply styles to nodes",
-                nodeSelector: ".class-a",
-            },
+            { description: "Apply styles to nodes", nodeSelector: ".class-a" },
         );
 
         queueManager.queueOperation(
             "style-apply",
-            async () => {
-                await new Promise((resolve) => setTimeout(resolve, 20));
+            () => {
                 results.push("style-2");
             },
-            {
-                description: "Apply styles to edges",
-                edgeSelector: ".class-b",
-            },
+            { description: "Apply styles to edges", edgeSelector: ".class-b" },
         );
 
-        // Queue operation with conditional obsolescence
-        queueManager.queueOperation(
+        const global = queueManager.queueOperation(
             "style-apply",
             () => {
                 results.push("style-3");
             },
             {
                 description: "Apply global styles",
-                shouldObsolete: (operation) => {
-                    // Only obsolete style operations for nodes
-                    return operation.category === "style-apply" && operation.metadata?.nodeSelector !== undefined;
-                },
+                shouldObsolete: (operation) =>
+                    operation.category === "style-apply" && operation.metadata?.nodeSelector !== undefined,
             },
         );
 
         await queueManager.waitForCompletion();
 
-        // style-3 should complete
-        assert.include(results, "style-3");
-        // style-2 (edge styles) should complete as it wasn't obsoleted
-        assert.include(results, "style-2");
-        // style-1 (node styles) might be obsoleted
+        assert.deepEqual(obsoletedEvents, [{ id: nodeStyles, category: "style-apply", obsoletedBy: global }]);
+        assert.deepEqual(results, ["style-2", "style-3"]);
     });
 });

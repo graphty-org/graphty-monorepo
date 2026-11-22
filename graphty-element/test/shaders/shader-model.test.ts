@@ -20,6 +20,7 @@ import { shaderTemplate } from "../../src/catalog/shaderTemplate";
 import { formatShaderText, parseShaderText } from "../../src/catalog/shaderText";
 import { isGraphtyError } from "../../src/errors";
 import { createGraphSession } from "../../src/session";
+import { dispatcherOf } from "../../src/session/dispatchers";
 import { SHADER_PRESETS } from "../../src/shaders/presets";
 import { SHADER_PRESET_BODIES, SHADER_PRESET_LOW_DETAIL } from "../../src/shaders/presets/bodies";
 import { defineShader } from "../../src/simple/defineShader";
@@ -43,9 +44,10 @@ const EDGE_BODY = "vec4 shade(EdgeInput e) { return e.color; }\n";
 
 describe("every preset round-trips through shader text", () => {
     // Pasted text may not take a bare id, so each preset is written under a namespaced copy of its
-    // id, as "Duplicate" writes it; every other fact must come back unchanged.
+    // id, as "Duplicate" writes it; every other fact must come back unchanged. Search tags are
+    // catalog data, kept out of the text.
     it.each(SHADER_PRESETS.map((preset) => [preset.id, preset] as const))("%s", async (id, preset) => {
-        const { origin: _origin, ...facts } = preset;
+        const { origin: _origin, tags: _tags, ...facts } = preset;
         const descriptor = { ...facts, id: `element/${id}` };
         const low = Object.hasOwn(SHADER_PRESET_LOW_DETAIL, id) ? await SHADER_PRESET_LOW_DETAIL[id]() : undefined;
         const registration: ShaderRegistration = {
@@ -273,6 +275,48 @@ describe("registering", () => {
         const session = createGraphSession();
         assert.deepEqual(session.shaders.status("acme/broken").state, "failed");
         assert.strictEqual(session.shaders.status("acme/broken").problem?.code, "shader.entry-missing");
+        session.dispose();
+    });
+
+    it("counts a layer naming a shader whose body is still loading as owed until it lands (#7970)", async () => {
+        let release: (body: string) => void = () => undefined;
+        defineShader({
+            id: "acme/slow",
+            target: "node",
+            glsl: () =>
+                new Promise<string>((resolve) => {
+                    release = resolve;
+                }),
+        });
+        const session = createGraphSession();
+        const dispatcher = dispatcherOf(session);
+        const added = Promise.resolve(
+            session.styles.add({
+                name: "Slow",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.shaders": [{ shader: "acme/slow" }] },
+            }),
+        );
+        let settled = false;
+        const waited = dispatcher.waitersSettled().then((value) => {
+            settled = true;
+            return value;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        // The write is off the queue while the body loads: a settle wait must not stop here.
+        assert.isTrue(dispatcher.hasWaiters, "the loading write is owed");
+        assert.isFalse(settled, "waitersSettled waits for the loading write");
+
+        release(NODE_BODY);
+        assert.isTrue(await waited);
+        await added;
+        assert.isFalse(dispatcher.hasWaiters);
+        assert.include(
+            session.styles.list().map((layer) => layer.name),
+            "Slow",
+        );
         session.dispose();
     });
 

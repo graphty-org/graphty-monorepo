@@ -23,7 +23,6 @@ import {
 import {
     accountRefusalOf,
     isTransientFailure,
-    type LlmRegressionResult,
     LlmRegressionTestHarness,
     RecordingEngine,
     type RequestFailure,
@@ -32,13 +31,6 @@ import {
 
 describe("LlmRegressionTestHarness", () => {
     describe("Environment Utilities", () => {
-        it("getLlmRegressionApiKey returns undefined when not set", () => {
-            // This test will pass when API key is not set
-            // and will still work when it is set (just returns the key)
-            const key = getLlmRegressionApiKey();
-            assert.ok(key === undefined || typeof key === "string");
-        });
-
         describe("provider selection", () => {
             afterEach(() => {
                 vi.unstubAllEnvs();
@@ -88,11 +80,6 @@ describe("LlmRegressionTestHarness", () => {
             });
         });
 
-        it("isLlmRegressionEnabled returns boolean", () => {
-            const enabled = isLlmRegressionEnabled();
-            assert.strictEqual(typeof enabled, "boolean");
-        });
-
         it("skipIfNoApiKey returns inverse of isLlmRegressionEnabled", () => {
             const skip = skipIfNoApiKey();
             const enabled = isLlmRegressionEnabled();
@@ -102,13 +89,6 @@ describe("LlmRegressionTestHarness", () => {
         it("getSkipReason returns descriptive message", () => {
             const reason = getSkipReason();
             assert.ok(reason.includes(getLlmRegressionKeyVariable()));
-        });
-
-        it("getLlmRegressionModel returns gpt-4o-mini by default", () => {
-            const model = getLlmRegressionModel();
-            // Either returns default or custom value if env var is set
-            assert.ok(typeof model === "string");
-            assert.ok(model.length > 0);
         });
     });
 
@@ -155,11 +135,6 @@ describe("LlmRegressionTestHarness", () => {
             assert.ok(harness.getGraph());
         });
 
-        it("configures the selected provider from environment", () => {
-            // If we got here, the harness was created successfully with the API key
-            assert.ok(harness);
-        });
-
         it("tracks tool calls made during execution", async () => {
             const result = await harness.testPrompt("How many nodes are there?");
 
@@ -168,24 +143,6 @@ describe("LlmRegressionTestHarness", () => {
             if (result.toolWasCalled) {
                 assert.strictEqual(typeof result.toolName, "string");
                 assert.ok(result.toolParams !== null);
-            }
-        });
-
-        it("measures latency for each prompt", async () => {
-            const result = await harness.testPrompt("How many nodes are there?");
-
-            assert.ok(result.latencyMs > 0);
-            assert.strictEqual(typeof result.latencyMs, "number");
-        });
-
-        it("captures token usage from responses", async () => {
-            const result = await harness.testPrompt("How many nodes are there?");
-
-            // Token usage may or may not be present depending on model response
-            if (result.tokenUsage) {
-                assert.strictEqual(typeof result.tokenUsage.prompt, "number");
-                assert.strictEqual(typeof result.tokenUsage.completion, "number");
-                assert.ok(result.tokenUsage.prompt > 0);
             }
         });
 
@@ -308,68 +265,6 @@ describe("LlmRegressionTestHarness", () => {
         });
     });
 
-    describe("Result Structure Validation", () => {
-        it("LlmRegressionResult interface matches expected structure", () => {
-            // Create a mock result to verify the interface
-            const mockResult: LlmRegressionResult = {
-                prompt: "test prompt",
-                toolWasCalled: true,
-                toolCalls: [{ name: "testTool", arguments: { param1: "value1" } }],
-                toolName: "testTool",
-                toolParams: { param1: "value1" },
-                commandResult: { success: true, message: "done" },
-                llmText: "Some response text",
-                latencyMs: 1500,
-                tokenUsage: { prompt: 100, completion: 50 },
-            };
-
-            assert.strictEqual(mockResult.prompt, "test prompt");
-            assert.strictEqual(mockResult.toolWasCalled, true);
-            assert.strictEqual(mockResult.toolName, "testTool");
-            assert.deepStrictEqual(mockResult.toolParams, { param1: "value1" });
-            assert.strictEqual(mockResult.commandResult?.success, true);
-            assert.strictEqual(mockResult.llmText, "Some response text");
-            assert.strictEqual(mockResult.latencyMs, 1500);
-            assert.strictEqual(mockResult.tokenUsage?.prompt, 100);
-            assert.strictEqual(mockResult.tokenUsage?.completion, 50);
-        });
-
-        it("supports null values for optional fields", () => {
-            const mockResult: LlmRegressionResult = {
-                prompt: "test",
-                toolWasCalled: false,
-                toolCalls: [],
-                toolName: null,
-                toolParams: null,
-                commandResult: null,
-                llmText: null,
-                latencyMs: 500,
-            };
-
-            assert.strictEqual(mockResult.toolName, null);
-            assert.strictEqual(mockResult.toolParams, null);
-            assert.strictEqual(mockResult.commandResult, null);
-            assert.strictEqual(mockResult.llmText, null);
-        });
-    });
-
-    describe("TestGraphFixture Interface", () => {
-        it("supports custom node and edge data", () => {
-            const fixture: TestGraphFixture = {
-                nodes: [
-                    { id: "1", data: { type: "server", name: "web-01" } },
-                    { id: "2", data: { type: "database", name: "db-01" } },
-                ],
-                edges: [{ source: "1", target: "2", data: { weight: 0.8 } }],
-            };
-
-            assert.strictEqual(fixture.nodes.length, 2);
-            assert.strictEqual(fixture.edges.length, 1);
-            assert.strictEqual(fixture.nodes[0].data.type, "server");
-            assert.strictEqual(fixture.edges[0].data.weight, 0.8);
-        });
-    });
-
     describe("Harness Disposal", () => {
         it("dispose does not throw", async () => {
             // Skip if no API key
@@ -452,20 +347,6 @@ describe("LlmRegressionTestHarness", () => {
         });
     });
 
-    describe("Skip Behavior", () => {
-        it("skips tests gracefully when API key not available", () => {
-            // This test documents the skip behavior
-            const shouldSkip = skipIfNoApiKey();
-
-            if (shouldSkip) {
-                // When we reach here without API key, skipIf would skip the test
-                // We just verify the skip function returns true correctly
-                assert.strictEqual(isLlmRegressionEnabled(), false);
-            } else {
-                assert.strictEqual(isLlmRegressionEnabled(), true);
-            }
-        });
-    });
     describe("a 400 on a message's first request (#4220)", () => {
         /**
          * Gemini's 400 as the engine reports it.
@@ -525,6 +406,119 @@ describe("LlmRegressionTestHarness", () => {
             assert.match(thrown.message, /failed before any tool ran: Request contains an invalid argument/);
             assert.strictEqual(turn.mock.calls.length, 2);
             harness.dispose();
+        });
+    });
+
+    describe("retrying a failed request", () => {
+        /**
+         * A rate limit as the engine reports it.
+         * @yields The error.
+         */
+        async function* rateLimited(): AsyncGenerator<TurnEvent> {
+            yield await Promise.resolve({
+                type: "error",
+                code: "AI_PROVIDER_ERROR",
+                params: { provider: "google", status: 429 },
+                cause: new Error("Resource has been exhausted."),
+            });
+        }
+        async function* answer(): AsyncGenerator<TurnEvent> {
+            yield await Promise.resolve({ type: "text", delta: "There are 5 nodes." });
+            yield { type: "finish", reason: "stop" };
+        }
+
+        beforeEach(() => {
+            vi.stubEnv(getLlmRegressionKeyVariable(), "test-key");
+        });
+
+        afterEach(() => {
+            vi.unstubAllEnvs();
+            vi.restoreAllMocks();
+            vi.useRealTimers();
+        });
+
+        /**
+         * Send one prompt and keep what it threw.
+         * @param retryOptions - The retry options, if any.
+         * @returns The result or the error.
+         */
+        async function send(retryOptions?: Parameters<LlmRegressionTestHarness["testPrompt"]>[2]) {
+            const harness = await LlmRegressionTestHarness.create();
+            try {
+                return await harness.testPrompt("How many nodes are there?", undefined, retryOptions);
+            } catch (error) {
+                return error;
+            } finally {
+                harness.dispose();
+            }
+        }
+
+        it("asks once and fails with maxRetries 0", async () => {
+            const turn = vi.spyOn(ProviderApiEngine.prototype, "turn").mockImplementation(rateLimited);
+
+            const thrown = await send({ maxRetries: 0 });
+
+            assert.strictEqual(turn.mock.calls.length, 1);
+            assert.ok(thrown instanceof Error);
+            assert.match(thrown.message, /failed before any tool ran: Resource has been exhausted/);
+        });
+
+        it("asks maxRetries more times, then fails", async () => {
+            const turn = vi.spyOn(ProviderApiEngine.prototype, "turn").mockImplementation(rateLimited);
+
+            const thrown = await send({ maxRetries: 2 });
+
+            assert.strictEqual(turn.mock.calls.length, 3);
+            assert.ok(thrown instanceof Error);
+            assert.match(thrown.message, /failed before any tool ran: Resource has been exhausted/);
+        });
+
+        it("returns the answer of the first retry that succeeds", async () => {
+            const turn = vi
+                .spyOn(ProviderApiEngine.prototype, "turn")
+                .mockImplementationOnce(rateLimited)
+                .mockImplementationOnce(rateLimited)
+                .mockImplementationOnce(answer);
+
+            const result = await send({ maxRetries: 2 });
+
+            assert.strictEqual(turn.mock.calls.length, 3);
+            assert.ok(!(result instanceof Error));
+            assert.strictEqual((result as { llmText: string | null }).llmText, "There are 5 nodes.");
+        });
+
+        it("does not ask again when retryOn rejects the failure", async () => {
+            const turn = vi.spyOn(ProviderApiEngine.prototype, "turn").mockImplementation(rateLimited);
+            const seen: (number | undefined)[] = [];
+
+            const thrown = await send({
+                maxRetries: 2,
+                retryOn: (failure) => {
+                    seen.push(failure.params?.status as number | undefined);
+                    return false;
+                },
+            });
+
+            assert.strictEqual(turn.mock.calls.length, 1);
+            assert.deepStrictEqual(seen, [429]);
+            assert.ok(thrown instanceof Error);
+        });
+
+        it("reports the message's latency and the engine's token usage", async () => {
+            vi.useFakeTimers({ toFake: ["Date"] });
+            vi.spyOn(ProviderApiEngine.prototype, "turn").mockImplementation(async function* () {
+                vi.setSystemTime(Date.now() + 250);
+                yield await Promise.resolve<TurnEvent>({ type: "text", delta: "There are 5 nodes." });
+                yield { type: "usage", inputTokens: 12, outputTokens: 3 };
+                yield { type: "finish", reason: "stop" };
+            });
+
+            const result = await send();
+
+            assert.ok(!(result instanceof Error));
+            const { latencyMs, tokenUsage } = result as { latencyMs: number; tokenUsage?: unknown };
+            assert.strictEqual(latencyMs, 250);
+            assert.deepStrictEqual(tokenUsage, { prompt: 12, completion: 3 });
         });
     });
 });

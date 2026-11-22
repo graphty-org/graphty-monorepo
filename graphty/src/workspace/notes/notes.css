@@ -1,0 +1,35 @@
+/* The note list: compact rows, each closed by a divider, as the other data lists draw theirs. */
+.nt-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.nt-note {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 16px;
+    border-bottom: 1px solid var(--cm-border);
+}
+
+.nt-note-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/* The targets on the left, when and Delete on the right; the targets wrap before the time does. */
+.nt-note-foot {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.nt-note-foot > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.nt-note-foot > :not(:first-child) {
+    flex: none;
+}

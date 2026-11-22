@@ -68,8 +68,11 @@ export type CodedFactParam = string | number | boolean | null | readonly (string
 export interface CodedFact<Code extends string = string> {
     /** What kind of fact this is. Stable: a code is renamed or removed only in a major release. */
     readonly code: Code;
-    /** The values the fact is about, by name. Each code documents its own names. */
-    readonly params: Readonly<Record<string, CodedFactParam>>;
+    /**
+     * The values the fact is about, by name. Each code documents its own names; a name a code
+     * marks optional is absent when it does not apply, so read it as possibly `undefined`.
+     */
+    readonly params: Readonly<Partial<Record<string, CodedFactParam>>>;
 }
 
 /**
@@ -88,9 +91,12 @@ export interface ProgressChange {
      * a load: a first change before anything is read, the rows read so far, and an end with its
      * `outcome`.
      *
+     * `"asset"` is a model or picture being read by `session.assets` (`AddAssetOptions.onProgress`),
+     * counted in bytes.
+     *
      * OPEN UNION: later releases add tasks. Show a generic bar for one you do not know.
      */
-    readonly task: "load" | "prepare" | "run";
+    readonly task: "load" | "prepare" | "run" | "asset";
     /** The run, when `task` is `"run"`. */
     readonly run?: RunId;
     /** Whether the work is still going, or has stopped. */
@@ -113,7 +119,12 @@ export interface ProgressChange {
      * What is being read, on every change of a load or a prepare: the name the source was given or its file's
      * name or URL's last part, and the URL when it was read from one. Absent for a run.
      */
-    readonly source?: { readonly name?: string; readonly url?: string };
+    readonly source?: {
+        /** The source's name, its file's name, or its URL's last part. */
+        readonly name?: string;
+        /** The URL it was read from, when it was read from one. */
+        readonly url?: string;
+    };
     /**
      * How a load or a prepare stopped, on its `phase: "end"` change only.
      *
@@ -125,5 +136,24 @@ export interface ProgressChange {
      * carried a code: the code and the details the rejection carries (for `E_TOO_LARGE`, its
      * `limit`, `count` and `of`).
      */
-    readonly error?: { readonly code: string; readonly details: Readonly<Record<string, unknown>> };
+    readonly error?: {
+        /** The error code the rejection carried. */
+        readonly code: string;
+        /** The details the rejection carried. */
+        readonly details: Readonly<Record<string, unknown>>;
+    };
+    /**
+     * For an `"asset"` change: which step is under way, `"downloading"` a URL, `"reading"` files
+     * or `"unpacking"` a zip, and the file being read, by its name in the set.
+     *
+     * OPEN UNION: later releases may add stages.
+     */
+    readonly asset?: {
+        /** The step under way. */
+        readonly stage: "downloading" | "reading" | "unpacking";
+        /** The file being read, by its name in the set. */
+        readonly part?: string;
+    };
+    /** What `completed` and `total` count, when it is not records or rows: `"bytes"` for an asset. */
+    readonly unit?: "bytes";
 }

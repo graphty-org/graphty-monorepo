@@ -3,7 +3,7 @@
 
 import type { Cell, Fact, Section, TableRow } from "../../web/src/contract.js";
 import { isJob } from "../collector/jobs.js";
-import { readBenches, sameMachine, trend } from "../model/benchmarks.js";
+import { sameMachine, trend } from "../model/benchmarks.js";
 import { readSnapshot } from "../model/snapshots.js";
 import { iso, type Reads } from "./members.js";
 import { notCollected } from "./sections.js";
@@ -111,7 +111,7 @@ export async function nonGatingTable(reads: Reads): Promise<Section> {
  * @returns the benchmark trends table, or an empty section when there are no results
  */
 export async function benchmarksTable(reads: Reads): Promise<Section> {
-    const benches = await readBenches(reads.store, reads.now);
+    const benches = await reads.benches();
     if (!benches.length) {
         return { kind: "empty", id: "benchmarks", fact: f("ci.no_benchmarks") };
     }

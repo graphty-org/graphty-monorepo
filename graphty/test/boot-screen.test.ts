@@ -4,11 +4,13 @@
  */
 import { readFileSync } from "node:fs";
 
-import { type Browser, type BrowserContext, chromium, type Page } from "playwright";
+import { type Browser, type BrowserContext, chromium, type Page, webkit } from "playwright";
 import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 
 const HTML = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const ORIGIN = "https://boot.test/";
+// CI installs Chromium only; BOOT_SCREEN_BROWSER=webkit runs the same tests in Safari's engine.
+const WEBKIT = process.env.BOOT_SCREEN_BROWSER === "webkit";
 
 let browser: Browser;
 let context: BrowserContext;
@@ -55,6 +57,38 @@ const say = (detail: Record<string, unknown>): Promise<void> =>
 const logText = async (): Promise<string> => (await log().textContent()) ?? "";
 const reload = (): ReturnType<Page["locator"]> => page.getByRole("button", { name: "Reload" });
 
+const color = (target: ReturnType<Page["locator"]>): Promise<string> =>
+    target.evaluate((el) => getComputedStyle(el).color);
+/**
+ * How much of its track a bar's fill covers, as the reader sees it.
+ * @param meter - the bar.
+ * @returns between 0 and 1.
+ */
+const filled = (meter: ReturnType<Page["locator"]>): Promise<number> =>
+    meter.evaluate((el) => {
+        const fill = el.querySelector(".fill");
+        return fill ? fill.getBoundingClientRect().width / el.getBoundingClientRect().width : -1;
+    });
+/**
+ * Waits until a bar's fill covers a share of its track, once its width has stopped sliding there.
+ * @param meter - the bar.
+ * @param share - between 0 and 1.
+ */
+async function fillsTo(meter: ReturnType<Page["locator"]>, share: number): Promise<void> {
+    const el = await meter.elementHandle();
+    await page.waitForFunction(
+        ([bar, want]) => {
+            const fill = bar?.querySelector(".fill");
+            return Boolean(
+                bar &&
+                fill &&
+                Math.abs(fill.getBoundingClientRect().width / bar.getBoundingClientRect().width - want) < 0.02,
+            );
+        },
+        [el, share] as const,
+    );
+}
+
 const selection = (): Promise<string> => page.evaluate(() => getSelection()?.toString() ?? "");
 
 /**
@@ -79,7 +113,7 @@ async function logSays(text: string): Promise<void> {
 }
 
 beforeAll(async () => {
-    browser = await chromium.launch();
+    browser = await (WEBKIT ? webkit : chromium).launch();
 });
 afterAll(async () => {
     await browser.close();
@@ -264,6 +298,122 @@ describe("the loading screen's log", () => {
         assert.isTrue(await step("entry script ran").locator(".meter").isVisible());
         assert.strictEqual(await step("entry script ran").getAttribute("class"), "step is-failed");
         assert.strictEqual(await step("entry script loaded").getAttribute("class"), "step is-done");
+        assert.strictEqual(await color(step("entry script ran")), "rgb(201, 42, 42)");
+        assert.strictEqual(await color(step("entry script loaded")), "rgb(43, 122, 54)");
+    });
+
+    it("puts the app's console warnings and errors under their step, yellow and red", async () => {
+        if (!WEBKIT) {
+            await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+        }
+        await serve(
+            page,
+            'console.warn("%s could not be read", "/site.json"); console.error("render went wrong"); ' +
+                'document.dispatchEvent(new CustomEvent("graphty-boot", { detail: { hold: true } }));',
+        );
+        await open(page);
+        await triangle().click();
+        await logSays("render went wrong");
+
+        const warning = page.locator("#boot-log .warn");
+        const error = page.locator("#boot-log .error");
+        assert.strictEqual(await warning.textContent(), "WARN /site.json could not be read");
+        assert.include(
+            await warning.evaluate((el) => el.previousElementSibling?.textContent ?? ""),
+            "entry script ran",
+        );
+        assert.strictEqual(await error.evaluate((el) => el.previousElementSibling?.className), "warn");
+        assert.strictEqual(await color(warning), "rgb(138, 90, 0)");
+        assert.strictEqual(await color(error), "rgb(201, 42, 42)");
+        assert.strictEqual(await color(page.locator("#boot-log .detail").first()), "rgb(95, 102, 122)");
+        assert.isFalse(await reload().isVisible());
+
+        await page.emulateMedia({ colorScheme: "dark" });
+        assert.strictEqual(await color(warning), "rgb(255, 212, 59)");
+        assert.strictEqual(await color(error), "rgb(255, 135, 135)");
+
+        await copy().click();
+        await page.getByRole("button", { name: "Copied" }).waitFor();
+        if (!WEBKIT) {
+            const lines = (await page.evaluate(() => navigator.clipboard.readText())).split("\n");
+            const at = lines.findIndex((l) => /^\[\w+\]\s+entry script ran/.test(l));
+            assert.strictEqual(lines[at + 1], "    WARN /site.json could not be read");
+            assert.strictEqual(lines[at + 2], "    ERROR render went wrong");
+        }
+    });
+});
+
+describe("a step that loads known files", () => {
+    const FILES = { "entry script loaded": { "/assets/big.js": 300, "/assets/small.js": 100 } };
+    const HTML_WITH_FILES = HTML.replace(
+        "</head>",
+        `<script type="application/json" id="graphty-boot-files">${JSON.stringify(FILES)}</script>` +
+            '<link rel="modulepreload" href="/assets/big.js" /><link rel="modulepreload" href="/assets/small.js" />' +
+            "</head>",
+    );
+
+    /**
+     * A file the test lets through when it says so.
+     * @returns the gate: open lets the file arrive.
+     */
+    function gate(): { open: () => void; shut: Promise<void> } {
+        let open = (): void => undefined;
+        const shut = new Promise<void>((resolve) => {
+            open = resolve;
+        });
+        return { open, shut };
+    }
+
+    it("fills its bar by the share of its files that has arrived, by size", async () => {
+        if (!WEBKIT) {
+            await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+        }
+        const gates: Record<string, ReturnType<typeof gate>> = {
+            "/assets/big.js": gate(),
+            "/assets/small.js": gate(),
+        };
+        page.setDefaultTimeout(0);
+        await page.route(`${ORIGIN}**`, async (route) => {
+            const path = new URL(route.request().url()).pathname;
+            if (path === "/") {
+                await route.fulfill({ contentType: "text/html", body: HTML_WITH_FILES });
+            } else if (path in gates) {
+                await gates[path].shut;
+                await route.fulfill({ contentType: "text/javascript", body: "export {};" });
+            }
+            // The entry script never answers.
+        });
+        await open(page);
+        await triangle().click();
+        const entry = step("entry script loaded");
+        const time = entry.locator(".time");
+        await logSays("0%");
+        assert.strictEqual(await filled(entry.locator(".meter")), 0);
+
+        gates["/assets/small.js"].open();
+
+        await page.waitForFunction(() => document.getElementById("boot-log")?.textContent.includes("25%"));
+        await fillsTo(entry.locator(".meter"), 0.25);
+        assert.match((await time.textContent()) ?? "", /^25%\s/);
+        // The bar under the logo counts the finished steps and a quarter of this one: 2.25 of 10.
+        await fillsTo(page.locator("#boot .bar"), 0.225);
+        await copy().click();
+        await page.getByRole("button", { name: "Copied" }).waitFor();
+        if (!WEBKIT) {
+            const copied = await page.evaluate(() => navigator.clipboard.readText());
+            assert.match(copied, /^\[running\]\s+entry script loaded {2}\S+ m?s {2}25% \(1 of 2 files\)$/m);
+        }
+
+        gates["/assets/big.js"].open();
+
+        await page.waitForFunction(() => document.getElementById("boot-log")?.textContent.includes("100%"));
+        await fillsTo(entry.locator(".meter"), 1);
+
+        await say({ line: "entry script loaded" });
+
+        await page.locator("#boot-log .is-done", { hasText: "entry script loaded" }).waitFor();
+        assert.notInclude((await time.textContent()) ?? "", "%");
+        await fillsTo(entry.locator(".meter"), 1);
     });
 });
 
@@ -288,7 +438,9 @@ describe("on a short phone screen", () => {
 
 describe("the steps in the list", () => {
     beforeEach(async () => {
-        await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+        if (!WEBKIT) {
+            await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+        }
         await serve(page, null);
         await open(page);
         await triangle().click();
@@ -306,11 +458,27 @@ describe("the steps in the list", () => {
         const running = step("entry script loaded");
         assert.strictEqual(await running.getAttribute("class"), "step is-running");
         assert.isTrue(await running.locator(".meter").isVisible());
+        // Nothing measures it here, so an empty track rather than an invented amount.
+        assert.strictEqual(await filled(running.locator(".meter")), 0);
+        assert.notInclude((await running.locator(".time").textContent()) ?? "", "%");
+        assert.strictEqual(await filled(done.locator(".meter")), 1);
 
         const waiting = step("React first commit");
         assert.isTrue(await waiting.locator(".name").isVisible());
         assert.isTrue(await waiting.locator(".meter").isHidden());
         assert.isTrue(await waiting.locator(".time").isHidden());
+    });
+
+    it("colors finished rows green, the running row as text and not started rows grey", async () => {
+        assert.strictEqual(await color(step("screen drawn")), "rgb(43, 122, 54)");
+        assert.strictEqual(await color(step("entry script loaded")), "rgb(42, 48, 69)");
+        assert.strictEqual(await color(step("React first commit")), "rgb(95, 102, 122)");
+
+        await page.emulateMedia({ colorScheme: "dark" });
+
+        assert.strictEqual(await color(step("screen drawn")), "rgb(105, 219, 124)");
+        assert.strictEqual(await color(step("entry script loaded")), "rgb(213, 218, 230)");
+        assert.strictEqual(await color(step("React first commit")), "rgb(138, 146, 166)");
     });
 
     it("counts a running step up, then stops its timer when it finishes", async () => {
@@ -370,7 +538,8 @@ describe("the steps in the list", () => {
         assert.strictEqual(await step("frame code loaded").getAttribute("class"), "step is-failed");
     });
 
-    it("copies every line with a click anywhere on the list", async () => {
+    // WebKit lets a page write the clipboard but never read it back.
+    it.skipIf(WEBKIT)("copies every line with a click anywhere on the list", async () => {
         await page.evaluate(() => {
             void Promise.reject(new Error("went wrong"));
         });
@@ -391,7 +560,8 @@ describe("the steps in the list", () => {
         assert.isTrue(lines.some((l) => /^time: \d{4}-/.test(l)));
     });
 
-    it("copies from the keyboard", async () => {
+    // WebKit lets a page write the clipboard but never read it back.
+    it.skipIf(WEBKIT)("copies from the keyboard", async () => {
         await page.evaluate(() => {
             void navigator.clipboard.writeText("before");
         });
@@ -405,7 +575,8 @@ describe("the steps in the list", () => {
         assert.include(await clipboard(), "graphty loading log");
     });
 
-    it("does not copy when a drag selects text", async () => {
+    // WebKit lets a page write the clipboard but never read it back.
+    it.skipIf(WEBKIT)("does not copy when a drag selects text", async () => {
         await page.evaluate(() => navigator.clipboard.writeText("before"));
 
         await dragAcross(step("screen drawn").locator(".name"));
@@ -415,7 +586,8 @@ describe("the steps in the list", () => {
         assert.strictEqual(await copy().textContent(), "Copy");
     });
 
-    it("keeps credentials out of the copied text", async () => {
+    // WebKit lets a page write the clipboard but never read it back.
+    it.skipIf(WEBKIT)("keeps credentials out of the copied text", async () => {
         await page.evaluate(() => {
             void Promise.reject(new Error("GET /a?sig=SECRET token=SECRET"));
         });

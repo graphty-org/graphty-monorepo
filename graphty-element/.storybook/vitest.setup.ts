@@ -49,7 +49,7 @@
 
 import { Logger } from "@babylonjs/core";
 import { setProjectAnnotations } from "@storybook/web-components-vite";
-import { afterEach, assert } from "vitest";
+import { afterEach, assert, vi } from "vitest";
 
 import type { Graphty } from "../src/graphty-element";
 import {
@@ -58,9 +58,16 @@ import {
     paintOf,
     strandedOnBootstrap,
 } from "../test/helpers/paint-assertions";
-import { click, hover } from "../test/helpers/real-input";
+import { click, doubleClick, hover, press, release } from "../test/helpers/real-input";
 import * as projectAnnotations from "./preview";
 import { operationQueueOf } from "../src/Graph";
+
+// Real input for every play function's `userEvent` (vitest.real-user-event.mjs at the root): Playwright drives
+// the browser, as a reader's mouse and keyboard do. Storybook's own UI and a capture keep its replay.
+vi.mock("storybook/test", async (importOriginal) => {
+    const { withRealUserEvent } = await import("../../vitest.real-user-event.mjs");
+    return withRealUserEvent(await importOriginal(), (await import("vitest/browser")).userEvent);
+});
 
 // Strict state: every session created in these tests checks that project state changes only
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
@@ -303,6 +310,6 @@ setProjectAnnotations([
     projectAnnotations,
     {
         afterEach: assertStoryDrewWhatItAskedFor,
-        parameters: capture ? {} : { realInput: { click, hover } },
+        parameters: capture ? {} : { realInput: { click, doubleClick, hover, press, release } },
     },
 ]);

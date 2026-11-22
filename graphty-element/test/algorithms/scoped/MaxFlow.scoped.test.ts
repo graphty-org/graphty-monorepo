@@ -1,81 +1,51 @@
 /**
- * @file max-flow over a scope: a listed scope, a multigraph, and capacities read from the store's
- * capacity column at the scope's edges (design/sets/sets-design.md 10.1).
+ * @file max-flow over a scope: a listed scope, a multigraph, and capacities read from the edge
+ * records at the scope's edges (design/sets/sets-design.md 10.1).
  */
 
 import { assert, describe, it } from "vitest";
 
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
-import type { Graph } from "../../../src/Graph";
-import { InputGraph } from "../input/harness";
-import { describeScopedAdapter, runScoped, runWhole } from "./harness";
+import { describeScopedAdapter, runScoped, runWhole, type ScopedGraph, scopedGraph } from "./harness";
 
-describeScopedAdapter("max-flow", (graph: Graph) => new MaxFlowAlgorithm(graph));
-
-/**
- * A graph whose edges carry capacities in the store's capacity column, as a loaded edge does.
- * @param capacities - One per edge, in order.
- * @param graph - The graph.
- * @returns It.
- */
-function withCapacities(capacities: readonly number[], graph: InputGraph): InputGraph {
-    [...graph.edges.values()].forEach((edge, index) => {
-        graph.store.builder.setEdgeValue(graph.store.capacityColumn, edge.index, capacities[index]);
-    });
-    graph.store.touch();
-
-    return graph;
-}
+describeScopedAdapter("max-flow", (graph: AlgorithmHost) => new MaxFlowAlgorithm(graph));
 
 describe("max-flow reads its capacities from the scope's edge records", () => {
-    const flow = (graph: Graph): MaxFlowAlgorithm => new MaxFlowAlgorithm(graph, { source: "s", sink: "t" });
+    const flow = (graph: AlgorithmHost): MaxFlowAlgorithm => new MaxFlowAlgorithm(graph, { source: "s", sink: "t" });
 
     it("a way round through a non-member carries nothing in the scope", async () => {
         // s>t directly at 2, and s>x>t at 5 through x.
-        const whole = withCapacities(
-            [2, 5, 5],
-            new InputGraph(
+        const wayRound = (): Promise<ScopedGraph> =>
+            scopedGraph(
                 ["s", "x", "t"],
                 [
-                    ["s", "t"],
-                    ["s", "x"],
-                    ["x", "t"],
+                    ["s", "t", 1, 2],
+                    ["s", "x", 1, 5],
+                    ["x", "t", 1, 5],
                 ],
                 true,
-            ),
-        );
-        const scoped = withCapacities(
-            [2, 5, 5],
-            new InputGraph(
-                ["s", "x", "t"],
-                [
-                    ["s", "t"],
-                    ["s", "x"],
-                    ["x", "t"],
-                ],
-                true,
-            ),
-        );
+            );
+        const whole = await wayRound();
+        const scoped = await wayRound();
 
         assert.deepInclude((await runWhole(flow, whole))?.graph, { maxFlow: 7 });
         assert.deepInclude((await runScoped(flow, scoped, scoped.scope(["s", "t"])))?.graph, { maxFlow: 2 });
     });
 
     it("parallel edges carry their capacities together", async () => {
-        const graph = withCapacities(
-            [2, 3],
-            new InputGraph(
-                ["s", "t"],
-                [
-                    ["s", "t"],
-                    ["s", "t"],
-                ],
-                true,
-            ),
+        const graph = await scopedGraph(
+            ["s", "t"],
+            [
+                ["s", "t", 1, 2],
+                ["s", "t", 1, 3],
+            ],
+            true,
         );
         const result = await runWhole(flow, graph);
+        const [first] = graph.edges.keys();
 
         assert.deepInclude(result?.graph, { maxFlow: 5 });
-        assert.deepInclude(result?.edge("0"), { value: 5, capacity: 5 });
+        assert.deepInclude(result?.edge(first), { value: 5, capacity: 5 });
     });
 });

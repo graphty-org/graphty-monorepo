@@ -5,10 +5,12 @@ export default {
     file: "test/session/mutation-scaling.test.ts",
     methods: [
         "RunsApi.move",
+        "RunsApi.rename",
         "SessionDataApi.generate",
         "SessionDataApi.loadDataset",
         "SessionShaders.add",
         "SessionShaders.approve",
+        "SessionShaders.fromCatalog",
         "SessionShaders.remove",
         "SessionShaders.replace",
         "StylesApi.setHighlightColor",

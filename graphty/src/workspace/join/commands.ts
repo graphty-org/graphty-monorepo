@@ -43,6 +43,8 @@ export interface JoinSubject {
     readonly initial: JoinChoices;
     /** One of the app's own samples, for a table added as rows. */
     readonly origin?: "sample";
+    /** The load's `callerKey`, echoed on `source:loaded` however the screen loads it. */
+    readonly callerKey?: string;
     /** The Join button's choice the screen opens with. */
     readonly how: JoinHow;
     /** The element's counts for a set of choices. */
@@ -66,9 +68,9 @@ export interface JoinSubject {
  * @returns the keys.
  */
 export function keysFor(choices: JoinChoices, shape: JoinShape, columns: readonly string[]): JoinKey[] {
-    const first = choices.keys[0]?.file ?? columns[0] ?? "";
+    const first = choices.keys.at(0)?.file ?? columns.at(0) ?? "";
     if (shape === "edges") {
-        const second = choices.keys[1]?.file ?? columns.find((column) => column !== first) ?? first;
+        const second = choices.keys.at(1)?.file ?? columns.find((column) => column !== first) ?? first;
         return [
             { file: first, graph: "id" },
             { file: second, graph: "id" },
@@ -109,6 +111,7 @@ function suggested(draft: LoadDraft): { choices: JoinChoices; how: JoinHow } {
  * @param joining.draft - the draft.
  * @param joining.source - what it was read from.
  * @param joining.origin - "sample" for one of the app's own samples.
+ * @param joining.callerKey - the load's `callerKey`.
  * @param joining.matches - the load holding the same columns, if any.
  * @returns the subject.
  */
@@ -117,10 +120,11 @@ export function draftSubject(joining: {
     readonly draft: LoadDraft;
     readonly source?: DataSourceInput;
     readonly origin?: "sample";
+    readonly callerKey?: string;
     readonly matches?: SourceKey;
 }): JoinSubject {
     const { draft } = joining;
-    const table = draft.tables[0];
+    const table = draft.tables.at(0);
     const { choices, how } = suggested(draft);
     return {
         name: joining.name,
@@ -135,6 +139,7 @@ export function draftSubject(joining: {
         draft,
         ...(joining.source === undefined ? {} : { source: joining.source }),
         ...(joining.origin === undefined ? {} : { origin: joining.origin }),
+        ...(joining.callerKey === undefined ? {} : { callerKey: joining.callerKey }),
         ...(joining.matches === undefined ? {} : { matches: joining.matches }),
     };
 }
@@ -201,7 +206,7 @@ export function replaceTargets(ctx: CommandContext): ReplaceTarget[] {
 }
 
 /**
- * Closes the join screen. Cancelling a file keeps its draft and offers Undo, which opens the
+ * Closes the join screen. Canceling a file keeps its draft and offers Undo, which opens the
  * screen on it again; the draft is let go once the notice goes without Undo.
  * @param ctx - the command context.
  * @param subject - the table, or undefined.
@@ -254,21 +259,26 @@ export async function finishJoin(
 ): Promise<void> {
     const { session, workspace } = ctx;
     const { draft, source, edit } = subject;
+    const callerKey = subject.callerKey === undefined ? {} : { callerKey: subject.callerKey };
     if (session === null) {
         return;
     }
     if (how === "join" && edit !== undefined) {
         await session.data.editJoin(edit, choices);
     } else if (how === "join") {
-        await draft?.load({ join: choices });
+        await draft?.load({ join: choices, ...callerKey });
     } else if (how === "rows") {
-        await draft?.load({ mode: "merge", ...(subject.origin === undefined ? {} : { origin: subject.origin }) });
+        await draft?.load({
+            mode: "merge",
+            ...(subject.origin === undefined ? {} : { origin: subject.origin }),
+            ...callerKey,
+        });
     } else if (how === "replace" && source !== undefined && target !== undefined) {
         draft?.dispose();
-        await replaceWith(workspace, session, target, { name: subject.name, source });
+        await replaceWith(workspace, session, target, { name: subject.name, source, ...callerKey });
     } else if (how === "separate" && source !== undefined) {
         draft?.dispose();
-        openSeparate(workspace, { name: subject.name, source });
+        openSeparate(workspace, { name: subject.name, source, ...callerKey });
     }
     workspace.set({ joining: null, editingJoin: null });
 }

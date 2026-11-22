@@ -46,8 +46,9 @@ import type { Edge } from "../../src/Edge";
 import { CircularLayout } from "../../src/layout/CircularLayoutEngine";
 import { ForceAtlas2Layout } from "../../src/layout/ForceAtlas2LayoutEngine";
 import { KamadaKawaiLayout } from "../../src/layout/KamadaKawaiLayoutEngine";
-import { layoutEngineInternals, type SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
+import { honorsWeights, layoutEngineInternals, type SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /** One edge of a test graph: two node ids and the weight the store will hold for it. */
 type WeightedEdge = readonly [source: string, target: string, weight: number];
@@ -93,7 +94,7 @@ function graphOf(edges: readonly WeightedEdge[]): TestGraph {
 
     const nodes: Node[] = [];
     for (let index = 0; index < snapshot.nodeCount; index++) {
-        nodes.push({ id: String(snapshot.ids.idOf(index)), index, parentGraph } as unknown as Node);
+        nodes.push(fakeNode(String(snapshot.ids.idOf(index)), { index, parentGraph }));
     }
 
     const list = snapshot.edgeList();
@@ -101,14 +102,7 @@ function graphOf(edges: readonly WeightedEdge[]): TestGraph {
     for (let index = 0; index < snapshot.edgeCount; index++) {
         const srcNode = nodes[list.src[index]];
         const dstNode = nodes[list.dst[index]];
-        built.push({
-            srcId: srcNode.id,
-            dstId: dstNode.id,
-            srcNode,
-            dstNode,
-            index,
-            parentGraph,
-        } as unknown as Edge);
+        built.push(fakeEdge(srcNode, dstNode, { index, parentGraph }));
     }
 
     return { nodes, edges: built, positions, snapshot };
@@ -408,19 +402,37 @@ describe("edge weights and the two layouts that read them", () => {
     });
 
     it("advertises which engines read weights at all, so a picker offers the option on those two only", () => {
-        assert.isTrue(KamadaKawaiLayout.honoursWeights, "Kamada-Kawai reads weights");
-        assert.isTrue(ForceAtlas2Layout.honoursWeights, "ForceAtlas2 reads weights");
+        assert.isTrue(KamadaKawaiLayout.honorsWeights, "Kamada-Kawai reads weights");
+        assert.isTrue(ForceAtlas2Layout.honorsWeights, "ForceAtlas2 reads weights");
         assert.isFalse(
-            CircularLayout.honoursWeights,
+            CircularLayout.honorsWeights,
             "a circular arrangement has no weight channel, and offering the option would be a lie",
         );
+    });
+
+    it("still reads the deprecated British static, so an engine written against it keeps its weights", () => {
+        class OldSpelling extends CircularLayout {
+            static override honoursWeights = true;
+        }
+        class NewSpelling extends CircularLayout {
+            static override honorsWeights = true;
+        }
+        class TurnedOff extends KamadaKawaiLayout {
+            static override honorsWeights = false;
+        }
+
+        assert.isTrue(honorsWeights(OldSpelling), "the British static alone still declares a weight channel");
+        assert.isTrue(honorsWeights(NewSpelling));
+        assert.isTrue(honorsWeights(KamadaKawaiLayout));
+        assert.isFalse(honorsWeights(TurnedOff), "a subclass can still turn an inherited channel off");
+        assert.isFalse(honorsWeights(CircularLayout));
     });
 
     it("publishes the weights option to the catalogue, which is what a reader's layout picker reads", () => {
         // The option it replaces never got this far. ForceAtlas2's `weightPath` was declared only
         // on the Zod config and not on the options schema, so no picker could reach it at all, and
         // Kamada-Kawai's `weightProperty` asked a reader to type an attribute name for a control
-        // that did nothing. One boolean, declared where the catalogue reads it, for both engines.
+        // that did nothing. One boolean, declared where the catalog reads it, for both engines.
         const named = (engine: string): readonly OptionDescriptor[] =>
             LAYOUT_CATALOG.flatMap((catalogued) => catalogued.implementations)
                 .filter((implementation) => implementation.engine === engine)
@@ -444,11 +456,11 @@ describe("edge weights and the two layouts that read them", () => {
         // The static existed and nothing read it, so a picker still could not tell a reader which
         // arrangements the weight control does anything for. The descriptor is where a picker
         // looks, and its value is copied off the DEFAULT engine's class rather than written out
-        // by hand, so the catalogue cannot claim a weight channel an engine does not have.
+        // by hand, so the catalog cannot claim a weight channel an engine does not have.
         const byEngine = new Map(
             LAYOUT_CATALOG.flatMap((catalogued) => catalogued.implementations).map((implementation) => [
                 implementation.engine,
-                implementation.honoursWeights,
+                implementation.honorsWeights,
             ]),
         );
 
@@ -461,9 +473,14 @@ describe("edge weights and the two layouts that read them", () => {
             const primary = catalogued.implementations.find((implementation) => implementation.isDefault);
             assert.isDefined(primary, `${catalogued.descriptor.id} names a default engine`);
             assert.strictEqual(
-                catalogued.descriptor.honoursWeights,
-                primary?.honoursWeights,
+                catalogued.descriptor.honorsWeights,
+                primary?.honorsWeights,
                 `${catalogued.descriptor.id} publishes what its default engine actually does`,
+            );
+            assert.strictEqual(
+                catalogued.descriptor.honoursWeights,
+                catalogued.descriptor.honorsWeights,
+                `${catalogued.descriptor.id} gives the deprecated British field the same value`,
             );
         }
     });

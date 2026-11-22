@@ -46,7 +46,7 @@ describe("a program that draws a node from another point than its coordinate", (
         expect([...(p?.coords.subarray(3, 5) ?? [])]).toEqual([118, -68]);
         expect([...(p?.coords.subarray(6, 8) ?? [])]).toEqual([225, -75]);
         expect([...(p?.coords.subarray(9, 11) ?? [])]).toEqual([300, -50]);
-        expect(snapshot.nodes.get("x")?.value(1)).toBe(100);
+        expect((snapshot.nodes.byRole("position")?.value(1) as ArrayLike<number>)[0]).toBe(100);
     });
 });
 

@@ -1,0 +1,160 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-style/v2.json",
+    "kind": "graphty-style",
+    "version": 2,
+    "id": "org.example-bank.fraud-review-style",
+    "name": "Fraud review style",
+    "description": "Highlights near-limit gift card payments and colors accounts by PageRank.",
+    "created": "2026-09-02T16:20:00.000Z",
+    "modified": "2026-11-12T21:05:00.000Z",
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "authors": [
+        {
+            "name": "Fraud analytics team",
+            "uri": "https://example-bank.test/fraud"
+        }
+    ],
+    "license": "CC-BY-4.0",
+    "keywords": ["fraud", "card testing"],
+    "language": "en",
+    "dependencies": {
+        "columns": [
+            {
+                "kind": "edge",
+                "name": "amount",
+                "schema": {
+                    "type": "number",
+                    "measurement": "quantitative",
+                    "unit": "USD"
+                }
+            },
+            {
+                "kind": "node",
+                "name": "mcc",
+                "schema": {
+                    "type": "string",
+                    "measurement": "categorical"
+                }
+            }
+        ],
+        "types": ["merchant"],
+        "results": ["pagerank", "communities"]
+    },
+    "origin": {
+        "from": "https://example-bank.test/kits/fraud-team-kit.graphty.json"
+    },
+    "palettes": [
+        {
+            "id": "org.example-bank.risk",
+            "plainName": "Risk",
+            "kind": "sequential",
+            "colors": ["#2e7d32", "#f9a825", "#c62828"],
+            "capacity": null,
+            "colorblindSafe": []
+        }
+    ],
+    "layers": [
+        {
+            "id": "base",
+            "name": "Everything",
+            "target": "node",
+            "selector": {
+                "match": "everything"
+            },
+            "set": {
+                "node.shape": "sphere",
+                "node.color": "#90a4ae"
+            }
+        },
+        {
+            "id": "merchants",
+            "name": "Merchants",
+            "target": "node",
+            "selector": {
+                "match": "type",
+                "types": ["merchant"]
+            },
+            "set": {
+                "node.shape": "box",
+                "node.size": 2
+            }
+        },
+        {
+            "id": "big-payments",
+            "name": "Big payments",
+            "target": "edge",
+            "selector": {
+                "match": "expression",
+                "where": "data.amount > `500`"
+            },
+            "set": {
+                "edge.color": "#c62828",
+                "edge.arrowHead": "normal",
+                "edge.style": "solid"
+            }
+        },
+        {
+            "id": "device-rings",
+            "name": "Device rings",
+            "target": "node",
+            "selector": {
+                "match": "has",
+                "path": "results.communities.group"
+            },
+            "encode": {
+                "node.color": {
+                    "by": "results.communities.group",
+                    "scale": "ordinal",
+                    "palette": "okabe-ito",
+                    "overflow": "other"
+                }
+            },
+            "source": {
+                "by": "run",
+                "runId": "communities",
+                "algorithm": "louvain",
+                "params": {
+                    "resolution": 1
+                }
+            }
+        },
+        {
+            "id": "risk-score",
+            "name": "Risk by PageRank",
+            "target": "node",
+            "selector": {
+                "match": "has",
+                "path": "results.pagerank.value"
+            },
+            "encode": {
+                "node.color": {
+                    "by": "results.pagerank.value",
+                    "scale": "linear",
+                    "palette": "org.example-bank.risk"
+                }
+            }
+        },
+        {
+            "id": "selected",
+            "name": "Selected",
+            "target": "node",
+            "selector": {
+                "match": "state",
+                "state": "selected"
+            },
+            "set": {
+                "node.outline": "#2457c5"
+            }
+        }
+    ],
+    "valueLabels": [
+        {
+            "path": "data.mcc",
+            "value": "5947",
+            "label": "Gift, card, novelty and souvenir shops"
+        }
+    ]
+}

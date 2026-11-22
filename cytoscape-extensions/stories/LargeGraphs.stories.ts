@@ -20,7 +20,7 @@ const meta: Meta<LayoutArgs> = {
     },
     // Not captured by visual review: its capture browser has no WebGPU, so these stories would only show the
     // "no WebGPU" placeholder. Their real images are checked against approved references by the GPU screenshot
-    // check (scripts/gpu-screenshots.mjs) at push and on the release train.
+    // check (scripts/gpu-screenshots.mjs) on the full run's T4.
     parameters: { chromatic: { disableSnapshot: true } },
 };
 export default meta;

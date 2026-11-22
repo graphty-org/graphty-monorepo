@@ -40,6 +40,7 @@ import type {
 } from "../../catalog/types";
 import { canonicalEdgeEnds, edgeCounterOf, stableEdgeMember } from "../../data/edgeIdentity";
 import { readEndpoint } from "../../data/endpoints";
+import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { quoteEach } from "../../utils/quote-each";
 import type { MintedSetCreateCommand, SetCommand, SetService } from "../commands/sets";
@@ -96,8 +97,19 @@ interface SetsDependencies {
      * spellings of one undirected edge are one member. Absent: members are stored as given.
      */
     readonly pairsOrdered?: () => boolean;
+    /**
+     * Whether the source-steps experiment is on. False: a `{ types }` scope is refused with
+     * `E_FEATURE_OFF`. Absent: a `{ types }` scope is accepted.
+     */
+    readonly sourceSteps?: () => boolean;
     /** The most edge members one member edit may touch. */
     readonly maxEdgeMembers?: number;
+    /**
+     * Whether the graph holds a node under exactly this id. A member edit naming an integer node
+     * in its other spelling edits the member the set holds, unless the graph holds both spellings
+     * as two nodes (`data/nodeIdSpelling.ts`). Absent: the graph never holds both.
+     */
+    readonly hasNode?: (id: NodeId) => boolean;
     /**
      * Where the references a rule makes are looked up (kept sets, saved scopes, the visibility
      * filter), so a write that would make a cycle is refused. Absent: the kept sets alone.
@@ -344,6 +356,45 @@ export function createSetsApi(
             return stable(ref);
         };
 
+    /**
+     * A member edit's nodes under the one id-spelling rule (`data/nodeIdSpelling.ts`): a node named
+     * in the other spelling of an integer id is the same node unless the graph holds both spellings
+     * as two nodes, when the exact id wins. An add of a node the set already holds, or the edit
+     * already adds, in the other spelling is dropped; a remove names both spellings, so the member and the edge members
+     * touching it go whichever spelling the set stored.
+     * @param id - The set.
+     * @param nodes - The nodes as the caller named them.
+     * @param removing - Whether the nodes are being removed.
+     * @returns The nodes to hand the edit.
+     */
+    const spelledAsHeld = (id: SetId, nodes: readonly NodeId[], removing: boolean): NodeId[] => {
+        const definition = store.get(id)?.definition;
+        const held = definition?.kind === "fixed" ? definition.nodes : [];
+        const hasNode = dependencies.hasNode ?? (() => false);
+        const added = new Set<NodeId>();
+
+        return nodes.flatMap((node) => {
+            const other = otherIdSpelling(node);
+            if (other === undefined || (hasNode(node) && hasNode(other))) {
+                return [node];
+            }
+
+            if (removing) {
+                return [node, other];
+            }
+
+            if (held.includes(other) || added.has(other)) {
+                return [];
+            }
+
+            added.add(node);
+            return [node];
+        });
+    };
+
+    const spelledDelta = (id: SetId, delta: SetMemberDelta, removing: boolean): SetMemberDelta =>
+        delta.nodes === undefined ? delta : { ...delta, nodes: spelledAsHeld(id, delta.nodes, removing) };
+
     const references: DependencySources = dependencies.dependencies ?? { referent: (id) => store.get(id)?.definition };
 
     /**
@@ -475,7 +526,7 @@ export function createSetsApi(
     };
 
     /**
-     * Check the options of a materialising door before anything resolves.
+     * Check the options of a materializing door before anything resolves.
      * @param reading - The reading option.
      * @returns The reading.
      * @throws `E_BAD_COMMAND` for a reading that is not an edge reading.
@@ -494,7 +545,7 @@ export function createSetsApi(
     };
 
     /**
-     * The synchronous commit of a materialising door: in one tick, mint, name and dispatch one
+     * The synchronous commit of a materializing door: in one tick, mint, name and dispatch one
      * `set.create`. Resolves nothing; the definition's edge members are already stable.
      * @param concrete - What the resolve step produced.
      * @param name - The caller's name; "Set N" when absent.
@@ -504,7 +555,7 @@ export function createSetsApi(
         createAs(concrete.definition, name, concrete.createdFrom, concrete.refs, concrete.seeds);
 
     /**
-     * Where a materialising door's commit goes: into the transaction or command the call was made
+     * Where a materializing door's commit goes: into the transaction or command the call was made
      * inside. The routing that puts a dispatch there lasts for the synchronous part of the call
      * only, and the commit comes after an await, so it is captured when the call starts.
      * @returns A runner for the commit.
@@ -604,6 +655,14 @@ export function createSetsApi(
      * @throws `E_BAD_COMMAND` for a malformed scope or a `{ set }` id never issued.
      */
     const readScope = (ref: ScopeInput): Scope => {
+        if (typeof ref === "object" && "types" in ref && dependencies.sourceSteps?.() === false) {
+            throw new GraphtyError({
+                code: "E_FEATURE_OFF",
+                message: 'A { types } scope needs the "source-steps" experiment.',
+                source: "run",
+                details: { feature: "source-steps", key: "types" },
+            });
+        }
         const inline = typeof ref === "object" && "define" in ref;
         const scope = parseScope(inline ? { define: collect(() => stabilise(ref.define))[0] } : ref);
         if (
@@ -860,10 +919,17 @@ export function createSetsApi(
                     store,
                     {
                         id: command.id,
-                        ...(command.add === undefined ? {} : { add: stableDelta(command.add) }),
+                        ...(command.add === undefined
+                            ? {}
+                            : { add: stableDelta(spelledDelta(command.id, command.add, false)) }),
                         ...(command.remove === undefined
                             ? {}
-                            : { remove: stableDelta(command.remove, removable(command.id)) }),
+                            : {
+                                  remove: stableDelta(
+                                      spelledDelta(command.id, command.remove, true),
+                                      removable(command.id),
+                                  ),
+                              }),
                     },
                     limit,
                 ),
@@ -875,6 +941,8 @@ export function createSetsApi(
 
             return id;
         },
+
+        removedName: (id) => store.tombstone(id)?.name,
 
         restore({ id }) {
             const live = store.get(id);

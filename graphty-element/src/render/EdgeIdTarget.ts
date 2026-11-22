@@ -1,13 +1,11 @@
-import {
-    Color4,
-    Constants,
-    Mesh,
-    type RawTexture,
-    RenderTargetTexture,
-    type Scene,
-    ShaderMaterial,
-    type TransformNode,
-} from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture.js";
+import { Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { Edge } from "../Edge";
 
@@ -155,7 +153,7 @@ export class EdgeIdTarget {
         this.target.onAfterRenderObservable.add(() => {
             // On WebGPU the draw in the frame that replaced the lines' vertex buffer comes out
             // empty (measured on SwiftShader), so only a later frame's draw counts.
-            if (this.material.isReady(this.mesh) && !(engine.isWebGPU && this.builtIn === scene.getFrameId())) {
+            if (this.materialReady() && !(engine.isWebGPU && this.builtIn === scene.getFrameId())) {
                 this.drawnIn = scene.getFrameId();
                 this.drawnRequested = false;
                 this.counts.draws++;
@@ -183,7 +181,7 @@ export class EdgeIdTarget {
         }
 
         const fresh = this.drawnIn === this.scene.getFrameId() && this.fits();
-        if (!fresh && !(this.target.isReadyForRendering() && this.material.isReady(this.mesh))) {
+        if (!fresh && !(this.target.isReadyForRendering() && this.materialReady())) {
             return null;
         }
 
@@ -205,6 +203,16 @@ export class EdgeIdTarget {
             this.drawnRequested = true;
             this.host.requestFrame();
         }).then(() => this.window(x, y, radius, false));
+    }
+
+    /**
+     * Whether the lines' material is ready to draw them.
+     * @returns True once its effect has compiled.
+     */
+    private materialReady(): boolean {
+        // Babylon.js 9 reads the mesh's first submesh here, and a mesh given no lines yet has
+        // none; with no geometry there is nothing mesh-specific to ask about anyway.
+        return this.material.isReady(this.mesh.getTotalVertices() > 0 ? this.mesh : undefined);
     }
 
     /** Stop drawing the target. */
@@ -239,11 +247,16 @@ export class EdgeIdTarget {
             }
 
             const id = edges.push(edge);
-            const { srcNode, dstNode } = edge;
-            if (srcNode === dstNode || srcNode.isDrawnAsGroup || dstNode.isDrawnAsGroup || edge.drawnCurve !== null) {
+            // Read by row, so a hover's rebuild builds no Node for an end drawn without one (issue #9166).
+            if (
+                edge.srcId === edge.dstId ||
+                edge.endDrawnAsGroup("source") ||
+                edge.endDrawnAsGroup("target") ||
+                edge.drawnCurve !== null
+            ) {
                 loose.push(id - 1);
             } else {
-                lines.push(srcNode.index, id, 0, dstNode.index, id, 0);
+                lines.push(edge.endRow("source"), id, 0, edge.endRow("target"), id, 0);
             }
         }
 

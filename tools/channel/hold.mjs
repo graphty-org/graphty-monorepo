@@ -14,7 +14,8 @@
 //       env WHY, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL; writes base and head (the held commit and the
 //       held head, empty when none); ABANDONED=true (an abandon) also records `rejected` on the held head
 //   node tools/channel/hold.mjs replace  the verdict job, hold=replace (#5052): a newer commit's green-clean or
-//       green-images verdict ends the held head judged red, owner-item or rejected (tools/full-run.mjs holdAction), as
+//       green-images verdict ends the held head judged red, owner-item, rejected, refused or green-images (#6604;
+//       tools/full-run.mjs holdAction), as
 //       end does, but only while the store still holds HELD; then green-images holds SHA as start does (action start)
 //       and green-clean leaves nothing held, so it promotes (action replace). Writes replaced (the ended head, whose
 //       channel/candidate the candidate_branch job deletes; empty when nothing was ended) and action
@@ -48,7 +49,7 @@ export function holdIssue({ sha, state, what, run }) {
         "",
         "Master keeps merging, and newer commits' full runs still run and file their red issues, but none of them is promoted to nightly unless its green run replaces this candidate (below). Branch `channel/candidate` holds it.",
         "",
-        'It ends when this commit promotes to nightly: a red lane or a rejected screenshot is fixed forward, and changed screenshots are approved on the review page. While it is red (not waiting on a screenshot review), a green full run on a newer commit replaces it. Anyone may end it without a promotion: `gh workflow run nightly-abandon.yml --ref master -f reason="<why>"`. A full run ends it on its own when only a pipeline defect, since fixed on master, held it, or when it is over 24 hours old and master has a newer green build; changed screenshots awaiting review never end it.',
+        'It ends when this commit promotes to nightly: a red lane or a rejected screenshot is fixed forward, and changed screenshots are approved on the review page. A green full run on a newer commit replaces it, even while its screenshots wait for review: a newer run with no changed screenshots promotes, and a newer one with changed screenshots is held and reviewed in its place. Anyone may end it without a promotion: `gh workflow run nightly-abandon.yml --ref master -f reason="<why>"`. A full run ends it on its own when only a pipeline defect, since fixed on master, held it, or when it is over 24 hours old and master has a newer green build; changed screenshots awaiting review never end it that way.',
         "",
         "To fix it forward, start the fix from the candidate's head, never from newer master: `worktree-new.sh fix/<issue>-<topic> origin/channel/candidate --issue <issue>` (the script in tools/; or `" +
             sha +

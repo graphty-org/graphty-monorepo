@@ -9,9 +9,9 @@
  */
 
 import { type DuplicatePolicy, GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
-import { assert, describe, expect, it } from "vitest";
+import { assert, describe, expect, it, vi } from "vitest";
 
-import { hashEdgeMember, hashNodeId } from "../../src/catalog/sets/hash";
+import { hashCounters, hashEdgeMember, hashNodeId } from "../../src/catalog/sets/hash";
 import {
     completeLoad,
     createEdgeCounter,
@@ -98,7 +98,6 @@ function load(
 
             if (decision.kind === "merge") {
                 builder.setEdgeWeight(known, decision.weight);
-                store.touch();
                 return;
             }
         }
@@ -359,6 +358,28 @@ describe("the identity columns", () => {
         assert.deepEqual([...four.edgeHash], [...one.edgeHash]);
     });
 
+    it("reads a snapshot frozen while a load is open as its columns say, filling nothing in", () => {
+        // The first chunk of a load into an empty store: its edges carry a counter and no hash yet.
+        const store = newStore("auto");
+        store.openLoad();
+        ingestEdge(store, "a", "b", 1);
+        ingestEdge(store, "b", "c", 1);
+        const snapshot = store.getSnapshot();
+        assert.deepEqual([...identityColumnsOf(snapshot).edgeHash], [0, 0, 0, 0]);
+        store.closeLoad();
+    });
+
+    it("hashes a deferred session edge added after the hash column was written whole", () => {
+        const store = newStore("auto");
+        load(store, [{ s: "x", t: "y" }]);
+        const row = store.builder.addEdge("y", "x", 1);
+        const counter = store.nextEdgeId();
+        store.stampEdgeId(row, counter);
+        store.recordIngestedEdge(row, counter, undefined, true);
+        const lanes = identityColumnsOf(store.getSnapshot()).edgeHash;
+        assert.notDeepEqual([lanes[2], lanes[3]], [0, 0]);
+    });
+
     it("follows a load's rows through a compacting freeze in the middle of it", () => {
         const store = newStore("auto");
         load(store, [{ s: "x", t: "y" }]);
@@ -368,7 +389,6 @@ describe("the identity columns", () => {
         store.getSnapshot();
         // Removing the earlier load's edge renumbers every row of this one at the next freeze.
         store.builder.removeEdge(0);
-        store.touch();
         store.getSnapshot();
         ingestEdge(store, "b", "a", 1);
         store.closeLoad();
@@ -459,7 +479,6 @@ describe("the identity columns", () => {
 
         const before = new Map(rows(store.getSnapshot()).map((row) => [row.counter, row]));
         store.builder.removeNode("a");
-        store.touch();
         const after = store.getSnapshot();
         assertHashesMatchIdentity(after, fileIds);
         for (const row of rows(after)) {
@@ -500,12 +519,73 @@ describe("the identity columns", () => {
         assert.strictEqual(run(0)[0], `0/3/${a}/${b}`);
     });
 
+    it("writes session edges' columns whole, with no cell write, when they are every edge in the store", () => {
+        // Edges added through a door rather than a load (`nodeData`, `addEdges`) are session edges;
+        // at 1M edges three checked cell writes each cost about 170 ms of the first freeze.
+        const records: Rec[] = [];
+        for (let i = 0; i < 200; i++) {
+            records.push({ s: `n${i % 37}`, t: `n${(i * 11) % 41}` });
+        }
+
+        const store = newStore("auto");
+        load(store, records, { asLoad: false });
+        const cells = vi.spyOn(store.builder, "setEdgeValue");
+        const snapshot = store.getSnapshot();
+        assert.strictEqual(cells.mock.calls.length, 0, "no identity cell is written one at a time");
+        assert.deepEqual(new Set(ordinals(snapshot)), new Set(["-1/-1"]), "session edges carry no ordinal");
+        assertHashesMatchIdentity(snapshot);
+
+        // Session edges added beside a load's are still written cell by cell, keeping the load's values.
+        const mixed = newStore("auto");
+        load(mixed, ab3);
+        mixed.getSnapshot();
+        load(mixed, records, { asLoad: false });
+        const mixedCells = vi.spyOn(mixed.builder, "setEdgeValue");
+        const after = mixed.getSnapshot();
+        assert.strictEqual(mixedCells.mock.calls.length, 3 * records.length);
+        assert.deepEqual(ordinals(after).slice(0, 3), ["0/3", "1/3", "2/3"]);
+        assertHashesMatchIdentity(after);
+    });
+
+    it("hashes each node id once, not twice per session edge, when it writes session edges' columns whole", () => {
+        // At 1M edges, hashing both endpoint ids again per edge was about 0.2 s of the first freeze.
+        const records: Rec[] = [];
+        for (let i = 0; i < 200; i++) {
+            records.push({ s: `n${i % 37}`, t: `n${(i * 11) % 41}` });
+        }
+
+        for (const directed of [true, false, "auto"] as const) {
+            const store = newStore(directed);
+            load(store, records, { asLoad: false });
+            const before = hashCounters.nodeIdHashes;
+            const snapshot = store.getSnapshot();
+            assert.strictEqual(hashCounters.nodeIdHashes - before, snapshot.nodeCount, `directed ${directed}`);
+            assertHashesMatchIdentity(snapshot);
+
+            // Nodes frozen first and edges in a later freeze, as a load adds nodes then edges.
+            const later = newStore(directed);
+            for (let i = 0; i < 41; i++) {
+                ingestNode(later, `n${i}`, {});
+            }
+
+            later.getSnapshot();
+            load(later, records, { asLoad: false });
+            const beforeEdges = hashCounters.nodeIdHashes;
+            const withEdges = later.getSnapshot();
+            assert.isAtMost(
+                hashCounters.nodeIdHashes - beforeEdges,
+                withEdges.nodeCount,
+                `later, directed ${directed}`,
+            );
+            assertHashesMatchIdentity(withEdges);
+        }
+    });
+
     it("never changes an ordinal when another edge is deleted", () => {
         const store = newStore("auto");
         load(store, ab3);
         store.getSnapshot();
         store.builder.removeEdge(1);
-        store.touch();
         assert.deepEqual(ordinals(store.getSnapshot()), ["0/3", "2/3", "0/1"]);
     });
 

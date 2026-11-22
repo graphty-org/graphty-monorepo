@@ -84,6 +84,11 @@ import { Popout, PopoutButton, PopoutManager, ToastProvider, UiGlyph } from "@gr
 - **Closing a panel closes everything opened from it.**
 - **Focus returns to the trigger** when a panel closes.
 
+Content inside a panel closes its own pop-out with `usePopout()`, which returns `close()` and
+`isOpen`: call `close()` from an "Apply" button or a row that picks a value. It closes everything
+opened from that pop-out too, and focus returns to its trigger. See the Popout page's
+`CloseFromInside` story.
+
 Two hooks reach the manager from your own code. `usePopoutManager()` returns `closeAll()` and
 `hasOpenPopouts()`, for the routes a click-outside does not cover: a keyboard shortcut, a command
 palette row, a full-page sheet that replaces the page. `PopoutRegion id="..."` names a part of

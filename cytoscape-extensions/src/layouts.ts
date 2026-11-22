@@ -12,6 +12,7 @@
  */
 
 import { type GraphSnapshot, makeMask, maskSet, maskTest, type U32 } from "@graphty/graph-format";
+import { geographicColumnNames } from "@graphty/graph-io/positions";
 import {
     arf,
     type ArfOptions,
@@ -22,6 +23,8 @@ import {
     createSimulation,
     type ForceAtlas2Options,
     type FruchtermanReingoldOptions,
+    geographic,
+    type GeographicLayoutOptions,
     grid,
     type GridLayoutOptions,
     kamadaKawai,
@@ -173,10 +176,22 @@ export interface LayoutOptionFields {
     readonly nodeMass?: string | ArrayLike<number> | Readonly<Record<string, number>>;
     /** forceatlas2: accepted in the same forms as `nodeMass` and not used yet: nodes are treated as points. */
     readonly nodeSize?: string | ArrayLike<number> | Readonly<Record<string, number>>;
+    /**
+     * geographic: the node data field holding each node's latitude in degrees (a number, or text that reads as one);
+     * default: the one field named `lat` or `latitude` (any case, the rule graph-io reads a file's geographic
+     * position by), else "latitude". A node without one is not placed and keeps its position.
+     */
+    readonly latitude?: string;
+    /**
+     * geographic: the node data field holding each node's longitude in degrees; default: the one field named `lon`,
+     * `lng` or `longitude` (any case), else "longitude".
+     */
+    readonly longitude?: string;
 }
 
 /** The options of LayoutOptionFields that only some layouts take. */
-type PerLayoutField = "nlist" | "subsets" | "top" | "align" | "root" | "nodeMass" | "nodeSize";
+type PerLayoutField =
+    "nlist" | "subsets" | "top" | "align" | "root" | "nodeMass" | "nodeSize" | "latitude" | "longitude";
 /** The options every layout takes. */
 type Shared = Omit<LayoutOptionFields, "name" | PerLayoutField>;
 /** Some of the per-layout options. */
@@ -207,6 +222,7 @@ export interface GraphtyLayoutOptionsByName {
     "graphty-circular": Shared;
     "graphty-spiral": Shared & Library<SpiralLayoutOptions>;
     "graphty-grid": Shared & Library<GridLayoutOptions>;
+    "graphty-geographic": Shared & Own<"latitude" | "longitude"> & Library<GeographicLayoutOptions, "position">;
     "graphty-spectral": Shared;
     "graphty-planar": Shared;
     "graphty-arf": Shared & Library<ArfOptions>;
@@ -345,6 +361,32 @@ const STATIC: Readonly<Record<string, StaticLayout>> = {
         bfs(s, { ...o, start: indexOf(cs, root as NodeSelection | undefined, "graphty layout: root") }),
     radial: (s, o, cs) =>
         radial(s, { ...o, root: indexOf(cs, o.root as NodeSelection | undefined, "graphty layout: root") }),
+    geographic: (s, { latitude, longitude, ...o }, cs) => {
+        const named =
+            latitude === undefined || longitude === undefined
+                ? geographicColumnNames(cs.nodes.toArray().flatMap((node) => Object.keys(node.data() as object)))
+                : null;
+        latitude ??= named?.latitude ?? "latitude";
+        longitude ??= named?.longitude ?? "longitude";
+        const degrees = (field: unknown): Float64Array<ArrayBuffer> => {
+            const out = new Float64Array(s.nodeCount);
+            cs.nodes.forEach((node, i) => {
+                const v: unknown = node.data(String(field));
+                out[i] = typeof v === "number" || (typeof v === "string" && v.trim() !== "") ? Number(v) : Number.NaN;
+            });
+            return out;
+        };
+        const r = geographic(s.withColumns({ lat: degrees(latitude), lon: degrees(longitude) }), {
+            ...o,
+            latitude: "lat",
+            longitude: "lon",
+        });
+        // the map's y grows north; Cytoscape's grows down
+        for (let i = 1; i < r.positions.length; i += r.dim) {
+            r.positions[i] = -r.positions[i];
+        }
+        return r;
+    },
 };
 
 // This package's own iteration budgets for the simulations, passed explicitly so a change of a @graphty/layout
@@ -381,16 +423,16 @@ function box(bb: BoundingBox12 | BoundingBoxWH | undefined, cy: Core): BoundingB
 }
 
 /**
- * The radius and centre the layout fills inside a box.
+ * The radius and center the layout fills inside a box.
  * @param b - the box
- * @returns half the shorter side (at least 1) and the centre
+ * @returns half the shorter side (at least 1) and the center
  */
 function frame(b: BoundingBoxWH): { radius: number; center: [number, number, number] } {
     return { radius: Math.max(Math.min(b.w, b.h) / 2, 1), center: [b.x1 + b.w / 2, b.y1 + b.h / 2, 0] };
 }
 
 /**
- * The x-y pairs of `n` rows of `stride` values, rescaled so the farthest placed node is `radius` from the centre. NaN
+ * The x-y pairs of `n` rows of `stride` values, rescaled so the farthest placed node is `radius` from the center. NaN
  * rows (unplaced nodes) stay NaN.
  * @param rows - the rows
  * @param stride - values per row (2 or 3)
@@ -696,14 +738,45 @@ function startPositions(
     return { pos, fixed, anyLocked };
 }
 
+/** The LayoutAccelerator method that builds each simulation type; an accelerator may implement any subset. */
+const ACCELERATOR_METHOD = {
+    forceatlas2: "forceAtlas2",
+    fruchtermanReingold: "fruchtermanReingold",
+    spring: "fruchtermanReingold",
+    "spring-electrical": "springElectrical",
+} as const satisfies Record<SimulationType, keyof LayoutAccelerator>;
+
 /**
- * Runs a simulation on an accelerator (null: the CPU).
+ * The accelerator that runs this type: the given one when it implements the type's method, else null (the CPU), with
+ * `layout.backend` saying why.
  * @param layout - the layout
  * @param type - the simulation type
- * @param accelerator - the accelerator
+ * @param given - the accelerator
+ * @returns the accelerator, or null
  */
-function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutAccelerator | null): void {
+function acceleratorFor(
+    layout: LayoutThis,
+    type: SimulationType,
+    given: LayoutAccelerator | null,
+): LayoutAccelerator | null {
+    const method = ACCELERATOR_METHOD[type];
+    if (given === null || given[method] !== undefined) {
+        return given;
+    }
+    layout.backend = { ran: "cpu", reason: `the accelerator has no ${method} simulation`, device: null };
+    return null;
+}
+
+/**
+ * Runs a simulation on an accelerator (null: the CPU). An accelerator without this type's method runs it as null
+ * would, and `layout.backend` says so.
+ * @param layout - the layout
+ * @param type - the simulation type
+ * @param given - the accelerator
+ */
+function simulate(layout: LayoutThis, type: SimulationType, given: LayoutAccelerator | null): void {
     const o = layout.options;
+    const accelerator = acceleratorFor(layout, type, given);
     if (accelerator === null && type === "spring-electrical") {
         const reason = layout.backend?.reason ?? "none was available";
         // nothing ran, so no backend: "cpu" would say the layout ran there (as with gpu: "require")
@@ -727,22 +800,32 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
     // simulation's own size, and the first steps would jolt it back out.
     const drawn = o.randomize === false && !anyLocked ? DRAWN_SCALE.get(o.cy)?.get(type) : undefined;
     const scale = drawn ?? radius;
-    const sim = createSimulation(
-        type,
-        {
-            ...SIMULATION_DEFAULTS[type],
-            ...graphtyOptions(o),
-            ...nodeFields(cs, o),
-            scale,
-            center: drawn === undefined ? center : centroidOf(pos, n),
-            iterationsPerStep: 1,
-        },
-        accelerator,
-    );
-    sim.load(s, pos);
-    if (anyLocked) {
-        sim.setFixed(fixed);
+    let created: LayoutSimulation | undefined;
+    try {
+        created = createSimulation(
+            type,
+            {
+                ...SIMULATION_DEFAULTS[type],
+                ...graphtyOptions(o),
+                ...nodeFields(cs, o),
+                scale,
+                center: drawn === undefined ? center : centroidOf(pos, n),
+                iterationsPerStep: 1,
+            },
+            accelerator,
+        );
+        created.load(s, pos);
+        if (anyLocked) {
+            created.setFixed(fixed);
+        }
+    } catch (error) {
+        // a GPU simulation holds a buffer and a device-loss listener from construction; nothing ran, so no backend
+        created?.dispose();
+        layout.backend = undefined;
+        failLater(layout, error);
+        return;
     }
+    const sim = created;
     // a data change while the simulation runs must not release the snapshot its device upload came from
     const unhold = hold(s);
     const dispose = (): void => {
@@ -786,7 +869,13 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
                 finishDiscrete(layout, cs.nodes, xy());
             }
         };
-        const r = stepToEnd(sim, layout);
+        let r: void | Promise<void>;
+        try {
+            r = stepToEnd(sim, layout);
+        } catch (error) {
+            fail(error);
+            return;
+        }
         if (r === undefined) {
             done();
         } else {
@@ -860,7 +949,7 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
  * @param layout - the layout
  * @param error - the error
  */
-function failLater(layout: LayoutThis, error: Error): void {
+function failLater(layout: LayoutThis, error: unknown): void {
     layout.looping = true;
     void Promise.resolve().then(() => {
         layout.looping = false;

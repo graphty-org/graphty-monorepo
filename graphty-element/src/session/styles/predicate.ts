@@ -26,7 +26,7 @@
  *   the character that is wrong, which that parser cannot say.
  * - A path is not walked here, it is READ: `results.louvain.group` is one column lookup, not
  *   three object dereferences, because the session stores values in columns addressed by path.
- *   An off-the-shelf evaluator would need the whole root materialised per element, which is an
+ *   An off-the-shelf evaluator would need the whole root materialized per element, which is an
  *   object allocation per element per layer.
  *
  * THE SUBSET IS REFUSED AT ITS EDGE, NEVER NARROWED IN SILENCE. Everything JMESPath can express
@@ -42,7 +42,7 @@
 import { maskTest, type U32 } from "@graphty/graph-format";
 
 import type { AiRule, AiRuleTerm } from "../../catalog/ai";
-import type { EdgeId, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
+import type { EdgeId, ElementState, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 
@@ -64,6 +64,10 @@ export type SelectorTarget = "node" | "edge";
  */
 export interface SelectorSource {
     /**
+     * Whether the source-steps experiment is on. Off or absent, a `type` selector is refused.
+     */
+    readonly sourceSteps?: () => boolean;
+    /**
      * The value one node carries for a path.
      * @param index - The dense node index.
      * @param path - The column path, such as `results.louvain.group`.
@@ -81,8 +85,8 @@ export interface SelectorSource {
      * Whether one node carries a value for a path.
      *
      * Optional, and worth supplying: this is the test `{match:"has"}` compiles to and the test
-     * `<path> != \`null\`` is recognised as, so a store holding a presence bitmap answers it
-     * without materialising the value. Absent, it is derived from {@link nodeValue}.
+     * `<path> != \`null\`` is recognized as, so a store holding a presence bitmap answers it
+     * without materializing the value. Absent, it is derived from {@link nodeValue}.
      *
      * PRESENT MEANS A VALUE THAT IS NEITHER ABSENT NOR NULL. An override that answers anything
      * else disagrees with the expression form of the same question, and the two would paint
@@ -176,11 +180,7 @@ export interface SelectorSource {
      * @param index - The dense index.
      * @returns True when the element is in that state.
      */
-    readonly inState?: (
-        state: "selected" | "hovered" | "ghosted" | "pinned",
-        target: SelectorTarget,
-        index: number,
-    ) => boolean;
+    readonly inState?: (state: ElementState, target: SelectorTarget, index: number) => boolean;
     /**
      * What the reader is pointing at, which a `{match:"hover"}` selector tests by index. Absent,
      * a `{match:"hover"}` selector is refused.
@@ -298,7 +298,8 @@ export type ElementPredicate = (index: number) => boolean;
 /** A selector, reduced to the test a repaint runs and the columns that test reads. */
 export interface CompiledSelector {
     /** Which selector kind this was compiled from. */
-    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member" | "rule" | "state" | "hover";
+    readonly match:
+        "everything" | "expression" | "has" | "ids" | "top" | "member" | "rule" | "state" | "hover" | "type";
     /** Which kind of element it speaks about. */
     readonly target: SelectorTarget;
     /**
@@ -312,10 +313,10 @@ export interface CompiledSelector {
     /**
      * Every column path the test reads, in the order the selector names them, without repeats.
      *
-     * This is what the caller resolves against the run list and the attribute catalogue. A
+     * This is what the caller resolves against the run list and the attribute catalog. A
      * selector that parses perfectly and names a run or an attribute nothing answers matches
      * NOTHING, silently, and an empty screen reads exactly like a correct answer of zero. The
-     * compiler cannot tell the difference -- it has no catalogue -- so it reports what was asked
+     * compiler cannot tell the difference -- it has no catalog -- so it reports what was asked
      * for and leaves the reference check to whoever holds one.
      */
     readonly paths: readonly Path[];
@@ -335,7 +336,7 @@ export interface CompiledSelector {
  *
  * A column answers undefined for an element it has no value for; JMESPath answers null for a
  * field that is not there. They are the same fact, so both are absent here and every read is
- * normalised to null before anything compares it.
+ * normalized to null before anything compares it.
  * @param value - The value a column answered.
  * @returns True when it is neither undefined nor null.
  */
@@ -451,6 +452,8 @@ function badSelector(
  * - `dot-needs-name`: a `.` with no attribute name after it.
  * - `name-contains-dot`: a quoted attribute name holding a `.` (`details.segment`).
  * - `function-not-supported`: a function call (`details.function`).
+ * - `minus-needs-spaces`: a `-` written between two names with no space (`a-b`), which would read as
+ *   subtraction; quote a hyphenated name (`"min-cut"`) or put spaces round the minus.
  * - `unclosed-parenthesis`: a `(` with no `)`.
  * - `missing-operand`: an attribute name, a literal or a `(` is missing, such as after `==`.
  * - `not-needs-parentheses`: `!` before a dotted path, which must be written `!(a.b)` (`details.path`).
@@ -465,6 +468,7 @@ type ExpressionRefusalReason =
     | "dot-needs-name"
     | "expression-reference-not-supported"
     | "function-not-supported"
+    | "minus-needs-spaces"
     | "missing-operand"
     | "name-contains-dot"
     | "not-needs-parentheses"
@@ -490,7 +494,6 @@ const UNSUPPORTED_BY_CHARACTER: Readonly<Record<string, string>> = Object.freeze
     "{": "multi-select hashes",
     "}": "multi-select hashes",
     ",": "multi-select lists",
-    "*": "wildcards",
     "@": "the current-node reference",
     ":": "slices",
 });
@@ -526,7 +529,10 @@ const VALUE_WORDS: ReadonlyMap<string, boolean | null> = new Map([
 ]);
 
 /** The operators the subset reads, longest first so `<=` is never lexed as `<` then `=`. */
-const OPERATORS = ["&&", "||", "==", "!=", "<=", ">=", "!", "<", ">", ".", "(", ")"] as const;
+const OPERATORS = ["&&", "||", "==", "!=", "<=", ">=", "!", "<", ">", ".", "(", ")", "+", "-", "*", "/"] as const;
+
+/** The construct `*` opens where an operand or a name belongs: JMESPath's wildcard, which is refused. */
+const WILDCARDS = "wildcards";
 
 /**
  * Whether a character can start an unquoted identifier.
@@ -547,7 +553,7 @@ function continuesIdentifier(character: string): boolean {
 }
 
 /**
- * Find the end of a delimited run, honouring backslash escapes.
+ * Find the end of a delimited run, honoring backslash escapes.
  * @param where - The expression being lexed.
  * @param from - The index of the opening delimiter.
  * @param delimiter - The character that closes the run.
@@ -643,9 +649,7 @@ function suggestBackticks(where: Query): { readonly suggestion?: string } {
     try {
         // The selector's own acceptance test: it parses and reads an attribute. A lone `10`
         // parses, but compileExpressionPredicate refuses it as reading no attribute.
-        const paths: Path[] = [];
-        collectPaths(parseExpression(suggestion), paths);
-        return paths.length > 0 ? { suggestion } : {};
+        return expressionPaths(suggestion).length > 0 ? { suggestion } : {};
     } catch {
         return {};
     }
@@ -824,6 +828,16 @@ function rejectUnsupported(where: Query, at: number, character: string): void {
  */
 function lexToken(where: Query, at: number, character: string): { token: Token; next: number } | undefined {
     const operator = OPERATORS.find((candidate) => where.startsWith(candidate, at));
+    if (operator === "-" && continuesIdentifier(where.charAt(at - 1)) && startsIdentifier(where.charAt(at + 1))) {
+        // `results.min-cut.x` is a hyphenated name far more often than a subtraction.
+        throw badSelector(
+            "minus-needs-spaces",
+            "A `-` between two names is read as subtraction: quote a hyphenated name, or put spaces round the minus",
+            where,
+            at,
+        );
+    }
+
     if (operator !== undefined) {
         return { token: { kind: "operator", text: operator, at }, next: at + operator.length };
     }
@@ -866,7 +880,7 @@ function lexToken(where: Query, at: number, character: string): { token: Token; 
  * @throws A `GraphtyError` with code `E_BAD_SELECTOR`, always.
  */
 function rejectCharacter(where: Query, at: number, character: string): never {
-    if (/[0-9-]/.test(character)) {
+    if (/\d/.test(character)) {
         throw badSelector(
             "number-needs-backticks",
             "A number in a selector goes between backticks, so write `5` rather than 5",
@@ -899,8 +913,10 @@ function rejectCharacter(where: Query, at: number, character: string): never {
  * expression := or
  * or         := and ( "||" and )*
  * and        := comparison ( "&&" comparison )*
- * comparison := unary ( ("=="|"!="|"<"|"<="|">"|">=") unary )?
- * unary      := "!" unary | operand
+ * comparison := sum ( ("=="|"!="|"<"|"<="|">"|">=") sum )?
+ * sum        := product ( ("+"|"-") product )*
+ * product    := unary ( ("*"|"/") unary )*
+ * unary      := "!" unary | "-" unary | operand
  * operand    := literal | path | "(" expression ")"
  * path       := name ( "." name )*
  * ```
@@ -908,10 +924,14 @@ function rejectCharacter(where: Query, at: number, character: string): never {
  * The shape follows JMESPath's own binding powers, so an accepted expression groups the way
  * JMESPath groups it: `||` is loosest, then `&&`, then the comparators, and `!` binds tighter
  * than all of them. A comparison does not chain, because JMESPath's does not either.
+ *
+ * Arithmetic is an addition to JMESPath's grammar, placed where JMESPath Community Edition places
+ * it: tighter than the comparators, `*` and `/` tighter than `+` and `-`, each left to right. It
+ * works on numbers only (see {@link compileArithmetic}).
  */
 type CompareOperator = "!=" | "<" | "<=" | "==" | ">" | ">=";
 
-/** The comparators, keyed by their text, so the parser recognises one without a cast. */
+/** The comparators, keyed by their text, so the parser recognizes one without a cast. */
 const COMPARATORS: Readonly<Record<string, CompareOperator | undefined>> = Object.freeze({
     "!=": "!=",
     "<": "<",
@@ -921,9 +941,24 @@ const COMPARATORS: Readonly<Record<string, CompareOperator | undefined>> = Objec
     ">=": ">=",
 } satisfies Record<CompareOperator, CompareOperator>);
 
+/** Each arithmetic operator's work, keyed by its text, so the parser recognizes one without a cast. */
+const ARITHMETIC: Readonly<Record<string, ((a: number, b: number) => number) | undefined>> = Object.freeze({
+    "+": (a: number, b: number) => a + b,
+    "-": (a: number, b: number) => a - b,
+    "*": (a: number, b: number) => a * b,
+    "/": (a: number, b: number) => a / b,
+});
+
 /** One node of a parsed selector expression. */
 type ExpressionNode =
     | { readonly kind: "and"; readonly left: ExpressionNode; readonly right: ExpressionNode }
+    | {
+          readonly kind: "arithmetic";
+          readonly operate: (a: number, b: number) => number;
+          readonly left: ExpressionNode;
+          readonly right: ExpressionNode;
+      }
+    | { readonly kind: "negate"; readonly operand: ExpressionNode }
     | {
           readonly kind: "compare";
           readonly operator: CompareOperator;
@@ -984,6 +1019,10 @@ function parsePath(state: ParseState): ExpressionNode {
 
     for (;;) {
         const token = peek(state);
+
+        if (token.kind === "operator" && token.text === "*") {
+            throw refuseWildcard(state.where, token.at);
+        }
 
         if (token.kind !== "identifier") {
             throw badSelector("dot-needs-name", "A `.` must be followed by an attribute name", state.where, token.at);
@@ -1054,6 +1093,10 @@ function parseOperand(state: ParseState): ExpressionNode {
         return { kind: "group", inner };
     }
 
+    if (atOperator(state, "*")) {
+        throw refuseWildcard(state.where, token.at);
+    }
+
     throw badSelector(
         "missing-operand",
         token.kind === "end"
@@ -1076,6 +1119,12 @@ function parseOperand(state: ParseState): ExpressionNode {
  * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when `!` is applied to a multi-part path.
  */
 function parseUnary(state: ParseState): ExpressionNode {
+    if (atOperator(state, "-")) {
+        // Unlike `!`, a minus takes the whole path after it: `-data.a` is minus `data.a`.
+        state.index++;
+        return { kind: "negate", operand: parseUnary(state) };
+    }
+
     if (!atOperator(state, "!")) {
         return parseOperand(state);
     }
@@ -1100,12 +1149,69 @@ function parseUnary(state: ParseState): ExpressionNode {
 }
 
 /**
+ * The refusal for `*` where an operand or a name belongs: a JMESPath wildcard, not a product.
+ * @param where - The expression.
+ * @param at - The offset of the `*`.
+ * @returns The error to throw.
+ */
+function refuseWildcard(where: Query, at: number): GraphtyError {
+    return badSelector("unsupported-syntax", `A selector does not support ${WILDCARDS}`, where, at, {
+        construct: WILDCARDS,
+    });
+}
+
+/**
+ * Parse a left-to-right run of arithmetic operators from one level.
+ * @param state - The parse state.
+ * @param operators - The operators this level reads.
+ * @param next - The parser of the level that binds tighter.
+ * @returns The node.
+ */
+function parseArithmetic(
+    state: ParseState,
+    operators: readonly string[],
+    next: (state: ParseState) => ExpressionNode,
+): ExpressionNode {
+    let left = next(state);
+
+    for (;;) {
+        const token = peek(state);
+        const operate =
+            token.kind === "operator" && operators.includes(token.text) ? ARITHMETIC[token.text] : undefined;
+        if (operate === undefined) {
+            return left;
+        }
+
+        state.index++;
+        left = { kind: "arithmetic", operate, left, right: next(state) };
+    }
+}
+
+/**
+ * Parse `*` and `/`.
+ * @param state - The parse state.
+ * @returns The node.
+ */
+function parseProduct(state: ParseState): ExpressionNode {
+    return parseArithmetic(state, ["*", "/"], parseUnary);
+}
+
+/**
+ * Parse `+` and `-`.
+ * @param state - The parse state.
+ * @returns The node.
+ */
+function parseSum(state: ParseState): ExpressionNode {
+    return parseArithmetic(state, ["+", "-"], parseProduct);
+}
+
+/**
  * Parse a comparison, which does not chain.
  * @param state - The parse state.
  * @returns The comparison node, or its left side when there was no comparator.
  */
 function parseComparison(state: ParseState): ExpressionNode {
-    const left = parseUnary(state);
+    const left = parseSum(state);
     const token = peek(state);
     const operator = token.kind === "operator" ? COMPARATORS[token.text] : undefined;
 
@@ -1115,7 +1221,7 @@ function parseComparison(state: ParseState): ExpressionNode {
 
     state.index++;
 
-    return { kind: "compare", operator, left, right: parseUnary(state) };
+    return { kind: "compare", operator, left, right: parseSum(state) };
 }
 
 /**
@@ -1189,6 +1295,19 @@ function parseExpression(where: Query): ExpressionNode {
 type ValueReader = (index: number) => unknown;
 
 /**
+ * Every column path an expression reads, in the order it names them, without repeats. Parses
+ * only: nothing is compiled against any columns.
+ * @param where - The expression.
+ * @returns The paths.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the expression does not parse.
+ */
+export function expressionPaths(where: Query): Path[] {
+    const paths: Path[] = [];
+    collectPaths(parseExpression(where), paths);
+    return paths;
+}
+
+/**
  * Collect the column paths a tree reads, in the order it names them, without repeats.
  * @param node - The tree.
  * @param into - The list being built.
@@ -1206,10 +1325,12 @@ function collectPaths(node: ExpressionNode, into: Path[]): void {
 
             return;
         case "not":
+        case "negate":
             collectPaths(node.operand, into);
 
             return;
         case "and":
+        case "arithmetic":
         case "or":
         case "compare":
             collectPaths(node.left, into);
@@ -1489,7 +1610,7 @@ export function renamePaths(where: Query, rename: (path: Path) => Query | undefi
 /**
  * Compile a tree into the closure that reads one element's value for it.
  *
- * A path reads its column and normalises an absent value to null, because that is what JMESPath
+ * A path reads its column and normalizes an absent value to null, because that is what JMESPath
  * calls a field that is not there, and every comparison below is written against that.
  * @param node - The tree.
  * @param columns - Where to read values.
@@ -1539,9 +1660,45 @@ function compileValue(node: ExpressionNode, columns: ElementColumns): ValueReade
                 return isTruthy(answer) ? answer : right(index);
             };
         }
+        case "arithmetic":
+            return compileArithmetic(node.operate, compileValue(node.left, columns), compileValue(node.right, columns));
+        case "negate":
+            return compileArithmetic(
+                (a) => -a,
+                compileValue(node.operand, columns),
+                () => 0,
+            );
         default:
             return compileComparison(node.operator, node.left, node.right, columns);
     }
+}
+
+/**
+ * Compile arithmetic. It works on numbers only, with no coercion: an operand that is not a number
+ * (a string such as `'3'`, a boolean, a list, or no value at all) makes the answer null, and so
+ * does an answer that is not a finite number, so dividing by zero answers null rather than
+ * Infinity. Null is no value: a computed column leaves the element without one, and a selector
+ * does not match it.
+ * @param operate - The operator's work.
+ * @param left - Reads the left operand.
+ * @param right - Reads the right operand.
+ * @returns The reader.
+ */
+function compileArithmetic(
+    operate: (a: number, b: number) => number,
+    left: ValueReader,
+    right: ValueReader,
+): ValueReader {
+    return (index): number | null => {
+        const a = left(index);
+        const b = right(index);
+        if (typeof a !== "number" || typeof b !== "number") {
+            return null;
+        }
+
+        const answer = operate(a, b);
+        return Number.isFinite(answer) ? answer : null;
+    };
 }
 
 /** The four ordering comparisons, so the compiled closure holds one function and no branch. */
@@ -1576,7 +1733,7 @@ function pickLiteral(left: ExpressionNode, right: ExpressionNode): { readonly va
  * Two of those roads matter. `<path> != \`null\`` and `<path> == \`null\`` are the presence test
  * in disguise -- they are half of every selector the element ships -- so they compile to
  * {@link ElementColumns.has}, which a columnar store can answer from a presence bitmap without
- * materialising the value. And an equality against a primitive compiles to `===` rather than to
+ * materializing the value. And an equality against a primitive compiles to `===` rather than to
  * a structural walk, because a structural walk on a number is three type checks for nothing.
  * @param operator - Which comparison.
  * @param left - Its left side.
@@ -1725,6 +1882,63 @@ export function quotePath(path: Path): Query {
 export function rulePath(path: Path): Query {
     const bare = path.startsWith("data.") ? path.slice("data.".length) : "";
     return isUnquotedName(bare) && !VALUE_WORDS.has(bare) ? bare : quotePath(path);
+}
+
+/**
+ * The value path a rule leaf tests: `attribute` for `range` and `categories`, `path` for
+ * `threshold`, `same-value` and `by-size`, and `reads` for `text`. Every other leaf reads no
+ * column -- a `text` leaf reading the node's `"id"`, an `expression`, a `state`, a `measure` (it tests an
+ * algorithm's field, not a path), a structural or membership leaf -- and neither does an `all`,
+ * `any` or `not`, which hold leaves rather than test a value; for those it returns undefined.
+ * A leaf kind added later is placed here before the package compiles.
+ *
+ * ```ts
+ * import { ruleValuePath } from "@graphty/graphty-element/session";
+ *
+ * ruleValuePath({ kind: "range", attribute: "data.age", min: 18 }); // "data.age"
+ * ruleValuePath({ kind: "degree", min: 2 }); // undefined
+ * ```
+ * @param rule - The rule leaf.
+ * @returns The path it reads, or undefined.
+ * @since 3.40.0
+ */
+export function ruleValuePath(rule: RuleTree): Path | undefined {
+    switch (rule.kind) {
+        case "range":
+        case "categories":
+            return rule.attribute;
+        case "threshold":
+        case "same-value":
+        case "by-size":
+            return rule.path;
+        case "text":
+            return rule.reads === "id" ? undefined : rule.reads;
+        case "expression":
+        case "degree":
+        case "component":
+        case "neighborhood":
+        case "isolated":
+        case "self-loop":
+        case "repeated-edge":
+        case "edges":
+        case "member":
+        case "item":
+        case "source":
+        case "union":
+        case "hops":
+        case "touching":
+        case "nonempty":
+        case "measure":
+        case "state":
+        case "all":
+        case "any":
+        case "not":
+            return undefined;
+        default: {
+            const unhandled: never = rule;
+            return unhandled;
+        }
+    }
 }
 
 /**
@@ -1887,21 +2101,13 @@ export function hoverPredicate(
 }
 
 /**
- * Parse and compile `{match:"expression"}`.
- *
- * The parse happens HERE, once, when the layer is added or updated. An expression that is not in
- * the subset is refused at this call, in front of whoever typed it, rather than failing per
- * element later where nothing would report it.
+ * Parse an expression and refuse one that reads no attribute.
  * @param where - The expression as it was typed.
- * @param columns - Where to read values.
- * @returns The test and the column paths it reads.
- * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the expression does not parse or
- *     uses a JMESPath construct the subset does not implement.
+ * @returns The tree and the column paths it reads.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the expression does not parse, uses a
+ *     JMESPath construct the subset does not implement, or reads no attribute.
  */
-export function compileExpressionPredicate(
-    where: Query,
-    columns: ElementColumns,
-): { readonly paths: readonly Path[]; readonly test: ElementPredicate } {
+function parseReading(where: Query): { readonly parsed: ExpressionNode; readonly paths: readonly Path[] } {
     const parsed = parseExpression(where);
     const paths: Path[] = [];
     collectPaths(parsed, paths);
@@ -1929,5 +2135,42 @@ export function compileExpressionPredicate(
         );
     }
 
-    return { paths: Object.freeze(paths), test: compileTest(parsed, columns) };
+    return { parsed, paths: Object.freeze(paths) };
+}
+
+/**
+ * Parse and compile `{match:"expression"}`.
+ *
+ * The parse happens HERE, once, when the layer is added or updated. An expression that is not in
+ * the subset is refused at this call, in front of whoever typed it, rather than failing per
+ * element later where nothing would report it.
+ * @param where - The expression as it was typed.
+ * @param columns - Where to read values.
+ * @returns The test and the column paths it reads.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the expression does not parse or
+ *     uses a JMESPath construct the subset does not implement.
+ */
+export function compileExpressionPredicate(
+    where: Query,
+    columns: ElementColumns,
+): { readonly paths: readonly Path[]; readonly test: ElementPredicate } {
+    const { parsed, paths } = parseReading(where);
+    return { paths, test: compileTest(parsed, columns) };
+}
+
+/**
+ * Parse and compile an expression into what it READS for one element, rather than whether it
+ * matches: `data.nickname || data.name` gives the nickname, else the name, by JMESPath's rules. A
+ * computed column (`session.data.derive`) is one of these. Same subset, same refusals.
+ * @param where - The expression as it was typed.
+ * @param columns - Where to read values.
+ * @returns The reader, which answers null for nothing, and the column paths it reads.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` as {@link compileExpressionPredicate} does.
+ */
+export function compileExpressionValue(
+    where: Query,
+    columns: ElementColumns,
+): { readonly paths: readonly Path[]; readonly value: (index: number) => unknown } {
+    const { parsed, paths } = parseReading(where);
+    return { paths, value: compileValue(parsed, columns) };
 }

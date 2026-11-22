@@ -115,37 +115,13 @@ export function labelLookChanges(style: LabelStyle): (keyof LabelStyle)[] {
     );
 }
 
-const expanded = new WeakMap<LabelStyle, LabelStyle>();
-
 /**
- * A label style with its look's fields filled in beneath its own.
- *
- * What the repaint stacks: a layer that names a look covers every field the look sets, as if the
- * layer had written them, and its own fields win over the look's. A style with no look, or a look
- * no catalog entry has, comes back as it is.
- * @param style - A label style a layer writes.
- * @returns The style the layer paints.
+ * The built-in label looks, for the saved-name scan: a save file that names one by id depends on this
+ * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
+ * Exported, and so tagged public, because test/saved-format/builtInIds.ts finds and loads it by reading the source.
+ * @returns The kind and its ids.
+ * @public
  */
-export function withLabelLook(style: LabelStyle): LabelStyle {
-    const look = style.look === undefined ? undefined : labelLook(style.look);
-
-    if (look === undefined) {
-        return style;
-    }
-
-    let full = expanded.get(style);
-
-    if (full === undefined) {
-        full = { ...look.style };
-
-        for (const [field, value] of Object.entries(style)) {
-            if (value !== undefined) {
-                (full as Record<string, unknown>)[field] = value;
-            }
-        }
-
-        expanded.set(style, full);
-    }
-
-    return full;
+export function builtInIdsForTesting(): { kind: string; ids: readonly string[] } {
+    return { kind: "labelLooks", ids: LABEL_LOOKS.map((each) => each.id) };
 }

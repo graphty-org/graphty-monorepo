@@ -15,10 +15,10 @@ const config = defineConfig({
             include: ["src/**/*.ts"],
             exclude: ["**/*.d.ts", "**/*.test.ts"],
             thresholds: {
-                lines: 65,
-                functions: 60,
-                branches: 85,
-                statements: 65,
+                lines: 90,
+                functions: 90,
+                branches: 90,
+                statements: 90,
             },
         },
         include: ["test/**/*.test.ts", "test/**/*.test.js"],
@@ -27,11 +27,6 @@ const config = defineConfig({
             enabled: true,
             include: ["test/types/**/*.test-d.ts"],
             tsconfig: "./tsconfig.types.json",
-        },
-    },
-    resolve: {
-        alias: {
-            "@": "/src",
         },
     },
 });

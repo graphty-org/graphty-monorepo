@@ -52,18 +52,19 @@ the existing semver ranges, or none. An agent adds its fresh review by running `
 | `release-watch.yml`                                             | Announces on the `Release status` issue a Release run that ended badly without announcing itself                                                                                                                                                                                                   |
 | `bisect.yml`                                                    | Finds the merge that turned a full run red (`tools/bisect-core.mjs`, `tools/bisect-ci.mjs`)                                                                                                                                                                                                        |
 | `base-check.yml`                                                | Runs one test file on master's code at a pull request's base, so a failure the pull request did not cause is known                                                                                                                                                                                 |
+| `refresh-inherited-prs.yml`                                     | When a master break's issue closes, merges master into the open pull requests that failed on its test, so their checks run on the fix                                                                                                                                                              |
 | `nightly-abandon.yml`                                           | Ends the held nightly candidate without promoting it (`-f reason="<why>"`); anyone, no approval, its own concurrency group, never the release train's                                                                                                                                              |
 | `promote.yml`                                                   | Production promotion (graphty.app, npm `latest`) and nightly rollback; owner only (`tools/channel/promote.mjs`)                                                                                                                                                                                    |
 | `master-guard.yml`                                              | A red master build: a revert pull request and a `priority:critical` issue (none for a failure that looks external); a failed canary deploy: one issue                                                                                                                                              |
 | `coverage.yml`                                                  | Called by the full run: merges coverage and publishes it to Coveralls                                                                                                                                                                                                                              |
-| `gpu.yml`                                                       | The paid NVIDIA T4 lane of webgpu-graph-algorithms; only in the full run and by dispatch                                                                                                                                                                                                           |
+| `gpu.yml`                                                       | The paid NVIDIA T4 lane of webgpu-graph-algorithms; only in the full run and by dispatch; a rotating quarter of its test files per run (tools/test-rotation.mjs)                                                                                                                                   |
 | `hosts.yml`                                                     | The host matrix (Metal + WebKit on macOS, D3D12 WARP + Chromium on Windows); pull requests touching `webgpu-graph-algorithms/` or `graph-format/` (advisory), and the full run                                                                                                                     |
 | `work-protection-macos.yml`                                     | graphty-element's autosave in WebKit, Safari and iOS Safari; the full run                                                                                                                                                                                                                          |
 | `pr-integrity.yml`, `pr-issue-link.yml`, `pr-title.yml`         | PR Integrity, Link PR Issue and Lint PR Title (title of 100 characters or fewer, an allowed scope, and the owner's `breaking-go` label on a breaking commit)                                                                                                                                       |
 | `dependency-review.yml`, `dependabot-automerge.yml`             | Advisories against the dependencies a pull request changes; auto-merge for Dependabot's security updates                                                                                                                                                                                           |
 | `results-service.yml`                                           | Deploys the results store, the release scheduler and the nx remote cache Workers from master                                                                                                                                                                                                       |
 | `pipeline-health.yml`, `pipeline-health-pages.yml`              | Tests the pipeline health backend; publishes https://health.graphty.app                                                                                                                                                                                                                            |
-| `render-proof.yml`                                              | By dispatch on a branch: the whole of the `render-parity` and `forced-batched` test projects (design/rendering/row-renderer.md 7); gates nothing                                                                                                                                                   |
+| `render-proof.yml`                                              | By dispatch on a branch: the whole of the `render-parity` and `forced-batched` test projects (design/rendering/row-renderer.md 7); gates nothing (the full run runs both)                                                                                                                          |
 | `restricted-cpu-stress.yml`                                     | Weekly: every gating shard under half the runner's CPU; files one issue per load-sensitive test                                                                                                                                                                                                    |
 | `gpu-weekly-paired.yml`                                         | Weekly: the paired T4 benchmark, master against the latest release                                                                                                                                                                                                                                 |
 | `links-weekly.yml`                                              | Weekly: every external link (one `dead-links` issue) and every network source example (one `dead-network-examples` issue)                                                                                                                                                                          |
@@ -115,14 +116,18 @@ A link to graphty.app must point at something `tools/assemble-pages-site.sh` pub
 **The held nightly candidate.** A run that is not green-clean after its re-run holds its commit: branch
 `channel/candidate`, the store's hold and a "Nightly held on <sha12>" issue (`tools/channel/hold.mjs`). Master
 keeps merging, and nothing promotes past the held commit, except that a newer commit's green-clean or green-images
-run replaces a held head judged red, owner-item or rejected (`hold.mjs replace`): the red hold ends, and the newer
-commit promotes or is held for review in its place. A held green-images head awaiting review is never replaced. Fix it forward from the candidate's head, never
+run replaces a held head judged red, owner-item, rejected, refused or green-images (`hold.mjs replace`): that hold
+ends, and the newer commit promotes or is held for review in its place, so nightly never waits behind an older
+screenshot review (#6604); only an approved head, or one whose approval is already on master, is never replaced
+(its promotion is due). Fix it forward from the candidate's head, never
 from newer master: `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate --issue <n>`,
 `Refs #<hold issue>` in the commit message, then `tools/pr-open.sh`. When it merges, `mode: candidate` merges the
 fix commit (never master) into `channel/candidate` and re-tests the new head as a whole full run. A green-clean
 head promotes to nightly; a green-images one when the owner's screenshot approval merges
-(`mode: promote-nightly`); a screenshot gate that refuses the approval records the head `rejected`, comments the
-gate's reason on the "Nightly held on" issue (opening one when the store names none) and fails the run. The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
+(`mode: promote-nightly`); a screenshot gate that refuses the approval records the head `refused` (never the
+owner's `rejected`, #6783), comments the gate's reason and the retry command on the "Nightly held on" issue (opening
+one when the store names none) and fails the run; once the cause is fixed on master, dispatching promote-nightly for
+the same candidate and approval tries again (a full slot's catch-up does not). The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
 nothing and the next full run undoes it): anyone's `gh workflow run nightly-abandon.yml --ref master -f
 reason="<why>"`, or the full run's own (`hold.mjs auto`) before it picks, when only a pipeline lane (screenshot
 capture or re-capture) since fixed on master held the head red, or when the hold is over 24 hours old and master
@@ -141,8 +146,8 @@ versions npm only had not listed yet closes itself, `tools/publish-hold.mjs`). T
 ### Versions and npm
 
 `nx release` bumps each package from the conventional commits since its last `{projectName}@{version}` tag. A
-commit with `!` or a `BREAKING CHANGE:` footer means a major bump for the package in its scope, so decide a
-package's next major before its first breaking commit lands (see "Breaking changes and major releases"). Check a
+commit with `!` or a `BREAKING CHANGE:` footer means a major bump for the package in its scope, so a breaking
+change carries neither for now (see "Breaking changes and major releases"). Check a
 release change with
 `pnpm exec nx release --dry-run --skip-publish`. Changelogs are rendered by `tools/changelog-renderer.cjs`, which
 lists a commit under a package's "Breaking Changes" only when its scope names that package (or it has none).
@@ -183,8 +188,15 @@ The shards, their commands, groups and measured durations are in `tools/ci-test-
 only the selected test files where `test-select-rules.json` allows file-level selection; the full run runs all
 of them (31 jobs, the short shards grouped into `small-node` and `small-browser`). A change to a file in
 nx.json's `sharedGlobals` affects every package; a `pnpm-lock.yaml` change affects only the packages whose
-resolved dependencies changed. `graphty-element-lifecycle` and `graphty-element-fidelity-1` to `-4` (the style
-fidelity gate over every oracle, in four slices) run only in the full run.
+resolved dependencies changed. `graphty-element-lifecycle`, `graphty-element-fidelity-1` to `-4` (the style
+fidelity gate over every oracle, in four slices), `graphty-element-batched-webgpu` (the tests that need a GPU, on
+the batched render path on WebGPU) and `graphty-element-render-parity-webgl`, `-webgpu` and `-webkit` (every
+captured story drawn on both render paths and compared pixel for pixel) run whole only in the full run; a pull
+request that adds or changes a graphty-element story draws just those stories on all three render-parity engines,
+in one job. `graphty-element-forced-batched-1` to `-12` (the browser and interaction tests on the batched render
+path) run on a pull request exactly as the browser shards do: the selected files, or every file when graphty-element
+runs whole. The experiments-on twins never run whole on a pull request: they run the selected files, and when their
+package runs whole, the test and story files the change added or changed plus those its imports reach.
 
 ## Visual review
 
@@ -300,19 +312,16 @@ changes a file production already has (`tools/dataset-overlay.mjs`).
 
 ## Breaking changes and major releases
 
-Every major release costs every consumer a migration, so keep them few: think ahead and group
-breaking changes into as few majors as possible.
+The owner's rule (2026-11-10): "we have taken a softer stance on 'breaking' since we don't have
+anyone using our app yet. merge in the issues we have held as 'breaking' as non-breaking."
 
-- Before adding a breaking (`!`) commit to a published package, find the other breaking changes
-  already planned or in flight for that package -- unlanded branches carrying `!` commits,
-  deprecations scheduled for removal, the breaking-change registers in `design/` -- and land them
-  in the same major.
-- The full run promotes whatever has reached master to nightly and npm `next`, so a group of
-  breaking changes cannot be assembled by merging several branches over several days: a nightly
-  promotion in between would publish a major of its own. Put the grouped changes on one
-  branch and open it as one pull request.
-- Prefer deprecating now and removing in the next major that is already planned over a major of
-  its own. A breaking change that can wait for the next grouped major waits.
-- A branch that will bump a published package's major says so in its commit message, lists the
-  breaking changes it groups, and names any known breaking change it deliberately leaves for a
-  later major, with the reason.
+- While nobody outside consumes the packages, a change that would be breaking (removing or
+  renaming anything public, changing what an existing API does or returns, changing a default)
+  lands as an ordinary `feat` or `fix` commit with no `!` and no `BREAKING CHANGE:` footer, so it
+  bumps a minor or a patch, never a major.
+- Each such change goes through its own pull request with auto-merge, like any other; nothing is
+  held for a grouped major, and no `breaking-go` label is needed.
+- Its commit message says what changed for callers: what was removed, renamed or now behaves
+  differently, and what to use instead.
+- Ask the owner again only when a real outside consumer appears; then majors are one-way doors
+  again and are grouped into as few as possible.

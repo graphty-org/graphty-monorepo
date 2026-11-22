@@ -12,7 +12,7 @@ import { createGraphSession } from "../../../src/session";
 import { OVERFLOW_SHAPES } from "../../../src/session/styles/encoding";
 
 /**
- * A painted colour as a lower-case hex.
+ * A painted color as a lower-case hex.
  * @param paint - What the sequence painted.
  * @returns The hex.
  */
@@ -128,5 +128,14 @@ describe("styles.sequence", () => {
             { channel: "node.shape", count: 4 },
         );
         assert.deepEqual(shapes.values, [OVERFLOW_SHAPES[0], OVERFLOW_SHAPES[1], "torus", OVERFLOW_SHAPES[3]]);
+    });
+
+    it("spreads the items a map leaves out along the range on a number channel", () => {
+        const s = createGraphSession();
+        const seq = s.styles.sequence({ range: [1, 5], map: { "0": 10 } }, { channel: "node.size", count: 4 });
+        assert.deepEqual(
+            seq.values.map((value) => Math.round(Number(value) * 100) / 100),
+            [10, 2.33, 3.67, 5],
+        );
     });
 });

@@ -9,7 +9,7 @@
  * before autosave restores any layer.
  */
 
-import type { Scene } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { ShaderParams, ShaderProblem } from "../catalog/shaders";
 import { GraphtyError } from "../errors/GraphtyError";

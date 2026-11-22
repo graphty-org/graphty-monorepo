@@ -2,7 +2,7 @@
  * @file A node repaint that rebuilds meshes pays the pass over the scene's lists about once a frame,
  * not once per 128 nodes (design/ui/studio/tier5/ws-polish-3-scale.md).
  *
- * WHAT WENT WRONG. A paint that changes a node's source mesh (its opacity, its shape) disposes the
+ * WHAT WENT WRONG. A paint that changes a node's geometry (its shape, its size) disposes the
  * old mesh inside `disposeReleased`, which sets aside and restores every scene list: a pass over
  * every mesh in the scene, whatever the batch holds. Batches were a fixed 128 nodes, and a frame
  * ran as many as its budget allowed, so a 50,000-node repaint made about 390 passes over 50,000
@@ -72,12 +72,13 @@ describe("a node repaint that rebuilds meshes", () => {
         });
 
         try {
-            // Opacity is part of a node's source mesh, so every node's mesh is rebuilt.
+            // A shape is the node's geometry, so every node's mesh is rebuilt. An opacity alone moves
+            // the mesh onto another source and rebuilds nothing (faint-view-keeps-meshes.test.ts).
             await graph.getSession().styles.add({
-                name: "every node faint",
+                name: "every node a box",
                 target: "node",
                 selector: { match: "everything" },
-                set: { "node.opacity": 0.4 },
+                set: { "node.shape": "box" },
             });
             await graph.waitForPainted();
         } finally {
@@ -136,10 +137,10 @@ describe("a node repaint that rebuilds meshes, split across frames", () => {
 
         try {
             await graph.getSession().styles.add({
-                name: "every node faint",
+                name: "every node a box",
                 target: "node",
                 selector: { match: "everything" },
-                set: { "node.opacity": 0.4 },
+                set: { "node.shape": "box" },
             });
             await graph.waitForPainted();
         } finally {

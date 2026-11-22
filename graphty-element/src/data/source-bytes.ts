@@ -10,7 +10,7 @@
  * Node-safe: `./catalog` reaches this module through `listGraphs`.
  */
 
-import { headBytes } from "@graphty/graph-io";
+import { headBytes, sha256Hex } from "@graphty/graph-io";
 
 import { GraphtyError } from "../errors";
 
@@ -71,16 +71,171 @@ export function urlTail(url: string): string {
 }
 
 /**
+ * A read of a file or a URL, with a failure (a file the browser cannot read, a body cut off
+ * mid-download) coded as `E_FETCH_FAILED`.
+ * @param read - The read.
+ * @param where - The file's name or the URL, for the error's details.
+ * @param where.file - The file's name, when it is a file.
+ * @param where.url - The URL, when it is a URL.
+ * @returns What the read resolved to.
+ * @throws A `GraphtyError` with `E_FETCH_FAILED` when the read fails.
+ */
+export async function readOrRefuse<T>(read: Promise<T>, where: { file?: string; url?: string }): Promise<T> {
+    try {
+        return await read;
+    } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        throw GraphtyError.wrap(error, {
+            code: "E_FETCH_FAILED",
+            source: "data",
+            recoverable: true,
+            message: `Failed to read ${where.url ?? where.file ?? "the source"}: ${reason}`,
+            details: where,
+        });
+    }
+}
+
+/** The validators each fetched body's response carried, by the bytes {@link fetchBytes} returned. */
+const VALIDATORS = new WeakMap<Uint8Array, { readonly etag?: string; readonly lastModified?: string }>();
+
+/**
+ * The `ETag` and `Last-Modified` the response that gave these bytes carried.
+ * @param bytes - Bytes {@link fetchBytes} returned.
+ * @returns The validators it had, or undefined for bytes it did not fetch.
+ */
+export function validatorsOf(
+    bytes: Uint8Array,
+): { readonly etag?: string; readonly lastModified?: string } | undefined {
+    return VALIDATORS.get(bytes);
+}
+
+/** What a reader fetched for a URL: the body's digest, its size and its response's validators. */
+export interface FetchedFacts {
+    readonly sha256: Promise<string>;
+    readonly size: number;
+    readonly etag?: string;
+    readonly lastModified?: string;
+}
+
+/** What a reader fetched for each URL, until the load's facts take it. */
+const FETCHED = new Map<string, FetchedFacts>();
+
+/**
+ * Keep what a reader fetched for a URL, so the load that read it can record its digest, size and
+ * validators. ponytail: one entry per URL, the latest fetch winning; two loads of one URL at once
+ * share it. Key it by load if that matters.
+ * @param url - The URL.
+ * @param bytes - The body.
+ * @param response - The response, for its validators.
+ */
+export function keepFetched(url: string, bytes: Uint8Array, response: Response): void {
+    const etag = response.headers.get("ETag");
+    const lastModified = response.headers.get("Last-Modified");
+    const sha256 = sha256Hex(bytes);
+    // Settled here too, so a digest no load takes never rejects unhandled.
+    sha256.catch(() => undefined);
+    FETCHED.set(url, {
+        sha256,
+        size: bytes.byteLength,
+        ...(etag === null ? {} : { etag }),
+        ...(lastModified === null ? {} : { lastModified }),
+    });
+}
+
+/**
+ * What a reader fetched for a URL, left for the load that takes it.
+ * @param url - The URL.
+ * @returns The body's digest, size and validators, or undefined.
+ */
+export function peekFetched(url: string): FetchedFacts | undefined {
+    return FETCHED.get(url);
+}
+
+/**
+ * What a reader fetched for a URL, removed once taken.
+ * @param url - The URL.
+ * @returns The body's digest, size and validators, or undefined.
+ */
+export function takeFetched(url: string): FetchedFacts | undefined {
+    const read = FETCHED.get(url);
+    FETCHED.delete(url);
+    return read;
+}
+
+/**
+ * A refusal of a body over a size limit.
+ * @param limit - The limit, in bytes.
+ * @param count - The size found, or read so far.
+ * @returns The error.
+ */
+function tooLarge(limit: number, count: number): GraphtyError {
+    return new GraphtyError({
+        code: "E_TOO_LARGE",
+        message: `The body is over the limit of ${String(limit)} bytes.`,
+        source: "data",
+        details: { limit, count, of: "bytes" },
+    });
+}
+
+/**
+ * A response's body, read no further than a size limit: refused by its `Content-Length`, else
+ * as soon as the bytes read pass the limit.
+ * @param response - The response.
+ * @param limit - The limit, in bytes.
+ * @returns The body.
+ * @throws A `GraphtyError` with `E_TOO_LARGE` over the limit.
+ */
+async function boundedBody(response: Response, limit: number): Promise<ArrayBuffer> {
+    const declared = Number(response.headers.get("Content-Length") ?? Number.NaN);
+    if (declared > limit) {
+        throw tooLarge(limit, declared);
+    }
+
+    if (response.body === null) {
+        return response.arrayBuffer();
+    }
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (let read = await reader.read(); !read.done; read = await reader.read()) {
+        size += read.value.byteLength;
+        if (size > limit) {
+            await reader.cancel();
+            throw tooLarge(limit, size);
+        }
+
+        chunks.push(read.value);
+    }
+
+    const body = new Uint8Array(size);
+    let at = 0;
+    for (const chunk of chunks) {
+        body.set(chunk, at);
+        at += chunk.byteLength;
+    }
+
+    return body.buffer;
+}
+
+/**
  * Read a URL's bytes, once.
  * @param url - The URL.
+ * @param signal - Cancels the fetch; an abort rejects with the signal's reason, uncoded.
+ * @param limit - The most bytes to read; unbounded when absent.
  * @returns The bytes.
- * @throws A `GraphtyError` with `E_FETCH_FAILED` when it cannot be read.
+ * @throws A `GraphtyError` with `E_FETCH_FAILED` when it cannot be read, and `E_TOO_LARGE` when
+ *     its body is over the limit.
  */
-export async function fetchBytes(url: string): Promise<Uint8Array> {
+export async function fetchBytes(url: string, signal?: AbortSignal, limit?: number): Promise<Uint8Array> {
     let response: Response;
     try {
-        response = await fetch(url);
+        response = await fetch(url, signal === undefined ? undefined : { signal });
     } catch (error) {
+        if (signal?.aborted === true) {
+            throw error;
+        }
+
         throw new GraphtyError({
             code: "E_FETCH_FAILED",
             message: `Could not fetch "${url}".`,
@@ -98,7 +253,37 @@ export async function fetchBytes(url: string): Promise<Uint8Array> {
         });
     }
 
-    return new Uint8Array(await response.arrayBuffer());
+    const body = limit === undefined ? response.arrayBuffer() : boundedBody(response, limit);
+    const bytes = new Uint8Array(await readOrRefuse(body, { url }));
+    const etag = response.headers.get("ETag");
+    const lastModified = response.headers.get("Last-Modified");
+    VALIDATORS.set(bytes, {
+        ...(etag === null ? {} : { etag }),
+        ...(lastModified === null ? {} : { lastModified }),
+    });
+    return bytes;
+}
+
+/**
+ * Read a URL as JSON, once.
+ * @param url - The URL.
+ * @returns The parsed value.
+ * @throws A `GraphtyError`: `E_FETCH_FAILED` when it cannot be read, `E_PARSE_FAILED` when it is
+ *     not JSON.
+ */
+export async function fetchJson(url: string): Promise<unknown> {
+    const text = new TextDecoder().decode(await fetchBytes(url));
+    try {
+        return JSON.parse(text) as unknown;
+    } catch (error) {
+        throw new GraphtyError({
+            code: "E_PARSE_FAILED",
+            message: `"${url}" is not JSON.`,
+            source: "data",
+            details: { url, format: "json" },
+            cause: error,
+        });
+    }
 }
 
 /** A file read structurally: a browser `File`, or anything with a name and its bytes. */
@@ -120,7 +305,10 @@ export async function readSource(config: Readonly<Record<string, unknown>>): Pro
     }
 
     if (typeof file === "object" && file !== null && typeof (file as FileLike).arrayBuffer === "function") {
-        return new Uint8Array(await (file as FileLike).arrayBuffer());
+        const { name } = file as FileLike;
+        return new Uint8Array(
+            await readOrRefuse((file as FileLike).arrayBuffer(), typeof name === "string" ? { file: name } : {}),
+        );
     }
 
     return typeof url === "string" ? fetchBytes(url) : null;

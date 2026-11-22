@@ -3,7 +3,9 @@
  * (`PulledLineBatch`) and draw the picture the placed lines draw: at rest, after a node is dragged (no
  * edge byte uploaded) and with an edge hidden. An edge with a cap stays an object edge. With
  * `antialias` false under renderPath "batched", straight pulled lines draw the lean program (each
- * piece's rectangle alone, design/rendering/cosmos-gap.md G12) and the same picture. The bar is
+ * piece's rectangle alone, design/rendering/cosmos-gap.md G12) and the same picture; with `antialias`
+ * "shader", the lean program with its edges smoothed in the fragment shader on a canvas with no
+ * multisampling (issue #8531). The bar is
  * section 7 of design/rendering/row-renderer.md.
  */
 
@@ -15,8 +17,9 @@ import type { Graphty } from "../../index.js";
 import { Edge, pulledLooks } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
+import { setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import { poolGrowths } from "../../src/meshes/poolReserve";
-import { pulledEdgesDefault } from "../../src/meshes/PulledLineBatch";
+import { type Antialias, pulledEdgesDefault } from "../../src/meshes/PulledLineBatch";
 import { drag } from "../helpers/real-input";
 import { edgeBetween } from "../helpers/testSetup";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
@@ -64,11 +67,25 @@ function edgeId(element: Graphty, source: number, target: number): unknown {
  * @param path.antialias - The element's `antialias`.
  * @returns The element.
  */
+/**
+ * Build every row's `Node`, so a moving frame takes the full walk of every edge the engine holds
+ * (the frame walks only the rows with a `Node`), and wait for the frame that draws them.
+ */
+async function everyNodeBuilt(element: Graphty): Promise<void> {
+    assert.lengthOf([...element.graph.getNodes()], NODES.length);
+    assert.strictEqual(
+        dataManagerInternals.nodesBuilt(element.graph.getDataManager()),
+        NODES.length,
+        "every row has its Node",
+    );
+    await element.waitForStableFrame();
+}
+
 async function loaded(
     renderer: "webgl" | "webgpu",
     pulled: boolean,
     view: "2d" | "3d" = "3d",
-    { renderPath = "objects", antialias = true }: { renderPath?: "objects" | "batched"; antialias?: boolean } = {},
+    { renderPath = "objects", antialias = true }: { renderPath?: "objects" | "batched"; antialias?: Antialias } = {},
 ): Promise<Graphty> {
     pulledEdgesDefault.value = pulled;
     const element = document.createElement("graphty-element");
@@ -169,12 +186,14 @@ async function draggedAndRenumbered(element: Graphty): Promise<Frame> {
  * @param renderer - The renderer.
  * @param renderPath - The render path.
  * @param capped - Whether the edges keep their heads (object edges with caps) or are plain (pulled lines).
+ * @param built - Whether every edge gets its `Edge`, which a batched load would store with none.
  * @returns The pools' growths during the load.
  */
 async function loadGrowths(
     renderer: "webgl" | "webgpu",
     renderPath: "objects" | "batched",
     capped: boolean,
+    built = false,
 ): Promise<{ lines: number; caps: number; looks: number }> {
     const element = document.createElement("graphty-element");
     element.renderer = renderer;
@@ -185,6 +204,10 @@ async function loadGrowths(
     document.body.appendChild(element);
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
+    if (built) {
+        dataManagerInternals.storeEdgesUnbuilt(element.graph.getDataManager(), false);
+    }
+
     await element.graph.setLayout("fixed", { dim: 3 });
     if (!capped) {
         await element.session.styles.add({
@@ -217,6 +240,7 @@ async function loadGrowths(
 describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
     afterEach(() => {
         vi.restoreAllMocks();
+        setMinimumWorkPerFrame(false);
     });
 
     it("are never placed by the frame's walk, at load, at a drag or after a renumbering freeze", async () => {
@@ -249,6 +273,9 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
             return pulled;
         });
 
+        // One layout round a frame however long a frame takes, so the layout moves over a fixed
+        // number of frames (a slow frame otherwise catches up with several rounds).
+        setMinimumWorkPerFrame(true);
         await element.graph.setLayout("force", { seed: 1 });
         await element.waitForStableFrame();
 
@@ -262,11 +289,7 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
     it("are not asked about by the frame's full walk while a layout moves every node", async () => {
         const element = await loaded(renderer, false, "2d", { renderPath: "batched" });
         assert.deepInclude(element.graph.rowCounts, { pulledEdges: EDGES.length - 1, objectEdges: 1 });
-        assert.strictEqual(
-            dataManagerInternals.nodesBuilt(element.graph.getDataManager()),
-            NODES.length,
-            "the view switch built every row's Node",
-        );
+        await everyNodeBuilt(element);
         const visits = countVisits();
         const asked = { pulled: 0 };
         const followsRows = Object.getOwnPropertyDescriptor(Edge.prototype, "followsRows")?.get;
@@ -277,6 +300,9 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
             return follows;
         });
 
+        // One layout round a frame however long a frame takes, so the layout moves over a fixed
+        // number of frames (a slow frame otherwise catches up with several rounds).
+        setMinimumWorkPerFrame(true);
         await element.graph.setLayout("force", { seed: 1 });
         await element.waitForStableFrame();
 
@@ -290,6 +316,7 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
     it("are not asked for a support point by the frame's full walk while a layout moves every node", async () => {
         const element = await loaded(renderer, false, "2d", { renderPath: "batched" });
         assert.deepInclude(element.graph.rowCounts, { pulledEdges: EDGES.length - 1, objectEdges: 1 });
+        await everyNodeBuilt(element);
         const visits = countVisits();
         const followsRows = Object.getOwnPropertyDescriptor(Edge.prototype, "followsRows")?.get;
         assert.isDefined(followsRows);
@@ -304,6 +331,9 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
             return original.apply(this, args);
         });
 
+        // One layout round a frame however long a frame takes, so the layout moves over a fixed
+        // number of frames (a slow frame otherwise catches up with several rounds).
+        setMinimumWorkPerFrame(true);
         await element.graph.setLayout("force", { seed: 1 });
         await element.waitForStableFrame();
 
@@ -371,6 +401,73 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
         );
     });
 
+    it.each(["2d", "3d"] as const)(
+        "draw the smoothed lean program under antialias shader on batched, in %s, with no multisampling",
+        async (view) => {
+            const lean = await loaded(renderer, false, view, { renderPath: "batched", antialias: false });
+            const leanRest = await readCanvas(lean.graph);
+            lean.remove();
+
+            const smooth = await loaded(renderer, false, view, { renderPath: "batched", antialias: "shader" });
+            assert.strictEqual(smooth.antialias, "shader");
+            assert.strictEqual(smooth.graph.leansLines(), "smooth");
+            assert.isFalse(smooth.graph.engine.getCreationOptions().antialias, "the canvas is not multisampled");
+            const batches = [...smooth.graph.getMeshCache().pulledBatchMap.entries()];
+            assert.isTrue(batches.length > 0, "the batched path pulls edges");
+            for (const [key, batch] of batches) {
+                assert.isTrue(key.endsWith(view === "2d" ? "|smooth|2d" : "|smooth"), key);
+                const { defines } = (batch.mesh.material as unknown as { options: { defines: string[] } }).options;
+                assert.includeMembers(defines, ["#define EDGE_PULLED_LEAN", "#define EDGE_LINE_AA"], key);
+                // In 3D the faint outer fringe is dropped, so it writes no depth.
+                assert.strictEqual(defines.includes("#define EDGE_LINE_AA_CUT"), view === "3d", key);
+                assert.strictEqual(
+                    batch.mesh.subMeshes[0]?.verticesCount,
+                    batch.drawnCount * 6,
+                    "six vertices a piece",
+                );
+            }
+
+            // The same lines, their edges smoothed: some pixels differ from the lean picture.
+            assert.isAbove(overBar(leanRest, await readCanvas(smooth.graph)), 0);
+            // It cannot switch to any other setting on an engine built for it, and says so each time.
+            const warnings: unknown[] = [];
+            smooth.addEventListener("graphty-warning", (event) => warnings.push((event as CustomEvent).detail));
+            for (const other of [true, false, "at-rest"] as const) {
+                smooth.antialias = other;
+                assert.strictEqual(smooth.graph.antialias, "shader");
+            }
+
+            assert.lengthOf(warnings, 3);
+            assert.isTrue(
+                warnings.every((w) => JSON.stringify(w).includes("W_ANTIALIAS_LATE")),
+                JSON.stringify(warnings),
+            );
+
+            // An unblended line (blending false) is painted at full alpha: it keeps the plain lean
+            // program, not a widened rectangle painted solid.
+            await smooth.session.styles.add({
+                name: "unblended",
+                target: "edge",
+                selector: { match: "ids", edges: [edgeId(smooth, 2, 6)] },
+                set: { "edge.blending": false },
+            } as never);
+            await operationQueueOf(smooth.graph).waitForCompletion();
+            await smooth.waitForStableFrame();
+            const unblended = [...smooth.graph.getMeshCache().pulledBatchMap.entries()].filter(([key]) =>
+                key.includes("|unblended|"),
+            );
+            assert.lengthOf(unblended, 1, "the unblended line has its own batch");
+            for (const [key, batch] of unblended) {
+                assert.isTrue(key.endsWith(view === "2d" ? "|lean|2d" : "|lean"), key);
+                const { defines } = (batch.mesh.material as unknown as { options: { defines: string[] } }).options;
+                assert.include(defines, "#define EDGE_PULLED_LEAN", key);
+                assert.notInclude(defines, "#define EDGE_LINE_AA", key);
+            }
+
+            smooth.remove();
+        },
+    );
+
     it("pull the plain edges in 2D too, with their width in world units", async () => {
         const placed = await loaded(renderer, false, "2d");
         const placedRest = await readCanvas(placed.graph);
@@ -390,7 +487,7 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
     it("judge whether a look can be pulled once per look, not once or twice per edge, for a load", async () => {
         // 3,000 edges drawn in one look (and the placeholder they are built with): before, every edge
         // judged its look when it was built and again when it was painted, 6,000 times
-        const { looks } = await loadGrowths(renderer, "batched", false);
+        const { looks } = await loadGrowths(renderer, "batched", false, true);
         assert.isAbove(looks, 0, "the load judged its looks");
         assert.isAtMost(looks, 4, "each look was judged once");
     });

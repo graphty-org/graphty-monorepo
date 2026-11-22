@@ -2,8 +2,7 @@
  * Semantic audit of the CSV importer against the corpus files themselves (facts derived here by
  * manual line splitting of the raw text) and against the quirks graphty-element's CSVDataSource /
  * csv-variant-detection and research note 07 section 2.6 describe (Gephi tables, SNAP and KONECT
- * comment headers, adjacency lists, Cytoscape interaction tables, paired node files). Tests named
- * "DEFECT:" pin a defect and fail until the importer is fixed.
+ * comment headers, adjacency lists, Cytoscape interaction tables, paired node files).
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
@@ -283,10 +282,10 @@ describe("CSV quirks from CSVDataSource, csv-variant-detection and research note
         expect(bare.snapshot.flags.weighted).toBe(false);
     });
 
-    it("DEFECT: SNAP edge lists start with # comment lines (design 8.4, note 07 2.6) and must import", async () => {
+    it("SNAP edge lists, which start with # comment lines (design 8.4, note 07 2.6), import", async () => {
         // snap.stanford.edu files: "# Directed graph ...", "# Nodes: N Edges: M", "# FromNodeId\tToNodeId",
-        // then tab-separated integer pairs. The importer has no comment-line rule: the first # line
-        // becomes an 11-column header and every data row is a field-count error, so nothing loads.
+        // then tab-separated integer pairs. Without a leading comment-line rule the first # line would
+        // become an 11-column header and every data row a field-count error.
         const snap =
             "# Directed graph (each unordered pair of nodes is saved once)\n# Foo\n# Nodes: 3 Edges: 3\n# FromNodeId\tToNodeId\n1\t2\n2\t3\n3\t1\n";
         const { snapshot, report } = await parse(snap);
@@ -295,7 +294,7 @@ describe("CSV quirks from CSVDataSource, csv-variant-detection and research note
         expect(edgeStrings(snapshot)).toEqual(["1->2", "2->3", "3->1"]);
     });
 
-    it("DEFECT: KONECT files start with % header lines (design 8.4 and 16.5, note 07 2.6) and must import", async () => {
+    it("KONECT files, which start with % header lines (design 8.4 and 16.5, note 07 2.6), import", async () => {
         // konect.cc TSV: "% sym unweighted" / "% asym positive", "% M N1 N2", then "u v [w [t]]".
         const konect = "% asym positive\n% 2 3 3\n1 2 16777217 1000000\n2 3 0.1 1000001\n";
         const { snapshot } = await parse(konect);

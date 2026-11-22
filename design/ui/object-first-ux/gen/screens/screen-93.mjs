@@ -1,9 +1,9 @@
 // Screen 93: styling one node. Screen 9's state (College football,
-// BrighamYoung, the top ten by Bridges outlined, sized by Bridges, coloured by
+// BrighamYoung, the top ten by Bridges outlined, sized by Bridges, colored by
 // conference); from the node's Look section the reader chose "Style this
 // node...", which made a one-node Set at the top of the tree (so it paints
-// above everything) and opened its Style tab; picking Colour wrote a magenta
-// override above the colour it inherits from Conference. Only BrighamYoung
+// above everything) and opened its Style tab; picking Color wrote a magenta
+// override above the color it inherits from Conference. Only BrighamYoung
 // changes.
 import screen9 from "./screen-9.mjs";
 import { NODES } from "../football.mjs";

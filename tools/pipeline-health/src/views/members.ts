@@ -18,6 +18,7 @@ import type {
     Value,
     WordValue,
 } from "../../web/src/contract.js";
+import { type BenchItem, readBenches } from "../model/benchmarks.js";
 import { type Bucket, DAY, floorTo, HOUR, type IssueItem, ISSUES_PK, MIN, type Step, STEP_MS } from "../model/items.js";
 import { loadSeries, type MetricWindow, type WindowName, windowValue } from "../model/rollup.js";
 import { type PrStockPrs, readSnapshot } from "../model/snapshots.js";
@@ -78,6 +79,23 @@ export const SPEC: Record<string, Spec> = {
     "pr.oldest_open": { id: "pull-requests.oldest_open", unit: "h", k: toH, link: "/pull-requests" },
     "pr.merge_ratio": { id: "pull-requests.merge_ratio", unit: "ratio", link: "/pull-requests" },
     "pr.caused_failures": { id: "pull-requests.caused_failures", unit: "pct", k: PCT, link: "/pull-requests" },
+    // Issue grouping (design/ci/issue-grouping.md section 9).
+    "pr.issues_per_merge": { id: "pull-requests.issues_per_merge", unit: "ratio", link: "/pull-requests" },
+    "pr.multi_issue_share": { id: "pull-requests.multi_issue_share", unit: "pct", k: PCT, link: "/pull-requests" },
+    "pr.runner_minutes_per_issue": {
+        id: "pull-requests.runner_minutes_per_issue",
+        unit: "min",
+        link: "/ci/runner-minutes",
+    },
+    "pr.group_released_share": {
+        id: "pull-requests.group_released_share",
+        unit: "pct",
+        k: PCT,
+        link: "/pull-requests",
+        now: true,
+    },
+    "pr.groups_ready": { id: "pull-requests.groups_ready", link: "/pull-requests", now: true },
+    "pr.groups_combinable": { id: "pull-requests.groups_combinable", link: "/pull-requests", now: true },
     "pr.automerge_green_stuck": { id: "pull-requests.automerge_green_stuck", link: "/pull-requests" },
     "pr.automerge_armed_long": { id: "pull-requests.automerge_armed_long", link: "/pull-requests" },
     "pr.screenshot_backlog": {
@@ -102,6 +120,7 @@ export const SPEC: Record<string, Spec> = {
     "ci.bins_over_8": { id: "ci.bins_over", unit: "pct", k: PCT, link: "/ci/shards" },
     "ci.reruns": { id: "ci.reruns", unit: "pct", k: PCT, link: "/ci" },
     "ci.full_shards_over_budget": { id: "ci.shards_over", link: "/ci/shards" },
+    "ci.full_group_deadline": { id: "ci.group_deadline", unit: "pct", k: PCT, link: "/ci/shards" },
     "ci.runner_minutes_per_merge": { id: "ci.runner_minutes", unit: "min", link: "/ci/runner-minutes" },
     "ci.superseded_running": { id: "ci.superseded", link: "/ci/runners/superseded" },
     "ci.chronic_jobs": {
@@ -288,6 +307,14 @@ export class Reads {
         return this.once(`s:${metric}:${step}:${from}:${to}`, () =>
             loadSeries(this.store, metric, step, from, to, this.now),
         );
+    }
+
+    /**
+     * Every live benchmark, read once: the CI page's three ranges share one read of the partition (#6813).
+     * @returns the live benchmark items
+     */
+    benches(): Promise<BenchItem[]> {
+        return this.once("benches", () => readBenches(this.store, this.now));
     }
 
     /**
@@ -525,6 +552,17 @@ async function sparkOf(reads: Reads, c: MemberConfig, spec: Spec, range: Range):
 }
 
 /**
+ * The tests flaky.no_issue counts, by name (#8795).
+ * @param reads - the store reads shared by this build
+ * @param s - the member's status
+ * @returns the note, or undefined when it counts none
+ */
+async function untrackedNote(reads: Reads, s: MemberStatus): Promise<Fact | undefined> {
+    const tests = s.value ? await readSnapshot(reads.store, "flaky-no-issue") : undefined;
+    return tests?.length ? f("note.flaky_no_issue", { tests }) : undefined;
+}
+
+/**
  * What is known about a member now, under its definition: the pull requests behind a PR count, and how many
  * chronically failing jobs have no open issue (that, not the count, turns the row red).
  * @param reads - the store reads shared by this build
@@ -535,6 +573,17 @@ async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> 
     if (s.id === "ci.chronic_jobs") {
         const n = s.facts?.["ci.chronic_no_issue"];
         return n ? f("note.chronic_no_issue", { n }) : undefined;
+    }
+    if (s.id === "pr.groups_combinable") {
+        return combinableNote(reads);
+    }
+    if (s.id === "flaky.no_issue") {
+        return untrackedNote(reads, s);
+    }
+    if (s.id === "flaky.net_new") {
+        const added = s.facts?.["flaky.net_added"];
+        const resolved = s.facts?.["flaky.net_resolved"];
+        return added === undefined || resolved === undefined ? undefined : f("flaky.net_new.note", { added, resolved });
     }
     if (!s.value || !["pr.oldest_open", "pr.automerge_green_stuck", "pr.automerge_armed_long"].includes(s.id)) {
         return undefined;
@@ -547,6 +596,20 @@ async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> 
     }
     const list = (s.id === "pr.automerge_green_stuck" ? prs?.greenStuck : prs?.armedLong) ?? [];
     return list.length ? f("note.prs", { prs: list }) : undefined;
+}
+
+/**
+ * The branches the combinable families hold, from the ledger's newest daily reading in 7 days.
+ * @param reads - the store reads shared by this build
+ * @returns the note, or undefined when no reading carries the count
+ */
+async function combinableNote(reads: Reads): Promise<Fact | undefined> {
+    const today = floorTo(reads.now, "1d");
+    const days = await reads.series("issues.groups_combinable_branches", "1d", today - 6 * DAY, today);
+    const newest = [...days.values()]
+        .filter((b) => b.lastAt !== undefined)
+        .sort((a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0))[0];
+    return newest?.last === undefined ? undefined : f("note.combinable_branches", { n: newest.last });
 }
 
 /**

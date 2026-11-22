@@ -55,7 +55,7 @@ function idPart(text: string): string {
 
 /**
  * A built-in's suggestion: its named setting, once that differs from the declared default.
- * @param descriptor - The algorithm's catalogue entry.
+ * @param descriptor - The algorithm's catalog entry.
  * @param params - The run's canonical parameters.
  * @returns The suggestion, or undefined for the plain name.
  */
@@ -100,7 +100,7 @@ function plainId(key: string): string {
 
 /**
  * What an unnamed run of this algorithm, with these parameters, should be called.
- * @param descriptor - The algorithm's catalogue entry.
+ * @param descriptor - The algorithm's catalog entry.
  * @param params - The run's canonical parameters, the declared defaults filled in.
  * @returns The id to try first, the label, and the option a built-in's name was suggested by.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` when a registered algorithm suggests an id a
@@ -136,9 +136,23 @@ export function suggestRunName(descriptor: AlgorithmDescriptor, params: Readonly
 
 /**
  * The name of a run its algorithm suggests nothing for.
- * @param descriptor - The algorithm's catalogue entry.
+ * @param descriptor - The algorithm's catalog entry.
  * @returns Its key as the id, its plain name as the label.
  */
 function plainName(descriptor: AlgorithmDescriptor): RunName {
     return { id: plainId(descriptor.key), label: descriptor.plainName, distinguishedBy: null };
+}
+
+/**
+ * The id a sweep gives the run of one of its values: the algorithm, the option and the value, so
+ * every value is a result of its own rather than a re-run of the one before.
+ * @param key - The algorithm's catalog key.
+ * @param option - The option the sweep varies.
+ * @param value - The value.
+ * @returns The id, such as `louvain_resolution_0_5`.
+ */
+export function sweepRunId(key: string, option: string, value: unknown): string {
+    const text = typeof value === "string" ? value : JSON.stringify(value);
+
+    return [plainId(key), idPart(option), idPart(text ?? "")].filter((part) => part !== "").join("_");
 }

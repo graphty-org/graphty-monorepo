@@ -1,5 +1,5 @@
 import { GraphBuilder, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { csvImporter } from "../src/formats/csv/importer.js";
 import { gexfExporter } from "../src/formats/gexf/exporter.js";
@@ -45,15 +45,15 @@ function edges(s: GraphSnapshot): string[] {
 }
 
 describe("FormatRegistry", () => {
-    it("holds the built-in formats in GRAPH_FORMATS order; every one is read and written", () => {
+    it("holds the built-in formats in GRAPH_FORMATS order; every one is read and all but workbooks written", () => {
         expect(registry).toBeInstanceOf(FormatRegistry);
         expect(registry.formats()).toEqual([...GRAPH_FORMATS]);
         expect(registry.importers().map((i) => i.format)).toEqual([...GRAPH_FORMATS]);
-        const written = GRAPH_FORMATS;
+        const written = GRAPH_FORMATS.filter((format) => format !== "xlsx");
         expect(registry.exporters().map((e) => e.format)).toEqual(written);
         for (const format of GRAPH_FORMATS) {
             expect(registry.hasImporter(format)).toBe(true);
-            expect(registry.hasExporter(format)).toBe(true);
+            expect(registry.hasExporter(format)).toBe(format !== "xlsx");
             expect(registry.importer(format).format).toBe(format);
         }
         for (const format of written) {
@@ -64,7 +64,7 @@ describe("FormatRegistry", () => {
     });
 
     it("rejects an unknown format with E_UNSUPPORTED naming the known ones", () => {
-        const written = GRAPH_FORMATS;
+        const written = GRAPH_FORMATS.filter((format) => format !== "xlsx");
         for (const [fn, supported] of [
             [(): unknown => registry.importer("nope"), GRAPH_FORMATS],
             [(): unknown => registry.exporter("nope"), written],
@@ -236,7 +236,7 @@ describe("importGraph (design 8.4)", () => {
             });
         }
         // tabs, CRLF, a UTF-8 BOM and a DOS end-of-file marker are text, so such CSVs are still detected
-        for (const text of ["﻿source,target\r\na,b\r\n", "source\ttarget\na\tb\n", "source,target\na,b\n\u001a"]) {
+        for (const text of ["\uFEFFsource,target\r\na,b\r\n", "source\ttarget\na\tb\n", "source,target\na,b\n\u001a"]) {
             const result = await importGraph(text, { format: "auto" });
             expect(result.format).toBe("csv");
             expect(result.snapshot.edgeCount).toBe(1);
@@ -520,5 +520,62 @@ describe("importGraph option and error shapes", () => {
         expect(Object.keys(importError)).not.toContain("report");
         expect(importError.report.errorCount).toBe(1);
         expect(importError.message).toBe("error limit of 0 exceeded: line 2: 1 field, expected 2");
+    });
+});
+
+/**
+ * Every string reachable from a value: own properties (message, stack, cause included) of objects
+ * and errors, walked once each.
+ * @param value - the value
+ * @param seen - objects already walked
+ * @returns the strings joined by newlines
+ */
+function everyString(value: unknown, seen = new Set<unknown>()): string {
+    if (typeof value === "string") {
+        return value;
+    }
+    if (typeof value !== "object" || value === null || seen.has(value)) {
+        return "";
+    }
+    seen.add(value);
+    return Object.getOwnPropertyNames(value)
+        .map((key) => everyString((value as Record<string, unknown>)[key], seen))
+        .join("\n");
+}
+
+describe("loadFromUrl E_FETCH error", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("carries no user info, query string or fragment anywhere, the cause included (Node's own fetch)", async () => {
+        const url = "http://user:pw@example.invalid/g.gml?api_key=SECRET#frag";
+        const err = await registry.loadFromUrl(url).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ImportError);
+        const all = everyString(err);
+        expect(all).toContain("http://example.invalid/g.gml");
+        expect(all).not.toMatch(/pw|SECRET|frag|user:/);
+        expect((err as ImportError).details.cause).toBeInstanceOf(Error);
+    });
+
+    it("redacts a URL that fetch puts in its error, its cause and their fields", async () => {
+        const url = "https://user:pw@example.com/g.gml?token=SECRET";
+        const { href } = new URL(url);
+        vi.stubGlobal("fetch", () =>
+            Promise.reject(
+                Object.assign(new TypeError(`fetch failed for ${url}`), {
+                    url,
+                    cause: Object.assign(new Error(`connect to ${href} refused`), { code: "ECONNREFUSED", href }),
+                }),
+            ),
+        );
+        const err = (await registry.loadFromUrl(url).catch((e: unknown) => e)) as ImportError;
+        expect(err.issue?.code).toBe("E_FETCH");
+        expect(everyString(err)).not.toMatch(/pw|SECRET|user:/);
+        expect(err.details.cause).toMatchObject({
+            name: "TypeError",
+            message: "fetch failed for https://example.com/g.gml",
+            cause: { message: "connect to https://example.com/g.gml refused", code: "ECONNREFUSED" },
+        });
     });
 });

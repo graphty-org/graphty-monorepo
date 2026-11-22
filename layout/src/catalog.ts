@@ -15,6 +15,7 @@ import {
     circular,
     forceAtlas2,
     fruchtermanReingold,
+    geographic,
     grid,
     kamadaKawai,
     multipartite,
@@ -49,6 +50,7 @@ export interface LayoutEntry {
     readonly simulation: SimulationType | null;
     /** The graphs it accepts: every layout here takes directed and undirected snapshots alike. */
     readonly direction: "any" | "directed" | "undirected";
+    /** Whether it reads the snapshot's edge weights. */
     readonly weights: LayoutWeightUse;
     /** Options it throws without, or that name a column the snapshot must hold under their default. */
     readonly requiredOptions: readonly string[];
@@ -89,6 +91,7 @@ export const LAYOUTS = {
     radial: { name: "radial", fn: radial, ...ONE_SHOT },
     bipartite: { name: "bipartite", fn: bipartite, ...ONE_SHOT },
     multipartite: { name: "multipartite", fn: multipartite, ...ONE_SHOT, requiredOptions: ["subsets"] },
+    geographic: { name: "geographic", fn: geographic, ...ONE_SHOT, requiredOptions: ["position"] },
     kamadaKawai: { name: "kamadaKawai", fn: kamadaKawai, ...ONE_SHOT, weights: "by-default" },
     forceAtlas2: {
         name: "forceAtlas2",

@@ -1,10 +1,8 @@
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import type { Graph } from "../../src/Graph";
+import { type Graph, renderManagerOf } from "../../src/Graph";
 import type { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
-import type { RenderManager } from "../../src/managers/RenderManager";
-import type { UpdateManager } from "../../src/managers/UpdateManager";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 /**
@@ -36,8 +34,7 @@ describe("layout pace", () => {
         msPerClockRead = 0,
     ): Promise<{ passes: number; steps: number; x: number }> {
         graph = await createTestGraph();
-        const inner = graph as unknown as { renderManager: RenderManager; updateManager: UpdateManager };
-        release = inner.renderManager.holdFrames();
+        release = renderManagerOf(graph).holdFrames();
 
         // A ring with chords: enough structure that ngraph needs close to a hundred steps.
         const count = 60;
@@ -65,7 +62,7 @@ describe("layout pace", () => {
         const clock = vi.spyOn(performance, "now").mockImplementation(() => (clockAt += msPerClockRead));
         try {
             while (layoutManager.running && !engine.isSettled && passes < 5000) {
-                inner.updateManager.update(frameMs);
+                graph.getUpdateManager().update(frameMs);
                 passes++;
             }
         } finally {
@@ -73,7 +70,9 @@ describe("layout pace", () => {
         }
 
         const steps = "_stepCount" in engine ? engine._stepCount : engine.iterationsDone;
-        const x = engine.getNodePosition([...layoutManager.nodes][0])?.x ?? Number.NaN;
+        // By id: under renderPath "batched" a simulation's rows have no Node for the frame loop to hand out.
+        const first = graph.getDataManager().getNode("0");
+        const x = (first === undefined ? undefined : engine.getNodePosition(first))?.x ?? Number.NaN;
         release();
         release = undefined;
         cleanupTestGraph(graph);

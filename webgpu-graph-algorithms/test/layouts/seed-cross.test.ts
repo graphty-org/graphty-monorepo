@@ -3,11 +3,11 @@
  * seedPositions): the GPU package keeps its OWN copy of the LCG and of the NaN-row seeding for its whole life
  * (D27: src/ may not import @graphty/layout), and layout/src/simulation/seed.ts:4-6 says the layout copy is
  * CANONICAL and "cross-tested against this one at W1b" -- this file is that cross-test. layout's own
- * test/simulation/seed.test.ts compares ITS copy with the package's RandomNumberGenerator; nothing until now
+ * test/simulation/seed.test.ts checks ITS copy against the LCG recurrence; nothing until now
  * compared the two seedPositions implementations, and the only thing that keeps a CPU-seeded and a GPU-seeded
  * layout on the same start is that the two write the same f32 values in the same order.
  *
- * The matrix of the plan: seeds 1 / 7 / 42 / 123456, dim 2 and 3, scale 1 and 5, a null and a non-null centre,
+ * The matrix of the plan: seeds 1 / 7 / 42 / 123456, dim 2 and 3, scale 1 and 5, a null and a non-null center,
  * an all-NaN array (a fresh layout: the range box) and a half-finite array (a topology change: fully finite rows,
  * PARTIAL rows and all-NaN rows in ONE array, which is what exercises the bounding box of PLAN DECISION 12 and the
  * 2D `z = center.z` rule of PLAN DECISION 13). Both draw ranges are covered because seedPositions takes one and
@@ -41,16 +41,16 @@ type SeedFn = (
 ) => void;
 
 /**
- * The seeds of the plan's matrix. NEVER 0, -0, NaN or null: src/layouts/seed.ts:35 (and its layout twin) turn
- * those into `Math.floor(Math.random() * 1000000)`, so the two copies would legitimately draw different streams
- * and a bit-identical assertion over them would be non-deterministic.
+ * The seeds of the plan's matrix, 0 included (an ordinary seed). NEVER null: both copies turn it into
+ * `Math.floor(Math.random() * 1000000)`, so they would legitimately draw different streams and a bit-identical
+ * assertion over them would be non-deterministic.
  */
-const SEEDS: readonly number[] = [1, 7, 42, 123456];
+const SEEDS: readonly number[] = [0, 1, 7, 42, 123456];
 /** Both dimensionalities. */
 const DIMS: readonly (2 | 3)[] = [2, 3];
 /** Scene scale 1 (layout units = scene units) and 5. */
 const SCALES: readonly number[] = [1, 5];
-/** A null centre (the origin) and a non-null one with three distinct components. */
+/** A null center (the origin) and a non-null one with three distinct components. */
 const CENTERS: readonly (readonly number[] | null)[] = [null, [10, -20, 5]];
 /** Both draw ranges: "fa2" is [-1, 1), "fr" is [0, 1). */
 const RANGES: readonly ("fa2" | "fr")[] = ["fa2", "fr"];
@@ -169,6 +169,8 @@ describe("seedPositions: the GPU copy and @graphty/layout's write the same f32 v
             { name: "scale 0", call: (fn) => fn(s, allNaN(NODES), 1, 2, 0, null, "fa2") },
             { name: "a non-finite scale", call: (fn) => fn(s, allNaN(NODES), 1, 2, Number.NaN, null, "fa2") },
             { name: "a non-finite center", call: (fn) => fn(s, allNaN(NODES), 1, 2, 1, [Number.NaN, 0], "fa2") },
+            { name: "a negative seed", call: (fn) => fn(s, allNaN(NODES), -1, 2, 1, null, "fa2") },
+            { name: "a fractional seed", call: (fn) => fn(s, allNaN(NODES), 1.5, 2, 1, null, "fa2") },
         ];
         for (const c of cases) {
             const gpuError = thrownBy(() => c.call(gpuSeedPositions));

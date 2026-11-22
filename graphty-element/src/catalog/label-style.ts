@@ -57,7 +57,7 @@ export type LabelDeclutterOrder = "degree" | "size";
 /** How the words inside a label are lined up. */
 export type LabelTextAlign = "left" | "center" | "right";
 
-/** The shape of the panel behind a label, when it is painted as a gradient rather than a colour. */
+/** The shape of the panel behind a label, when it is painted as a gradient rather than a color. */
 export type LabelGradientType = "linear" | "radial";
 
 /** Which way a label's background gradient runs. */
@@ -139,7 +139,7 @@ export interface LabelStyle {
     letterSize?: number;
     /** How heavy the letters are. */
     weight?: number | "normal" | "bold";
-    /** The colour of the letters. */
+    /** The color of the letters. */
     color?: string;
     /** Whether the letters are drawn italic. */
     italic?: boolean;
@@ -155,6 +155,12 @@ export interface LabelStyle {
      */
     wrapTrailingSpace?: boolean;
     /**
+     * With `wrapTrailingSpace`, whether the last word of a line of the text is measured without a space after
+     * it, as Cytoscape.js measures a line (the space after every other word still counts). Unset or false, the
+     * last word's space counts too, as Cytoscape desktop measures one.
+     */
+    wrapSkipEndSpace?: boolean;
+    /**
      * Whether a line wider than `wrapWidth` is cut to fit, with an ellipsis after the letters kept, in place of
      * wrapping onto more lines (Cytoscape.js `text-wrap: ellipsis`). Unset or false, it wraps.
      */
@@ -169,6 +175,19 @@ export interface LabelStyle {
      * blank is still drawn once (vis-network counts three). Unset, one.
      */
     wrapSpaceCount?: number;
+    /**
+     * The most lines the label draws, a whole number from 1. A label with more lines -- its own, or
+     * the ones `wrapWidth` breaks it into -- keeps the first ones and ends the last one kept in an
+     * ellipsis. Unset, every line is drawn.
+     * @since 3.38.0
+     */
+    maxLines?: number;
+    /**
+     * Whether the last line `maxLines` keeps runs on with the rest of its line, cut to `wrapWidth` with an ellipsis
+     * after it ("Wrap" / "this t..."). False, the lines past `maxLines` are dropped as they are, with no ellipsis.
+     * Unset, true.
+     */
+    maxLinesEllipsis?: boolean;
     /**
      * Whether a blank line before or between lines of words is drawn one line of the label's font tall, as a text
      * layout sets it (yEd draws "\nCS" two lines tall). Unset or false, a blank line takes no height. A blank line
@@ -188,6 +207,41 @@ export interface LabelStyle {
     rotation?: number;
     /** The gap between one line of text and the next, as a multiple of the font size. */
     lineHeight?: number;
+    /**
+     * What one line is as tall as, before `lineHeight` multiplies it: "font", its font's ascent plus descent; "size",
+     * its font size, as CSS and Cytoscape.js measure a line (the letters reach past it); "glyphs", its letters' own
+     * ink. Unset, "font".
+     */
+    lineBox?: "font" | "size" | "glyphs";
+    /**
+     * Where the border round the panel is drawn: "outside", all of it past the panel's edge; "center", centered on
+     * that edge, as a canvas strokes a box (a double border's outer line; its inner line lies inside the panel). Unset, "outside".
+     */
+    borderAlign?: "outside" | "center";
+    /**
+     * How the border round the panel is drawn: "solid", one line; "double", the line drawn again inside it, one
+     * line's width in. Unset, "solid".
+     */
+    borderStyle?: "solid" | "double";
+    /**
+     * The shape of the panel and its border: "rectangle" (rounded by `cornerRadius`), or "circle", a disc whose
+     * diameter is the panel's shorter side, centered on it. Unset, "rectangle".
+     */
+    backgroundShape?: "rectangle" | "circle";
+    /**
+     * The URL of a picture drawn in the label beside or behind its words, as yEd draws a label's icon. Its middle is
+     * the words' middle moved by `imageOffsetX` and `imageOffsetY`; the label's canvas grows to hold it, the panel
+     * behind the words does not. Unset, none.
+     */
+    image?: string;
+    /** How wide `image` is drawn, in the label's units (its font size's). Unset, the font size. */
+    imageWidth?: number;
+    /** How tall `image` is drawn, in the label's units. Unset, the font size. */
+    imageHeight?: number;
+    /** How far right of the words' middle `image`'s middle is, in the label's units. Unset, 0. */
+    imageOffsetX?: number;
+    /** How far below the words' middle `image`'s middle is, in the label's units. Unset, 0. */
+    imageOffsetY?: number;
     /**
      * The label is not drawn while its letters are drawn smaller than this many pixels on screen,
      * as a program that hides labels too small to read does. Decided again whenever the camera
@@ -213,15 +267,15 @@ export interface LabelStyle {
     textAlign?: LabelTextAlign;
 
     /**
-     * How opaque the words are, from 0 (not drawn) to 1, applied over their colour's own alpha.
+     * How opaque the words are, from 0 (not drawn) to 1, applied over their color's own alpha.
      * Unset, 1.
      */
     opacity?: number;
 
-    /** The colour of the panel behind the words. */
+    /** The color of the panel behind the words. */
     background?: string;
     /**
-     * How opaque that panel is, from 0 (not drawn) to 1, applied over its colour's own alpha.
+     * How opaque that panel is, from 0 (not drawn) to 1, applied over its color's own alpha.
      * Unset, 1.
      */
     backgroundOpacity?: number;
@@ -237,18 +291,18 @@ export interface LabelStyle {
     cornerRadius?: number;
     /** How thick a border is drawn around the panel; zero draws none. */
     borderWidth?: number;
-    /** The colour of that border. */
+    /** The color of that border. */
     borderColor?: string;
     /**
-     * How opaque that border is, from 0 (not drawn) to 1, applied over its colour's own alpha.
+     * How opaque that border is, from 0 (not drawn) to 1, applied over its color's own alpha.
      * Unset, 1.
      */
     borderOpacity?: number;
-    /** Whether the panel is filled with a gradient rather than a single colour. */
+    /** Whether the panel is filled with a gradient rather than a single color. */
     gradient?: boolean;
-    /** Whether that gradient runs in a line or out from the centre. */
+    /** Whether that gradient runs in a line or out from the center. */
     gradientType?: LabelGradientType;
-    /** The colours the gradient runs through, in order. */
+    /** The colors the gradient runs through, in order. */
     gradientColors?: readonly string[];
     /** Which way a linear gradient runs. */
     gradientDirection?: LabelGradientDirection;
@@ -323,18 +377,18 @@ export interface LabelStyle {
     /** Whether the pointer's sides are drawn as curves rather than straight lines. */
     pointerCurve?: boolean;
 
-    /** The colour of an outline around each letter; writing one is what switches the outline on. */
+    /** The color of an outline around each letter; writing one is what switches the outline on. */
     outline?: string;
     /** How thick that outline is drawn. */
     outlineWidth?: number;
     /**
-     * How opaque that outline is, from 0 (not drawn) to 1, applied over its colour's own alpha.
+     * How opaque that outline is, from 0 (not drawn) to 1, applied over its color's own alpha.
      * Unset, 1.
      */
     outlineOpacity?: number;
     /** Whether the letters cast a shadow. */
     shadow?: boolean;
-    /** The colour of that shadow. */
+    /** The color of that shadow. */
     shadowColor?: string;
     /** How far the shadow is blurred. */
     shadowBlur?: number;
@@ -407,7 +461,7 @@ export interface LabelStyle {
     overflowSuffix?: string;
 
     /**
-     * Whether the panel draws an x in its top-right corner, in the label's text colour.
+     * Whether the panel draws an x in its top-right corner, in the label's text color.
      *
      * A click on the x clears the selection, as a click on empty canvas does. A click anywhere
      * else on a label with this on does nothing: it does not reach the node or the background
@@ -439,13 +493,25 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     italic: 0,
     wrapWidth: 0,
     wrapTrailingSpace: 0,
+    wrapSkipEndSpace: 0,
     wrapEllipsis: 0,
     wrapAnywhere: 0,
     wrapSpaceCount: 0,
+    maxLines: 0,
+    maxLinesEllipsis: 0,
     keepBlankLines: 0,
     runAlign: 0,
     rotation: 0,
     lineHeight: 0,
+    lineBox: 0,
+    borderAlign: 0,
+    borderStyle: 0,
+    backgroundShape: 0,
+    image: 0,
+    imageWidth: 0,
+    imageHeight: 0,
+    imageOffsetX: 0,
+    imageOffsetY: 0,
     minScreenSize: 0,
     declutter: 0,
     minNodeScreenSize: 0,
@@ -533,14 +599,26 @@ export const RICH_TEXT_KEYS = {
     letterSize: "letterSize",
     wrapWidth: "wrapWidth",
     wrapTrailingSpace: "wrapTrailingSpace",
+    wrapSkipEndSpace: "wrapSkipEndSpace",
     wrapEllipsis: "wrapEllipsis",
     wrapAnywhere: "wrapAnywhere",
     wrapSpaceCount: "wrapSpaceCount",
+    maxLines: "maxLines",
+    maxLinesEllipsis: "maxLinesEllipsis",
     keepBlankLines: "keepBlankLines",
     runAlign: "runAlign",
     rotation: "rotation",
     color: "textColor",
     lineHeight: "lineHeight",
+    lineBox: "lineBox",
+    borderAlign: "borderAlign",
+    borderStyle: "borderStyle",
+    backgroundShape: "backgroundShape",
+    image: "image",
+    imageWidth: "imageWidth",
+    imageHeight: "imageHeight",
+    imageOffsetX: "imageOffsetX",
+    imageOffsetY: "imageOffsetY",
     minScreenSize: "minScreenSize",
     minNodeScreenSize: "minNodeScreenSize",
     declutter: "declutter",
@@ -618,7 +696,7 @@ export const RICH_TEXT_KEYS = {
  * @example
  * ```ts
  * import { LABEL_STYLE_DEFAULTS } from "@graphty/graphty-element/catalog";
- * LABEL_STYLE_DEFAULTS.font; // "Verdana"
+ * LABEL_STYLE_DEFAULTS.font; // "Verdana, sans-serif"
  * LABEL_STYLE_DEFAULTS.marginTop; // 5
  * ```
  */
@@ -635,3 +713,212 @@ export const LABEL_STYLE_DEFAULTS: Readonly<LabelStyle> = Object.freeze({
     pickable: defaultRichTextLabelStyle.pickable ?? false,
     gradientColors: DEFAULT_LABEL_GRADIENT_COLORS,
 });
+
+/** What kind of value a label style field takes: what a control for it has to offer. */
+export type LabelFieldValueKind = "color" | "colors" | "number" | "text" | "boolean" | "enum";
+
+/**
+ * One field of {@link LabelStyle}, described for a settings panel or a story control that draws a
+ * control per field: what it is called, what it takes, and what is drawn while nothing sets it.
+ * @since 3.38.0
+ */
+export interface LabelStyleFieldDescriptor {
+    /** The field's name in {@link LabelStyle}. */
+    readonly field: keyof LabelStyle;
+    /** The field's default name, for a reader. */
+    readonly plainName: string;
+    /** The kind of value it takes. `"colors"` is a list of colors. */
+    readonly accepts: LabelFieldValueKind;
+    /** Every value it takes, when `accepts` is `"enum"`. */
+    readonly values?: readonly string[];
+    /** The smallest number it takes, when it has one. */
+    readonly min?: number;
+    /** Whether `min` itself is refused, so a value must be above it. */
+    readonly exclusiveMin?: boolean;
+    /** The largest number it takes, when it has one. */
+    readonly max?: number;
+    /** Whether it takes whole numbers only. */
+    readonly integer?: boolean;
+    /** What is drawn while nothing sets it, as {@link LABEL_STYLE_DEFAULTS} says; absent when nothing is. */
+    readonly default?: string | number | boolean | readonly string[];
+}
+
+type FieldRow = Omit<LabelStyleFieldDescriptor, "field" | "default">;
+
+const num = (plainName: string, bounds: Partial<FieldRow> = {}): FieldRow => ({
+    plainName,
+    accepts: "number",
+    ...bounds,
+});
+const flag = (plainName: string): FieldRow => ({ plainName, accepts: "boolean" });
+const color = (plainName: string): FieldRow => ({ plainName, accepts: "color" });
+const text = (plainName: string): FieldRow => ({ plainName, accepts: "text" });
+const choice = (plainName: string, values: readonly string[]): FieldRow => ({ plainName, accepts: "enum", values });
+const fraction = (plainName: string): FieldRow => num(plainName, { min: 0, max: 1 });
+
+const SIDES = ["top", "bottom", "left", "right", "auto"] satisfies readonly LabelPointerDirection[];
+const BOX_OR_WORDS = ["box", "words"] as const;
+
+/** Every label style field's row, keyed so a field without one fails to compile. */
+const FIELD_ROWS = {
+    look: choice("Look", ["default", "card", "dark", "pill", "callout"] satisfies readonly LabelLookId[]),
+    enabled: flag("Enabled"),
+    font: text("Font"),
+    sizePx: num("Font Size", { min: 1 }),
+    sizeMode: choice("Size Mode", ["world", "screen"] satisfies readonly LabelSizeMode[]),
+    size: num("Size", { min: 0, exclusiveMin: true }),
+    letterSize: num("Letter Size", { min: 0 }),
+    weight: choice("Weight", ["normal", "bold"]),
+    color: color("Color"),
+    italic: flag("Italic"),
+    wrapWidth: num("Wrap Width", { min: 0 }),
+    wrapTrailingSpace: flag("Wrap Trailing Space"),
+    wrapSkipEndSpace: flag("Wrap Skip End Space"),
+    wrapEllipsis: flag("Wrap Ellipsis"),
+    wrapAnywhere: flag("Wrap Anywhere"),
+    wrapSpaceCount: num("Wrap Space Count", { min: 0 }),
+    maxLines: num("Max Lines", { min: 1, integer: true }),
+    maxLinesEllipsis: flag("Max Lines Ellipsis"),
+    keepBlankLines: flag("Keep Blank Lines"),
+    runAlign: choice("Run Align", ["baseline", "hanging", "middle"]),
+    rotation: num("Rotation"),
+    lineHeight: num("Line Height"),
+    lineBox: choice("Line Box", ["font", "size", "glyphs"]),
+    borderAlign: choice("Border Align", ["outside", "center"]),
+    borderStyle: choice("Border Style", ["solid", "double"]),
+    backgroundShape: choice("Background Shape", ["rectangle", "circle"]),
+    image: text("Image"),
+    imageWidth: num("Image Width", { min: 0 }),
+    imageHeight: num("Image Height", { min: 0 }),
+    imageOffsetX: num("Image Offset X"),
+    imageOffsetY: num("Image Offset Y"),
+    minScreenSize: num("Min Screen Size", { min: 0 }),
+    declutter: choice("Declutter", ["degree", "size"] satisfies readonly LabelDeclutterOrder[]),
+    minNodeScreenSize: num("Min Node Screen Size", { min: 0 }),
+    textAlign: choice("Text Align", ["left", "center", "right"] satisfies readonly LabelTextAlign[]),
+    opacity: fraction("Opacity"),
+    background: color("Background"),
+    backgroundOpacity: fraction("Background Opacity"),
+    padding: num("Padding"),
+    boxPadding: num("Box Padding", { min: 0 }),
+    cornerRadius: num("Corner Radius"),
+    borderWidth: num("Border Width"),
+    borderColor: color("Border Color"),
+    borderOpacity: fraction("Border Opacity"),
+    gradient: flag("Gradient"),
+    gradientType: choice("Gradient Type", ["linear", "radial"] satisfies readonly LabelGradientType[]),
+    gradientColors: { plainName: "Gradient Colors", accepts: "colors" },
+    gradientDirection: choice("Gradient Direction", [
+        "vertical",
+        "horizontal",
+        "diagonal",
+    ] satisfies readonly LabelGradientDirection[]),
+    location: choice("Location", [
+        "top",
+        "top-right",
+        "top-left",
+        "left",
+        "center",
+        "right",
+        "bottom",
+        "bottom-left",
+        "bottom-right",
+        "inside-top",
+        "inside-bottom",
+        "inside-left",
+        "inside-right",
+        "inside-top-left",
+        "inside-top-right",
+        "inside-bottom-left",
+        "inside-bottom-right",
+        "automatic",
+    ] satisfies readonly LabelLocation[]),
+    attachOffset: num("Attach Offset"),
+    offsetX: num("Offset X"),
+    offsetY: num("Offset Y"),
+    shiftX: num("Shift X"),
+    shiftY: num("Shift Y"),
+    shiftOf: choice("Shift Of", BOX_OR_WORDS),
+    gapOf: choice("Gap Of", BOX_OR_WORDS),
+    box: choice("Box", ["words", "words-at-side", "target-width"]),
+    keepInView: flag("Keep In View"),
+    marginTop: num("Margin Top"),
+    marginBottom: num("Margin Bottom"),
+    marginLeft: num("Margin Left"),
+    marginRight: num("Margin Right"),
+    pointer: flag("Pointer"),
+    pointerDirection: choice("Pointer Direction", SIDES),
+    pointerWidth: num("Pointer Width"),
+    pointerHeight: num("Pointer Height"),
+    pointerOffset: num("Pointer Offset"),
+    pointerCurve: flag("Pointer Curve"),
+    outline: color("Outline"),
+    outlineWidth: num("Outline Width"),
+    outlineOpacity: fraction("Outline Opacity"),
+    shadow: flag("Shadow"),
+    shadowColor: color("Shadow Color"),
+    shadowBlur: num("Shadow Blur"),
+    shadowOffsetX: num("Shadow Offset X"),
+    shadowOffsetY: num("Shadow Offset Y"),
+    panelShadow: flag("Panel Shadow"),
+    panelShadowColor: color("Panel Shadow Color"),
+    panelShadowBlur: num("Panel Shadow Blur", { min: 0 }),
+    panelShadowOffsetX: num("Panel Shadow Offset X"),
+    panelShadowOffsetY: num("Panel Shadow Offset Y"),
+    animation: choice("Animation", [
+        "none",
+        "pulse",
+        "bounce",
+        "shake",
+        "glow",
+        "fill",
+    ] satisfies readonly LabelAnimation[]),
+    animationSpeed: num("Animation Speed"),
+    depthFade: flag("Depth Fade"),
+    depthFadeNear: num("Depth Fade Near"),
+    depthFadeFar: num("Depth Fade Far"),
+    onTop: flag("On Top"),
+    pickable: flag("Pickable"),
+    badge: choice("Badge", [
+        "notification",
+        "label",
+        "label-success",
+        "label-warning",
+        "label-danger",
+        "count",
+        "icon",
+        "progress",
+        "dot",
+    ] satisfies readonly LabelBadge[]),
+    icon: text("Icon"),
+    iconPosition: choice("Icon Position", ["left", "right"] satisfies readonly LabelIconPosition[]),
+    progress: fraction("Progress"),
+    smartOverflow: flag("Smart Overflow"),
+    maxNumber: num("Max Number"),
+    overflowSuffix: text("Overflow Suffix"),
+    closeButton: flag("Close Button"),
+} satisfies Record<keyof LabelStyle, FieldRow>;
+
+/**
+ * Every field of {@link LabelStyle}, described, in the order {@link LABEL_STYLE_FIELDS} lists them:
+ * what a settings panel needs to draw a control for each without restating any of them.
+ * @since 3.38.0
+ * @example
+ * ```ts
+ * import { LABEL_STYLE_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+ *
+ * const wrap = LABEL_STYLE_DESCRIPTORS.find((d) => d.field === "maxLines");
+ * wrap?.accepts; // "number"
+ * wrap?.min; // 1
+ * ```
+ */
+export const LABEL_STYLE_DESCRIPTORS: readonly LabelStyleFieldDescriptor[] = Object.freeze(
+    LABEL_STYLE_FIELDS.map((field): LabelStyleFieldDescriptor => {
+        const value = LABEL_STYLE_DEFAULTS[field];
+        return Object.freeze({
+            field,
+            ...FIELD_ROWS[field],
+            ...(value === undefined ? {} : { default: value }),
+        });
+    }),
+);

@@ -210,7 +210,7 @@ export function getNodeResult(
     _namespace: string,
     type: string,
     key: string,
-): any {
+): unknown {
     return read(algorithm, nodeId, type, key, "node");
 }
 
@@ -233,7 +233,7 @@ export function getEdgeResult(
     _namespace: string,
     type: string,
     key: string,
-): any {
+): unknown {
     return read(algorithm, edgeId, type, key, "edge");
 }
 
@@ -245,6 +245,43 @@ export function getEdgeResult(
  * @param key - The 1.x result key.
  * @returns The value, or undefined when the run published none.
  */
-export function getGraphResult(algorithm: ResultCarrier, _namespace: string, type: string, key: string): any {
+export function getGraphResult(algorithm: ResultCarrier, _namespace: string, type: string, key: string): unknown {
     return read(algorithm, "", type, key, "node");
+}
+
+/**
+ * A result value checked to be a number, for the assertions that take one.
+ * @param value - A value read with one of the getters above.
+ * @returns The same value.
+ * @throws {TypeError} When it is not a number.
+ */
+export function asNumber(value: unknown): number {
+    if (typeof value !== "number") {
+        throw new TypeError(`expected a number, got ${String(value)}`);
+    }
+
+    return value;
+}
+
+/**
+ * A run's communities as sorted groups of node ids, so two partitions compare whatever numbers
+ * label them.
+ * @param algorithm - The algorithm that ran.
+ * @param nodeIds - The nodes to group.
+ * @param type - The 1.x algorithm type, whose `communityId` is read.
+ * @returns The groups, each sorted, ordered by their first id.
+ * @throws {Error} When a node carries no numeric community.
+ */
+export function partitionOf(algorithm: ResultCarrier, nodeIds: Iterable<NodeId>, type: string): string[][] {
+    const groups = new Map<number, string[]>();
+    for (const id of nodeIds) {
+        const community: unknown = read(algorithm, id, type, "communityId", "node");
+        if (typeof community !== "number") {
+            throw new Error(`node ${String(id)} has no community`);
+        }
+        const group = groups.get(community) ?? [];
+        group.push(String(id));
+        groups.set(community, group);
+    }
+    return [...groups.values()].map((group) => group.sort()).sort((a, b) => a[0].localeCompare(b[0]));
 }

@@ -3,7 +3,7 @@
  * canvas after the action and its undo is the canvas before the action, pixel for pixel.
  *
  * Rendering is derived from project state, so a state that round-trips should draw the same
- * frame. A derivation that forgot to repaint on undo -- a layer's colour left on the meshes, a
+ * frame. A derivation that forgot to repaint on undo -- a layer's color left on the meshes, a
  * skybox dome left in the scene, a node left where the drag dropped it -- keeps every state digest
  * equal and changes the frame, which is what is measured here. The act-then-undo stories in
  * `stories/Undo.stories.ts` are the same cases as visual-review snapshots; visual review compares a story
@@ -135,7 +135,7 @@ async function drag(graph: Graph): Promise<void> {
     handler.onDragStart(start);
     handler.onDragUpdate(start.add(DRAG));
     handler.onDragEnd();
-    for (let wait = 0; wait < 600 && session.history.steps.length === steps; wait++) {
+    while (session.history.steps.length === steps) {
         await nextFrame();
     }
 

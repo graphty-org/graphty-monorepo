@@ -3,7 +3,7 @@
  *
  * Three things live behind this entry point and they answer three different questions. `./types`
  * says what the ten result shapes must publish and what each field name means, so a path is
- * guessable without the catalogue. `./RunResult` turns what an algorithm produced into an object
+ * guessable without the catalog. `./RunResult` turns what an algorithm produced into an object
  * carrying its own ranking, distribution, range and bounded summary, so no consumer writes
  * statistics code. `./ResultsApi` builds the `results.<runId>.<field>` path and answers "did you
  * mean" for the ones that do not resolve.
@@ -11,6 +11,17 @@
  * Nothing in this module's import graph reaches Babylon.js, Lit or the DOM.
  */
 
+export type {
+    ComparedField,
+    CompareSide,
+    ComparisonBase,
+    GroupMove,
+    GroupOverlap,
+    PartitionComparison,
+    RankChange,
+    RankingComparison,
+    ResultComparison,
+} from "./compare";
 export { englishReading } from "./reading";
 export { createResultsApi, type ResultsRunEntry } from "./ResultsApi";
 export { createRunResult, type ResultElementValues } from "./RunResult";
@@ -22,6 +33,8 @@ export {
     type HistogramOptions,
     type Normalization,
     type NumericColumnView,
+    type PathParts,
+    pathParts,
     type RankingEntry,
     type ReadingCode,
     type ReadingOptions,

@@ -5,8 +5,10 @@
  */
 
 import {
+    AI_IMAGE_MODELS,
     AI_VOICE_CAPABILITIES,
     aiHostedToolStatus,
+    type AiImageModelDescriptor,
     type AiResultCode,
     type AiResultParams,
     aiVoiceStatus,
@@ -18,6 +20,7 @@ import {
     type AiEngine,
     type EngineCapabilities,
     type EngineOutcome,
+    type GeneratedImage,
     type LiveOpened,
     type LiveOptions,
     type ProviderApiSettings,
@@ -42,7 +45,7 @@ const FIRST_RETRY_MS = 2000;
 const MAX_HONORED_WAIT_MS = 60_000;
 
 /**
- * Wait, unless the turn is cancelled first.
+ * Wait, unless the turn is canceled first.
  * @param ms - How long.
  * @param signal - Cancels the wait.
  * @returns When the time is up.
@@ -114,6 +117,26 @@ function failed(error: TurnError): { code: Exclude<AiResultCode, "AI_COMPLETED">
     };
 }
 
+/** Gemini's API, when no `baseUrl` is configured. */
+const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta";
+
+/** OpenAI's API, when no `baseUrl` is configured. */
+const OPENAI_API = "https://api.openai.com/v1";
+
+/** The part of OpenAI's `images/generations` answer a picture is read from. */
+interface OpenAiImageAnswer {
+    readonly data?: readonly { readonly b64_json?: string }[];
+}
+
+/** The part of Gemini's `generateContent` answer a picture is read from. */
+interface GeminiImageAnswer {
+    readonly candidates?: readonly {
+        readonly content?: {
+            readonly parts?: readonly { readonly inlineData?: { mimeType?: string; data?: string } }[];
+        };
+    }[];
+}
+
 /** A provider's API, called from the page. */
 export class ProviderApiEngine implements AiEngine {
     readonly kind = "provider-api";
@@ -122,6 +145,8 @@ export class ProviderApiEngine implements AiEngine {
     declare transcribe?: (audio: Blob, options: TranscribeOptions, signal: AbortSignal) => Promise<TurnText>;
     declare speak?: (text: string, options: SpeakOptions, signal: AbortSignal) => Promise<SpokenAudio>;
     declare openLive?: (options: LiveOptions, signal: AbortSignal) => Promise<LiveOpened>;
+    declare generateImage?: (prompt: string, signal: AbortSignal) => Promise<GeneratedImage>;
+    declare imageModel?: AiImageModelDescriptor;
 
     /**
      * An engine over a provider's live configuration.
@@ -152,6 +177,15 @@ export class ProviderApiEngine implements AiEngine {
 
         if (AI_VOICE_CAPABILITIES[provider].live?.status === "available") {
             this.openLive = (liveOptions, signal) => this.live(liveOptions, signal);
+        }
+
+        const imageModel = AI_IMAGE_MODELS[provider];
+        if ((provider === "google" || provider === "openai") && imageModel !== undefined) {
+            this.imageModel = imageModel;
+            this.generateImage = (prompt, signal) =>
+                provider === "google"
+                    ? this.geminiImage(imageModel.id, prompt, signal)
+                    : this.openAiImage(imageModel.id, prompt, signal);
         }
     }
 
@@ -312,6 +346,107 @@ export class ProviderApiEngine implements AiEngine {
             return await live.openLive(settings, options, signal);
         } catch (error) {
             // The adapter codes its own failures; anything it threw is coded here, never rethrown.
+            return failed(providerFailure(error, settings.provider, signal, [settings.apiKey]));
+        }
+    }
+
+    /**
+     * One picture from Gemini's image model, wide enough for a photo dome.
+     * @param model - The image model.
+     * @param prompt - What to draw.
+     * @param signal - Cancels the request.
+     * @returns The picture, or the code it failed with (see {@link imageCall}).
+     */
+    private geminiImage(model: string, prompt: string, signal: AbortSignal): Promise<GeneratedImage> {
+        return this.imageCall(
+            GEMINI_API,
+            (key) => ({ "x-goog-api-key": key }),
+            `/models/${encodeURIComponent(model)}:generateContent`,
+            {
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "16:9" } },
+            },
+            (answer) =>
+                (answer as GeminiImageAnswer).candidates?.[0]?.content?.parts?.find((part) => part.inlineData?.data)
+                    ?.inlineData,
+            signal,
+        );
+    }
+
+    /**
+     * One picture from OpenAI's image model, landscape, at medium quality.
+     * @param model - The image model.
+     * @param prompt - What to draw.
+     * @param signal - Cancels the request.
+     * @returns The picture, or the code it failed with (see {@link imageCall}).
+     */
+    private openAiImage(model: string, prompt: string, signal: AbortSignal): Promise<GeneratedImage> {
+        return this.imageCall(
+            OPENAI_API,
+            (key) => ({ authorization: `Bearer ${key}` }),
+            "/images/generations",
+            { model, prompt, n: 1, size: "1536x1024", quality: "medium" },
+            (answer) => {
+                const data = (answer as OpenAiImageAnswer).data?.[0]?.b64_json;
+                return data === undefined ? undefined : { data, mimeType: "image/png" };
+            },
+            signal,
+        );
+    }
+
+    /**
+     * Ask the provider for one picture. No retry: each call may be billed, so a failure is
+     * reported, never sent again.
+     * @param defaultBase - The provider's API, when no `baseUrl` is configured.
+     * @param auth - The key's headers.
+     * @param path - The request's path under the API.
+     * @param body - The request, as JSON.
+     * @param read - Where the answer holds the picture, base64.
+     * @param signal - Cancels the request.
+     * @returns The picture, or the code it failed with: `AI_NO_RESPONSE` when the answer holds no
+     *     picture (the provider declined the prompt).
+     */
+    private async imageCall(
+        defaultBase: string,
+        auth: (key: string) => Record<string, string>,
+        path: string,
+        body: unknown,
+        read: (answer: unknown) => { mimeType?: string; data?: string } | undefined,
+        signal: AbortSignal,
+    ): Promise<GeneratedImage> {
+        const settings = this.settings();
+        if (settings.apiKey === undefined || settings.apiKey === "") {
+            return failed(keyMissing(settings.provider, signal));
+        }
+
+        try {
+            const base = settings.baseUrl ?? defaultBase;
+            const url = `${base.endsWith("/") ? base.slice(0, -1) : base}${path}`;
+            const init: RequestInit = {
+                method: "POST",
+                headers: { "content-type": "application/json", ...auth(settings.apiKey) },
+                body: JSON.stringify(body),
+                signal,
+            };
+            const response = await (settings.fetch === undefined ? fetch(url, init) : settings.fetch(url, init));
+            if (!response.ok) {
+                throw Object.assign(new Error(`The image request failed with HTTP ${response.status}.`), {
+                    statusCode: response.status,
+                });
+            }
+
+            const inline = read(await response.json());
+            if (inline?.data === undefined) {
+                return { code: "AI_NO_RESPONSE", params: { provider: settings.provider } };
+            }
+
+            const bytes = Uint8Array.from(atob(inline.data), (char) => char.codePointAt(0) ?? 0);
+            return {
+                code: "AI_COMPLETED",
+                params: {},
+                image: new Blob([bytes], { type: inline.mimeType ?? "image/png" }),
+            };
+        } catch (error) {
             return failed(providerFailure(error, settings.provider, signal, [settings.apiKey]));
         }
     }

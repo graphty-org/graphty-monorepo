@@ -1,19 +1,19 @@
 import "./start.css";
 
 import { useFileDrop } from "@graphty/compact-mantine";
-import { type DatasetMeta, GENERATOR_DESCRIPTORS, type GeneratorDescriptor } from "@graphty/graphty-element/catalog";
+import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES } from "../../data/sampleManifest";
-import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
-import { UsageDataCard } from "../privacy/UsageDataCard";
+import { layoutRows } from "../layout/methods";
+import { useAnalyticsSends } from "../privacy/usageData";
 import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
@@ -26,8 +26,8 @@ import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
 import { isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
-import { NETWORK_DIALOG } from "./NetworkDataDialog";
-import { openDataset, openGenerated, openNetworkSample, openOnStart, openSample, pickFiles } from "./open";
+import { NETWORK_DIALOG, NetworkDataDialog } from "./NetworkDataDialog";
+import { openDataset, openFiles, openGenerated, openNetworkSample, openSample, pickFiles } from "./open";
 import { SampleCard } from "./SampleCard";
 import { GENERATED, type LibraryTile, NETWORK_TILES, type NetworkTile, offeredTiles } from "./sampleLibrary";
 
@@ -39,6 +39,8 @@ const ELEMENT_DOCS = "https://graphty.app/docs/graphty-element/";
 const DOCS = "https://graphty.app/docs/";
 /** graphty-element's license. */
 const LICENSE = `${GITHUB}/blob/master/graphty-element/LICENSE`;
+/** What usage data is sent and where; served by this site (public/privacy.html). */
+const PRIVACY = "/privacy.html";
 
 /** The canvas color behind the graph, per color scheme; the same as `--ws-land-canvas`. */
 const CANVAS = { light: "#fbfbfd", dark: "#15171e" } as const;
@@ -164,7 +166,8 @@ function RecentTile({ entry }: Readonly<{ entry: RecentProject }>): React.JSX.El
  */
 function FactBar({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
     const algorithms = session?.catalog.algorithms().length;
-    const layouts = session?.catalog.layouts().length;
+    // Counted as the Layout list counts its rows: a layout's other engines are rows of their own.
+    const layouts = session === null ? undefined : layoutRows(session.catalog.layouts()).length;
     return (
         <aside className="ws-land-strip" aria-label="graphty at a glance">
             <a className="ws-land-it ws-land-oss" href={GITHUB} target="_blank" rel="noopener noreferrer">
@@ -251,9 +254,7 @@ function SampleLibrary(): React.JSX.Element {
         }
     };
     const query = text.trim().toLowerCase();
-    // The first paint does not wait for the site's configuration.
-    const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
-    const library = offeredTiles(timeline);
+    const library = offeredTiles();
     // In the order the sections are drawn: samples, network data, then generated.
     const offered = [
         ...library.filter((tile) => tile.field !== GENERATED),
@@ -262,6 +263,7 @@ function SampleLibrary(): React.JSX.Element {
     ];
     const fields = [...new Set(offered.map((tile) => tile.field))];
     const datasetCount = library.filter((tile) => tile.field !== GENERATED).length;
+    const generatorCount = library.length - datasetCount;
     const shown = <T extends LibraryTile | NetworkTile>(each: readonly T[]): T[] =>
         each.filter((tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)));
     const tiles = shown(library);
@@ -277,7 +279,7 @@ function SampleLibrary(): React.JSX.Element {
             </h2>
             <p className="ws-land-intro">
                 {datasetCount} real networks to explore, from a novel&apos;s characters to the world&apos;s airline
-                routes, and {GENERATOR_DESCRIPTORS.length} ways to generate one.
+                routes, and {generatorCount} ways to generate one.
             </p>
             <div className="ws-land-libhead">
                 <TextInput
@@ -413,10 +415,12 @@ function SampleLibrary(): React.JSX.Element {
 }
 
 /**
- * The foot of the page: the formats it opens, the license, the code and the docs.
+ * The foot of the page: the formats it opens, the license, the code, the docs and, when the page
+ * sends PostHog anything (a site with PostHog ids, on its own host), the privacy page.
  * @returns The footer
  */
 function PageFoot(): React.JSX.Element {
+    const analytics = useAnalyticsSends();
     return (
         <footer className="ws-land-foot">
             <span>
@@ -435,6 +439,14 @@ function PageFoot(): React.JSX.Element {
                 <a href={DOCS} target="_blank" rel="noopener noreferrer">
                     Docs
                 </a>{" "}
+                {analytics ? (
+                    <>
+                        &middot;{" "}
+                        <a href={PRIVACY} target="_blank" rel="noopener noreferrer">
+                            Privacy
+                        </a>{" "}
+                    </>
+                ) : null}
                 &middot; Put it on your own site: <code>npm i @graphty/graphty-element</code>{" "}
                 {/* The footer's other "Docs" is the app's; this one names what it documents. */}
                 <a href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer" aria-label="Docs for graphty-element">
@@ -503,22 +515,23 @@ export function StartScreen(): React.JSX.Element {
         };
     }, []);
 
-    // The drop target is the whole window ("drop a file anywhere in this window"). graphty-element
-    // says whether it is a model before it is read as graph data.
+    // The drop target is the whole window ("drop a file anywhere in this window").
     const onDrop = useCallback(
         (files: File[]) => {
-            void openOnStart(workspace, files, session);
+            openFiles(workspace, files);
         },
-        [workspace, session],
+        [workspace],
     );
     // Open a file is the drop's Choose: the same files open the same way.
     const choose = (): void => {
-        void pickFiles().then((files) => openOnStart(workspace, files, session));
+        void pickFiles().then((files) => {
+            openFiles(workspace, files);
+        });
     };
     const { over: dragging } = useFileDrop("window", onDrop);
 
     const returning = recent.length > 0;
-    const [latest] = recent;
+    const latest = recent.at(0);
     // Focus goes with the scroll, to the library's heading: not editable, so Home, End and the Page
     // keys still scroll the page, and the next Tab reaches the search.
     const showSamples = (): void => {
@@ -707,10 +720,6 @@ export function StartScreen(): React.JSX.Element {
 
             <SampleLibrary />
 
-            <div className="ws-land-usage">
-                <UsageDataCard />
-            </div>
-
             <PageFoot />
 
             {dragging ? (
@@ -726,6 +735,8 @@ export function StartScreen(): React.JSX.Element {
                     </Paper>
                 </div>
             ) : null}
+            {/* Only here: the app proper adds network data through its own Network data panel. */}
+            <NetworkDataDialog />
         </div>
     );
 }

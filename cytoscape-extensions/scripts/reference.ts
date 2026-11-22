@@ -232,6 +232,10 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "graphty-spiral.equidistant": {
         doc: "Space consecutive nodes the same distance apart along the spiral, instead of by equal angles.",
     },
+    "graphty-spiral.height": {
+        default: "`1`",
+        doc: "Read only with `dim: 3`: how far the spiral rises per unit of radius, so the nodes lie on a cone. A 3D run is projected onto the x-y plane, so the rise itself is not drawn; with `equidistant: true` it changes the spacing along the spiral.",
+    },
     "graphty-shell.nlist": {
         doc: "The shells, innermost first. They are evenly spaced out to the edge of the fitted result, and a first shell of exactly one node goes at the center of the drawing. The fit then moves the centroid of all nodes to the center of `boundingBox`, so that node is at the box's center only when the drawing is symmetric. Absent: every node on one circle. A node in no shell is not placed and keeps its position.",
     },
@@ -355,6 +359,10 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "csv-export.delimiter": { default: '`","`', doc: "The field delimiter." },
     "csv-export.newline": { default: '`"\\n"`', doc: "The line terminator." },
     "csv-export.header": { default: "`true`", doc: "Write the header row; an adjacency table never has one." },
+    "csv-export.spreadsheetSafe": {
+        default: "`false`",
+        doc: "Prefix `'` to cells a spreadsheet would run as a formula (starting with `=`, `+`, `-`, `@`, a tab or a CR; not plain numbers); the round trip is then no longer exact.",
+    },
     "json-export.dialect": {
         default: '`"cytoscape"`',
         doc: 'The dialect to write. `"cytoscape"` is what `cy.json()` and `cy.add()` use and keeps edge ids, compound parents and positions; `"node-link"` is the NetworkX shape.',
@@ -380,6 +388,10 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "neo4j-export.weightColumn": {
         default: '`"weight"`',
         doc: "The property that receives the edge weights (`<name>:double`); null writes no weights.",
+    },
+    "neo4j-export.spreadsheetSafe": {
+        default: "`false`",
+        doc: "Prefix `'` to cells a spreadsheet would run as a formula (starting with `=`, `+`, `-`, `@`, a tab or a CR; not plain numbers); the round trip is then no longer exact.",
     },
     "cx2-import.zAs": { doc: Z_AS },
     "cx-import.zAs": { doc: Z_AS },
@@ -574,13 +586,13 @@ const FORMAT_SUMMARY: Readonly<Record<string, string>> = {
 // The members of a result type whose declaration has no doc comment of its own.
 const MEMBER_DOCS: Readonly<Record<string, string>> = {
     "LinkPredictionMetrics.precision":
-        "The precision at the score threshold with the best F1. Every metric ranks a held-out edge ahead of a non-edge with the same score, so a score that ties every pair reports 1 for all four.",
+        "The precision at the score threshold with the best F1. A threshold never splits pairs with the same score, so a score that ties every pair reports the share of held-out edges among all pairs.",
     "LinkPredictionMetrics.recall": "The recall at that threshold.",
     "CutResult.cut":
         "The edges that cross the cut. In `graphtyMaxFlow` and `graphtyMinSTCut` with `directed: true`, only the arcs from `partitionFirst` to `partitionSecond`, whose capacities sum to `value`.",
     "LinkPredictionMetrics.f1Score": "The best F1 over every threshold.",
     "LinkPredictionMetrics.auc":
-        "The chance that a held-out edge scores above a non-edge, a tie counting as the edge scoring higher; 0.5 when either list is empty.",
+        "The chance that a held-out edge scores above a non-edge, a tie counting half; 0.5 when either list is empty.",
 };
 
 /**
@@ -737,8 +749,8 @@ const LITERAL_DEFAULTS: ReadonlySet<string> = new Set(["true", "false", "null", 
 function withoutDefault(doc: string): string {
     const trimmed = doc
         // linear: the two branches of each group never match the same character (and the text is our own doc comments)
-        .replaceAll(/;\s*default\s+(?:[^;.]|\.(?=\S))*\.(?=\s|$)/gi, ".") // NOSONAR(S5852): disjoint branches, trusted input
-        .replaceAll(/,\s*default\s+(?:[^;.,]|\.(?=\S))*(?=\.(?:\s|$))/gi, "") // NOSONAR(S5852): disjoint branches, trusted input
+        .replaceAll(/;\s*default\s+(?:[^;.]|\.(?=\S))*\.(?=\s|$)/gi, ".") // disjoint branches, trusted input
+        .replaceAll(/,\s*default\s+(?:[^;.,]|\.(?=\S))*(?=\.(?:\s|$))/gi, "") // disjoint branches, trusted input
         .replaceAll(/ \(default [^)]+\)/gi, "");
     return trimmed
         .split(/(?<=\.)\s+(?=[A-Z`"])/)
@@ -1312,7 +1324,7 @@ function datasets(): string[] {
         "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ];
     for (const d of Object.values(DATASETS)) {
-        const bytes = d.bytes ?? 0;
+        const { bytes } = d;
         const download = bytes < 1e6 ? `${Math.ceil(bytes / 1000)} kB` : `${(bytes / 1e6).toFixed(1)} MB`;
         // datasetElements makes a drawn dataset's x and y the node positions
         const drawn = "x" in d.attributes && "y" in d.attributes;

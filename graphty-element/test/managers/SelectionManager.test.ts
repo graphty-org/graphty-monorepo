@@ -2,6 +2,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { createGraphSession } from "../../session";
 import type { AdHocData } from "../../src/config";
+import type { EventCallbackType, EventOfType } from "../../src/events";
 import { Graph } from "../../src/Graph";
 import { EventManager } from "../../src/managers/EventManager";
 import { SelectionManager } from "../../src/managers/SelectionManager";
@@ -100,13 +101,13 @@ describe("SelectionManager", () => {
         });
 
         it("select() emits selection-changed event with correct previous/current", () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             eventManager.addListener("selection-changed", callback);
 
             selectionManager.select(mockNode);
 
             assert.equal(callback.mock.calls.length, 1);
-            const event = callback.mock.calls[0][0];
+            const event = callback.mock.calls[0][0] as EventOfType<"selection-changed">;
             assert.equal(event.type, "selection-changed");
             assert.isNull(event.previousNode);
             assert.strictEqual(event.currentNode, mockNode);
@@ -142,13 +143,13 @@ describe("SelectionManager", () => {
         it("deselect() emits selection-changed event", () => {
             selectionManager.select(mockNode);
 
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             eventManager.addListener("selection-changed", callback);
 
             selectionManager.deselect();
 
             assert.equal(callback.mock.calls.length, 1);
-            const event = callback.mock.calls[0][0];
+            const event = callback.mock.calls[0][0] as EventOfType<"selection-changed">;
             assert.equal(event.type, "selection-changed");
             assert.strictEqual(event.previousNode, mockNode);
             assert.isNull(event.currentNode);
@@ -218,13 +219,13 @@ describe("SelectionManager", () => {
         it("selection-changed event has correct previous/current on re-selection", () => {
             selectionManager.select(node1);
 
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             eventManager.addListener("selection-changed", callback);
 
             selectionManager.select(node2);
 
             assert.equal(callback.mock.calls.length, 1);
-            const event = callback.mock.calls[0][0];
+            const event = callback.mock.calls[0][0] as EventOfType<"selection-changed">;
             assert.strictEqual(event.previousNode, node1);
             assert.strictEqual(event.currentNode, node2);
             assert.equal(event.previousNodeId, "node-1");
@@ -383,6 +384,9 @@ describe("SelectionManager", () => {
                 hover(id: string | number | null): void {
                     this.hovered = id;
                     told.push(id);
+                },
+                hoverAt(id: string | number | null): void {
+                    this.hover(id);
                 },
                 clear(): void {
                     this.hovered = null;

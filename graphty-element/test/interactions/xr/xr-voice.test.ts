@@ -20,8 +20,8 @@ import { FakeEngine, FakeLiveConnection } from "../../../src/ai/engine/FakeEngin
 import { registerProviderApiEngine } from "../../../src/ai/engine/load";
 import type { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
 import { XR_ASSISTANT_ORB } from "../../../src/cameras/XRInputHandler";
-import type { XRPivotCameraController } from "../../../src/cameras/XRPivotCameraController";
 import { operationQueueOf } from "../../../src/Graph";
+import type { GraphSceneMetadata } from "../../../src/types/sceneMetadata";
 import { FakeRecognition } from "../../helpers/fake-speech";
 import { installIWER, type IWERHandle } from "../helpers/iwer-setup";
 
@@ -157,7 +157,7 @@ async function enterVR(): Promise<void> {
 }
 
 /**
- * Put a node where the right controller's ray points, three metres out.
+ * Put a node where the right controller's ray points, three meters out.
  * @param id - The node's id.
  */
 async function nodeOnRightRay(id: string): Promise<void> {
@@ -470,7 +470,7 @@ describe("talking in VR with hands", () => {
             assert.strictEqual(voiceStarts, 1, "pinching the orb did not talk");
         });
         await frames();
-        const controller = element.graph.scene.metadata?.xrCameraController as XRPivotCameraController | undefined;
+        const controller = (element.graph.scene.metadata as GraphSceneMetadata | null)?.xrCameraController;
         assert.isFalse(controller?.getInputHandler().isDragging(), "the orb's pinch started a drag");
         hand.updatePinchValue(0);
         await vi.waitFor(() => {

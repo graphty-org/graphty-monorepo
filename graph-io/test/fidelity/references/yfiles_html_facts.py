@@ -9,7 +9,8 @@ RectangleNodeStyle, FlowchartNodeStyle, GraphvizNodeStyle, GroupNodeStyle, Panel
 ArcEdgeStyle..), their fill and stroke (attribute, child property element, or a SharedData
 reference; yFiles colors are #AARRGGBB or names), the first label's text, size and color,
 nested graphs as groups, edge bends (y:Bend), ports (FreeNodePortLocationModelParameter Ratio), edge
-stroke, thickness and dash style, arrow types. A node style with no fill or stroke facts (a demo
+stroke, thickness and dash style, arrow types. A node filled with a gradient is `paintedOver` (its first
+stop is not the color drawn). A node style with no fill or stroke facts (a demo
 or template style drawn by its own script) is listed in `gaps` for fill and border.
 """
 
@@ -117,6 +118,16 @@ def fill_of(style, shared):
     return paint(prop(style, "fill"), shared)
 
 
+def gradient_fill(style, shared):
+    """Whether the style's fill is a LinearGradient or RadialGradient: `fill_of` reads its first stop, which is not
+    the color drawn (the oracle judges the ramp against yEd Live's drawing), so the node is `paintedOver`, as
+    yed_facts.py marks a yEd `color2` and yed_gml_ext.py a GML `fill2`."""
+    raw = (style.get("fill") or "").strip()
+    m = re.fullmatch(r"\{y:GraphMLReference (\S+)\}", raw)
+    el = shared.get(m.group(1)) if m else None if raw else prop(style, "fill")
+    return el is not None and local(el.tag) in ("LinearGradient", "RadialGradient")
+
+
 SHAPE_ATTRS = ("shape", "type")
 
 
@@ -220,6 +231,8 @@ def scene(path):
                               fill[0] if fill else None, fill[1] if fill else 0.0,
                               stroke[0] if stroke else None, stroke[2] if stroke else 0,
                               stroke[3] if stroke else "solid", lab, len(nodes) + len(groups)))
+            if fill and gradient_fill(style, shared):
+                nodes[-1]["paintedOver"] = True
             for gi in ancestors:
                 groups[gi]["members"].append(nid)
 

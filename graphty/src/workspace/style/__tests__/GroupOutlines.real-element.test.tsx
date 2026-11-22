@@ -18,10 +18,15 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 type Element = HTMLElementTagNameMap["graphty-element"];
 
@@ -208,8 +213,13 @@ describe("shaders on the Selected and Hovered rows", () => {
         const { session, element } = await openScene();
         await openStyle("Selected");
         await addShader("Shockwave");
-        const selected = session.styles.list().find((layer) => layer.name === "Selected" && layer.target !== "edge");
-        assert.include(shadersOf(selected), "shockwave", "the Selected row's node layer carries the shader");
+        // The pick writes once the element names the project's copy of the gallery's shader.
+        await waitFor(() => {
+            const selected = session.styles
+                .list()
+                .find((layer) => layer.name === "Selected" && layer.target !== "edge");
+            assert.include(shadersOf(selected), "shockwave", "the Selected row's node layer carries the shader");
+        });
         assert.isUndefined(element.drawnShaders().nodes.get("shockwave"), "nothing is selected, so nothing draws it");
 
         const stop = countEntrances(element, "shockwave");
@@ -286,7 +296,12 @@ describe("group outlines, Around the group in the gallery", () => {
             assert.deepEqual(session.styles.get(layer.id)?.set?.["node.shaders"], [{ shader: "metaball-hull" }]);
         });
         const row = section("shaders").querySelector<HTMLElement>("[data-shader-row]");
-        assert.include(row?.textContent, "Around the group", "one allowed place: a static label");
+        assert.isNotNull(row);
+        // Its place is said in its settings button's tooltip, never as a line in the sidebar (#8739).
+        assert.notInclude(row?.textContent, "Around the group");
+        await userEvent.hover(within(row).getByRole("button", { name: "Hull settings" }));
+        assert.include((await screen.findByRole("tooltip", {})).textContent, "Around the group");
+        await userEvent.unhover(within(row).getByRole("button", { name: "Hull settings" }));
 
         await userEvent.click(within(section("shaders")).getByRole("button", { name: "Group by None" }));
         const picker = await findValuePicker();
@@ -374,6 +389,11 @@ describe("group outlines, Around the group in the gallery", () => {
             for (const id of layers) {
                 assert.deepEqual(shadersOf(session.styles.get(id)), ["soap-bubble"], `${id} draws its own`);
             }
+        });
+        // The layers show the edit while its transaction is still open: it records its step only
+        // once it closes, so the count is read after nothing is pending.
+        await waitFor(() => {
+            assert.isEmpty(session.history.pending, "the edit is recorded");
         });
         assert.strictEqual(session.history.position, steps + 1, "one undo step");
         await waitFor(() => {

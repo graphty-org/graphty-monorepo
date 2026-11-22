@@ -114,7 +114,6 @@ export type {
 export type { CommandContext, CommandExample, CommandResult, GraphCommand } from "./src/ai/index";
 export {
     captureScreenshot,
-    captureVideo,
     clearStyles,
     CommandRegistry,
     describeProperty,
@@ -145,6 +144,7 @@ export type {
     ToolDefinition,
     VercelProviderType,
     WebLlmModelInfo,
+    WebLlmProgressStage,
     WebLlmProviderOptions,
 } from "./src/ai/index";
 export {

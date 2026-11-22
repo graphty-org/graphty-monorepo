@@ -55,6 +55,7 @@ tools/dependency-refresh.test.mjs
 tools/design-studio-workflow.test.mjs
 tools/designloom-links.test.mjs
 tools/duplicates-check.test.mjs
+tools/eslint-cache-key.test.mjs
 tools/features-on.test.mjs
 tools/full-run.test.mjs
 tools/gate-inputs.test.mjs

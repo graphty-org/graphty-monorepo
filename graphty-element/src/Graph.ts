@@ -9243,6 +9243,11 @@ export class Graph implements GraphContext {
      * reads `position`, `target`, `alpha`, `beta`, `radius`, `pivotRotation`, `cameraDistance` and
      * `fov`). `{}` fits both and changes nothing. A named view resolves first and is judged as the
      * state it resolves to.
+     *
+     * A 2D `zoom` never depends on the data: the same zoom draws the same half-width however the
+     * graph grows. The camera stays where it is placed until the next node add, load or layout
+     * change, which the element frames again on its own while auto-framing is on (see
+     * {@link setAutoFrame}); a caller that drives the camera while the data grows turns it off.
      * @param state - Camera state or preset name to apply
      * @param options - Optional animation configuration
      * @returns Settles once the camera has arrived.

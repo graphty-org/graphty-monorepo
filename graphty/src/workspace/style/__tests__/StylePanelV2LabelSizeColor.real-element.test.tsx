@@ -81,6 +81,14 @@ const KINDS: readonly TextKind[] = [
         color: "edge.arrowHeadTextStyle.color",
     },
     {
+        name: "edge source End caption",
+        side: "edge",
+        thing: "endCaption",
+        set: { "edge.arrowTail": "normal", "edge.arrowTailText": "Hello" },
+        size: "edge.arrowTailTextStyle.size",
+        color: "edge.arrowTailTextStyle.color",
+    },
+    {
         name: "edge External label",
         side: "edge",
         thing: "xlabel",

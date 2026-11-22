@@ -25,8 +25,10 @@ import { mountElement, unmountElements } from "../helpers/mount-element";
 /**
  * The two graph sizes, 16x apart: a call that walks every scene mesh grows past the constant bound even on the batched
  * path, where an arrowed edge adds no mesh, so a fixed cost per call does not hide a walk that grows with the graph.
+ * Disposing a node's instance walks two lists of the scene beside a fixed cost of about 430 for a new mesh, so the
+ * smaller size is large enough for that walk to show (issue #9164).
  */
-const SIZES = [100, 1600] as const;
+const SIZES = [250, 4000] as const;
 
 /**
  * Mount a graphty-element with `size` nodes on a path, its render loop stopped and a static

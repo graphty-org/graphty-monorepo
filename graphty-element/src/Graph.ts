@@ -92,7 +92,7 @@ const ZOOM_STEP_FACTOR = 1.25;
 const MAP_CLEARANCE = 1e-4;
 
 import { measureBounds } from "./camera/bounds.js";
-import { orbitAnglesToPosition } from "./camera/builtins.js";
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
 import { cameraRefusal, stateProblem } from "./camera/mode.js";
 import { orientationOf } from "./camera/orientation.js";
@@ -7517,10 +7517,11 @@ export class Graph implements GraphContext {
                 continue;
             }
 
-            // A batched row is never turned: its box is its half extents about its place.
+            // A batched row is never turned: its box is its half extents about its source's box center.
             const local = columnCenter(table, row);
             const half = column.drawnHalfExtents;
-            const corners = boxCorners(local, half, world);
+            const off = column.drawnBoxCenter;
+            const corners = boxCorners(local.add(new Vector3(off.x, off.y, off.z)), half, world);
             const centre = world === undefined ? local : Vector3.TransformCoordinates(local, world);
             const worldRadius = Math.max(half.x, half.y, half.z) * rootScale;
             // A row whose source is off its batch (an object row of that look) is drawn by nothing.
@@ -9177,8 +9178,7 @@ export class Graph implements GraphContext {
             // Calculate current zoom from ortho bounds
             const currentSize = (twoDController.camera.orthoRight ?? 1) - (twoDController.camera.orthoLeft ?? -1);
             const halfSize = currentSize / 2;
-            const initialSize = twoDController.config.initialOrthoSize;
-            state.zoom = initialSize / halfSize;
+            state.zoom = FLAT_HALF_WIDTH_AT_ZOOM_ONE / halfSize;
 
             // Get pan from camera position
             state.pan = {
@@ -9427,7 +9427,7 @@ export class Graph implements GraphContext {
     ): void {
         // Set zoom (ortho bounds), then any edge the state names over it
         if (state.zoom !== undefined) {
-            controller.updateOrtho(controller.config.initialOrthoSize / state.zoom);
+            controller.updateOrtho(FLAT_HALF_WIDTH_AT_ZOOM_ONE / state.zoom);
         }
 
         for (const edge of ORTHO_EDGES) {
@@ -9817,8 +9817,8 @@ export class Graph implements GraphContext {
         // Animate the frustum: the zoom's symmetric frame, with any edge the state names over it
         const edges = { ...dummy };
         if (targetState.zoom !== undefined) {
-            // Zoom is absolute: 1.0 = initial size, 2.0 = half size (zoomed in), 0.5 = double size (zoomed out)
-            const targetSize = twoDController.config.initialOrthoSize / targetState.zoom;
+            // Zoom is absolute: 1.0 = FLAT_HALF_WIDTH_AT_ZOOM_ONE units either side, 2.0 = half that
+            const targetSize = FLAT_HALF_WIDTH_AT_ZOOM_ONE / targetState.zoom;
             // Keep the current proportions
             const aspect = (dummy.orthoTop - dummy.orthoBottom) / (dummy.orthoRight - dummy.orthoLeft);
             edges.orthoLeft = -targetSize;

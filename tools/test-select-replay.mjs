@@ -31,6 +31,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { gitOrNull } from "./lib/git.mjs";
 import {
     buildGraphs,
     estimate,
@@ -47,18 +48,7 @@ import {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const git = (args) => {
-    try {
-        return execFileSync("git", args, {
-            cwd: ROOT,
-            encoding: "utf8",
-            maxBuffer: 1 << 28,
-            stdio: ["ignore", "pipe", "ignore"],
-        }).trim();
-    } catch {
-        return null;
-    }
-};
+const git = (args) => gitOrNull(args, { cwd: ROOT });
 
 /**
  * The shard lines of one gate log: which shards ran, passed, failed (with the failing test files),

@@ -2,7 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
-import { createMockGraph } from "../../helpers/mockGraph";
+import { createSessionGraph } from "../../helpers/session-graph";
 
 describe("DijkstraAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -30,7 +30,7 @@ describe("DijkstraAlgorithm", () => {
 
 describe("DijkstraAlgorithm from a node to itself", () => {
     it("is that node alone, length 0, and marks it", async () => {
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
             edges: [
                 { srcId: "a", dstId: "b" },

@@ -242,7 +242,7 @@ function drawsSlotColor(options: JoinedLineOptions, widened: boolean): boolean {
 }
 
 /**
- * The attributes the join shader reads for one look. A pulled line reads none: `gl_VertexID`
+ * The attributes the join shader reads for one look. A straight pulled line reads none: `gl_VertexID`
  * names its piece and corner.
  * @param options - The look.
  * @param widened - Whether its batch is widened.
@@ -250,7 +250,8 @@ function drawsSlotColor(options: JoinedLineOptions, widened: boolean): boolean {
  */
 function joinedLineAttributes(options: JoinedLineOptions, widened: boolean): string[] {
     if (options.pulled === true) {
-        return [];
+        // a curve batch draws the template indexed and reads its vertex (`EDGE_PULLED_CURVE`)
+        return options.pulledCurve === true ? ["position"] : [];
     }
 
     return [
@@ -602,8 +603,9 @@ void main(void) {
         const mesh = new Mesh("joined-line", scene);
         const vertexData = new VertexData();
         vertexData.positions = [...JOIN_TEMPLATE_POSITIONS];
-        // a pulled batch draws unindexed (`PulledLineBatch`)
-        if (options.pulled !== true) {
+        // a straight pulled batch draws unindexed (`PulledLineBatch`); a curve batch draws the template indexed, an
+        // instance a piece, as the object path's batch does
+        if (options.pulled !== true || options.pulledCurve === true) {
             vertexData.indices = [...JOIN_TEMPLATE_INDICES];
         }
         vertexData.applyToMesh(mesh);

@@ -281,8 +281,8 @@ describe("push-queue: a commit that already failed", () => {
     // A test repository with the fingerprint tool committed, so the queue records fingerprints.
     function setupWithInputs() {
         const ctx = setup();
-        mkdirSync(join(ctx.repo, "tools"));
-        for (const f of ["prepush-inputs.mjs", "push-base.mjs"]) {
+        mkdirSync(join(ctx.repo, "tools/lib"), { recursive: true });
+        for (const f of ["prepush-inputs.mjs", "push-base.mjs", "lib/git.mjs"]) {
             copyFileSync(new URL(`./${f}`, import.meta.url).pathname, join(ctx.repo, "tools", f));
         }
         writeFileSync(join(ctx.repo, ".gitignore"), "tmp/\n");

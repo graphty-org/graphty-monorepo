@@ -153,6 +153,8 @@ export interface ColumnFraming {
     readonly rows: Iterable<number>;
     readonly table: RowTable;
     readonly root: TransformNode | null;
+    /** Where a row's box is centered about its place, unscaled; the place itself when not given. */
+    readonly boxCenterOf?: (row: number) => Readonly<{ x: number; y: number; z: number }> | undefined;
 }
 
 /**
@@ -196,7 +198,7 @@ function* columnBoxes(
     columns: ColumnFraming,
     extent: GraphFraming["extent"],
 ): Iterable<{ min: Vector3; max: Vector3 }> {
-    const { rows, table, root } = columns;
+    const { rows, table, root, boxCenterOf } = columns;
     const world = root?.computeWorldMatrix(true);
     const scale = root?.absoluteScaling;
     for (const row of rows) {
@@ -205,14 +207,21 @@ function* columnBoxes(
         }
 
         const local = columnCenter(table, row);
-        const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
         if (extent === "centers") {
+            const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
             yield { min: center, max: center.clone() };
             continue;
         }
 
-        // A batched row is never turned and carries no border, so its box is its half extents.
-        const { half } = table.extentOf(row);
+        // A batched row is never turned and carries no border, so its box is its half extents about its source's box
+        // center, which a shape not centered on its origin holds off its place.
+        const { half, scale: drawn } = table.extentOf(row);
+        const off = boxCenterOf?.(row);
+        if (off !== undefined) {
+            local.addInPlaceFromFloats(off.x * drawn, off.y * drawn, off.z * drawn);
+        }
+
+        const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
         const size = new Vector3(half.x, half.y, half.z);
         if (scale !== undefined) {
             size.multiplyInPlace(scale);
@@ -3748,6 +3757,7 @@ export class UpdateManager implements Manager {
             rows: batches.columnRowIndices(),
             table,
             root: this.graphContext.getScene().getTransformNodeByName("graph-root"),
+            boxCenterOf: (row) => batches.columnRowOf(row)?.drawnBoxCenter,
         };
     }
 
@@ -3925,9 +3935,12 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        this.updateEdgesOf(walk === false ? [] : walk);
-        UpdateManager.placeEdges(this.edgesToPlace);
-        this.placedEdgesAtRows();
+        // When the table moved rows too, the walk of every placed edge below also reaches the touched ones: each
+        // edge is visited once per pass, not once per list that names it (issue #9529).
+        const visited = this.unbuiltRowsMoved ? new Set<Edge>() : undefined;
+        this.updateEdgesOf(walk === false ? [] : walk, visited);
+        UpdateManager.placeEdges(this.edgesToPlace, visited);
+        this.placedEdgesAtRows(visited);
         this.unbuiltRowsMoved = false;
         this.edgesToPlace = [];
     }
@@ -3935,13 +3948,26 @@ export class UpdateManager implements Manager {
     /**
      * Place some edges, leaving out each line the shader draws from its rows ({@link Edge.followsRows}).
      * @param edges - The edges.
+     * @param visited - Edges this pass already placed, skipped and added to; undefined to place every one.
      */
-    private static placeEdges(edges: Iterable<Edge>): void {
+    private static placeEdges(edges: Iterable<Edge>, visited?: Set<Edge>): void {
         for (const edge of edges) {
-            if (!edge.followsRows) {
-                edge.update();
-            }
+            UpdateManager.placeOnce(edge, visited);
         }
+    }
+
+    /**
+     * Place one edge, unless its line follows its rows or this pass already placed it.
+     * @param edge - The edge.
+     * @param visited - Edges this pass already placed, or undefined.
+     */
+    private static placeOnce(edge: Edge, visited: Set<Edge> | undefined): void {
+        if (edge.followsRows || visited?.has(edge) === true) {
+            return;
+        }
+
+        visited?.add(edge);
+        edge.update();
     }
 
     /**
@@ -3972,14 +3998,17 @@ export class UpdateManager implements Manager {
      * rows in its shader.
      * ponytail: every placed edge on each table move; a list of the rows the lane moved, if a running layout over
      * a million rows with no Node and many placed edges needs the frame back.
+     * @param visited - Edges this pass already placed, skipped.
      */
-    private placedEdgesAtRows(): void {
+    private placedEdgesAtRows(visited?: Set<Edge>): void {
         if (!this.unbuiltRowsMoved) {
             return;
         }
 
         for (const edge of this.placedEdges()) {
-            edge.update();
+            if (visited?.has(edge) !== true) {
+                edge.update();
+            }
         }
     }
 
@@ -4098,15 +4127,16 @@ export class UpdateManager implements Manager {
 
     /**
      * Update the edges at some nodes. An edge between two of them is visited twice; the second
-     * visit finds it placed.
+     * visit finds it placed, unless `visited` is given, which skips it.
      * @param nodes - The nodes.
+     * @param visited - Edges this pass already placed, skipped and added to; undefined to place every one.
      */
-    private updateEdgesOf(nodes: readonly Node[]): void {
+    private updateEdgesOf(nodes: readonly Node[], visited?: Set<Edge>): void {
         for (const node of nodes) {
             for (const id of this.dataManager.incidentEdgeIds(node)) {
                 const edge = this.dataManager.edges.get(id);
-                if (edge !== undefined && !edge.followsRows) {
-                    edge.update();
+                if (edge !== undefined) {
+                    UpdateManager.placeOnce(edge, visited);
                 }
             }
         }

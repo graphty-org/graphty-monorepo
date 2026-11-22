@@ -4912,12 +4912,17 @@ export function associate(
         }
         const framed = guideAnnotations(n, t);
         const words = wordsFrom(t);
+        // a node's label and its external label read as one text: a box behind one of them, where graphty draws its
+        // label with one too (graphml-synthetic-nodes label-corners-sw: "corners:sw" boxed, "second label" not)
+        const guided = n !== undefined && (guideById.get(n.id)?.label?.background ?? null) !== null;
+        const lines = guided && (t.lines?.length ?? 0) > 1 ? (t.lines ?? []) : [];
+        const backsLine = (p: Prim): boolean => lines.some((line) => backsText(p, { ...t, box: line }));
         const backs = free()
             .filter(
                 (p) =>
                     p.kind === "shape" &&
                     (p.index < words || p.fill === null) &&
-                    (backsText(p, t) || (group !== undefined && bandsGroup(p, t, group))) &&
+                    (backsText(p, t) || backsLine(p) || (group !== undefined && bandsGroup(p, t, group))) &&
                     !framed.some((b) => boxIoU(b, p.box) >= 0.5),
             )
             .sort((a, b) => area(a.box) - area(b.box) || a.index - b.index);

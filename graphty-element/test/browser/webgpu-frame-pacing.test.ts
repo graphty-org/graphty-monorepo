@@ -411,6 +411,9 @@ function clearestNode(graph: Graph, container: HTMLElement): Node {
  * the most room when chosen has another within 2 px of it a landing later, and hover rightly names
  * whichever is drawn in front at the pointer (issue #6548). Where the nodes stand when the answer
  * arrives says nothing about that: on WebGPU it arrives a landing or two after the frame it read.
+ * Nor is the answer always to the newest move: a read that lands after the next move was
+ * dispatched is still heard (#8016), and with three frames in flight that is common, so the
+ * pointer checked is the one of the moves made that the drawn disc holds, if any.
  * @param graph - The graph.
  * @param moving - Whether a layout is moving the nodes.
  */
@@ -423,19 +426,19 @@ async function hoverAndAnswer(graph: Graph, moving = false): Promise<void> {
     const before = ticks.drawn;
     const session = graph.getSession();
     const { selection } = session;
-    // Where the last move the page has dispatched put the pointer: hover answers only the latest.
-    let pointer: { x: number; y: number } | null = null;
-    let answer: { id: string | number; drawn?: HoverDrawn; pointer: { x: number; y: number } } | undefined;
+    // Where each move the page has dispatched put the pointer: the answer is to one of them.
+    const pointers: { x: number; y: number }[] = [];
+    let answer: { id: string | number; drawn?: HoverDrawn; pointers: { x: number; y: number }[] } | undefined;
     const stop = session.on("selection:hover-changed", ({ after, drawn }) => {
-        if (answer === undefined && after !== null && pointer !== null) {
-            answer = { id: after, drawn, pointer };
+        if (answer === undefined && after !== null && pointers.length > 0) {
+            answer = { id: after, drawn, pointers: [...pointers] };
         }
     });
     // Bounded by frames drawn, so an unpaced loop fails here rather than hanging.
     while (selection.hovered === null && ticks.drawn - before <= HOVER_FRAMES) {
         const screen = graph.worldToScreen(node.drawnWorldPosition);
         await hover(container, { x: screen.x * scaling, y: screen.y * scaling });
-        pointer = screen;
+        pointers.push(screen);
         await nextFrame();
     }
 
@@ -448,7 +451,7 @@ async function hoverAndAnswer(graph: Graph, moving = false): Promise<void> {
     const { drawn } = answer;
     assert.isDefined(drawn, "the hover answer says where its node was drawn");
     assert.isAtMost(
-        Math.hypot(drawn.x - answer.pointer.x, drawn.y - answer.pointer.y),
+        Math.min(...answer.pointers.map((pointer) => Math.hypot(drawn.x - pointer.x, drawn.y - pointer.y))),
         drawn.radius,
         `the pointer lies inside the drawn disc of ${String(answer.id)}`,
     );

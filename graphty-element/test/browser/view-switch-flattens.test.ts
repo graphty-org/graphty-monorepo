@@ -7,9 +7,6 @@
  * and spend its pre-steps from there; the camera framed that jumble, so the canvas filled with
  * giant nodes until the 2D layout spread out again. Read on the first frame the 2D camera draws,
  * from its pixels and from `nodeScreenPosition`, never after the layout has moved on.
- *
- * Only an unseeded layout flattens. A seeded one draws what its seed draws, so a switch to 2D gives
- * the picture opening in 2D gives, however long 3D ran (issue #9413).
  */
 
 import "../../src/graphty-element";
@@ -88,7 +85,7 @@ describe.each([
         // rows are stored with no Node.
         await element.session.data.addNodes(IDS.map((id) => ({ id })));
         await element.session.data.addEdges(EDGES);
-        await element.graph.setLayout("ngraph", {});
+        await element.graph.setLayout("ngraph", { seed: 7 });
         await operationQueueOf(element.graph).waitForCompletion();
         await element.waitForStableFrame();
 
@@ -185,12 +182,11 @@ describe.each([
 });
 
 /**
- * A 400 by 400 element holding the 40-node tree under a seeded force layout.
- * @param view - The view it opens in.
+ * A 400 by 400 element in 3D holding the 40-node tree under a force layout.
  * @param options - The force layout's options.
  * @returns The element, its layout built.
  */
-async function openTree(view: "2d" | "3d", options: Record<string, unknown>): Promise<Graphty> {
+async function openTree(options: Record<string, unknown>): Promise<Graphty> {
     const element: Graphty = document.createElement("graphty-element");
     element.renderer = "webgl";
     element.style.display = "block";
@@ -198,7 +194,7 @@ async function openTree(view: "2d" | "3d", options: Record<string, unknown>): Pr
     element.style.height = "400px";
     document.body.appendChild(element);
     await element.updateComplete;
-    await element.setViewMode(view);
+    await element.setViewMode("3d");
     await element.session.data.addNodes(IDS.map((id) => ({ id })));
     await element.session.data.addEdges(EDGES);
     await element.graph.setLayout("ngraph", options);
@@ -206,37 +202,9 @@ async function openTree(view: "2d" | "3d", options: Record<string, unknown>): Pr
     return element;
 }
 
-/**
- * Every node's settled position.
- * @param element - The element.
- * @returns The positions, in node order.
- */
-async function settledPositions(element: Graphty): Promise<({ x: number; y: number; z: number } | undefined)[]> {
-    await element.waitForStableFrame();
-    return IDS.map((id) => element.session.positions.get(id));
-}
-
-describe("a seeded 3D to 2D switch", () => {
-    for (const settle of [false, true]) {
-        it(`draws the picture opening in 2D draws, after 3D ${settle ? "settled" : "just started"}`, async () => {
-            const opened = await settledPositions(await openTree("2d", { seed: 7 }));
-            document.body.replaceChildren();
-
-            const element = await openTree("3d", { seed: 7 });
-            if (settle) {
-                await element.waitForStableFrame();
-            }
-
-            await element.setViewMode("2d");
-            const switched = await settledPositions(element);
-            assert.deepEqual(switched, opened);
-        });
-    }
-});
-
-describe("an unseeded 3D to 2D switch with nodeGap while a node size is still painting", () => {
+describe("a seeded 3D to 2D switch with nodeGap while a node size is still painting", () => {
     it("draws every node at its flattened 3D position on the first 2D frame", async () => {
-        const element = await openTree("3d", { nodeGap: 2 });
+        const element = await openTree({ seed: 7, nodeGap: 2 });
         // Owed pre-steps a size change would pay on the first frame with every size drawn.
         element.layoutBehavior = { layout: { preSteps: 500 } };
         await element.waitForStableFrame();

@@ -2567,9 +2567,9 @@ export class LayoutManager implements Manager {
                     dimension === 3,
                 // Only the dimension changed, to 2D: `sameLayout` fell through because the engine
                 // redraws. Not to 3D, where a force engine started flat has no force out of the plane.
-                // Not when seeded: the seed decides the picture, so a seeded switch draws what opening
-                // in 2D draws, however long 3D ran.
-                flatten: sameLayout && !restoring && dimension === 2 && typeof choice.options.seed !== "number",
+                // Seeded too: the reader sees the drawing they just had, flattened (#9279), not the
+                // seed's own 2D picture.
+                flatten: sameLayout && !restoring && dimension === 2,
                 // A first layout, a restore and a 2D/3D switch place the nodes in one frame.
                 transition:
                     !restoring && built !== null && this.layoutEngine !== undefined && !sameArrangement(built, choice),

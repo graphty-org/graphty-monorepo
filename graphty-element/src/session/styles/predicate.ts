@@ -14,8 +14,14 @@
  * paying for one whose answer is known. This is the same convention `CompiledVisibility` uses
  * for a filter half that constrains nothing.
  *
- * WHY THE ELEMENT COMPILES ITS OWN EXPRESSIONS. The expression kind speaks JMESPath, but it
- * speaks a declared SUBSET of it, parsed here. Three measured facts drove that:
+ * WHY THE ELEMENT COMPILES ITS OWN EXPRESSIONS. A `where` is a graphty expression, defined by the
+ * save file format's specification (spec/README.md, section 4.8.2): JMESPath's syntax, cut down to
+ * paths, literals, comparisons, `&&`, `||`, `!` and parentheses, plus three extensions --
+ * arithmetic (`+ - * /` over numbers), the bare words `true`, `false` and `null` as values, and an
+ * ordering of two strings (by Unicode code point), which JMESPath leaves undefined. The spec's
+ * grammar alone defines it: it is not JMESPath. Bare `true`, `false` and `null` are values where
+ * JMESPath reads them as field names, and a path is one column lookup where JMESPath walks nested
+ * keys. Three measured facts drove compiling it here rather than calling a JMESPath library:
  *
  * - `jmespath@0.16.0` exports `compile()`, but it exposes no evaluator for the tree that comes
  *   back, so a parsed expression cannot be run. `search()` is the only door and it re-parses
@@ -29,12 +35,10 @@
  *   An off-the-shelf evaluator would need the whole root materialized per element, which is an
  *   object allocation per element per layer.
  *
- * THE SUBSET IS REFUSED AT ITS EDGE, NEVER NARROWED IN SILENCE. Everything JMESPath can express
+ * THE LANGUAGE IS REFUSED AT ITS EDGE, NEVER NARROWED IN SILENCE. Everything JMESPath can express
  * that this file does not implement -- projections, slices, functions, pipes, multi-selects,
  * wildcards, the current-node reference -- is rejected where it was typed, by name, with the
- * offset. A selector that is accepted means exactly what JMESPath means by it, with one stated
- * exception: a lone `true`, `false` or `null` word is that value (see `VALUE_WORDS`). A wrong
- * picture is worse than a refusal, so there is no branch that guesses.
+ * offset. A wrong picture is worse than a refusal, so there is no branch that guesses.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -1425,8 +1429,8 @@ function nodeRule(node: ExpressionNode, comparisons: boolean): RuleTree | undefi
 
     const { value } = literal;
     if (node.operator !== "==" && node.operator !== "!=") {
-        // Only a number orders: an ordering comparison of anything else matches no element, as a
-        // range leaf does not.
+        // A range leaf orders numbers only, so only a number literal has a rule form; an ordering
+        // of strings stays an expression.
         const operator = node.left.kind === "literal" ? FLIPPED[node.operator] : node.operator;
         return comparisons && typeof value === "number" && Number.isFinite(value)
             ? orderingRule(operator, path, value)
@@ -1608,6 +1612,70 @@ export function renamePaths(where: Query, rename: (path: Path) => Query | undefi
 }
 
 /**
+ * An expression with every run its `results.<run>.<field>` paths name renamed, by token: a string
+ * literal holding `results.x` is not a path and is left alone, and a renamed path is quoted where
+ * a segment needs it (`results."min-cut".value`).
+ *
+ * ```ts
+ * import { renameRunPaths } from "@graphty/graphty-element/session";
+ *
+ * renameRunPaths("results.louvain.group == `3`", (run) => (run === "louvain" ? "ns__louvain" : undefined));
+ * // "results.ns__louvain.group == `3`"
+ * ```
+ * @param where - The expression.
+ * @param rename - The new name of a run, or undefined to keep it.
+ * @returns The rewritten expression.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` for an expression that does not lex.
+ */
+export function renameRunPaths(where: Query, rename: (run: string) => string | undefined): Query {
+    return renamePaths(where, (path) => {
+        const renamed = renameRunInPath(path, rename);
+        return renamed === path ? undefined : quotePath(renamed);
+    });
+}
+
+/**
+ * A raw path (never quoted) with the run a `results.<run>.<field>` path names renamed; any other
+ * path comes back as it was.
+ * @param path - The raw path.
+ * @param rename - The new name of a run, or undefined to keep it.
+ * @returns The path.
+ */
+export function renameRunInPath(path: Path, rename: (run: string) => string | undefined): Path {
+    if (!path.startsWith("results.")) {
+        return path;
+    }
+
+    const rest = path.slice("results.".length);
+    const dot = rest.indexOf(".");
+    const run = dot < 0 ? rest : rest.slice(0, dot);
+    const renamed = run === "" ? undefined : rename(run);
+    return renamed === undefined ? path : `results.${renamed}${rest.slice(run.length)}`;
+}
+
+/** The roots a path may start with (spec 4.8.1 rule 1). */
+const ROOT = /^(data|results|graphty|_source)\./;
+
+/**
+ * A version 1 expression as version 2 writes it: every bare number put between backticks, and
+ * `data.` put before each path whose first segment is not a root. An expression that still does
+ * not lex comes back as written, and is refused when it is read.
+ * @param where - The version 1 expression.
+ * @returns The version 2 expression.
+ */
+export function v1Expression(where: Query): Query {
+    try {
+        return renamePaths(backtickNumbers(where), (path) => (ROOT.test(path) ? undefined : quotePath(`data.${path}`)));
+    } catch (error) {
+        if (error instanceof GraphtyError && error.code === "E_BAD_SELECTOR") {
+            return where;
+        }
+
+        throw error;
+    }
+}
+
+/**
  * Compile a tree into the closure that reads one element's value for it.
  *
  * A path reads its column and normalizes an absent value to null, because that is what JMESPath
@@ -1782,9 +1850,42 @@ function compileComparison(
         const a = readLeft(index);
         const b = readRight(index);
 
-        // JMESPath orders numbers and nothing else: anything else answers null, which is false.
-        return typeof a === "number" && typeof b === "number" ? compare(a, b) : null;
+        // Two numbers order numerically and two strings by code point (spec 4.8.2 rule 5); any
+        // other pair answers null, which is false.
+        if (typeof a === "number" && typeof b === "number") {
+            return compare(a, b);
+        }
+
+        return typeof a === "string" && typeof b === "string" ? compare(codePointOrder(a, b), 0) : null;
     };
+}
+
+/**
+ * The order of two strings by Unicode code point, which is not JavaScript's `<` on strings: that
+ * compares UTF-16 code units, and puts a character above U+FFFF below U+FFFF.
+ * @param a - One string.
+ * @param b - The other.
+ * @returns -1, 0 or 1.
+ */
+function codePointOrder(a: string, b: string): number {
+    let i = 0;
+    let j = 0;
+    while (i < a.length && j < b.length) {
+        const x = a.codePointAt(i) ?? 0;
+        const y = b.codePointAt(j) ?? 0;
+        if (x !== y) {
+            return x < y ? -1 : 1;
+        }
+
+        i += x > 0xffff ? 2 : 1;
+        j += y > 0xffff ? 2 : 1;
+    }
+
+    if (i < a.length) {
+        return 1;
+    }
+
+    return j < b.length ? -1 : 0;
 }
 
 /**

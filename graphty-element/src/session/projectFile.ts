@@ -66,7 +66,7 @@ import type { NetworkApiInternal } from "./network";
 import { parentIdsExtension, withParentIds } from "./parentIds";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
-import { ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
+import { ELEMENT_VERSION, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
 import type { RunLiveScope } from "./runs/types";
 import { edgeSpaceOf } from "./scope/spaces";
 import type { CodedFact } from "./shared";
@@ -1499,7 +1499,7 @@ export function documentAround(
         kind: DOCUMENT_KIND,
         version: VERSION,
         ...(name === null ? {} : { name }),
-        generator: { name: "graphty-element", version: ENGINE_VERSIONS.element },
+        generator: { name: "graphty-element", version: ELEMENT_VERSION },
         requires: requiresOf(members),
         members,
         ...(Object.keys(extensions).length === 0 ? {} : { extensions }),

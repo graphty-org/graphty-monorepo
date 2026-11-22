@@ -176,7 +176,7 @@ describe("a run that finishes", () => {
         assert.strictEqual(record.status, "succeeded");
         assert.strictEqual(record.scope.nodes, graph.nodes.size);
         assert.strictEqual(record.scope.digest, run.scope.digest);
-        assert.strictEqual(record.engine.element, ENGINE.element);
+        assert.deepStrictEqual(record.engine, { ...ENGINE, accelerator: "cpu" });
     });
 });
 

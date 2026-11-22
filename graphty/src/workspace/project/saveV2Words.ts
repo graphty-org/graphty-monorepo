@@ -119,6 +119,7 @@ const EMBEDDED_REASONS: Readonly<Record<SourceEmbeddedReason, string>> = {
     mapping: "Read through a mapping",
     bytes: "No file to read again",
     kind: "Cannot be read again",
+    options: "Read with options a file cannot hold",
 };
 
 /** Why a referenced source is held (`W_SOURCE_UNAVAILABLE` reasons). */
@@ -130,6 +131,9 @@ const UNAVAILABLE_REASONS: Readonly<Record<SourceUnavailableReason, string>> = {
     "needs-permission": "Needs permission to fetch",
     "copy-changed": "Changed since saved",
     kind: "Cannot be read again",
+    "copy-form": "Copy in a newer form",
+    options: "Read options from a newer version",
+    ledger: "Request history from a newer version",
 };
 
 /** The held reasons a Refresh answers: the reader's click is the permission, or takes the new copy. */

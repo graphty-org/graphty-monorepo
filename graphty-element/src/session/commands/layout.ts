@@ -122,6 +122,12 @@ export interface LayoutService {
      * @returns True when it does.
      */
     followsFilters?(): boolean;
+    /**
+     * The hardware the layout in force computes on: `"cpu"`, or the accelerator's backend. Absent
+     * reads `"cpu"`.
+     * @returns The backend.
+     */
+    accelerator?(): string;
 }
 
 /**

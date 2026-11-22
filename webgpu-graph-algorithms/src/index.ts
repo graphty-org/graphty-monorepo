@@ -174,3 +174,6 @@ export type {
 
 // ==================== types: run options
 export type { GpuRunOptions } from "./types/run.js";
+
+// ==================== version
+export { VERSION } from "./version.js";

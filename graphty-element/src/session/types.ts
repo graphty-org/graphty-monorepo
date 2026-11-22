@@ -6482,8 +6482,10 @@ export interface ProjectConfig {
     /**
      * Whether the project has had its Timeline Hidden starting row written: false until the first
      * time a project with {@link ProjectConfig.startingRows} on has a time field, when the row is
-     * written and this turns true in the same step. Saved with the project, so the row is written
-     * once: turning the timeline off and on, or deleting the row, never adds it again. Setting it
+     * written and this turns true in the same step. Kept with the project: a version 1 file saves it;
+     * a version 2 file does not, and opening one sets it from whether the file carries a style
+     * section. So the row is written once: turning the timeline off and on, or deleting the row,
+     * never adds it again. Setting it
      * true before the timeline turns on means the row is never written. Setting it false asks for
      * the row again: it is written the next time a project with the starting rows has a time field
      * (at once when it already has one), beside any copy already there, since a row is the reader's
@@ -6493,9 +6495,11 @@ export interface ProjectConfig {
     readonly timelineHiddenAdded: boolean;
     /**
      * Whether this project has had the session's starting cameras
-     * (`session.views.setStartingCameras`) written into it. False by default and saved with the
-     * project; the element sets it when it writes them. Setting it true stops them being written
-     * into this project; setting it false lets the next writing point write them again.
+     * (`session.views.setStartingCameras`) written into it. False by default. Kept with the project:
+     * a version 1 file saves it; a version 2 file does not, and opening one sets it from whether the
+     * file carries a view section. The element sets it when it writes them. Setting it true stops
+     * them being written into this project; setting it false lets the next writing point write them
+     * again.
      * @since 3.58.0
      */
     readonly startingCamerasWritten: boolean;
@@ -6943,7 +6947,8 @@ export interface SessionEventMap {
     };
     /**
      * A run the `results: "rerun"` setting re-ran after a window move failed: which run, and the
-     * error's code and details.
+     * error's code and details. A re-run canceled while it runs (`run.cancel()`) is not a failure
+     * and publishes no event: the run's status reads "canceled".
      * @beta
      */
     "time:rerun-failed": {
@@ -8107,6 +8112,13 @@ export interface SessionLayout {
      */
     readonly arrangedDimension: "2d" | "3d";
     /**
+     * The code that draws the layout in force: the packages, at the versions that run, the
+     * hardware (`accelerator`), and `method` when the code that consumes the seed is not
+     * {@link SessionLayout.engine} (a session with no renderer steps ForceAtlas2 for `ngraph` and
+     * `d3`). A save records it beside the positions (spec/README.md 4.5 rule 6).
+     */
+    readonly provenance: EngineVersions;
+    /**
      * Choose the layout. One step.
      * @param id - The catalog id; a registered engine name is read as the id it serves.
      * @param options - The engine, when not the catalog's default for `id`, and its options.
@@ -9148,6 +9160,11 @@ export interface AccelerationControllerLike {
     readonly policy: AccelerationPolicy;
     /** The node count at or above which accelerated work uses the accelerator. */
     readonly minNodes: number;
+    /**
+     * The attached accelerator, or null when none is. A run records its package beside the
+     * element's own (spec/README.md 4.5 rule 6). Absent, no accelerator package is recorded.
+     */
+    readonly accelerator?: GraphAccelerator | null;
     /**
      * Changes what the consumer asks of the hardware.
      * @param policy - The new policy.

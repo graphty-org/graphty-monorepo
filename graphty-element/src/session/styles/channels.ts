@@ -4095,13 +4095,16 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The label laid out as a table of cells, as an HTML-like table is: JSON " +
             '`{ "rows": [{ "cells": [{ "lines": [{ "text": "a" }] }, { "lines": [{ "text": "b" }] }] }] }` is two ' +
             "cells side by side. The table may give `border`, `cellBorder`, `cellSpacing`, `cellPadding`, " +
-            "`width`, `height`, `fixedSize`, `align`, `valign`, `lineHeight` (a text line's height as a multiple " +
+            "`width`, `height`, `fixedSize`, `align`, `valign`, `radius` (how round its outline's and its " +
+            "background's corners are, at most a third of its shorter side), `lineHeight` (a text line's height as a multiple " +
             "of the label's size, or `\"font\"`: its font's ascent plus descent, each rounded up to whole " +
             "`textPixel`s when that is given) and `baseline` (how far a line's baseline sits below its top, as a " +
             "multiple of the label's size; unset, its words are centered in it); a row `rule` (a line above it); a cell `colspan`, `rowspan`, `width`, " +
             "`height`, `fixedSize`, `align` (`left`, `right`, `center`, `text`), `valign`, `balign`, `border`, " +
             "`padding`, `rule` (a line on its left), `hidden` (keeps its room, draws nothing) and a `table` of its own in place " +
-            "of `lines`; a line `align`. " +
+            "of `lines`; a line `align`. A table or a cell may give `fill` (its background color), and with it " +
+            "`fillGradient` (the color its background blends to) and `fillGradientAngle` (which way, in degrees " +
+            "clockwise from left to right, as a node's gradient fill runs). " +
             "Lengths are in the units of `node.size`, a line's `text` in label markup. Drawn in place of the " +
             "label's words, in the label's font: each cell's outline a line in the border's color " +
             "(`node.shapeLineWidth` wide, else the cell's border), each text line in its place. With " +

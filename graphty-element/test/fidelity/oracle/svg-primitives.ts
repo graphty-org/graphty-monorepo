@@ -1429,6 +1429,30 @@ function inUndrawnBranch(el: Element): boolean {
     return false;
 }
 
+/**
+ * Whether a line is a text's underline: yEd (ySVG) writes a label of `underlinedText="true"` as each line's `<text>`
+ * followed by a level `<line>` a few units under its baseline, in the label's own `<g>` (`graphml-stm32-func`'s `CS`
+ * labels: baseline 193.333, line at 196.635). Read as a line of the drawing, each underline beside a node's border read
+ * as an edge from that node (n3->n30 and its neighbors); it is the label's lettering, which graphty draws with the
+ * words.
+ * @param el - a `<line>`
+ * @returns whether it underlines a text beside it
+ */
+function underlineOfText(el: SVGLineElement): boolean {
+    const y = el.y1.baseVal.value;
+    if (y !== el.y2.baseVal.value || el.parentElement === null) {
+        return false;
+    }
+    const size = Number.parseFloat(getComputedStyle(el).fontSize);
+    return [...el.parentElement.children].some((t) => {
+        if (t.localName !== "text") {
+            return false;
+        }
+        const below = y - Number.parseFloat(t.getAttribute("y") ?? "NaN");
+        return below > 0 && below <= size * 0.5;
+    });
+}
+
 /** What is defined for later use or not drawn at all, not drawn where it stands. */
 const NOT_DRAWN = "defs, marker, clipPath, mask, pattern, symbol, title, desc, metadata";
 
@@ -1691,6 +1715,9 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 continue;
             }
             if (inUndrawnBranch(el)) {
+                continue;
+            }
+            if (ySvg && tag === "line" && underlineOfText(el as unknown as SVGLineElement)) {
                 continue;
             }
             const cs = getComputedStyle(el);

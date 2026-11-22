@@ -1,8 +1,7 @@
 /**
  * Several layers edited together (a folder selected), on the REAL graphty-element with real clicks
- * and keys: the kind switches turn edges on and nodes off for every layer in one step each, a kind
- * that is every layer's only one stays on, and an edge color typed while only one layer sets it
- * goes to that layer, with a receipt that offers to set the other.
+ * and keys: the kind switches turn edges on and nodes off for every layer in one step each, and an
+ * edge color typed while only one layer sets it goes to that layer, with a receipt that offers to set the other.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -107,7 +106,7 @@ function styles(session: GraphSession, rows: readonly string[], side: "node" | "
 }
 
 describe("several layers' kinds and an edge color", () => {
-    it("turns edges on and nodes off for both layers, and keeps a kind that is each one's only", async () => {
+    it("turns edges on and nodes off for both layers", async () => {
         const { session, store, rows } = await openScene("node", { "node.size": 2 });
         await clickRow("Pair");
 
@@ -127,16 +126,7 @@ describe("several layers' kinds and an edge color", () => {
         });
         assert.equal(store.get().announcement, "2 layers no longer style nodes");
         assert.deepEqual(styles(session, rows, "edge"), [true, true], "edges stay");
-
-        // Edges are now each layer's only kind: clearing the switch leaves every layer as it is.
-        await showTab("Edge");
-        const { position } = session.history;
-        await userEvent.click(await screen.findByRole("checkbox", { name: "Style edges" }));
-        await waitFor(() => {
-            assert.match(store.get().announcement ?? "", /no longer style edges$/);
-        });
-        assert.deepEqual(styles(session, rows, "edge"), [true, true], "a layer keeps its only kind");
-        assert.isAtMost(session.history.position, position + 1);
+        // The switch for a kind that is every layer's only one is #9685's (RowKinds.real-element.test.tsx).
     });
 
     it("writes a typed edge color to the one layer that sets it, then Also set those reaches the other", async () => {

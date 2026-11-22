@@ -1423,11 +1423,7 @@ function bareEnds(rows: RestSource["rows"], from: number, to: number, out: Float
         return false;
     }
 
-    const positions = rows.restingPositions;
-    for (let i = 0; i < 3; i++) {
-        out[i] = positions[from * 4 + i];
-        out[6 + i] = positions[to * 4 + i];
-    }
-
+    rows.restingPlaceOf(from, out, 0);
+    rows.restingPlaceOf(to, out, 6);
     return true;
 }

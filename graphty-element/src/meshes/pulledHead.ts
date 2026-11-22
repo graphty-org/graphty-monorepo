@@ -36,6 +36,12 @@ export interface PulledHead {
     readonly flat: boolean;
 }
 
+/** The most colors a 2D graph's pulled heads are batched by ({@link pulledHeadOf}). */
+const FLAT_COLOUR_BATCHES = 64;
+
+/** The colors 2D pulled heads are batched by, first come first batched. */
+const flatColours = new Set<string>();
+
 /**
  * The answer of {@link pulledHeadOf} for each style, in 3D and in 2D: a painted style is shared and never changed.
  */
@@ -94,10 +100,24 @@ function judge(style: EdgeStyleConfig, flat: boolean): PulledHead | null {
         fill: arrow.fillColor,
     };
     // the key alone: a shape's mesh is made once per batch, in the scene that draws it
-    const key = EdgeMesh.billboardShapeKey(shape);
-    if (key === null) {
+    const shapeKey = EdgeMesh.billboardShapeKey(shape);
+    if (shapeKey === null) {
         return null;
     }
+
+    const colour = arrow.color ?? style.line?.color ?? "#FFFFFF";
+    // A 2D graph's object edges draw their caps in one batch a color (`EdgeMesh.createArrowHead`), each color's after
+    // the colors made before it, so where two heads meet the later color's is on top: its pulled heads are batched by
+    // color too, so they meet in that order.
+    // ponytail: past FLAT_COLOUR_BATCHES colors (a color ramp) the rest share one batch, so a ramp of 100,000 colors
+    // is not 100,000 draws; where two of those heads meet, the later edge's is on top. Order slots by color within one
+    // batch if a ramp's overlaps ever need the objects picture.
+    const hex = colour.toLowerCase();
+    if (flat && !flatColours.has(hex) && flatColours.size < FLAT_COLOUR_BATCHES) {
+        flatColours.add(hex);
+    }
+
+    const key = flat && flatColours.has(hex) ? `${shapeKey}|${hex}` : shapeKey;
 
     const opacity = arrow.opacity ?? 1;
     if (flat && opacity < 1) {
@@ -126,7 +146,7 @@ function judge(style: EdgeStyleConfig, flat: boolean): PulledHead | null {
         key,
         shape,
         opacity,
-        colour: Color3.FromHexString(arrow.color ?? style.line?.color ?? "#FFFFFF"),
+        colour: Color3.FromHexString(colour),
         place: { centreBack, size: length },
         lineStop: EdgeMesh.lineStopOf(length, geometry),
         look: {

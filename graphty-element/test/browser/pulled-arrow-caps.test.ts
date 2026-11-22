@@ -182,6 +182,9 @@ describe("pulled arrow caps", () => {
                 return moves;
             },
             restingPositions: places,
+            restingPlaceOf: (row: number, out: Float64Array, at: number) => {
+                out.set(places.subarray(row * 4, row * 4 + 3), at);
+            },
             roundExtentOf: (row: number, out: Float64Array) => {
                 out.set([rows[row].scale, rows[row].radius, rows[row].border]);
                 return true;

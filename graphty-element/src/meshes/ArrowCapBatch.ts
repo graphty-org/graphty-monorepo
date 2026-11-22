@@ -175,6 +175,9 @@ function giveBack(heap: number[], slot: number): void {
 /** The identity matrix, copied into a slot that only ever carries a translation. */
 const IDENTITY = Matrix.Identity();
 
+/** {@link IDENTITY}'s floats, copied into a slot with one typed-array copy: a restyle takes a hundred thousand slots. */
+const IDENTITY_FLOATS = Float32Array.from(IDENTITY.asArray());
+
 /** Every scene's cap batches, by the key that says what the caps in one have in common. */
 const batchesByScene = new WeakMap<Scene, Map<string, ArrowCapBatch>>();
 
@@ -445,7 +448,7 @@ export class ArrowCapBatch {
         // shader reads the camera rather than the slot's rotation -- gets its rotation and scale
         // from here once, and `placeAt` then writes three floats a frame.
         this.forget(index);
-        IDENTITY.copyToArray(this.matrices, index * FLOATS_PER_MATRIX);
+        this.matrices.set(IDENTITY_FLOATS, index * FLOATS_PER_MATRIX);
         this.written("matrix", index);
 
         // Unclipped. A zero here would cut the shape off at its own origin. Opaque, until the cap
@@ -1103,7 +1106,7 @@ export class ArrowCapBatch {
             this.hide(index);
         } else if (this.matrices[index * FLOATS_PER_MATRIX + 15] === 0) {
             // shown again: the identity back, which the shader reads as drawn
-            IDENTITY.copyToArray(this.matrices, index * FLOATS_PER_MATRIX);
+            this.matrices.set(IDENTITY_FLOATS, index * FLOATS_PER_MATRIX);
             this.written("matrix", index);
         }
 

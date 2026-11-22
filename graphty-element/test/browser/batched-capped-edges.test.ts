@@ -267,3 +267,61 @@ describe("an edge Graphviz routes on the batched path", () => {
         assert.equal(pixelsOverBar(want, await readCanvas(batched.graph)), 0);
     });
 });
+
+// A 2D graph's object edges draw their caps in one batch a color, each color's after those made before it: where two
+// heads meet, the color painted later is on top whatever the order of their edges.
+describe.each(RENDERERS)("two 2D heads of different colors meeting on %s", (renderer) => {
+    /**
+     * Two wide-headed edges into one node, both gray, then the first one orange.
+     * @param path - The render path.
+     * @returns The element, its picture final.
+     */
+    async function meeting(path: RenderPath): Promise<Graphty> {
+        const element = document.createElement("graphty-element");
+        element.renderer = renderer;
+        element.renderPath = path;
+        element.viewMode = "2d";
+        element.style.display = "block";
+        element.style.width = "400px";
+        element.style.height = "300px";
+        document.body.appendChild(element);
+        await element.updateComplete;
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.session.data.addNodes([
+            { id: "a", position: { x: -0.6, y: 3, z: 0 } },
+            { id: "b", position: { x: 0.6, y: 3, z: 0 } },
+            { id: "t", position: { x: 0, y: 0, z: 0 } },
+        ]);
+        await element.graph.setLayout("fixed", { dim: 2 });
+        await element.session.styles.add({
+            name: "gray",
+            target: "edge",
+            selector: everything,
+            set: { "edge.color": "#cccccc", "edge.arrowHeadSize": 4 },
+        } as never);
+        await element.session.data.addEdges([
+            { src: "a", dst: "t" },
+            { src: "b", dst: "t" },
+        ]);
+        await settled(element);
+        const first = [...element.graph.getDataManager().edges.values()].find((edge) => edge.srcId === "a");
+        assert.isDefined(first);
+        await element.session.styles.add({
+            name: "orange",
+            target: "edge",
+            selector: { match: "ids", edges: [first.id] },
+            set: { "edge.color": "#d55e00", "edge.width": 3 },
+        } as never);
+        await settled(element);
+        return element;
+    }
+
+    it("draws the later color on top, as the objects path does", async () => {
+        const objects = await meeting("objects");
+        const want = await readCanvas(objects.graph);
+        objects.remove();
+        const batched = await meeting("batched");
+        assert.equal(batched.graph.rowCounts.objectEdges, 0);
+        assert.equal(pixelsOverBar(want, await readCanvas(batched.graph)), 0);
+    });
+});

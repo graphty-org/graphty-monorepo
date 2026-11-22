@@ -153,6 +153,8 @@ export interface ColumnFraming {
     readonly rows: Iterable<number>;
     readonly table: RowTable;
     readonly root: TransformNode | null;
+    /** Where a row's box is centered about its place, unscaled; the place itself when not given. */
+    readonly boxCenterOf?: (row: number) => Readonly<{ x: number; y: number; z: number }> | undefined;
 }
 
 /**
@@ -196,7 +198,7 @@ function* columnBoxes(
     columns: ColumnFraming,
     extent: GraphFraming["extent"],
 ): Iterable<{ min: Vector3; max: Vector3 }> {
-    const { rows, table, root } = columns;
+    const { rows, table, root, boxCenterOf } = columns;
     const world = root?.computeWorldMatrix(true);
     const scale = root?.absoluteScaling;
     for (const row of rows) {
@@ -205,14 +207,21 @@ function* columnBoxes(
         }
 
         const local = columnCenter(table, row);
-        const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
         if (extent === "centers") {
+            const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
             yield { min: center, max: center.clone() };
             continue;
         }
 
-        // A batched row is never turned and carries no border, so its box is its half extents.
-        const { half } = table.extentOf(row);
+        // A batched row is never turned and carries no border, so its box is its half extents about its source's box
+        // center, which a shape not centered on its origin holds off its place.
+        const { half, scale: drawn } = table.extentOf(row);
+        const off = boxCenterOf?.(row);
+        if (off !== undefined) {
+            local.addInPlaceFromFloats(off.x * drawn, off.y * drawn, off.z * drawn);
+        }
+
+        const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
         const size = new Vector3(half.x, half.y, half.z);
         if (scale !== undefined) {
             size.multiplyInPlace(scale);
@@ -284,18 +293,24 @@ function growForLabel(box: FramingBox, labelMesh: Mesh | null | undefined): void
 
 /**
  * Grow a box to take in the points an edge's curve or bends are drawn through, which can reach
- * well outside the box of its two nodes (issue #3097). A straight edge costs one check and adds
- * nothing: its line runs between two nodes the box already holds.
+ * well outside the box of its two nodes (issue #3097).
  * @param box - The box to grow.
- * @param edge - The edge.
+ * @param curve - The world points, from {@link drawnCurveInWorld}.
  */
-function growForCurve(box: FramingBox, edge: Edge): void {
-    for (const point of drawnCurveInWorld(edge) ?? []) {
+function growForCurve(box: FramingBox, curve: readonly Vector3[]): void {
+    for (const point of curve) {
         box.spots.push({ pos: point, half: 0 });
         box.min.minimizeInPlace(point);
         box.max.maximizeInPlace(point);
     }
 }
+
+/**
+ * The framing walk's work, for the tests that count it (issue #9420). No entry point exports it.
+ * `edges` counts the edges {@link framingBox} grew the box by; `skipPlain` false walks every visible edge as
+ * before the skip, which the tests compare the box against.
+ */
+export const framingWalk = { edges: 0, skipPlain: true };
 
 /**
  * The most rounds a framing takes to size the labels sized on screen for its own camera. Each round
@@ -347,13 +362,32 @@ export function framingBox(
     }
 
     for (const edge of edges) {
-        if (edge.isRenderVisible()) {
-            growForLabel(box, edge.label?.labelMesh);
-            growForLabel(box, edge.xlabelLabel?.labelMesh);
-            growForLabel(box, edge.arrowHeadText?.labelMesh);
-            growForLabel(box, edge.arrowTailText?.labelMesh);
-            growForCurve(box, edge);
+        if (!edge.isRenderVisible()) {
+            continue;
         }
+
+        const curve = drawnCurveInWorld(edge);
+        // A straight edge with no text runs between two nodes the box already holds: it cannot widen it. On a
+        // moving graph of plain lines that is every edge, so it is left before any growing (issue #9420).
+        // ponytail: still one check per edge; a list of the curved and labeled edges, like `placedEdges`, if a
+        // million plain edges need the frame back.
+        if (
+            framingWalk.skipPlain &&
+            curve === null &&
+            edge.label === null &&
+            edge.xlabelLabel === null &&
+            edge.arrowHeadText === null &&
+            edge.arrowTailText === null
+        ) {
+            continue;
+        }
+
+        framingWalk.edges++;
+        growForLabel(box, edge.label?.labelMesh);
+        growForLabel(box, edge.xlabelLabel?.labelMesh);
+        growForLabel(box, edge.arrowHeadText?.labelMesh);
+        growForLabel(box, edge.arrowTailText?.labelMesh);
+        growForCurve(box, curve ?? []);
     }
 
     return box;
@@ -823,7 +857,8 @@ export class UpdateManager implements Manager {
 
         const painted: [Node, NodePaint][] = [];
         for (const node of nodes) {
-            const paint = node.isDisposed() ? null : painter.nodePaint(node.index);
+            // Mid-pass, queued for the frame after it (`StylePainter.settledNodePaint`).
+            const paint = node.isDisposed() ? null : painter.settledNodePaint(node.index);
             if (paint !== null) {
                 painted.push([node, paint]);
             }
@@ -3747,6 +3782,7 @@ export class UpdateManager implements Manager {
             rows: batches.columnRowIndices(),
             table,
             root: this.graphContext.getScene().getTransformNodeByName("graph-root"),
+            boxCenterOf: (row) => batches.columnRowOf(row)?.drawnBoxCenter,
         };
     }
 
@@ -3924,9 +3960,12 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        this.updateEdgesOf(walk === false ? [] : walk);
-        UpdateManager.placeEdges(this.edgesToPlace);
-        this.placedEdgesAtRows();
+        // When the table moved rows too, the walk of every placed edge below also reaches the touched ones: each
+        // edge is visited once per pass, not once per list that names it (issue #9529).
+        const visited = this.unbuiltRowsMoved ? new Set<Edge>() : undefined;
+        this.updateEdgesOf(walk === false ? [] : walk, visited);
+        UpdateManager.placeEdges(this.edgesToPlace, visited);
+        this.placedEdgesAtRows(visited);
         this.unbuiltRowsMoved = false;
         this.edgesToPlace = [];
     }
@@ -3934,13 +3973,26 @@ export class UpdateManager implements Manager {
     /**
      * Place some edges, leaving out each line the shader draws from its rows ({@link Edge.followsRows}).
      * @param edges - The edges.
+     * @param visited - Edges this pass already placed, skipped and added to; undefined to place every one.
      */
-    private static placeEdges(edges: Iterable<Edge>): void {
+    private static placeEdges(edges: Iterable<Edge>, visited?: Set<Edge>): void {
         for (const edge of edges) {
-            if (!edge.followsRows) {
-                edge.update();
-            }
+            UpdateManager.placeOnce(edge, visited);
         }
+    }
+
+    /**
+     * Place one edge, unless its line follows its rows or this pass already placed it.
+     * @param edge - The edge.
+     * @param visited - Edges this pass already placed, or undefined.
+     */
+    private static placeOnce(edge: Edge, visited: Set<Edge> | undefined): void {
+        if (edge.followsRows || visited?.has(edge) === true) {
+            return;
+        }
+
+        visited?.add(edge);
+        edge.update();
     }
 
     /**
@@ -3971,14 +4023,17 @@ export class UpdateManager implements Manager {
      * rows in its shader.
      * ponytail: every placed edge on each table move; a list of the rows the lane moved, if a running layout over
      * a million rows with no Node and many placed edges needs the frame back.
+     * @param visited - Edges this pass already placed, skipped.
      */
-    private placedEdgesAtRows(): void {
+    private placedEdgesAtRows(visited?: Set<Edge>): void {
         if (!this.unbuiltRowsMoved) {
             return;
         }
 
         for (const edge of this.placedEdges()) {
-            edge.update();
+            if (visited?.has(edge) !== true) {
+                edge.update();
+            }
         }
     }
 
@@ -4097,15 +4152,16 @@ export class UpdateManager implements Manager {
 
     /**
      * Update the edges at some nodes. An edge between two of them is visited twice; the second
-     * visit finds it placed.
+     * visit finds it placed, unless `visited` is given, which skips it.
      * @param nodes - The nodes.
+     * @param visited - Edges this pass already placed, skipped and added to; undefined to place every one.
      */
-    private updateEdgesOf(nodes: readonly Node[]): void {
+    private updateEdgesOf(nodes: readonly Node[], visited?: Set<Edge>): void {
         for (const node of nodes) {
             for (const id of this.dataManager.incidentEdgeIds(node)) {
                 const edge = this.dataManager.edges.get(id);
-                if (edge !== undefined && !edge.followsRows) {
-                    edge.update();
+                if (edge !== undefined) {
+                    UpdateManager.placeOnce(edge, visited);
                 }
             }
         }

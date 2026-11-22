@@ -40,6 +40,7 @@ import { jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { isXmlName, xmlIllegalTextNotes } from "../../common/xml.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
@@ -1873,42 +1874,44 @@ function* writeNodeSubtree(
  * The GraphML exporter.
  * @category Built-in formats
  */
-export const graphmlExporter: GraphExporter<GraphmlExportOptions> = Object.freeze({
-    format: FORMAT,
-    options: Object.freeze(["edgedefault", "pretty"]),
-    capabilities: CAPABILITIES,
-    styles: Object.freeze({ capabilities: GRAPHML_STYLE_CAPABILITIES }),
-    /**
-     * Pre-flight: every loss the export would incur.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the notes
-     */
-    check(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): readonly LossNote[] {
-        const { plan, styled } = prepare(snapshot, options);
-        return Object.freeze([...plan.notes, ...(styled?.notes ?? [])]);
-    },
-    /**
-     * Write the document as UTF-8 chunks.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): AsyncIterable<Uint8Array> {
-        const { plan, written } = prepare(snapshot, options);
-        return encodeChunks(writeGraphml(written, plan));
-    },
-    /**
-     * Write the document as one string.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the document
-     */
-    exportToString(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): Promise<string> {
-        const { plan, written } = prepare(snapshot, options);
-        return joinText(writeGraphml(written, plan));
-    },
-});
+export const graphmlExporter: GraphExporter<GraphmlExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: FORMAT,
+        options: Object.freeze(["edgedefault", "pretty"]),
+        capabilities: CAPABILITIES,
+        styles: Object.freeze({ capabilities: GRAPHML_STYLE_CAPABILITIES }),
+        /**
+         * Pre-flight: every loss the export would incur.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the notes
+         */
+        check(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): readonly LossNote[] {
+            const { plan, styled } = prepare(snapshot, options);
+            return Object.freeze([...plan.notes, ...(styled?.notes ?? [])]);
+        },
+        /**
+         * Write the document as UTF-8 chunks.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the chunks
+         */
+        export(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): AsyncIterable<Uint8Array> {
+            const { plan, written } = prepare(snapshot, options);
+            return encodeChunks(writeGraphml(written, plan));
+        },
+        /**
+         * Write the document as one string.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the document
+         */
+        exportToString(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): Promise<string> {
+            const { plan, written } = prepare(snapshot, options);
+            return joinText(writeGraphml(written, plan));
+        },
+    }),
+);
 
 /**
  * The plan of an export, with styles: the graph to write with yEd graphics in place of its yFiles columns.

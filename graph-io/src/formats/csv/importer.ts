@@ -76,6 +76,7 @@ import {
 import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { parseWeightText } from "../../common/weights.js";
+import { watchGeographic } from "../../positions/geographic.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 import {
     type CsvColumnRef,
@@ -2602,8 +2603,9 @@ async function importCsv(
         report,
         csv.table === "nodes" || csv.nodes !== null ? USED_OPTIONS_WITH_NODES : USED_OPTIONS,
     );
+    const geographic = watchGeographic(sink);
     const state: ImportState = {
-        sink,
+        sink: geographic.sink,
         report,
         common,
         csv,
@@ -2625,6 +2627,7 @@ async function importCsv(
             `${state.coercer.mergeCount} id cell${plural(state.coercer.mergeCount)} merged into ids other cells already produced under ids: "number"`,
         );
     }
+    geographic.finish();
     throwIfAborted(common.signal);
     return report.finish();
 }

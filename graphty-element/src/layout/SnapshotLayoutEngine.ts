@@ -3,7 +3,7 @@ import type { LayoutResult } from "@graphty/layout";
 
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { RankSet } from "../data/groups";
-import { readSeedPosition } from "../data/seedPosition";
+import { type PositionAxes, readSeedPosition } from "../data/seedPosition";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { GraphtyWarningCode } from "../errors/codes";
@@ -184,7 +184,7 @@ interface SnapshotLayoutHost {
     /** The element's `data.knownFields.positionScale`; undefined before the element is attached. */
     positionScale?(): number | undefined;
     /** The element's `data.knownFields`; undefined before the element is attached. */
-    knownFields?(): LocationDesignation | undefined;
+    knownFields?(): (LocationDesignation & PositionAxes) | undefined;
     /** The data manager's rank subgraphs, which a graph whose rows have no `Node` (renderPath "batched") reaches no other way. */
     rankSets?(): readonly RankSet[];
 }
@@ -499,9 +499,10 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             },
             dataPositions: () => {
                 const out = new Float32Array(dim * n).fill(Number.NaN);
+                const axes = this.knownFields();
                 for (let row = 0; row < n; row++) {
                     const data = dataOf(row);
-                    const seed = data === undefined ? null : readSeedPosition(data);
+                    const seed = data === undefined ? null : readSeedPosition(data, axes);
                     if (seed !== null) {
                         const scale =
                             this.#host?.positionScale?.() ??
@@ -614,7 +615,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
      * path) still reads what was designated; else through the first `Node`, for an engine the element did not connect.
      * @returns The fields, or undefined before the element is attached.
      */
-    protected knownFields(): LocationDesignation | undefined {
+    protected knownFields(): (LocationDesignation & PositionAxes) | undefined {
         return this.#host?.knownFields?.() ?? this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields;
     }
 

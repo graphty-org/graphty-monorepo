@@ -19,9 +19,8 @@ import { MarkovClusteringAlgorithm } from "../../src/algorithms/MarkovClustering
 import { type AlgorithmOutput, type DeclaredAlgorithm, detachedRunContext } from "../../src/algorithms/results";
 import { SpectralClusteringAlgorithm } from "../../src/algorithms/SpectralClusteringAlgorithm";
 import { GraphtyError } from "../../src/errors";
-import type { Graph } from "../../src/Graph";
 import type { Caveats } from "../../src/session/runs/types";
-import { createMockGraph } from "../helpers/mockGraph";
+import { createSessionGraph, type SessionGraph } from "../helpers/session-graph";
 
 /**
  * The facts an algorithm's caveats carry, empty when its output states none.
@@ -63,10 +62,10 @@ const TWO_PIECES = {
  * @returns What it produced.
  */
 async function run(
-    fixture: Parameters<typeof createMockGraph>[0],
-    make: (graph: Graph) => DeclaredAlgorithm,
+    fixture: Parameters<typeof createSessionGraph>[0],
+    make: (graph: SessionGraph) => DeclaredAlgorithm,
 ): Promise<AlgorithmOutput> {
-    const output = await make(await createMockGraph(fixture)).compute(detachedRunContext());
+    const output = await make(await createSessionGraph(fixture)).compute(detachedRunContext());
     assert.isNotNull(output);
     return output;
 }
@@ -127,8 +126,8 @@ describe("clustering splits two triangles at the bridge", () => {
 
     it("spectral clustering and Leiden run unseeded by default, report the seed drawn, and repeat a passed one", async () => {
         for (const [make, seedOption] of [
-            [(g: Graph, o: object) => new SpectralClusteringAlgorithm(g, o), "seed"],
-            [(g: Graph, o: object) => new LeidenAlgorithm(g, o), "randomSeed"],
+            [(g: SessionGraph, o: object) => new SpectralClusteringAlgorithm(g, o), "seed"],
+            [(g: SessionGraph, o: object) => new LeidenAlgorithm(g, o), "randomSeed"],
         ] as const) {
             const drawn = await run(TWO_TRIANGLES, (g) => make(g, {}));
             assert.isNumber(drawn.caveats.seed);
@@ -159,7 +158,7 @@ describe("clustering splits two triangles at the bridge", () => {
     });
 
     it("hierarchical clustering's E_TOO_LARGE, when its n x n tables cannot be allocated, survives a run's wrap", async () => {
-        const graph = await createMockGraph(TWO_TRIANGLES);
+        const graph = await createSessionGraph(TWO_TRIANGLES);
         const algorithm = new HierarchicalClusteringAlgorithm(graph, { clusters: 2 });
         // A first run freezes the derived snapshot, so only the clustering's own tables meet the stub
         await algorithm.compute(detachedRunContext());
@@ -209,9 +208,9 @@ describe("clustering splits two triangles at the bridge", () => {
 
     it("publishes a group on every node and nothing on an edge", async () => {
         for (const make of [
-            (g: Graph) => new MarkovClusteringAlgorithm(g),
-            (g: Graph) => new SpectralClusteringAlgorithm(g),
-            (g: Graph) => new HierarchicalClusteringAlgorithm(g),
+            (g: SessionGraph) => new MarkovClusteringAlgorithm(g),
+            (g: SessionGraph) => new SpectralClusteringAlgorithm(g),
+            (g: SessionGraph) => new HierarchicalClusteringAlgorithm(g),
         ]) {
             const output = await run(TWO_TRIANGLES, make);
             assert.strictEqual(output.shape, "community");

@@ -246,7 +246,7 @@ export type AiEventType = AiEvent["type"];
 
 // @public
 abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<string, unknown>> {
-    constructor(g: Graph, options?: Partial<TOptions>);
+    constructor(g: AlgorithmHost | GraphSession, options?: Partial<TOptions>);
     protected accelerated(capability: string, mode: AlgorithmGraphMode, options?: {
         accelerable?: boolean;
         sources?: number;
@@ -254,15 +254,14 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     }): AcceleratedAlgorithmRun;
     // @deprecated
     protected algorithmGraph(mode: AlgorithmGraphMode): Graph_2;
-    static get(g: Graph, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
+    static get(g: AlgorithmHost | GraphSession, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
     static getClass(namespace: string, type: string): (AlgorithmClass & AlgorithmStatics) | null;
     // @deprecated
     static getOptionsSchema(): OptionsSchema_2;
     static getRegisteredAlgorithms(namespace?: string): string[];
     static getRegisteredTypes(): string[];
     static getZodOptionsSchema(): OptionsSchema;
-    // (undocumented)
-    protected graph: Graph;
+    protected graph: AlgorithmHost;
     // @deprecated
     static hasOptions(): boolean;
     static hasZodOptions(): boolean;
@@ -286,7 +285,7 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
     // (undocumented)
-    abstract run(g: Graph): Promise<void>;
+    abstract run(g: AlgorithmHost): Promise<void>;
     protected get schemaOptions(): TOptions;
     protected _schemaOptions: TOptions;
     static scopeInput?: ScopeInputDeclaration;
@@ -5664,6 +5663,8 @@ export abstract class LayoutEngine {
     updatePositions(_nodes: readonly Node_2[]): void;
     // @internal
     wakeForClusters(): boolean;
+    // @internal
+    wakeForLift(): boolean;
     // @internal
     wakeForResize(): boolean;
     // @internal

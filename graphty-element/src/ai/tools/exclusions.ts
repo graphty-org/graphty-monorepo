@@ -1302,6 +1302,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "setHoldMask",
             "wakeForResize",
             "wakeForClusters",
+            "wakeForLift",
         ],
         reason: "internal-handle",
         kind: BY_DESIGN,

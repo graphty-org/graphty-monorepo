@@ -1,24 +1,79 @@
 /**
- * @file What the scoped-adapter tests share: running an algorithm bound to a scope and unbound,
- * building by hand the graph a scope should compute over, and reading a result out as plain data
- * that two graphs with different edge ids can be compared by.
+ * @file What the scoped-adapter tests share: a real headless session holding a graph, running an
+ * algorithm bound to a scope and unbound, building by hand the graph a scope should compute over,
+ * and reading a result out as plain data that two graphs with different edge ids can be compared
+ * by.
  */
 
-import { maskTest } from "@graphty/graph-format";
+import { type GraphSnapshot, maskTest } from "@graphty/graph-format";
 import fc from "fast-check";
 import { assert, describe, it } from "vitest";
 
 import type { Algorithm } from "../../../src/algorithms/Algorithm";
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { type ResolvedInputScope, withRunInput } from "../../../src/algorithms/input/ScopedInput";
 import { detachedRunContext } from "../../../src/algorithms/results";
-import type { Graph } from "../../../src/Graph";
+import { storeOfSession } from "../../../src/session/dispatchers";
 import type { RunResult } from "../../../src/session/results";
 import { guardedAsyncProperty } from "../../helpers/caught-errors";
 import { fcParams } from "../../helpers/fc-params";
-import { type EdgeSpec, InputGraph } from "../input/harness";
+import { createSessionGraph, type SessionGraph } from "../../helpers/session-graph";
+import { scopeOver } from "../input/harness";
+
+/** One edge to add: source, target, and an optional weight and flow capacity (1 when absent). */
+export type EdgeSpec = readonly [string, string, number?, number?];
+
+/** A session holding a graph, with its current snapshot and scopes over it. */
+export type ScopedGraph = SessionGraph & {
+    /** The session's current snapshot. */
+    snapshot(): GraphSnapshot;
+    /**
+     * A scope over the current snapshot: the named nodes, and of the edges between them those the
+     * filter keeps (all of them, the induced reading, when there is no filter).
+     */
+    scope(
+        nodeIds: readonly string[],
+        keepEdge?: (source: string, target: string, index: number) => boolean,
+    ): ResolvedInputScope;
+};
+
+/**
+ * A real headless session holding some nodes and edges, as `session.data.addNodes` and
+ * `addEdges` load them.
+ * @param nodes - Node ids, in insertion order.
+ * @param edges - Edges, in insertion order.
+ * @param directed - The direction policy; `"auto"` leaves the graph directed.
+ * @returns The graph.
+ */
+export async function scopedGraph(
+    nodes: readonly string[],
+    edges: readonly EdgeSpec[],
+    directed: boolean | "auto" = "auto",
+): Promise<ScopedGraph> {
+    const graph = await createSessionGraph({
+        nodes: nodes.map((id) => ({ id })),
+        edges: edges.map(([srcId, dstId, weight, capacity]) => ({
+            srcId,
+            dstId,
+            weight: weight ?? 1,
+            capacity: capacity ?? 1,
+        })),
+        directed: directed === "auto" ? undefined : directed,
+    });
+    // The test's own reads, held apart from the data manager an algorithm is handed, so a test
+    // that watches that manager sees only the algorithm's reads.
+    const data = graph.getDataManager();
+    const snapshot = (): GraphSnapshot => data.getSnapshot();
+
+    return Object.assign(graph, {
+        snapshot,
+        scope: (nodeIds: readonly string[], keepEdge?: (source: string, target: string, index: number) => boolean) =>
+            scopeOver(snapshot(), storeOfSession(graph.session), nodeIds, keepEdge),
+    });
+}
 
 /** Builds one algorithm over a graph. */
-export type Build = (graph: Graph) => Algorithm;
+export type Build = (graph: AlgorithmHost) => Algorithm;
 
 /** A run's values as plain data: nodes by id, edges by `source>target#k` (the k-th such kept edge in row order). */
 export interface Values {
@@ -32,8 +87,8 @@ export interface Values {
  * @param graph - The graph.
  * @returns The result.
  */
-export function runWhole(build: Build, graph: InputGraph): Promise<RunResult | undefined> {
-    return build(graph.asGraph()).publishResult(detachedRunContext(), "r");
+export function runWhole(build: Build, graph: ScopedGraph): Promise<RunResult | undefined> {
+    return build(graph).publishResult(detachedRunContext(), "r");
 }
 
 /**
@@ -43,8 +98,8 @@ export function runWhole(build: Build, graph: InputGraph): Promise<RunResult | u
  * @param scope - The scope.
  * @returns The result.
  */
-export function runScoped(build: Build, graph: InputGraph, scope: ResolvedInputScope): Promise<RunResult | undefined> {
-    const algorithm = build(graph.asGraph());
+export function runScoped(build: Build, graph: ScopedGraph, scope: ResolvedInputScope): Promise<RunResult | undefined> {
+    const algorithm = build(graph);
 
     return withRunInput(
         algorithm,
@@ -62,7 +117,7 @@ export function runScoped(build: Build, graph: InputGraph, scope: ResolvedInputS
  * @param scope - A scope over its current snapshot.
  * @returns The hand-built graph.
  */
-export function handBuilt(graph: InputGraph, scope: ResolvedInputScope): InputGraph {
+export function handBuilt(graph: ScopedGraph, scope: ResolvedInputScope): Promise<ScopedGraph> {
     const snapshot = graph.snapshot();
     const { nodes, edges } = scope.resolution;
     const nodeIds: string[] = [];
@@ -84,7 +139,7 @@ export function handBuilt(graph: InputGraph, scope: ResolvedInputScope): InputGr
         }
     }
 
-    return new InputGraph(nodeIds, edgeSpecs, snapshot.directed);
+    return scopedGraph(nodeIds, edgeSpecs, snapshot.directed);
 }
 
 /**
@@ -95,7 +150,7 @@ export function handBuilt(graph: InputGraph, scope: ResolvedInputScope): InputGr
  * @param keep - Which edge rows to key.
  * @returns Edge id to key, for the kept edges.
  */
-function edgeKeys(graph: InputGraph, keep: (row: number) => boolean): Map<string, string> {
+function edgeKeys(graph: ScopedGraph, keep: (row: number) => boolean): Map<string, string> {
     const snapshot = graph.snapshot();
     const { src, dst } = snapshot.edgeList();
     const seen = new Map<string, number>();
@@ -157,7 +212,7 @@ export function canonicalGroups(nodes: Record<string, unknown>, field = "group")
  */
 export function valuesOf(
     result: RunResult | undefined,
-    graph: InputGraph,
+    graph: ScopedGraph,
     keepNode: (id: string) => boolean = () => true,
     keepEdge: (row: number) => boolean = () => true,
 ): Values {
@@ -191,7 +246,7 @@ export function valuesOf(
  * @returns Two predicates.
  */
 export function coveredBy(
-    graph: InputGraph,
+    graph: ScopedGraph,
     scope: ResolvedInputScope,
 ): { node: (id: string) => boolean; edge: (row: number) => boolean } {
     const snapshot = graph.snapshot();
@@ -213,11 +268,11 @@ export function coveredBy(
  */
 export async function assertComputesOverScope(
     build: Build,
-    graph: InputGraph,
+    graph: ScopedGraph,
     scope: ResolvedInputScope,
 ): Promise<RunResult | undefined> {
     const scoped = await runScoped(build, graph, scope);
-    const hand = handBuilt(graph, scope);
+    const hand = await handBuilt(graph, scope);
     const expected = await runWhole(build, hand);
     if (expected === undefined) {
         assert.isUndefined(scoped, "nothing to compute on the scope's graph, so nothing over the scope");
@@ -240,7 +295,7 @@ export async function assertComputesOverScope(
  * @param scope - The scope.
  * @returns The values.
  */
-function readingOver(result: RunResult | undefined, graph: InputGraph, scope: ResolvedInputScope): unknown {
+function readingOver(result: RunResult | undefined, graph: ScopedGraph, scope: ResolvedInputScope): unknown {
     const covered = coveredBy(graph, scope);
     return { values: valuesOf(result, graph, covered.node, covered.edge), graph: result?.graph };
 }
@@ -303,7 +358,7 @@ const LISTED: ListedFixture = {
 export function describeScopedAdapter(name: string, build: Build, listedFixture: ListedFixture = LISTED): void {
     describe(`${name} over a scope`, () => {
         it("a listed scope computes over exactly its listed edges", async () => {
-            const graph = new InputGraph([...listedFixture.nodes], listedFixture.edges, true);
+            const graph = await scopedGraph([...listedFixture.nodes], listedFixture.edges, true);
             const members = [...listedFixture.members];
             const listed = graph.scope(members, listedFixture.listed);
             const induced = graph.scope(members);
@@ -317,7 +372,7 @@ export function describeScopedAdapter(name: string, build: Build, listedFixture:
         });
 
         it("a multigraph scope merges its parallel edges as the scope's own graph would", async () => {
-            const graph = new InputGraph(MULTI_NODES, MULTI_EDGES, true);
+            const graph = await scopedGraph(MULTI_NODES, MULTI_EDGES, true);
             await assertComputesOverScope(build, graph, graph.scope(["a", "b", "c", "d"]));
         });
     });
@@ -344,7 +399,7 @@ export async function assertOverGeneratedScopes(build: Build): Promise<void> {
     await fc.assert(
         guardedAsyncProperty(scopedGraphs, async ({ size, edges, members, listed }) => {
             const ids = Array.from({ length: size }, (_, index) => `n${String(index)}`);
-            const graph = new InputGraph(
+            const graph = await scopedGraph(
                 ids,
                 edges.map(([source, target, weight]) => [ids[source], ids[target], weight] as const),
                 true,

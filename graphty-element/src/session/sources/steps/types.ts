@@ -449,6 +449,8 @@ export interface StepStats {
     merged: number;
     typeDiffers: number;
     untouched: number;
+    /** For `join.merge`: node 2s left in the graph as nodes of their own (none under Only 2 Drop). */
+    keptNew: number;
     groups: number[];
     selfLoops: number;
     emptyKey: number;

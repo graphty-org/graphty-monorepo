@@ -7,6 +7,8 @@ import {
     defineRegistration,
     type SourceRowCommand,
 } from "../commands/registry";
+import { sourceStepsOn } from "../features";
+import { openRemove } from "../source-steps/steps";
 import type { WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { openFilterDraft, selectRule } from "./filterCards";
@@ -103,6 +105,30 @@ function nodesOf(session: GraphSession, key: LoadedSource["key"]): number {
     return session.data.sources().find((each) => each.key === key)?.counts.nodes ?? 0;
 }
 
+/**
+ * Remove with no step card: takes the source out at once, one undo step, and names the sources
+ * joined to it that went with it.
+ * @param ctx - the command context.
+ * @param source - the source.
+ * @returns settles once removed or refused.
+ */
+function removeNow(ctx: CommandContext, source: LoadedSource): Promise<void> {
+    return attempt(
+        ctx,
+        async (session) => {
+            const sources = session.data.sources();
+            const { alsoRemoved } = await session.data.removeSource(source.key);
+            const names = sources.filter((each) => alsoRemoved.includes(each.key)).map(sourceName);
+            if (names.length > 0) {
+                ctx.workspace.set({
+                    notice: { message: `Also removed what was joined to it: ${names.join(", ")}` },
+                });
+            }
+        },
+        "Not removed",
+    );
+}
+
 /** The Data place's own Sources row commands; other packages add theirs by registering more. */
 const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
     {
@@ -164,20 +190,12 @@ const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
         label: "Remove",
         order: 90,
         run: (ctx, source) =>
-            attempt(
-                ctx,
-                async (session) => {
-                    const sources = session.data.sources();
-                    const { alsoRemoved } = await session.data.removeSource(source.key);
-                    const names = sources.filter((each) => alsoRemoved.includes(each.key)).map(sourceName);
-                    if (names.length > 0) {
-                        ctx.workspace.set({
-                            notice: { message: `Also removed what was joined to it: ${names.join(", ")}` },
-                        });
-                    }
-                },
-                "Not removed",
-            ),
+            // Under the source-steps experiment Remove opens the step card on a draft holding it; a
+            // source no step reads (one a file saved without the experiment brought in) is removed
+            // as before.
+            ctx.session !== null && sourceStepsOn(ctx.session)
+                ? openRemove(ctx.workspace, ctx.session, { source: source.key }, () => removeNow(ctx, source))
+                : removeNow(ctx, source),
     },
 ];
 

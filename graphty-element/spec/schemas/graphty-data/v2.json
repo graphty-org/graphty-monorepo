@@ -520,6 +520,21 @@
                                             "type": "string",
                                             "minLength": 1
                                         },
+                                        "x": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The column each node's starting x position is read from."
+                                        },
+                                        "y": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The column each node's starting y position is read from."
+                                        },
+                                        "z": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The column each node's starting z position is read from."
+                                        },
                                         "renamed": {
                                             "type": "object",
                                             "description": "Source column name to working name.",

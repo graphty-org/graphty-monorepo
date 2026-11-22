@@ -12,6 +12,7 @@
  * same inputs give a byte-identical report. Pure: no DOM.
  */
 import { apply, deltaE, fitSimilarity, frechet, iou, resample } from "../../../../graph-io/test/fidelity/compare";
+import { withoutHiddenInBoth } from "./hidden-heads";
 import {
     boxOfPoints,
     compareIds,
@@ -2923,14 +2924,15 @@ export function compareOracle(
         judgeBand(j, "edge.overlay", id, [o.overlay, g.overlay], lengthScale);
         const swap = { source: "target", target: "source", middle: "middle" } as const;
         const flip = (a: PArrow): PArrow => (flipped ? { ...a, end: swap[a.end] } : a);
-        const ga = g.arrows.map(flip);
+        // a head a third node hides in both drawings is seen in neither, and left out of both together
+        const [oArrows, ga] = withoutHiddenInBoth(o, g.arrows.map(flip));
         // a line wholly under its two nodes on both sides (two nodes drawn over one another) shows no head a reader
         // sees either: graphty draws none there (#7759), and the program's, drawn before the nodes, lies under them
         // (pajek-iliad 125 -> 123)
         const unseen = shownParts(o, g).every((pts) => pts === null || pathLength(pts) < pixel);
         for (const end of ["source", "target", "middle"] as const) {
             const gg = ga.find((a) => a.end === end);
-            const oa = unseen && gg === undefined ? undefined : o.arrows.find((a) => a.end === end);
+            const oa = unseen && gg === undefined ? undefined : oArrows.find((a) => a.end === end);
             const at = `${id}@${end}`;
             j.add(
                 "edge.arrow",
@@ -2945,7 +2947,7 @@ export function compareOracle(
             }
             // a head of several parts in a row (Graphviz's boxdotnormal, crowtee) is read one arrow a part
             const parts = (list: readonly PArrow[]): number => headParts(list.filter((a) => a.end === end));
-            j.add("edge.arrowParts", "edge", at, parts(o.arrows) === parts(ga) ? 0 : 1, parts(o.arrows), parts(ga));
+            j.add("edge.arrowParts", "edge", at, parts(oArrows) === parts(ga) ? 0 : 1, parts(oArrows), parts(ga));
             j.add(
                 "edge.arrowShape",
                 "edge",

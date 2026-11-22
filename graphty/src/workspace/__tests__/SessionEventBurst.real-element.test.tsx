@@ -1,8 +1,14 @@
 /**
  * A burst of session changes on the REAL graphty-element: thirty style layers added one at a time
  * through `session.styles.add`, with the whole workspace rendered, reach the style tree without
- * React's "Maximum update depth exceeded" (#8851), and the burst coalesces: the workspace commits
- * fewer renders than there were edits.
+ * React's "Maximum update depth exceeded" (#8851), and thirty edits made in one task coalesce: the
+ * workspace commits fewer renders than there were edits.
+ *
+ * The coalescing is counted over edits made in one task, never over the awaited burst. Awaited one
+ * at a time, the edits span as many tasks as graphty-element yields to the event loop while it
+ * repaints (its slices are measured in time, so a loaded machine yields more often), and the header
+ * draws the first few history steps of every task at once (Header.tsx): on a loaded core the
+ * awaited burst committed 35 to 42 times (#9565).
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -60,32 +66,44 @@ describe("a burst of session changes", () => {
         await session.data.addNodes(IDS.map((id) => ({ id })));
         await found.waitForSettled();
         const before = session.styles.list().length;
-        const commitsBefore = commits;
-
-        for (let n = 1; n <= 30; n += 1) {
-            await session.styles.add({
-                name: `Burst ${String(n)}`,
-                target: "node",
-                selector: { match: "everything" },
-                set: { "node.size": n },
-            });
-        }
-        await found.waitForSettled();
-
         const tree = within(screen.getByRole("region", { name: "Graph place" })).getByRole("tree", {
             name: "Style layers",
         });
+        const layer = (n: number): Parameters<typeof session.styles.add>[0] => ({
+            name: `Burst ${String(n)}`,
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.size": n },
+        });
+
+        for (let n = 1; n <= 30; n += 1) {
+            await session.styles.add(layer(n));
+        }
+        await found.waitForSettled();
         await waitFor(() => {
             assert.isNotNull(within(tree).queryByText("Burst 30"));
         });
+        assert.equal(session.styles.list().length, before + 30);
+
+        // Thirty more, each its own step, made in one task.
+        const commitsBefore = commits;
+        const adds: PromiseLike<unknown>[] = [];
+        for (let n = 31; n <= 60; n += 1) {
+            adds.push(session.styles.add(layer(n)));
+        }
+        await Promise.all(adds);
+        await found.waitForSettled();
+        await waitFor(() => {
+            assert.isNotNull(within(tree).queryByText("Burst 60"));
+        });
         window.removeEventListener("error", onError);
         const burstCommits = commits - commitsBefore;
-        assert.equal(session.styles.list().length, before + 30);
+        assert.equal(session.styles.list().length, before + 60);
         assert.deepEqual(
             errors.filter((e) => e.includes("Maximum update depth")),
             [],
         );
         assert.isAtLeast(burstCommits, 1, "the burst reached the screen");
-        assert.isBelow(burstCommits, 30, "thirty edits coalesce into fewer renders");
+        assert.isBelow(burstCommits, 30, "thirty edits in one task coalesce into fewer renders");
     });
 });

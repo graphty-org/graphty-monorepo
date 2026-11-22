@@ -510,6 +510,12 @@ export interface PArrow {
      * the barb meets it; graphty stopped it at the head's back, short of a barb that meets the line only near its tip.
      */
     lineGap?: number;
+    /**
+     * Drawn wholly under a node other than its edge's ends, which is painted over it, so this drawing shows it nowhere.
+     * The head is left out only where the other side's head at the same end of the paired edge is hidden too
+     * (`withoutHiddenInBoth`); a head hidden in one drawing and shown in the other is judged as any other.
+     */
+    hidden?: boolean;
 }
 
 /** An edge as drawn. */
@@ -538,6 +544,12 @@ export interface PEdge {
      * an end at a node drawn wholly under another at the same place is seen at the node over it. Absent: the same.
      */
     ownEnds?: { source: string; target: string };
+    /**
+     * The oracle's: ends with no arrowhead read where the drawing still has a filled head-sized piece at the line's
+     * end wholly under a node other than its ends, painted after it (`markHiddenHeads`), so the program's head there is
+     * hidden. Judged only beside graphty's head at the same end hidden too (`withoutHiddenInBoth`). Absent: none.
+     */
+    hiddenEnds?: ArrowEnd[];
 }
 
 /** A group box as drawn. */

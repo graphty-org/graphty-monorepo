@@ -218,6 +218,9 @@ const NODE_MAPPING = new Set([
     "country",
     "region",
     "city",
+    "x",
+    "y",
+    "z",
     "renamed",
 ]);
 const EDGE_MAPPING = new Set([
@@ -2511,17 +2514,6 @@ function assignIds(nodes: readonly BuiltNode[]): void {
  * @param tx - The open's transaction.
  */
 async function restoreSettings(built: Built, tx: TransactionScope): Promise<void> {
-    // The role settings are the view of the sources' roles (spec 4.1.3 rule 7).
-    await tx.config.set({
-        data: {
-            knownFields: {
-                ...built.roles.patch,
-                // Always: a file with none builds as keep, whatever the session held before.
-                repeatedEdges: built.repeatedEdges,
-            },
-        },
-    });
-
     const byRef = new Map(built.nodes.map((node) => [recordKey(node.ref.space, node.ref.key), node.id]));
     const idOf = (ref: unknown): NodeId | undefined => {
         const checked = nodeRefOf(ref);
@@ -2621,6 +2613,18 @@ async function apply(
 ): Promise<void> {
     const { tx } = context;
     await tx.data.clear();
+    // The role settings are the view of the sources' roles (spec 4.1.3 rule 7), set before the
+    // rows go in so they read as a load with those roles reads them (the x, y and z roles place
+    // the nodes).
+    await tx.config.set({
+        data: {
+            knownFields: {
+                ...built.roles.patch,
+                // Always: a file with none builds as keep, whatever the session held before.
+                repeatedEdges: built.repeatedEdges,
+            },
+        },
+    });
     assignIds(built.nodes);
     // A network source's nodes name its load, as a load the session made does, so `data.refresh`
     // replays the request history its record keeps (spec 4.1.2 rule 7).

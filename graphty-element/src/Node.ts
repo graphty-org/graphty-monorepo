@@ -291,6 +291,11 @@ function groupRegionPaint(meshKey: string, style: NodeStyleConfig): { meshKey: s
 interface NodeOpts {
     /** Whether dropping the node after a drag pins it in place; defaults to true. */
     pinOnDrag?: boolean;
+    /**
+     * When the node arrived, by `performance.now()`, for a `Node` built for a row stored earlier;
+     * now when absent.
+     */
+    arrivedAt?: number;
 }
 
 /** Writes a node's row; see {@link placeNodeRow}. */
@@ -1045,6 +1050,10 @@ export class Node implements ModelUser {
         this.id = nodeId;
         this.opts = opts;
         this.#record = frozenRecord(data);
+        // A node arriving in a graph already drawing shaders plays the entrances it starts with:
+        // noted before it is drawn, since the first draw decides them (on "batched" it can draw a
+        // shader below), and again at the end for a drawing its own draw made.
+        NodeShaderDrawing.peek(this.context.getScene())?.arrived(this, opts.arrivedAt);
 
         this.meshKey = paint.meshKey;
 
@@ -1089,8 +1098,7 @@ export class Node implements ModelUser {
 
         NodeBehavior.addDefaultBehaviors(this, this.opts);
 
-        // A node arriving in a graph already drawing shaders plays the entrances it starts with.
-        NodeShaderDrawing.peek(this.context.getScene())?.arrived(this);
+        NodeShaderDrawing.peek(this.context.getScene())?.arrived(this, this.opts.arrivedAt);
     }
 
     /**

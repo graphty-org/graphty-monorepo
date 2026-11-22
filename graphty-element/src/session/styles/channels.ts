@@ -6866,7 +6866,7 @@ function mergeParams(held: unknown, over: object): Record<string, unknown> {
  * @param over - What this layer paints.
  * @returns The resolved list, a fresh array.
  */
-export function mergeShaderUses(held: unknown, over: unknown): readonly ShaderUse[] {
+function mergeShaderUses(held: unknown, over: unknown): readonly ShaderUse[] {
     const beneath: readonly ShaderUse[] = Array.isArray(held) ? (held as ShaderUse[]) : [];
     if (!Array.isArray(over)) {
         return patchUses(beneath, over);

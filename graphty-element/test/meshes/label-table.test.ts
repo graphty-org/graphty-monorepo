@@ -5,7 +5,8 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { type LabelTable, layoutLabelTable, readLabelTable, roundedBoxOutline } from "../../src/meshes/labelTable";
+import { readLabelTable } from "../../src/meshes/channelTexts";
+import { type LabelTable, layoutLabelTable, roundedBoxOutline } from "../../src/meshes/labelTable";
 
 /** Widths Graphviz measured for the words of the sheets, in points. */
 const WIDTHS: Record<string, number> = { a: 6, b: 6, c: 6, x: 6, ab: 12, wide: 23.25, "wide line": 43 };

@@ -5,6 +5,7 @@
  */
 import { assert, describe, it } from "vitest";
 
+import { parseBends } from "../../src/meshes/channelTexts";
 import {
     arcThroughBend,
     bendPoints,
@@ -21,7 +22,6 @@ import {
     fileRoute,
     interiorOutside,
     liftRoute,
-    parseBends,
     parsePort,
     pointFromEnd,
     roundCorners,

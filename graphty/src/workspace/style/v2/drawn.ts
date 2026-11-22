@@ -30,7 +30,7 @@ import { EDGE_RUBRIC, NODE_RUBRIC, rubricLines } from "./rubric";
  * @param session - the element's session.
  * @returns 2D or 3D.
  */
-export function viewOf(session: GraphSession): "2d" | "3d" {
+function viewOf(session: GraphSession): "2d" | "3d" {
     return session.layout.dimension;
 }
 

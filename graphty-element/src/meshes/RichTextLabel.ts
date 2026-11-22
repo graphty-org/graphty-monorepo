@@ -18,6 +18,7 @@ import { DEFAULT_LABEL_GRADIENT_COLORS } from "../config/RichTextStyle";
 import { GraphtyLogger, type Logger } from "../logging";
 import { toColorValue } from "../session/styles/channels";
 import type { GraphSceneMetadata } from "../types/sceneMetadata";
+import { readLabelTable } from "./channelTexts";
 import { addGradientStops, gradientOffsets } from "./edgeGradient";
 import { FrameRoster } from "./FrameRoster";
 import { type GlyphLabelEntry, GlyphLabels, recordRuns } from "./GlyphLabels";
@@ -33,7 +34,7 @@ import { closeGlyphRect, closeHitFractions, closeReserve, drawCloseGlyph, markCl
 import { keepOnEyeLine } from "./labelEyeLine";
 import { fontFamilies, noteLabelFont } from "./labelFonts";
 import { fitToScreen, type LabelPlacement, type PlacementBounds } from "./labelScreenFit";
-import { type LabelTable, layoutLabelTable, readLabelTable, roundedBoxOutline, type TableDrawing } from "./labelTable";
+import { type LabelTable, layoutLabelTable, roundedBoxOutline, type TableDrawing } from "./labelTable";
 import { LabelTexture } from "./LabelTexture";
 import { fitTexturesToScreen } from "./labelTextureFit";
 import { labelBoxOf } from "./NodeShapeGeometry";

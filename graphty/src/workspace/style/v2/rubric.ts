@@ -49,7 +49,7 @@ export interface LineSpec {
 }
 
 /** One choice of a line's value list over several channels. */
-export interface LineChoice {
+interface LineChoice {
     readonly name: string;
     readonly writes: Readonly<Partial<Record<Channel, ChannelValue>>>;
 }
@@ -157,7 +157,7 @@ const BORDER_UNIT: readonly (readonly [string, Channel])[] = [
 ];
 
 /** Fit to label: sizes the node to its label, so it sits in the Size pop-over (ia-design 2). */
-export const FIT_TO_LABEL: readonly Channel[] = [
+const FIT_TO_LABEL: readonly Channel[] = [
     "node.labelFit",
     "node.labelPaddingX",
     "node.labelPaddingY",

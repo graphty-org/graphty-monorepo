@@ -8,7 +8,7 @@
 
 import type { F32 } from "@graphty/graph-format";
 
-import { parseBends } from "../../meshes/edgeRoute";
+import { parseBends } from "../../meshes/channelTexts";
 import type { GroupMargins } from "../groupMargins";
 import type { EdgePosition } from "../LayoutEngine";
 import { POINTS_PER_UNIT } from "./toDot";

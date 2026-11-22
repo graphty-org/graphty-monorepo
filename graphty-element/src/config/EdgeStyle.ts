@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ColorStyle } from "./common";
-import { RichTextStyle } from "./RichTextStyle";
+import { RichTextStyle, TooltipTextStyle } from "./RichTextStyle";
 
 /**
  * Every arrow the edge renderer can draw at the head or tail of an edge, in schema order.
@@ -531,11 +531,7 @@ export const EdgeStyle = z.strictObject({
      * node's tooltip is beside its node.
      * @since 3.63.0
      */
-    tooltip: RichTextStyle.prefault({
-        location: "top-right",
-        textColor: "#000000",
-        backgroundColor: "#FFFFFF",
-    }).optional(),
+    tooltip: TooltipTextStyle.optional(),
     /**
      * False stops drawing the edge (its line, caps and words) and nothing else: it stays in the
      * graph, counted, selectable and measured. The `edge.visible` channel writes it.

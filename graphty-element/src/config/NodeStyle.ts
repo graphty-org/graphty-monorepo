@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { AdvancedColorStyle, ColorStyle } from "./common";
-import { RichTextStyle } from "./RichTextStyle";
+import { RichTextStyle, TooltipTextStyle } from "./RichTextStyle";
 
 /**
  * How a node's `shape.size` is read: as a multiplier of each shape's own geometry ("scale", the
@@ -866,11 +866,7 @@ export const NodeStyle = z.strictObject({
      */
     xlabel: RichTextStyle.optional(),
     /** The node's tooltip, in the label's style vocabulary. Unset fields default to the top right, black on white. */
-    tooltip: RichTextStyle.prefault({
-        location: "top-right",
-        textColor: "#000000",
-        backgroundColor: "#FFFFFF",
-    }).optional(),
+    tooltip: TooltipTextStyle.optional(),
     /**
      * False stops drawing the node (its mesh and words) and nothing else: it stays in the graph,
      * counted, laid out, selectable and measured. The `node.visible` channel writes it.

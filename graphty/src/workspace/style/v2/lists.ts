@@ -23,7 +23,7 @@ import { lineIn, writeIn } from "../row";
  * One number of each item: its list channel and its name. Whether an item is a fraction or a share of the whole is
  * graphty-element's fact (`ChannelDescriptor.listItems`); a fraction reads as a percent.
  */
-export interface ListNumber {
+interface ListNumber {
     readonly channel: Channel;
     readonly name: string;
 }
@@ -148,7 +148,7 @@ export function writeList(
  * @param channel - the channel.
  * @returns the items, as text.
  */
-export function itemsOf(ctx: RowContext, channel: Channel): string[] {
+function itemsOf(ctx: RowContext, channel: Channel): string[] {
     return readChannelList(channel, lineIn(ctx, channel)?.value).map(String);
 }
 

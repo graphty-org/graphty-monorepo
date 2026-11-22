@@ -4,6 +4,7 @@
  */
 import { assert, describe, test } from "vitest";
 
+import { pointLists } from "../../src/meshes/channelTexts";
 import { roundedBoxOutline } from "../../src/meshes/labelTable";
 import {
     boxOf,
@@ -13,7 +14,6 @@ import {
     framedBand,
     imageBox,
     pieSlices,
-    pointLists,
     raisedStrips,
     shapeLinePieces,
     shapePartPieces,

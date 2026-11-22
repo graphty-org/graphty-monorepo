@@ -364,6 +364,9 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.gradientCenterX": "Gradient",
     "node.gradientCenterY": "Gradient",
     "node.gradientRadius": "Gradient",
+    // Where an edge channel is its own family, its word is the field's name in the Style panel's own words
+    // (style/words.ts), so this run is a deliberate parallel of that map: the two vocabularies only coincide here.
+    // jscpd:ignore-start
     "edge.drawOrder": "Draw order",
     "edge.minScreenWidth": "Min screen width",
     "edge.fadeEnd": "Fade end",
@@ -395,6 +398,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.bundleStrength": "Bundle strength",
     "edge.bundleIterations": "Bundle iterations",
     "edge.nodeGap": "Node gap",
+    // jscpd:ignore-end
     "edge.arrowHeadSide": "Arrow",
     "edge.arrowHeadOutlineWidth": "Arrow",
     "edge.arrowHeadFillColor": "Arrow",

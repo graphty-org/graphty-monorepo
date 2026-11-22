@@ -371,6 +371,13 @@ export const RichTextStyle = z.strictObject({
 /** The parsed form of {@link RichTextStyle}: one label, tooltip or caption block's settings. */
 export type RichTextStyleType = z.infer<typeof RichTextStyle>;
 
+/** A node's or an edge's tooltip: a rich-text block whose unset fields default to the top right, black on white. */
+export const TooltipTextStyle = RichTextStyle.prefault({
+    location: "top-right",
+    textColor: "#000000",
+    backgroundColor: "#FFFFFF",
+});
+
 /**
  * Default values for RichTextStyle labels.
  * Parsed from the Zod schema to ensure defaults stay in sync.

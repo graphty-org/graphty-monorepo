@@ -6,9 +6,8 @@
  */
 
 import { type ArrowStackPart, parseArrowStack } from "../meshes/arrowStack";
-import { parseBends } from "../meshes/edgeRoute";
-import { type LabelTable, type LabelTableRow, readLabelTable } from "../meshes/labelTable";
-import { pointLists } from "../meshes/nodeDecoration";
+import { parseBends, pointLists, readLabelTable } from "../meshes/channelTexts";
+import type { LabelTable, LabelTableRow } from "../meshes/labelTable";
 import { type ShapeTextLook, shapeTexts } from "../meshes/shapeOutlines";
 
 export type { ArrowStackPart } from "../meshes/arrowStack";

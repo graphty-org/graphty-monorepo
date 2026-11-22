@@ -35,18 +35,20 @@ import {
     batchableOf,
     type BatchView,
     bootstrapNodePaint,
+    changedTooltip,
     drawnLabelsKey,
     drawnLabelsOf,
     type NodePaint,
     type NodeSizeSpace,
     shaderPartOf,
 } from "./managers/StylePainter";
+import { readLabelTable } from "./meshes/channelTexts";
 import { convexRayHit } from "./meshes/convexHit";
 import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { imageAspectExtent, labelFitExtent } from "./meshes/labelFit";
-import { layoutLabelTable, readLabelTable, roundedBoxOutline } from "./meshes/labelTable";
+import { layoutLabelTable, roundedBoxOutline } from "./meshes/labelTable";
 import { drawLast, moveInstance } from "./meshes/moveInstance";
 import type { PieceBox } from "./meshes/nodeDecoration";
 import {
@@ -4674,16 +4676,13 @@ export class Node implements ModelUser {
      * @param o - The resolved style.
      */
     private syncTooltip(o: NodeStyleConfig): void {
-        const wanted = drawnText(o.tooltip);
+        const change = changedTooltip(o.tooltip, this.wantedTooltip);
 
-        if (isEqual(wanted, this.wantedTooltip)) {
+        if (change === null) {
             return;
         }
 
-        // CLONED for the reason `drawnLabelStyle` is cloned: the block belongs to a paint the
-        // painter rebuilds on every call, and holding the reference makes the comparison above
-        // start passing whenever somebody else writes through it.
-        this.wantedTooltip = wanted === undefined ? undefined : cloneDeep(wanted);
+        this.wantedTooltip = change.wanted;
 
         if (this.tooltip) {
             this.hideTooltip();

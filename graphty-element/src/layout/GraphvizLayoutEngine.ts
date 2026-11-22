@@ -6,7 +6,7 @@ import type { RankSet } from "../data/groups";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { GraphtyErrorCode } from "../errors/codes";
-import { parseBends } from "../meshes/edgeRoute";
+import { parseBends } from "../meshes/channelTexts";
 import type { Node } from "../Node";
 import {
     GRAPHVIZ_NODE_BUDGETS,

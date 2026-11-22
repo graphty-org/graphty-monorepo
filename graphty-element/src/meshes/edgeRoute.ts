@@ -6,6 +6,7 @@
  * Plain numbers, nothing from Babylon.js, so it runs in Node.
  */
 
+import { parseBends } from "./channelTexts";
 import { type Point2, rayReach } from "./shapeOutlines";
 
 /** A point or a direction. */
@@ -20,39 +21,6 @@ const CORNER_STEPS = 6;
 
 /** How much of the shorter of a corner's two segments the rounding takes, at most. */
 const CORNER_CUT = 0.25;
-
-/**
- * Read a `line.bends` value: `along,across` pairs separated by white space.
- * @param text - The value.
- * @returns The pairs, flat (`along0, across0, along1, ...`), or null when the value is absent,
- *     empty, or holds anything that is not a pair of finite numbers.
- */
-export function parseBends(text: string | undefined): number[] | null {
-    const parts = text?.trim().split(/\s+/) ?? [];
-    if (parts.length === 0 || parts[0] === "") {
-        return null;
-    }
-
-    const out: number[] = [];
-    for (const part of parts) {
-        const pair = part.split(",");
-        const along = Number(pair[0]);
-        const across = Number(pair[1]);
-        if (
-            pair.length !== 2 ||
-            pair[0] === "" ||
-            pair[1] === "" ||
-            !Number.isFinite(along) ||
-            !Number.isFinite(across)
-        ) {
-            return null;
-        }
-
-        out.push(along, across);
-    }
-
-    return out;
-}
 
 /**
  * Where an edge's label hangs on a route: the middle of its middle segment, or the joint between its two middle ones

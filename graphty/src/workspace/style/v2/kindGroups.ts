@@ -22,7 +22,7 @@ import { heldFor, holdsAny } from "./families";
 import { setOn } from "./things";
 
 /** Where a slot's value lives: a channel, or a field of a style channel (a label's color). */
-export type SlotRef = Channel | { readonly style: Channel; readonly field: string };
+type SlotRef = Channel | { readonly style: Channel; readonly field: string };
 
 /** One kind of a group. */
 export interface KindMember {

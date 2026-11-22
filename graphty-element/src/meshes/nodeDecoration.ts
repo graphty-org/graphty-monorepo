@@ -5,7 +5,8 @@
  */
 import type { NodeStyleConfig } from "../config";
 import { toColorValue } from "../session/styles/channels";
-import { isPositive, placePoint, type Point2, type ShapePoint, shapePointList, strokeLine } from "./shapeOutlines";
+import { pointLists } from "./channelTexts";
+import { isPositive, placePoint, type Point2, strokeLine } from "./shapeOutlines";
 
 /** One colored piece over a node's face. */
 export interface ColorPiece {
@@ -437,20 +438,6 @@ export function raisedStrips(
         strip(dark, "#000000", { x0: -hw + line, y0: -hh, x1: hw, y1: -hh + line }),
         strip(dark, "#000000", { x0: hw - line, y0: -hh + line, x1: hw, y1: hh }),
     ];
-}
-
-/**
- * Lists of points as `node.shapeParts` and `node.shapeLines` write them: `x,y` pairs separated by spaces, one list
- * after another separated by ";", each coordinate a fraction optionally followed by a signed length (`-1+24`). A list
- * with a pair that is not two coordinates is dropped.
- * @param text - The lists.
- * @returns The lists, each point its x fraction and length and its y fraction and length.
- */
-export function pointLists(text: string | undefined): ShapePoint[][] {
-    return (text ?? "")
-        .split(";")
-        .map((list) => shapePointList(list))
-        .filter((list) => list !== null);
 }
 
 /**

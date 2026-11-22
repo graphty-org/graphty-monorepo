@@ -1,5 +1,6 @@
 import cloneDeep from "lodash/cloneDeep.js";
 import get from "lodash/get.js";
+import isEqual from "lodash/isEqual.js";
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { labelLook } from "../catalog/label-looks";
@@ -15,7 +16,7 @@ import {
     RichTextStyle,
 } from "../config";
 import type { NodeSizeSpace as NodeSizeSpaceValue } from "../config/NodeStyle";
-import { drawnText } from "../config/RichTextStyle";
+import { drawnText, type RichTextStyleType } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
 import type { ModelDefaults } from "../session/assets/AssetsApi";
@@ -552,6 +553,22 @@ export interface DrawnLabel {
     readonly id: string;
     /** The resolved rich-text block it is drawn from, as `style.label` is. */
     readonly block: NonNullable<NodeStyleConfig["label"]>;
+}
+
+/**
+ * The tooltip a node or edge should hold after a paint, when it differs from the one it holds. The result is CLONED:
+ * the resolved block belongs to a paint the painter rebuilds on every call, and holding the reference would make
+ * the next comparison pass whenever somebody else writes through it.
+ * @param block - The resolved `tooltip` block.
+ * @param held - The tooltip block held now.
+ * @returns The block to hold (undefined when none draws), or null when the held one still stands.
+ */
+export function changedTooltip<T extends Pick<RichTextStyleType, "enabled" | "fontSize">>(
+    block: T | undefined,
+    held: T | undefined,
+): { wanted: T | undefined } | null {
+    const wanted = drawnText(block);
+    return isEqual(wanted, held) ? null : { wanted: wanted === undefined ? undefined : cloneDeep(wanted) };
 }
 
 /**

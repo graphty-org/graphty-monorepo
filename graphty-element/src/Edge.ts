@@ -25,9 +25,16 @@ import type { LocationMapFrame } from "./layout/locationMap/place";
 import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
-import { bootstrapEdgePaint, drawnLabelsKey, drawnLabelsOf, type EdgePaint } from "./managers/StylePainter";
+import {
+    bootstrapEdgePaint,
+    changedTooltip,
+    drawnLabelsKey,
+    drawnLabelsOf,
+    type EdgePaint,
+} from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import { type ArrowStackPart, parseArrowStack } from "./meshes/arrowStack";
+import { parseBends } from "./meshes/channelTexts";
 import type { JoinedPatternKind } from "./meshes/CustomLineRenderer";
 import type { BundleEdge, BundleOptions } from "./meshes/edgeBundling";
 import type { EdgeEffectBatch, ShadedEdgeBatch } from "./meshes/EdgeEffectBatch";
@@ -52,7 +59,6 @@ import {
     interiorOutside,
     liftRoute,
     loopTeardrop,
-    parseBends,
     parsePort,
     pointFromEnd,
     raisedArc,
@@ -4030,13 +4036,12 @@ export class Edge {
      * @param style - The resolved style.
      */
     private syncTooltip(style: EdgeStyleConfig): void {
-        const wanted = drawnText(style.tooltip);
-        if (isEqual(wanted, this.wantedTooltip)) {
+        const change = changedTooltip(style.tooltip, this.wantedTooltip);
+        if (change === null) {
             return;
         }
 
-        // CLONED, as the label's block is: it belongs to a paint the painter rebuilds on every call.
-        this.wantedTooltip = wanted === undefined ? undefined : cloneDeep(wanted);
+        this.wantedTooltip = change.wanted;
         if (this.tooltip) {
             this.hideTooltip();
             this.showTooltip();

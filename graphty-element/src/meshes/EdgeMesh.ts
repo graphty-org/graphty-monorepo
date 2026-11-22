@@ -22,6 +22,7 @@ import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { parseArrowStack } from "./arrowStack";
+import { parseBends } from "./channelTexts";
 import {
     CustomLineRenderer,
     type EdgeFade,
@@ -30,7 +31,6 @@ import {
     type JoinedPatternKind,
 } from "./CustomLineRenderer";
 import { type EdgeLineBatch, stackByDrawOrder } from "./EdgeLineBatch";
-import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
 import { FrameRoster } from "./FrameRoster";
 import { MaterialHelper } from "./MaterialHelper";

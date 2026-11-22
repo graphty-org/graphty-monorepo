@@ -19,7 +19,7 @@ function noop(): void {
 }
 
 /** The flat backdrop's layer name; kept first of the scene's layers (`orderLayers`). */
-export const FLAT_BACKDROP_LAYER = "graphty-flat-backdrop";
+const FLAT_BACKDROP_LAYER = "graphty-flat-backdrop";
 
 /**
  * Crop a picture to cover a canvas, as texture scale and offset: the picture's longer side, by

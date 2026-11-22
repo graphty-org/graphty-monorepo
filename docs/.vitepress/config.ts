@@ -23,11 +23,13 @@ const algorithmsTypedoc = loadTypedocSidebar("./docs/algorithms/api/generated/ty
 const layoutTypedoc = loadTypedocSidebar("./docs/layout/api/generated/typedoc-sidebar.json");
 const cytoscapeTypedoc = loadTypedocSidebar("./docs/cytoscape-extensions/api/generated/typedoc-sidebar.json");
 const graphIoTypedoc = loadTypedocSidebar("./docs/graph-io/api/generated/typedoc-sidebar.json");
+const webgpuTypedoc = loadTypedocSidebar("./docs/webgpu-graph-algorithms/api/generated/typedoc-sidebar.json");
 const graphFormatTypedoc = loadTypedocSidebar("./docs/graph-format/api/generated/typedoc-sidebar.json");
 const graphSamplesTypedoc = loadTypedocSidebar("./docs/graph-samples/api/generated/typedoc-sidebar.json");
 const compactMantineTypedoc = loadTypedocSidebar("./docs/compact-mantine/api/generated/typedoc-sidebar.json");
 const remoteLoggerTypedoc = loadTypedocSidebar("./docs/remote-logger/api/generated/typedoc-sidebar.json");
 const babylonjsMapTypedoc = loadTypedocSidebar("./docs/babylonjs-map/api/generated/typedoc-sidebar.json");
+const babylonjsModelsTypedoc = loadTypedocSidebar("./docs/babylonjs-models/api/generated/typedoc-sidebar.json");
 
 // One sidebar entry per graph-io format page, titled by the page's own heading, so a format added to graph-io
 // (whose page `npm run docs:reference` creates) appears here without an edit.
@@ -244,11 +246,13 @@ const config = defineConfig({
                     { text: "layout", link: "/layout/" },
                     { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                     { text: "graph-io", link: "/graph-io/" },
+                    { text: "webgpu-graph-algorithms", link: "/webgpu-graph-algorithms/" },
                     { text: "graph-format", link: "/graph-format/" },
                     { text: "graph-samples", link: "/graph-samples/" },
                     { text: "compact-mantine", link: "/compact-mantine/" },
                     { text: "remote-logger", link: "/remote-logger/" },
                     { text: "babylonjs-map", link: "/babylonjs-map/" },
+                    { text: "babylonjs-models", link: "/babylonjs-models/" },
                     { text: "visual-review", link: "/visual-review/" },
                 ],
             },
@@ -264,11 +268,13 @@ const config = defineConfig({
                         { text: "layout", link: "/layout/" },
                         { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                         { text: "graph-io", link: "/graph-io/" },
+                        { text: "webgpu-graph-algorithms", link: "/webgpu-graph-algorithms/" },
                         { text: "graph-format", link: "/graph-format/" },
                         { text: "graph-samples", link: "/graph-samples/" },
                         { text: "compact-mantine", link: "/compact-mantine/" },
                         { text: "remote-logger", link: "/remote-logger/" },
                         { text: "babylonjs-map", link: "/babylonjs-map/" },
+                        { text: "babylonjs-models", link: "/babylonjs-models/" },
                         { text: "visual-review", link: "/visual-review/" },
                     ],
                 },
@@ -547,6 +553,33 @@ const config = defineConfig({
                     items: babylonjsMapTypedoc,
                 },
             ],
+            "/babylonjs-models/": [
+                {
+                    text: "Introduction",
+                    items: [
+                        { text: "Overview", link: "/babylonjs-models/" },
+                        { text: "Getting Started", link: "/babylonjs-models/guide/getting-started" },
+                    ],
+                },
+                {
+                    text: "Guide",
+                    items: [
+                        { text: "Formats", link: "/babylonjs-models/guide/formats" },
+                        { text: "Checking Files", link: "/babylonjs-models/guide/files" },
+                        { text: "Error and Warning Codes", link: "/babylonjs-models/guide/codes" },
+                        { text: "Decoders", link: "/babylonjs-models/guide/decoders" },
+                    ],
+                },
+                {
+                    text: "API",
+                    items: [{ text: "Overview", link: "/babylonjs-models/api/" }],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: babylonjsModelsTypedoc,
+                },
+            ],
             "/remote-logger/": [
                 {
                     text: "Introduction",
@@ -638,6 +671,34 @@ const config = defineConfig({
                     items: layoutTypedoc,
                 },
             ],
+            "/webgpu-graph-algorithms/": [
+                {
+                    text: "Introduction",
+                    items: [
+                        { text: "Overview", link: "/webgpu-graph-algorithms/" },
+                        { text: "Getting Started", link: "/webgpu-graph-algorithms/guide/getting-started" },
+                        { text: "Node and Browser Setup", link: "/webgpu-graph-algorithms/guide/setup" },
+                    ],
+                },
+                {
+                    text: "Guides",
+                    items: [
+                        { text: "Algorithms", link: "/webgpu-graph-algorithms/guide/algorithms" },
+                        { text: "Layouts", link: "/webgpu-graph-algorithms/guide/layouts" },
+                        { text: "Errors", link: "/webgpu-graph-algorithms/guide/errors" },
+                        { text: "With graphty-element", link: "/webgpu-graph-algorithms/guide/graphty-element" },
+                    ],
+                },
+                {
+                    text: "API",
+                    items: [{ text: "Overview", link: "/webgpu-graph-algorithms/api/" }],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: webgpuTypedoc,
+                },
+            ],
             "/cytoscape-extensions/": [
                 {
                     text: "Guide",
@@ -713,10 +774,12 @@ config.themeConfig!.sidebar = splitApiSidebars(config.themeConfig!.sidebar as Si
     layoutTypedoc,
     cytoscapeTypedoc,
     graphIoTypedoc,
+    webgpuTypedoc,
     graphFormatTypedoc,
     graphSamplesTypedoc,
     remoteLoggerTypedoc,
     babylonjsMapTypedoc,
+    babylonjsModelsTypedoc,
 ]);
 
 export default config;

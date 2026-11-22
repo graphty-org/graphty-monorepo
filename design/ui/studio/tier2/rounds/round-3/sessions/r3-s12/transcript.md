@@ -11,7 +11,7 @@ Screenshots and logs are beside this file.
 
 01.png: the network is open, orange balls sized and colored by PageRank, a legend top left,
 a PageRank style panel on the right. Left panel: a search box "Find nodes, edges, values",
-then Selection, PageRank (77), Everything. The ties are thin grey lines, all looking the same.
+then Selection, PageRank (77), Everything. The ties are thin gray lines, all looking the same.
 Dana: "Okay, this is the ranking I ran last time. Now I want the strong ties. The search box
 says it finds edges and values -- I'll try that first."
 
@@ -37,7 +37,7 @@ fine. 'Select its matches' -- selecting is not removing anything, so that fits. 
     node design/ui/studio/tool/real.mjs --step tmp/.../r3-s12 --click "Select its matches"
 
 04.png: "13 edges selected". The 13 ties are drawn thick and blue on the drawing; every
-character and every other tie is still there in grey. The right panel switched to Values with a
+character and every other tie is still there in gray. The right panel switched to Values with a
 table "Selected edges": Edge / shared_chapters, 13 rows, smallest 10 (MmeMagloire -- Myriel,
 Bossuet -- Enjolras), largest 31 (Cosette -- Valjean). Every row is 10 or more. Dana: "That's it.
 Thirteen. They're lit up on the picture and the table backs it up, and nothing got deleted. The
@@ -63,5 +63,5 @@ Ended cleanly (no further request).
     a value", which reads like a formula language I have never been taught.
   - The search box filled itself in with "=shared_chapters >= `10`" after I clicked; fine, but I
     would not have typed that myself.
-  - The table on the right is small grey-on-dark text; readable on my desk monitor, hard on the
+  - The table on the right is small gray-on-dark text; readable on my desk monitor, hard on the
     laptop. I'd want to get that table out to Excel.

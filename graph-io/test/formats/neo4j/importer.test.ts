@@ -336,7 +336,7 @@ describe("neo4jImporter (design 8.4)", () => {
                 c: "string",
                 by: "i32",
                 sh: "i32",
-                p: "json",
+                p: "f64",
                 dt: "f64",
                 lt: "f64",
                 t: "f64",
@@ -371,7 +371,7 @@ describe("neo4jImporter (design 8.4)", () => {
             expect(nodes.value("c", 0)).toBe("x");
             expect(nodes.value("by", 0)).toBe(127);
             expect(nodes.value("sh", 0)).toBe(-32768);
-            expect(nodes.value("p", 0)).toEqual({ x: 1.5, y: 2, crs: "cartesian" });
+            expect(Array.from(nodes.value("p", 0) as ArrayLike<number>)).toEqual([1.5, 2, 0]);
             expect(nodes.value("dt", 0)).toBe(Date.UTC(2024, 1, 29));
             expect(nodes.value("lt", 0)).toBe((13 * 60 + 45) * 60 * 1000);
             expect(nodes.value("t", 1)).toBe(((23 * 60 + 59) * 60 + 59) * 1000 + 500);

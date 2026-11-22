@@ -587,12 +587,16 @@ describe("DataManager", () => {
             assert.equal(dataManagerInternals.edgesBuilt(dataManager), 1);
         });
 
-        it("builds the other edges of a built edge's pair, which it fans with", () => {
+        it("fans a built edge with its pair's other edges, building none of them", () => {
             dataManager.addEdges([{ src: "b", dst: "a" }]);
             const edge = dataManager.getEdge("0");
             assert.isDefined(edge);
             assert.equal(dataManager.drawnBundle(edge).count, 2);
-            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2, "the pair's two, not the lone b-c edge");
+            assert.equal(
+                dataManagerInternals.edgesBuilt(dataManager),
+                1,
+                "the other edge keeps its row line and row order",
+            );
         });
 
         // The element's own walks of the edges outside the data manager (a pick, a selection

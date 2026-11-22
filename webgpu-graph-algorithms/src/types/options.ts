@@ -36,6 +36,8 @@ export interface ResolvedForceAtlas2Options {
     readonly nodeMass: F32 | string | Readonly<Record<NodeId, number>> | null;
     readonly nodeSize: F32 | string | Readonly<Record<NodeId, number>> | null;
     readonly weight: boolean | string | null;
+    /** The pinned nodes applied at load: a mask, a bool node column's name, or null (the role-`fixed` column, if any). */
+    readonly fixed: NodeMask | string | null;
     readonly dissuadeHubs: boolean;
     readonly dim: 2 | 3;
     readonly scale: number;
@@ -70,7 +72,7 @@ export interface ResolvedFruchtermanReingoldOptions {
 
 /**
  * The resolved spring-electrical option record (ngraph's names): `gravity` is the Coulomb constant
- * (negative repels), never FA2's centre gravity. `gravity` and `springCoefficient` are null when left to their
+ * (negative repels), never FA2's center gravity. `gravity` and `springCoefficient` are null when left to their
  * defaults: ngraph's constant scaled by min(1, SE_SCALE_REFERENCE_NODES / n) once n is known at load. Exported for
  * src/layouts/spring-electrical.ts and the option tests.
  * @public

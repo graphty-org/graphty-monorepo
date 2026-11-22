@@ -12,7 +12,7 @@ import { isGraphtyError } from "../../../src/errors";
 import { gltfPair, objSet, sphereGlb, texturedGltfSet } from "../../fixtures/models/fixtures";
 import policeUrl from "../../fixtures/models/police.glb?url";
 import colormapUrl from "../../fixtures/models/Textures/colormap.png?url";
-import { mount } from "./helpers";
+import { filesOf, mount } from "./helpers";
 
 /**
  * How many pixels of a PNG data URL are not fully transparent.
@@ -96,7 +96,7 @@ describe("modelThumbnail", () => {
         assert.isTrue(isGraphtyError(error) && error.code === "E_MODEL_MISSING_FILE");
     });
 
-    it("draws a model waiting for pictures or materials with standInMissing, still waiting", async () => {
+    it("draws and inspects a model waiting for pictures or materials with standInMissing, still waiting", async () => {
         const element = await mount();
         const { assets } = element.session;
         const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
@@ -104,11 +104,16 @@ describe("modelThumbnail", () => {
         const noMtl = await assets.add({ files: new Map([...objSet()].filter(([name]) => name === "quad.obj")) });
         const texturedOnly = new Map([...texturedGltfSet()].filter(([name]) => name !== "tex.png"));
         const noTexture = await assets.add({ files: texturedOnly });
-        for (const waiting of [noPicture, noMtl, noTexture]) {
+        // A glTF that also earns a warning (transmission drawn without), as the ChronographWatch does.
+        const watch = await filesOf("gltf-transmission-required");
+        const noWebp = await assets.add({ files: new Map([...watch].filter(([name]) => !name.endsWith(".webp"))) });
+        for (const waiting of [noPicture, noMtl, noTexture, noWebp]) {
             assert.isTrue(
                 assets.waiting().some((w) => w.id === waiting.id),
                 `${String(waiting.path)} waits for a part`,
             );
+            // What it holds is read as it is drawn meanwhile, so its settings can be set before Add.
+            assert.isAbove(assets.inspect(waiting.id).triangles, 0, `${String(waiting.path)} is inspected`);
             const url = await element.modelThumbnail(waiting.id, { size: 64, standInMissing: true });
             assert.isAbove(await drawnPixels(url), 0, `${String(waiting.path)} is drawn with its part stood in for`);
             assert.isTrue(

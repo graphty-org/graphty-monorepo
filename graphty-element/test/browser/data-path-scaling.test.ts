@@ -303,6 +303,25 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        methods: ["DataManager.removeEdge"],
+        growth: "linear",
+        prepare: async (element, size) => {
+            await fill(element, size);
+            const data = element.graph.getDataManager();
+            const ids = [...data.edges.keys()].slice(0, size / 4);
+            return async () => {
+                for (const id of ids) {
+                    assert.isTrue(data.removeEdge(id));
+                }
+
+                await settled(element.graph);
+            };
+        },
+        check: (element, size) => {
+            assert.strictEqual(drawn(element).edges, size - 1 - size / 4);
+        },
+    },
+    {
         // With an edge selected, each removal finds the removed node's edges to deselect them:
         // its own edges, never a walk of every edge (issue #2788).
         methods: ["SelectionManager.onEdgesRemoved"],

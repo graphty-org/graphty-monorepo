@@ -13,7 +13,7 @@ import {
 // package barrel), but the implementation modules depend on their shape, so pin it here.
 
 // ---- SnapshotParts carries every public core field of GraphSnapshot with the two lazily
-// materialised permutations nullable, plus the construction-only fields
+// materialized permutations nullable, plus the construction-only fields
 type CoreKeys =
     | "label"
     | "directed"

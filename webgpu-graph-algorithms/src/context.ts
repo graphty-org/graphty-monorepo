@@ -3,7 +3,7 @@
  * device is built from. probe() never creates a device; create() runs the six acquisition steps in order; from() adopts a device the caller owns. Step 5 (the uncapturederror sink and the device.lost
  * watcher) and step 6 (the AllocationTracker, GraphResidency, BufferPool, Readback and PipelineCache) run
  * in the private constructor. The Profiler is constructed when "timestamp-query" is on the device, with
- * `quantised` = runtime !== "node" (Dawn-node is the only runtime whose ticks are known unquantised). This file never imports ./kernels.js or ./wgsl/**.
+ * `quantised` = runtime !== "node" (Dawn-node is the only runtime whose ticks are known unquantized). This file never imports ./kernels.js or ./wgsl/**.
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
@@ -278,7 +278,7 @@ export class GpuContext {
 
     /**
      * Zero-cost adoption of a device the caller owns (ownsDevice false, runtime "unknown" unless info says
-     * otherwise). The context is labelled with the device's label, or "GpuContext.from" when it has none.
+     * otherwise). The context is labeled with the device's label, or "GpuContext.from" when it has none.
      * @param device - the device to adopt
      * @param info - what the caller knows about the adapter, if anything
      * @param options - see FromOptions

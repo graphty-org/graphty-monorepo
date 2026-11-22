@@ -2,14 +2,15 @@
  * The location map on the REAL graphty-element, driven by real input: the location designated in
  * the Data place's Fields (what the element finds preselected), Map picked in the Layout popover
  * reading it, the 3D map (a globe) in the 3D view and the 2D map in the 2D view, Map type picking
- * the 2D map in 3D, and the map under the graph chosen in the same form.
+ * the 2D map in 3D, and the map under the graph chosen in the same form, an image from this computer
+ * among them.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { MAP_DEPTH_INDEPENDENT_SIZE } from "../../settings/preferences";
@@ -319,6 +320,46 @@ describe("the location map", () => {
         assert.strictEqual(where(), before, "still no node moved");
     });
 
+    it("keeps Map and Same place picked in the Map form when it is closed without Apply", async () => {
+        const element = await openAirports();
+        let popover = await openMapForm();
+        await pickByKeys(popover, "Map", "Natural Earth gray");
+        await pickByKeys(popover, "Same place", "Stack");
+        const field = (scope: HTMLElement, label: string): string =>
+            within(scope).getByRole<HTMLInputElement>("combobox", { name: label }).value;
+        await waitFor(() => {
+            assert.strictEqual(field(popover, "Map"), "Natural Earth gray");
+            assert.strictEqual(field(popover, "Same place"), "Stack");
+        });
+
+        // Esc steps back to the list, and again closes the popover.
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Layout" }));
+        });
+        assert.notStrictEqual(element.session.layout.id, "location-map", "nothing was applied");
+
+        popover = await openMapForm();
+        assert.strictEqual(field(popover, "Map"), "Natural Earth gray");
+        assert.strictEqual(field(popover, "Same place"), "Stack");
+    });
+
+    it("draws an image chosen from this computer as the map, kept in the project as its contents", async () => {
+        const element = await openAirports();
+        await layOutOnMap(element, "2D");
+        const popover = await openMapForm();
+        await pickByKeys(popover, "Map", "Image");
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="1"><rect width="2" height="1"/></svg>';
+        await commands.chooseNextFile("world.svg", "image/svg+xml", svg);
+        await userEvent.click(within(popover).getByRole("button", { name: "Upload image" }));
+        await waitFor(() => {
+            assert.deepStrictEqual(element.session.layout.options.map, {
+                image: `data:image/svg+xml;base64,${btoa(svg)}`,
+            });
+        });
+    });
+
     it("greys Map out with its reason on a graph with no location, and the element refuses it", async () => {
         const element = await openAirports(false, [
             { id: "a", label: "A" },
@@ -484,6 +525,27 @@ describe("the location map", () => {
         const note = notes[0].getBoundingClientRect();
         assert.isAtLeast(note.top, location.bottom - 1, "the note sits under Location");
         assert.isBelow(note.top - location.bottom, location.height, "right under it");
+    });
+
+    it("hides the nodes with no place when Unplaced is Hide, and still says how many there are", async () => {
+        const element = await openAirports();
+        await layOutOnMap(element, "2D");
+        assert.isTrue(element.nodeScreenPosition("nowhere")?.visible, "in the tray, drawn");
+
+        const popover = await openMapForm();
+        await pickByKeys(popover, "Unplaced", "Hide");
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(() => {
+            assert.strictEqual(element.session.layout.options.unplaced, "hide");
+        });
+        await element.waitForSettled();
+        await element.waitForStableFrame();
+        await waitFor(() => {
+            assert.isFalse(element.nodeScreenPosition("nowhere")?.visible, "not drawn on the map");
+        });
+        assert.isTrue(element.nodeScreenPosition("LHR")?.visible, "a node with a place is still drawn");
+        assert.deepStrictEqual(element.mapFrame?.unplaced, ["nowhere"]);
+        await screen.findAllByText("1 of 4 nodes unplaced", undefined);
     });
 
     it("puts Select on the unplaced notice, and posts it once across a 2D/3D switch", async () => {

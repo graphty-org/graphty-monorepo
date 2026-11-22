@@ -241,6 +241,8 @@ export {
     type CysExportOptions,
     cysImporter,
     type CysImportOptions,
+    type CytoscapeStyleFileOptions,
+    readCytoscapeStyleFile,
 } from "./formats/cys/index.js";
 export {
     type BendPoint,
@@ -256,6 +258,7 @@ export {
     type GraphvizFont,
     graphvizFont,
     graphvizPosBends,
+    graphvizPosCurve,
     RANK_COLUMN,
     RANK_SET_COLUMN,
     type RequestedLayout,
@@ -348,6 +351,16 @@ export {
     type PajekImportOptions,
 } from "./formats/pajek/index.js";
 export {
+    INTERACTION_COLUMN,
+    SIF_CAPABILITIES,
+    SIF_ISSUE,
+    SIF_LOSS,
+    sifExporter,
+    type SifExportOptions,
+    sifImporter,
+    type SifImportOptions,
+} from "./formats/sif/index.js";
+export {
     XGMML_ISSUE,
     XGMML_LOSS,
     xgmmlExporter,
@@ -355,6 +368,7 @@ export {
     xgmmlImporter,
     type XgmmlImportOptions,
 } from "./formats/xgmml/index.js";
+export { XLSX_ISSUE, xlsxImporter, type XlsxImportOptions } from "./formats/xlsx/index.js";
 
 // ============================================================ shared helpers for plugin authors (8.4, 8.5, 8.6)
 export {

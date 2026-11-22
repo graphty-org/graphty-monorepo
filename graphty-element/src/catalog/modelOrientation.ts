@@ -105,7 +105,12 @@ export function turnModelOrientation(
     current: ModelOrientation,
     step: ModelTurnStep,
     detected: ModelUpAxis = "y",
-): { readonly up: ModelUpAxis; readonly turn: number } {
+): {
+    /** The file's up axis, for `node.modelSourceUp`; never "detected". */
+    readonly up: ModelUpAxis;
+    /** The turn about it in degrees, for `node.modelTurn`. */
+    readonly turn: number;
+} {
     const up = current.up === "detected" ? detected : current.up;
     if (step === "left" || step === "right") {
         return { up, turn: normalized(current.turn + (step === "left" ? 90 : -90)) };

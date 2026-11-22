@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { costLine, optionWords } from "../analyze/words";
 import { OptionRow, OptionsForm } from "../options/OptionsForm";
+import { layoutChanged } from "../privacy/useUsageEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { MapSourceFields } from "./MapSourceFields";
 import {
@@ -65,6 +66,16 @@ function drawnLine(element: GraphtyElement | null): string | undefined {
     }
     return location.kind === "columns" ? `${location.latitude}, ${location.longitude}` : location.column;
 }
+
+/** A form's unapplied values, with the values it opened on. */
+type Draft = { basis: Record<string, unknown>; values: Record<string, unknown> };
+
+/**
+ * What the reader edited in each layout's form and has not applied, by session and layout row, with
+ * the values the form opened on: a form closed without Apply opens again on the edits, as long as
+ * it would still open on the same values (the drawn layout, the selection, unchanged).
+ */
+const drafts = new WeakMap<GraphSession, Map<string, Draft>>();
 
 /** Props for LayoutForm. */
 interface LayoutFormProps {
@@ -356,8 +367,9 @@ function ShownOnlyRow(): React.JSX.Element {
 /**
  * The form for one layout (the Layout popover's second level, and inline in the graph's
  * inspector): Shape, its key options, the Advanced fold with Seed and Reshuffle, the cost line
- * and Apply. Nothing runs while the reader edits; Apply (or Enter) lays the graph out, as one
+ * and Apply. Nothing runs while the reader edits; Apply (or Enter on it) lays the graph out, as one
  * undoable step of the element's, and a disabled "Applied" says the graph is drawn so already.
+ * Enter in a field applies too but keeps the form open, so several values can be tried in turn.
  * A refusal shows above the button and the form stays.
  * @param props - Component props
  * @param props.session - The element's session
@@ -386,7 +398,16 @@ export function LayoutForm({
         values: startingValues(session, descriptor),
         engine: engineOf(descriptor),
     }));
-    const [values, setValues] = useState<Record<string, unknown>>(start.values);
+    const draftKey = `${descriptor.id}/${start.engine ?? ""}`;
+    const [values, setValues] = useState<Record<string, unknown>>(() => {
+        const draft = drafts.get(session)?.get(draftKey);
+        return draft !== undefined && sameValues(draft.basis, start.values) ? draft.values : start.values;
+    });
+    useEffect(() => {
+        const own = drafts.get(session) ?? new Map<string, Draft>();
+        drafts.set(session, own);
+        own.set(draftKey, { basis: start.values, values });
+    }, [session, draftKey, start.values, values]);
     // Undefined: the catalog's default engine for the layout. Each engine has a row of its own.
     const { engine } = start;
     const [error, setError] = useState<string | null>(null);
@@ -418,16 +439,23 @@ export function LayoutForm({
         setValues(next);
         setError(null);
     };
-    const apply = (asked: Record<string, unknown>): void => {
+    const apply = (asked: Record<string, unknown>, close = true): void => {
         setError(null);
-        session.layout
-            .set(descriptor.id, engine === undefined ? { options: asked } : { engine, options: asked })
-            .then(onApplied, (failure: unknown) => {
+        session.layout.set(descriptor.id, engine === undefined ? { options: asked } : { engine, options: asked }).then(
+            () => {
+                layoutChanged(session, descriptor.id, "applied");
+                if (close) {
+                    onApplied?.();
+                }
+            },
+            (failure: unknown) => {
+                layoutChanged(session, descriptor.id, "failed");
                 setError(
                     layoutErrorWords(failure) ??
                         `${layoutName(descriptor)} could not lay out this graph, so the drawing is unchanged`,
                 );
-            });
+            },
+        );
     };
     // A new map is drawn under nodes that stay where they are, so on the applied map with nothing
     // else edited it applies at once, and the form stays open.
@@ -436,9 +464,15 @@ export function LayoutForm({
         if (isCurrent && !differs) {
             setValues(next);
             setError(null);
-            session.layout.set(descriptor.id, { options: next }).catch(() => {
-                setError(`${layoutName(descriptor)} could not draw this map`);
-            });
+            session.layout.set(descriptor.id, { options: next }).then(
+                () => {
+                    layoutChanged(session, descriptor.id, "applied");
+                },
+                () => {
+                    layoutChanged(session, descriptor.id, "failed");
+                    setError(`${layoutName(descriptor)} could not draw this map`);
+                },
+            );
             return;
         }
         edit(next);
@@ -473,8 +507,11 @@ export function LayoutForm({
             onKeyDown={onKeyDown}
             onSubmit={(event) => {
                 event.preventDefault();
+                // A field submits the form on Enter and keeps focus: apply, and leave the form open.
+                const focused = document.activeElement;
+                const fromField = focused instanceof HTMLInputElement && formRef.current?.contains(focused) === true;
                 if (differs && reason === null) {
-                    apply(values);
+                    apply(values, !fromField);
                 }
             }}
         >

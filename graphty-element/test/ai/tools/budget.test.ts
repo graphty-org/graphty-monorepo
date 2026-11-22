@@ -127,7 +127,7 @@ describe("the always-loaded tools fit a model's budget", () => {
         const { tools, tokens, enumNames } = declared("standard");
         assert.lengthOf(tools, 11);
         assert.isAtMost(tokens, 5000);
-        assert.isTrue(enumNames, "29 algorithms are an enum");
+        assert.isFalse(enumNames, "algorithm ids are a validated string, so a new algorithm costs nothing here");
     });
 
     it("declares four tools within 1,500 tokens in the small profile", () => {

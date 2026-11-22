@@ -8,13 +8,23 @@
  * node is never laid out and keeps its position. A live engine with a
  * processor simulation in `@graphty/layout` (`forceatlas2`, `spring`) is stepped; the `force`
  * layout's two engines that have none there (`ngraph`, `d3`) are stepped as ForceAtlas2 with the
- * choice's `seed`; a one-shot engine is computed once. Nothing runs until a verb asks: choosing a
- * layout only records it, as it always has in a session with no renderer.
+ * choice's `seed`; a one-shot engine is computed once. The `geographic` engine reads each node's
+ * latitude and longitude attributes (its options, else the designated fields, else `latitude` and
+ * `longitude`), as it does on a renderer; a node without them goes to the origin. Nothing runs until
+ * a verb asks: choosing a layout only records it, as it always has in a session with no renderer.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type DerivedGraph, type F32, type GraphSnapshot, makeMask, maskSet, type U32 } from "@graphty/graph-format";
+import {
+    type DerivedGraph,
+    type F32,
+    type F64,
+    type GraphSnapshot,
+    makeMask,
+    maskSet,
+    type U32,
+} from "@graphty/graph-format";
 import {
     createSimulation,
     LAYOUTS,
@@ -26,6 +36,9 @@ import {
 import { arrangedDimension, LAYOUT_CATALOG } from "../catalog/layouts";
 import type { ElementPositions } from "../data/positions";
 import { GraphtyError } from "../errors/GraphtyError";
+import { degrees } from "../layout/degrees";
+import { forceAtlas2MaxIterFor } from "../layout/forceAtlas2Iterations";
+import type { LocationDesignation } from "../layout/locationMap/source";
 import type { ArrangementEngine } from "./project/arrangement";
 import type { LayoutChoice } from "./project/state";
 import type { LayoutMotion } from "./types";
@@ -45,6 +58,10 @@ export interface LayoutRunnerHost {
     rest(): void;
     /** False once a renderer has taken over the layout: the runner then stops for good. */
     headless(): boolean;
+    /** A node attribute's values by the element's row, or null when no node carries it. */
+    nodeValues(path: string): readonly unknown[] | null;
+    /** The designated latitude and longitude fields (`data.knownFields`). */
+    knownFields(): LocationDesignation;
 }
 
 /** One loaded run: a simulation, or a one-shot arrangement already written. */
@@ -108,13 +125,14 @@ const ONE_SHOT: Readonly<Record<string, keyof typeof LAYOUTS>> = {
     bipartite: "bipartite",
     multipartite: "multipartite",
     "kamada-kawai": "kamadaKawai",
+    geographic: "geographic",
 };
 
 /** How long one batch of steps may hold the thread before yielding, in ms. */
 const BATCH_MS = 8;
 
 /**
- * The options an engine runs with: the catalogue's defaults under the choice's own.
+ * The options an engine runs with: the catalog's defaults under the choice's own.
  * @param choice - The choice.
  * @returns The options.
  */
@@ -337,9 +355,12 @@ export class LayoutRunner implements ArrangementEngine {
         const dim = arrangedDimension(choice) === "2d" ? 2 : 3;
         const type = SIMULATED[choice.engine];
         if (type !== undefined) {
+            // A null ForceAtlas2 cap is scaled to the graph, as the drawn layout's bridge scales it.
+            const capped =
+                type === "forceatlas2" ? { ...options, maxIter: options.maxIter ?? forceAtlas2MaxIterFor(n) } : options;
             const simulation = createSimulation(
                 type,
-                STAND_INS.has(choice.engine) ? { seed: options.seed as number | undefined, dim } : { ...options, dim },
+                STAND_INS.has(choice.engine) ? { seed: options.seed as number | undefined, dim } : { ...capped, dim },
             );
             simulation.load(graph, view);
             const fixed = makeMask(n);
@@ -368,14 +389,45 @@ export class LayoutRunner implements ArrangementEngine {
             graph: GraphSnapshot,
             options: object,
         ) => Parameters<typeof toPositionColumn>[0];
-        const column = toPositionColumn(fn(graph, { ...options, dim }), Number(options.scalingFactor ?? 1), null);
+        const [input, inputOptions] =
+            name === "geographic" ? this.geographic(graph, options, elementRow) : [graph, options];
+        const column = toPositionColumn(fn(input, { ...inputOptions, dim }), Number(options.scalingFactor ?? 1), null);
         for (let row = 0; row < n; row += 1) {
             if (!lane.isPinned(elementRow(row))) {
-                lane.write(elementRow(row), column[3 * row], column[3 * row + 1], column[3 * row + 2]);
+                // A row the layout left unplaced (no coordinates) goes to the origin, as on a renderer.
+                const at = (k: number): number => (Number.isNaN(column[3 * row + k]) ? 0 : column[3 * row + k]);
+                lane.write(elementRow(row), at(0), at(1), at(2));
             }
         }
 
         this.steps += 1;
         return null;
+    }
+
+    /**
+     * The graph and options the geographic layout runs with: the nodes' latitude and longitude
+     * attributes, read as degrees, as numeric columns of the graph.
+     * ponytail: a node with no coordinates is not reported as the renderer's W_NO_POSITION is; a
+     * session with no renderer has no layout-warning event to tell it by.
+     * @param graph - The graph to lay out.
+     * @param options - The choice's options.
+     * @param elementRow - Row of `graph` -> the element's row.
+     * @returns The graph with `lat` and `lon` columns, and the options naming them.
+     */
+    private geographic(
+        graph: GraphSnapshot,
+        options: Record<string, unknown>,
+        elementRow: (row: number) => number,
+    ): [GraphSnapshot, Record<string, unknown>] {
+        const known = this.host.knownFields();
+        const read = (option: string, designated: string | null | undefined, fallback: string): F64 => {
+            const name = options[option];
+            const path = typeof name === "string" && name !== "" ? name : (designated ?? fallback);
+            const values = this.host.nodeValues(path) ?? [];
+            return Float64Array.from({ length: graph.nodeCount }, (_, row) => degrees(values[elementRow(row)]));
+        };
+        const lat = read("latitude", known.nodeLatitudePath, "latitude");
+        const lon = read("longitude", known.nodeLongitudePath, "longitude");
+        return [graph.withColumns({ lat, lon }), { ...options, latitude: "lat", longitude: "lon" }];
     }
 }

@@ -197,6 +197,21 @@ export interface AlgorithmDescriptor {
         );
     });
 
+    it("passes a draft preview's id, a filter condition's id and a key value of the consumer's rows", () => {
+        const head = report()
+            .replace("get(id: string): RunRecord;", "get(id: string): RunRecord;\n    preview(): SourceDraftPreview;")
+            .replace(
+                "// @public\nexport type RunState",
+                "// @public\nexport interface SourceDraftPreview {\n    readonly draft: string;\n    readonly label: string;\n    readonly issues: readonly SourceDraftPreviewIssue[];\n}\n\n" +
+                    '// @public\nexport type SourceDraftPreviewIssue = { readonly code: "W_FILTER_HELD"; readonly params: { readonly filter: string } } | { readonly code: "W_VALUE_HUB"; readonly params: { readonly value: string } };\n\n' +
+                    "// @public\nexport type RunState",
+            );
+        assert.deepEqual(
+            plainStringAdditions([report()], [head]).map((m) => m.split(" ")[0]),
+            ["SourceDraftPreview.label"],
+        );
+    });
+
     it("passes a plain string that is not on a result type, or only in an input", () => {
         const head = report().replace("    text?: string;", "    text?: string;\n    scope?: string;");
         assert.deepEqual(plainStringAdditions([report()], [head]), []);

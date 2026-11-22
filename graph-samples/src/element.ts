@@ -51,7 +51,10 @@ export function toElementData(graph: SampleGraph | GraphSnapshot): ElementData {
  * @returns the node and edge records
  */
 function snapshotRecords(snapshot: GraphSnapshot): ElementData {
-    const columns = [...snapshot.nodes].filter((column) => column.meta.role !== "id");
+    // the position column repeats plain columns the records already carry
+    const columns = [...snapshot.nodes].filter(
+        (column) => column.meta.role !== "id" && column.meta.role !== "position",
+    );
     const nodes = Array.from({ length: snapshot.nodeCount }, (_, i) => {
         const record: Record<string, unknown> = { id: snapshot.ids.idOf(i) };
         for (const column of columns) {

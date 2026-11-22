@@ -367,6 +367,15 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             attributes: () => [],
             snapshot: () => ({ nodeCount, ids: { idOf: (index: number) => nodeId(index) } }),
             fingerprint: () => `mock:${String(nodeCount)}:${String(edgeCount)}`,
+            // The records, as `session.data.nodes()` and `edges()` give them: what the schema reads.
+            nodes: () => [...mockNodes.values()].map((node) => ({ ...node.data, id: node.id })),
+            edges: () =>
+                [...mockEdges.values()].map((edge) => ({
+                    ...edge.data,
+                    id: edge.id,
+                    source: edge.srcId,
+                    target: edge.dstId,
+                })),
         },
         runs: { list: () => [] },
         catalog: SESSION_CATALOG_TABLES,
@@ -469,7 +478,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             position?: { x: number; y: number; z: number };
             target?: { x: number; y: number; z: number };
         }): Promise<void> {
-            // Asked of the catalogue rather than of a copied list. A hard-coded five here would
+            // Asked of the catalog rather than of a copied list. A hard-coded five here would
             // make this mock refuse a registered view -- the very defect the camera extension
             // point exists to remove, reproduced inside a test helper.
             if (state.preset && !isCameraViewName(state.preset)) {

@@ -136,6 +136,18 @@ elif ! git merge-base --is-ancestor origin/master HEAD; then
 fi
 [ -n "$(git rev-list -1 origin/master..HEAD)" ] || die "$branch has nothing master lacks"
 
+# An issue the style fidelity known-failure records still cite stays open: merging "Fixes" would close it and fail
+# master's fidelity:issues check (issue #8888). Its own issue defaults to Refs; a commit closing one is refused.
+if [ "$refs" = 0 ] && node "$here/pr-integrity.mjs" --known-issues HEAD | grep -qxF "$issue"; then
+    echo "pr-open: #$issue is still cited by graphty-element/test/fidelity known failures: Refs #$issue, not Fixes" >&2
+    refs=1
+fi
+own="Fixes #$issue"
+[ "$refs" = 0 ] || own="Refs #$issue"
+{ git log --format=%B "$(git merge-base origin/master HEAD)..HEAD"; echo "$own"; } |
+    node "$here/pr-integrity.mjs" --closes-known HEAD ||
+    die "the branch closes an issue known failures still cite (above); a commit cannot be reworded, so take the records off with npm run fidelity:ratchet, or redo the work on a new branch whose commits say Refs"
+
 # The fresh-context review, before anything is pushed. It prints its report's path; exit 3 is a blocking finding.
 review="${PR_OPEN_REVIEW:-$here/pr-review.sh}"
 rc=0

@@ -764,6 +764,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelColor: v("#000000", `${YED_CORPUS} of y:EdgeLabel`),
                     labelFont: v("DejaVu Sans, sans-serif", `${YED_CORPUS} of y:EdgeLabel (Dialog's face)`),
                     labelSize: v(12, `${YED_CORPUS} of y:EdgeLabel`),
+                    // an edge label's box is a node label's (yed-graphml-specimen-edge-labels background-color: 18.7 x
+                    // 15.64 round a 14.7 px "Lbl" at 10 px)
+                    labelPadding: YED_LABEL_BOX_PADDING,
+                    labelLineHeight: YED_LABEL_LINE_HEIGHT,
                     labelKeepBlankLines: v(
                         true,
                         `${MEASURED}graphml-stm32-func: a label of a line break and "CS" is drawn two lines tall, the words on the second)`,

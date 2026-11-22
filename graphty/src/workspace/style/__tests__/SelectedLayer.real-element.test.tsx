@@ -16,7 +16,6 @@ import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
 import { sampleTile } from "../../../test/samples-dialog";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
-import { nodeModelsOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { hexOf } from "../words";
@@ -67,9 +66,8 @@ async function fillRedFrom(session: GraphSession, node: string): Promise<void> {
     });
     await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
     await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
-    if (nodeModelsOn(session)) {
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
-    }
+    // Fill also offers Picture, so its "+" opens a menu.
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
     await waitFor(() => {
         assert.isNotNull(document.activeElement?.closest('[data-line="node.color"]'), "focus in the new line");
     });

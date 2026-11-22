@@ -12,6 +12,7 @@ import type {
     TimeUnit,
 } from "@graphty/graphty-element/session";
 
+import { count } from "../../lib/analytics";
 import { formatCount } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { countWords, instantWords, intervalOf, noticeOf, refusalWords, unitLabel, windowWords } from "./timeWords";
@@ -179,6 +180,7 @@ export function togglePlay(session: GraphSession, store: WorkspaceStore): void {
         return;
     }
     tallyPlay(session, store);
+    count("timeline_played");
     playAt(session, store, store.get().timeSpeed);
 }
 

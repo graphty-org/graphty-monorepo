@@ -25,6 +25,7 @@ import { inferTextDtype } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { respelledPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import type { PositionColumnExtra } from "../../positions/types.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -668,7 +669,7 @@ function firstModeOf(snapshot: GraphSnapshot): number | null {
  * the vertex number, otherwise null (no label needed). A label is forced when something follows
  * it on the line, because Pajek's grammar puts the label second.
  * @param labels - the label column, or null
- * @param ids - the sanitised ids
+ * @param ids - the sanitized ids
  * @param i - the node index
  * @param needed - whether the line has more after the label
  * @returns the label text, or null
@@ -823,7 +824,7 @@ function withoutReservedKey(nodePlan: readonly PlannedColumn[], mangle: boolean)
  * and under "mangle" an original id whose text reads back as the other type under ids
  * "canonical" is reported (the importer coerces the parameter text like every id cell).
  * @param nodeCount - the node count
- * @param ids - the sanitised ids
+ * @param ids - the sanitized ids
  * @param mangle - whether the original ids are written as parameters
  * @param notes - where to record
  */
@@ -867,7 +868,7 @@ function checkIdTexts(nodeCount: number, ids: SanitizedIds, mangle: boolean, not
 /**
  * The vertex lines: number, label, coordinates, shape, parameters and interval.
  * @param snapshot - the snapshot
- * @param ids - the sanitised ids
+ * @param ids - the sanitized ids
  * @param nodePlan - the node column plan
  * @param mangle - whether a renumbered vertex carries its original id as a parameter
  * @yields one line per vertex
@@ -1159,47 +1160,49 @@ function resolvePajekOptions(
  * The Pajek NET exporter.
  * @category Built-in formats
  */
-export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
-    format: "pajek",
-    options: Object.freeze(["name", "networkHeader"]),
-    capabilities: CAPABILITIES,
-    styles: Object.freeze({ capabilities: PAJEK_STYLE_CAPABILITIES }),
+export const pajekExporter: GraphExporter<PajekExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: "pajek",
+        options: Object.freeze(["name", "networkHeader"]),
+        capabilities: CAPABILITIES,
+        styles: Object.freeze({ capabilities: PAJEK_STYLE_CAPABILITIES }),
 
-    /**
-     * Pre-flight: the generic capability gaps plus the Pajek-specific ones; with styles, also the values written as
-     * the nearest ones Pajek has.
-     * @param snapshot - the snapshot
-     * @param options - export options
-     * @returns the loss notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: PajekWriteOptions): readonly LossNote[] {
-        const styled = pajekStyledExport(snapshot, options?.styles);
-        if (styled === null) {
-            return checkPlain(snapshot, options);
-        }
-        return Object.freeze([...checkPlain(styled.snapshot, withOriginalIds(options)), ...styled.notes]);
-    },
+        /**
+         * Pre-flight: the generic capability gaps plus the Pajek-specific ones; with styles, also the values written as
+         * the nearest ones Pajek has.
+         * @param snapshot - the snapshot
+         * @param options - export options
+         * @returns the loss notes, empty when the export is exact
+         */
+        check(snapshot: GraphSnapshot, options?: PajekWriteOptions): readonly LossNote[] {
+            const styled = pajekStyledExport(snapshot, options?.styles);
+            if (styled === null) {
+                return checkPlain(snapshot, options);
+            }
+            return Object.freeze([...checkPlain(styled.snapshot, withOriginalIds(options)), ...styled.notes]);
+        },
 
-    /**
-     * Write the snapshot as UTF-8 chunks.
-     * @param snapshot - the snapshot
-     * @param options - export options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: PajekWriteOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(styledParts(snapshot, options));
-    },
+        /**
+         * Write the snapshot as UTF-8 chunks.
+         * @param snapshot - the snapshot
+         * @param options - export options
+         * @returns the chunks
+         */
+        export(snapshot: GraphSnapshot, options?: PajekWriteOptions): AsyncIterable<Uint8Array> {
+            return encodeChunks(styledParts(snapshot, options));
+        },
 
-    /**
-     * Write the snapshot as one string.
-     * @param snapshot - the snapshot
-     * @param options - export options
-     * @returns the document
-     */
-    exportToString(snapshot: GraphSnapshot, options?: PajekWriteOptions): Promise<string> {
-        return joinText(styledParts(snapshot, options));
-    },
-});
+        /**
+         * Write the snapshot as one string.
+         * @param snapshot - the snapshot
+         * @param options - export options
+         * @returns the document
+         */
+        exportToString(snapshot: GraphSnapshot, options?: PajekWriteOptions): Promise<string> {
+            return joinText(styledParts(snapshot, options));
+        },
+    }),
+);
 
 /**
  * The text parts of a Pajek document, with its styles when they are given.

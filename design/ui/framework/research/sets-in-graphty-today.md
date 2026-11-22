@@ -40,7 +40,7 @@ glossary and the information architecture must answer each of them explicitly.
 
 ## Follow-up question: sets as algorithm input
 
-5. How should sets relate to the inputs of algorithms? graph-format's layout is optimised for
+5. How should sets relate to the inputs of algorithms? graph-format's layout is optimized for
    handing a graph to the GPU; should sets have that option? What does converting a set to a
    graph cost?
 

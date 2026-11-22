@@ -510,7 +510,7 @@ function expressionTerms(where: string): number {
         const character = where[at];
         const two = where.slice(at, at + 2);
         if (character === "'" || character === "`" || character === '"') {
-            // Skip the literal or the quoted name, honouring its backslash escapes.
+            // Skip the literal or the quoted name, honoring its backslash escapes.
             at = closingQuote(where, at + 1, character) + 1;
         } else if (two === "==" || two === "!=" || two === "<=" || two === ">=") {
             terms++;
@@ -525,7 +525,7 @@ function expressionTerms(where: string): number {
 }
 
 /**
- * Where a quoted literal or name closes: its quote, its backslash escapes honoured.
+ * Where a quoted literal or name closes: its quote, its backslash escapes honored.
  * @param where - The expression.
  * @param from - The position after the opening quote.
  * @param quote - The quote.
@@ -697,6 +697,7 @@ function channelPlans(
         ["labelLineHeight", [label("labelLineHeight")]],
         ["labelLineBox", [label("labelLineBox")]],
         ["labelBorderAlign", [label("labelBorderAlign")]],
+        ["labelBorderStyle", [label("labelBorderStyle")]],
         ["labelBackgroundShape", [label("labelBackgroundShape")]],
     ];
     if (kind === "node") {
@@ -784,7 +785,7 @@ function channelPlans(
                 [
                     {
                         channel: "node.glyphWeight",
-                        convert: (value) => GLYPH_WEIGHTS.get(String(value)) ?? null,
+                        convert: (value) => GLYPH_WEIGHTS.get(String(value)) ?? (Number(value) || null),
                         identity: false,
                     },
                 ],
@@ -878,6 +879,11 @@ function channelPlans(
                 ],
             ],
             ["xlabelOffsetY", [length("node.xlabelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
+            ["xlabelTextAlign", [id("node.xlabelTextAlign")]],
+            ["xlabelColor", [id("node.xlabelColor")]],
+            ["xlabelFont", [id("node.xlabelFont")]],
+            ["xlabelWeight", [id("node.xlabelWeight")]],
+            ["xlabelItalic", [id("node.xlabelItalic")]],
             ["shape", [table("node.shape", shapeTable)]],
             ["labelColor", [label("labelColor")]],
             ["labelSize", labelSize("node.labelSize", "node.labelLetterSize")],
@@ -900,6 +906,12 @@ function channelPlans(
             ["labelItalic", [label("labelItalic")]],
             ...labelBox,
             ...labelBoxShape,
+            // a picture in the label (yEd's label icon), sized and placed in the label's units as its padding is
+            ["labelImage", [picture("node.labelImage")]],
+            ["labelImageWidth", [labelLength("node.labelImageWidth", false)]],
+            ["labelImageHeight", [labelLength("node.labelImageHeight", false)]],
+            ["labelImageOffsetX", [labelLength("node.labelImageOffsetX", false)]],
+            ["labelImageOffsetY", [labelLength("node.labelImageOffsetY", false)]],
             ["labelBox", [label("labelBox")]],
             // moved in the scene's units, as a wrap width is
             ["labelOffsetX", [length("node.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
@@ -953,16 +965,21 @@ function channelPlans(
         ["overlayPadding", [length("edge.overlayPadding")]],
         ["gradientColors", [id("edge.gradientColors")]],
         ["gradientStops", [id("edge.gradientStops")]],
+        ["strandColors", [id("edge.strandColors")]],
+        // a ratio of two lengths, the strands' spacing over the line's width: no unit to convert
+        ["strandSpacing", [id("edge.strandSpacing")]],
         ["gradientKind", [table("edge.gradientKind", GRADIENT_KINDS)]],
         ["lineStyle", [table("edge.style", LINE_STYLES, LINE_STYLES_NEAREST)]],
         // in the line's own widths, as the element draws a dash pattern
         ["dashLength", [id("edge.dashLength")]],
         ["dashGap", [id("edge.dashGap")]],
+        ["dashArray", [id("edge.dashArray")]],
         // in the line's own width units, as its width is
         ["waveAmplitude", [length("edge.waveAmplitude")]],
         ["wavePeriod", [length("edge.wavePeriod")]],
         // a ratio of two widths: no unit to convert
         ["taper", [id("edge.taper")]],
+        ["taperSource", [id("edge.taperSource")]],
         ["targetArrow", [table("edge.arrowHead", arrows)]],
         ["sourceArrow", [table("edge.arrowTail", arrows)]],
         ["targetArrowColor", [id("edge.arrowHeadColor")]],
@@ -1773,7 +1790,14 @@ class KindTranslation {
         // Stable by bucket: a later pass's layer of rule i still sits below every layer of rule i+1.
         ordered.sort((a, b) => a.bucket - b.bucket);
 
-        const { layers, folded } = foldToCap(ordered, this.#n, (run, paint) => this.#folded(run, paint));
+        const held = new Set(
+            this.#rules.flatMap((rule) =>
+                rule.origin === "declared" && (rule.role === "group" || rule.role === "mapping") ? [rule.id] : [],
+            ),
+        );
+        const { layers, folded } = foldToCap(mergeLikeLayers(ordered, this.#n, held), this.#n, (run, paint) =>
+            this.#folded(run, paint),
+        );
         if (folded > 0) {
             this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.LAYERS_FOLDED, this.#kind, null, folded);
         }
@@ -3557,6 +3581,179 @@ function listOf(where: Predicate): readonly Predicate[] | null {
     }
 
     return "or" in where ? where.or : null;
+}
+
+/** How layers of one sort may share one layer: constants, or per-element copies of a file's values. */
+type MergeSort = "set" | "copies" | null;
+
+/**
+ * The sort of layer `mergeLikeLayers` may merge: one that sets constants only, or one that only copies a file's
+ * values per element (kind `custom`). A mapping or group the file declares, an end label's face and a layer rebuilt from one graphty
+ * wrote are never merged.
+ * @param layer - The layer.
+ * @param held - The ids of the rules whose layers keep their own (the file's declared groups and mappings).
+ * @returns The sort, or null.
+ */
+function mergeSortOf(layer: Building, held: ReadonlySet<string>): MergeSort {
+    if (layer.fallback !== undefined || layer.ends === true || (layer.drawn ?? layer.paint) === null) {
+        return null;
+    }
+    if (layer.ruleId !== undefined && held.has(layer.ruleId)) {
+        return null;
+    }
+    const sets = Object.keys(layer.spec.set).length > 0;
+    const encodes = Object.keys(layer.spec.encode).length > 0;
+    if (sets && !encodes) {
+        return "set";
+    }
+    return encodes && !sets && layer.spec.kind === "custom" ? "copies" : null;
+}
+
+/**
+ * The channels a layer writes, with a label's fields read as the label style they are part of.
+ * @param layer - The layer.
+ * @returns Per written channel, the channel it lands in.
+ */
+function writesOf(layer: Building): Map<string, Channel> {
+    return new Map(
+        [...Object.keys(layer.spec.set), ...Object.keys(layer.spec.encode)].map((key) => [
+            key,
+            labelFieldOf(key as Channel)?.into ?? (key as Channel),
+        ]),
+    );
+}
+
+/**
+ * Whether a layer written above another in one layer would paint what the two do apart. Two constants of the same
+ * channel stack (the upper wins); anything else that lands in one channel twice is not merged.
+ * @param below - The lower layer's writes.
+ * @param above - The upper layer's writes.
+ * @param sort - What the layers are.
+ * @returns True when they merge.
+ */
+function mergesOver(below: Map<string, Channel>, above: Map<string, Channel>, sort: MergeSort): boolean {
+    return !clashes(below, above, sort === "set");
+}
+
+/**
+ * Whether two layers write the same thing: one channel, or a label style and one of its fields.
+ * @param below - The lower layer's writes.
+ * @param above - The upper layer's writes.
+ * @param overrides - Whether the same constant channel in both is allowed (the upper wins).
+ * @returns True when they clash.
+ */
+function clashes(below: Map<string, Channel>, above: Map<string, Channel>, overrides: boolean): boolean {
+    const whole = (key: string, into: Channel): boolean =>
+        key === into && channelDescriptor(into)?.accepts === "labelStyle";
+    return [...above].some(([key, into]) =>
+        [...below].some(([lowKey, lowInto]) => {
+            if (into !== lowInto) {
+                return false;
+            }
+            if (key === lowKey) {
+                return !overrides || whole(key, into);
+            }
+            return whole(key, into) || whole(lowKey, lowInto);
+        }),
+    );
+}
+
+/**
+ * What two layers' specs share when one may hold the other: everything but their name, kind and channels.
+ * @param layer - The layer.
+ * @returns The rest of its spec, as text.
+ */
+function placeOf(layer: Building): string {
+    const { name: _name, kind: _kind, set: _set, encode: _encode, ...rest } = layer.spec;
+    return JSON.stringify(rest);
+}
+
+/**
+ * The layer a layer may move into: the nearest one below of its sort and place, reached past layers that write
+ * none of its channels, when the two merge.
+ * @param out - The layers kept so far, bottom first.
+ * @param layer - The layer.
+ * @param held - The ids of the rules whose layers keep their own.
+ * @returns Its index in `out`, or -1.
+ */
+function mergeTarget(out: readonly Building[], layer: Building, held: ReadonlySet<string>): number {
+    const sort = mergeSortOf(layer, held);
+    if (sort === null) {
+        return -1;
+    }
+    const writes = writesOf(layer);
+    for (let at = out.length - 1; at >= 0; at--) {
+        const below = out[at];
+        const belowWrites = writesOf(below);
+        if (mergeSortOf(below, held) === sort && placeOf(below) === placeOf(layer)) {
+            return mergesOver(belowWrites, writes, sort) ? at : -1;
+        }
+        if (clashes(belowWrites, writes, false)) {
+            return -1;
+        }
+    }
+    return -1;
+}
+
+/**
+ * The layers with each like layer moved into the first one below it that it could share: a file's defaults, the
+ * program's defaults beneath them and the values settling derives from them (corners, the drawing of its labels) are
+ * one layer of constants per kind, and the per-element copies of a file's values one layer, instead of a layer per rule
+ * (issue #9297). A layer is moved down only past layers that write none of its channels, so the picture is unchanged.
+ * @param layers - The layers of one kind, bottom first.
+ * @param count - How many elements of the kind the load has.
+ * @param held - The ids of the rules whose layers keep their own: a group or mapping the file declares is a style the
+ * reader named, so it stays a layer of its own.
+ * @returns The layers, bottom first.
+ */
+function mergeLikeLayers(layers: readonly Building[], count: number, held: ReadonlySet<string>): Building[] {
+    const out: Building[] = [];
+    for (const layer of layers) {
+        const into = mergeTarget(out, layer, held);
+        if (into < 0) {
+            out.push(layer);
+            continue;
+        }
+
+        const below = out[into];
+        out[into] = {
+            ...below,
+            spec: {
+                ...below.spec,
+                set: { ...below.spec.set, ...layer.spec.set },
+                encode: { ...below.spec.encode, ...layer.spec.encode },
+            },
+            paint: below.paint === null || layer.paint === null ? null : stacked(below.paint, layer.paint, count),
+            drawn: stacked(below.drawn ?? below.paint ?? new Map(), layer.drawn ?? layer.paint ?? new Map(), count),
+            worth: below.worth + layer.worth,
+        };
+    }
+    return out;
+}
+
+/**
+ * What two layers paint per channel and element, the upper over the lower.
+ * @param below - The lower layer's painting.
+ * @param above - The upper layer's painting.
+ * @param count - How many elements.
+ * @returns The painting.
+ */
+function stacked(
+    below: ReadonlyMap<Channel, unknown[]>,
+    above: ReadonlyMap<Channel, unknown[]>,
+    count: number,
+): Map<Channel, unknown[]> {
+    const out = new Map<Channel, unknown[]>([...below].map(([channel, values]) => [channel, [...values]]));
+    for (const [channel, values] of above) {
+        const held = out.get(channel) ?? new Array<unknown>(count).fill(null);
+        values.forEach((value, i) => {
+            if (value !== null && value !== undefined) {
+                held[i] = value;
+            }
+        });
+        out.set(channel, held);
+    }
+    return out;
 }
 
 /**

@@ -34,7 +34,7 @@ type Story = StoryObj<StoryArgs>;
 /**
  * Words in all three places an edge carries them: "start label" beside the cap at A, "end label"
  * beside the cap at B, and "edge label" above the middle of the line. All three are 14px black
- * on no background, and both caps are the element's own size in the line's darkgrey.
+ * on no background, and both caps are the element's own size in the line's darkgray.
  *
  * WHAT A CAPTION IS. An edge carries words in three places, and they are three separate things.
  * `edge.label` puts words at the MIDDLE of the line. `edge.arrowHeadText` and
@@ -75,8 +75,8 @@ export const ArrowText: Story = {
         );
 
         // The captions are asked for in black, which is what proves their style channels
-        // travelled and not only their words. The background is transparent, so the letters are
-        // the only ink and black is the colour most of it is drawn in.
+        // traveled and not only their words. The background is transparent, so the letters are
+        // the only ink and black is the color most of it is drawn in.
         const painted = scene.arrowCaptions.map((caption) => `${caption.end}:${caption.colours.join("/")}`).sort();
         const black = (hex: string | undefined): boolean =>
             hex !== undefined && [1, 3, 5].every((at) => Number.parseInt(hex.slice(at, at + 2), 16) < 0x30);

@@ -21,7 +21,7 @@
  * what each undo, redo and restore cancels by the rules of design section 6.1 -- the newest
  * pending work dispatched after the step (or deferred from it), an open transaction whose graph
  * writes are in the step's way, and every later-dispatched item that shares a key with one
- * cancelled.
+ * canceled.
  *
  * The layout moves the lane only when told to. The model keeps the arrangement the way design
  * section 6.4 defines it -- a capture sealed into a position at each rest point and before each
@@ -42,9 +42,6 @@ import { stateDigest } from "../../../src/session/project/digest";
 import type { GraphSession, HistoryOutcome, HistoryStepId, PendingId } from "../../../src/session/types";
 import type { HeldQueue, RunGate } from "./fakes";
 import { SKYBOX_PNG } from "./fixtures";
-
-/** The history's coalescing window. */
-export const COALESCE_MS = 1000;
 
 /** Coordinates by node id, as `x,y,z`. */
 type Coords = ReadonlyMap<string, string>;
@@ -154,8 +151,6 @@ export interface Model {
     position: number;
     /** The coalesce key of the top step, while the next edit could still merge into it. */
     mergeKey: string | null;
-    /** When the top step last took an edit. */
-    lastAt: number;
     /** Whether the top step may still take a merge: false once the cursor moved. */
     mergeable: boolean;
     /** Whether the layout has moved the lane since the last capture. */
@@ -227,7 +222,6 @@ export function baselineModel(real: Real): Model {
         steps: [position(real, null, 0)],
         position: 0,
         mergeKey: null,
-        lastAt: 0,
         mergeable: false,
         moved: false,
         tick: 1,
@@ -621,13 +615,11 @@ async function edit(
         refused = true;
     }
 
-    const now = real.clock.now();
     const recorded = history.position > 0 && history.steps[history.position - 1]?.id !== top;
     if (recorded) {
         assert.isFalse(refused, `${label} was refused and recorded a step`);
         pushStep(model, real, { fresh: freshSince(real, held), before, reshapes: shapeOf(real) !== shape });
         model.mergeKey = merges.key;
-        model.lastAt = now;
         model.mergeable = true;
         if (arranges.replaces === true || arranges.rests === true) {
             // Sealed at its commit, or where the layout came to rest while it was open.
@@ -672,12 +664,7 @@ async function edit(
     // section 5.2): merged, the step would reach back across that work.
     const topAt = model.steps[model.position].recordedAt;
     const pendingSinceTop = model.pending.some((item) => item.seq > topAt);
-    const coalesces =
-        merges.key !== null &&
-        !pendingSinceTop &&
-        model.mergeable &&
-        model.mergeKey === merges.key &&
-        now - model.lastAt < COALESCE_MS;
+    const coalesces = merges.key !== null && !pendingSinceTop && model.mergeable && model.mergeKey === merges.key;
     const amends =
         merges.into !== undefined &&
         merges.into !== null &&
@@ -691,9 +678,6 @@ async function edit(
         step.recordedAt = model.tick++;
         step.graph ||= history.steps[history.position - 1].slices.includes("graph");
         step.reshapes ||= shapeOf(real) !== shape;
-        if (coalesces) {
-            model.lastAt = now;
-        }
 
         return "merge";
     }
@@ -703,9 +687,9 @@ async function edit(
 }
 
 /**
- * The pending work a set cancelled takes with it: every later-dispatched item sharing a key.
+ * The pending work a set canceled takes with it: every later-dispatched item sharing a key.
  * @param model - The model.
- * @param roots - The items cancelled.
+ * @param roots - The items canceled.
  * @returns Them and their dependents, in dispatch order.
  */
 function cascade(model: Model, roots: readonly Pending[]): Pending[] {
@@ -752,10 +736,10 @@ function plan(model: Model, direction: "undo" | "redo", target: number): Pending
 }
 
 /**
- * Drop cancelled work from the model, and check the history cancelled exactly it.
+ * Drop canceled work from the model, and check the history canceled exactly it.
  * @param model - The model.
  * @param cancelled - The items.
- * @param reported - What the history said it cancelled.
+ * @param reported - What the history said it canceled.
  * @param when - What happened, for the message.
  */
 function dropCancelled(
@@ -799,9 +783,9 @@ function notePending(model: Model, real: Real, item: Omit<Pending, "id" | "seq" 
 }
 
 /**
- * A layer painting every node one colour.
+ * A layer painting every node one color.
  * @param name - Its name.
- * @param color - Its colour.
+ * @param color - Its color.
  * @returns The specification.
  */
 function layer(name: string, color: string): LayerSpec {
@@ -1113,7 +1097,7 @@ class Move implements Command {
         assert.strictEqual(outcome.kind, expectedKind, `${this.toString()}: what it did`);
         const reported = outcome.kind === "cancelled" ? outcome.pending : [];
         if (outcome.kind !== "cancelled") {
-            // A move that also cancelled reports only the steps it passed.
+            // A move that also canceled reports only the steps it passed.
             model.pending = model.pending.filter((item) => !cancel.includes(item));
         } else {
             dropCancelled(model, cancel, reported, this.toString());
@@ -1250,7 +1234,7 @@ class UndoFromListener implements Command {
     }
 }
 
-/** Move the clock of the coalescing window. */
+/** Move the history's clock: whether edits merge must not depend on it. */
 class Advance implements Command {
     constructor(private readonly ms: number) {}
 
@@ -1501,7 +1485,6 @@ class EndTransaction implements Command {
         if (recorded) {
             pushStep(model, real, { fresh: freshSince(real, held), before: tx.before });
             model.mergeKey = null;
-            model.lastAt = real.clock.now();
             model.mergeable = true;
             followEviction(model, real, `${this.toString()} recorded`);
         }
@@ -1516,7 +1499,7 @@ class EndTransaction implements Command {
 
 /**
  * A data edit or an import whose turn on the queue is held: pending work until it is released or
- * cancelled. An import with a coalesce key takes over a slot of the same key still waiting.
+ * canceled. An import with a coalesce key takes over a slot of the same key still waiting.
  */
 class Queue implements Command {
     constructor(
@@ -1575,7 +1558,7 @@ class Queue implements Command {
     }
 }
 
-/** A run whose completion is held: pending work until it is released or cancelled. */
+/** A run whose completion is held: pending work until it is released or canceled. */
 class SlowRun implements Command {
     check(model: Readonly<Model>): boolean {
         return model.can.runs && model.tx === null;
@@ -1778,7 +1761,7 @@ class Limit implements Command {
     }
 }
 
-/** Clear the history: the state now is the new baseline, and every pending item is cancelled. */
+/** Clear the history: the state now is the new baseline, and every pending item is canceled. */
 class Clear implements Command {
     check(model: Readonly<Model>): boolean {
         return readerMay(model);
@@ -2347,7 +2330,7 @@ export async function undoAllRedoAll(model: Model, real: Real): Promise<void> {
         await new EndTransaction(false).run(model, real);
     }
 
-    // Pending work cancelled by the restore below never records; what finishes first does.
+    // Pending work canceled by the restore below never records; what finishes first does.
     for (let release = new Release(0); model.pending.some((item) => item.release !== null);) {
         await release.run(model, real);
     }

@@ -48,11 +48,11 @@ mockup down to the page where it is acted on:
   Team plan's limit: at 23:27, 56 Linux jobs and 1 macOS job were running against a limit of 60,
   235 jobs were queued, and five master builds had waited as queued runs since 22:22. CI: runner
   wait, longest queued now, saturated time. The Runners page names who held the runners.
-- **Two hours of cancelled master builds.** Every master build from 19:47 to 21:50 ended
+- **Two hours of canceled master builds.** Every master build from 19:47 to 21:50 ended
   `cancelled` when the Build job hung in the Sentry source-map upload (six of them at its 12-minute
   timeout), and master-guard raised nothing because it acted only on `failure` (#3558, #3560).
-  Master: red now, green time; CI: hangs. Earlier, ten builds created 18:02 to 18:47 were cancelled
-  by hand at 18:54 to free runners; GitHub names who cancelled them, so they are drawn gray as
+  Master: red now, green time; CI: hangs. Earlier, ten builds created 18:02 to 18:47 were canceled
+  by hand at 18:54 to free runners; GitHub names who canceled them, so they are drawn gray as
   "cancelled by hand", listed and not red.
 - **A master bug turned every pull request red on one check.** `Test (graphty-*)` failed in five
   open pull requests from 18:03 (#3572); earlier the Figma lock in `Checks` refused every branch
@@ -197,7 +197,7 @@ picker: a table or count covers the picked window, a chart covers 6 h at 1 h and
 2 merged in the last 1 h, so the last 6 h").
 
 - **Master**: a strip by minute, 6 h at the default (green, red, gray for cancels that are not failures:
-  superseded, or cancelled by hand); red spans with builds, cause and fix; shared failures with the
+  superseded, or canceled by hand); red spans with builds, cause and fix; shared failures with the
   pull requests failing, start, suspect merges and issue.
 - **Pull requests**: where the time goes for pull requests merged in the range (median minutes per
   stage: waiting for runners, checks running, red and being fixed, merging); "Waiting on the owner"
@@ -328,9 +328,9 @@ Shared definitions:
       priority waiting request for '<group>' exists". `ci.yml`'s push concurrency group is
       `ci-<sha>`, so no master build is ever superseded by another; the rule is kept for other
       workflows and for a later change of the group.
-    - **cancelled by hand**, gray, listed but not red: the run's cancel actor (from the run's
+    - **canceled by hand**, gray, listed but not red: the run's cancel actor (from the run's
       timeline, or an annotation naming a user, "The run was canceled by @<user>") is a person or a
-      session acting as one. The ten builds created 18:02 to 18:47 on 2026-10-25 and cancelled at
+      session acting as one. The ten builds created 18:02 to 18:47 on 2026-10-25 and canceled at
       18:54 to free runners were this.
     - **every other cancel is red**, including a job that ended at its own `timeout-minutes` (also a
       hang) and the Sentry cancels of 19:47 to 21:50.
@@ -510,7 +510,7 @@ branch; with a full page of open pull requests (50) nothing is left out.
 
 "Runner-minutes per merge" adds up every job's minutes (completed minus started, unrounded) by the kind of
 run that spent them -- pull request runs (every attempt, including pull requests that never merged), master
-push builds (cancelled ones too), full runs (`release.yml` and the workflows it calls) and other (bisect,
+push builds (canceled ones too), full runs (`release.yml` and the workflows it calls) and other (bisect,
 stress, hosts, dependabot, dispatches) -- and divides by the pull requests merged into master in the same
 window. The CI page shows each kind over 24 h and 7 d, so every change to the CI load shows its saving. The
 thresholds come from 2026-10-26: 387 over 7 d (511 in the Pacific day so far), so today's value is the edge of
@@ -518,7 +518,7 @@ the target and 1.5 times it is red; as a slow measure it is judged on its 7 days
 
 "Superseded runs running" counts only what nothing else cancels: runs of workflows without
 `cancel-in-progress` on `pull_request` (PR Integrity, CodeQL) whose pull request has a newer
-commit, and jobs with `if: always()` still running after their run was cancelled. `ci.yml` and
+commit, and jobs with `if: always()` still running after their run was canceled. `ci.yml` and
 `hosts.yml` cancel their own superseded pull request runs. It gets a state once it has fired on
 real data.
 
@@ -534,7 +534,7 @@ logic is unchanged, so a non-gating job still never fails a lane.
   non-pull-request run, gating or not, bins and shards folded into their family, that failed in at
   least half of its newest 10 finished runs of the last 7 days (4 at least; older failures kept
   Dependabot red for two weeks after its fix, issue #7369), or has failed in every run for 3 days
-  (however few). Cancelled and skipped jobs say nothing about a job and are not runs. An aggregator
+  (however few). Canceled and skipped jobs say nothing about a job and are not runs. An aggregator
   (`All Checks Pass`) is not judged: it fails whenever any job it summarizes fails, so its share is the
   union of theirs, and it stood alone on the list at 8 of 10 while no lane was chronic (issue #6068).
   A job with no

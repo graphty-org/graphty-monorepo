@@ -30,6 +30,9 @@ import {
     measuredOf,
     outsideOf,
     packBins,
+    parityBins,
+    pinCanary,
+    pinChanged,
     binCost,
     BIN_LIMIT_MS,
     FILE_OVERHEAD_MS,
@@ -2149,6 +2152,160 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
         assert.deepEqual(lightPlan(ROOT, [byName("graphty-1")], [trusted]).unknown, []);
     });
 
+    it("runs the canary configuration's tests on every change to the element's source, even in a twin a pull request never runs whole (#9234)", () => {
+        const { canary } = loadRules(ROOT);
+        const inv = "graphty-element/test/browser/drawn-invariants.test.ts";
+        const frame = "graphty/src/workspace/frame/__tests__/CanaryDrawing.real-element.test.tsx";
+        const tracked = () => [inv, frame, "graphty/src/workspace/frame/__tests__/Workspace.test.tsx"];
+        const selection = [
+            sel("graphty-element-browser-1", "files", ["graphty-element/test/browser/a.test.ts"]),
+            sel("graphty-element-browser-2", "none"),
+            { ...sel("graphty-features-on-1", "all"), specs: [frame, "graphty/src/x.real-element.test.tsx"] },
+            sel("layout", "none"),
+        ];
+        assert.equal(pinCanary(["graphty-element/test/browser/a.test.ts"], canary, selection, tracked), selection);
+        assert.equal(pinCanary(["graphty-element/README.md"], canary, selection, tracked), selection);
+        const out = pinCanary(["graphty-element/src/Graph.ts"], canary, selection, tracked);
+        assert.deepEqual(
+            out[0].files.map((f) => f.file),
+            ["graphty-element/test/browser/a.test.ts", inv],
+        );
+        assert.deepEqual(out[1].mode, "files");
+        assert.deepEqual(
+            out[2].pinned.map((p) => p.file),
+            [frame],
+            "the On twin keeps the frame's real-element tests, not unit tests",
+        );
+        assert.equal(out[3], selection[3]);
+        const shards = ["graphty-features-on-1", "graphty-features-on-2"].map(byName);
+        if (shards.some((s) => !s)) {
+            return; // no experiment declared: no On twin exists
+        }
+        const plan = lightPlan(ROOT, shards, [out[2], { ...out[2], shard: "graphty-features-on-2" }]);
+        const pinned = plan.bins.filter((b) => !b.whole);
+        assert.deepEqual(
+            pinned.map((b) => [b.name, b.files]),
+            [[`graphty-features-on-${Math.max(2, plan.bins.length - 1) + 1}`, [frame]]],
+        );
+        const include = matrixPlan(["graphty"], undefined, plan, true);
+        assert.deepEqual(
+            include.filter((e) => e.flags === "on").map((e) => e.shard),
+            pinned.map((b) => b.name),
+            "a pull request runs the pinned bin and none of the twin's whole bins",
+        );
+    });
+
+    it("runs a change's own tests, and those its imports reach, in a twin whose package runs whole (#9274)", () => {
+        const mine = "graphty-element/test/session/source-references.test.ts";
+        const reached = { file: "graphty-element/test/session/copies.test.ts", why: "imports src/session/copies.ts" };
+        const specs = [mine, reached.file, "graphty-element/test/other.test.ts"];
+        const selection = [
+            { ...sel("graphty-element-default", "all"), specs },
+            {
+                ...sel("graphty-element-default-features-on", "all"),
+                specs,
+                measured: { mode: "files", files: [reached] },
+            },
+            sel("graphty-element-browser-1", "files", ["graphty-element/test/browser/a.test.ts"]),
+            sel("layout", "none"),
+        ];
+        const changed = [mine, "graphty-element/vitest.config.ts", "graphty-element/test/browser/a.test.ts"];
+        const out = pinChanged(changed, selection);
+        assert.deepEqual(
+            out[1].pinned,
+            [{ file: mine, why: "the pull request changed it" }, reached],
+            "the change's own test and the test its imports reach",
+        );
+        assert.equal(out[2], selection[2], "a shard that selects files keeps them");
+        assert.equal(out[3], selection[3]);
+        assert.equal(pinChanged(["graphty-element/src/a.ts"], selection)[0], selection[0], "no test of its changed");
+        const shards = ["graphty-element-default", "graphty-element-default-features-on"].map(byName);
+        if (shards.some((s) => !s)) {
+            return; // no experiment declared: no On twin exists
+        }
+        const plan = lightPlan(ROOT, shards, out);
+        const pinned = plan.bins.filter((b) => !b.whole);
+        assert.deepEqual(
+            pinned.map((b) => [b.family, b.files, b.why[mine]]),
+            [["graphty-element-default-features-on", [reached.file, mine].sort(), "the pull request changed it"]],
+            "only the twin gets a bin of them: the Off family already runs every file",
+        );
+        assert.match(pinned[0].command, /GRAPHTY_FEATURES_ON=1 .*--project=default-features-on/u);
+        const include = matrixPlan(["graphty-element"], undefined, plan, true);
+        assert.deepEqual(
+            include.filter((e) => e.flags === "on").map((e) => e.shard),
+            pinned.map((b) => b.name),
+            "a pull request runs the twin's pinned bin and none of its whole bins",
+        );
+    });
+
+    it("draws the stories a pull request adds or changes on every render-parity engine, in one job (#9274)", () => {
+        const story = "graphty-element/stories/ViewMode.stories.ts";
+        const changed = [
+            story,
+            "graphty-element/stories/Gone.stories.ts",
+            "graphty-element/stories/helpers/frame.ts",
+            "graphty-element/src/Graph.ts",
+            "graphty/src/App.stories.tsx",
+        ];
+        const exists = (f) => !f.includes("Gone");
+        const bins = parityBins(SHARDS, changed, exists, () => 2);
+        const lanes = SHARDS.filter((s) => s["pull-request"] === "stories").map((s) => s.shard);
+        assert.deepEqual(
+            lanes,
+            ["webgl", "webgpu", "webkit"].map((e) => `graphty-element-render-parity-${e}`),
+        );
+        assert.deepEqual(
+            bins.map((b) => [b.name, b.job, b.files]),
+            lanes.map((l) => [`${l}-1`, "graphty-element-render-parity-1", [story]]),
+        );
+        for (const b of bins) {
+            const shard = byName(b.shard);
+            assert.ok(shard["full-run-only"], "a pull request never runs the whole project");
+            assert.equal(b.ms, 2 * shard["story-ms"]);
+            assert.ok(
+                b.command.includes(
+                    String.raw`VITE_PARITY_STORIES='/stories/(ViewMode)\.stories\.ts$' pnpm exec vitest run --project=render-parity test/render-parity/stories.test.ts --passWithNoTests`,
+                ),
+                b.command,
+            );
+            assert.ok(b.command.startsWith(shard["test-command"].split(" pnpm exec")[0]), "with its engine's settings");
+        }
+        assert.ok(new RegExp(String.raw`/stories/(ViewMode)\.stories\.ts$`).test("../../stories/ViewMode.stories.ts"));
+        assert.deepEqual(
+            parityBins(SHARDS, ["graphty-element/src/Graph.ts"], exists, () => 2),
+            [],
+        );
+        // more stories than one job holds go in more jobs, each with every engine
+        const big = ["A", "B", "C"].map((n) => `graphty-element/stories/${n}.stories.ts`);
+        const split = parityBins(SHARDS, big, exists, () => 30);
+        assert.deepEqual([...new Set(split.map((b) => b.job))].length, 3);
+        assert.equal(split.length, 9);
+
+        const include = matrixPlan(["graphty-element"], undefined, { bins, whole: [], none: [] }, true).filter((e) =>
+            e.shard.includes("render-parity"),
+        );
+        assert.deepEqual(
+            include.map((e) => e.shard),
+            ["graphty-element-render-parity-1"],
+        );
+        assert.deepEqual(
+            include[0].members,
+            bins.map((b) => b.name),
+        );
+        assert.equal(include[0].browsers, "chromium webkit", "WebKit is installed for its engine");
+        for (const b of bins) {
+            assert.ok(include[0]["test-command"].includes(`node tools/results/run-group.mjs ${b.name} `), b.name);
+        }
+        assert.deepEqual(
+            matrixPlan(["graphty-element"], undefined, { bins: [], whole: [], none: [] }, true)
+                .map((e) => e.shard)
+                .filter((s) => s.includes("render-parity")),
+            [],
+            "with no story changed, a pull request draws none",
+        );
+    });
+
     it("says in the job summary what each bin runs and why, what runs whole and why, and what runs nothing", () => {
         const files = [
             { file: "graphty/src/a.test.tsx", why: "imports graphty/src/a.ts" },
@@ -2717,5 +2874,71 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             bins.flatMap((b) => b.files),
             ["graph-io/fidelity-stories/F.stories.tsx"],
         );
+    });
+});
+
+describe("the forced-batched variant on a pull request (#9165)", () => {
+    const fb = SHARDS.filter((s) => /^graphty-element-forced-batched-\d+$/u.test(s.shard));
+    const browser = SHARDS.filter((s) => /^graphty-element-browser-\d+$/u.test(s.shard));
+    // a light plan's bin of one family, as lightPlan() writes it; `whole` when the change runs the package whole
+    const bin = (family, shards, n, whole) => ({
+        name: `${family}-${n}`,
+        family,
+        shard: shards[0].shard,
+        covers: shards.map((s) => s.shard),
+        files: [`graphty-element/test/browser/f${n}.test.ts`],
+        command: `cd graphty-element && pnpm exec vitest run test/browser/f${n}.test.ts`,
+        ...(whole ? { whole: "graphty-element" } : {}),
+    });
+    const both = (n, whole) => [
+        bin("graphty-element-browser", browser, n, whole),
+        bin("graphty-element-forced-batched", fb, n, whole),
+    ];
+    const count = (matrix, family) => matrix.filter((e) => new RegExp(`^${family}-\\d+$`, "u").test(e.shard)).length;
+
+    it("runs every file, packed into bins, when the change runs graphty-element whole", () => {
+        // a change to a test/data file, package.json or a vitest config: test-select packs both families whole
+        const light = { bins: [1, 2, 3].flatMap((n) => both(n, true)) };
+        const pr = matrixPlan(["graphty-element"], undefined, light, true);
+        assert.equal(count(pr, "graphty-element-browser"), 3);
+        assert.equal(count(pr, "graphty-element-forced-batched"), 3, "the batched bins ran with the objects ones");
+        assert.equal(count(matrixPlan(["graph-io"], undefined, light, true), "graphty-element-forced-batched"), 0);
+    });
+
+    it("runs its twelve shards, not packed bins, when the change runs graphty-element whole", () => {
+        const specs = Array.from({ length: 40 }, (_, i) => `graphty-element/test/browser/t${i}.test.ts`);
+        const all = (s) => ({ shard: s.shard, mode: "all", files: [], reasons: ["package.json changed"], specs });
+        const light = lightPlan(ROOT, [...browser, ...fb], [...browser, ...fb].map(all));
+        assert.deepEqual(
+            light.whole,
+            fb.map((s) => s.shard),
+        );
+        assert.ok(light.bins.length > 0 && light.bins.every((b) => b.family === "graphty-element-browser"));
+        const pr = matrixPlan(["graphty-element"], undefined, light, true);
+        assert.deepEqual(
+            pr.filter((e) => e.shard.includes("forced-batched")).map((e) => e.shard),
+            fb.map((s) => s.shard),
+        );
+    });
+
+    it("runs as the bins of the selected files, as the browser shards do", () => {
+        const pr = matrixPlan(["graphty-element"], undefined, { bins: both(1, false) }, true);
+        assert.deepEqual(
+            pr.filter((e) => e.shard.includes("forced-batched")).map((e) => e.shard),
+            ["graphty-element-forced-batched-1"],
+        );
+        const none = { bins: [], none: [...browser, ...fb].map((s) => s.shard) };
+        assert.equal(
+            count(matrixPlan(["graphty-element"], undefined, none, true), "graphty-element-forced-batched"),
+            0,
+        );
+    });
+
+    it("runs whole wherever the browser shards run whole", () => {
+        for (const pullRequest of [true, false]) {
+            const m = matrixPlan(["graphty-element"], undefined, undefined, pullRequest);
+            assert.equal(count(m, "graphty-element-forced-batched"), fb.length, `pull request ${pullRequest}`);
+            assert.equal(count(m, "graphty-element-browser"), browser.length);
+        }
     });
 });

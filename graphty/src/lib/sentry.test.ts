@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -6,6 +7,7 @@ import {
     isSentryEnabled,
     resetSentryState,
     type SentryCalls,
+    sentryConfigured,
     setSentryCallsForTests,
     stopSentry,
     testCaptureError,
@@ -16,26 +18,42 @@ import {
 const mockAddAttachment = vi.fn();
 const mockClearAttachments = vi.fn();
 const mockInit = vi.fn();
-const mockClose = vi.fn(() => Promise.resolve(true));
+/** The one client's options, as Sentry.init would have made them. */
+let clientOptions: { enabled?: boolean } = {};
+const mockGetClient = vi.fn(() => (mockInit.mock.calls.length === 0 ? undefined : { getOptions: () => clientOptions }));
 const mockReplayStart = vi.fn();
-const mockReplay = vi.fn(() => ({ name: "Replay", start: mockReplayStart, stop: vi.fn(() => Promise.resolve()) }));
+const mockReplayStartBuffering = vi.fn();
+const mockReplay = vi.fn(() => ({
+    name: "Replay",
+    start: mockReplayStart,
+    startBuffering: mockReplayStartBuffering,
+    stop: vi.fn(() => Promise.resolve()),
+    // the stand-in records nothing; sentryReplay.test.ts covers a recording replay
+    getRecordingMode: () => undefined,
+}));
 const mockCaptureException = vi.fn();
 const mockCaptureFeedback = vi.fn();
+const mockClearBreadcrumbs = vi.fn();
 const mockGetCurrentScope = vi.fn(() => ({
     addAttachment: mockAddAttachment,
     clearAttachments: mockClearAttachments,
+    clearBreadcrumbs: mockClearBreadcrumbs,
 }));
+const mockGetIsolationScope = vi.fn(() => ({ clearBreadcrumbs: mockClearBreadcrumbs }));
+
+/** Only the members the module calls, each a recording stand-in. */
+const calls = {
+    init: mockInit,
+    getClient: mockGetClient,
+    replayIntegration: mockReplay,
+    captureException: mockCaptureException,
+    captureFeedback: mockCaptureFeedback,
+    getCurrentScope: mockGetCurrentScope,
+    getIsolationScope: mockGetIsolationScope,
+} as unknown as SentryCalls;
 
 beforeAll(() => {
-    // Only the members the module calls, each a recording stand-in.
-    setSentryCallsForTests({
-        init: mockInit,
-        close: mockClose,
-        replayIntegration: mockReplay,
-        captureException: mockCaptureException,
-        captureFeedback: mockCaptureFeedback,
-        getCurrentScope: mockGetCurrentScope,
-    } as unknown as SentryCalls);
+    setSentryCallsForTests(calls);
 });
 afterAll(() => {
     setSentryCallsForTests();
@@ -80,73 +98,109 @@ describe("Sentry initialization", () => {
         initSentry({
             dsn: "https://test@test.ingest.sentry.io/123",
             environment: "test",
-            isProd: false,
         });
 
         expect(isSentryEnabled()).toBe(true);
-        expect(mockInit).toHaveBeenCalledWith(
-            expect.objectContaining({
-                dsn: "https://test@test.ingest.sentry.io/123",
-                environment: "test",
-                replaysSessionSampleRate: 1.0,
-                traceLifecycle: "static",
-                dataCollection: expect.objectContaining({ userInfo: false }),
-            }),
-        );
+        expect(mockInit).toHaveBeenCalledOnce();
+        expect(mockInit.mock.calls[0]?.[0]).toMatchObject({
+            dsn: "https://test@test.ingest.sentry.io/123",
+            environment: "test",
+            replaysSessionSampleRate: 0,
+            replaysOnErrorSampleRate: 1,
+            sendClientReports: false,
+            dataCollection: { userInfo: false },
+        });
     });
 
-    it("records each session's replay with every text, input and medium masked", () => {
+    it("buffers for replay-on-error only, with every text, input and medium and the reader's attributes masked", () => {
+        mockReplay.mockClear();
         initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
 
-        expect(mockReplay).toHaveBeenCalledWith({ maskAllText: true, maskAllInputs: true, blockAllMedia: true });
+        expect(mockReplay).toHaveBeenCalledWith(
+            expect.objectContaining({
+                maskAllText: true,
+                maskAllInputs: true,
+                blockAllMedia: true,
+            }),
+        );
+        const masked = (mockReplay.mock.calls[0] as unknown as [{ maskAttributes: string[] }])[0].maskAttributes;
+        // Sentry asks the list `includes(name)`: every attribute but the few kept is masked,
+        // one nobody has listed yet included.
+        for (const name of ["aria-description", "name", "id", "data-part", "data-notes", "data-shader", "data-new"]) {
+            expect(masked.includes(name)).toBe(true);
+        }
+        for (const name of ["class", "role", "data-ph-capture-attribute-control"]) {
+            expect(masked.includes(name)).toBe(false);
+        }
+    });
+
+    it("leaves out session pings, console breadcrumbs and conversation tagging, and keeps the other defaults", () => {
+        initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
+
+        const { integrations } = (mockInit.mock.calls[0] as unknown as [{ integrations: unknown }])[0];
+        expect(typeof integrations).toBe("function");
+        // Sentry's own defaults, so a renamed integration fails here instead of slipping past the filter.
+        const names = Sentry.getDefaultIntegrations({}).map((each) => each.name);
+        const dropped = ["BrowserSession", "Console", "ConversationId"];
+        for (const name of dropped) {
+            expect(names).toContain(name);
+        }
+        const chosen = (integrations as (defaults: { name: string }[]) => { name: string }[])(
+            names.map((name) => ({ name })),
+        ).map((each) => each.name);
+        expect(chosen).toEqual([...names.filter((name) => !dropped.includes(name)), "Replay"]);
+    });
+
+    it("sets no tracesSampleRate and no trace lifecycle", () => {
+        initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
+
+        const options = (mockInit.mock.calls[0] as unknown as [Record<string, unknown>])[0];
+        expect("tracesSampleRate" in options).toBe(false);
+        expect("traceLifecycle" in options).toBe(false);
+    });
+
+    it("reads the configuration a test supplies, for initSentry() and sentryConfigured()", () => {
+        setSentryCallsForTests({ ...calls, defaultConfig: { dsn: "" } });
+        expect(sentryConfigured()).toBe(false);
+
+        setSentryCallsForTests({ ...calls, defaultConfig: { dsn: "https://test@test.ingest.sentry.io/123" } });
+        expect(sentryConfigured()).toBe(true);
+        initSentry();
+        expect(mockInit).toHaveBeenCalledWith(
+            expect.objectContaining({ dsn: "https://test@test.ingest.sentry.io/123" }),
+        );
+
+        setSentryCallsForTests(calls);
     });
 
     it("stops sending when usage data is turned off", () => {
+        clientOptions = {};
         initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
         stopSentry();
 
-        expect(mockClose).toHaveBeenCalled();
+        expect(clientOptions.enabled).toBe(false);
         expect(isSentryEnabled()).toBe(false);
     });
 
-    it("keeps one replay when usage data is turned off and on again", () => {
+    it("keeps one replay and one client when usage data is turned off and on again", () => {
+        clientOptions = {};
         mockReplay.mockClear();
         mockReplayStart.mockClear();
+        mockClearBreadcrumbs.mockClear();
         initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
+        const inits = mockInit.mock.calls.length;
         stopSentry();
         initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
 
-        // Sentry throws on a second replayIntegration() in one page.
+        // Sentry throws on a second replayIntegration() in one page; start() would record the whole
+        // session; a second init would leave the replay's hooks on the first client.
+        expect(mockInit).toHaveBeenCalledTimes(inits);
+        expect(clientOptions.enabled).toBe(true);
+        // Both scopes' breadcrumbs, gathered while it was off.
+        expect(mockClearBreadcrumbs).toHaveBeenCalledTimes(2);
         expect(mockReplay).toHaveBeenCalledTimes(1);
-        expect(mockReplayStart).toHaveBeenCalledTimes(1);
-    });
-
-    it("should use lower traces sample rate in production", () => {
-        initSentry({
-            dsn: "https://test@test.ingest.sentry.io/123",
-            environment: "production",
-            isProd: true,
-        });
-
-        expect(mockInit).toHaveBeenCalledWith(
-            expect.objectContaining({
-                tracesSampleRate: 0.1,
-            }),
-        );
-    });
-
-    it("should use higher traces sample rate in development", () => {
-        initSentry({
-            dsn: "https://test@test.ingest.sentry.io/123",
-            environment: "development",
-            isProd: false,
-        });
-
-        expect(mockInit).toHaveBeenCalledWith(
-            expect.objectContaining({
-                tracesSampleRate: 1.0,
-            }),
-        );
+        expect(mockReplayStartBuffering).toHaveBeenCalledTimes(1);
+        expect(mockReplayStart).not.toHaveBeenCalled();
     });
 
     it("should capture test error via testCaptureError", () => {

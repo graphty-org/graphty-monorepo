@@ -97,12 +97,12 @@ describe("built-in algorithm catalogue", () => {
             );
         });
 
-        it("folds thirty-two registered algorithms into thirty keys", () => {
+        it("folds thirty-five registered algorithms into thirty-three keys", () => {
             const legacyCount = BUILT_IN_ALGORITHMS.reduce((total, d) => total + d.legacyKeys.length, 0);
 
-            assert.lengthOf(registeredTypes(), 32);
-            assert.lengthOf(BUILT_IN_ALGORITHMS, 30);
-            assert.strictEqual(legacyCount, 32);
+            assert.lengthOf(registeredTypes(), 35);
+            assert.lengthOf(BUILT_IN_ALGORITHMS, 33);
+            assert.strictEqual(legacyCount, 35);
         });
 
         it("uses a unique key for every descriptor", () => {
@@ -321,7 +321,7 @@ describe("built-in algorithm catalogue", () => {
 
         it("gives the all-pairs sweep a key of its own rather than a switch on shortest-path", () => {
             // A run fixes its result shape from its descriptor once, at creation, so a parameter
-            // that changed the shape would make the catalogue wrong about every run of that key:
+            // that changed the shape would make the catalog wrong about every run of that key:
             // the all-pairs sweep measures every node where shortest-path names one route.
             assert.isUndefined(descriptorFor("shortest-path").options.find((option) => option.name === "allPairs"));
             assert.strictEqual(descriptorFor("shortest-path").shape, "path");
@@ -376,12 +376,12 @@ describe("built-in algorithm catalogue", () => {
             });
         });
 
-        it("maps the twenty-seven unchanged keys to themselves with no parameters", () => {
+        it("maps the thirty unchanged keys to themselves with no parameters", () => {
             const unchanged = BUILT_IN_ALGORITHMS.filter((descriptor) => descriptor.legacyKeys.length === 1).filter(
                 (descriptor) => descriptor.legacyKeys[0].key === descriptor.key,
             );
 
-            assert.lengthOf(unchanged, 27);
+            assert.lengthOf(unchanged, 30);
             for (const descriptor of unchanged) {
                 assert.deepEqual(algorithmByLegacyKey(descriptor.key)?.params, {}, descriptor.key);
             }

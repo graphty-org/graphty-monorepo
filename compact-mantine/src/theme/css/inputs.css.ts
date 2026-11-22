@@ -759,6 +759,13 @@ const css = `
     flex-direction: column;
     gap: 4px;
 }
+/* barUnderField: the bar directly under the URL field. */
+.cm-file-url-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
 .cm-file-url-row {
     display: flex;
     align-items: center;

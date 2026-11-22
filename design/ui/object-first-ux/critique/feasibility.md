@@ -35,10 +35,10 @@ used unchanged. The element's words this file needs:
   `{where}`, or a node list `{nodes}`. `session.scope.resolve` turns one into ids,
   `session.scope.count` counts one, `session.scope.save` keeps one under a name.
 - **Filter**: what is showing (`Filter` in `session/visibility/filter.ts`): expression, range,
-  categories, degree, component, neighbourhood, edges, and the combinators all / any / not.
+  categories, degree, component, neighborhood, edges, and the combinators all / any / not.
   `session.visibility.set(filter)` applies one; there is exactly one in force.
 - **Selection target**: what `session.selection.apply(target, op)` may select
-  (`SelectionTarget` in `session/selection/targets.ts`): ids, a neighbourhood, an expression,
+  (`SelectionTarget` in `session/selection/targets.ts`): ids, a neighborhood, an expression,
   a text search, a scope, the top N of a run, everything above a threshold, the edges between
   selected nodes, the inverse.
 - **Layer**: one rule of appearance (`LayerSpec` in `catalog/types.ts`): a selector, a target
@@ -101,7 +101,7 @@ Left panel and canvas:
 | "Karate Club  34 / 78" root row with a locked chip | `session.status.counts`; the two element-owned base layers (`source.by == "element"`, `locked`) in `session.styles.list()` | none |
 | Views > "Overview" (camera, mode and mask saved together) | `el.saveCameraPreset(name)` saves the camera only; the mode and the mask are app state | small: a View is camera plus mode plus the mask; until a project file (#301) exists it lives in the app and is lost on reload |
 | Three suggestion rows | app | none |
-| 34 grey nodes, no labels | the element's defaults | none |
+| 34 gray nodes, no labels | the element's defaults | none |
 | Status bar "Spread out: settled" with a pause glyph | `el.waitForSettled()`, `graph-settled` event; **no pause, step or state** | medium: the layout transport, issue #144 |
 
 Dataset inspector, section by section:
@@ -124,13 +124,13 @@ Dataset inspector, section by section:
 | Canvas | Labels [None v] / [Top 6 by Connections v] | a layer with an expression selector over the run's `rank` field (`session.results.term(run, "rank")`) binding `node.label`; expression selectors compile in the style engine | none today; cleaner with a `{match: "scope", scope: {top: ...}}` selector (4.2) so the run id never appears in a rule |
 | Canvas | Legend switch, Minimap switch, Notes switch | legend: `session.styles.legend()` and the app draws it (#292 for the element to draw); minimap: #293; notes: #145 and the marker channel #295 | medium each, none blocking the mock |
 | Canvas | Default look: locked mini paint rows for Node and Edge | the two element base layers; `update` on them rejects `E_PROTECTED` | none; the mock draws them locked, which is right |
-| Attributes | one row per column with type and completeness; "..." with Colour by, Size by, Filter by, Group by, Label by, Set as time, Set as type | `session.data.attributes()` (`AttributeDescriptor`: type, completeness, uniqueCount, origin). Colour by / Size by: `session.styles.add` with `{match: "has", path: "data.value"}` and `encode: {"node.color": {by: "data.value", scale: "ordinal"}}` works today. Filter by: `visibility.set({kind: "categories" | "range"})` works. Label by: a `node.label` binding with `passthrough` | Set as time: #333; Set as type: #299. `session.styles.encode()` takes only a run, so an attribute encoding goes through the raw `add` (works; a one-call verb is small and optional) |
+| Attributes | one row per column with type and completeness; "..." with Color by, Size by, Filter by, Group by, Label by, Set as time, Set as type | `session.data.attributes()` (`AttributeDescriptor`: type, completeness, uniqueCount, origin). Color by / Size by: `session.styles.add` with `{match: "has", path: "data.value"}` and `encode: {"node.color": {by: "data.value", scale: "ordinal"}}` works today. Filter by: `visibility.set({kind: "categories" | "range"})` works. Label by: a `node.label` binding with `passthrough` | Set as time: #333; Set as type: #299. `session.styles.encode()` takes only a run, so an attribute encoding goes through the raw `add` (works; a one-call verb is small and optional) |
 | Attributes | "+" Join a table, New from formula | none | #298 (medium); computed attributes (medium, design 4.3.4) |
 | Findings | facts computed on the whole graph | `session.runs.list()` filtered by shape `fact` / `pair-list`; `RunResult.graph` | none |
 | Made by | the load record | `lastImport()`, `DataConfig.knownFields` | none |
 | Export | Image [PNG v] [2x v] | `el.captureScreenshot(options)`: format, multiplier, transparent, destination | none; legend-in-picture is #292 |
-| Export | Data [GraphML v] | every `FormatDescriptor` is `canExport: false`; graph-io has the exporters | medium: wire graph-io's exporters behind the catalogue (inventory section 1) |
-| Export | Report, Methods text, Recipe | none | #187 (report); methods text needs run serialisers (#177, small); recipes need commands (#337, large) |
+| Export | Data [GraphML v] | every `FormatDescriptor` is `canExport: false`; graph-io has the exporters | medium: wire graph-io's exporters behind the catalog (inventory section 1) |
+| Export | Report, Methods text, Recipe | none | #187 (report); methods text needs run serializers (#177, small); recipes need commands (#337, large) |
 | Notes | every note, grouped by anchor | none | #145 (large) |
 
 ### 2.3 Screen 3: the tree after two runs and a filter, a Group selected
@@ -140,9 +140,9 @@ This is the screen that decides feasibility. Row by row on the left:
 | Tree row | Today | Gap |
 |---|---|---|
 | "Degree > 8  5 nodes", outline Fill | **Painting** works: a layer `{match: "expression", where: "degree > 8"}` writing `node.outline` compiles in the style engine. **Counting** ("5 nodes") does not: `session.scope.count({where})` throws `E_UNSUPPORTED` because no `match` source is attached (#149). Selecting its members, focusing on it, and running Louvain within it are the same call and the same throw | **large**: the query engine (#149). Until it lands a rule set has a Fill and nothing else |
-| "Connections (Degree)  34 values", Size fill and no colour "because colour was taken" | `session.runs.start("degree")` then `styles.encode({run, channel: "node.size", range})`. The **default** the mock relies on is the opposite of the element's: `autoApply.ts` drops a suggestion when an authored layer holds the channel, and paints colour over a run-made layer otherwise. Neither yields "Size because Colour was taken" | small: the suggestion picks the first channel no enabled layer above writes (Colour, then Size, then Outline), and never drops itself. Feature-fit 5 note A3 |
-| "Communities (Louvain)  4 groups", strip chip | `runs.start("louvain")`; `styles.encode({run, channel: "node.color"})`; the strip's four colours from `session.styles.legend()` swatches | none |
-| Group 1 to Group 4 rows with counts and chips | `RunResult.summary().groups` (group, size); swatch colour per group from the legend block | none for the rows. **Selecting one** (the halo) has no target: `SelectionTarget` has `top` and `above` but no "run field equals value"; `{where: "results.x.group == 2"}` throws (#149) | medium: a `{group: {run, field, value}}` target and scope form, or the query engine; see 4.2 |
+| "Connections (Degree)  34 values", Size fill and no color "because colour was taken" | `session.runs.start("degree")` then `styles.encode({run, channel: "node.size", range})`. The **default** the mock relies on is the opposite of the element's: `autoApply.ts` drops a suggestion when an authored layer holds the channel, and paints color over a run-made layer otherwise. Neither yields "Size because Colour was taken" | small: the suggestion picks the first channel no enabled layer above writes (Color, then Size, then Outline), and never drops itself. Feature-fit 5 note A3 |
+| "Communities (Louvain)  4 groups", strip chip | `runs.start("louvain")`; `styles.encode({run, channel: "node.color"})`; the strip's four colors from `session.styles.legend()` swatches | none |
+| Group 1 to Group 4 rows with counts and chips | `RunResult.summary().groups` (group, size); swatch color per group from the legend block | none for the rows. **Selecting one** (the halo) has no target: `SelectionTarget` has `top` and `above` but no "run field equals value"; `{where: "results.x.group == 2"}` throws (#149) | medium: a `{group: {run, field, value}}` target and scope form, or the query engine; see 4.2 |
 | Group 2's override chip (#d55e00 beats the inherited #56b4e9) | a second layer `{match: "expression", where: "<term>.group == `2`"}` writing `node.color`, placed above the Louvain layer by `styles.move`; expression selectors compile | none for the paint. The order rule "children above their parent" is nobody's today (4.3) |
 | Eye and lock on the row | eye: `styles.update(id, {enabled: false})` on every layer of the object. Lock: nothing; `Layer.locked` is true only for element layers | lock is objects-API state (4.3); picking that skips locked members is small |
 | Gold halo on the eleven members | the element's own selection layer, once the members are in `session.selection` | blocked by the Group target above |
@@ -160,7 +160,7 @@ Group inspector:
 | Members | header actions Select, Focus | Select: the Group target (4.2). Focus: `visibility.set` has no filter kind for "this group" (4.2) | medium, same item |
 | Fill | "[chit] D55E00 100% [eye] [-]" | `styles.update(id, {set: {"node.color": ...}})`; opacity is `node.opacity`; eye is `enabled`; minus removes the layer | none |
 | Fill | "Inherited from Communities" read-only row with a lock | `session.styles.explain({node: <any member>})` reports the Louvain layer's contribution and `editable: false` with a reason | none |
-| Fill | "+" adds a channel | `styles.update` with another key in `set`; the channel list is `CHANNELS` in the catalogue | none |
+| Fill | "+" adds a channel | `styles.update` with another key in `set`; the channel list is `CHANNELS` in the catalog | none |
 | Made by | "Louvain, 34 nodes, 80 ms, seed 42" | `Run.record`, `Run.caveats` (seed, converged, iterations), `Run.engine`, `Run.durationMs` | none; "5 of 6 groups matched" needs #191 |
 | Export | Members [CSV v]; Image framed on members | members: `scope.resolve` then the app writes a CSV (formatting, allowed); image: `el.captureScreenshot` with a camera view over a scope, `el.applyCameraView("fitToGraph", {scope})` | none; a result exporter (#177/#178 family) would be tidier (small) |
 | Notes | | #145 | large |
@@ -190,10 +190,10 @@ Node inspector:
 | Values | "Bridges 0.031 rank 3 of 115" | `results.get(run).node(id)` gives `value`, `rank`, `percentile`; `measured.nodes` is the 115 | none. (screens.md says "rank 12", the PNG says "rank 3"; the PNG is consistent with the node being in the Top 10) |
 | Values | "Conference 0", "Communities Group 3" | attribute: the record; Louvain: `results.get(run).node(id).group` | none |
 | Member of | one chip per Set containing the node | as the tinted rows above | small, same item |
-| Neighbours | "Neighbours 12", eight rows with the edge label "played", Select, the Neighbours tool | `session.selection.apply({neighborsOf: [id], depth: 1})` gives the **ids** and nothing else; there is no per-node neighbour listing and no edge listing (`getEdges` does not exist, #297). The app today walks edge records itself (inventory section 5), which the root rule forbids | **small**: `session.data.neighbours(id, {direction, page})` returning neighbour and edge records; and `getEdges()` (#297) |
-| Neighbours | In 9 / Out 8 on directed data | `statistics().degreeRange` is graph-wide; per-node in/out is the degree run's `inDegree` / `outDegree` fields, so it needs a run | small: fold per-node degree into the neighbours call |
+| Neighbors | "Neighbours 12", eight rows with the edge label "played", Select, the Neighbors tool | `session.selection.apply({neighborsOf: [id], depth: 1})` gives the **ids** and nothing else; there is no per-node neighbor listing and no edge listing (`getEdges` does not exist, #297). The app today walks edge records itself (inventory section 5), which the root rule forbids | **small**: `session.data.neighbours(id, {direction, page})` returning neighbor and edge records; and `getEdges()` (#297) |
+| Neighbors | In 9 / Out 8 on directed data | `statistics().degreeRange` is graph-wide; per-node in/out is the degree run's `inDegree` / `outDegree` fields, so it needs a run | small: fold per-node degree into the neighbors call |
 | Look | "Colour from Conference", "Size 2.3 from Bridges", "Outline 2 px from Top 10 by Bridges", each clickable | `session.styles.explain({node})`: `channels[]` with the winning `layerId`, `merged` values, `mode`, `editable`; the layer's `source.runId` or the object that owns the layer leads to the row | none |
-| Look | "Colour this node..." (a one-node fixed Set with one Colour row) | `styles.add({selector: {match: "ids", nodes: [id]}, set: {"node.color": ...}})` at the top of the stack | none |
+| Look | "Colour this node..." (a one-node fixed Set with one Color row) | `styles.add({selector: {match: "ids", nodes: [id]}, set: {"node.color": ...}})` at the top of the stack | none |
 | Notes | | #145 | large |
 
 ### 2.5 Screen 5: the Path tool mid-flow
@@ -214,7 +214,7 @@ Node inspector:
 |---|---|---|---|
 | Header | "Measure", "Influence (PageRank)", eye, lock, overflow | `Run.label`; eye is `enabled` on both encoding layers | lock: objects API |
 | Definition | Method with an info circle | `session.catalog.algorithms()` entry: plain name, technical name, description | none |
-| Definition | Damping [0.85] / Iterations [100] / Tolerance / Weights / Direction / Exact | option descriptors from the catalogue (`AlgorithmDescriptor.options`, from `optionsFromZod`); PageRank has dampingFactor, maxIterations, tolerance, weight. **Editing one in place** has no verb: `run.rerun()` reruns with the same params, and a run's id is derived from its params, so `runs.start` with new params is a **different run** and every layer bound to the old id dangles | **medium, and a design decision**: either `run.restart(params)` keeps the id (the id stops being a pure function of the params), or the objects API re-binds the object's layers to the new run and removes the old one. Section 4.3 |
+| Definition | Damping [0.85] / Iterations [100] / Tolerance / Weights / Direction / Exact | option descriptors from the catalog (`AlgorithmDescriptor.options`, from `optionsFromZod`); PageRank has dampingFactor, maxIterations, tolerance, weight. **Editing one in place** has no verb: `run.rerun()` reruns with the same params, and a run's id is derived from its params, so `runs.start` with new params is a **different run** and every layer bound to the old id dangles | **medium, and a design decision**: either `run.restart(params)` keeps the id (the id stops being a pure function of the params), or the objects API re-binds the object's layers to the new run and removes the old one. Section 4.3 |
 | Definition | Direction [As loaded v] | not on PageRank; #313 | medium: #313 |
 | Definition | Exact [switch] | `StartOptions.exact` / `sample`; changing it is the same "edit in place" problem | same item |
 | Definition | Within  Everything | `Run.scope.spec` | none |
@@ -224,9 +224,9 @@ Node inspector:
 | Values | Top [10 v] ranked rows; click selects | `RunResult.ranking(field, 10)`; `session.selection.apply({nodes: [id]})` | none |
 | Values | "+" Top N set / Above threshold set | `selection.apply({top})` then `promote` freezes ids (as screen 4) | the `{top}` / `{above}` scope forms (4.2) |
 | Values | "See all in table" | the table dock (2.7) | see 2.7 |
-| Fill | Channel [Colour v], Scale [Even steps v], Palette ramp, Domain from / to, Reverse, Reset, Missing | `styles.encode({run, channel, scale, palette, domain, reverse, missing})` **replaces in place**, keeping the layer's id and position, which is exactly what a form wants; plain names from `session.catalog.scales()` and `palettes()` (with colour-blind flags) | none |
+| Fill | Channel [Color v], Scale [Even steps v], Palette ramp, Domain from / to, Reverse, Reset, Missing | `styles.encode({run, channel, scale, palette, domain, reverse, missing})` **replaces in place**, keeping the layer's id and position, which is exactly what a form wants; plain names from `session.catalog.scales()` and `palettes()` (with color-blind flags) | none |
 | Fill | second block Channel [Size v], Range [0.8] / [2.2], own eye and minus | a second `encode({run, channel: "node.size", range})` layer | none |
-| Made by | "PageRank, 34 nodes, 1.2 s, exact, converged in 41 iterations, algorithms 2.0.1"; "?" reading; Copy as methods text | `Run.record`, `caveats`, `engine`, `durationMs`; `RunResult.reading({audience})` | methods text: a serialiser (small, #177) |
+| Made by | "PageRank, 34 nodes, 1.2 s, exact, converged in 41 iterations, algorithms 2.0.1"; "?" reading; Copy as methods text | `Run.record`, `caveats`, `engine`, `durationMs`; `RunResult.reading({audience})` | methods text: a serializer (small, #177) |
 | Export | Ranked list [CSV v] | `ranking()` then the app formats | none |
 | Not on screen: the covered Communities row's "Covered by Influence on 34 of 34 members" | `explain` per node; the legend already knows the block is covered but not the count | small: coverage counts (4.3) |
 
@@ -246,9 +246,9 @@ Node inspector:
 
 ### 2.8 Screen 8: dark variant of screen 3
 
-Everything is CSS on the app side except two canvas facts: the background colour
+Everything is CSS on the app side except two canvas facts: the background color
 (`el.background`, set by the app on theme change; following the page theme automatically is
-#291, small) and the default node and edge greys (the element's base layers; the mock changes
+#291, small) and the default node and edge grays (the element's base layers; the mock changes
 them from #b3b3b3 to #757575 and #5a5a5a, which the app cannot do because the base layers are
 locked). Gap: **small**, either the element's defaults follow `el.background` luminance, or
 `catalog.themes()` (#331) ships a dark look that replaces the base values. Otherwise as
@@ -267,7 +267,7 @@ gap rather than app work.
 | Screen 7, "Matches 8 nodes" and the preview rings | evaluate a rule over every node | count and resolve a `Filter` as a scope without applying it | medium (4.2) |
 | Screen 3, "Degree > 8  5 nodes" and its Select / Focus | evaluate an expression | the query engine (#149) | large |
 | Screen 3, the halo on Group 2; Members rows; Select / Focus on a Group | find every node whose `group == 2` from the result | a group target and scope form | medium (4.2) |
-| Screen 4, Neighbours rows with edge labels; In / Out counts | walk the edge list (the app does this today) | `session.data.neighbours(id)`, `getEdges()` | small |
+| Screen 4, Neighbors rows with edge labels; In / Out counts | walk the edge list (the app does this today) | `session.data.neighbours(id)`, `getEdges()` | small |
 | Screen 4, tinted rows and Member of chips | membership of one node in every Set | `objects.containing(id)` | small, in the objects API |
 | Screen 4 and 6, "Covered by X on N of M" and the 50% chip | `explain` in a loop over every member | coverage counts over a scope | small |
 | Screen 7, the table sorted, searched and filtered by an object | sort, search, filter 200,000 rows | a paged row source | medium |
@@ -279,7 +279,7 @@ gap rather than app work.
 
 Not violations, and worth saying so: the rubber-band line (screen 5), the legend card drawn
 from `legend()`, the "32% of the scope" arithmetic, the CSV formatting of a ranking, and the
-tree chip colours read from legend swatches are all presentation of facts the element hands
+tree chip colors read from legend swatches are all presentation of facts the element hands
 over.
 
 ### 3.2 "Appearance only through style layers"
@@ -292,7 +292,7 @@ care in the build:
 - The Group override (screen 3) must be a layer above the Grouping's layer, not a `map` entry
   edited into the Grouping's binding. `Binding.map` exists and would work, but it would make
   the override invisible to precedence, which is the failure the rule exists to prevent.
-- The dark theme's default greys (screen 8) cannot be written by the app because the base
+- The dark theme's default grays (screen 8) cannot be written by the app because the base
   layers are locked; the element must own that change (2.8).
 
 ### 3.3 "Suggested styles paint only their own results"
@@ -359,7 +359,7 @@ Ordered by what the mocks need first. "New" means no issue exists yet.
 | Gap | Screens | Size | Issue |
 |---|---|---|---|
 | Suggested encoding picks a free channel and never drops itself | 3, 5, 6 | small | new (autoApply.ts) |
-| `highlight()` exclusivity off for the objects API; highlight colour cycles per set | 5 | small | new (StylesApi.ts) |
+| `highlight()` exclusivity off for the objects API; highlight color cycles per set | 5 | small | new (StylesApi.ts) |
 | Editing a run's parameters in place: `run.restart(params)` keeping the id, or re-binding | 6 | medium, decision | new |
 | `session.data.neighbours(id, {direction, page})` with edge records; `getEdges()` | 4 | small | #297 |
 | `scope.statistics(spec)`: induced and cut edges and attribute statistics over any scope | 3 | small | new |
@@ -377,10 +377,10 @@ Ordered by what the mocks need first. "New" means no issue exists yet.
 | Result-field filters (group size) | 3 | small, falls out of 4.1.2 | #192 |
 | Weights and direction on every algorithm; degree direction; BFS depth | 6 | medium | #313, #161, #160 |
 | Option bounds resolved for a form | 2, 6 | small | #336 |
-| Data exporters behind the catalogue | 2 | medium | inventory section 1 |
-| Run serialisers (methods text, TSV) | 3, 6 | small | #177 |
+| Data exporters behind the catalog | 2 | medium | inventory section 1 |
+| Run serializers (methods text, TSV) | 3, 6 | small | #177 |
 | Legend drawn by the element and in captures; minimap | 3, 4, 6 | medium each | #292, #293 |
-| Theme-following background and dark base greys | 8 | small | #291, #331 |
+| Theme-following background and dark base grays | 8 | small | #291, #331 |
 | Time role, type role, playback | 2, 7 | medium | #333, #299, #300 |
 | Cancellable loads | 2 | small | #296 |
 | Node marker channel | 2 | medium | #295 |
@@ -397,7 +397,7 @@ Ordered by what the mocks need first. "New" means no issue exists yet.
 - "Cost estimate exposed per catalogue entry (exists as `session.estimate`)" is right, and it
   is synchronous, so a flyout can call it once per row on open with no visible cost.
 - The list does not mention the "edit a Definition in place" problem (2.6), the exclusive
-  highlight, the free-channel default, the table row source, or the neighbour listing. Each is
+  highlight, the free-channel default, the table row source, or the neighbor listing. Each is
   a row in 4.2.
 - `session.selection.statistics()` exists and the model uses it correctly; it is bounded by
   the 5,000-element selection cap, which the model does not mention.
@@ -413,11 +413,11 @@ correction or a small gap with a workaround that does not break a rule.
 | 1 | blocker | The query engine is declared and never attached, so a rule Set can be painted but not counted, selected, focused or computed within. Screen 3's "Degree > 8  5 nodes" and screen 7's "Matches 8 nodes" both depend on it | `graphty-element/src/session/GraphSession.ts` (no `match` source supplied); `scope/ScopeApi.ts:243-250`, `selection/targets.ts:180,214`, `visibility/VisibilityApi.ts:669`; issue #149 |
 | 2 | blocker | No shared set vocabulary: a Set cannot be the mask (`Filter` has no set, ids or result-field kind), a Group cannot be selected (`SelectionTarget` has no "field equals value"), a Top N set freezes to ids on `promote`. Focus, the Showing select, the Group halo and linked sets all wait on this | `catalog/types.ts:710` (`Scope`), `session/visibility/filter.ts:62` (`Filter`), `session/selection/targets.ts:99` (`SelectionTarget`), `catalog/types.ts:461` (`Selector`) |
 | 3 | blocker | The tree (order, nesting, names, states, links, locks, waiting objects, stale on parameter or data change) exists nowhere in the element; the root rule forbids the app from owning it, and its saved shape is a one-way door | `object-model.md` section 11; root `CLAUDE.md` "The app MUST NOT work around graphty-element"; issue #301 |
-| 4 | major | The auto-apply policy contradicts screen 3: it drops a suggestion when a user layer holds the channel and otherwise paints colour over a run-made layer; the mock's "Connections got Size because Colour was taken" cannot occur today | `graphty-element/src/session/styles/autoApply.ts` ("A layer somebody wrote by hand wins") |
+| 4 | major | The auto-apply policy contradicts screen 3: it drops a suggestion when a user layer holds the channel and otherwise paints color over a run-made layer; the mock's "Connections got Size because Colour was taken" cannot occur today | `graphty-element/src/session/styles/autoApply.ts` ("A layer somebody wrote by hand wins") |
 | 5 | major | `highlight()` is exclusive and always blue: creating the second Path object deletes the first's layers, and two sets are indistinguishable | `graphty-element/src/session/styles/StylesApi.ts` (`highlight`, "EXCLUSIVE"); `HighlightSpec.set` |
 | 6 | major | Editing a Measure's Damping or Iterations in place (screen 6) has no verb: run ids are derived from the parameters, `rerun()` keeps the old parameters, and a new `start` is a new run whose layers, name and links must be re-bound | `graphty-element/src/session/runs/types.ts` (`Run.rerun`, `RunsApi.start` "Ids are therefore deterministic") |
 | 7 | major | Screen 7's live count and preview for a By values / By range rule have no non-mutating API: a `Filter` is not a `Scope`, and `plan()` accepts only `algo.run`; the app would have to evaluate the rule itself | `graphty-element/src/session/planning.ts:67` (`SessionCommand`); `VisibilityApi.set` docs mention a `visibility.set` plan that does not exist |
-| 8 | major | Screen 4's Neighbours section (rows with the edge label, In / Out counts) has no element source; the app walks edge records today, which the root rule forbids; `getEdges()` does not exist | `graphty-element/src/session/types.ts` (`SessionDataApi`, "neighbour pages ... are not part of this surface yet"); issue #297; `inventory/app-today-and-personas.md` section 5 |
+| 8 | major | Screen 4's Neighbors section (rows with the edge label, In / Out counts) has no element source; the app walks edge records today, which the root rule forbids; `getEdges()` does not exist | `graphty-element/src/session/types.ts` (`SessionDataApi`, "neighbour pages ... are not part of this surface yet"); issue #297; `inventory/app-today-and-personas.md` section 5 |
 | 9 | major | The table dock's sort, search and "Showing [object]" over 200,000 rows is app-side computation; `el.getNodes()` returns render objects, not records, and there is no paged row source | `graphty-element/src/graphty-element.ts:2214` (`getNodes`); `DEFAULT_LIMITS` in `session/limits.ts`; app issues #168, #170 |
 | 10 | major | "Covered by X on N of M" and the 50% chip need `explain` run over every member; no aggregate exists, so the app loops | `graphty-element/src/session/styles/explain.ts:80` (`StyleExplanation`, one element at a time); `legend.ts:575` (`coveredBy` knows the layer, not the count) |
 | 11 | major | Marquee selection (object-model section 8) needs a screen-region hit-test the element does not offer; the app must not do it from positions | `graphty-element/src/session/selection/targets.ts:99` (no region target); `el.screenToWorld` exists but is not a selection |
@@ -426,7 +426,7 @@ correction or a small gap with a workaround that does not break a rule.
 | 14 | minor | The object model lists "fit the camera to a scope" as a gap; `el.applyCameraView(id, {scope, animate})` already does it, including Locate on one node | `graphty-element/src/graphty-element.ts:2661`; `object-model.md` section 11 |
 | 15 | minor | The layout transport row (screen 2) and the status-bar chip have no element API; `waitForSettled` exists, pause / step / state do not | issue #144; `graphty-element/src/session/types.ts` ("What is deliberately NOT here yet: the layout transport") |
 | 16 | minor | The hover outline on screen 5 and the two-way hover link need an element-owned hover layer; `reason: "hover"` is reserved and unused | `graphty-element/src/catalog/types.ts` (`LayerSource`); `events.ts:308` (`node-hover` fires, nothing paints) |
-| 17 | minor | Screen 8 changes the default node and edge greys for dark; the base layers are locked, so only the element can do this | `graphty-element/src/session/GraphSession.ts:698-706` (the two element base layers); issues #291, #331 |
+| 17 | minor | Screen 8 changes the default node and edge grays for dark; the base layers are locked, so only the element can do this | `graphty-element/src/session/GraphSession.ts:698-706` (the two element base layers); issues #291, #331 |
 | 18 | minor | A View (screen 2) is a camera plus a mode plus the mask; `saveCameraPreset` keeps the camera only, and nothing persists the rest until #301 | `graphty-element/src/graphty-element.ts:1866`; issue #301 |
 | 19 | minor | screens.md says FloridaState is "rank 12 of 115"; the PNG says "rank 3 of 115"; the PNG is the consistent one (the node is in Top 10) | `design/ui/object-first-ux/mocks/screens.md` screen 4; `mocks/screen-4.png` |
 | 20 | minor | The Dataset summary sentence has no element reading; the app would template it from `statistics()`, which is formatting rather than computing, but `data.reading()` would keep one voice with the per-run readings | `graphty-element/src/session/results/types.ts` (`RunResult.reading`), no dataset equivalent |

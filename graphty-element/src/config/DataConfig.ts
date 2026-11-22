@@ -36,7 +36,7 @@ const ID_COERCION_RULES = ["canonical", "keep"] as const satisfies readonly IdCo
 const GraphKnownFields = z.strictObject({
     nodeIdPath: z.string().default("id"),
     // What to CALL a node, as distinct from how to address it. A result card naming the busiest
-    // node, a legend row and a ranked list all want a name a reader recognises, and an id is only
+    // node, a legend row and a ranked list all want a name a reader recognizes, and an id is only
     // sometimes one: a GML file keys its nodes by integer while carrying the name beside it. Null
     // means the element has not been told, and every reader falls back to the printed id -- which
     // is honest, because an id a person chose often IS the name.
@@ -77,6 +77,13 @@ const GraphKnownFields = z.strictObject({
     nodeCountryPath: z.string().or(z.null()).optional(),
     nodeRegionPath: z.string().or(z.null()).optional(),
     nodeCityPath: z.string().or(z.null()).optional(),
+    // The columns each node's drawn position is read from, as `data.setRole` designates them (the
+    // x, y and z roles). With an x and a y column, a node whose two values are finite numbers is
+    // placed there, in file units scaled by positionScale, as a record's `position` places it; a
+    // missing z column reads 0. They win over a record's `position`.
+    nodeXPath: z.string().or(z.null()).optional(),
+    nodeYPath: z.string().or(z.null()).optional(),
+    nodeZPath: z.string().or(z.null()).optional(),
     // Null means "probe": the element reads source/target, then src/dst, then from/to, once per
     // batch of edge records, and throws E_EDGE_ENDPOINTS_UNRESOLVED when none of them answers.
     // Naming an expression here settles the question and turns the probe off -- a record that does
@@ -137,7 +144,7 @@ const GraphKnownFields = z.strictObject({
 /**
  * One entry of the load-time algorithm list: an algorithm, or an algorithm with run options.
  *
- * A string is the algorithm alone -- a catalogue key such as "pagerank" or a 1.x address such as
+ * A string is the algorithm alone -- a catalog key such as "pagerank" or a 1.x address such as
  * "graphty:pagerank". The object form carries the options `session.runs.start` takes that mean
  * something before anyone has seen the graph: `params`, `style` (see `RunStyle`), `seed` and `as`.
  * The rest are left out on purpose: `signal`, `onProgress`, `queue` and `dryRun` belong to a

@@ -82,4 +82,4 @@ I'm done; I'm stopping here (not ending the session -- facilitator does that).
   - I clicked the colored square in the floating legend first, expecting to change the color there -- nothing happened. I had to find the "Louvain" folder on the left, open its tiny arrow, then pick "Group 4".
   - Clicking the folder itself showed "<<Layer>>" in the color box, which meant nothing to me.
   - The ready-made red swatch in the picker looked like the color Group 5 already had, so I typed a code instead. Even with bright red, Group 5's dark red is easy to confuse with it.
-  - The team count was only in the small grey number next to "Group 4" on the left (and in the "12 nodes" chip) -- I'd have missed it if I hadn't opened the folder.
+  - The team count was only in the small gray number next to "Group 4" on the left (and in the "12 nodes" chip) -- I'd have missed it if I hadn't opened the folder.

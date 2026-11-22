@@ -1,11 +1,12 @@
 /**
  * The drag selection shield, raised by a real press on a ResizeHandle and lowered by the real
- * event that ends the drag: the browser makes the pointerup, the pointercancel and the
- * lostpointercapture.
+ * event that ends the drag: the browser makes the pointerup, the pointercancel, the
+ * lostpointercapture and the selectstart the shield cancels.
  */
 import { MantineProvider } from "@mantine/core";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { ResizeHandle } from "../../../src/components/chrome/ResizeHandle";
 import { compactTheme } from "../../../src/theme";
@@ -13,13 +14,23 @@ import { moveBy, press, release } from "../../harness/mouse";
 import { touchCancel, touchEnd, touchStart } from "../../harness/touch";
 
 /**
- * Whether a selectstart dispatched now is cancelled.
+ * Whether the browser's own selectstart is canceled now. Select all (Control+A) is a real key
+ * press that makes one whatever the pointer is doing, so it probes the shield during a mouse drag
+ * too, when the held button cannot start a text selection of its own.
  * @returns true when something called preventDefault on it
  */
-function selectStartCancelled(): boolean {
-    const event = new Event("selectstart", { bubbles: true, cancelable: true });
-    document.body.dispatchEvent(event);
-    return event.defaultPrevented;
+async function selectStartCancelled(): Promise<boolean> {
+    const seen: boolean[] = [];
+    // On the window in the bubble phase: after the shield's capture listener on the document.
+    const record = (event: Event): void => {
+        seen.push(event.defaultPrevented);
+    };
+    globalThis.addEventListener("selectstart", record);
+    await userEvent.keyboard("{Control>}a{/Control}");
+    globalThis.removeEventListener("selectstart", record);
+    window.getSelection()?.removeAllRanges();
+    expect(seen).toHaveLength(1);
+    return seen[0];
 }
 
 const userSelect = (): string => document.documentElement.style.userSelect;
@@ -71,15 +82,15 @@ describe("the drag selection shield (ResizeHandle)", () => {
         ],
     ])("blocks text selection during a mouse drag and lifts on %s", async (_name, end) => {
         document.documentElement.style.userSelect = "text";
-        expect(selectStartCancelled()).toBe(false);
+        expect(await selectStartCancelled()).toBe(false);
 
         const { handle, captured } = renderHandle();
         await press(handle);
-        expect(selectStartCancelled()).toBe(true);
+        expect(await selectStartCancelled()).toBe(true);
         expect(userSelect()).toBe("none");
 
         await end(handle, captured());
-        expect(selectStartCancelled()).toBe(false);
+        expect(await selectStartCancelled()).toBe(false);
         expect(userSelect()).toBe("text");
     });
 
@@ -87,18 +98,18 @@ describe("the drag selection shield (ResizeHandle)", () => {
         document.documentElement.style.userSelect = "text";
         const { handle } = renderHandle();
         await touchStart(handle);
-        expect(selectStartCancelled()).toBe(true);
+        expect(await selectStartCancelled()).toBe(true);
         expect(userSelect()).toBe("none");
 
         // The system takes the touch over, and the browser cancels the pointer. A touchcancel
-        // cannot be cancelled, so the browser acknowledges it without waiting for the page: the
+        // cannot be canceled, so the browser acknowledges it without waiting for the page: the
         // protocol call can return before the page has dispatched the pointercancel.
         const cancelled = new Promise<void>((resolve) => {
             globalThis.addEventListener("pointercancel", () => resolve(), { capture: true, once: true });
         });
         await touchCancel();
         await cancelled;
-        expect(selectStartCancelled()).toBe(false);
+        expect(await selectStartCancelled()).toBe(false);
         expect(userSelect()).toBe("text");
     });
 

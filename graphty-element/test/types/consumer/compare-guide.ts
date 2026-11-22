@@ -33,7 +33,7 @@ export async function compareGroupings(element: HTMLElementTagNameMap["graphty-e
 
     const groups = element.session.results.compare(louvain, { run: leiden, field: "group" });
     if (groups.kind === "partition") {
-        console.log(groups.agreement, groups.overlaps.length, groups.groups.a);
+        console.log(groups.agreement, groups.adjustedMutualInformation, groups.overlaps.length, groups.groups.a);
         for (const { id, a, b, mostOfGroup } of groups.moves) {
             console.log(id, a, b, mostOfGroup);
         }

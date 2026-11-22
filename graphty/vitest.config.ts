@@ -12,6 +12,7 @@ import type { BrowserCommand } from "vitest/node";
 import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir } from "../tools/test-slots.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { rawModelWorkers } from "../tools/vite-raw-model-workers.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { withBabylonCompilers } from "../vitest.babylon-compilers.mjs";
 import { baseTest } from "../vitest.base.mjs";
@@ -153,7 +154,7 @@ const takeOffOriginRequests: BrowserCommand<[]> = (ctx) => offOrigin.get(ctx.con
  * holds every request until this process answers it. Registered in the setup file, those routes
  * covered every test file: each one fetched its whole module graph again, megabytes of dependency
  * bundles included, through the same Node process that carries every click and keystroke of the
- * other pages, and on a loaded core one file starting held a neighbour's `userEvent` call for 10 to
+ * other pages, and on a loaded core one file starting held a neighbor's `userEvent` call for 10 to
  * 15 seconds (issue #3350).
  *
  * - `src/elementLoader.ts` never loads `<graphty-element>`: a test that wants the real element
@@ -254,8 +255,31 @@ const realElementProject = (
     },
 });
 
+/**
+ * Answers the site's `site.json` with a 404 on the test server. The stories (through
+ * src/elementLoader.ts) and the app's boot read it; without this the dev server's single-page
+ * fallback answers with index.html, which makes Vite pre-transform src/main.tsx mid-run, the hazard
+ * `optimizeDeps` below describes: a dependency found then re-bundles and reloads the test page, and
+ * every story of the file running fails at once (the SurveyCard stories once all failed with an
+ * empty TypeError). A test that needs a site configuration loads a `data:` URL.
+ * @returns the plugin.
+ */
+const noSiteFile = (): Plugin => ({
+    name: "graphty-no-site-file",
+    configureServer(server) {
+        server.middlewares.use((request, response, next) => {
+            if (request.url?.split("?")[0]?.endsWith("/site.json") === true) {
+                response.statusCode = 404;
+                response.end();
+                return;
+            }
+            next();
+        });
+    },
+});
+
 const config = defineConfig({
-    plugins: [react(), sampleDataPlugin(), ...elementSourcePlugins],
+    plugins: [react(), sampleDataPlugin(), noSiteFile(), ...elementSourcePlugins, rawModelWorkers()],
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },
@@ -271,7 +295,15 @@ const config = defineConfig({
         // makes Vite pre-transform main.tsx, which finds both mid-run: Vite re-bundled, reloaded the
         // test page, and the shard hung (CI run 40235438577) or the next file failed (#3762). Tests
         // must never fetch a missing path from the test server; stub fetch instead.
-        include: ["@mantine/hooks", "react-dom/client", "eruda"],
+        // The FBX and USD loaders babylonjs-models imports when such a model first loads, too.
+        include: [
+            "@mantine/hooks",
+            "react-dom/client",
+            "eruda",
+            "@babylonjs/loaders/FBX/fbxFileLoader.pure.js",
+            "@babylonjs/loaders/USD/usdFileLoader.pure.js",
+            "@babylonjs/core/Meshes/Builders/tubeBuilder.js",
+        ],
         // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached
         // bundle under node_modules/.vite and trusts it while the lockfile and this config are
         // unchanged -- it does not notice a SOURCE change that imports a dependency the cache
@@ -291,7 +323,7 @@ const config = defineConfig({
         // The tests that mount the real graphty-element get a project of their own, run after
         // the others finish (sequence.groupOrder). Browser test files share the renderer's main
         // thread, and a real element loading and laying out a sample holds it for seconds at a
-        // time: run beside the rest, a neighbouring file's import of the element bundle
+        // time: run beside the rest, a neighboring file's import of the element bundle
         // (src/types/__tests__/ai.test.ts) took tens of seconds.
         projects: [
             {

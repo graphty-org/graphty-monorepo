@@ -151,7 +151,7 @@ describe("indexed.grsbm", () => {
     });
 
     it("reads the weights when weighted: doubling every weight changes nothing, uneven weights do", () => {
-        // The bisection vector comes from repeated products with the Laplacian, re-normalised, and
+        // The bisection vector comes from repeated products with the Laplacian, re-normalized, and
         // modularity is a ratio of weights, so a uniform factor of 2 (exact in floating point)
         // leaves every number as it was. Uneven weights move the modularity of the splits.
         const karate = undirectedFixtures().find((f) => f.name === "Zachary's karate club")?.graph ?? new Graph();

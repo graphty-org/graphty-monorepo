@@ -96,6 +96,21 @@ describe("a prepare's progress", () => {
         session.dispose();
     });
 
+    it("hands each change to the call's own onProgress too", async () => {
+        const session = createGraphSession();
+        const seen = watch(session);
+        const mine: ProgressChange[] = [];
+
+        await session.data.prepare(
+            { config: { file: new File(["id\na\nb\n"], "few.csv") } },
+            { onProgress: (change) => mine.push(change) },
+        );
+
+        assert.deepEqual(mine, seen);
+        assert.deepInclude(mine.at(-1), { task: "prepare", phase: "end", outcome: "succeeded" });
+        session.dispose();
+    });
+
     it("counts a large CSV's rows while it is read, with the share of the file read", async () => {
         const session = createGraphSession();
         const seen = watch(session);

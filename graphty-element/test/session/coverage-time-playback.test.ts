@@ -1,7 +1,7 @@
 /**
  * @file The timeline's playback paths the rest of test/session/time leaves alone: smooth frames
  * that move nothing, a cumulative glide, a glide reaching the end, reduced motion, a play started
- * twice, a play whose window is cleared, and a re-run that fails under `results: "rerun"`. Frames
+ * twice, a play paused by its own `time:play` listener, a play whose window is cleared, and a re-run that fails under `results: "rerun"`. Frames
  * come from a stubbed `requestAnimationFrame` the test calls itself, and stepped plays from fake
  * timers, so no test waits on the wall clock. Also the one catalog branch of `defineLayout` that
  * needs no rendered graph: an "ordering" option.
@@ -183,6 +183,25 @@ describe("session.time: choosing smooth or stepped motion", () => {
     });
 });
 
+describe("session.time: a stepped play paused as it starts", () => {
+    it("takes no step when a time:play listener pauses it", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        const session = await daily();
+        let steps = 0;
+        session.on("time:step", () => steps++);
+        const off = session.on("time:play", () => {
+            off();
+            session.time.pause();
+        });
+        session.time.play({ motion: "steps", interval: 100 });
+        const before = steps;
+        await vi.advanceTimersByTimeAsync(500);
+        assert.strictEqual(steps, before);
+        assert.isFalse(session.time.playing);
+        session.dispose();
+    });
+});
+
 describe("session.time: a stepped play whose window goes", () => {
     it("pauses at the next step when the window was cleared", async () => {
         vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -322,7 +341,7 @@ describe("session.time: a re-run that fails under results: rerun", () => {
         session.dispose();
     });
 
-    it("says a failure that is no GraphtyError is an internal one", async () => {
+    it("says a plain error the run wrapped is an internal one", async () => {
         const { session, id } = await failingRerun(new TypeError("not a function"));
         const failed = next(session, "time:rerun-failed");
         await session.time.stepBy(1);

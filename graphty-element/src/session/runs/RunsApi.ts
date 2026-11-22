@@ -337,6 +337,13 @@ export interface RunsApiOptions {
 /** The runs API, plus the things a session needs and a consumer never calls. */
 export interface SessionRunsApi extends RunsApi {
     /**
+     * Every run this session holds, finished or not: each one the session's own, so the session
+     * can re-run it as itself.
+     * @returns The runs, in the order they were started.
+     */
+    list(): readonly ManagedRun[];
+
+    /**
      * Whether the element minted this run's id rather than the author naming it with `as:`.
      *
      * A document that references a derived id would resolve differently against a session where
@@ -1315,7 +1322,7 @@ class Runs implements SessionRunsApi {
      * Every algorithm run this session holds, finished or not.
      * @returns The runs, in the order they were started.
      */
-    list(): readonly Run[] {
+    list(): readonly ManagedRun[] {
         return Object.freeze([...this.runs.values()].filter((run) => this.listed(run)));
     }
 

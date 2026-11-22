@@ -21,7 +21,7 @@ import type { StylePatchCommand } from "../commands/style";
 import type { Dispatcher } from "../project/Dispatcher";
 import { RevisionCache } from "../revision";
 import type { Run } from "../runs";
-import { ManagedRun } from "../runs/Run";
+import type { ManagedRun } from "../runs/Run";
 import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
 import type { CodedFact } from "../shared";
@@ -659,7 +659,7 @@ export interface TimeSources {
     readonly columns: () => readonly { readonly kind: "node" | "edge"; readonly name: string }[];
     readonly dispatcher: Dispatcher;
     readonly visibility: SessionVisibilityApi;
-    readonly runs: () => readonly Run[];
+    readonly runs: () => readonly ManagedRun[];
     readonly digestOf: (spec: Scope) => string;
     readonly emit: <K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]) => void;
     /**
@@ -2257,6 +2257,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     /** One playback step, then the next one on the timer. */
     const tick = async (): Promise<void> => {
         timer = null;
+        // A `time:play` listener can pause or dispose the play before `play()` arms this timer.
         if (!playing || disposed) {
             return;
         }
@@ -2417,23 +2418,24 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * per finished re-run, never once per step.
      * @param runs - The runs.
      */
-    const rerunAll = (runs: readonly Run[]): void => {
+    const rerunAll = (runs: readonly ManagedRun[]): void => {
         if (rerunning) {
             rerunAgain = true;
             return;
         }
 
         rerunning = true;
-        const rerunOne = async (run: Run): Promise<void> => {
+        const rerunOne = async (run: ManagedRun): Promise<void> => {
             try {
                 // Marked as the session's own re-run, so `run:changed` says the window did it.
-                await (run instanceof ManagedRun ? run.rerun("time-window") : run.rerun());
+                await run.rerun("time-window");
             } catch (error) {
                 sources.emit("time:rerun-failed", {
                     run: run.id,
                     error: isGraphtyError(error)
                         ? { code: error.code, params: (error.details ?? {}) as CodedFact["params"] }
-                        : { code: "E_INTERNAL", params: {} },
+                        : // A re-run canceled while it runs rejects with an AbortError.
+                          { code: "E_INTERNAL", params: {} },
                 });
             }
         };
@@ -2458,7 +2460,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * The runs over the visible graph that a filter or window move left out of date.
      * @returns The runs.
      */
-    const movedRuns = (): readonly Run[] =>
+    const movedRuns = (): readonly ManagedRun[] =>
         sources.runs().filter((run) => run.stale?.reason === "scope-changed" || run.stale?.reason === "window-moved");
 
     /**

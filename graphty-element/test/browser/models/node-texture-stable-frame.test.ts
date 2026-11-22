@@ -112,8 +112,13 @@ describe("node.texture and the stable frame", () => {
         element.graph.on("graph-frame-stable", () => {
             const missing = ["a", "b"].filter((id) => {
                 const node = element.graph.getNodeMesh(id) as InstancedMesh | undefined;
+                // Under "batched" a node whose mesh was read is drawn by its look's batch, from that mesh.
+                const built = element.graph.getNode(id);
+                const mirror =
+                    built === undefined ? null : (element.graph.getNodeBatches()?.mirrorMeshOf(built) ?? null);
                 return (
-                    node === undefined || !drew.has(node.getClassName() === "InstancedMesh" ? node.sourceMesh : node)
+                    node === undefined ||
+                    !drew.has(mirror ?? (node.getClassName() === "InstancedMesh" ? node.sourceMesh : node))
                 );
             });
             skipped.push([...notReady(scene.meshes), ...missing.map((id) => `node ${id} not drawn`)]);
@@ -137,6 +142,9 @@ describe("node.texture and the stable frame", () => {
         );
         const sphere = element.graph.getNodeMesh("a");
         assert.isDefined(sphere);
-        assert.include(scene.getActiveMeshes().data, sphere, "the textured nodes are in the frame drawn");
+        const nodeA = element.graph.getNode("a");
+        assert.isDefined(nodeA);
+        const drawnBy = element.graph.getNodeBatches()?.mirrorMeshOf(nodeA) ?? sphere;
+        assert.include(scene.getActiveMeshes().data, drawnBy, "the textured nodes are in the frame drawn");
     });
 });

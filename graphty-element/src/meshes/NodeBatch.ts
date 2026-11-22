@@ -1053,6 +1053,17 @@ export class NodeBatches {
     }
 
     /**
+     * The batch mesh that draws a held node's slot from its mesh ({@link NodeBatches.mirrors}), which is what draws
+     * the node on screen while its own instance's source is hidden.
+     * @param node - The node.
+     * @returns The batch's mesh, or null when the node's own mesh draws it.
+     * @internal
+     */
+    mirrorMeshOf(node: Node): Mesh | null {
+        return this.mirrors(node) ? (this.groupOf(node)?.family?.batch?.mesh ?? null) : null;
+    }
+
+    /**
      * Whether a batch draws this row now: a node rather than its own mesh (a held node draws its own), or a row
      * with no `Node` at all, which nothing else draws.
      * @param row - The node or the row.

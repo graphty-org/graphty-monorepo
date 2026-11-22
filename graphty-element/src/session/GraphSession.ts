@@ -179,6 +179,7 @@ import { sealedSet } from "./sealed";
 import {
     createSelectionApi,
     type RuleCheck,
+    type SelectionDelta,
     type SelectionOwner,
     type SelectionSources,
     type SelectionTextMode,
@@ -3664,7 +3665,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         return hovered ?? (selected.length === 1 ? selected[0] : null);
     };
     // Set once the style stack exists: what a selection change repaints.
-    let repaintSelected = (): void => undefined;
+    let repaintSelected = (_delta?: SelectionDelta): void => undefined;
     let repaintGhosts = (_moved?: SlideCounts): void => undefined;
 
     // The style stack, late-bound because the runs are built before it and the auto-apply policy
@@ -4641,7 +4642,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         onChange: (delta) => {
             stateRevision++;
             notifier.notify({ kind: "selection" });
-            repaintSelected();
+            repaintSelected(delta);
             publish(watchers, "selection:changed", delta);
             // A hover layer that falls back to the selection follows it too.
             repaintHover();
@@ -4941,7 +4942,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // change after any of those found every row moved and repainted the whole graph (issue #9164).
     // Kept while no layer reads the selection too: a layer added later paints the selection as it
     // is then, which is the last one remembered here.
-    let paintedSelection: { readonly node: ReadonlySet<NodeId>; readonly edge: ReadonlySet<EdgeId> } = {
+    let paintedSelection: { readonly node: Set<NodeId>; readonly edge: Set<EdgeId> } = {
         node: new Set(),
         edge: new Set(),
     };
@@ -4967,22 +4968,62 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         return rows;
     };
-    repaintSelected = (): void => {
-        const owner = requireSelection(selection);
-        const now = { node: new Set(owner.nodeMembers().ids()), edge: new Set(owner.edgeMembers().ids()) };
-        const before = paintedSelection;
-        paintedSelection = now;
-        if (!readsState(SELECTION_STATES)) {
-            return;
+    // The rows a change's own delta says entered or left, kept in step with `paintedSelection`: one add to a
+    // selection of a thousand no longer copies the thousand ids. Null when the delta does not account for the
+    // selection as it now stands, which is then read whole.
+    const deltaRows = (delta: SelectionDelta | undefined): { node: number[]; edge: number[] } | null => {
+        if (delta === undefined) {
+            return null;
         }
 
-        repaintStates(
-            {
+        const owner = requireSelection(selection);
+        const nodes = owner.nodeMembers();
+        const edges = owner.edgeMembers();
+        const rows = { node: [] as number[], edge: [] as number[] };
+        const note = (into: number[], row: number | undefined): void => {
+            if (row !== undefined) {
+                into.push(row);
+            }
+        };
+        for (const id of delta.added) {
+            if (nodes.hasId(id) && !paintedSelection.node.has(id)) {
+                paintedSelection.node.add(id);
+                note(rows.node, selectedRowOfNode(id));
+            } else if (typeof id === "string" && edges.hasId(id) && !paintedSelection.edge.has(id)) {
+                paintedSelection.edge.add(id);
+                note(rows.edge, selectedRowOfEdge(id));
+            }
+        }
+
+        for (const id of delta.removed) {
+            if (paintedSelection.node.has(id) && !nodes.hasId(id)) {
+                paintedSelection.node.delete(id);
+                note(rows.node, selectedRowOfNode(id));
+            } else if (typeof id === "string" && paintedSelection.edge.has(id) && !edges.hasId(id)) {
+                paintedSelection.edge.delete(id);
+                note(rows.edge, selectedRowOfEdge(id));
+            }
+        }
+
+        return paintedSelection.node.size === nodes.size && paintedSelection.edge.size === edges.size ? rows : null;
+    };
+    repaintSelected = (delta?: SelectionDelta): void => {
+        const owner = requireSelection(selection);
+        const quick = deltaRows(delta);
+        let rows = quick;
+        if (rows === null) {
+            const now = { node: new Set(owner.nodeMembers().ids()), edge: new Set(owner.edgeMembers().ids()) };
+            const before = paintedSelection;
+            paintedSelection = now;
+            rows = {
                 node: enteredOrLeft(before.node, now.node, selectedRowOfNode),
                 edge: enteredOrLeft(before.edge, now.edge, selectedRowOfEdge),
-            },
-            SELECTION_STATES,
-        );
+            };
+        }
+
+        if (readsState(SELECTION_STATES)) {
+            repaintStates(rows, SELECTION_STATES);
+        }
     };
     const changedBytes = (before: Uint8Array | undefined, after: Uint8Array): number[] => {
         const changed: number[] = [];

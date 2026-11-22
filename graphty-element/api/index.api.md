@@ -316,7 +316,7 @@ export class AlgorithmManager implements Manager {
     runLegacy(command: AlgoLegacyCommand, ctx: UndoableContext): Promise<void>;
 }
 
-// @public (undocumented)
+// @public
 export const AlgorithmOnLoad: z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
     algorithm: z.ZodString;
     params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
@@ -327,7 +327,7 @@ export const AlgorithmOnLoad: z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
     as: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>]>;
 
-// @public (undocumented)
+// @public
 export type AlgorithmOnLoad = z.infer<typeof AlgorithmOnLoad>;
 
 // @public

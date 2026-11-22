@@ -164,6 +164,27 @@ describe("Style panel v2: options that would change nothing", () => {
         await userEvent.keyboard("{Escape}");
     });
 
+    it("a border's Waves is dimmed until the border is a zigzag or a sinewave", async () => {
+        const { session, nodes } = await openGraph();
+        const waves = async (): Promise<string | null> => {
+            const tab = await openStyle("Key people");
+            const pop = await openSettings(sectionOf(tab, "node-border"), "border", "Node border settings");
+            await userEvent.click(within(pop).getByRole("button", { name: "Add to node border settings" }));
+            const item = await screen.findByRole("menuitem", { name: "Waves" });
+            const title = item.getAttribute("title");
+            await userEvent.keyboard("{Escape}");
+            await userEvent.keyboard("{Escape}");
+            return title;
+        };
+        const border = { "node.color": "#E8590C", "node.borderColor": "#000000", "node.borderWidth": 0.4 };
+        await session.styles.update(nodes, { set: border });
+        await session.styles.settled();
+        assert.match((await waves()) ?? "", /^Only when .+ is .*Zigzag/i, "a solid border draws no wave");
+        await session.styles.update(nodes, { set: { ...border, "node.borderStyle": "zigzag" } });
+        await session.styles.settled();
+        assert.isNull(await waves(), "a zigzag border draws its wave");
+    });
+
     for (const view of ["2D", "3D"] as const) {
         it(`a border's Center and Inside each move the ring on the default sphere in ${view}`, async () => {
             const { session, element, nodes } = await openGraph();

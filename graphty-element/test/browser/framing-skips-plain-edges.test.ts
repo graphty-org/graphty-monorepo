@@ -143,7 +143,10 @@ for (const path of ["objects", "batched"] as const) {
             const { walked, everyEdge, skipped, unskipped } = await measureWhileMoving(element, 3);
 
             assert.deepEqual(walked, [0, 0, 0], "no plain edge grows the box");
-            assert.deepEqual(everyEdge, [edges.length, edges.length, edges.length], "the old walk took every edge");
+            // Under "batched" an arrowed straight edge is a row line with no `Edge`, so the old walk had none to take.
+            const held = path === "objects" ? edges.length : 0;
+            assert.deepEqual(everyEdge, [held, held, held], "the old walk took every built edge");
+            assert.strictEqual(element.graph.rowCounts.objectEdges, path === "objects" ? edges.length : 0);
             assert.deepEqual(skipped, unskipped, "the same box");
         });
 

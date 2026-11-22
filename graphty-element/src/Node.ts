@@ -662,6 +662,7 @@ export class Node implements ModelUser {
             this.#meshHeld = true;
             if (!this.disposed) {
                 this.context.getNodeBatches?.()?.sync(this);
+                this.context.getUpdateManager?.().holdsMesh(this);
             }
         }
 

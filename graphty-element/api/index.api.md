@@ -9346,6 +9346,8 @@ export class UpdateManager implements Manager {
     } | null;
     get graphIsDrawn(): boolean;
     holdSelectionFollow(following?: readonly Node_2[]): void;
+    // @internal
+    holdsMesh(node: Node_2): void;
     init(): Promise<void>;
     invalidateViewMasks(): void;
     isZoomToFitEnabled(): boolean;

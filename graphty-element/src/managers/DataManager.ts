@@ -2959,8 +2959,15 @@ export class DataManager implements Manager {
         //
         // Not while a pass is painting (`StylePainter.settledNodePaint`): the row is queued, so the
         // frame after the pass draws it; until then the `Node` keeps the look the batch drew it with.
-        const rowPaint = this.graphContext?.getStylePainter?.()?.settledNodePaint(index) ?? null;
+        //
+        // Nor for a row no frame has drawn yet whose paint is waiting for one: it is built from the defaults, as the
+        // objects path built it, and that frame paints it among the other rows, in row order. Painted at once, it made
+        // its look's meshes before every other look's, and drew under them where the objects path draws it over
+        // (issue #9185).
+        const painter = this.graphContext?.getStylePainter?.();
         const drawn = batches?.lookOf(index) ?? null;
+        const undrawn = drawn === null && painter?.isNodePending(index) === true;
+        const rowPaint = undrawn ? null : (painter?.settledNodePaint(index) ?? null);
         const look = rowPaint !== null && batches?.keepsLook(index, rowPaint) === false ? null : drawn;
         batches?.unpaintRow(index);
         const before = this.nodeVersion;

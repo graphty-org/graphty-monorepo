@@ -1509,6 +1509,7 @@ export class LayoutManager implements Manager {
         );
 
         const engine = await this.buildEngine(type, driver, driverClass, layoutOpts, how);
+        this.continueFixed(engine, how);
 
         this.drawPaintForSizes(layoutOpts);
 
@@ -1619,6 +1620,23 @@ export class LayoutManager implements Manager {
             }
 
             throw this.reportLayoutFailure(type, error, "initialised");
+        }
+    }
+
+    /**
+     * The same fixed layout, rebuilt for the other dimension, keeps every node where it is drawn:
+     * a switch put each node moved by `positions.set` or a drag back at its data position (#9637).
+     * @param engine - The engine just built, not yet initialized.
+     * @param how - The build; only a 2D/3D switch of the same layout continues.
+     */
+    private continueFixed(engine: LayoutEngine, how: BuildOptions): void {
+        const previous = this.layoutEngine;
+        if (
+            (how.lift === true || how.flatten === true) &&
+            engine instanceof FixedLayout &&
+            previous instanceof FixedLayout
+        ) {
+            engine.continueFrom(previous, how.lift === true);
         }
     }
 

@@ -3,7 +3,8 @@ name: Computed Attributes
 category: analysis
 description: Define custom node or edge attributes by combining existing metrics using formulas, enabling
     domain-specific scoring and ranking without hardcoded logic.
-status: planned
+status: implemented
+notes: "Ships: the session's derived columns (deriveScore, derivedColumns in graphty-element/api/session.api.md) and graphty/src/workspace/data-place/ScoreDialog.tsx."
 algorithms: []
 used_by_workflows:
     - W06

@@ -40,7 +40,7 @@ import {
     isStandIn,
     judgeDrawing,
     type JudgeInputs,
-    ORACLE_CANVAS,
+    oracleCanvas,
     type OracleComparison,
     oracleFormatOptions,
     oracleGraphName,
@@ -84,7 +84,7 @@ function captureCanvas(element: Graphty): string {
     return canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
 }
 
-/** One comparison's report and its scores, and the baseline drawing's judgements when the run judged one. */
+/** One comparison's report and its scores, and the baseline drawing's judgments when the run judged one. */
 export interface OracleScored {
     report: OracleReport;
     /** Pass rate per judged property, rounded to 4 places; the raster regions' similarity as `raster.<region>`. */
@@ -163,7 +163,7 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
     const meta = oracleMeta(id);
     const { element, sha256, command } = await mountSample(
         sample,
-        ORACLE_CANVAS,
+        oracleCanvas(meta, sample.format),
         oracleGraphName(meta),
         oracleFormatOptions(meta, sample.format),
     );
@@ -273,7 +273,7 @@ function referencesOf(first: OracleComparison, second: OracleComparison | null):
     }));
 }
 
-/** What a run's report file keeps that a later run judges again: its judgement and graphty's drawing. */
+/** What a run's report file keeps that a later run judges again: its judgment and graphty's drawing. */
 interface BaselineReport {
     failures: OracleReport["failures"];
     judged?: OracleReport["judged"];
@@ -288,7 +288,7 @@ interface BaselineReport {
  * @param id - the sample
  * @param base - the baseline report
  * @param inputs - this run's comparison inputs for the sample
- * @returns both judgements
+ * @returns both judgments
  */
 async function rejudge(
     id: string,

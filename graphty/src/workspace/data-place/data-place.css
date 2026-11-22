@@ -359,3 +359,31 @@
 .dp[data-tabs] .dp-filter:is(:hover, :has(:focus-visible), :has([data-expanded])) .dp-filter-more {
     opacity: 1;
 }
+
+/* A staged source (the source-steps experiment): its own section, dashed, until it is added. */
+.ss-staged {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 4px;
+    padding: 4px;
+    border: 1px dashed var(--mantine-color-default-border);
+    border-radius: 4px;
+}
+
+.ss-staged-head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 24px;
+}
+
+.ss-staged-name {
+    flex: 1;
+    min-width: 0;
+}
+
+.ss-staged-acts,
+.ss-card {
+    padding: 4px 0;
+}

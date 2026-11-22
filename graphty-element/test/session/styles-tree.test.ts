@@ -291,4 +291,82 @@ describe("the style tree", () => {
         stop();
         session.dispose();
     });
+
+    it("duplicates a two-kind row whole, inside its folder, as one undo step", async () => {
+        const session = await threeNodes();
+        await session.styles.add(paint("Base", "#000000"));
+        const row = await session.styles.addRow({
+            name: "Same",
+            target: "both",
+            selector: { match: "everything" },
+            set: { color: "#ff0000", "edge.width": 3 },
+            userData: { note: "kept" },
+        });
+        await session.styles.add(paint("Same", "#00ff00"));
+        const folder = await session.styles.addFolder("F");
+        await session.styles.moveRow(row.id, { parent: folder.id });
+        await session.styles.hideRow(row.id, true);
+        const steps = session.history.steps.length;
+
+        const copy = await session.styles.duplicateRow(row.id);
+        await session.styles.settled();
+
+        assert.notStrictEqual(copy.id, row.id);
+        assert.strictEqual(copy.target, "both");
+        assert.strictEqual(outline(session), "Base,Same,F[Same,Same]");
+        const inFolder = session.styles.tree().find((each) => each.kind === "folder")?.children ?? [];
+        assert.deepEqual(
+            inFolder.map((each) => [each.id, each.hidden]),
+            [
+                [row.id, true],
+                [copy.id, true],
+            ],
+        );
+        for (const part of [copy.node, copy.edge]) {
+            const layer = session.styles.get(part ?? "");
+            assert.deepEqual(layer?.userData, { note: "kept" }, "userData copied");
+            assert.strictEqual(layer?.row, copy.id);
+        }
+        assert.strictEqual(session.history.steps.length, steps + 1, "one step");
+        const fact = session.history.steps.at(-1)?.fact;
+        assert.deepEqual(fact, {
+            code: "style.duplicate-row",
+            params: { row: "Same", rowId: row.id, copyId: copy.id },
+        });
+
+        await session.undo();
+        await session.styles.settled();
+        assert.strictEqual(outline(session), "Base,Same,F[Same]");
+        assert.isUndefined(session.styles.get(copy.node ?? ""));
+        session.dispose();
+    });
+
+    it("names a duplicate when asked, and refuses a folder", async () => {
+        const session = await threeNodes();
+        const layer = await session.styles.add(paint("Red", "#ff0000"));
+        const copy = await session.styles.duplicateRow(layer.id, "Red copy");
+        assert.strictEqual(outline(session), "Red,Red copy");
+        assert.strictEqual(copy.target, "node");
+        assert.deepEqual(session.styles.get(copy.id)?.set, { "node.color": "#ff0000" });
+        const folder = await session.styles.addFolder("F");
+        assert.strictEqual(await codeOf(() => session.styles.duplicateRow(folder.id)), "E_BAD_COMMAND");
+        assert.strictEqual(await codeOf(() => session.styles.duplicateRow("no-such-row")), "E_UNKNOWN_LAYER");
+        session.dispose();
+    });
+
+    it("names each layer and row in a history fact by id as well as name", async () => {
+        const session = await threeNodes();
+        const first = await session.styles.add(paint("Same", "#ff0000"));
+        const second = await session.styles.add(paint("Same", "#0000ff"));
+        assert.deepEqual(session.history.steps.at(-1)?.fact.params, { layer: "Same", layerId: second.id });
+        await session.styles.hideRow(first.id, true);
+        assert.deepEqual(session.history.steps.at(-1)?.fact.params, { row: "Same", rowId: first.id, hidden: true });
+        await session.styles.update(second.id, { set: { "node.color": "#00ff00" } });
+        assert.strictEqual(session.history.steps.at(-1)?.fact.params.layerId, second.id);
+        const folder = await session.styles.addFolder("F");
+        assert.deepEqual(session.history.steps.at(-1)?.fact.params, { name: "F", rowId: folder.id });
+        const row = await session.styles.addRow({ name: "Both", target: "both", selector: { match: "everything" } });
+        assert.strictEqual(session.history.steps.at(-1)?.fact.params.layerId, row.id);
+        session.dispose();
+    });
 });

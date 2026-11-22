@@ -27,7 +27,14 @@ body {
     user-select: none;
 }
 
-.ws-app :is(input, textarea, [contenteditable]:not([contenteditable="false"])) {
+/* Dialogs, popovers and menus are portaled to the body, outside .ws-app: the same holds for them, or
+   a drag across a dialog paints it in the selection color (#8612). */
+[data-portal] {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+:is(.ws-app, [data-portal]) :is(input, textarea, [contenteditable]:not([contenteditable="false"])) {
     -webkit-user-select: text;
     user-select: text;
 }
@@ -275,4 +282,12 @@ body {
 /* The regions above set a display, which would otherwise outrank the hidden attribute. */
 .ws-body > [hidden] {
     display: none;
+}
+
+/* The inspector's title takes focus from script once a run or a find pick fills the inspector.
+   After a pointer press Chrome still rings it when the reader typed earlier (Find path clicked
+   after typing its ends), so its ring follows the reader's last press, which installFocusGuard
+   records: none after a pointer, the shared ring after any key (#9290). */
+:root[data-ws-last-press="pointer"] #ws-inspector-title:focus-visible {
+    outline-color: transparent;
 }

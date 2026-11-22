@@ -1,8 +1,8 @@
 /**
  * Model nodes playing their file's clips: a playing model draws a new picture as time passes, a
  * held pose is drawn where the clip puts it and stays put, two nodes play two clips of one file, a
- * skinned and a rigid model both animate, an unknown clip and a morph target's clip are reported,
- * and a model keeps the frame loop going only while it plays. Also how a model is fitted to its node
+ * skinned, a rigid and a morph-target model all animate, an unknown clip is reported, and a model
+ * keeps the frame loop going only while it plays. Also how a model is fitted to its node
  * (`node.modelFit`) and whether the backs of its faces are drawn (`node.modelDoubleSided`), on an open,
  * non-cubic model: one wide, single-sided triangle.
  */
@@ -194,7 +194,7 @@ describe("model animation", () => {
         assert.strictEqual(start, again, "the same moment gives the same picture");
     });
 
-    it("names an unknown clip and says a morph target's clip holds its rest pose", async () => {
+    it("names an unknown clip", async () => {
         const element = await mount();
         const { layer, asset } = await drawModel(element, "gltf-animated", [{ id: "a", x: 0 }], {
             "node.modelAnimation": "spin",
@@ -206,13 +206,65 @@ describe("model animation", () => {
         await element.session.styles.update(layer, { set: playing(asset, "fly", 0, 0) });
         const fact = (await unknown).problems.find((f) => f.code === "W_MODEL_ANIMATION_UNKNOWN");
         assert.deepEqual(fact?.params, { name: "fly", available: ["spin"] });
+    });
 
-        const morph = await mount();
-        const { problems } = await drawModel(morph, "gltf-morph-animated", [{ id: "m", x: 0 }], {
+    it("plays a clip that moves only a morph target's weight, as Parrot.glb's does", async () => {
+        const element = await mount();
+        // The clip "grow" takes the cube's one morph target from weight 0 to 1: its faces push out.
+        const { layer, asset, problems } = await drawModel(element, "gltf-morph-animated", [{ id: "m", x: 0 }], {
             "node.modelAnimation": "grow",
             "node.modelAnimationSpeed": 0,
+            "node.modelAnimationOffset": 0,
         });
-        assert.deepInclude(problems, { code: "W_MODEL_ANIMATION_PARTIAL", params: { reason: "morph" } });
+        assert.notDeepInclude(problems, { code: "W_MODEL_ANIMATION_PARTIAL", params: { reason: "morph" } });
+        const start = await readFrame(element);
+        const grown = await hold(element, layer, playing(asset, "grow", 0, 1));
+        assert.isAbove(pixelsChanged(start, grown), 100, "at the clip's end the morph target has moved the faces");
+        assert.strictEqual(pixelsChanged(start, await hold(element, layer, playing(asset, "grow", 0, 0))), 0);
+
+        const moving = await hold(element, layer, playing(asset, "grow", 1, 0));
+        assert.isAbove(everyFrameAnimationsOn(element.graph.scene), 0, "a playing morph clip draws every frame");
+        assert.isAbove(await framesUntilMoved(element, moving), 0, "the picture moves while it plays");
+    });
+
+    it.each([
+        ["fbx-animated", "spin"],
+        ["fbx-skinned-animated", "turn"],
+        ["fbx-morph-animated", "grow"],
+        ["usda-animated", "USD Animation 1"],
+        ["usdz-skinned-animated", "USD Animation 1"],
+    ])("plays %s's clip %s: a held moment is its own pose, and the picture moves while it plays", async (id, clip) => {
+        const element = await mount();
+        const record = await element.session.assets.add({ files: await filesOf(id) });
+        assert.deepEqual(
+            element.session.assets.inspect(record.id).animations.map((a) => a.name),
+            [clip],
+            "the clip is listed by the name that plays it",
+        );
+        const { layer, asset } = await drawModel(element, id, [{ id: "a", x: 0 }], {
+            "node.modelAnimation": clip,
+            "node.modelAnimationSpeed": 0,
+            "node.modelAnimationOffset": 0,
+        });
+        const start = await readFrame(element);
+        const later = await hold(element, layer, playing(asset, clip, 0, 0.9));
+        assert.isAbove(pixelsChanged(start, later), 100, "later in the clip the cube is posed differently");
+        assert.strictEqual(pixelsChanged(start, await hold(element, layer, playing(asset, clip, 0, 0))), 0);
+        const moving = await hold(element, layer, playing(asset, clip, 1, 0));
+        assert.isAbove(everyFrameAnimationsOn(element.graph.scene), 0, "a playing model draws every frame");
+        assert.isAbove(await framesUntilMoved(element, moving), 0, "the picture moves while it plays");
+    });
+
+    it("draws an FBX file's two skinned parts apart when its clip holds its first moment (ArcherRi01.fbx)", async () => {
+        const element = await mount();
+        const record = await element.session.assets.add({ files: await filesOf("fbx-skinned-two-parts") });
+        assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+        // Two cubes side by side, each skinned to the one bone with its own bind matrix: drawn
+        // still or at the clip's first moment, they stand apart, two runs of drawn columns.
+        for (const style of [{}, { "node.modelAnimation": "turn", "node.modelAnimationOffset": 0 }]) {
+            const picture = await element.modelThumbnail(record.id, { size: 96, style });
+            assert.strictEqual(await drawnColumnRuns(picture), 2, JSON.stringify(style));
+        }
     });
 });
 
@@ -316,3 +368,31 @@ describe("model fit and sides", () => {
         );
     });
 });
+
+/**
+ * How many runs of columns hold a drawn pixel: one for each part that stands apart from the others.
+ * @param url - The thumbnail.
+ * @returns The runs.
+ */
+async function drawnColumnRuns(url: string): Promise<number> {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    [canvas.width, canvas.height] = [image.width, image.height];
+    const context = canvas.getContext("2d");
+    assert.isNotNull(context);
+    context.drawImage(image, 0, 0);
+    const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+    let runs = 0;
+    let inRun = false;
+    for (let x = 0; x < width; x++) {
+        let drawn = false;
+        for (let y = 0; y < height && !drawn; y++) {
+            drawn = data[(y * width + x) * 4 + 3] > 0;
+        }
+        runs += drawn && !inRun ? 1 : 0;
+        inRun = drawn;
+    }
+    return runs;
+}

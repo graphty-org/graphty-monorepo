@@ -3,7 +3,7 @@ import { assert, describe, it } from "vitest";
 import { BadgeStyleManager } from "../../src/BadgeStyleManager";
 import type { RichTextLabelOptions } from "../../src/meshes/RichTextLabel";
 
-/** Run a label's options through the behaviour pass every label goes through. */
+/** Run a label's options through the behavior pass every label goes through. */
 function shortened(userOptions: RichTextLabelOptions): string | undefined {
     const options = { ...userOptions };
     BadgeStyleManager.applyBadgeBehaviors(options, userOptions);

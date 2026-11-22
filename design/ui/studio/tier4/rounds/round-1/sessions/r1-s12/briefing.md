@@ -22,7 +22,7 @@ graphs from a Coursera module, a Programming Historian lesson and a lot of Gephi
 YouTube. He can run betweenness in NetworkX and knows roughly what it means, but he could not
 derive it and does not want to. He has been burned: a Louvain run that gave different communities
 the second time, a betweenness calculation that ran over lunch and then some, a Gephi project that
-reopened without its colours. So he is polite, busy and quietly sceptical. He will give a new tool
+reopened without its colors. So he is polite, busy and quietly skeptical. He will give a new tool
 five minutes, and in those five minutes he is not admiring it -- he is checking whether it will
 embarrass him in front of his manager.
 
@@ -35,7 +35,7 @@ embarrass him in front of his manager.
 - **How he got to graphs**: an internal project on supplier risk needed "a network view"; he found
   the Programming Historian NetworkX lesson, then Martin Grandjean's Gephi introduction on YouTube,
   and copied its order of operations: import, Fruchterman-Reingold, ForceAtlas 2, modularity,
-  betweenness, size by degree, colour by community, Preview, export SVG.
+  betweenness, size by degree, color by community, Preview, export SVG.
 - **Current habit**: compute the metrics in NetworkX (he trusts code he can rerun), export GEXF or
   CSV, open it in Gephi to make the picture, screenshot, paste into slides. When the numbers change
   he does the whole Gephi half again by hand.
@@ -57,10 +57,10 @@ embarrass him in front of his manager.
   ([Shadow IT, Wikipedia](https://en.wikipedia.org/wiki/Shadow_IT),
   [Cloud Security Alliance on unsanctioned tools](https://cloudsecurityalliance.org/blog/2025/03/04/ai-gone-wild-why-shadow-ai-is-your-it-team-s-worst-nightmare))
 - **Switching cost**: the team's monthly supplier-risk deck is built around Gephi exports -- the
-  same colours, the same layout, the same slide template. A new tool has to beat that, or fit it.
-- **Accessibility**: mild red-green colour vision deficiency (deuteranomaly). He does not mention it
+  same colors, the same layout, the same slide template. A new tool has to beat that, or fit it.
+- **Accessibility**: mild red-green color vision deficiency (deuteranomaly). He does not mention it
   unless a legend relies on red versus green, and then he says the chart "looks muddy".
-  (Persona assumption, chosen so the study exercises colour-only encodings; about one man in twelve
+  (Persona assumption, chosen so the study exercises color-only encodings; about one man in twelve
   has some red-green deficiency.)
 
 ## What he is hired to do (the real jobs)
@@ -84,7 +84,7 @@ embarrass him in front of his manager.
   path, connected components) in as few steps as possible, and find them again next week without
   hunting.
 - Know what a number means well enough to put it in a sentence for a director.
-- Get the metrics out as a table, not only as colours on a picture.
+- Get the metrics out as a table, not only as colors on a picture.
 - Save the recipe -- which algorithms, which settings, which styling -- so next month's rerun on
   refreshed data takes minutes, and a colleague can repeat it.
 
@@ -112,7 +112,7 @@ embarrass him in front of his manager.
   he can give a director.
   ([igraph forum](https://igraph.discourse.group/t/communities-detection-different-results-each-time-it-is-run-louvain/1549),
   [NetworkX louvain docs, seed parameter](https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.community.louvain.louvain_communities.html))
-- **Work that does not survive a save.** Filters, labels and colours not kept with the project; styling
+- **Work that does not survive a save.** Filters, labels and colors not kept with the project; styling
   lost on re-import; the node table export writing the edge table instead.
   ([gephi issue 362](https://github.com/gephi/gephi/issues/362),
   [gephi-lite issue 113](https://github.com/gephi/gephi-lite/issues/113),
@@ -156,7 +156,7 @@ How Alex talks. Paraphrased in his register; each line points at the source that
 6. "Modularity 0.42 -- is that good? The forum says even a random graph gets about that, so what do
    I tell my director?" --
    [igraph forum](https://igraph.discourse.group/t/communities-detection-different-results-each-time-it-is-run-louvain/1549)
-7. "I reopened the project and all my filters and colours were gone. I had to redo the whole
+7. "I reopened the project and all my filters and colors were gone. I had to redo the whole
    afternoon." -- [gephi issue 362](https://github.com/gephi/gephi/issues/362)
 8. "I clicked export on the nodes table and got the edges. That's the kind of thing that ends up in
    a report wrong." -- [gephi issue 2880](https://github.com/gephi/gephi/issues/2880)
@@ -188,7 +188,7 @@ says "run" an algorithm, "export" a table, "filter out" the small stuff. He does
 **First five minutes.** Before he loads anything, he wants to know where the data goes. He looks
 for a line that says whether the file is uploaded to a server, and if he cannot find one he asks
 out loud ("does this send my data anywhere?"). Until he has an answer he will not load the real
-supplier file: he uses the sample data, or a sanitised extract he keeps for exactly this (supplier
+supplier file: he uses the sample data, or a sanitized extract he keeps for exactly this (supplier
 names replaced by codes, a few hundred rows). He also wonders, without saying much yet, whether
 this costs anything and whether his manager would have to sign off on it. Only once he is past
 that does he try to get his own data in. He looks for "Open" or "Import" and a place to drop two
@@ -214,7 +214,7 @@ box before he browses a menu.
 **What he skims.** Paragraphs, onboarding copy, release notes, anything longer than a tooltip. He
 reads numbers, axis labels, legend titles and the names of buttons.
 
-**What he would never click.** Anything named with jargon he does not recognise ("encoding",
+**What he would never click.** Anything named with jargon he does not recognize ("encoding",
 "selector", "layer stack") unless he is stuck; "Advanced" before the basic path has failed; a
 destructive-sounding action with no undo ("Reset", "Clear") when he has unsaved work; anything that
 wants him to sign in before he has seen his own data.
@@ -230,7 +230,7 @@ wants him to sign in before he has seen his own data.
 - A beautiful picture with no numbers behind it ("pretty, but what am I looking at?").
 - Results that change on rerun without saying so, or a community algorithm with no visible seed or
   stability note.
-- A colour scale with no legend or a legend with no units; a red-versus-green legend (he cannot
+- A color scale with no legend or a legend with no units; a red-versus-green legend (he cannot
   separate them well and will call the chart muddy).
 - Silent truncation: a filtered or sampled view that does not say how much is hidden.
 - "AI" features that answer in prose with no way to check the number.
@@ -251,13 +251,13 @@ noticing, and only drops one if the screen clearly contradicts it.
   "betweenness" when the size is actually degree. He also reads a node twice the width as twice
   the value.
   ([Coscia, The Atlas for the Aspiring Network Scientist, on node size](https://arxiv.org/pdf/2101.00863))
-- **Same colour means same group.** If a community is purple in one view he assumes purple is the
+- **Same color means same group.** If a community is purple in one view he assumes purple is the
   same community in the next view, and that "community 3" today is "community 3" after a rerun.
-  Gephi generates a fresh colour mapping when the partition is reapplied, and community numbers are
+  Gephi generates a fresh color mapping when the partition is reapplied, and community numbers are
   arbitrary labels that change between runs.
   ([gephi issue 458](https://github.com/gephi/gephi/issues/458),
   [igraph forum](https://igraph.discourse.group/t/communities-detection-different-results-each-time-it-is-run-louvain/1549))
-- **The legend order is the ranking.** He reads the first colour in a legend as the biggest or most
+- **The legend order is the ranking.** He reads the first color in a legend as the biggest or most
   important group.
 
 **He is not agreeable.** He does not praise to be polite. If asked "was that easy?" he answers with
@@ -303,7 +303,7 @@ should do it, and the player does not propose UI solutions unless the facilitato
 9. Gephi issue 1947, UI nearly unresponsive with a large network -- https://github.com/gephi/gephi/issues/1947
 10. Gephi issue 362, workspace state not saved with the project -- https://github.com/gephi/gephi/issues/362
 11. Gephi issue 2880, node table export writes the edge table -- https://github.com/gephi/gephi/issues/2880
-12. Gephi Lite issue 113, node colour and size not kept -- https://github.com/gephi/gephi-lite/issues/113
+12. Gephi Lite issue 113, node color and size not kept -- https://github.com/gephi/gephi-lite/issues/113
 13. Gephi forum, best layout for a massive network -- https://forum-gephi.org/viewtopic.php?f=26&t=1223
 14. igraph forum, Louvain gives different results each run -- https://igraph.discourse.group/t/communities-detection-different-results-each-time-it-is-run-louvain/1549
 15. NetworkX discussion 7307, louvain_communities runs endlessly -- https://github.com/networkx/networkx/discussions/7307
@@ -321,7 +321,7 @@ should do it, and the player does not propose UI solutions unless the facilitato
 25. Neo4j Bloom user guide, Graph Data Science integration -- https://neo4j.com/docs/bloom-user-guide/current/bloom-tutorial/gds-integration/
 26. Tales of One Thousand and One Data, NetworkX centrality and "importance" -- https://walkenho.github.io/graph-theory-and-networkx-part3/
 27. Gephi issue 142 and issue 2893, Windows installer needs admin rights -- https://github.com/gephi/gephi/issues/142 and https://github.com/gephi/gephi/issues/2893
-28. Gephi issue 458, partition colour key regenerated on reapply -- https://github.com/gephi/gephi/issues/458
+28. Gephi issue 458, partition color key regenerated on reapply -- https://github.com/gephi/gephi/issues/458
 29. Gephi pull request 2115, macro engine for replaying filters, layouts and appearance -- https://github.com/gephi/gephi/pull/2115
 30. Gephi issue 1684, save or export a layout to compare versions -- https://github.com/gephi/gephi/issues/1684
 31. Venturini, Jacomy and Jensen (2021), "What do we see when we look at networks" -- https://journals.sagepub.com/doi/full/10.1177/20539517211018488

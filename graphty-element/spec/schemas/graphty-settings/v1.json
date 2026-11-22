@@ -1,0 +1,233 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-settings/v1.json",
+    "title": "graphty settings section, version 1",
+    "description": "Project settings that belong to no other section, by the names spec 4.4 defines, and timeline playback. Reusable.",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/header"
+        }
+    ],
+    "required": ["kind", "version", "generator"],
+    "properties": {
+        "kind": {
+            "const": "graphty-settings"
+        },
+        "version": {
+            "const": 1
+        },
+        "dependencies": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/reusableDependencies"
+        },
+        "settings": {
+            "type": "object",
+            "description": "Keyed by the setting names spec 4.4 defines, never graphty-element's config paths. A graphty name has no dot; a third party's setting is <reverse-domain>.<name>. Every setting the writer holds, at its value in force. Absent: the reader's own default (spec 4.4 rule 4). Open: a key a reader does not know is kept. No data.* key is written here.",
+            "propertyNames": {
+                "pattern": "^[A-Za-z][A-Za-z0-9]*(\\.[A-Za-z][A-Za-z0-9]*)*$",
+                "not": {
+                    "pattern": "^data(\\.|$)"
+                }
+            },
+            "properties": {
+                "runAlgorithmsOnLoad": {
+                    "type": "boolean"
+                },
+                "runPlacement": {
+                    "enum": ["beneath", "top"]
+                },
+                "layoutTransition": {
+                    "type": "object",
+                    "required": ["transition"],
+                    "properties": {
+                        "transition": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "seconds": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 30
+                        },
+                        "hold": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                        },
+                        "params": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "layoutStepsBeforeDraw": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "layoutStepsPerFrame": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                },
+                "layoutSettleDelta": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "background": {
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "required": ["backgroundType"],
+                            "properties": {
+                                "backgroundType": {
+                                    "const": "color"
+                                },
+                                "color": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "darkColor": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "shader": {
+                                    "$ref": "#/$defs/backgroundShader"
+                                }
+                            }
+                        },
+                        {
+                            "type": "object",
+                            "required": ["backgroundType", "data"],
+                            "properties": {
+                                "backgroundType": {
+                                    "const": "skybox"
+                                },
+                                "data": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "projection": {
+                                    "enum": ["dome", "flat"]
+                                },
+                                "color": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "darkColor": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "shader": {
+                                    "$ref": "#/$defs/backgroundShader"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "selectionStyle": {
+                    "$ref": "#/$defs/look"
+                },
+                "pinnedStyle": {
+                    "$ref": "#/$defs/look"
+                },
+                "timelineHiddenLook": {
+                    "enum": ["hidden", "ghost"]
+                },
+                "minMarkSize": {
+                    "type": "object",
+                    "properties": {
+                        "node": {
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        "edge": {
+                            "type": "number",
+                            "minimum": 0
+                        }
+                    }
+                },
+                "viewRotation": false,
+                "framing": false,
+                "author": false,
+                "name": false,
+                "startingRows": false,
+                "editableBase": false,
+                "timelineHiddenAdded": false,
+                "startingCamerasWritten": false
+            }
+        },
+        "playback": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "step": true,
+                "missing": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "timeZone": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "ageFade": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                },
+                "results": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        }
+    },
+    "$defs": {
+        "look": {
+            "type": "object",
+            "description": "The look of a starting row's highlight: the node halo and the edge band.",
+            "properties": {
+                "color": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "scale": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                },
+                "opacity": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                },
+                "edgeColor": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "edgeScale": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                },
+                "edgeOpacity": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                }
+            }
+        },
+        "backgroundShader": {
+            "type": "object",
+            "description": "A background shader, resolved against the style section's shaders (spec 4.2 rule 6).",
+            "required": ["id"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "params": {
+                    "type": "object"
+                }
+            }
+        }
+    }
+}

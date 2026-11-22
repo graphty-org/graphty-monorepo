@@ -51,29 +51,13 @@ const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
 const SIZE_CHANNELS: ReadonlySet<Channel> = new Set<Channel>(["node.size", "edge.width"]);
 
 /**
- * The channels that write text onto the drawing, and the look of that text: the text is its own
- * key, so they get no section.
- */
-const TEXT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
-    "node.label",
-    "node.labelStyle",
-    "node.xlabel",
-    "node.xlabelStyle",
-    "edge.xlabel",
-    "edge.xlabelStyle",
-    "edge.labelStyle",
-    "node.tooltip",
-    "edge.label",
-    "edge.arrowHeadText",
-    "edge.arrowTailText",
-]);
-
-/**
  * The channels whose key would be a bare number beside a name ("Key people 72", "Selected 0.4"):
- * a ring's or an outline's width and opacity, a text's size, and how fast an edge's motion runs. Their
- * row is drawn, not read.
+ * a ring's or an outline's width and opacity, a text's size, how fast an edge's motion runs, and which
+ * node is drawn over which. Their row is drawn, not read.
  */
 const NUMBER_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
+    "node.drawOrder",
+    "node.zIndex",
     "node.outerBorderWidth",
     "node.outerBorderOpacity",
     "edge.outlineWidth",
@@ -223,9 +207,51 @@ function paintedRows(block: LegendBlock): LegendBlock {
 }
 
 /**
+ * The channels that write text onto the drawing, and the look of that text, channel by channel as
+ * a file sets it (a label's font, color and wrap, an edge end's caption and its face): the text is
+ * its own key, so they get no section.
+ */
+const TEXT_PART = /^(node|edge)\.(label|xlabel|tooltip|arrow(Head|Tail)Text)/;
+
+/** How a node's shape is drawn rather than what it shows: its sizing mode and border placement. */
+const SHAPE_MODE_CHANNELS: ReadonlySet<Channel> = new Set<Channel>(["node.sizeMode", "node.borderPosition"]);
+
+/**
+ * Whether a block is a fixed value that keys nothing a reader reads: a bare number ("Corner
+ * fraction 0.125", "Opacity 100%"), which the drawing shows, or a value that draws nothing
+ * (`"none"`: no arrowhead, no outline). A file's defaults set dozens of these on every element.
+ * @param block - the block.
+ * @returns true for such a fixed value.
+ */
+function isUnreadValue(block: LegendBlock): boolean {
+    return (
+        block.kind === "literal" &&
+        block.runId === undefined &&
+        block.swatches.length > 0 &&
+        block.swatches.every(
+            (swatch) => (typeof swatch.value === "number" && swatch.color === undefined) || swatch.value === "none",
+        )
+    );
+}
+
+/**
+ * A part's settings, by the channel that draws the part: a layer that draws the part as nothing
+ * (no arrowhead, a border 0 wide) gives its color and line to nothing.
+ */
+const PART_OF: Partial<Record<Channel, Channel>> = {
+    "edge.arrowHeadColor": "edge.arrowHead",
+    "edge.arrowTailColor": "edge.arrowTail",
+    "node.borderColor": "node.borderWidth",
+    "node.borderStyle": "node.borderWidth",
+};
+
+/**
  * The blocks the legend shows: not a label's (it would list every name beside the name already
  * drawn), not a size that does not vary (a key for one size reads as "sizes done" while every
- * dot is the same, and a highlight's one width, "24", reads as a count), not a channel whose key
+ * dot is the same, and a highlight's one width, "24", reads as a count), not a fixed bare number
+ * or a fixed value that draws nothing (`isUnreadValue`), not a part's setting where its layer
+ * draws the part as nothing (`PART_OF`), not how a shape is drawn (`SHAPE_MODE_CHANNELS`), not a
+ * channel whose key
  * is a bare number (`NUMBER_CHANNELS`), not an edge's line shape (`LINE_SHAPE_CHANNELS`), not one whose row paints nothing right now (a Selected
  * row with nothing selected) or whose every element a filter step hides, and not one a layer
  * above paints over on every element (a key for
@@ -235,16 +261,28 @@ function paintedRows(block: LegendBlock): LegendBlock {
  * @returns the blocks worth a key, in the same order.
  */
 export function keyBlocks(blocks: readonly LegendBlock[]): LegendBlock[] {
+    const none = (block: LegendBlock): boolean =>
+        block.kind === "literal" &&
+        block.swatches.length > 0 &&
+        block.swatches.every((swatch) => swatch.value === "none" || swatch.value === 0);
+    const drawsNothing = new Set(blocks.flatMap((block) => (none(block) ? [`${block.layerId}|${block.channel}`] : [])));
+    const partOff = (block: LegendBlock): boolean => {
+        const part = PART_OF[block.channel];
+        return part !== undefined && block.kind === "literal" && drawsNothing.has(`${block.layerId}|${part}`);
+    };
     return blocks
         .filter(
             (block) =>
-                !TEXT_CHANNELS.has(block.channel) &&
+                !partOff(block) &&
+                !TEXT_PART.test(block.channel) &&
+                !SHAPE_MODE_CHANNELS.has(block.channel) &&
                 !NUMBER_CHANNELS.has(block.channel) &&
                 !LINE_SHAPE_CHANNELS.has(block.channel) &&
                 block.painted !== 0 &&
                 // A layer whose every element a filter step hides keys nothing drawn.
                 block.scope?.count !== 0 &&
                 !(isSizeBlock(block) && (block.kind === "literal" || block.kind === "highlight")) &&
+                !isUnreadValue(block) &&
                 !block.facts.some((fact) => fact.code === "legend.painted-over"),
         )
         .flatMap((block) => {
@@ -521,7 +559,7 @@ interface KeyNames {
  * is drawn as one line, its chip beside its title: a run's node and edge highlights in one color,
  * or a single row named as its title is (`keySections`).
  */
-interface KeySection {
+export interface KeySection {
     readonly title: string;
     readonly block: LegendBlock;
     readonly entry: string;

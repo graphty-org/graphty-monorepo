@@ -105,11 +105,11 @@ export class PajekDataSource extends DataSource {
             imported,
             {
                 node: (row, record) => {
-                    copyColumns(snapshot.nodes, row, record);
+                    copyColumns(snapshot.nodes, row, record, snapshot.ids);
                     nodeRecord(record, coordinates, row, threeD);
                 },
                 edge: (row, record) => {
-                    copyColumns(snapshot.edges, row, record);
+                    copyColumns(snapshot.edges, row, record, snapshot.ids);
                     const { value } = record;
                     delete record.value;
                     record.directed = directed?.value(row) ?? snapshot.directed;

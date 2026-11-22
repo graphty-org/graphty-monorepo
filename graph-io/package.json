@@ -1,7 +1,7 @@
 {
     "name": "@graphty/graph-io",
     "version": "0.3.56",
-    "description": "Read and write 13 graph file formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) as @graphty/graph-format snapshots",
+    "description": "Read and write 14 graph file formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions, SIF), and read Excel workbooks, as @graphty/graph-format snapshots",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
     "main": "dist/graph-io.js",
@@ -72,10 +72,20 @@
             "import": "./dist/obo.js",
             "default": "./dist/obo.js"
         },
+        "./sif": {
+            "types": "./dist/sif.d.ts",
+            "import": "./dist/sif.js",
+            "default": "./dist/sif.js"
+        },
         "./cys": {
             "types": "./dist/cys.d.ts",
             "import": "./dist/cys.js",
             "default": "./dist/cys.js"
+        },
+        "./xlsx": {
+            "types": "./dist/xlsx.d.ts",
+            "import": "./dist/xlsx.js",
+            "default": "./dist/xlsx.js"
         },
         "./sources": {
             "types": "./dist/sources.d.ts",

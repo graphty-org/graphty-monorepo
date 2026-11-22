@@ -60,7 +60,7 @@ const GRAPH_RENDERING_GROUP = 0;
  * Babylon writes every highlighted mesh's opacity as 1; the per-mesh opacity is set just before
  * each mesh is drawn into the glow map, which is the one hook the layer offers for it.
  */
-class NodeGlowLayer extends HighlightLayer {
+export class NodeGlowLayer extends HighlightLayer {
     /** The opacity each glowing source mesh is drawn at, by uniqueId. */
     readonly alphas = new Map<number, number>();
 
@@ -173,14 +173,14 @@ export class NodeEffects {
     private static writeStencilOnlyFor(mesh: Mesh): void {
         const scene = mesh.getScene();
         const engine = scene.getEngine();
-        scene.metadata = scene.metadata ?? {};
+        scene.metadata ??= {};
         // Only inside the main pass: a render target drawn before it (the layers' own glow maps)
         // and the next frame's clear keep the full write mask.
-        let main = scene.metadata.stencilMainPass as { on: boolean } | undefined;
+        let main = (scene.metadata as GraphSceneMetadata).stencilMainPass;
         if (main === undefined) {
             const state = { on: false };
             main = state;
-            scene.metadata.stencilMainPass = state;
+            (scene.metadata as GraphSceneMetadata).stencilMainPass = state;
             scene.onBeforeDrawPhaseObservable.add(() => {
                 state.on = true;
                 engine.setStencilMask(0x00);
@@ -264,15 +264,15 @@ export class NodeEffects {
      * @returns The glow layer for the scene
      */
     private static getOrCreateGlowLayer(scene: Scene): NodeGlowLayer {
-        const existingLayer = scene.metadata?.glowLayer as NodeGlowLayer | undefined;
+        const existingLayer = (scene.metadata as GraphSceneMetadata | null)?.glowLayer;
         if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
             return existingLayer;
         }
 
         const glowLayer = new NodeGlowLayer(this.GLOW_LAYER_NAME, scene);
 
-        scene.metadata = scene.metadata ?? {};
-        scene.metadata.glowLayer = glowLayer;
+        scene.metadata ??= {};
+        (scene.metadata as GraphSceneMetadata).glowLayer = glowLayer;
 
         // Strengths are re-shared every frame, not only when a glow is applied: a node that
         // moves to another source mesh (a strength edit) leaves the old one with no instances,
@@ -298,7 +298,7 @@ export class NodeEffects {
      * under examples/, never in src: glow was never implemented here and never removed, it was
      * accepted, paid for, and dropped on the floor. That is the product owner's report "glow
      * doesn't work" exactly. This method is the missing renderer. Glow is on
-     * only when the merged style names a glow colour: a strength on its own draws nothing.
+     * only when the merged style names a glow color: a strength on its own draws nothing.
      *
      * ORDERING TRAP, do not "fix" this by touching the material: `NodeMesh.createMaterial` calls
      * `mat.freeze()` immediately after building it. The highlight layer's per-mesh color is the
@@ -320,8 +320,8 @@ export class NodeEffects {
 
         // A COLOUR SWITCHES GLOW ON; a strength alone does not. `node.glowStrength` writes
         // `effect.glow.strength`, so a layer that binds only a strength (to a metric, say) leaves
-        // an `effect.glow` with no colour on every node it paints. Treated as "glow on", that drew
-        // the white fallback on all of them (#2068). The strength only scales a colour some layer set.
+        // an `effect.glow` with no color on every node it paints. Treated as "glow on", that drew
+        // the white fallback on all of them (#2068). The strength only scales a color some layer set.
         // A STRENGTH OF 0 IS NO GLOW (#2067), so it takes the removal branch and never creates or
         // keeps alive the full-screen glow layer for a glow nobody can see.
         const colorValue = this.extractColorValue(effect?.glow?.color);
@@ -348,7 +348,7 @@ export class NodeEffects {
             // NO LAYER IS CREATED HERE. Asking a node not to glow must not cost a full-screen
             // post-process, which is what calling getOrCreateGlowLayer in this branch would do --
             // and it would do it for every node of every graph, since most nodes have no glow.
-            const existingLayer = scene.metadata?.glowLayer as NodeGlowLayer | undefined;
+            const existingLayer = (scene.metadata as GraphSceneMetadata | null)?.glowLayer;
             if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
                 this.glowStrengths(scene).delete(renderedMesh);
                 existingLayer.alphas.delete(renderedMesh.uniqueId);
@@ -364,11 +364,10 @@ export class NodeEffects {
      * @returns The per-source-mesh strengths and opacities
      */
     private static glowStrengths(scene: Scene): Map<Mesh, { strength: number; alpha: number }> {
-        scene.metadata = scene.metadata ?? {};
-        scene.metadata.glowStrengths =
-            scene.metadata.glowStrengths ?? new Map<Mesh, { strength: number; alpha: number }>();
+        scene.metadata ??= {};
+        (scene.metadata as GraphSceneMetadata).glowStrengths ??= new Map<Mesh, { strength: number; alpha: number }>();
 
-        return scene.metadata.glowStrengths as Map<Mesh, { strength: number; alpha: number }>;
+        return (scene.metadata as GraphSceneMetadata).glowStrengths as Map<Mesh, { strength: number; alpha: number }>;
     }
 
     /**
@@ -472,14 +471,14 @@ export class NodeEffects {
      * @param scene - The Babylon.js scene
      */
     static disposeGlowLayer(scene: Scene): void {
-        const existingLayer = scene.metadata?.glowLayer as NodeGlowLayer | undefined;
+        const existingLayer = (scene.metadata as GraphSceneMetadata | null)?.glowLayer;
         if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
             existingLayer.dispose();
         }
 
         if (scene.metadata) {
-            scene.metadata.glowLayer = undefined;
-            scene.metadata.glowStrengths = undefined;
+            (scene.metadata as GraphSceneMetadata).glowLayer = undefined;
+            (scene.metadata as GraphSceneMetadata).glowStrengths = undefined;
         }
     }
 }

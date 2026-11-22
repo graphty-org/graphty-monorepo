@@ -142,4 +142,123 @@ describe("visibility filter steps", () => {
         assert.strictEqual(plan.blocked?.code, "E_BAD_COMMAND");
         session.dispose();
     });
+
+    it("counts what each step leaves out, in order, after a move, a switch and the single filter", async () => {
+        const session = await friends();
+        await session.visibility.setSteps([POPULAR, NEAR_AVA]);
+        const counts = session.visibility.stepCounts();
+        assert.deepStrictEqual(counts, [
+            {
+                id: "popular",
+                on: true,
+                before: { nodes: 20, edges: 41 },
+                after: { nodes: 19, edges: 38 },
+                leftOut: { nodes: 1, edges: 3 },
+            },
+            {
+                id: "near-ava",
+                on: true,
+                before: { nodes: 19, edges: 38 },
+                after: { nodes: 7, edges: 10 },
+                leftOut: { nodes: 12, edges: 28 },
+            },
+        ]);
+        // Read again with nothing changed: the same answer, counted once.
+        assert.strictEqual(session.visibility.stepCounts(), counts);
+
+        // A move changes what each step leaves out, never what is visible.
+        await session.visibility.moveStep("near-ava", 0);
+        assert.deepStrictEqual(
+            session.visibility.steps.map((step) => step.id),
+            ["near-ava", "popular"],
+        );
+        assert.deepStrictEqual(shown(session), [7, 10]);
+        const moved = session.visibility.stepCounts();
+        assert.deepStrictEqual(moved[0].before, { nodes: 20, edges: 41 });
+        assert.deepStrictEqual(moved[1].after, { nodes: 7, edges: 10 });
+        assert.deepStrictEqual(moved[0].after, moved[1].before);
+        assert.strictEqual(moved[0].leftOut.nodes + moved[1].leftOut.nodes, 13);
+
+        // A step that is off leaves out nothing, and the next one counts from what is left.
+        await session.visibility.updateCondition("near-ava", { on: false });
+        const off = session.visibility.stepCounts();
+        assert.deepStrictEqual(off[0], {
+            id: "near-ava",
+            on: false,
+            before: { nodes: 20, edges: 41 },
+            after: { nodes: 20, edges: 41 },
+            leftOut: { nodes: 0, edges: 0 },
+        });
+        assert.deepStrictEqual(off[1].leftOut, { nodes: 1, edges: 3 });
+
+        // The single filter set with set() comes before every step.
+        await session.visibility.set({ kind: "degree", min: 5 });
+        const filtered = session.visibility.stepCounts();
+        assert.deepStrictEqual(filtered[0].before, { nodes: shown(session)[0], edges: shown(session)[1] });
+        assert.deepStrictEqual(filtered[1].leftOut, { nodes: 0, edges: 0 }, "degree 5 already keeps degree 4");
+        session.dispose();
+    });
+
+    it("moves a step as one undoable step that undo puts back, and keeps its effect", async () => {
+        const session = await friends();
+        await session.visibility.setConditions([
+            { id: "popular", effect: "keep", rule: POPULAR.rule },
+            { id: "pick", effect: "select", rule: { kind: "degree", min: 6 } },
+            { id: "lonely", effect: "exclude", rule: { kind: "degree", max: 1 } },
+        ]);
+        const steps = session.history.steps.length;
+
+        await session.visibility.moveStep("lonely", 0);
+        assert.strictEqual(session.history.steps.length, steps + 1, "one undo step");
+        assert.deepStrictEqual(
+            session.visibility.conditions.map((each) => [each.id, each.effect]),
+            [
+                ["lonely", "exclude"],
+                ["pick", "select"],
+                ["popular", "keep"],
+            ],
+            "the steps swap slots; the select condition stays where it was",
+        );
+
+        await session.undo();
+        assert.deepStrictEqual(
+            session.visibility.steps.map((step) => step.id),
+            ["popular", "lonely"],
+        );
+        assert.strictEqual(session.visibility.stepCounts()[0].id, "popular");
+        await session.redo();
+        assert.deepStrictEqual(
+            session.visibility.steps.map((step) => step.id),
+            ["lonely", "popular"],
+        );
+
+        assert.throws(() => void session.visibility.moveStep("pick", 0), /no filter step "pick"/);
+        assert.throws(() => void session.visibility.moveStep("popular", 2), /not a place/);
+        assert.throws(() => void session.visibility.moveStep("popular", 0.5), /not a place/);
+        session.dispose();
+    });
+
+    it("recounts after a data change, and after a project is opened", async () => {
+        const session = await friends();
+        await session.visibility.setSteps([POPULAR, NEAR_AVA]);
+        const counts = session.visibility.stepCounts();
+
+        await session.data.addNodes([{ id: "Zed" }]);
+        const grown = session.visibility.stepCounts();
+        assert.notStrictEqual(grown, counts);
+        assert.deepStrictEqual(grown[0].before, { nodes: 21, edges: 41 });
+        assert.deepStrictEqual(grown[0].leftOut, { nodes: 2, edges: 3 });
+
+        await session.visibility.moveStep("near-ava", 0);
+        const { text } = await session.project.save();
+        const opened = createGraphSession();
+        await opened.project.open(text);
+        assert.deepStrictEqual(
+            opened.visibility.steps.map((step) => step.id),
+            ["near-ava", "popular"],
+        );
+        assert.deepStrictEqual(opened.visibility.stepCounts(), session.visibility.stepCounts());
+        session.dispose();
+        opened.dispose();
+    });
 });

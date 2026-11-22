@@ -14,7 +14,6 @@ import {
     type Scope,
 } from "@graphty/graphty-element/session";
 import {
-    ActionIcon,
     Autocomplete,
     Button,
     Checkbox,
@@ -31,7 +30,7 @@ import {
     VisuallyHidden,
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import React, { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { sourceName } from "../data-place/words";
@@ -314,42 +313,21 @@ function useLeafCount(
 }
 
 /**
- * The leaves some cards make, ANDed: null for none.
- * @param cards - the cards; unfinished ones make no leaf.
- * @returns the rule.
- */
-function allOf(cards: readonly Card[]): RuleTree | null {
-    const leaves = cards.flatMap((card) => styleLeafOf(card) ?? []);
-    if (leaves.length === 0) {
-        return null;
-    }
-    return leaves.length === 1 ? leaves[0] : { kind: "all", of: leaves };
-}
-
-/**
  * The rows' total as the Which row and the open cards both say it: "11 of 77 nodes", for one layer
- * as for several (the union), as a folder's count says it; for held cards, what they keep together.
+ * as for several (the union), as a folder's count says it.
  * @param session - the element's session.
  * @param rows - the rows.
  * @param side - nodes or edges.
- * @param held - the cards a caller holds instead of a layer's.
  * @returns the words.
  */
-function useHead(session: GraphSession, rows: readonly PickRow[], side: Side, held?: readonly Card[]): string {
-    const stats = session.data.statistics({ scope: "all" });
+function useHead(session: GraphSession, rows: readonly PickRow[], side: Side): string {
     // A layer paints only what is showing, and its row counts over that (4 of 15 under a filter):
     // said over the same base, never the whole graph's.
     const { summary } = session.visibility;
-    const showing = side === "node" ? summary.visibleNodes : summary.visibleEdges;
-    const whole = side === "node" ? stats.nodeCount : stats.edgeCount;
-    const total = held === undefined ? showing : whole;
-    const heldRule = held === undefined ? null : allOf(held);
-    const union = held === undefined && rows.length > 1 ? unionRule(rows) : heldRule;
-    const unionCount = useLeafCount(session, union, side);
+    const total = side === "node" ? summary.visibleNodes : summary.visibleEdges;
+    const unionCount = useLeafCount(session, rows.length > 1 ? unionRule(rows) : null, side);
     let matched: number | undefined;
-    if (held !== undefined) {
-        matched = heldRule === null ? total : unionCount;
-    } else if (rows.length === 1) {
+    if (rows.length === 1) {
         const [{ layer }] = rows;
         ({ matched } = session.styles.counts(layer.id));
     } else if (rows.some((row) => row.cards.length === 0)) {
@@ -374,33 +352,11 @@ const SPEAK_AFTER_MS = 500;
 /** A card's value box: the first text or number box its body draws (not its match menu). */
 const VALUE_BOX = "input:not([type=hidden]):not([type=checkbox]):not([readonly])";
 
-/**
- * Cards a caller holds instead of a layer's (a filter step's rule): drawn and edited as a layer's
- * are, and handed back on every change instead of written.
- */
-interface HeldCards {
-    readonly cards: readonly Card[];
-    readonly onChange: (cards: readonly Card[]) => void;
-}
-
-/**
- * Held cards as the picker draws them.
- * @param cards - the cards.
- * @returns them, each shared.
- */
-const heldShown = (cards: readonly Card[]): Shown[] =>
-    cards.map((card) => ({ key: card.key, card, per: [], shared: true }));
-
 /** Props of a picker. */
 interface WhichPickerProps {
     readonly session: GraphSession;
-    /**
-     * The tree rows it writes: one layer, or every unlocked layer row of a multi-selection or a
-     * folder; none with `held`.
-     */
+    /** The tree rows it writes: one layer, or every unlocked layer row of a multi-selection or a folder. */
     readonly rows: readonly string[];
-    /** Cards it edits instead of a layer's. */
-    readonly held?: HeldCards;
     readonly side: Side;
     /** Open on arrival: a new layer, or a kind just turned on with no cards. */
     readonly autoOpen?: boolean;
@@ -429,28 +385,25 @@ interface WhichPickerProps {
  * @param props.adding - a field to open on with a card on it
  * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
  * @param props.summary - reads the folded row's cards as one line
- * @param props.held - cards it edits instead of a layer's
  * @returns The picker
  */
 export function WhichPicker({
     session,
     rows: ids,
-    held,
     side,
     autoOpen = false,
     adding,
     onElsewhere,
     summary,
 }: WhichPickerProps): React.JSX.Element | null {
-    const rows = held === undefined ? pickRows(session, ids, side) : [];
-    const shown = held === undefined ? shownOf(rows) : heldShown(held.cards);
+    const rows = pickRows(session, ids, side);
+    const shown = shownOf(rows);
     const [open, setOpen] = useState((autoOpen && shown.length === 0) || adding !== undefined);
     // One layer's own selector is edited as a selection (design/ui/selection-groups/spec.md);
-    // several layers at once and held cards keep the cards. Cards opened stay until
+    // several layers at once keep the cards. Cards opened stay until
     // they close, even when an edit there leaves a selector the selection editor reads (the last
     // card removed): swapping editors mid-edit would drop the cards and their notice's Undo.
-    const editable =
-        held === undefined && rows.length === 1 ? layerSelection(session, rows[0].layer.selector, side) : null;
+    const editable = rows.length === 1 ? layerSelection(session, rows[0].layer.selector, side) : null;
     const [onCards, setOnCards] = useState(() => open && editable === null);
     const selection = open && onCards ? null : editable;
     // Opened on arrival, it starts on Add a condition -- unless the reader is moving between the
@@ -465,7 +418,7 @@ export function WhichPicker({
     // still being worked out ("of 24 nodes", ""). The screen follows each keystroke; the count is
     // spoken once, when typing pauses. While a keystroke's write is on its way the count is still the
     // old text's, so it waits: each keystroke starts the pause again, however slow the machine.
-    const head = useHead(session, rows, side, held?.cards);
+    const head = useHead(session, rows, side);
     const [writing, setWriting] = useState(false);
     const [settled] = useDebouncedValue(writing ? "" : head, SPEAK_AFTER_MS);
     // Under an open selection workspace only the workspace says its count: this row is covered (or
@@ -474,7 +427,7 @@ export function WhichPicker({
     const covered = useWorkspaceState((state) => state.selectionWorkspace !== null);
     const [wasCovered] = useDebouncedValue(covered, SPEAK_AFTER_MS);
     useAnnounceChange(/\d of \d/.test(settled) ? settled : null, true, covered || wasCovered);
-    if (rows.length === 0 && held === undefined) {
+    if (rows.length === 0) {
         return null;
     }
     // Done, Enter or Escape: focus goes back to the Which row it opened from -- the one drawn now,
@@ -505,7 +458,6 @@ export function WhichPicker({
                 <Cards
                     session={session}
                     rows={rows}
-                    held={held}
                     side={side}
                     initial={shown}
                     focusKey={focusKey}
@@ -524,7 +476,6 @@ export function WhichPicker({
                 <WhichRow
                     session={session}
                     rows={rows}
-                    held={held?.cards}
                     shown={shown}
                     side={side}
                     buttonRef={rowButton}
@@ -540,7 +491,7 @@ export function WhichPicker({
                     onOpen={(key) => {
                         // With no card, focus lands on Add a condition, whose list opens on a
                         // press: open already, the press would close it.
-                        setFocusKey(key ?? shown[0]?.key ?? "add");
+                        setFocusKey(key ?? shown.at(0)?.key ?? "add");
                         setOnCards(true);
                         setOpen(true);
                     }}
@@ -556,7 +507,6 @@ export function WhichPicker({
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rows - the rows it writes
- * @param props.held - the cards a caller holds instead of a layer's
  * @param props.shown - the cards as drawn
  * @param props.side - nodes or edges
  * @param props.buttonRef - the row button, which focus returns to
@@ -568,7 +518,6 @@ export function WhichPicker({
 function WhichRow({
     session,
     rows,
-    held,
     shown,
     side,
     buttonRef,
@@ -578,7 +527,6 @@ function WhichRow({
 }: Readonly<{
     session: GraphSession;
     rows: readonly PickRow[];
-    held?: readonly Card[];
     shown: readonly Shown[];
     side: Side;
     buttonRef: React.RefObject<HTMLButtonElement | null>;
@@ -589,7 +537,7 @@ function WhichRow({
     // "All N nodes" names the whole graph.
     const stats = session.data.statistics({ scope: "all" });
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
-    const head = useHead(session, rows, side, held);
+    const head = useHead(session, rows, side);
     const words = shown.map((each) => chipWords(session, each, rows.length));
     // Each chip's own count, as it draws it, so the row's name says it too (after Done as before).
     const [counts, setCounts] = useState<Readonly<Record<string, number | undefined>>>({});
@@ -605,11 +553,7 @@ function WhichRow({
         ruleWords = [hint];
     }
     // A layer whose conditions leave nothing is flagged on its count, or on a chip that leaves none.
-    const none =
-        held === undefined &&
-        rows.length === 1 &&
-        shown.length > 0 &&
-        session.styles.counts(rows[0].layer.id).matched === 0;
+    const none = rows.length === 1 && shown.length > 0 && session.styles.counts(rows[0].layer.id).matched === 0;
     // The row draws only its name; its count and its rule are its tooltip and its accessible name (#8739).
     const said = [head, none ? `no ${NOUN[side].one} matches` : "", ...ruleWords].filter((part) => part !== "");
     // A heading at the level of the sections around it, holding its disclosure button (the
@@ -759,7 +703,6 @@ type OnCard = (next: Card) => void;
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rows - the rows it writes
- * @param props.held - cards it edits instead of the rows'
  * @param props.side - nodes or edges
  * @param props.initial - the cards when it opened
  * @param props.focusKey - the card (or "add") to focus first
@@ -774,7 +717,6 @@ type OnCard = (next: Card) => void;
 function Cards({
     session,
     rows,
-    held: holder,
     side,
     initial,
     focusKey,
@@ -787,7 +729,6 @@ function Cards({
 }: Readonly<{
     session: GraphSession;
     rows: readonly PickRow[];
-    held?: HeldCards;
     side: Side;
     initial: readonly Shown[];
     focusKey: string | null;
@@ -837,12 +778,10 @@ function Cards({
         },
         onWriting,
     );
-    // A held rule (a filter step) speaks both kinds at once, so it lists Data source once, with the nodes.
-    const sourceTwice = holder !== undefined && side === "edge";
     // The columns follow the data: one that arrives while the picker is open is listed, so they
     // are read on every change the element reports, never kept from the first render.
     useSessionEvents(session, INSPECTOR_EVENTS);
-    const fields = cardFields(session, side).filter((field) => !sourceTwice || field.kind !== "source");
+    const fields = cardFields(session, side);
     const elsewhere = cardFields(session, side === "node" ? "edge" : "node");
     const bulk = rows.length > 1;
 
@@ -897,10 +836,6 @@ function Cards({
     const commit = (next: readonly Shown[], names?: ReadonlyMap<string, Pick<Layer, "name" | "userData">>): void => {
         latest.current = next;
         setList(next);
-        if (holder !== undefined) {
-            holder.onChange(next.map((each) => each.card));
-            return;
-        }
         const patches = patchesOf(session, drawn.current, next, side, (row) => endsAt.current.get(row.id)).map(
             (each) => {
                 const was = names?.get(each.id);
@@ -920,12 +855,13 @@ function Cards({
         const at = list.findIndex((each) => each.key === key);
         const next = list.filter((each) => each.key !== key);
         commit(next);
-        setFocus(next[at]?.key ?? next[at - 1]?.key ?? "add");
+        const near: readonly (Shown | undefined)[] = next;
+        setFocus(near[at]?.key ?? near[at - 1]?.key ?? "add");
         // The last condition gone, the layer styles every element of the kind: said, with Undo.
         const narrows = (cards: readonly Shown[]): boolean =>
             cards.some((each) => each.card.type !== "ends" && isFinished(each.card));
-        const removed = list[at];
-        if (holder === undefined && !bulk && removed !== undefined && narrows(list) && !narrows(next)) {
+        const removed = at === -1 ? undefined : list[at];
+        if (!bulk && removed !== undefined && narrows(list) && !narrows(next)) {
             // Undo gives the layer back its cards and the name it had with them.
             const row = rows[0];
             const names = new Map(
@@ -985,11 +921,10 @@ function Cards({
     }, [fields, initial]);
 
     // A card with no value yet is not written: closing the cards (Done, Enter, Escape, a click
-    // elsewhere) drops it, and says so. Held cards stay as the caller holds them.
-    const holding = holder !== undefined;
+    // elsewhere) drops it, and says so.
     useEffect(
         () => () => {
-            const dropped = holding ? [] : latest.current.filter((each) => !isFinished(each.card));
+            const dropped = latest.current.filter((each) => !isFinished(each.card));
             if (dropped.length > 0) {
                 store.set({
                     notice: {
@@ -1001,9 +936,9 @@ function Cards({
                 });
             }
         },
-        [store, holding],
+        [store],
     );
-    const head = useHead(session, rows, side, holder === undefined ? undefined : list.map((each) => each.card));
+    const head = useHead(session, rows, side);
     const matched = rows.length === 1 ? session.styles.counts(rows[0].layer.id).matched : undefined;
     let why: string | undefined;
     if (matched === 0 && list.length > 0) {
@@ -1048,11 +983,7 @@ function Cards({
                 }
             }}
             onKeyDown={(event) => {
-                // Held cards leave their Enter to the caller too (a filter step's form adds the
-                // step), closing after it: closed now, the box would be gone before the form saw it.
-                if (holding && isDoneKey(event)) {
-                    requestAnimationFrame(onClose);
-                } else if (isPanelEscape(event.nativeEvent) || isDoneKey(event)) {
+                if (isPanelEscape(event.nativeEvent) || isDoneKey(event)) {
                     event.preventDefault();
                     event.stopPropagation();
                     onClose();
@@ -1197,7 +1128,7 @@ export interface ExtraItem {
     readonly onPick: () => void;
     /** One fact that tells it from its neighbors, drawn dimmed at the right. */
     readonly fact?: string;
-    /** Why it cannot be picked here: greyed, with the reason as its tooltip and in its name. */
+    /** Why it cannot be picked here: grayed, with the reason as its tooltip and in its name. */
     readonly unusable?: string;
     /** Plain words for what it is, as its tooltip (selection spec 3.5). */
     readonly tip?: string;
@@ -1295,9 +1226,6 @@ function listPlacement(
  * @param props.used - the card keys already drawn
  * @param props.onAdd - adds a card on a field
  * @param props.onElsewhere - goes to the other kind's tab with a card on its field
- * @param props.bySide - groups the fields Nodes and Edges
- * @param props.extra - rows that are not fields, listed last under Structure
- * @param props.plus - draws the opener as a "+" icon button with this name
  * @param props.opened - opens the list from outside
  * @param props.onOpened - told when the list closes
  * @param props.sections - headings of rows that are not fields, after the field groups
@@ -1313,9 +1241,6 @@ export function AddCondition({
     used,
     onAdd,
     onElsewhere,
-    bySide = false,
-    extra = [],
-    plus,
     opened,
     onOpened,
     sections: more = [],
@@ -1329,12 +1254,6 @@ export function AddCondition({
     used: readonly string[];
     onAdd: (field: CardField) => void;
     onElsewhere?: (field: CardField) => void;
-    /** Groups the fields Nodes and Edges by the kind they are on (the Filters "+"), not Data, Results, Structure. */
-    bySide?: boolean;
-    /** Rows that are not a field (Largest component), listed last as Structure. */
-    extra?: readonly ExtraItem[];
-    /** Draws the opener as a "+" icon button with this name and tooltip, not "Add a condition". */
-    plus?: string;
     /** Opens the list from outside (the Filters command). */
     opened?: boolean;
     /** Told when the list closes, so `opened` can be put back. */
@@ -1380,16 +1299,10 @@ export function AddCondition({
     const typed = search.trim().toLowerCase();
     const found = (each: CardField): boolean => finds(typed, each);
     // A name that starts with the typed text first, in its group, and its group first.
-    const sections: readonly { group: string; has: (field: CardField) => boolean }[] = bySide
-        ? [
-              { group: "Nodes", has: (f) => f.on === "node" },
-              { group: "Edges", has: (f) => f.on === "edge" },
-          ]
-        : (["Data", "Results", "Structure"] as const).map((group) => ({ group, has: (f) => f.group === group }));
     const groups = prefixFirst(
-        sections.flatMap(({ group, has }) => {
+        (["Data", "Results", "Structure"] as const).flatMap((group) => {
             const items = prefixFirst(
-                fields.filter((f) => has(f) && found(f)),
+                fields.filter((f) => f.group === group && found(f)),
                 (each) => each.name,
                 search,
             );
@@ -1398,30 +1311,21 @@ export function AddCondition({
         ({ items }) => items[0].name,
         search,
     );
-    // The rows that are not fields stay last, under Structure, whatever is typed.
-    const extras = prefixFirst(
-        extra.filter((each) => finds(typed, each)),
-        (each) => each.name,
-        search,
-    );
     const foundRow = (each: ExtraItem): boolean => finds(typed, each);
     const moreShown = more
         .map(({ group, items }) => ({ group, items: prefixFirst(items.filter(foundRow), (each) => each.name, search) }))
         .filter(({ items }) => items.length > 0);
-    const extraRows = [...moreShown.flatMap(({ items }) => items), ...extra];
+    const extraRows = moreShown.flatMap(({ items }) => items);
     // How well each listed row matches, in list order: its name is the search, starts with it,
     // holds it, or only its other words or its words in any order match. Enter takes the best,
     // whatever group it is in.
-    const ranks = [...groups.flatMap(({ items }) => items), ...moreShown.flatMap(({ items }) => items), ...extras]
+    const ranks = [...groups.flatMap(({ items }) => items), ...extraRows]
         .map(({ name }) => {
             const rank = nameRank(name, typed);
             return rank < 2 || name.toLowerCase().includes(typed) ? rank : 3;
         })
         .join(",");
-    const count =
-        groups.reduce((sum, { items }) => sum + items.length, 0) +
-        moreShown.reduce((sum, { items }) => sum + items.length, 0) +
-        extras.length;
+    const count = groups.reduce((sum, { items }) => sum + items.length, 0) + extraRows.length;
     // Typed on one kind's tab, a value the other kind carries is pointed to its tab.
     const other = typed === "" ? undefined : prefixFirst(elsewhere.filter(found), (each) => each.name, search)[0];
     const nothingWords = nothingFoundWords(other);
@@ -1435,6 +1339,16 @@ export function AddCondition({
                   onElsewhere(other);
               };
     const { dropdownOpened, selectFirstOption, selectOption, resetSelectedOption, setListId } = combobox;
+    // The search takes focus in the commit that shows the list, so a key pressed the moment it
+    // shows lands in it. Mantine's focusSearchInput waits a timer, and under load the reader's (or
+    // a test's) first keys arrive before it fires and go to the field behind (#8943). No scroll:
+    // the list may not be placed yet.
+    const { searchRef } = combobox;
+    useLayoutEffect(() => {
+        if (dropdownOpened) {
+            searchRef.current?.focus({ preventScroll: true });
+        }
+    }, [dropdownOpened, searchRef]);
     // The store finds its options in the list by this id (Combobox.Options would tell it).
     useEffect(() => {
         setListId(listId);
@@ -1518,10 +1432,12 @@ export function AddCondition({
                 }
                 break;
             case "Escape":
-                // Escape closes the list only, not the picker it opened from.
+                // Escape closes the list only, not the picker it opened from. Focus goes back to
+                // what opened it -- the anchor when there is one, which `button` never holds --
+                // before the search unmounts, so focus is never left on the page.
                 event.preventDefault();
                 combobox.closeDropdown();
-                button.current?.focus();
+                combobox.targetRef.current?.focus();
                 break;
             case "Tab":
                 // With letters typed, Tab takes the attribute they highlight and moves on into its
@@ -1537,7 +1453,7 @@ export function AddCondition({
                 if (event.shiftKey) {
                     event.preventDefault();
                 }
-                button.current?.focus();
+                combobox.targetRef.current?.focus();
                 break;
             default:
                 break;
@@ -1564,47 +1480,30 @@ export function AddCondition({
             }}
         >
             <Combobox.Target withAriaAttributes={false}>
-                {anchor ??
-                    (plus === undefined ? (
-                        <Button
-                            ref={button}
-                            size="compact-xs"
-                            variant="subtle"
-                            leftSection={<GLYPHS.add size={12} aria-hidden />}
-                            data-add
-                            aria-haspopup="listbox"
-                            aria-expanded={dropdownOpened}
-                            onClick={() => {
-                                combobox.toggleDropdown();
-                            }}
-                            onKeyDown={(event) => {
-                                // An open list takes Escape; the picker around it stays open.
-                                if (event.key === "Escape" && dropdownOpened) {
-                                    event.preventDefault();
-                                    combobox.closeDropdown();
-                                }
-                            }}
-                            style={{ alignSelf: "flex-start" }}
-                        >
-                            Add a condition
-                        </Button>
-                    ) : (
-                        <Tooltip label={plus}>
-                            <ActionIcon
-                                ref={button}
-                                variant="subtle"
-                                data-add
-                                aria-label={plus}
-                                aria-haspopup="listbox"
-                                aria-expanded={dropdownOpened}
-                                onClick={() => {
-                                    combobox.toggleDropdown();
-                                }}
-                            >
-                                <GLYPHS.add size={14} aria-hidden />
-                            </ActionIcon>
-                        </Tooltip>
-                    ))}
+                {anchor ?? (
+                    <Button
+                        ref={button}
+                        size="compact-xs"
+                        variant="subtle"
+                        leftSection={<GLYPHS.add size={12} aria-hidden />}
+                        data-add
+                        aria-haspopup="listbox"
+                        aria-expanded={dropdownOpened}
+                        onClick={() => {
+                            combobox.toggleDropdown();
+                        }}
+                        onKeyDown={(event) => {
+                            // An open list takes Escape; the picker around it stays open.
+                            if (event.key === "Escape" && dropdownOpened) {
+                                event.preventDefault();
+                                combobox.closeDropdown();
+                            }
+                        }}
+                        style={{ alignSelf: "flex-start" }}
+                    >
+                        Add a condition
+                    </Button>
+                )}
             </Combobox.Target>
             <Combobox.Dropdown>
                 <Combobox.Search // eslint-disable-line jsx-a11y/role-supports-aria-props -- aria-description is a global ARIA 1.3 attribute, valid on a combobox
@@ -1723,19 +1622,6 @@ export function AddCondition({
                                     ))}
                                 </Combobox.Group>
                             ))}
-                            {extras.length > 0 && (
-                                <Combobox.Group label="Structure" role="group" aria-label="Structure">
-                                    {extras.map((each) => (
-                                        <Combobox.Option
-                                            key={each.key}
-                                            value={`${EXTRA}${each.key}`}
-                                            aria-label={each.name}
-                                        >
-                                            <OptionLine glyph={each.glyph} name={each.name} />
-                                        </Combobox.Option>
-                                    ))}
-                                </Combobox.Group>
-                            )}
                         </>
                     )}
                 </ScrollArea.Autosize>
@@ -1745,7 +1631,7 @@ export function AddCondition({
 }
 
 /**
- * One row of the add list that is not a field: its icon, name and fact; greyed with its reason as
+ * One row of the add list that is not a field: its icon, name and fact; grayed with its reason as
  * a tooltip when it cannot be picked here.
  * @param props - Component props
  * @param props.item - the row
@@ -3230,10 +3116,9 @@ function drawnColor(
     _painted: number,
 ): string | undefined {
     const where: RuleTree = { kind: "categories", attribute: path, values: [value] };
-    const [color] = session.styles.agreement(
-        { define: { kind: "rule", where, reading: "listed" } },
-        `${side}.color`,
-    ).channels;
+    const color = session.styles
+        .agreement({ define: { kind: "rule", where, reading: "listed" } }, `${side}.color`)
+        .channels.at(0);
     if (color?.state !== "agree" || color.unpainted > 0) {
         return undefined;
     }
@@ -3568,78 +3453,70 @@ function TextCard({
                     onChange({ ...card, match: match as typeof card.match });
                 }}
             />
-            {card.match === "list"
-                ? variant !== undefined && (
-                      // eslint-disable-next-line graphty/style-sidebar-controls -- drawn only in the selection workspace's steps (a card with a variant), never in the Style sidebar
-                      <Text size="xs">
-                          {(card.ids ?? []).length} {(card.ids ?? []).length === 1 ? "node" : "nodes"}:{" "}
-                          {(card.ids ?? []).slice(0, 5).join(", ")}
-                          {(card.ids ?? []).length > 5 ? ", ..." : ""}
-                      </Text>
-                  )
-                : card.match !== "present" &&
-                  card.match !== "absent" && (
-                      <>
-                          <Autocomplete
-                              aria-label={`${name}: text to match`}
-                              data-enter-done
-                              placeholder="Text"
-                              // Never more than a checklist draws, whatever the column holds (spec 4.3).
-                              limit={SHOWN_VALUES}
-                              data={listed}
-                              filter={({ options }) => options}
-                              // Focus put here (the card opening, Undo, a card removed) never opens
-                              // the list: typing or ArrowDown does, so a stray Enter cannot take a
-                              // suggestion over the text the rule holds.
-                              openOnFocus={false}
-                              // ArrowDown on a closed list only opens it, with nothing highlighted, so
-                              // the Enter after it is Done, not a suggestion; the next ArrowDown walks.
-                              // Escape with the list shut keeps the text and the picker open; an
-                              // open list's Escape closes the list only, and an empty box's goes on.
-                              onKeyDownCapture={(event) => {
-                                  const shut = !("expanded" in event.currentTarget.dataset);
-                                  // Enter commits the text (or takes the lit suggestion): the list goes
-                                  // with it, never left over the rows below.
-                                  if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-                                      setOpened(false);
-                                      return;
-                                  }
-                                  if (
-                                      (event.key === "ArrowDown" && !opened) ||
-                                      (event.key === "Escape" && shut && card.text !== "")
-                                  ) {
-                                      event.preventDefault();
-                                      event.stopPropagation();
-                                      if (event.key === "ArrowDown") {
-                                          setOpened(true);
-                                      }
-                                  }
-                              }}
-                              // Listed once something is typed: an empty box opens on nothing.
-                              dropdownOpened={opened && typed !== "" && listed.length > 0}
-                              onDropdownOpen={() => {
-                                  setOpened(true);
-                              }}
-                              onDropdownClose={() => {
-                                  setOpened(false);
-                              }}
-                              value={card.text}
-                              onChange={(text) => {
-                                  onChange({ ...card, text });
-                              }}
-                          />
-                          {variant !== "step" && (
-                              <Checkbox
-                                  size="xs"
-                                  label="Match case"
-                                  checked={card.caseSensitive}
-                                  onChange={(event) => {
-                                      onChange({ ...card, caseSensitive: event.currentTarget.checked });
-                                  }}
-                              />
-                          )}
-                      </>
-                  )}
+            {/* A list (the selected nodes) has no box. Only the Style sidebar's card holds one: a step's
+                card is read back from its rule, where the nodes are a picked-by-hand rule. */}
+            {card.match !== "list" && card.match !== "present" && card.match !== "absent" && (
+                <>
+                    <Autocomplete
+                        aria-label={`${name}: text to match`}
+                        data-enter-done
+                        placeholder="Text"
+                        // Never more than a checklist draws, whatever the column holds (spec 4.3).
+                        limit={SHOWN_VALUES}
+                        data={listed}
+                        filter={({ options }) => options}
+                        // Focus put here (the card opening, Undo, a card removed) never opens
+                        // the list: typing or ArrowDown does, so a stray Enter cannot take a
+                        // suggestion over the text the rule holds.
+                        openOnFocus={false}
+                        // ArrowDown on a closed list only opens it, with nothing highlighted, so
+                        // the Enter after it is Done, not a suggestion; the next ArrowDown walks.
+                        // Escape with the list shut keeps the text and the picker open; an
+                        // open list's Escape closes the list only, and an empty box's goes on.
+                        onKeyDownCapture={(event) => {
+                            const shut = !("expanded" in event.currentTarget.dataset);
+                            // Enter commits the text (or takes the lit suggestion): the list goes
+                            // with it, never left over the rows below.
+                            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                                setOpened(false);
+                                return;
+                            }
+                            if (
+                                (event.key === "ArrowDown" && !opened) ||
+                                (event.key === "Escape" && shut && card.text !== "")
+                            ) {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (event.key === "ArrowDown") {
+                                    setOpened(true);
+                                }
+                            }
+                        }}
+                        // Listed once something is typed: an empty box opens on nothing.
+                        dropdownOpened={opened && typed !== "" && listed.length > 0}
+                        onDropdownOpen={() => {
+                            setOpened(true);
+                        }}
+                        onDropdownClose={() => {
+                            setOpened(false);
+                        }}
+                        value={card.text}
+                        onChange={(text) => {
+                            onChange({ ...card, text });
+                        }}
+                    />
+                    {variant !== "step" && (
+                        <Checkbox
+                            size="xs"
+                            label="Match case"
+                            checked={card.caseSensitive}
+                            onChange={(event) => {
+                                onChange({ ...card, caseSensitive: event.currentTarget.checked });
+                            }}
+                        />
+                    )}
+                </>
+            )}
             {isName && (
                 <Button
                     size="compact-xs"

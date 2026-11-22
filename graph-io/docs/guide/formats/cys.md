@@ -167,6 +167,17 @@ mapping over `shared name` or `shared interaction` reads `name` or `interaction`
 has only those, as Cytoscape does. Cytoscape does not draw an expanded group's own node, so it is
 marked not visible (`visible: false`).
 
+A Cytoscape 2.x session keeps its styles in `session_vizmap.props` instead; graph-io reads the style
+the network uses from it the same way, converting the 2.x names and values as Cytoscape 3 does. A
+2.x session without that file gets the colors, shapes and sizes its network files list for each
+node and edge.
+
+A style file on its own -- the vizmap XML that Cytoscape's File > Export > Styles to File writes, or
+a 2.x `vizmap.props` -- is read over a graph you already have with `readCytoscapeStyleFile(file,
+snapshot, { style })` from `@graphty/graph-io/cys`. It gives the same styles a session holding that
+graph and that style would, reads the first style when `style` names none in the file, and notes a
+file it cannot read (`W_STYLE_UNREADABLE`) instead of throwing.
+
 A save with styles writes the rules as a visual style named for the network, which the view uses,
 and keeps the rules for graphty in an archive entry of their own, which Cytoscape ignores. See
 [Styles](../styles.md).

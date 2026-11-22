@@ -9,15 +9,19 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { act } from "react";
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
 import POSTER from "../../../../../design/ui/studio/tool/files/lesmis-poster.graphty.json?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { openDataPage } from "../request";
+
+// A second source opens the join screen only with sources and steps off: on, it is staged.
+withoutFeatures(["source-steps"]);
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -183,6 +187,10 @@ function assertInOrder(...elements: HTMLElement[]): void {
         );
     }
 }
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 describe("the Data page on the real element", () => {
     it("T3: opens a graph file with every check green and focus on Load, and Enter loads it", async () => {
@@ -362,6 +370,83 @@ describe("the Data page on the real element", () => {
         await userEvent.click(loadButton());
         await waitFor(() => {
             assert.equal(session.data.lastImport()?.counts.nodes, 3);
+        });
+    });
+
+    it("reads an address typed on the empty page when the reader tabs away, with a bar under the field", async () => {
+        const url = "https://data.example.com/slow/les-miserables.gml";
+        let finish: (() => void) | undefined;
+        const original = globalThis.fetch.bind(globalThis);
+        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            if ((input instanceof Request ? input.url : String(input)) !== url) {
+                return original(input, init);
+            }
+            const stream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    finish = () => {
+                        controller.enqueue(new TextEncoder().encode(GML));
+                        controller.close();
+                    };
+                },
+            });
+            return Promise.resolve(new Response(stream, { status: 200 }));
+        });
+        await openFromEmptyApp();
+        const field = screen.getByRole("textbox", { name: "URL" });
+        await userEvent.type(field, url);
+        await userEvent.tab();
+
+        const bar = await screen.findByRole("progressbar");
+        const gap = bar.getBoundingClientRect().top - field.getBoundingClientRect().bottom;
+        assert.isTrue(gap >= 0 && gap <= 6, `the bar sits directly under the address (gap ${gap}px)`);
+        assert.isNotNull(screen.getByText(`Reading ${url}`));
+        await waitFor(() => {
+            assert.isDefined(finish);
+        });
+        finish?.();
+        await screen.findByText(/: 3 nodes, 2 edges$/);
+        assert.isNull(screen.queryByRole("progressbar"), "gone once read");
+    });
+
+    it("reads an address from the Tables list's From a URL when the reader tabs away, open with its bar until read", async () => {
+        const url = "https://data.example.com/slow/second.gml";
+        let finish: (() => void) | undefined;
+        const original = globalThis.fetch.bind(globalThis);
+        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            if ((input instanceof Request ? input.url : String(input)) !== url) {
+                return original(input, init);
+            }
+            const stream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    finish = () => {
+                        controller.enqueue(new TextEncoder().encode(GML));
+                        controller.close();
+                    };
+                },
+            });
+            return Promise.resolve(new Response(stream, { status: 200 }));
+        });
+        await openFromEmptyApp();
+        await chooseFiles(new File([GML], "les-miserables.gml"));
+        await screen.findByText("les-miserables: 3 nodes, 2 edges", {});
+        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "From a URL..." }));
+        const close = await screen.findByRole("button", { name: "Close From a URL" });
+        const panel = close.closest<HTMLElement>("[role=dialog], section, div[data-popout]") ?? document.body;
+        const field = within(panel).getByRole("textbox");
+        await userEvent.type(field, url);
+        await userEvent.tab();
+
+        const bar = await within(panel).findByRole("progressbar");
+        const gap = bar.getBoundingClientRect().top - field.getBoundingClientRect().bottom;
+        assert.isTrue(gap >= 0 && gap <= 6, `the bar sits directly under the address (gap ${gap}px)`);
+        assert.isNotNull(screen.getByRole("button", { name: "Close From a URL" }), "kept open while it reads");
+        await waitFor(() => {
+            assert.isDefined(finish);
+        });
+        finish?.();
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("button", { name: "Close From a URL" }), "closed once read");
         });
     });
 
@@ -849,6 +934,30 @@ describe("the Data page on the real element", () => {
         assert.isNull(screen.queryByRole("textbox", { name: "Address" }), "the URL panel closed");
     });
 
+    it("an address that cannot be fetched leaves focus on Load, where the reader finds the refusal", async () => {
+        await openFromEmptyApp();
+        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "From a URL..." }));
+        const address = await screen.findByRole("textbox", { name: "Address" });
+        // Load takes focus in the task that closes the field, so the workspace's focus guard, which
+        // hands lost focus on a frame later, never finds it lost and sends it to "+" (#9005).
+        const afterClose = new Promise<Element | null>((resolve) => {
+            address.addEventListener(
+                "focusout",
+                () => {
+                    queueMicrotask(() => {
+                        resolve(document.activeElement);
+                    });
+                },
+                { once: true },
+            );
+        });
+        await userEvent.type(address, "https://example.invalid/no-such-file.csv{Enter}");
+        assert.equal(await afterClose, loadButton(), "Load holds focus once the field closes");
+        await screen.findByRole("alert");
+        assert.equal(document.activeElement, loadButton(), "focus stays on Load after the refusal");
+    });
+
     it("refuses three files dropped at once and keeps the page empty", async () => {
         await openFromEmptyApp();
         await chooseFiles(
@@ -872,5 +981,156 @@ describe("the Data page on the real element", () => {
         await userEvent.click(screen.getByRole("button", { name: "Reset km to default" }));
         await screen.findByText("Weight: none (each edge counts 1)", {});
         assert.isNull(screen.queryByRole("button", { name: "Reset km to default" }));
+    });
+});
+
+describe("the Data page's other controls on the real element", () => {
+    it("Each row is turns an edge table into a node table and back", async () => {
+        await openFromEmptyApp();
+        await chooseFiles(new File(["from,to,km\na,b,3\nb,c,6\n"], "trails.csv"));
+        await screen.findByText("Weight: none (each edge counts 1)", {});
+        const strip = screen.getByTestId("model-strip");
+        assert.equal(strip.textContent, "trails: 3 nodes, 2 edges");
+
+        await userEvent.click(screen.getByText("a node"));
+        await waitFor(() => {
+            assert.equal(strip.textContent, "trails: 2 nodes");
+        });
+        assert.isNull(screen.queryByText("Weight: none (each edge counts 1)"), "a node table has no weight line");
+        // After a kind change a role box offers Auto, as the element's own reading.
+        await userEvent.click(screen.getByRole("combobox", { name: "Role of km" }));
+        await screen.findByRole("option", { name: "Auto" });
+        await userEvent.keyboard("{Escape}");
+
+        await userEvent.click(screen.getByText("an edge"));
+        await screen.findByText("Weight: none (each edge counts 1)", {});
+        await waitFor(() => {
+            assert.equal(strip.textContent, "trails: 3 nodes, 2 edges");
+        });
+    });
+
+    it("File settings' Format reads the file again as the format picked, and Auto reads it as before", async () => {
+        await openFromEmptyApp();
+        await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
+        await screen.findByTestId("model-strip", {});
+        await waitFor(() => {
+            assert.equal(document.activeElement, loadButton());
+        });
+
+        await userEvent.click(screen.getByRole("button", { name: /^File settings/ }));
+        await pick("Format", "GML");
+        const alert = await screen.findByRole("alert", {});
+        assert.include(alert.textContent, "people.csv and ties.csv could not be");
+        assert.equal(loadButton().getAttribute("aria-disabled"), "true");
+        // The refused file's view holds its own File settings, closed.
+        await userEvent.click(screen.getByRole("button", { name: "File settings: GML" }));
+        await pick("Format", "Auto");
+        await waitFor(() => {
+            assert.equal(screen.getByTestId("model-strip").textContent, "people and ties: 3 nodes, 2 edges");
+        });
+        assert.isNull(screen.queryByRole("alert"));
+    });
+
+    it("File settings' Error limit takes a number, and clearing it leaves the default", async () => {
+        await openFromEmptyApp();
+        await chooseFiles(new File([PEOPLE], "people.csv"));
+        await screen.findByTestId("model-strip", {});
+        // A clean file hands focus to Load once it is counted: open File settings after that.
+        await waitFor(() => {
+            assert.equal(document.activeElement, loadButton());
+        });
+        // Opens File settings, unless it is open, and finds the box.
+        const limit = async (): Promise<HTMLInputElement> => {
+            if (screen.queryByRole("textbox", { name: "Error limit" }) === null) {
+                await userEvent.click(screen.getByRole("button", { name: /^File settings/ }));
+            }
+            return screen.findByRole<HTMLInputElement>("textbox", { name: "Error limit" });
+        };
+        /**
+         * Types into the box and presses Enter, then waits for the read it starts: while the file
+         * is read focus goes to Load, which takes the read's result.
+         * @param keys - what the reader types.
+         */
+        const enter = async (keys: string): Promise<void> => {
+            await userEvent.click(await limit());
+            await userEvent.keyboard(`${keys}{Enter}`);
+            await waitFor(() => {
+                assert.equal(document.activeElement, loadButton());
+                assert.isNotNull(screen.queryByTestId("model-strip"));
+            });
+        };
+        // Every digit typed stays: the file is read again only once the reader presses Enter.
+        await enter("12");
+        assert.equal((await limit()).value, "12");
+
+        await enter("{Control>}a{/Control}{Backspace}");
+        const cleared = await limit();
+        assert.equal(cleared.value, "");
+        assert.equal(cleared.placeholder, "100");
+    });
+
+    it("a number column chosen as the time asks for its unit", async () => {
+        await openFromEmptyApp();
+        await chooseFiles(new File(["from,to,year\na,b,1990\nb,c,2000\n"], "years.csv"));
+        await screen.findByTestId("model-strip", {});
+        assert.isNull(screen.queryByRole("combobox", { name: "Unit of year" }));
+        await userEvent.click(screen.getByRole("combobox", { name: "Role of year" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^Date or time/ }));
+        const unit = await screen.findByRole<HTMLInputElement>("combobox", { name: "Unit of year" });
+        assert.equal(unit.value, "Epoch ms", "a number reads as epoch milliseconds until the reader says");
+        await pick("Unit of year", "Year");
+        await waitFor(() => {
+            assert.equal(screen.getByRole<HTMLInputElement>("combobox", { name: "Unit of year" }).value, "Year");
+        });
+    });
+
+    it("the match report's node rows show the node table, and rows that could not be read show on Show them", async () => {
+        await openFromEmptyApp();
+        await chooseFiles(new File([PEOPLE], "people.csv"), new File(["source,target\na,b\n,c\nb,c\n"], "ties.csv"));
+        const report = await screen.findByRole("region", { name: "Match report" });
+        await waitFor(() => {
+            assert.include(report.textContent, "could not be read as an edge");
+        });
+        await userEvent.click(within(report).getByRole("button", { name: "Show them" }));
+        await screen.findByText("1 row that could not be read", { exact: false });
+        assert.isNotNull(screen.getByRole("grid", { name: "Rows of ties.csv" }));
+
+        await userEvent.click(within(report).getByRole("button", { name: "3 node rows" }));
+        await screen.findByRole("grid", { name: "Rows of people.csv" });
+        assert.include(screen.getByRole("button", { current: true }).textContent, "Nodes: people.csv");
+    });
+
+    it("the problem block's Choose another file... reads the file chosen in its place", async () => {
+        await openFromEmptyApp();
+        await chooseFiles(new File([""], "empty.csv"));
+        const alert = await screen.findByRole("alert", {});
+        await commands.chooseNextFile("people.csv", "text/csv", PEOPLE);
+        await userEvent.click(within(alert).getByRole("button", { name: "Choose another file..." }));
+        await waitFor(() => {
+            assert.equal(screen.getByTestId("model-strip").textContent, "people: 3 nodes");
+        });
+        assert.isNull(screen.queryByRole("alert"));
+    });
+
+    it("the empty page reads a file from its Choose file button, and an address typed in its URL box", async () => {
+        await openFromEmptyApp();
+        const main = screen.getByRole("region", { name: "Table" });
+        await commands.chooseNextFile("people.csv", "text/csv", PEOPLE);
+        await userEvent.click(within(main).getByRole("button", { name: "Choose file" }));
+        await waitFor(() => {
+            assert.equal(screen.getByTestId("model-strip").textContent, "people: 3 nodes");
+        });
+
+        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await openFromEmptyApp();
+        const suppliers = PROTOTYPE_SAMPLES.find((each) => sampleName(each) === "suppliers.csv");
+        if (suppliers === undefined) {
+            throw new Error("no suppliers.csv fixture");
+        }
+        const empty = screen.getByRole("region", { name: "Table" });
+        await userEvent.type(within(empty).getByRole("textbox", { name: "URL" }), `${sampleUrl(suppliers)}{Enter}`);
+        await waitFor(() => {
+            assert.include(screen.getByTestId("model-strip").textContent, "40 nodes");
+        });
     });
 });

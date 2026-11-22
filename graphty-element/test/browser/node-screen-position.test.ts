@@ -1,6 +1,6 @@
 /**
  * @file `element.nodeScreenPosition(id)`: where a node is drawn on screen, and whether it can be
- * seen there. The position is checked against the real pointer: a click at the reported centre
+ * seen there. The position is checked against the real pointer: a click at the reported center
  * selects that node, a click inside the reported radius selects it too, and one well outside the
  * radius does not -- in 2D and in 3D.
  */

@@ -118,7 +118,9 @@ async function layer(element: Graphty, ids: number[], set: Record<string, unknow
  */
 async function loaded(element: Graphty, view: "2d" | "3d", sized = true): Promise<void> {
     await element.session.data.addNodes(NODES);
-    await element.graph.setLayout("fixed", { dim: 3 });
+    // spacing 0 keeps the nodes as given, some intersecting: a test that adds edges would
+    // otherwise spread them apart once the edges arrive (#9257).
+    await element.graph.setLayout("fixed", { dim: 3, spacing: 0 });
     await element.setViewMode(view);
     if (sized) {
         await layer(
@@ -534,17 +536,17 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const edge = [...graph.getLayoutManager().edges][0];
         assert.isDefined(edge);
         const before = node.drawnPosition.clone();
-        const restCentre = edge.drawnCentre.clone();
+        const restCentre = edge.drawnCenter.clone();
         await element.session.config.set({ layoutTransition: { transition: "glide", seconds: 0.4, hold: 0.5 } });
         await graph.setLayout("circular");
         await element.waitForStableFrame();
         assert.isTrue(node.drawnInBatch, "the eased row is still batched");
         assert.isAbove(Vector3.Distance(before, node.drawnPosition), 0.5, "the row moved");
-        const centre = edge.drawnCentre.clone();
+        const centre = edge.drawnCenter.clone();
         assert.isAbove(Vector3.Distance(restCentre, centre), 0.5, "the edge followed");
         graph.setRenderPath("objects");
         await readFrame(graph);
-        assert.isAtMost(Vector3.Distance(edge.drawnCentre, centre), 1e-4, "where the object path draws it");
+        assert.isAtMost(Vector3.Distance(edge.drawnCenter, centre), 1e-4, "where the object path draws it");
     });
 
     it("hide and show a batched row with no halo, context point or tooltip without walking it again", async () => {
@@ -921,7 +923,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         }
     });
 
-    // Stage 31: a labelled row hangs its label from a geometry-free anchor, so it stays on the batch.
+    // Stage 31: a labeled row hangs its label from a geometry-free anchor, so it stays on the batch.
     it("keep labelled and tooltip rows on the batch, their labels where the object path puts them", async () => {
         const element = await mounted(renderer);
         await loaded(element, "2d");
@@ -944,7 +946,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         // label follows its row as on the object path.
         await graph.setLayout("circular", { scale: 0.3 });
         await element.waitForStableFrame();
-        // With no framing, which reads every row, only the frame's walk moves a labelled row's anchor.
+        // With no framing, which reads every row, only the frame's walk moves a labeled row's anchor.
         const canvas = graph.getScene().getEngine().getRenderingCanvas() as HTMLCanvasElement;
         element.autoFrame = false;
         await graph.setLayout("ngraph", { seed: 7 });
@@ -1860,7 +1862,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await operationQueueOf(graph).waitForCompletion();
         await element.waitForStableFrame();
         assert.isAbove(Vector3.Distance(table.centerOf(4), from), 0.5, "row 4 moved");
-        const centre = edge.drawnLine?.centre ?? Vector3.Zero();
+        const centre = edge.drawnLine?.center ?? Vector3.Zero();
         assert.isAtMost(Vector3.Distance(centre, Vector3.Center(table.centerOf(4), table.centerOf(9))), 1e-4);
         assert.notInclude(reads, 4, "no read of row 4's Node");
     });

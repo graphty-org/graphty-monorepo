@@ -30,6 +30,9 @@ const ROLE_WORDS: Readonly<Record<PageRole, string>> = {
     country: "Country",
     region: "Region",
     city: "City",
+    x: "X",
+    y: "Y",
+    z: "Z",
     attribute: "Attribute",
 };
 
@@ -235,7 +238,7 @@ export interface Refusal {
  * @returns its details.
  */
 function detailsOf(error: unknown): Readonly<Record<string, unknown>> {
-    return isGraphtyError(error) ? (error.details ?? {}) : {};
+    return isGraphtyError(error) ? error.details : {};
 }
 
 /**

@@ -152,7 +152,7 @@ function highlighted(session: GraphSession, node: string): string | undefined {
 async function greenAround(element: Element, node: string): Promise<number> {
     const at = element.nodeScreenPosition(node);
     assert.isTrue(at?.visible, `${node} is on screen`);
-    const shot = await element.captureScreenshot({ destination: { blob: true }, format: "png" });
+    const shot = await element.captureScreenshot({ format: "png" });
     const bitmap = await createImageBitmap(shot.blob);
     const scale = bitmap.width / element.clientWidth;
     const reach = (at?.radius ?? 0) * 1.6 * scale;
@@ -413,6 +413,31 @@ describe("the start page's graph", () => {
         });
         const style = session.styles.explain({ node: "Brujon" }).merged["node.labelStyle"];
         assert.isTrue(style?.onTop, "the name is drawn on top");
+    });
+});
+
+describe("the start page's fact bar", () => {
+    it("counts as many layouts as the Layout list offers", async () => {
+        const { store } = await startPage();
+        const bar = screen.getByRole("complementary", { name: "graphty at a glance" });
+        const said = within(bar)
+            .getByText(/layouts$/)
+            .querySelector("b")?.textContent;
+        assert.isDefined(said, "the bar shows a layout count");
+
+        await commands.chooseNextFile(
+            "triangle.json",
+            "application/json",
+            JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], edges: [{ src: "a", dst: "b" }] }),
+        );
+        await openBy(store, () => userEvent.click(screen.getByRole("button", { name: /^Open a file/ })));
+        const tool = screen.getByRole("button", { name: "Layout" });
+        await waitFor(() => {
+            assert.isFalse(tool.hasAttribute("aria-disabled"));
+        });
+        await userEvent.click(tool);
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        assert.equal(Number(said), within(popover).getAllByRole("option").length);
     });
 });
 

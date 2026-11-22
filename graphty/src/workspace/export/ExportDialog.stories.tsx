@@ -2,7 +2,7 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
-import { waitFor } from "storybook/test";
+import { waitFor, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
 import type { WorkspaceState } from "../state/store";
@@ -74,8 +74,53 @@ function exportStory(exportOn: WorkspaceState["exportOn"]): Story {
     };
 }
 
-/** Export > Image: the "To share" preset, the legend callout and the preview the element draws. */
-export const Image: Story = exportStory("image");
+/** A camera's Export image...: the Image output alone, titled Export image, taken from that camera */
+export const ImageSavedView: Story = {
+    ...freshStore({ project: { name: "Ring", id: 1 } }),
+    play: async (context) => {
+        const { canvasElement } = context;
+        const store = storeOf(context);
+        store.set({ dialog: null });
+        await loadRing(canvasElement);
+        const element = canvasElement.ownerDocument.querySelector("graphty-element");
+        await element?.session.views.save([{ name: "Overview" }]);
+        store.set({ dialog: "export", exportOn: "image", exportSource: null, exportView: "Overview" });
+        await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Export image" });
+        const img = await waitFor(
+            () =>
+                canvasElement.ownerDocument.querySelector<HTMLImageElement>(".ws-export-preview img") ??
+                Promise.reject(new Error("no preview yet")),
+        );
+        await img.decode();
+    },
+};
 
 /** Export > Data, opened on the node table: CSV, what it cannot hold, and the first lines with the Degree columns. */
 export const Data: Story = exportStory("nodes");
+
+/** A tour's Export video...: the Video output alone, titled Export video, on that tour with its length, frame rate and frame count */
+export const VideoTour: Story = {
+    ...freshStore({ project: { name: "Ring", id: 1 } }),
+    play: async (context) => {
+        const { canvasElement } = context;
+        const store = storeOf(context);
+        store.set({ dialog: null });
+        await loadRing(canvasElement);
+        const element = canvasElement.ownerDocument.querySelector("graphty-element");
+        await element?.session.views.save([{ name: "Overview" }]);
+        await element?.session.tours.save([
+            {
+                name: "Ring walk",
+                tour: {
+                    stops: [
+                        { view: "Overview", hold: 2000 },
+                        { view: "Top", duration: 2000, hold: 3000 },
+                    ],
+                },
+            },
+        ]);
+        store.set({ dialog: "export", exportOn: "video", exportSource: null, exportTour: "Ring walk" });
+        const dialog = await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Export video" });
+        await within(dialog).findByText(/^\d+ frames$/);
+    },
+};

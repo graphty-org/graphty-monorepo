@@ -16,7 +16,7 @@ import {
 import { Divider } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
-import { cosmographOn, nodeModelsOn } from "../../features";
+import { cosmographOn } from "../../features";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import type { FoundHome } from "../parts/find";
 import { FindSettingBox, FindSettingResults } from "../parts/FindSetting";
@@ -71,7 +71,7 @@ const FIND_WORDS: Partial<Readonly<Record<Channel, readonly string[]>>> = {
  * @returns the channels.
  */
 function kindChannels(ctx: RowContext): ReadonlySet<Channel> {
-    const off = experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) });
+    const off = experimentChannelsOff({ cosmograph: cosmographOn(ctx.session) });
     return new Set(partsFor(ctx.side, off).flatMap((part) => part.items.flatMap((item) => itemChannels(item))));
 }
 
@@ -98,7 +98,7 @@ function thingChannels(
             each.groups.flat().flatMap((other) => (other === thing ? [] : (other.own ?? []))),
         ),
     );
-    const off = experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) });
+    const off = experimentChannelsOff({ cosmograph: cosmographOn(ctx.session) });
     const source =
         thing.from === undefined ? part : (partsFor(ctx.side, off).find((each) => each.id === thing.from) ?? part);
     const offered = new Set(source.items.flatMap((item) => itemChannels(item)));
@@ -704,7 +704,7 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
     // setting finds none of its settings. graphty-element still draws them from an imported file.
     const parts = partsFor(
         ctx.side,
-        experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) }),
+        experimentChannelsOff({ cosmograph: cosmographOn(ctx.session) }),
     ).filter((part) => part.id !== "order");
     const sections = SECTIONS[ctx.side].flatMap((section) => {
         const part = parts.find((each) => each.id === section.part);

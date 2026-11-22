@@ -2,6 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import type { AlgorithmDescriptor, LayerId, RunId } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
+import { createRunResult } from "../../../src/session/results/RunResult";
 import {
     createRunsApi,
     RUN_ID_PATTERN,
@@ -60,7 +61,7 @@ interface HeldExecutor {
 
 /**
  * An executor that stays busy until the test releases it, or until its run
- * is cancelled. Nothing here reads the clock, so what a test observes does
+ * is canceled. Nothing here reads the clock, so what a test observes does
  * not depend on timer granularity or scheduling.
  */
 function heldExecutor(): HeldExecutor {
@@ -738,6 +739,87 @@ describe("sweeps", () => {
                 [3, false, "not-started"],
             ],
         );
+    });
+});
+
+describe("stability over seeds", () => {
+    const LOUVAIN = descriptor({
+        key: "louvain",
+        plainName: "Groups",
+        technicalName: "louvain",
+        category: "community",
+        shape: "community",
+        fields: [
+            {
+                name: "group",
+                plainName: "Group",
+                technicalName: "community",
+                kind: "node",
+                type: "integer",
+                path: "results.$.group",
+            },
+        ],
+    });
+    // What each seed finds: seeds 1 and 2 the same grouping under other numbers, seed 3 moves c.
+    const FOUND: Record<number, number[]> = {
+        1: [0, 0, 0, 1, 1, 1],
+        2: [4, 4, 4, 2, 2, 2],
+        3: [5, 5, 6, 6, 6, 6],
+    };
+    const execute: RunExecutor = (context) => {
+        const groups = FOUND[context.seed ?? 0];
+        return Promise.resolve({
+            result: createRunResult({
+                runId: context.runId,
+                shape: "community",
+                fields: LOUVAIN.fields,
+                measured: { nodes: groups.length, edges: 0 },
+                nodes: groups.map((group, i) => ({ id: "abcdef"[i], values: { group } })),
+                caveats: CAVEATS,
+                durationMs: 1,
+            }),
+        });
+    };
+
+    it("runs once per seed and reports how far the seeds agree, against scikit-learn's figures", async () => {
+        const { runs } = harness(execute, {}, [LOUVAIN]);
+
+        const stability = await runs.stability("louvain", [1, 2, 3]);
+
+        assert.deepStrictEqual(
+            stability.rows.map((row) => [row.value, row.ok, row.runId]),
+            [
+                [1, true, "louvain_seed_1"],
+                [2, true, "louvain_seed_2"],
+                [3, true, "louvain_seed_3"],
+            ],
+        );
+        assert.deepStrictEqual(
+            runs.list().map((run) => run.record.seed),
+            [1, 2, 3],
+            "each seed is its own listed run",
+        );
+        assert.deepStrictEqual(
+            stability.pairs.map((pair) => [pair.a.runId, pair.b.runId, pair.kind]),
+            [
+                ["louvain_seed_1", "louvain_seed_2", "partition"],
+                ["louvain_seed_1", "louvain_seed_3", "partition"],
+                ["louvain_seed_2", "louvain_seed_3", "partition"],
+            ],
+        );
+        // Pairs: identical (1, 1), then twice the moved grouping (ARI 0.3243..., AMI 0.3552...).
+        assert.closeTo(stability.agreement ?? NaN, (1 + 2 * 0.32432432432432434) / 3, 1e-12);
+        assert.closeTo(stability.adjustedMutualInformation ?? NaN, (1 + 2 * 0.355245321275764) / 3, 1e-12);
+        assert.isUndefined(stability.correlation);
+    });
+
+    it("leaves the means undefined when fewer than two seeds finish", async () => {
+        const { runs } = harness(execute, {}, [LOUVAIN]);
+
+        const stability = await runs.stability("louvain", [1]);
+
+        assert.deepStrictEqual(stability.pairs, []);
+        assert.isUndefined(stability.agreement);
     });
 });
 

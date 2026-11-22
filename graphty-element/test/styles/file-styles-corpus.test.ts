@@ -18,11 +18,12 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 
+import { statesStyles } from "@graphty/graph-io/styles";
 import { afterAll, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, FILE_STYLE_ISSUE, type GraphSession, type Layer } from "../../session";
 import { DataSource } from "../../src/data/DataSource";
-import { channelDescriptor, labelFieldOf, labelPatchOf, mergeLabelStyle } from "../../src/session/styles/channels";
+import { labelFieldOf, labelPatchOf, mergeLabelStyle } from "../../src/session/styles/channels";
 import type { FileStylesRead } from "../../src/session/styles/fileStyles/apply";
 import { dataPaths, logicalEdgeRows } from "../../src/session/styles/fileStyles/columns";
 import { translateFileStyles } from "../../src/session/styles/fileStyles/translate";
@@ -218,7 +219,8 @@ function check(session: GraphSession, read: FileStylesRead, result: FileResult):
     const layers = fileLayers(session);
     assert.deepEqual(
         layers.map((layer) => layer.name),
-        translation.layers.map((layer) => layer.spec.name),
+        // A file that states no style of its own (its program's defaults only) adds no layers (issue #9298).
+        statesStyles(read.extracted) ? translation.layers.map((layer) => layer.spec.name) : [],
         "the load drew the translation's layers",
     );
 
@@ -251,6 +253,11 @@ function check(session: GraphSession, read: FileStylesRead, result: FileResult):
                 }
             }
         }
+    }
+
+    // A file that states no style draws nothing of its program's defaults to compare.
+    if (!statesStyles(read.extracted)) {
+        return;
     }
 
     // explain() against the prediction, both ways.
@@ -289,7 +296,8 @@ function check(session: GraphSession, read: FileStylesRead, result: FileResult):
                 }
             }
 
-            // The label, merged field by field from the file's layers alone.
+            // The label, merged field by field from the file's layers alone: only the fields that
+            // land in it (an external label's own color lands in its own style, not the label's).
             let label: unknown = null;
             for (const contribution of explanation.contributions) {
                 if (!ids.has(contribution.layerId)) {
@@ -299,8 +307,10 @@ function check(session: GraphSession, read: FileStylesRead, result: FileResult):
                 for (const [channel, value] of Object.entries(contribution.values)) {
                     const field = labelFieldOf(channel as never);
                     if (field !== undefined) {
-                        label = mergeLabelStyle(label, labelPatchOf(field.field, value));
-                    } else if (channelDescriptor(channel)?.accepts === "labelStyle") {
+                        if (field.into === labelChannel) {
+                            label = mergeLabelStyle(label, labelPatchOf(field.field, value));
+                        }
+                    } else if (channel === labelChannel) {
                         label = mergeLabelStyle(label, value as object);
                     }
                 }
@@ -496,7 +506,7 @@ describe("a Cytoscape node's own size under a locked node size", () => {
 });
 
 describe("a label outline another program wrote", () => {
-    // GeneMANIA's Cytoscape.js stylesheet draws white labels over the node with a grey outline
+    // GeneMANIA's Cytoscape.js stylesheet draws white labels over the node with a gray outline
     // (`text-outline-color`, `text-outline-width`). Without the outline the white letters spill
     // onto the light canvas and cannot be read.
     it("draws the outline around the label's letters, in the label's own proportion", async () => {

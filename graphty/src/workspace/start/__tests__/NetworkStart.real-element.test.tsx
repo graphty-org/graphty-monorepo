@@ -16,6 +16,7 @@ import { userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
+import { forgetAutosave } from "../../../test/reload";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { clearRecent, rememberRecent } from "../../project/recent";
 // What www.ndexbio.org answered for WikiPathways WP5483 (graph-io's scripts/record-ndex.ts).
@@ -531,5 +532,34 @@ describe("network data from the start page", () => {
         const session = await openBy(store, () => userEvent.click(tile));
         await landedOnStylePanel(store, session, 57);
         assert.isNull(store.get().notice);
+    });
+
+    it("reads a tile's server again on a reload that came before the project's first write", async () => {
+        recordedNdex();
+        await forgetAutosave();
+        // What a tab opened from the tile keeps across a reload (store.ts), with nothing autosaved.
+        sessionStorage.setItem(
+            "app.graphty.workspace.place",
+            JSON.stringify({
+                opened: { kind: "network", name: "WikiPathways WP5483", source: "ndex", example: "ndex-wp5483" },
+            }),
+        );
+        try {
+            const store = createWorkspaceStore({ autosave: true });
+            render(<Workspace store={store} />);
+            await waitFor(() => {
+                assert.isNotNull(store.get().opened, "the reload started an open");
+            });
+            await store.get().opened;
+            const session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element:not([data-start-page])",
+            )?.session;
+            assert.isDefined(session);
+            await landedOnStylePanel(store, session, 57);
+            assert.strictEqual(store.get().project?.name, "WikiPathways WP5483");
+        } finally {
+            sessionStorage.clear();
+            await forgetAutosave();
+        }
     });
 });

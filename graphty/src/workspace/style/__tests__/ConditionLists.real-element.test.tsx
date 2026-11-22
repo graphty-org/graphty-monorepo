@@ -137,6 +137,37 @@ describe("the Add a condition list", () => {
         });
     });
 
+    it("ArrowDown and ArrowUp move the active option, and Enter adds the one they lit", async () => {
+        const session = await open();
+        const { region } = await openPicker(session);
+        const search = await openList(region);
+        const list = await screen.findByRole("listbox", { name: "Attributes" });
+        const options = (): HTMLElement[] =>
+            within(list)
+                .getAllByRole("option")
+                .filter((option) => option.dataset.comboboxDisabled === undefined);
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            assert.strictEqual(search.getAttribute("aria-activedescendant"), options()[0]?.id);
+        });
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            assert.strictEqual(search.getAttribute("aria-activedescendant"), options()[1]?.id);
+        });
+        await userEvent.keyboard("{ArrowUp}");
+        await waitFor(() => {
+            assert.strictEqual(search.getAttribute("aria-activedescendant"), options()[0]?.id);
+        });
+        const name = options()[0]?.getAttribute("aria-label") ?? "";
+        assert.notStrictEqual(name, "");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("listbox"), "the list closed");
+            const card = within(region).getByRole("group", { name: new RegExp(`^${name}(,|$)`) });
+            assert.isTrue(card.contains(document.activeElement), "focus is in the new card");
+        });
+    });
+
     it("Tab leaves the list closed and never lands in it; Shift+Tab lands on Add a condition", async () => {
         const session = await open();
         const { region } = await openPicker(session);
@@ -305,4 +336,23 @@ describe("the cards", () => {
         const card = await within(region).findByRole("group", { name: /^name(,|$)/ });
         assert.strictEqual(card.getAttribute("aria-label"), "name", "an unfinished card says no count");
     });
+
+    for (const how of ["Enter", "a click"] as const) {
+        it(`a column only edges carry, chosen with ${how}, goes to the Edge tab with its card`, async () => {
+            const session = await open();
+            const { region } = await openPicker(session);
+            await openList(region);
+            await userEvent.keyboard("shared_ch");
+            const offer = await screen.findByRole("button", { name: "Add shared_chapters on the Edge tab" });
+            await (how === "Enter" ? userEvent.keyboard("{Enter}") : userEvent.click(offer));
+            const tabs = screen.getByRole("tablist", { name: "Style for" });
+            await waitFor(() => {
+                const edge = within(tabs).getByRole("tab", { name: "Edge" });
+                assert.strictEqual(edge.getAttribute("aria-selected"), "true", "the Edge tab is shown");
+                const edges = screen.getByRole("group", { name: "Which edges" });
+                const card = within(edges).getByRole("group", { name: /^shared_chapters(,|$)/ });
+                assert.isTrue(card.contains(document.activeElement), "focus is in the new card");
+            });
+        });
+    }
 });

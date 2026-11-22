@@ -216,6 +216,12 @@ export const LAYOUT_SHOWCASE: Record<string, LayoutShowcase> = {
         caption: "Les Miserables' 77 characters ranked by scene partners, the most at the center.",
         about: "Each character's place on the spiral follows how many others they share a scene with, the most at the center (Valjean, then Gavroche, Marius, Javert, Thenardier). Size and color show the count, so the spiral reads as a ranking from the center out.",
     },
+    geographic: {
+        load: dataset("contiguous-usa"),
+        options: () => ({ projection: "web-mercator" }),
+        caption: "The 48 contiguous US states at their centers of population, in Web Mercator.",
+        about: 'Each node is placed at its latitude and longitude, projected onto a flat map with north up; equirectangular, Web Mercator and Equal Earth are the projections, and centralMeridian: "auto" draws nodes on both sides of the 180th meridian side by side.',
+    },
     grid: {
         load: network("grid", 100),
         caption: "A 10 x 10 grid graph on grid points, row by row.",

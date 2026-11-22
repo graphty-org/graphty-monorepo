@@ -8,9 +8,10 @@ import { noteSlabOutline } from "./convexHit";
 import { earClip, fansFromOrigin, type Point2, type RingPiece } from "./shapeOutlines";
 
 /**
- * The box a label is placed against, for a node mesh whose turned outline (`shape.rotation`) reaches past it: the
- * node's own width and height, unturned, in the mesh's local units. A label stays where it is beside its node
- * however the node's shape is turned, as Pajek places it. A mesh not listed is placed against its bounding box.
+ * The box a label is placed against, for a node mesh whose turned outline (`shape.rotation`) reaches past it, or
+ * whose rounded corners fall short of it: the node's own width and height, unturned, in the mesh's local units. A
+ * label stays where it is beside its node however the node's shape is turned, as Pajek places it, and beside a
+ * rounded polygon's box, as Cytoscape.js places it. A mesh not listed is placed against its bounding box.
  */
 const LABEL_BOXES = new WeakMap<Mesh, { readonly min: Vector3; readonly max: Vector3 }>();
 
@@ -97,6 +98,16 @@ class SlabBuilder {
      */
     build(name: string, scene?: Scene): Mesh {
         const mesh = new Mesh(name, scene);
+        this.data().applyToMesh(mesh);
+
+        return mesh;
+    }
+
+    /**
+     * The built geometry, for a mesh of its own or one rebuilt in place.
+     * @returns Positions, indices, normals and texture coordinates.
+     */
+    data(): VertexData {
         const data = new VertexData();
         const normals: number[] = [];
 
@@ -105,15 +116,14 @@ class SlabBuilder {
         data.indices = this.indices;
         data.normals = normals;
         data.uvs = this.planarUvs();
-        data.applyToMesh(mesh);
 
-        return mesh;
+        return data;
     }
 
     /**
      * Texture coordinates laid flat across the shape's box, u left to right and v bottom to top,
      * so a texture (a gradient fill's ramp) covers the face the way it covers a square. Without
-     * them every vertex samples one texel and a gradient draws as one flat colour.
+     * them every vertex samples one texel and a gradient draws as one flat color.
      * @returns Two coordinates per vertex.
      */
     private planarUvs(): number[] {
@@ -208,13 +218,27 @@ export function bodilessSlab(name: string, outline: readonly Point2[], depth: nu
  * @returns The mesh.
  */
 export function ringSlab(name: string, pieces: readonly RingPiece[], depth: number, scene?: Scene): Mesh {
+    return ringBuilder(pieces, depth).build(name, scene);
+}
+
+/**
+ * A node border's geometry as {@link ringSlab} builds it, for a ring rebuilt in place.
+ * @param pieces - The ring's pieces, from `borderRing`.
+ * @param depth - How deep each piece is along z, centered on z = 0.
+ * @returns The geometry.
+ */
+export function ringVertexData(pieces: readonly RingPiece[], depth: number): VertexData {
+    return ringBuilder(pieces, depth).data();
+}
+
+function ringBuilder(pieces: readonly RingPiece[], depth: number): SlabBuilder {
     const slab = new SlabBuilder(-depth / 2, depth / 2);
 
     for (const piece of pieces) {
         addRingPiece(slab, piece);
     }
 
-    return slab.build(name, scene);
+    return slab;
 }
 
 /**
@@ -253,13 +277,13 @@ export interface NodeExtents {
 }
 
 /**
- * Centre a built node mesh on its origin and scale it to the node's extents, baking both into its
+ * Center a built node mesh on its origin and scale it to the node's extents, baking both into its
  * vertices so its instances, its bounds and an edge's ray all see the same geometry.
  *
  * WHY "ACROSS THE VIEW". Every shape at one size covers the same extent in the plane a 2D camera
  * looks at, which is what a reader compares and what a file's node size means. Babylon builds its
  * shapes at whatever size its own parameters give -- an octahedron of size 1 is 2.83 across, a
- * sphere 1 -- so without this a diamond in a file was drawn nearly three times its neighbours.
+ * sphere 1 -- so without this a diamond in a file was drawn nearly three times its neighbors.
  * Depth keeps the shape's own proportion unless the node asks for one.
  * @param mesh - The mesh, as its creator built it.
  * @param extents - What to scale it to.
@@ -304,8 +328,8 @@ export function fitNodeMesh(mesh: Mesh, extents: NodeExtents): void {
 }
 
 /**
- * Whether a centring and scaling would leave a mesh where it is.
- * @param cx - The centre's x.
+ * Whether a centering and scaling would leave a mesh where it is.
+ * @param cx - The center's x.
  * @param cy - Its y.
  * @param cz - Its z.
  * @param sx - The scale along x.
@@ -320,16 +344,29 @@ function isIdentity(cx: number, cy: number, cz: number, sx: number, sy: number, 
 }
 
 /**
- * The outline a built mesh shows a camera looking along z: the convex hull of its vertices.
+ * The points whose convex hull is the outline a built mesh shows a camera.
  * @param mesh - The mesh.
+ * @param view - What turns the mesh's units into the camera's (right, up, forward), its move ignored; absent, a
+ *     camera looking along z.
+ * @param at - Where the mesh's middle is in the camera's view (right, up, forward), in the mesh's own units, for a camera
+ *     with perspective: each point is then where the camera sees it on the plane through the middle, square to its view,
+ *     less the middle. Absent, a camera without perspective.
  * @returns Its vertices projected onto the plane, for `convexHull`.
  */
-export function projectedVertices(mesh: Mesh): Point2[] {
+export function projectedVertices(mesh: Mesh, view?: Matrix, at?: Vector3): Point2[] {
     const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
     const points: Point2[] = [];
+    // a row vector times the view: right is its first column, up its second, forward its third
+    const m = view?.m ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+    const [cx, cy, cz] = at === undefined ? [0, 0, Infinity] : [at.x, at.y, at.z];
 
     for (let i = 0; i < positions.length; i += 3) {
-        points.push([positions[i], positions[i + 1]]);
+        const [x, y, z] = [positions[i], positions[i + 1], positions[i + 2]];
+        const near = Number.isFinite(cz) ? cz / (cz + x * m[2] + y * m[6] + z * m[10]) : 1;
+        points.push([
+            (cx + x * m[0] + y * m[4] + z * m[8]) * near - cx,
+            (cy + x * m[1] + y * m[5] + z * m[9]) * near - cy,
+        ]);
     }
 
     return points;

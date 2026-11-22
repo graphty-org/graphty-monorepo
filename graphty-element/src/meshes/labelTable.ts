@@ -34,8 +34,16 @@ export interface LabelTableCell {
     readonly lines?: readonly LabelTableLine[];
     readonly table?: LabelTable;
     readonly image?: LabelTableImage;
-    /** Its background color. */
+    /** Its background color; of a gradient, the color it starts from. */
     readonly fill?: string;
+    /** Of a gradient background, the color it runs to from `fill`. */
+    readonly fillGradient?: string;
+    /**
+     * Which way the gradient runs, in degrees clockwise on screen from left to right (unset, 0): from `fill` at the
+     * box's middle less half its width times the angle's cosine and half its height times its sine, to `fillGradient`
+     * as far the other way, as a node's gradient fill runs over its box.
+     */
+    readonly fillGradientAngle?: number;
     readonly colspan?: number;
     readonly rowspan?: number;
     readonly width?: number;
@@ -68,8 +76,21 @@ export interface LabelTable {
     readonly fixedSize?: boolean;
     readonly align?: TableAlign;
     readonly valign?: TableVAlign;
-    /** Its background color. */
+    /** Its background color; of a gradient, the color it starts from. */
     readonly fill?: string;
+    /** Of a gradient background, the color it runs to from `fill`. */
+    readonly fillGradient?: string;
+    /**
+     * Which way the gradient runs, in degrees clockwise on screen from left to right (unset, 0): from `fill` at the
+     * box's middle less half its width times the angle's cosine and half its height times its sine, to `fillGradient`
+     * as far the other way, as a node's gradient fill runs over its box.
+     */
+    readonly fillGradientAngle?: number;
+    /**
+     * How round its corners are, its outline's and its background's: a length, at most a third of its box's shorter
+     * side (unset, square).
+     */
+    readonly radius?: number;
     /**
      * How tall a text line is: a multiple of its font size (unset, 1), or `"font"`, its font's ascent plus its
      * descent, each rounded up to whole `textPixel`s when that is given.
@@ -98,19 +119,37 @@ interface TableBox {
     readonly height: number;
 }
 
+/** A background's gradient: the color it runs to, and which way (`fillGradient`, `fillGradientAngle`). */
+export interface TableGradient {
+    readonly to: string;
+    readonly angle: number;
+}
+
 /** What a laid-out table draws. */
 export interface TableDrawing {
     /** The table's width and height. */
     readonly width: number;
     readonly height: number;
-    /** Every cell's outline, and every inner table's, each with its width; the table's own outline is not one. */
-    readonly frames: readonly (TableBox & { readonly border: number })[];
+    /** How round the table's own outline's corners are, drawn inside its border (`radius`, capped); 0, square. */
+    readonly radius: number;
+    /**
+     * Every cell's outline, and every inner table's, each with its width and an inner table's corners' radius; the
+     * table's own outline is not one.
+     */
+    readonly frames: readonly (TableBox & { readonly border: number; readonly radius?: number })[];
     /** The rules between rows and cells (`<HR/>`, `<VR/>`), each from one point to the other. */
     readonly rules: readonly (readonly [number, number, number, number])[];
     /** Every line of text, its words centered on their point. */
     readonly texts: readonly { readonly x: number; readonly y: number; readonly text: string }[];
-    /** Every background, the table's own first, each table's before its cells': the box it fills and its color. */
-    readonly fills: readonly (TableBox & { readonly color: string })[];
+    /**
+     * Every background, the table's own first, each table's before its cells': the box it fills, its color, its
+     * gradient, and a rounded table's corners' radius.
+     */
+    readonly fills: readonly (TableBox & {
+        readonly color: string;
+        readonly gradient?: TableGradient;
+        readonly radius?: number;
+    })[];
     /** Every picture: the box inside its cell's padding it is drawn in, lined up by the cell's `align` and `valign`. */
     readonly images: readonly (TableBox & {
         readonly image: LabelTableImage;
@@ -406,10 +445,10 @@ function down(valign: string | undefined): Way {
 
 /** What laying out a table collects. */
 interface Collected {
-    frames: (TableBox & { border: number })[];
+    frames: TableDrawing["frames"][number][];
     rules: [number, number, number, number][];
     texts: { x: number; y: number; text: string }[];
-    fills: (TableBox & { color: string })[];
+    fills: TableDrawing["fills"][number][];
     images: TableDrawing["images"][number][];
 }
 
@@ -434,11 +473,21 @@ function placeTable(s: Sized, box: TableBox, out: Collected, outline: boolean): 
     }
     const border = len(table.border);
     const spacing = len(table.cellSpacing);
+    const radius = cornerRadius(table, b, border);
     if (outline && border > 0) {
-        out.frames.push({ ...b, border });
+        out.frames.push({ ...b, border, ...(radius > 0 ? { radius } : {}) });
     }
-    if (typeof table.fill === "string" && table.fill !== "") {
-        out.fills.push({ ...b, color: table.fill });
+    if (radius > 0) {
+        // a rounded table is filled inside the middle of its border, where its outline is stroked (Graphviz
+        // htmltable.c emit_html_tbl, round_corners on the box inset by half the border)
+        pushFill(
+            out,
+            table,
+            { x: b.x + border / 2, y: b.y + border / 2, width: b.width - border, height: b.height - border },
+            radius,
+        );
+    } else {
+        pushFill(out, table, b, 0);
     }
     const extraX = s.widths.length > 0 ? Math.max(0, b.width - s.width) / s.widths.length : 0;
     const extraY = s.heights.length > 0 ? Math.max(0, b.height - s.height) / s.heights.length : 0;
@@ -478,6 +527,42 @@ function placeTable(s: Sized, box: TableBox, out: Collected, outline: boolean): 
 }
 
 /**
+ * How round a table's corners are: its `radius`, at most a third of the shorter side of the box its outline is
+ * stroked on (inside the middle of its border), as Graphviz's `round_corners` caps it; 0 when it is square.
+ * @param table - the table
+ * @param b - its box
+ * @param border - its border's width
+ * @returns the radius
+ */
+function cornerRadius(table: LabelTable, b: TableBox, border: number): number {
+    return Math.max(0, Math.min(len(table.radius), (Math.min(b.width, b.height) - border) / 3));
+}
+
+/**
+ * Adds a table's or a cell's background, when it has one: its color, and its gradient's.
+ * @param out - collects what is drawn
+ * @param owner - the table or cell
+ * @param box - the box it fills
+ * @param radius - how round its corners are
+ */
+function pushFill(
+    out: Collected,
+    owner: Pick<LabelTableCell, "fill" | "fillGradient" | "fillGradientAngle">,
+    box: TableBox,
+    radius: number,
+): void {
+    const { fill, fillGradient: to, fillGradientAngle: angle } = owner;
+    if (typeof fill !== "string" || fill === "") {
+        return;
+    }
+    const gradient =
+        typeof to === "string" && to !== ""
+            ? { gradient: { to, angle: typeof angle === "number" && Number.isFinite(angle) ? angle : 0 } }
+            : {};
+    out.fills.push({ ...box, color: fill, ...gradient, ...(radius > 0 ? { radius } : {}) });
+}
+
+/**
  * Places one cell in its box: a fixed cell lined up in it at its own size; its outline; its table, or its text box
  * lined up inside its padding and each line lined up in the text box.
  * @param table - its table
@@ -503,16 +588,13 @@ function placeCell(table: LabelTable, p: Placed, box: TableBox, out: Collected):
     if (border > 0) {
         out.frames.push({ ...b, border });
     }
-    if (typeof cell.fill === "string" && cell.fill !== "") {
-        // Graphviz fills the cell inside its border
-        out.fills.push({
-            x: b.x + border,
-            y: b.y + border,
-            width: b.width - 2 * border,
-            height: b.height - 2 * border,
-            color: cell.fill,
-        });
-    }
+    // Graphviz fills the cell inside its border
+    pushFill(
+        out,
+        cell,
+        { x: b.x + border, y: b.y + border, width: b.width - 2 * border, height: b.height - 2 * border },
+        0,
+    );
     const inset = border + cellPadding(table, cell);
     const inner = { x: b.x + inset, y: b.y + inset, width: b.width - 2 * inset, height: b.height - 2 * inset };
     if (p.inner !== null) {
@@ -535,6 +617,42 @@ function placeCell(table: LabelTable, p: Placed, box: TableBox, out: Collected):
         out.texts.push({ x: lx + line.width / 2, y: ty + line.middle, text: line.text });
         ty += line.height;
     }
+}
+
+/** How many straight pieces a rounded corner is drawn with. */
+const CORNER_STEPS = 8;
+
+/**
+ * A box's outline with its corners rounded, clockwise on screen from the top of its left side, y down; its four
+ * corners when the radius is 0.
+ * @param box - the box
+ * @param radius - how round its corners are, at most half its shorter side
+ * @returns the outline's points, not closed
+ */
+export function roundedBoxOutline(box: TableBox, radius: number): [number, number][] {
+    const r = Math.max(0, Math.min(radius, box.width / 2, box.height / 2));
+    const { x, y, width: w, height: h } = box;
+    if (r === 0) {
+        return [
+            [x, y],
+            [x + w, y],
+            [x + w, y + h],
+            [x, y + h],
+        ];
+    }
+    // each corner's middle, and the angle its arc starts at (y down, so a quarter turn on is clockwise on screen)
+    const corners: [number, number, number][] = [
+        [x + r, y + r, Math.PI],
+        [x + w - r, y + r, 1.5 * Math.PI],
+        [x + w - r, y + h - r, 0],
+        [x + r, y + h - r, 0.5 * Math.PI],
+    ];
+    return corners.flatMap(([cx, cy, from]) =>
+        Array.from({ length: CORNER_STEPS + 1 }, (_, i): [number, number] => {
+            const a = from + (i / CORNER_STEPS) * (Math.PI / 2);
+            return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+        }),
+    );
 }
 
 /**
@@ -564,8 +682,10 @@ export function layoutLabelTable(
     };
     const sized = sizeTable(table, sizing, 0);
     const out: Collected = { frames: [], rules: [], texts: [], fills: [], images: [] };
-    placeTable(sized, { x: 0, y: 0, width: sized.width, height: sized.height }, out, false);
-    return { width: sized.width, height: sized.height, ...out };
+    const whole = { x: 0, y: 0, width: sized.width, height: sized.height };
+    placeTable(sized, whole, out, false);
+    const radius = cornerRadius(table, whole, len(table.border));
+    return { width: sized.width, height: sized.height, radius, ...out };
 }
 
 /**

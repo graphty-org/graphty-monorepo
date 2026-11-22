@@ -207,6 +207,15 @@ export function useShaderList(
 }
 
 /**
+ * The clipboard as the browser offers it: absent outside a secure context, and without readText in
+ * older browsers, though the DOM types say it always has both.
+ * @returns the clipboard, if any.
+ */
+function clipboardOf(): Partial<Clipboard> | undefined {
+    return navigator.clipboard;
+}
+
+/**
  * Control+V (Command+V) with focus on a control of the Shaders section, not in a text field: opens
  * the code dialog with the clipboard's text, or with the unsent draft when the browser will not
  * read the clipboard.
@@ -220,7 +229,7 @@ function pasteKey(event: React.KeyboardEvent, open: (init: PasteInit) => void): 
         return;
     }
     event.preventDefault();
-    const read = navigator.clipboard?.readText?.();
+    const read = clipboardOf()?.readText?.();
     if (read === undefined) {
         open({});
         return;

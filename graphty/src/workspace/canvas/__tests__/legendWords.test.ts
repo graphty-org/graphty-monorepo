@@ -202,6 +202,43 @@ describe("the legend card's words", () => {
         assert.deepEqual(keyBlocks(blocks.slice(0, 3)), []);
     });
 
+    it("keys a file's defaults by their look, not their text faces, bare numbers or parts drawn as nothing", () => {
+        const color = block({ layerId: "defaults", channel: "node.color", kind: "literal" });
+        const shape = block({
+            layerId: "defaults",
+            channel: "node.shape",
+            kind: "literal",
+            swatches: [swatch({ value: "round-rectangle", paints: "round-rectangle" })],
+        });
+        const fixed = (channel: LegendBlock["channel"], value: string | number, layerId = "defaults"): LegendBlock =>
+            block({ layerId, channel, kind: "literal", swatches: [swatch({ value, paints: value })] });
+        const blocks = [
+            color,
+            shape,
+            fixed("node.labelFont", "DejaVu Sans"),
+            fixed("node.labelColor", "#000000"),
+            fixed("edge.arrowHeadTextFont", "DejaVu Sans", "drawing"),
+            fixed("node.cornerFraction", 0.125),
+            fixed("node.opacity", 1),
+            fixed("node.sizeMode", "uniform"),
+            fixed("node.borderPosition", "inside"),
+            fixed("node.borderWidth", 0),
+            block({ layerId: "defaults", channel: "node.borderColor", kind: "literal" }),
+            fixed("edge.arrowHead", "none"),
+            block({ layerId: "defaults", channel: "edge.arrowHeadColor", kind: "literal" }),
+            block({
+                layerId: "order",
+                channel: "node.drawOrder",
+                kind: "categorical",
+                swatches: [swatch({ value: 2 })],
+            }),
+        ];
+        assert.deepEqual(keyBlocks(blocks), [color, shape]);
+        // An arrowhead's color is keyed where its layer draws one.
+        const capColor = block({ layerId: "caps", channel: "edge.arrowHeadColor", kind: "literal" });
+        assert.deepEqual(keyBlocks([fixed("edge.arrowHead", "none"), capColor]), [capColor]);
+    });
+
     it("keys no layer whose every element a filter step hides, and keeps one that still reaches some", () => {
         const hidden = block({ layerId: "hidden", kind: "literal", scope: { count: 0, of: 24 } });
         const some = block({ layerId: "some", kind: "literal", scope: { count: 4, of: 24 } });

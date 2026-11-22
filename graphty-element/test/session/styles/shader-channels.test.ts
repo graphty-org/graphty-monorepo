@@ -460,6 +460,21 @@ describe("a parameter bound per element", () => {
         session.dispose();
     });
 
+    it("counts the layer that binds it, which paints its use on every node", async () => {
+        const session = await sessionOf(4);
+        const { id } = await session.styles.add({
+            name: "Spin by uncertainty",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shaders": [{ shader: "acme/marble" }] },
+            encode: { "node.shaders.acme/marble.spin": { by: "data.uncertainty" } },
+        });
+        await session.styles.settled();
+        // The bound parameter paints a patch to the use, not a list: counting it once threw.
+        assert.deepEqual(session.styles.counts(id).painted, { "node.shaders": 4 });
+        session.dispose();
+    });
+
     it("refuses a parameter that does not vary", async () => {
         const session = await sessionOf();
         const problem = await refused(session, {

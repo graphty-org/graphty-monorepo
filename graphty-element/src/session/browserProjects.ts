@@ -2,8 +2,11 @@
  * @file Projects kept in the browser: whole project files saved to IndexedDB and opened again.
  *
  * Nothing here touches IndexedDB or `navigator` until a method is called, so the module is safe to
- * import in Node. Every record is the exact project file `project.save` wrote, held as a `Blob`
- * so listing never reads a project's contents, plus the facts a list of projects shows.
+ * import in Node. Every record is the exact project file `project.save` wrote, held as text, plus
+ * the facts a list of projects shows. Text, not a `Blob`: WebKit (Safari) refuses to store a Blob
+ * in IndexedDB ("Error preparing Blob/File data to be stored in object store").
+ * ponytail: `list()` reads every project's text with its facts; split the files into their own
+ * store if lists of large projects get slow.
  */
 
 import { PROJECT_FILE } from "../catalog/types";
@@ -45,11 +48,34 @@ export interface BrowserProjectSaveOptions {
      * Default: as the project last kept it, else embedded.
      */
     readonly assets?: ProjectSaveOptions["assets"];
+    /**
+     * The file format, as `project.save` takes it: `2` (with the `save-files-v2` experiment)
+     * stores a version 2 file. Default 1.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly format?: ProjectSaveOptions["format"];
+    /**
+     * Version 2 only: the sections to store, as `project.save` takes them. A save without every
+     * section `project.describe()` marks `required` is a copy: stored, but `dirty` stays.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly sections?: ProjectSaveOptions["sections"];
+    /**
+     * Version 2 only: embed or reference each source, as `project.save` takes it.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly embed?: ProjectSaveOptions["embed"];
 }
 
-/** The record IndexedDB holds: the facts plus the project file. */
+/** The record IndexedDB holds: the facts plus the project file, as text (a `Blob` in older records). */
 interface ProjectRecord extends StoredProject {
-    readonly file: Blob;
+    readonly file: string | Blob;
 }
 
 /** Projects kept in this browser's own storage, for a host with no file system to save to. */
@@ -68,9 +94,10 @@ export interface BrowserProjects {
      * @param session - The session to save, such as `element.session`.
      * @param options - The id of a stored project to replace, and how to keep models named by URL.
      * @returns What was stored, with the save's report.
-     * @throws A `GraphtyError` (as a rejection): `E_UNSUPPORTED` with no usable IndexedDB,
-     *     `E_TOO_LARGE` when the browser's storage quota is used up, and what `project.save`
-     *     throws.
+     * @throws A `GraphtyError` (as a rejection): `E_UNSUPPORTED` with no usable IndexedDB
+     *     (`details.reason` `"no-indexeddb"` when the host has none, `"storage-failed"` with the
+     *     DOM error's `details.name` when it refused the write), `E_TOO_LARGE` when the browser's
+     *     storage quota is used up, and what `project.save` throws.
      */
     save(session: GraphSession, options?: BrowserProjectSaveOptions): Promise<StoredProject>;
     /**
@@ -238,7 +265,12 @@ export const browserProjects: BrowserProjects = Object.freeze({
         const { nodes, edges } = session.status.counts;
         const saved = await session.project.save({
             markSaved: false,
+            // Version 1 unless asked: version 2 does not carry everything version 1 keeps yet, and
+            // its draft format may still change.
             ...(options.assets === undefined ? {} : { assets: options.assets }),
+            ...(options.format === undefined ? {} : { format: options.format }),
+            ...(options.sections === undefined ? {} : { sections: options.sections }),
+            ...(options.embed === undefined ? {} : { embed: options.embed }),
         });
         const record: ProjectRecord = {
             id: options.id ?? crypto.randomUUID(),
@@ -247,7 +279,7 @@ export const browserProjects: BrowserProjects = Object.freeze({
             nodes,
             edges,
             report: saved.report,
-            file: new Blob([saved.text], { type: PROJECT_FILE.mediaType }),
+            file: saved.text,
         };
         await inStore("readwrite", (store) => store.put(record));
         session.project.markSaved(saved);

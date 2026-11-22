@@ -436,6 +436,149 @@ describe("a layer row's Values tab on the real element", () => {
         await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
         await within(inspector).findByText("Its layers read no values");
     });
+    it("a color drawn in steps lists each step's count, and a run changed since reads Out of date", async () => {
+        const { session, store } = await open();
+        const { runId } = await runLayer(session, "degree");
+        const run = session.runs.get(runId);
+        const field = run?.fields.find((f) => f.type === "number" || f.type === "integer")?.name ?? "";
+        const binding = { by: session.results.path(runId, field), scale: "quantile", palette: "viridis" } as const;
+        const stepped = await session.styles.add({
+            name: "Degree steps",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.color": binding },
+        });
+        await session.styles.settled();
+        const { stepCounts } = session.styles.preview(binding, { channel: "node.color" });
+        assert.isAbove(stepCounts.length, 1);
+        const inspector = await openValues(store, stepped.row ?? stepped.id);
+        const header = await within(inspector).findByText(`${channelWord("node.color")} steps`);
+        const section = header.closest<HTMLElement>("[role=group]");
+        if (section === null) {
+            throw new Error("the steps have no section");
+        }
+        const counts = [...section.querySelectorAll("[data-testid=data-row-value]")]
+            .slice(-stepCounts.length)
+            .map((value) => Number(value.textContent));
+        assert.deepEqual(counts, stepCounts);
+        const reads = within(inspector).getByRole("group", { name: "Values read" });
+        const name = reads.querySelector(".cm-data-row-name")?.textContent ?? "";
+        assert.equal(statValue(reads, name), "Current");
+
+        // A new edge changes every degree it touches: the run is out of date until it is rerun.
+        const [a, b] = session.data.nodes().map((node) => node.id);
+        await session.data.addEdges([{ source: a, target: b }]);
+        await waitFor(() => {
+            assert.isNotNull(session.runs.get(runId)?.stale ?? null);
+        });
+        await waitFor(() => {
+            assert.match(statValue(reads, name), /^Out of date/);
+        });
+    });
+
+    it("Selected's Now lists the selected nodes, and a row narrows the selection to its node", async () => {
+        const { session, store } = await open();
+        await session.config.set({ startingRows: true, editableBase: true });
+        await session.styles.settled();
+        const [first, second] = session.data.nodes().map((node) => node.id);
+        await session.selection.apply({ nodes: [first, second] });
+        const selected = session.styles
+            .list()
+            .find((l) => l.selector.match === "state" && l.selector.state === "selected" && l.target === "node");
+        assert.isDefined(selected, "the starting Selected layer");
+        const inspector = await openValues(store, selected?.row ?? selected?.id ?? "");
+        const now = await within(inspector).findByRole("group", { name: "Now" });
+        await within(now).findByText("2 nodes");
+        const rows = [...now.querySelectorAll<HTMLElement>("[data-testid=data-row-button]")];
+        assert.lengthOf(rows, 2);
+        await userEvent.click(rows[1]);
+        await waitFor(() => {
+            assert.deepEqual(session.selection.nodes, [second]);
+        });
+    });
+
+    it("a layer of a set's members lists the nodes the set holds", async () => {
+        const { session, store } = await open();
+        const names = ["Myriel", "Napoleon"];
+        const where = { kind: "categories", attribute: "data.name", values: names } as const;
+        const members = await session.styles.add({
+            name: "Two",
+            target: "node",
+            selector: { match: "member", of: { define: { kind: "rule", where, reading: "clipped" } } },
+            set: { "node.color": "#0000ff" },
+        });
+        await session.styles.settled();
+        const inspector = await openValues(store, members.row ?? members.id);
+        const section = await within(inspector).findByRole("group", { name: "Members" });
+        await waitFor(() => {
+            assert.lengthOf(section.querySelectorAll("[data-testid=data-row-button]"), 2);
+        });
+        assert.equal(statValue(inspector, "Matched nodes"), "2");
+    });
+
+    it("a folder's Values tab reads the layers of the folders inside it", async () => {
+        const { session, store } = await open();
+        const { layer } = await runLayer(session, "degree");
+        const outer = await session.styles.addFolder("Outer");
+        const inner = await session.styles.addFolder("Inner");
+        await session.styles.moveRow(inner.id, { parent: outer.id });
+        await session.styles.moveRow(layer.row ?? layer.id, { parent: inner.id });
+        await session.styles.settled();
+        store.set({ inspected: { kind: "folder-row", id: outer.id } });
+        const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+        await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+        const reads = await within(inspector).findByRole("group", { name: "Values read" });
+        const values = [...reads.querySelectorAll("[data-testid=data-row-value]")].map((v) => v.textContent);
+        assert.deepEqual(values, [findName(session, layer.row ?? layer.id)]);
+    });
+
+    it("Everything's Values tab reads the element's defaults, then the tree's row that paints every node", async () => {
+        const { session, store } = await open();
+        const values = async (): Promise<HTMLElement> => {
+            store.set({ inspected: { kind: "everything-row" } });
+            const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+            await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+            return inspector;
+        };
+        const matched = async (inspector: HTMLElement): Promise<(string | null)[]> => {
+            const covers = await within(inspector).findByRole("group", { name: "Covers" });
+            return [...covers.querySelectorAll("[data-testid=data-row-value]")].map((v) => v.textContent);
+        };
+        const all = String(session.data.nodes().length);
+
+        // No row of the tree paints every node: the element's own defaults do.
+        assert.isTrue(session.styles.list().some((layer) => layer.selector.match === "everything"));
+        assert.include(await matched(await values()), all, "the defaults match every node");
+
+        // A row of the tree that paints every node: its own counts, and where its color shows.
+        const whole = await session.styles.add({
+            name: "Whole graph",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#0072B2" },
+        });
+        await session.styles.settled();
+        const inspector = await values();
+        assert.include(await matched(inspector), all);
+        await waitFor(() => {
+            assertPainted(session, inspector, whole);
+        });
+    });
+
+    it("a rerun that finds a new group says so under the run's groups", async () => {
+        const { session, store } = await open();
+        const { runId, layer } = await runLayer(session, "louvain");
+        // Two characters met only each other: a group the last run never saw.
+        await session.data.addNodes([{ id: "x1" }, { id: "x2" }]);
+        await session.data.addEdges([{ source: "x1", target: "x2" }]);
+        await session.runs.start("louvain", {}, { as: runId });
+        await session.styles.settled();
+        const realigned = session.styles.get(layer.id);
+        const fresh = (realigned?.unmatched ?? []).find((u) => u.code === "group.new");
+        assert.isDefined(fresh, "the rerun noted a new group");
+        const inspector = await openValues(store, layer.row ?? layer.id);
+        await within(inspector).findByText(/ is new since the last run$/);
+    });
 });
 
 /**

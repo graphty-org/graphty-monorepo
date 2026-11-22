@@ -9,7 +9,7 @@
  * already painted from, so the legend and the picture are two readings of one object rather than
  * two guesses that have to be kept in step.
  *
- * DEPARTURES ARE THE HONEST PART. A colour ramp that quietly clamps at the 2nd and 98th
+ * DEPARTURES ARE THE HONEST PART. A color ramp that quietly clamps at the 2nd and 98th
  * percentiles, a logarithmic scale with 312 zeros it cannot plot, a run that measured 300 nodes
  * of 50,000 -- each of those makes the picture say something narrower than "this is the data",
  * and a legend that prints the ramp without printing the narrowing is the thing that turns a
@@ -19,7 +19,7 @@
  * to report them.
  *
  * ONE DEPARTURE IS THIS FILE'S OWN. A layer lower in the stack can be painted over by a layer
- * above it that writes the same channel over EVERY element, and a block describing colours no
+ * above it that writes the same channel over EVERY element, and a block describing colors no
  * reader can see is exactly the false claim the rest of the list exists to prevent. The stack is
  * right here, so it is checked and said.
  *
@@ -47,6 +47,7 @@ import type {
 } from "../../catalog/types";
 import { RESULT_ROOT } from "../results/types";
 import type { CodedFact } from "../shared";
+import { DRAFT_MARKS, DRAFT_PATH } from "../sources/steps/paths";
 import { asColorValue } from "./channels";
 import type { EncodedValue, PreparedBinding } from "./encoding";
 import type { Layer } from "./Layer";
@@ -82,7 +83,7 @@ export interface LegendSwatch {
         readonly max: number;
     };
     /**
-     * The group's place by size, from 1 for the largest, on a block that colours a run's groups
+     * The group's place by size, from 1 for the largest, on a block that colors a run's groups
      * (`results.<run>.group`): the same `rank` the run summary's group carries, so a list of
      * groups, a table column and the legend can name one group the same way. Absent on any other
      * row.
@@ -106,14 +107,14 @@ export interface LegendSwatch {
      * @since 3.26.0
      */
     readonly arbitrary?: true;
-    /** The colour the encoding paints it, as `#rrggbb` or `#rrggbbaa`. */
+    /** The color the encoding paints it, as `#rrggbb` or `#rrggbbaa`. */
     readonly color?: string;
     /** The size or width the encoding paints it. */
     readonly size?: number;
     /** How many elements carry it, when whoever supplied the encoding can say. Always set on the `"other"` row. */
     readonly count?: number;
     /**
-     * What the encoding paints it when that is neither a colour nor a size -- a node shape, a
+     * What the encoding paints it when that is neither a color nor a size -- a node shape, a
      * line pattern, an arrow.
      *
      * Those channels carry one of a fixed list, and a list of names has no chip a `color` or a
@@ -154,8 +155,8 @@ export interface LegendReading {
         /** The channel the block describes. */
         readonly channel: Channel;
         /**
-         * Which way a higher value moves the paint: `"darker"` or `"lighter"` for a colour (by
-         * the luminance of the colours painted at the two ends of the domain), `"larger"` or
+         * Which way a higher value moves the paint: `"darker"` or `"lighter"` for a color (by
+         * the luminance of the colors painted at the two ends of the domain), `"larger"` or
          * `"smaller"` for a number such as a size, a width or an opacity.
          */
         readonly direction: "darker" | "lighter" | "larger" | "smaller";
@@ -168,7 +169,7 @@ export interface LegendReading {
  * Everything a reader is told about one channel of one layer.
  *
  * `field`, `scale`, `domain` and `palette` are each absent when there is nothing true to put in
- * them: a layer that writes a fixed colour reads no field, passes through no scale and has no
+ * them: a layer that writes a fixed color reads no field, passes through no scale and has no
  * domain, and the prepared binding says so by carrying a null path and a null scale. Filling them
  * with a placeholder would put a field name in a legend that names no field.
  */
@@ -196,7 +197,7 @@ export interface LegendBlock {
     readonly layers?: readonly LayerId[];
     /** The run behind the layer, when a run put it there. */
     readonly runId?: RunId;
-    /** What shape of legend a consumer draws: a ramp, a list of colours, a single chip. */
+    /** What shape of legend a consumer draws: a ramp, a list of colors, a single chip. */
     readonly kind: "sequential" | "diverging" | "categorical" | "highlight" | "literal";
     /** The field the encoding reads. `path` is the id to word it by. */
     readonly field?: {
@@ -223,7 +224,7 @@ export interface LegendBlock {
         readonly min: number;
         /** The high end. */
         readonly max: number;
-        /** The value a diverging palette centres on, when the binding named one. */
+        /** The value a diverging palette centers on, when the binding named one. */
         readonly midpoint?: number;
         /** The percentiles the extent was cut at, when the binding asked for a clamp. */
         readonly clamped?: {
@@ -255,7 +256,7 @@ export interface LegendBlock {
         /** The high end. */
         readonly max: number;
     };
-    /** The palette, when the channel carries a colour. */
+    /** The palette, when the channel carries a color. */
     readonly palette?: {
         /** The palette's id. */
         readonly name: PaletteId;
@@ -495,6 +496,16 @@ export interface LegendSources {
      * @returns The categories, or undefined to keep every row.
      */
     readonly shown?: (layerId: LayerId, channel: Channel) => ReadonlySet<string> | undefined;
+    /**
+     * How many of the elements one layer selects carry each value of a path, keyed as the legend
+     * spells a category.
+     *
+     * Absent, a layer that reads what a shown source draft does keys no rows.
+     * @param layerId - The layer.
+     * @param path - The path.
+     * @returns The counts by value.
+     */
+    readonly carried?: (layerId: LayerId, path: Path) => ReadonlyMap<string, number>;
 }
 
 /** What one category of a layer's binding reaches; see {@link LegendSources.reach}. */
@@ -517,7 +528,7 @@ const SWATCH_CAP = 12;
 /**
  * How many stops a continuous ramp is sampled at.
  *
- * Odd, so that the middle of the domain -- which is what a diverging palette centres on -- is one
+ * Odd, so that the middle of the domain -- which is what a diverging palette centers on -- is one
  * of the stops rather than a gap between two of them.
  */
 const RAMP_STOPS = 7;
@@ -531,7 +542,7 @@ const RAMP_STOPS = 7;
  * outside, at about 12 ns a sample, which is three microseconds for the whole sweep.
  *
  * The per-group floor is what keeps the count EXACT rather than merely plausible: a fixed sample
- * count would start merging neighbouring groups once there were more groups than samples, and an
+ * count would start merging neighboring groups once there were more groups than samples, and an
  * overflow that says "and 6 more" when there are nine is the kind of quiet wrongness a legend
  * exists to prevent.
  */
@@ -597,7 +608,7 @@ function fieldOf(path: Path, target: SelectorTarget, sources: LegendSources): No
 /**
  * Split a painted value into the fields a swatch carries it in.
  * @param painted - What the encoding painted, or undefined when it paints this value nothing.
- * @returns The colour, the size, or the finished value of a channel that carries neither.
+ * @returns The color, the size, or the finished value of a channel that carries neither.
  */
 function swatchPaint(painted: EncodedValue | undefined): Pick<LegendSwatch, "color" | "paints" | "size"> {
     if (painted === undefined) {
@@ -619,8 +630,8 @@ function swatchPaint(painted: EncodedValue | undefined): Pick<LegendSwatch, "col
 /**
  * A key two painted values are the same under.
  *
- * Colours are compared by their hex rather than by identity: the ramp mints a new object per
- * sampled step, so two samples of one colour are two objects and `===` would find every sweep
+ * Colors are compared by their hex rather than by identity: the ramp mints a new object per
+ * sampled step, so two samples of one color are two objects and `===` would find every sweep
  * sample distinct.
  * @param painted - What the encoding painted.
  * @returns The key, or null when nothing was painted at all.
@@ -747,7 +758,7 @@ function categorySwatches(
             ...(prepared.hidden.has(category) ? { hidden: true as const } : {}),
         };
     };
-    // A value the binding paints nothing for -- one a map leaves out, read as it is and no colour
+    // A value the binding paints nothing for -- one a map leaves out, read as it is and no color
     // -- gets no row: the layer does not draw it, so a row would claim a paint the canvas never shows.
     const swatches: LegendSwatch[] = categories
         .map((category, index) => row(category, index))
@@ -759,7 +770,7 @@ function categorySwatches(
     }
 
     // A hidden value the bucket folded is not painted, so it leaves the bucket's row for a row of
-    // its own marked hidden, and the bucket's row says only what is still painted grey.
+    // its own marked hidden, and the bucket's row says only what is still painted gray.
     const lumped = prepared.lumped.filter((category) => !prepared.hidden.has(category));
     for (const category of prepared.lumped) {
         if (prepared.hidden.has(category)) {
@@ -767,7 +778,7 @@ function categorySwatches(
         }
     }
 
-    // The bucket gets one row saying what it holds, so a reader is told what the grey means
+    // The bucket gets one row saying what it holds, so a reader is told what the gray means
     // rather than left to guess. A binding that paints nothing for the bucket gets no row.
     if (lumped.length > 0) {
         const hiddenCount = prepared.lumped
@@ -788,7 +799,7 @@ function categorySwatches(
  * The swatches of an encoding that cuts a numeric domain into groups.
  * @param prepared - The prepared binding.
  * @param domain - The extent it reads values against.
- * @returns One swatch per group, labelled with the values that fall in it.
+ * @returns One swatch per group, labeled with the values that fall in it.
  */
 function groupSwatches(prepared: PreparedBinding, domain: readonly [number, number]): readonly LegendSwatch[] {
     return sweepRuns(prepared, domain).map((run) => ({
@@ -932,7 +943,7 @@ function domainOf(prepared: PreparedBinding, rule: Extract<Binding, { by: Path }
  *
  * `{match:"everything"}` covers without asking about any element. Any other selector covers only
  * when {@link LegendSources.covers} can show it selects every element this layer does -- which is
- * how one run's colours are found hidden under another run's, since both are scoped
+ * how one run's colors are found hidden under another run's, since both are scoped
  * `{match:"has"}` to what their run measured. Claiming a cover nobody checked would put a
  * departure on a block that is perfectly visible.
  * @param layers - The stack, bottom first.
@@ -984,9 +995,9 @@ function factsOf(
 }
 
 /**
- * Whether a painted value carries the numbers of a colour.
+ * Whether a painted value carries the numbers of a color.
  * @param value - What the encoding painted.
- * @returns True for a colour with its red, green and blue bytes.
+ * @returns True for a color with its red, green and blue bytes.
  */
 function isRgb(value: unknown): value is { r: number; g: number; b: number } {
     return (
@@ -1002,8 +1013,8 @@ function isRgb(value: unknown): value is { r: number; g: number; b: number } {
 }
 
 /**
- * The relative luminance of a colour (WCAG), which orders colours from dark to light.
- * @param color - The colour, each channel 0 to 255.
+ * The relative luminance of a color (WCAG), which orders colors from dark to light.
+ * @param color - The color, each channel 0 to 255.
  * @param color.r - Red.
  * @param color.g - Green.
  * @param color.b - Blue.
@@ -1210,19 +1221,55 @@ export function buildLegend(sources: LegendSources): readonly LegendBlock[] {
         // ponytail: one count per layer per read, a walk over that layer's elements; memoize by
         // the counts' revision if legend reads ever show up in a profile.
         const painted = prepared.length === 0 ? undefined : sources.painted?.(layer.id);
-        for (const binding of prepared) {
-            blocks.push(buildBlock(layer, binding, layers, at, sources, painted));
-        }
+        const own = prepared.map((binding) => buildBlock(layer, binding, layers, at, sources, painted));
+        blocks.push(...(own.some((block) => block.field?.path === DRAFT_PATH) ? draftKey(own, sources) : own));
     }
 
     return blocks.length === 0 ? NO_BLOCKS : Object.freeze(foldCopies(blocks, layers, sources.reached));
 }
 
 /**
+ * A layer that reads what a shown source draft does ({@link DRAFT_PATH}) keys that, not the sizes
+ * and opacities it draws it with: one categorical block of the values its elements carry, each
+ * counted and drawn in the layer's own color, or none while no element carries one.
+ * @param own - The layer's blocks.
+ * @param sources - Where the counts come from.
+ * @returns The layer's one block, or none.
+ */
+function draftKey(own: readonly LegendBlock[], sources: LegendSources): LegendBlock[] {
+    const keyed = own.find((block) => block.field?.path === DRAFT_PATH);
+    if (keyed === undefined) {
+        return [];
+    }
+    const colored = own.find((block) => block.kind === "literal" && block.swatches[0]?.color !== undefined);
+    const color = colored?.swatches[0]?.color;
+    const held = sources.carried?.(keyed.layerId, DRAFT_PATH);
+    const swatches = DRAFT_MARKS.flatMap((mark) => {
+        const count = held?.get(mark) ?? 0;
+        return count === 0 ? [] : [{ value: mark, count, ...(color === undefined ? {} : { color }) }];
+    });
+    if (swatches.length === 0) {
+        return [];
+    }
+    const base = colored ?? keyed;
+    const block: LegendBlock = {
+        channel: base.channel,
+        layerId: base.layerId,
+        ...(base.runId === undefined ? {} : { runId: base.runId }),
+        kind: "categorical",
+        ...(keyed.field === undefined ? {} : { field: keyed.field }),
+        swatches: Object.freeze(swatches),
+        ...(base.painted === undefined ? {} : { painted: base.painted }),
+        facts: Object.freeze([]),
+    };
+    return [Object.freeze(block)];
+}
+
+/**
  * Fold the blocks of copies of one binding in several layers into one, which lists
  * every layer it stands for and the elements they paint together. Copies that differ only in
  * their value tables (`map`) are copies too -- a binding copied into each of a folder's group
- * layers keeps each group's colour in its own table, so the colour follows the group across a
+ * layers keeps each group's color in its own table, so the color follows the group across a
  * re-run -- and the folded block lists the categories the copies meet among the elements they
  * select, each painted as the copy that meets it paints it.
  * @param blocks - The blocks, bottom first.

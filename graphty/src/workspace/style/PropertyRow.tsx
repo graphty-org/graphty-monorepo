@@ -44,7 +44,7 @@ import {
 } from "./row";
 import { ScrubSlots } from "./scrubSlots";
 import { focusLineNext, focusSectionNext, lineTarget, listOpensNext, openListNext } from "./useFocusLine";
-import { ValueField } from "./ValueField";
+import { ModelNameField, ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
 import {
     bindingTitle,
@@ -122,8 +122,12 @@ export interface ManyRows {
     readonly count: (channel: Channel) => number;
     /** How many rows are edited together. */
     readonly of: number;
-    /** Writes one value or binding to every row. */
-    readonly write: (channel: EncodeKey, write: LiteralWrite | { readonly binding: DataBinding }) => Promise<unknown>;
+    /** Writes one value or binding to every row; `after` merges it into that undo step. */
+    readonly write: (
+        channel: EncodeKey,
+        write: LiteralWrite | { readonly binding: DataBinding },
+        after?: HistoryStepId,
+    ) => Promise<unknown>;
     /** Takes the channels off every row, one undo step. */
     readonly clear: (channel: Channel, ...more: Channel[]) => Promise<unknown>;
     /**
@@ -310,7 +314,7 @@ function reachWords(session: GraphSession, id: unknown, channel: Channel, side: 
 }
 
 /** What a field's caption says when the element draws nothing for the value it sets, by the element's code. */
-const UNDRAWN_WORDS: Readonly<Record<string, string>> = { "edge.lift-needs-flat-layout": "Flat in this view" };
+const UNDRAWN_WORDS: Readonly<Partial<Record<string, string>>> = { "edge.lift-needs-flat-layout": "Flat in this view" };
 
 /**
  * The element's code for why a channel a layer sets draws nothing, among the ones a field words.
@@ -896,6 +900,9 @@ function OneValue({
             <NumberValue descriptor={descriptor} name={name} value={value} combine={combine} writeValue={writeValue} />
         );
     }
+    if (descriptor.channel === "node.model") {
+        return <ModelNameField label={name} value={value} />;
+    }
     return <TextValue name={name} value={value} writeValue={writeValue} />;
 }
 
@@ -1264,7 +1271,7 @@ function fieldNotes({ ctx, channel, own, pending, hiddenBy, label, breakdown }: 
         // The row's own shader draws instead of the node: the value is kept, and comes back when the
         // shader moves to another place.
         hiddenBy === undefined ? "" : hiddenByWords(hiddenBy),
-        undrawn === undefined ? "" : UNDRAWN_WORDS[undrawn],
+        undrawn === undefined ? "" : (UNDRAWN_WORDS[undrawn] ?? ""),
         firstValue ? firstValueWords(label) : "",
         breakdown,
     ].filter((note) => note !== "");
@@ -1425,7 +1432,7 @@ export function Field({
     });
     useFocusOnRemoval(box);
     useFocusKept(box);
-    // The node-models experiment's Shape (a model in place of a shape) and Picture lines.
+    // The Shape (a model in place of a shape) and Picture lines.
     const asset = useAssetLine({ ctx, descriptor, pending, box, onCancel, fail });
     const lines = fieldLines(ctx, channel, pending);
     const { own, partly, spread } = lines;
@@ -1447,7 +1454,7 @@ export function Field({
         );
     };
     // A property's own list offers only its own choices (shaders are added in the Shaders section),
-    // and Shape's Model... with the node-models experiment on.
+    // and Shape's Model....
     const extraChoices: ExtraChoices = asset?.extraChoices;
     const pick = (value: ChannelValue): void => {
         if (asset?.pick(value) !== true) {

@@ -73,7 +73,7 @@ returns to the baseline, not to an empty element.
 It also cancels whatever is still pending. To keep that work -- a run a reader started while a
 graph was loading -- pass `{ pending: "keep" }`: each pending item that has changed nothing yet
 finishes and records its step over the new baseline. Work that has already changed something, such
-as a transaction halfway through, is cancelled either way, because undoing its step would go back
+as a transaction halfway through, is canceled either way, because undoing its step would go back
 past the baseline.
 
 ```typescript
@@ -174,11 +174,16 @@ Every step's `fact.code` is one of the `HistoryCode` values, each documenting it
 A parameter that came from the data (a node id, a set's name) is the data's own text: escape it
 before putting it into HTML.
 
-**Coalescing.** Edits of the same thing within a second of each other merge into the step on top:
-dragging a color picker, typing into a filter, moving the time window, placing nodes one at a
-time in a loop. The whole drag is one step. Work queued in between -- a run, an import -- ends the
-merge: the next edit starts a step of its own, so undo takes back that edit before it cancels the
-queued work.
+**Coalescing.** Consecutive edits of the same thing merge into the step on top: dragging a color
+picker, typing into a filter, moving the time window, placing the same nodes one call at a time.
+The whole drag is one step. Whether two edits merge depends only on what they change and on what
+happened between them, never on the time between them, so the same calls make the same steps on
+any machine. A style update merges only while it changes channels the step already changes: a
+color drag is one step, and a size edit after it is a step of its own. Another step, an undo, or
+work queued in between -- a run, an import -- ends the merge: the next edit starts a step of its
+own, so undo takes back that edit before it cancels the queued work. To keep an edit out of the
+step before it (a second, separate drag of the same slider), make it inside `session.transaction`:
+a transaction is always a step of its own, and no edit after it merges into it.
 
 ## Transactions
 
@@ -300,7 +305,7 @@ they were without running the layout again. `session.positions.set(...)`, `pin(.
 `session.styles.add`, `update`, `remove`, `move`, `encode`, `applyTemplate` and the visibility
 verbs return a `Run`. The edit itself happens at once; the handle settles when the repaint that
 draws it has finished. A signal that is already aborted when the verb is called stops the edit.
-Cancelling the handle afterwards does **not** take the edit back -- it has been recorded, and may
+Canceling the handle afterwards does **not** take the edit back -- it has been recorded, and may
 have merged into a larger step. Call `session.undo()` to take it back.
 
 ## Selection
@@ -458,7 +463,7 @@ element.getAiManager()?.registerCommand({
 ```
 
 A change made through `graph` instead is a step of its own and is not rolled back when the message
-fails. Stop when `ctx.abortSignal` fires: that is the message being cancelled, or undone while it
+fails. Stop when `ctx.abortSignal` fires: that is the message being canceled, or undone while it
 is still going.
 
 Each batch of tool calls the model returns runs in its own short transaction, which is recorded
@@ -472,7 +477,7 @@ What happens when the reader edits during a message:
 - **An edit between two batches splits the message.** The batches after it record as their own
   step on top of the reader's, with `provenance.after` naming the message's earlier step, because
   undo takes steps back in the order they happened.
-- **Cancelling the message, a tool that throws, or a failed model call** takes back every step the
+- **Canceling the message, a tool that throws, or a failed model call** takes back every step the
   message recorded, newest first, for as long as each is the next thing undo would undo. It stops
   at the reader's own step, or at pending work of theirs: the message's steps under it stay, and
   undo takes them back in order. The reader's edit is never reverted to clear the way.

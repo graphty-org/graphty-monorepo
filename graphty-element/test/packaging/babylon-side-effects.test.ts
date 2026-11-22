@@ -65,15 +65,39 @@ function sourceFiles(dir: string): string[] {
 const ANY_MEMBER = new RegExp(`\\b(?:${AUGMENTATIONS.flatMap((aug) => aug.members).join("|")})\\b`);
 
 /** Side-effect modules this file needs but does not import. */
+/**
+ * Whether an import declaration loads its module at run time.
+ * @param declaration - The import.
+ * @returns True for a bare import or one that names a value.
+ */
+function loadsModule(declaration: ts.ImportDeclaration): boolean {
+    const clause = declaration.importClause;
+    if (clause === undefined) {
+        return true;
+    }
+    if (clause.isTypeOnly) {
+        return false;
+    }
+    const bindings = clause.namedBindings;
+    return (
+        clause.name !== undefined ||
+        bindings === undefined ||
+        ts.isNamespaceImport(bindings) ||
+        bindings.elements.some((element) => !element.isTypeOnly)
+    );
+}
+
 function missingImports(path: string, text = readFileSync(path, "utf8")): string[] {
     // Parsing is the whole cost of this test, and most of the source names none of the members.
     if (!ANY_MEMBER.test(text)) {
         return [];
     }
     const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
+    // A bare import loads the module, and so does an import of a value from it (a class used with
+    // `instanceof`); an import of types alone is erased and loads nothing.
     const bareImports = new Set(
         source.statements
-            .filter((s): s is ts.ImportDeclaration => ts.isImportDeclaration(s) && !s.importClause)
+            .filter((s): s is ts.ImportDeclaration => ts.isImportDeclaration(s) && loadsModule(s))
             .map((s) => (s.moduleSpecifier as ts.StringLiteral).text),
     );
     const needed = new Set<string>();

@@ -4,7 +4,7 @@
  * (`session.assets.add`).
  */
 
-import type { Graphty as GraphtyElement, ModelPreview } from "@graphty/graphty-element";
+import type { ModelPreview } from "@graphty/graphty-element";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import {
     type CodedFact,
@@ -91,7 +91,7 @@ export function useModelStates(session: GraphSession | null): readonly ModelChan
  * @param error - what it threw.
  * @returns the coded reason.
  */
-function failureOf(error: unknown): CodedFact {
+export function failureOf(error: unknown): CodedFact {
     return isGraphtyError(error)
         ? { code: error.code, params: error.details as Readonly<Record<string, CodedFactParam>> }
         : { code: "E_MODEL_PARSE", params: {} };
@@ -106,22 +106,6 @@ function failureOf(error: unknown): CodedFact {
  */
 function modelFailureOf(error: unknown): CodedFact | undefined {
     return isGraphtyError(error) && error.code !== "E_NO_WEBGL" ? failureOf(error) : undefined;
-}
-
-/**
- * Asks graphty-element to draw an accepted model once, small and off screen (`modelThumbnail`),
- * to learn whether it can be drawn at all, for a model the reader has not looked at.
- * @param element - the element.
- * @param ref - what a layer names.
- * @returns why the model cannot be drawn, or undefined when it can (or the picture itself failed).
- */
-export async function modelDrawFailure(element: GraphtyElement, ref: string): Promise<CodedFact | undefined> {
-    try {
-        await element.modelThumbnail(ref, { size: 8 });
-        return undefined;
-    } catch (error) {
-        return modelFailureOf(error);
-    }
 }
 
 /** A model's picture as graphty-element drew it, or why it could not draw it. */
@@ -252,6 +236,8 @@ export interface ModelLive {
  * @param style - the node's style values it is drawn with.
  * @param label - the preview's name for assistive technology.
  * @param standIn - also draw a model still waiting for parts, with them stood in for.
+ * @param hiddenTextures - the model's pictures drawn without them (`modelPreview`'s
+ *     `hiddenTextures`); undefined draws the model's own list. A change draws a new preview.
  * @returns whether it is drawn, the failure, a retry and a reset of the view.
  */
 export function useModelPreview(
@@ -260,6 +246,7 @@ export function useModelPreview(
     style: Readonly<Partial<Record<Channel, ChannelValue>>>,
     label: string,
     standIn = false,
+    hiddenTextures?: readonly string[],
 ): ModelLive {
     const { session, element } = useWorkspace();
     useModelStates(session);
@@ -269,7 +256,7 @@ export function useModelPreview(
     const sample = ref !== undefined && session?.catalog.models().some((m) => m.id === ref) === true;
     const key =
         ref !== undefined && (sample || (record !== undefined && (record.state === "accepted" || standIn)))
-            ? JSON.stringify([ref, record?.digest, record?.state, attempt])
+            ? JSON.stringify([ref, record?.digest, record?.state, attempt, hiddenTextures ?? null])
             : undefined;
     const styleKey = JSON.stringify(style);
     // The style a new preview starts with: the latest, without making a new preview when it changes.
@@ -290,7 +277,7 @@ export function useModelPreview(
         if (key === undefined || element === null || host === null) {
             return undefined;
         }
-        const [asked] = JSON.parse(key) as [string];
+        const [asked, , , , hidden] = JSON.parse(key) as [string, unknown, unknown, unknown, string[] | null];
         let live = true;
         let made: ModelPreview | undefined;
         const first = startStyle.current;
@@ -298,6 +285,7 @@ export function useModelPreview(
             .modelPreview(asked, host, {
                 style: JSON.parse(first) as Record<string, ChannelValue>,
                 standInMissing: standIn,
+                ...(hidden === null ? {} : { hiddenTextures: hidden }),
             })
             .then((preview) => {
                 made = preview;

@@ -95,10 +95,10 @@ function naiveRgg(g: SampleGraph, radius: number, periodic: boolean): number[][]
 }
 
 /**
- * The brute-force k nearest neighbours of every node (ties by index).
+ * The brute-force k nearest neighbors of every node (ties by index).
  * @param g - the generated graph (for its points)
- * @param k - neighbours per node
- * @returns neighbour lists, each ascending by index
+ * @param k - neighbors per node
+ * @returns neighbor lists, each ascending by index
  */
 function naiveKnn(g: SampleGraph, k: number): number[][] {
     const c = coords(g);
@@ -122,8 +122,8 @@ function naiveKnn(g: SampleGraph, k: number): number[][] {
 }
 
 /**
- * The endpoint arrays of the k-NN graph from neighbour lists.
- * @param lists - neighbour lists, ascending
+ * The endpoint arrays of the k-NN graph from neighbor lists.
+ * @param lists - neighbor lists, ascending
  * @param directed - arcs, or the undirected union
  * @returns the endpoint arrays
  */
@@ -325,7 +325,7 @@ describe("knnGraph", () => {
         expect(new Set(community)).toEqual(new Set([0, 1, 2, 3]));
         expectSimple(g);
         expect([Array.from(g.src), Array.from(g.dst)]).toEqual(knnEdges(naiveKnn(g, 6), true));
-        // most neighbours share the cluster
+        // most neighbors share the cluster
         let same = 0;
         for (let e = 0; e < g.src.length; e++) {
             if (community[g.src[e]] === community[g.dst[e]]) {

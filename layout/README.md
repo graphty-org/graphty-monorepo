@@ -3,7 +3,7 @@
 # @graphty/layout
 
 [![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Flayout.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/layout.md)
 [![npm version](https://img.shields.io/npm/v/@graphty/layout.svg)](https://www.npmjs.com/package/@graphty/layout)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/)
@@ -311,7 +311,9 @@ import { spiral } from "@graphty/layout";
 
 const s = fromEdgeArrays(cycleGraph({ n: 50 }));
 const result = spiral(s, { resolution: 0.35, equidistant: true });
-console.log(result.n); // 50
+// in 3D the spiral rises into a cone, `height` per unit of radius, so node order reads as height
+const cone = spiral(s, { dim: 3, height: 1 });
+console.log(result.n, cone.dim); // 50 3
 ```
 
 ### Grid and radial
@@ -427,6 +429,35 @@ try {
 } catch (error) {
     console.log((error as Error & { code?: string }).code); // "E_NOT_PLANAR"
 }
+```
+
+### Geographic
+
+`geographic` puts each node at its longitude and latitude, projected onto a flat map with north up:
+`"equirectangular"` (the default), `"web-mercator"` or `"equal-earth"` (areas kept in proportion). It reads named
+`longitude` and `latitude` node columns, a named `position` column, or by default a role-`position` column whose
+coordinates are geographic. `scale` is the radius of the globe, and `centralMeridian: "auto"` draws nodes on both sides
+of the 180th meridian side by side.
+
+<!-- doc-check -->
+
+```typescript
+import { fromEdgeArrays } from "@graphty/graph-format";
+import { geographic } from "@graphty/layout";
+
+// three airports and two routes, with their longitudes and latitudes in degrees
+const s = fromEdgeArrays({
+    directed: false,
+    nodeCount: 3,
+    src: Uint32Array.of(0, 1),
+    dst: Uint32Array.of(1, 2),
+    nodeColumns: {
+        lon: Float64Array.of(-0.45, 2.55, 174.79), // London, Paris, Auckland
+        lat: Float64Array.of(51.47, 49.01, -37.01),
+    },
+});
+const map = geographic(s, { longitude: "lon", latitude: "lat", projection: "equal-earth" });
+console.log(map.positions[1] > 0); // true
 ```
 
 ## Common options

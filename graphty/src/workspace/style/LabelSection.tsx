@@ -223,7 +223,9 @@ export function LabelSection({
         return [];
     });
     const onAdd = (key: string): void => {
-        const [id, part] = key.split(":");
+        const parts = key.split(":");
+        const id = parts[0];
+        const part = parts.at(1);
         const kind = kinds.find((each) => each.id === id);
         if (kind === undefined) {
             return;
@@ -805,7 +807,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                     width={SETTINGS_WIDTH}
                     boundaryTop={settingsOpen ? headerBottom() : 0}
                 >
-                    {card && words !== undefined ? (
+                    {card ? (
                         <CardContents
                             session={session}
                             target={target}

@@ -13,7 +13,7 @@ import type { Channel } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useRef, useState } from "react";
 
-import { cosmographOn, nodeModelsOn } from "../../features";
+import { cosmographOn } from "../../features";
 import { findTreeRow } from "../../graph-place/rows";
 import { LabelSection } from "../LabelSection";
 import type { RowContext } from "../PropertyRow";
@@ -93,7 +93,7 @@ export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.J
     const parts = partsFor(
         ctx.side,
         new Set<Channel>([
-            ...experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) }),
+            ...experimentChannelsOff({ cosmograph: cosmographOn(ctx.session) }),
             "node.labels",
             "edge.labels",
         ]),

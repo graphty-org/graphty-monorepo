@@ -25,7 +25,7 @@ import type {
     TransactionScope,
 } from "@graphty/graphty-element/session";
 
-import { cosmographOn, nodeModelsOn } from "../../features";
+import { cosmographOn } from "../../features";
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
 import { lineIn, needsFor, startFor, writeIn } from "../row";
@@ -122,7 +122,7 @@ export function replaceUse(ctx: RowContext): ShaderUse | undefined {
  * @returns the members, in the element's order.
  */
 export function membersOf(ctx: RowContext, family: StyleFamilyDescriptor): readonly MemberChoice[] {
-    const off = experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) });
+    const off = experimentChannelsOff({ cosmograph: cosmographOn(ctx.session) });
     return family.members.flatMap((member): MemberChoice[] => {
         const owns = member.owns as readonly Channel[];
         const keeps = (member.keeps ?? []) as readonly Channel[];

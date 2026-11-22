@@ -5,6 +5,8 @@ import { Scene } from "@babylonjs/core/scene.js";
 
 import type { ViewInsets } from "../camera/types";
 import type { FitBounds, FitInsets } from "../config/GraphBehavior";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
+import type { CameraGestureKind, GestureEndHooks } from "./gestureEnd";
 import type { FramingSpot } from "./OrbitCameraController";
 import type { XRPivotCameraController } from "./XRPivotCameraController";
 
@@ -15,8 +17,8 @@ import type { XRPivotCameraController } from "./XRPivotCameraController";
 const GLIDE = 0.16;
 
 /**
- * Move a point a share of the way to a target, and onto it once it is within a thousandth of a
- * unit, so a pivot that has arrived stops changing and a frame drawn on demand can rest.
+ * Move a point a share of the way to a target, and onto it once that leaves it within a thousandth
+ * of a unit, so a pivot that has arrived stops changing and a frame drawn on demand can rest.
  * @param from - The point, moved in place.
  * @param to - The target.
  * @param frames - How many nominal 60 Hz frames this pass stands for, so the glide takes the same
@@ -29,10 +31,10 @@ export function glideTowards(from: Vector3, to: Vector3, frames = 1): boolean {
         return false;
     }
 
+    Vector3.LerpToRef(from, to, 1 - (1 - GLIDE) ** (frames > 0 ? frames : 1), from);
+    // Snapped in the same pass that comes within reach, not the one after: a frame saved at the end.
     if (Vector3.DistanceSquared(from, to) < 1e-6) {
         from.copyFrom(to);
-    } else {
-        Vector3.LerpToRef(from, to, 1 - (1 - GLIDE) ** (frames > 0 ? frames : 1), from);
     }
 
     return true;
@@ -69,7 +71,7 @@ export interface CameraController {
     takeView?(from: this): void;
 }
 
-interface InputHandler {
+interface InputHandler extends GestureEndHooks {
     enable(): void;
     disable(): void;
     update(): void;
@@ -109,6 +111,12 @@ export class CameraManager {
     /** Told each time the reader's own input -- a wheel, a drag, a pinch, a key -- moves a camera. */
     public onReaderMove: (() => void) | null = null;
 
+    /** Told once when a reader's camera gesture ends, on whichever camera; see `camera:gesture-end`. */
+    public onGestureEnd: ((kind: CameraGestureKind) => void) | null = null;
+
+    /** Asks the render loop for one more frame, for an input waiting on the frame that ends its gesture. */
+    public requestFrame: (() => void) | null = null;
+
     /** Frame time since the reader last moved the camera, for `camera.autoRotateResume`; null, not since it turned. */
     #idleMs: number | null = null;
 
@@ -129,6 +137,12 @@ export class CameraManager {
     public registerCamera(key: CameraKey, controller: CameraController, inputHandler: InputHandler): void {
         this.controllers.set(key, controller);
         this.inputs.set(key, inputHandler);
+        inputHandler.onGestureEnd = (kind) => {
+            this.onGestureEnd?.(kind);
+        };
+        inputHandler.requestFrame = () => {
+            this.requestFrame?.();
+        };
         controller.onReaderMove = () => {
             this.#idleMs = 0;
             this.onReaderMove?.();
@@ -200,7 +214,8 @@ export class CameraManager {
      * @returns Whether the camera moved, so the picture is not final yet.
      */
     public followPoint(point: Vector3, frames = 1, instant = this.#instantGlides): boolean {
-        const xr = this.scene.metadata?.xrCameraController as XRPivotCameraController | null | undefined;
+        const xr = (this.scene.metadata as GraphSceneMetadata | null)?.xrCameraController as
+            XRPivotCameraController | null | undefined;
         if (xr) {
             xr.pivotController.center = point;
             return false;

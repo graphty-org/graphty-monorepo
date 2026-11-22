@@ -154,6 +154,40 @@ describe("settled sizes, labels and order", () => {
         expect(values("node", "drawOrder")).toEqual([0, 50, 100]);
     });
 
+    it("stacks Cytoscape's nodes by their stored z, then in file order", async () => {
+        const node = (id: string, z: number): string =>
+            `<node id="${id}" label="${id}"><graphics type="ELLIPSE" x="0" y="0" z="${String(z)}"/></node>`;
+        const xgmml = `<?xml version="1.0"?>
+<graph id="g" label="g" xmlns="http://www.cs.rpi.edu/XGMML" xmlns:cy="http://www.cytoscape.org">
+${node("a", 2)}${node("b", 0)}${node("c", 1)}${node("d", 1)}
+</graph>`;
+        const { values } = await load(xgmml, "xgmml");
+        expect(values("node", "drawOrder")).toEqual([100, 0, 33, 67]);
+    });
+
+    it("stacks Cytoscape.js's nodes by z-index, then in element order", async () => {
+        const doc = JSON.stringify({
+            elements: { nodes: [{ data: { id: "a" } }, { data: { id: "b" } }, { data: { id: "c" } }], edges: [] },
+            style: [{ selector: "#a", style: { "z-index": 5 } }],
+        });
+        expect((await load(doc, "json")).values("node", "drawOrder")).toEqual([100, 0, 50]);
+    });
+
+    it("stacks Cytoscape.js's edges by z-index, then in element order", async () => {
+        const doc = JSON.stringify({
+            elements: {
+                nodes: [{ data: { id: "a" } }, { data: { id: "b" } }],
+                edges: [
+                    { data: { id: "e1", source: "a", target: "b" } },
+                    { data: { id: "e2", source: "b", target: "a" } },
+                    { data: { id: "e3", source: "a", target: "b" } },
+                ],
+            },
+            style: [{ selector: "#e1", style: { "z-index": 5 } }],
+        });
+        expect((await load(doc, "json")).values("edge", "drawOrder")).toEqual([100, 0, 50]);
+    });
+
     it("places Cytoscape.js's outside labels by their words", async () => {
         const doc = JSON.stringify({
             elements: { nodes: [{ data: { id: "a", label: "A" } }], edges: [] },
@@ -185,8 +219,11 @@ describe("settled sizes, labels and order", () => {
         });
         const { values } = await load(doc, "json", { viewport: { width: 800, height: 600 } });
         // fitted 30 px in from the canvas's 600 px side: 5.4 px per unit; a and b share a 100 px cell, b ranked second
-        // shows once its 10 px are drawn 5.4 times as large (54 px); the label sizes are on screen
-        expect(values("node", "labelMinNodeScreenSize")).toEqual([12, 54, 12]);
+        // shows once its 10 px are drawn more than 5.4 times as large (54 px); the label sizes are on screen
+        const [a, b, c] = values("node", "labelMinNodeScreenSize") as number[];
+        expect([a, c]).toEqual([12, 12]);
+        expect(b).toBeGreaterThan(54);
+        expect(b).toBeCloseTo(54, 3);
         expect(values("node", "labelGridCellSize")).toEqual([null, null, null]);
         expect(values("node", "labelScreenSize")).toEqual([12, 12, 12]);
     });

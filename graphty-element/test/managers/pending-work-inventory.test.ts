@@ -46,12 +46,12 @@ interface Covered {
 
 const INVENTORY: Record<string, Covered> = {
     "src/Graph.ts": {
-        count: 11,
+        count: 12,
         kind: "load",
         reason:
             "format detection runs inside a load that holds a place in the load line (a URL's download goes " +
             "through source-bytes' fetchBytes); " +
-            "the rest (screenshot capability, video capture and estimation, AI, the XR camera) draw nothing " +
+            "the rest (screenshot capability, video capture and estimation, AI, the XR camera and menu) draw nothing " +
             "of the graph's picture, or run during an immersive session, when the picture is never final",
     },
     "src/graphty-element.ts": {
@@ -67,6 +67,24 @@ const INVENTORY: Record<string, Covered> = {
             "test, list, preview, read and check read a source and draw nothing",
     },
     "src/data/DataSource.ts": { count: 2, kind: "load", reason: "a data source's download, inside a load" },
+    "src/session/projectFile.ts": {
+        count: 5,
+        kind: "load",
+        reason:
+            "a version 2 open's modules, loaded after the open took its place in the load line; " +
+            "save, describe and inspect read the session or a file and draw nothing",
+    },
+    "src/session/GraphSession.ts": {
+        count: 1,
+        kind: "load",
+        reason: "data.refresh of a source a version 2 open held reads its module, as a network refresh does in data.ts",
+    },
+    "src/session/sources/references.ts": {
+        count: 1,
+        reason:
+            "a network reference's address for the network gate, read from the load module; it computes a URL " +
+            "and draws nothing (the read that follows goes through data.import, held in the load line)",
+    },
     "src/data/source-bytes.ts": {
         count: 1,
         kind: "load",
@@ -94,11 +112,18 @@ const INVENTORY: Record<string, Covered> = {
             "a model's chunk and babylonjs-models, inside its load; babylonjs-models' container load, readers, " +
             "unzipping and decoders all run inside that load",
     },
+    "src/meshes/FlatBackdrop.ts": {
+        count: 1,
+        kind: "picture",
+        reason: "a flat background picture, held from its creation until its image loads, fails or is disposed",
+    },
     "src/models/TextureCache.ts": { count: 1, kind: "picture", reason: "a node's picture decoded into a texture" },
     "src/meshes/pictureSize.ts": {
-        count: 2,
+        count: 4,
         kind: "picture",
-        reason: "a picture read for its own size, which a node or a table cell is sized by, until the node is refitted",
+        reason:
+            "a picture read for its own size, which a node or a table cell is sized by, until the node is refitted; " +
+            "and a picture a label draws, until it has loaded and the label is painted again",
     },
     "src/meshes/AnnotationMeshes.ts": {
         count: 3,
@@ -111,9 +136,11 @@ const INVENTORY: Record<string, Covered> = {
         reason: "a line pattern texture; a mesh whose texture is loading is not ready, which holds the frame",
     },
     "src/meshes/NodeDecorationMesh.ts": {
-        count: 1,
+        count: 3,
         kind: "shader",
-        reason: "a decoration's texture; a mesh whose texture is loading is not ready, which holds the frame",
+        reason:
+            "a decoration's texture; a mesh whose texture is loading is not ready, which holds the frame; a picture " +
+            "the engine could not decode, redrawn through an image, is held as a picture token until its texture starts",
     },
     "src/managers/BasemapManager.ts": {
         count: 3,
@@ -159,11 +186,21 @@ const INVENTORY: Record<string, Covered> = {
         count: 1,
         reason: "the legend drawn into a screenshot, never onto the canvas",
     },
+    "src/screenshot/figurePdf.ts": {
+        count: 1,
+        reason: "a picture arrowhead's pixels read for a PDF figure, never onto the canvas",
+    },
     "src/ai/commands/CaptureCommands.ts": {
         count: 1,
         reason: "a capture read back for the AI; it never reaches the canvas",
     },
     "src/ai/providers/index.ts": { count: 2, reason: "an AI provider's module; it draws nothing" },
+    "src/acceleration/autoload.ts": {
+        count: 2,
+        reason:
+            "the optional GPU package's two modules, imported at the first acceleration probe; the probe only " +
+            "publishes capabilities.acceleration and draws nothing (a layout run on the accelerator is held as layout)",
+    },
     "src/ai/providers/WebLlmProvider.ts": {
         count: 2,
         reason: "the in-browser model's module and the AI SDK it converts tools with; it draws nothing",

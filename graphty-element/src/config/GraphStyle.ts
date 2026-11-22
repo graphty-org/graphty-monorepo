@@ -7,13 +7,27 @@ import { DEFAULT_VIEW_MODE } from "./ViewMode";
 const SHADER_PARAM_NAME = /^(?!.*__)[A-Za-z]\w{0,63}$/;
 
 /**
- * The colour the element clears its canvas to when no background is set: whitesmoke. What a
+ * The color the element clears its canvas to when no background is set: whitesmoke. What a
  * background field shows when the project names none, and what clearing it returns to.
  * @since 3.26.0
  */
 export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
 
-/** A background shader drawn over the colour and the image: its id and its parameters. */
+/**
+ * The color the element clears its canvas to under a dark color scheme when the background
+ * names no `darkColor`: a near-black gray. See `colorScheme` on the element.
+ * @since 3.58.0
+ */
+export const DEFAULT_DARK_BACKGROUND_COLOR = "#121212";
+
+/**
+ * Which color of the background the canvas is cleared to: `"light"` (the default) draws `color`,
+ * `"dark"` draws `darkColor`, and `"auto"` follows the page's `prefers-color-scheme` as it changes.
+ * @since 3.58.0
+ */
+export type ColorScheme = "light" | "dark" | "auto";
+
+/** A background shader drawn over the color and the image: its id and its parameters. */
 const GraphBackgroundShaderLook = z.strictObject({
     /**
      * The id of one of the project's own background shaders (`session.shaders.list()`). Writing a
@@ -32,27 +46,41 @@ const GraphBackgroundColor = z.strictObject({
     backgroundType: z.literal("color"),
     /** Absent, the element draws {@link DEFAULT_BACKGROUND_COLOR}. */
     color: ColorStyle.optional(),
-    /** A shader drawn over the colour; where its alpha is low, the colour shows. @since 3.36.0 */
+    /**
+     * Drawn in place of `color` while the element's color scheme is dark; absent, the element
+     * draws {@link DEFAULT_DARK_BACKGROUND_COLOR}. @since 3.58.0
+     */
+    darkColor: ColorStyle.optional(),
+    /** A shader drawn over the color; where its alpha is low, the color shows. @since 3.36.0 */
     shader: GraphBackgroundShaderLook.optional(),
 });
 
 const GraphBackgroundSkybox = z.strictObject({
     backgroundType: z.literal("skybox"),
     data: ImageData,
+    /**
+     * How the image is drawn: `"dome"` wraps the graph in it, turning with the camera; `"flat"`
+     * draws it still behind the graph, covering the canvas and cropped to its shape, never
+     * stretched. Absent, `"dome"`. @since 3.40.0
+     */
+    projection: z.literal(["dome", "flat"]).optional(),
     /** Drawn while the image loads, and wherever it is transparent. @since 3.36.0 */
     color: ColorStyle.optional(),
+    /** `color` under a dark color scheme, as on a color background. @since 3.58.0 */
+    darkColor: ColorStyle.optional(),
     /** A shader drawn over the image; where its alpha is low, the image shows. @since 3.36.0 */
     shader: GraphBackgroundShaderLook.optional(),
 });
 
 /**
- * What the graph is drawn against, bottom to top: a flat colour, a photo-dome skybox built from an
+ * What the graph is drawn against, bottom to top: a flat color, a photo-dome skybox built from an
  * image, and a background shader.
  *
- * The colour accepts any CSS colour the element understands and is normalised to hex on parse;
+ * The color accepts any CSS color the element understands and is normalized to hex on parse;
  * absent, the element draws {@link DEFAULT_BACKGROUND_COLOR} (`session.config.backgroundColor`
- * reports the colour drawn). The skybox's `data` is an image URL or a base64 PNG. Either member
- * may carry a `shader`, drawn over the colour or the image behind every node and label at 30
+ * reports the color drawn). The skybox's `data` is an image URL or a base64 PNG, drawn as a photo
+ * dome or, with `projection: "flat"`, flat behind the graph. Either member
+ * may carry a `shader`, drawn over the color or the image behind every node and label at 30
  * frames a second or fewer: `{ backgroundType: "color", color: "#000", shader: { id: "nebula" } }`.
  * Where the shader's alpha is low, what is beneath it shows. It is the shape
  * `element.background` and `graph.setBackground()` take.
@@ -78,9 +106,9 @@ export type GraphBackgroundConfig = z.infer<typeof GraphBackground>;
  */
 const GraphSelectionStyle = z.strictObject({
     /**
-     * The ring's colour. Any colour the element understands; normalised to hex on parse.
+     * The ring's color. Any color the element understands; normalized to hex on parse.
      *
-     * The default is the selected edge's blue, so one colour marks the selection on nodes and
+     * The default is the selected edge's blue, so one color marks the selection on nodes and
      * edges alike. Drawn solid, it stands 4.4:1 off the light default background and 3.9:1 off a
      * near-black one (#121212), past the 3:1 WCAG 1.4.11 asks of a state indicator
      * (`test/catalog/default-palette-quality.test.ts`). It replaced a gold halo at 0.4 opacity,
@@ -95,19 +123,19 @@ const GraphSelectionStyle = z.strictObject({
     scale: z.number().positive().default(1.45),
     /**
      * How solid the ring is, in `[0, 1]`. Solid by default: a see-through ring takes on the
-     * background's colour and loses the contrast its own colour has. 0 draws no ring.
+     * background's color and loses the contrast its own color has. 0 draws no ring.
      */
     opacity: z.number().min(0).max(1).default(1),
     /**
-     * The colour of the band a selected EDGE is drawn with. Any colour the element understands;
-     * normalised to hex on parse.
+     * The color of the band a selected EDGE is drawn with. Any color the element understands;
+     * normalized to hex on parse.
      *
      * An edge has its own three settings because the node halo's do not carry over: a pale,
      * see-through ring reads around a ball, but the same band beside a one-pixel line vanished
      * on a dense drawing, and gold sat inside the default measurement palette's oranges. The
      * default, Paul Tol's vibrant blue, stands 4.4:1 off the default background and is apart from
-     * the default edge grey, every colour of the default measurement palette and the element's
-     * own highlight for every kind of colour vision (`test/catalog/default-palette-quality.test.ts`).
+     * the default edge gray, every color of the default measurement palette and the element's
+     * own highlight for every kind of color vision (`test/catalog/default-palette-quality.test.ts`).
      */
     edgeColor: ColorStyle.default("#0077BB"),
     /**
@@ -147,13 +175,17 @@ export const DEFAULT_SELECTION_STYLE: GraphSelectionStyleConfig = GraphSelection
 const ViewModeSchema = z.enum(["2d", "3d", "ar", "vr"]);
 
 /**
- * The colour a background draws: its own, else {@link DEFAULT_BACKGROUND_COLOR}.
+ * The color a background draws: its own, else {@link DEFAULT_BACKGROUND_COLOR}; under a dark
+ * scheme its `darkColor`, else {@link DEFAULT_DARK_BACKGROUND_COLOR}.
  * @param background - The background.
- * @returns The colour, hex.
+ * @param dark - Whether the color scheme is dark.
+ * @returns The color, hex.
  * @internal
  */
-export function backgroundColorOf(background: GraphBackgroundConfig): string {
-    return background.color ?? DEFAULT_BACKGROUND_COLOR;
+export function backgroundColorOf(background: GraphBackgroundConfig, dark = false): string {
+    return dark
+        ? (background.darkColor ?? DEFAULT_DARK_BACKGROUND_COLOR)
+        : (background.color ?? DEFAULT_BACKGROUND_COLOR);
 }
 
 /**

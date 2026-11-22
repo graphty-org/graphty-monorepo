@@ -3,13 +3,13 @@
  *
  * In 1.x a consumer restyled the selection: `SelectionManager` published
  * `getSelectionStyleLayer` and `setSelectionStyleLayer`, and a host that wanted its own
- * highlight colour handed one over. 2.0 draws a gold halo from three constants at the top of
+ * highlight color handed one over. 2.0 draws a gold halo from three constants at the top of
  * `src/Node.ts` and keeps it deliberately OUT of the style stack, so it cannot be reached by
  * adding a layer either -- the element's own layers answer `E_PROTECTED`. Between those two
  * decisions the capability disappeared: there was no door at all.
  *
  * A selection is not a property of the data, so its look is the graph's own configuration,
- * beside the background: what colour the highlight is, how far it stands out past the node, and
+ * beside the background: what color the highlight is, how far it stands out past the node, and
  * how solid it is. The session draws it as a ring outside the node's border (`node.outerBorder*`,
  * `(scale - 1) / 2` wide), the ring a style layer draws, so these read the ring.
  */
@@ -94,7 +94,7 @@ describe("what a selected node looks like", () => {
 
     /**
      * The material the selection halo is drawn with, read off the halo on screen.
-     * @returns the halo's colour and opacity, or undefined when no halo is drawn
+     * @returns the halo's color and opacity, or undefined when no halo is drawn
      */
     function haloMaterial(): { emissive: string; alpha: number } | undefined {
         const material = drawnHalo()?.material;

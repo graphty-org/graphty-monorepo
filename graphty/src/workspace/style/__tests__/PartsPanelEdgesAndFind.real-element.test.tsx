@@ -379,18 +379,11 @@ describe("Find a setting", () => {
         });
     });
 
-    it("with the cosmograph and node-models experiments off, Find a setting finds no fade, blending or picture", async () => {
-        await openProject([
-            every("Key", "edge", { "edge.color": "#ff0000" }),
-            every("Dots", "node", { "node.shape": "box" }),
-        ]);
+    it("with the cosmograph experiment off, Find a setting finds no fade or blending", async () => {
+        await openProject([every("Key", "edge", { "edge.color": "#ff0000" })]);
         const tab = await openStyle("Key", "edge");
         const results = await find(tab, "blending");
         assert.lengthOf(found(results), 0, "no setting matches, and no words say so");
-        const nodes = await openStyle("Dots");
-        const pictures = await find(nodes, "picture");
-        assert.notInclude(found(pictures), "node.texture");
-        assert.notInclude(found(pictures), "node.model");
     });
 
     it("words typed straight after slash all land in Find a setting", async () => {

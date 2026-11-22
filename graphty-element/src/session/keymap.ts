@@ -7,6 +7,7 @@
  */
 
 import { type KeymapAction, keymapAction } from "../catalog/keymap";
+import { selectByInput } from "./selection";
 import type { GraphSession, HistoryOutcome } from "./types";
 
 /** What `attachKeymap` needs of a session. */
@@ -22,8 +23,20 @@ export type KeymapRoot = Pick<EventTarget, "addEventListener" | "removeEventList
  * `done` settles with what it did.
  */
 export type KeymapReport =
-    | { readonly action: "deselect"; readonly nodes: number; readonly edges: number }
-    | { readonly action: "undo" | "redo"; readonly done: Promise<HistoryOutcome> };
+    | {
+          /** The selection was cleared. */
+          readonly action: "deselect";
+          /** How many nodes the selection held. */
+          readonly nodes: number;
+          /** How many edges the selection held. */
+          readonly edges: number;
+      }
+    | {
+          /** An undo or redo is starting. */
+          readonly action: "undo" | "redo";
+          /** Settles with what the undo or redo did. */
+          readonly done: Promise<HistoryOutcome>;
+      };
 
 /** How `attachKeymap` behaves; every field is optional. */
 export interface KeymapOptions {
@@ -97,7 +110,7 @@ export function attachKeymap(session: KeymapSession, root: KeymapRoot, options: 
         }
         if (action === "deselect" && session.selection.size > 0) {
             const { nodes, edges } = session.selection;
-            session.selection.clear({ cause: "user" });
+            selectByInput(session.selection, "keys", () => session.selection.clear({ cause: "user" }));
             onAction?.({ action, nodes: nodes.length, edges: edges.length });
         } else if (action === "undo" && session.canUndo) {
             history(true);

@@ -16,6 +16,7 @@ const AI_EVENTS = [
     "ai-agent-start",
     "ai-approval-requested",
     "ai-capability-unavailable",
+    "ai-command-canceled",
     "ai-command-cancelled",
     "ai-command-complete",
     "ai-command-error",

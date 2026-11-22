@@ -13,10 +13,11 @@ export type { EdgeStyleConfig } from "./EdgeStyle";
 export { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, EdgeOutlineTypes, EdgeStyle } from "./EdgeStyle";
 export type { FramingExtent } from "./Framing";
 export { DEFAULT_FRAMING_EXTENT, FRAMING_EXTENT_VALUES } from "./Framing";
-export type { FetchEdgesFn, FetchNodesFn, FitInsets, GraphBehaviorConfig } from "./GraphBehavior";
+export type { FetchEdgesFn, FetchNeighborEdgesFn, FetchNodesFn, FitInsets, GraphBehaviorConfig } from "./GraphBehavior";
 export type { NodeIdType } from "./GraphBehavior";
 export { GraphBehaviorOpts, LABEL_TEXT_VALUES } from "./GraphBehavior";
 export type {
+    ColorScheme,
     GraphBackgroundConfig,
     GraphSelectionStyleConfig,
     GraphSelectionStyleInput,
@@ -24,6 +25,7 @@ export type {
 } from "./GraphStyle";
 export {
     DEFAULT_BACKGROUND_COLOR,
+    DEFAULT_DARK_BACKGROUND_COLOR,
     DEFAULT_SELECTION_STYLE,
     GraphBackground,
     GraphSelectionStyleOpts,
@@ -51,6 +53,7 @@ export type {
     XRConfig,
     XRControllerButton,
     XRInputConfig,
+    XRMenuItem,
     XRModeConfig,
     XRUIConfig,
 } from "./XRConfig";

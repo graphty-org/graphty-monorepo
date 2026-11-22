@@ -48,7 +48,7 @@ export function exactArcWeights(s: GraphSnapshot): NumericVector | undefined {
 
 /**
  * Labels to the legacy `NodeId[][]` (components, communities): one group per label in label order,
- * members in index order. A node labelled `INVALID_INDEX` belongs to no group.
+ * members in index order. A node labeled `INVALID_INDEX` belongs to no group.
  * @param ids - The snapshot's id map
  * @param labels - One label per node, in `[0, count)` or `INVALID_INDEX`
  * @param count - The number of labels
@@ -70,7 +70,7 @@ export function labelsToGroups(ids: NodeIdMap, labels: U32, count: number): Node
  * each target not already a key as it is first met. DIRECTED by default: one arc per inner entry.
  * With `directed` false the adjacency lists an undirected graph, each edge usually twice (`a -> b`
  * and `b -> a`): an unordered pair is one edge, and where its entries disagree the last one met
- * wins, as the legacy cut functions read such a Map. Not memoised: a Map has no mutation counter.
+ * wins, as the legacy cut functions read such a Map. Not memoized: a Map has no mutation counter.
  * The snapshot's `weights` view is f32 like every snapshot's, so a port reads rounded weights
  * (0.1 + 0.2 comes back as 0.30000000447) unless the facade passes `{ weights: exactArcWeights(s) }`.
  * @param adjacency - source id to (target id to weight)

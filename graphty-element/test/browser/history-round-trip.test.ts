@@ -6,7 +6,7 @@
  * The scene digest has two parts. The first is structural: the node and edge render objects by
  * id, the skybox domes in the scene, `scene.metadata.twoD` and the dimension the graph draws in.
  * The second is what was painted, read back from the render side for every node and edge in id
- * order: instance colour and scale, source mesh, enabled and visible flags, and label bounds.
+ * order: instance color and scale, source mesh, enabled and visible flags, and label bounds.
  * Without the second part a derivation hook that skipped a repaint after undo would leave stale
  * paint on the meshes while every state digest matched.
  *
@@ -24,7 +24,7 @@ import type { Edge } from "../../src/Edge";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { nextFrame } from "../helpers/real-input";
-import { FIXTURES } from "../session/history/fixtures";
+import { FIXTURES, withFixtureFeatures } from "../session/history/fixtures";
 import { roundTrip } from "../session/history/round-trip-harness";
 
 const cleanups: (() => void)[] = [];
@@ -149,15 +149,17 @@ function sceneDigest(graph: Graph): string {
 
 describe("round trip per command, on a renderer", () => {
     for (const fixture of FIXTURES.filter((each) => each.tags.includes("renderer"))) {
-        it(fixture.name, async () => {
-            const graph = await loadedGraph();
-            await roundTrip(
-                graph.getSession(),
-                fixture,
-                () => sceneDigest(graph),
-                () => atRest(graph),
-            );
-        });
+        it(fixture.name, () =>
+            withFixtureFeatures(fixture, async () => {
+                const graph = await loadedGraph();
+                await roundTrip(
+                    graph.getSession(),
+                    fixture,
+                    () => sceneDigest(graph),
+                    () => atRest(graph),
+                );
+            }),
+        );
     }
 
     it("digests a scene the same way twice when nothing changed", async () => {

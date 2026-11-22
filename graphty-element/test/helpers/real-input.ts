@@ -24,7 +24,7 @@ export interface Point {
  * Where a node is drawn, as a point to send the pointer to.
  * @param target - The graph or the element, whose `nodeScreenPosition` places the node.
  * @param id - The node.
- * @returns Its centre in CSS pixels from the canvas's top-left corner.
+ * @returns Its center in CSS pixels from the canvas's top-left corner.
  */
 export function nodePoint(
     target: { nodeScreenPosition(id: string | number): { x: number; y: number; visible: boolean } | undefined },
@@ -399,11 +399,21 @@ export async function holdPinch(
  * @param gap - The distance between the fingers, which stays the same.
  * @param degrees - How far the fingers turn, clockwise on screen.
  * @param steps - How many moves between.
+ * @param lead - The finger (0 or 1) that moves a moment before the other at each step, as one
+ *     finger of a hand leads; left out, both move in one touch event and the browser picks which
+ *     one's pointer move it sends first.
  */
-export async function twist(element: Element, center: Point, gap: number, degrees: number, steps = 8): Promise<void> {
-    const fingers = (turn: number): Record<string, number>[] =>
+export async function twist(
+    element: Element,
+    center: Point,
+    gap: number,
+    degrees: number,
+    steps = 8,
+    lead?: 0 | 1,
+): Promise<void> {
+    const fingers = (turn: number, other = turn): Record<string, number>[] =>
         [-1, 1].map((side, id) => {
-            const angle = (turn * Math.PI) / 180;
+            const angle = ((lead === undefined || id === lead ? turn : other) * Math.PI) / 180;
             const at = toPage(element, {
                 x: center.x + (side * gap * Math.cos(angle)) / 2,
                 y: center.y + (side * gap * Math.sin(angle)) / 2,
@@ -413,6 +423,12 @@ export async function twist(element: Element, center: Point, gap: number, degree
 
     await send()("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(0) });
     for (let i = 1; i <= steps; i++) {
+        if (lead !== undefined) {
+            await send()("Input.dispatchTouchEvent", {
+                type: "touchMove",
+                touchPoints: fingers((degrees * i) / steps, (degrees * (i - 1)) / steps),
+            });
+        }
         await send()("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: fingers((degrees * i) / steps) });
         await nextFrame();
     }

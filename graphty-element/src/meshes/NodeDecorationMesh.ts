@@ -16,8 +16,9 @@ import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { NodeStyleConfig } from "../config";
+import { pendingWorkOf } from "../managers/PendingWork";
 import { fontFamilies, noteLabelFont } from "./labelFonts";
-import type { LabelTableImage } from "./labelTable";
+import type { LabelTableImage, TableGradient } from "./labelTable";
 import type { MeshCache } from "./MeshCache";
 import {
     boxOf,
@@ -60,7 +61,13 @@ export interface NodeDecorationMetadata {
  * node's half width and half height from its center, y up.
  */
 export interface TableDecoration {
-    readonly fills: readonly { readonly box: PieceBox; readonly color: string }[];
+    /** Each background: its box, its color, its gradient, and a rounded one's outline in the same fractions. */
+    readonly fills: readonly {
+        readonly box: PieceBox;
+        readonly color: string;
+        readonly gradient?: TableGradient;
+        readonly outline?: readonly (readonly [number, number])[];
+    }[];
     readonly image: {
         readonly box: PieceBox;
         readonly image: LabelTableImage;
@@ -501,7 +508,8 @@ function buildColored(pieces: readonly Placed[], z: number, scene: Scene): Mesh 
     const colors: number[] = [];
     pieces.forEach((p, i) => {
         for (let k = 0; k < counts[i]; k++) {
-            colors.push(p.rgb[0], p.rgb[1], p.rgb[2], p.opacity);
+            const rgb = p.vertexRgb?.[k] ?? p.rgb;
+            colors.push(rgb[0], rgb[1], rgb[2], p.opacity);
         }
     });
     const mesh = new Mesh("node-decoration", scene);
@@ -605,8 +613,9 @@ function buildImage(
      * loaded gives way to the next in line, and with none left draws nothing and holds no frame back.
      * @param sources - The URLs still to try, in order.
      * @param failed - The URL that failed last, if one did.
+     * @param standsFor - When the first source is a picture redrawn by {@link redraw}, the URL it was drawn from.
      */
-    const load = (sources: readonly string[], failed?: string): void => {
+    const load = (sources: readonly string[], failed?: string, standsFor?: string): void => {
         const [src, ...rest] = sources;
         if (src === undefined) {
             mat.diffuseTexture = null;
@@ -628,7 +637,11 @@ function buildImage(
             },
             () => {
                 texture.dispose();
-                load(rest, src);
+                if (standsFor === undefined) {
+                    redraw(src, rest);
+                } else {
+                    load(rest, standsFor);
+                }
             },
             // Babylon.js reads a `data:` URL itself only in base64; any other (an SVG written out as text) it loads
             // as an image only when handed the URL as the picture's buffer
@@ -640,6 +653,51 @@ function buildImage(
         texture.wrapV =
             repeat === "repeat" || repeat === "repeat-y" ? Texture.WRAP_ADDRESSMODE : Texture.CLAMP_ADDRESSMODE;
         mat.diffuseTexture = texture;
+    };
+    /**
+     * A picture Babylon.js could not decode itself, decoded by the browser instead and drawn again as a PNG it can:
+     * on WebGPU Babylon.js decodes every picture with `createImageBitmap`, which cannot read an SVG that an `<img>`
+     * shows. One the browser cannot show either gives way to the next in line.
+     * @param src - The picture's URL.
+     * @param rest - The URLs to try after it.
+     */
+    const redraw = (src: string, rest: readonly string[]): void => {
+        const release = pendingWorkOf(scene)?.begin("picture", "a node's picture is redrawn as a bitmap to draw");
+        const settle = (png: string | null): void => {
+            if (!mesh.isDisposed()) {
+                if (png === null) {
+                    load(rest, src);
+                } else {
+                    load([png, ...rest], undefined, src);
+                }
+            }
+            release?.();
+        };
+        const picture = new Image();
+        // drawn on a canvas that is read back: a picture from another origin must not taint it
+        picture.crossOrigin = "anonymous";
+        picture.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = picture.naturalWidth;
+            canvas.height = picture.naturalHeight;
+            const ctx = canvas.getContext("2d");
+            if (ctx === null || canvas.width === 0 || canvas.height === 0) {
+                settle(null);
+                return;
+            }
+            ctx.drawImage(picture, 0, 0);
+            let png: string | null = null;
+            try {
+                png = canvas.toDataURL("image/png");
+            } catch {
+                // a tainted canvas: the picture's server does not allow it to be read
+            }
+            settle(png);
+        };
+        picture.onerror = () => {
+            settle(null);
+        };
+        picture.src = src;
     };
     load([image.src ?? "", image.fallback ?? ""].filter((u) => u !== ""));
     mat.useAlphaFromDiffuseTexture = true;

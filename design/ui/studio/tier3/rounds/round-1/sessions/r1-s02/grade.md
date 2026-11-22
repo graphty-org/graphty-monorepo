@@ -16,7 +16,7 @@ T39 B asks for every node of College football drawn orange with the ties unchang
 - Last screenshot `07.png`: College football open, all 115 nodes drawn orange, the ties gray.
   Everything selected in the layer list, Node tab, Fill > Color `FFA500` with an orange swatch.
 - `styles.json`: the Everything node layer sets `node.color` `#FFA500`, matched 115, painted
-  `node.color` 115. The Everything edge layer still sets `edge.color` darkgrey on 613 ties; no
+  `node.color` 115. The Everything edge layer still sets `edge.color` darkgray on 613 ties; no
   layer was added.
 - `key.json` drawn: nodes `#ffa500` 115, edges `#a9a9a9` 613.
 - Asked color: drawn `#FFA500`, `colorWord` "orange" (a CSS keyword), which contains "orange".

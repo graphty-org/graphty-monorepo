@@ -375,7 +375,7 @@ describe("buildHistogram", () => {
 
     it("bands a column that lies entirely below 1 on a real log scale", () => {
         // The defect this replaces: banding on log10(value + 1) is very nearly linear below 1,
-        // so normalised scores came out in one bar under a caption reading "log scale".
+        // so normalized scores came out in one bar under a caption reading "log scale".
         const values = Array.from({ length: 600 }, (_unused, index) => 10 ** -(1 + (index % 6)) * (1 + (index % 7)));
         const { bins } = buildHistogram(arrayColumn(values), { bins: 20, scale: "log" });
 

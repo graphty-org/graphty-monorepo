@@ -16,7 +16,7 @@ for (const [a, b] of EDGES) {
   const ia = G2.includes(a), ib = G2.includes(b);
   if (ia && ib) inside++; else if (ia || ib) cut++;
 }
-// The camera re-fitted to the members: their centre, zoomed so their extent fills the stage.
+// The camera re-fitted to the members: their center, zoomed so their extent fills the stage.
 const pts = NODES.filter((n) => G2.includes(n.id));
 const xs = pts.map((n) => n.x), ys = pts.map((n) => n.y);
 const CENTER = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };

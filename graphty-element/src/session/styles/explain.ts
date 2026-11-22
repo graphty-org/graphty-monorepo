@@ -20,7 +20,7 @@
  * a change to how layers stack changes both readings, because there is one reading.
  *
  * THIS IS THE ONE CASE THE COLUMNAR REPAINT LEAVES TO A CALLER. Building a 23-key resolved style
- * costs 47 ms at fifty thousand nodes, so the repaint keeps columns and materialises a style only
+ * costs 47 ms at fifty thousand nodes, so the repaint keeps columns and materializes a style only
  * where something asks about ONE element. This is that ask. It is O(the stack's depth), it
  * allocates one object, and it is a synchronous read like every other question about state the
  * session already holds.
@@ -83,7 +83,15 @@ import type { ResolvedStyle } from "./repaint";
 // ---------------------------------------------------------------------------------------------
 
 /** The element being asked about: one node, or one edge. */
-export type ExplainTarget = { readonly node: NodeId } | { readonly edge: EdgeId };
+export type ExplainTarget =
+    | {
+          /** The node's id. */
+          readonly node: NodeId;
+      }
+    | {
+          /** The edge's id. */
+          readonly edge: EdgeId;
+      };
 
 /** One layer's share of what an element is painted. */
 export interface StyleContribution {
@@ -252,7 +260,12 @@ export interface StyleAgreement {
      * row matches across all its layers, each counted once.
      * @since 3.40.0
      */
-    readonly elements?: { readonly nodes: number; readonly edges: number };
+    readonly elements?: {
+        /** How many nodes. */
+        readonly nodes: number;
+        /** How many edges. */
+        readonly edges: number;
+    };
 }
 
 /**
@@ -366,7 +379,12 @@ const COVERS_LISTED = 3;
  */
 export interface ChannelCovers {
     /** The layers that cover it most, most elements first, each with how many it covers. */
-    readonly layers: readonly { readonly layerId: LayerId; readonly count: number }[];
+    readonly layers: readonly {
+        /** The layer. */
+        readonly layerId: LayerId;
+        /** How many elements it covers the channel on. */
+        readonly count: number;
+    }[];
     /** How many further layers cover it on some elements, beyond `layers`. */
     readonly more: number;
 }
@@ -1258,7 +1276,11 @@ function walkWins(stack: readonly StackEntry[], at: Located, columns: ElementCol
                 : result;
         }
         if (winner.id === layerId) {
-            own[channel] = isShaderListChannel(channel) ? [...((own[channel] as []) ?? []), ...(result as [])] : result;
+            // A bound shader parameter paints a patch to one use, not a list: merged, as the
+            // repaint merges it.
+            own[channel] = isShaderListChannel(channel)
+                ? mergeChannelValue(channel, own[channel], result as object)
+                : result;
         }
     });
 
@@ -1524,7 +1546,7 @@ function appliesKey(stack: readonly StackEntry[], at: Located): string {
  * Count what one layer covers and where it wins.
  *
  * ONE PASS over the elements of the layer's kind. Each matched element is read through the same
- * walk {@link explainStyle} takes, so "this layer decides the colour of 77 nodes" agrees with an
+ * walk {@link explainStyle} takes, so "this layer decides the color of 77 nodes" agrees with an
  * explanation of each of those 77.
  * @param layerId - The layer.
  * @param elements - Every node and edge in the session, as dense indices.
@@ -1942,7 +1964,7 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
  *
  * The largest group for an encoding that names categories, and the middle of the extent for one
  * that reads numbers. Both are a value the rule actually measured, which is what makes the fixed
- * value a colour from this picture rather than an invented one.
+ * value a color from this picture rather than an invented one.
  * @param prepared - The prepared binding.
  * @returns The value to ask it about, or undefined when it has nothing to be asked about.
  */
@@ -1965,7 +1987,7 @@ function representative(prepared: PreparedBinding): unknown {
 /**
  * Turn what a channel is painted into what a layer is authored with.
  *
- * A colour comes back from the encoding as parsed components with its hex string alongside, and a
+ * A color comes back from the encoding as parsed components with its hex string alongside, and a
  * layer is written with the string: a document that says `"#4b0082"` explains itself, and one
  * that says four numbers does not.
  * @param painted - What the encoding painted.

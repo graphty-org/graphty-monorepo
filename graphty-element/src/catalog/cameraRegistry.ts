@@ -8,7 +8,7 @@
  * screenshot framing are already built around. A camera CONTROLLER is a Babylon camera plus an
  * input handler; it cannot be published without Babylon types in its signature, the element does
  * not use its own controller seam for its third camera, and six branches decide a controller's
- * behaviour by duck-typing its property names. Views are the extension point; controllers stay
+ * behavior by duck-typing its property names. Views are the extension point; controllers stay
  * internal.
  *
  * So a registration is plain data and one function, and this module names no Babylon type. The
@@ -81,6 +81,25 @@ export function registerCameraView(registration: CameraViewRegistration, options
     }
 
     registry.register(registration, options);
+    for (const listener of [...viewListeners]) {
+        listener();
+    }
+}
+
+/** Told when a camera view is registered: what a name resolves to may have changed. */
+const viewListeners = new Set<() => void>();
+
+/**
+ * Be told whenever a camera view is registered, so a name's answer can be judged again.
+ * @param listener - Called after each registration.
+ * @returns Stops telling it.
+ * @internal
+ */
+export function onCameraViewRegistered(listener: () => void): () => void {
+    viewListeners.add(listener);
+    return () => {
+        viewListeners.delete(listener);
+    };
 }
 
 /**

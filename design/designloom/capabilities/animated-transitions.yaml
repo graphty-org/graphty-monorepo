@@ -3,7 +3,8 @@ name: Animated Transitions
 category: visualization
 description: Animate changes to the visualization (layout changes, filtering, expansion) to help users maintain mental
     models of the data. Smooth transitions show how elements move from old to new positions.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/transitions/ and the layout transition row graphty/src/workspace/layout/TransitionRow.tsx."
 algorithms: []
 used_by_workflows:
     - W02

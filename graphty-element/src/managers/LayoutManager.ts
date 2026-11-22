@@ -1,3 +1,4 @@
+import { mulberry32 } from "@graphty/algorithms";
 import {
     type GraphSnapshot,
     INVALID_INDEX,
@@ -56,6 +57,7 @@ import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
+import type { RowExtent as TableExtent } from "../render/RowTable";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
 import type { LayoutMotion } from "../session/types";
@@ -89,7 +91,7 @@ const MAX_UNSEEN_STEPS = 600;
  * The published option schema each simulation type is configured through.
  *
  * ONE DECLARATION, not two. Each of the three engines used to carry a second, stricter Zod object
- * beside the schema the catalogue publishes, and the two could disagree -- ForceAtlas2's `gravity`
+ * beside the schema the catalog publishes, and the two could disagree -- ForceAtlas2's `gravity`
  * was positive in one and positive in the other while the Storybook slider offered zero. What a
  * reader is offered, what a picker renders and what the element validates are now the same
  * declaration. `"fruchtermanReingold"` is the layout package's own spelling of the simulation the
@@ -106,9 +108,10 @@ const SIMULATION_OPTION_SCHEMAS: Readonly<Record<SimulationType, OptionsSchema>>
  * The scene-unit radius a simulation's arrangement is published at when its layout publishes no
  * control for it.
  *
- * ForceAtlas2 and Spring both declare `scalingFactor` with this default and spring-electrical
- * declares none, so all three land in the same envelope as the element's fourteen one-shot
- * layouts, which publish a unit ball times their own `scalingFactor` of 100.
+ * ForceAtlas2 and Spring both declare `scalingFactor` with this default, so both land in the
+ * same envelope as the element's fourteen one-shot layouts, which publish a unit ball times their
+ * own `scalingFactor` of 100. Spring-electrical declares none and is not refitted at all: see
+ * {@link resolveSimulationOptions}.
  */
 const DEFAULT_SCALING_FACTOR = 100;
 
@@ -271,8 +274,8 @@ function simulationModel(
  *
  * THE PRODUCT OF EVERY MULTIPLIER THE LAYOUT PUBLISHES, because the bridge's refit fits the
  * arrangement to exactly this radius and nothing else a reader sets can change the size after
- * that. Spring and spring-electrical both publish a `scale` -- "Scale factor for the layout",
- * with a slider behind it -- which reaches the simulation and sizes the arrangement it computes
+ * that. Spring publishes a `scale` -- "Scale factor for the layout", with a slider behind it --
+ * which reaches the simulation and sizes the arrangement it computes
  * in its own units; left out here, the refit would divide that size straight back out and the
  * control would move nothing on screen. Multiplied in, it means what it says, and it means the
  * same thing it meant when these layouts were one-shot engines: `scale` sized the arrangement
@@ -299,7 +302,7 @@ function publishedRadius(declared: ParsedSimulationOptions): number {
  * `settleWindow` -- are NOT in any layout's published schema, because they are the same four for
  * every simulation and belong to how the element drives one rather than to the arrangement it
  * draws. They are read from the options a caller passed, where a per-layout value overrides the
- * behaviour configuration, and `behavior.layout` is where a host sets them once for every layout.
+ * behavior configuration, and `behavior.layout` is where a host sets them once for every layout.
  * @param type - Which simulation is being configured.
  * @param options - The merged layout options, as the consumer set them.
  * @param behavior - `behavior.layout`, which the frame-loop knobs default from.
@@ -317,7 +320,11 @@ export function resolveSimulationOptions(
 
     return {
         model: simulationModel(type, declared),
-        scalingFactor: publishedRadius(declared),
+        // SPRING-ELECTRICAL IS PUBLISHED AT ITS OWN SIZE, as ngraph is: it is the accelerated
+        // driver of the same `force` arrangement (FORCE_ACCELERATED_ENGINE), and fitted to a
+        // fixed radius it drew that arrangement at a different size from ngraph's -- twice as
+        // wide on a 150-node graph in 3D (issue #9174). Its `scale` still sizes it, in the simulation.
+        scalingFactor: type === "spring-electrical" ? null : publishedRadius(declared),
         clusterBy: declared.clusterBy,
         clusterStrength: declared.clusterStrength,
         nodeGap: declared.nodeGap ?? null,
@@ -334,13 +341,13 @@ export function resolveSimulationOptions(
  * Check the consumer's layout options against what the layout declares, and fill in its defaults.
  *
  * ONE OPTIONS MECHANISM. A layout that declares a descriptor declares its options as the same
- * plain `OptionDescriptor[]` the catalogue publishes and a picker renders, so the form a reader
- * fills in, the list the catalogue hands out and the values the element validates are one
+ * plain `OptionDescriptor[]` the catalog publishes and a picker renders, so the form a reader
+ * fills in, the list the catalog hands out and the values the element validates are one
  * declaration rather than three that can disagree. An unknown name is `E_UNKNOWN_OPTION` with the
  * declared names and the nearest few; a value outside the declared range is `E_OPTION_RANGE`.
  *
  * The element's own nineteen engines declare no descriptor -- their arrangements are authored in
- * the layout catalogue -- and keep validating with their own Zod schemas, so their options pass
+ * the layout catalog -- and keep validating with their own Zod schemas, so their options pass
  * through untouched.
  * @param type - The layout name, for the failure message.
  * @param descriptor - What the class declares about itself, when it declares anything.
@@ -468,7 +475,7 @@ interface BuildOptions {
      * at rest, because the `arrangement` hook writes the coordinates next.
      */
     readonly restoring: boolean;
-    /** Asked after every await: false once the build is cancelled or overtaken. */
+    /** Asked after every await: false once the build is canceled or overtaken. */
     readonly live: () => boolean;
     /**
      * Whether the scope was named by the call or command asking for this build, the only case in
@@ -478,9 +485,36 @@ interface BuildOptions {
     readonly explicitScope?: boolean;
     /** Whether this build changes the layout, so the graph's `layoutTransition` moves the nodes. */
     readonly transition?: boolean;
-    /** A simulation starts from the seed, not from the element's arrangement: see `restart`. */
+    /**
+     * A seeded simulation starts from the seed, not from the element's arrangement: see `restart`,
+     * and every build a consumer asks for (issue #9292).
+     */
     readonly fromSeed?: boolean;
+    /** The same layout, switched from 2D to 3D: a simulation starts from the 2D drawing. See `liftIntoDepth`. */
+    readonly lift?: boolean;
+    /**
+     * A switch of the same layout from 3D to 2D: a force engine starts from the arrangement it
+     * replaces, flattened onto the plane, with no pre-steps, so the first frame draws every node where
+     * it was (issue #9279).
+     */
+    readonly flatten?: boolean;
 }
+
+/**
+ * How far off the plane a lifted node goes, as a fraction of the 2D drawing's width: see `liftIntoDepth`. At 5%
+ * a settled 25-node ngraph drawing kept that depth and settled in its first frame, since a flat equilibrium has
+ * almost no force out of the plane; at 25% the simulation holds about half the width in depth (issue #9372).
+ */
+const LIFT_DEPTH = 0.25;
+
+/** Over how many layout steps a lifted drawing rises to `LIFT_DEPTH`, so the rise is seen: about a second. */
+const RISE_STEPS = 60;
+
+/** An engine that cannot rise a step at a time is lifted in one go, this far: see `liftIntoDepth`. */
+const LIFT_JITTER = 0.05;
+
+/** The fixed seed of the lift's jitter, so a seeded layout lifts into the same 3D drawing every time. */
+const LIFT_SEED = 9372;
 
 /**
  * Whether two values of the `layout` slice draw the same arrangement: the same layout, options and
@@ -494,8 +528,8 @@ function sameArrangement(a: LayoutChoice, b: LayoutChoice): boolean {
 }
 
 /**
- * The error a build that was cancelled or overtaken stops with. Nothing reports it: whoever
- * cancelled the build already knows.
+ * The error a build that was canceled or overtaken stops with. Nothing reports it: whoever
+ * canceled the build already knows.
  * @returns The error.
  */
 function cancelledBuild(): Error {
@@ -530,9 +564,9 @@ export const layoutManagerInternals = {} as {
  * The registered engine a layout name runs on.
  *
  * `setLayout` takes either spelling: a registered engine name ("ngraph") runs that engine, and a
- * catalogue id ("force", from `catalog.layouts()`) runs its default engine. An engine name wins,
- * so a third party's engine keeps its own name even if it matches a catalogue id.
- * @param type - An engine name or a catalogue id.
+ * catalog id ("force", from `catalog.layouts()`) runs its default engine. An engine name wins,
+ * so a third party's engine keeps its own name even if it matches a catalog id.
+ * @param type - An engine name or a catalog id.
  * @returns The engine name; the input unchanged when it is neither.
  */
 function engineForLayout(type: string): string {
@@ -854,7 +888,7 @@ export class LayoutManager implements Manager {
      */
     drawArrivedPaint: (() => void) | null = null;
 
-    /** Where a scope is canonicalised and resolved, once `Graph` has a session to hand in. */
+    /** Where a scope is canonicalized and resolved, once `Graph` has a session to hand in. */
     private scopeSource: LayoutScopeSource | null = null;
 
     /**
@@ -1127,7 +1161,7 @@ export class LayoutManager implements Manager {
      * controller is asked to plan the work BEFORE any of it starts, which is capability detection.
      * A batch that fails once a simulation is running is reported and stops the layout; it does not
      * arrive here.
-     * @param requested - The engine name the consumer asked for, after a catalogue id is resolved.
+     * @param requested - The engine name the consumer asked for, after a catalog id is resolved.
      * @param nodeCount - The graph the layout will be run over.
      * @returns The engine to build.
      */
@@ -1412,7 +1446,7 @@ export class LayoutManager implements Manager {
     /**
      * Internal method for setting layout - bypasses queue
      * Used by operations that are already queued to prevent nested queueing
-     * @param layout - A registered engine name, or a catalogue layout id
+     * @param layout - A registered engine name, or a catalog layout id
      * @param opts - Layout-specific options
      * @param how - The dimension, whether this is a restore, and whether the build is still wanted.
      */
@@ -1420,7 +1454,7 @@ export class LayoutManager implements Manager {
         this.logger.info("Setting layout", { type: layout, optionCount: Object.keys(opts).length });
 
         // Everything below -- option validation, dimension options, the stored layout type --
-        // sees the ENGINE name, so a catalogue id behaves exactly like the engine it names.
+        // sees the ENGINE name, so a catalog id behaves exactly like the engine it names.
         const type = engineForLayout(layout);
 
         const engineClass = LayoutEngine.getClass(type);
@@ -1522,12 +1556,18 @@ export class LayoutManager implements Manager {
             // `onSnapshotReplaced` -- where an unrecorded driver would look like a decision that
             // had changed and start this rebuild over again.
             this.runningDriver = driver;
+            this.holdBeforeInit(engine, members);
             await engine.init();
             if (!how.live()) {
                 throw cancelledBuild();
             }
 
             this.addLateArrivals(engine, nodeArray, edgeArray, edgeRows);
+
+            this.liftIntoDepth(engine, how);
+            // A 2D/3D switch starts a force engine from where its nodes are drawn, not from the
+            // seed's jumble around the origin, which the camera then framed as giant nodes (#9279).
+            this.flattenOnSwitch(engine, how);
 
             // AFTER init(), and before any step runs. See `replayPins`.
             this.replayPins(engine, nodeArray);
@@ -1573,13 +1613,116 @@ export class LayoutManager implements Manager {
             dataManagerInternals.setLayoutRows(this.dataManager, this.lateRowsOf(previousEngine));
             dataManagerInternals.setLayoutEdgeRows(this.dataManager, this.edgeRowsOf(previousEngine));
 
-            // Cancelled or overtaken is not a failure: nothing is reported.
+            // Canceled or overtaken is not a failure: nothing is reported.
             if (!how.live()) {
                 throw cancelledBuild();
             }
 
             throw this.reportLayoutFailure(type, error, "initialised");
         }
+    }
+
+    /**
+     * Start a 3D simulation from the 2D drawing, every node at its X and Y, and lift it into depth.
+     *
+     * WHY. A force engine built for 3D placed fresh bodies near the origin: switching a settled 2D
+     * drawing to 3D showed a ball for seconds, which spread into another drawing, and the reader lost
+     * their mental map (issue #9372). Started on the plane, a settled drawing has next to no force
+     * out of it and stays flat, so each placed, unpinned node is given a seeded depth of up to
+     * `LIFT_DEPTH` of the drawing's width. An engine that can be woken (`wakeForLift`) rises to it
+     * over `RISE_STEPS` steps while it keeps stepping, so the reader sees the clusters rise; any
+     * other is put `LIFT_JITTER` off the plane at once. A Z the array already holds is kept.
+     * @param engine - The engine just built and initialized.
+     * @param how - The build; only one with `lift` set is lifted.
+     */
+    private liftIntoDepth(engine: LayoutEngine, how: BuildOptions): void {
+        this.#rise = null;
+        // A static engine computes its own 3D drawing; only a simulation starts from where nodes are.
+        if (how.lift !== true || engine instanceof StaticLayoutEngine) {
+            return;
+        }
+
+        const positions = this.dataManager[WRITABLE_LANE];
+        const rows = positions.count;
+        const at = { x: 0, y: 0, z: 0 };
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        for (let row = 0; row < rows; row++) {
+            if (positions.isPlaced(row)) {
+                positions.read(row, at);
+                minX = Math.min(minX, at.x);
+                maxX = Math.max(maxX, at.x);
+                minY = Math.min(minY, at.y);
+                maxY = Math.max(maxY, at.y);
+            }
+        }
+
+        const width = Math.max(maxX - minX, maxY - minY);
+        const rises = engine.wakeForLift();
+        const amplitude = (rises ? LIFT_DEPTH : LIFT_JITTER) * (width > 0 ? width : 1);
+        const random = mulberry32(LIFT_SEED);
+        const lifted: number[] = [];
+        const steps: number[] = [];
+        for (let row = 0; row < rows; row++) {
+            if (!positions.isPlaced(row) || positions.isPinned(row)) {
+                continue;
+            }
+
+            positions.read(row, at);
+            if (at.z !== 0) {
+                continue;
+            }
+
+            const z = (random() * 2 - 1) * amplitude;
+            if (rises) {
+                lifted.push(row);
+                steps.push(z / RISE_STEPS);
+            } else {
+                positions.write(row, at.x, at.y, z);
+            }
+        }
+
+        engine.loadArrangement();
+        if (lifted.length > 0) {
+            this.#rise = { engine, rows: lifted, steps, left: RISE_STEPS };
+        }
+    }
+
+    /**
+     * Take one step of a lift into depth (see `liftIntoDepth`): move every rising node its share of
+     * the way, hand the engine the moved bodies and wake it, so it steps from them.
+     * @param engine - The current engine.
+     */
+    private riseStep(engine: LayoutEngine | undefined): void {
+        const rise = this.#rise;
+        if (rise === null) {
+            return;
+        }
+
+        // A new layout ends it.
+        if (rise.engine !== engine) {
+            this.#rise = null;
+            return;
+        }
+
+        if (--rise.left === 0) {
+            this.#rise = null;
+        }
+
+        const positions = this.dataManager[WRITABLE_LANE];
+        const at = { x: 0, y: 0, z: 0 };
+        for (const [i, row] of rise.rows.entries()) {
+            // A node pinned or removed since the lift began stays where it is.
+            if (row < positions.count && positions.isPlaced(row) && !positions.isPinned(row)) {
+                positions.read(row, at);
+                positions.write(row, at.x, at.y, at.z + rise.steps[i]);
+            }
+        }
+
+        engine.loadArrangement();
+        engine.wakeForLift();
     }
 
     /**
@@ -1603,7 +1746,7 @@ export class LayoutManager implements Manager {
      * @param driverClass - That engine's class.
      * @param layoutOpts - The options the engine is built with.
      * @param how - Whether the build is still wanted.
-     * @returns The engine, not yet initialised.
+     * @returns The engine, not yet initialized.
      */
     private async buildEngine(
         type: string,
@@ -1738,10 +1881,8 @@ export class LayoutManager implements Manager {
             column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
             weightMeaning: this.weightMeaningFor(type),
             rowData: (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row),
-            rowHalfExtents: (row) => {
-                const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
-                return extent !== undefined && extent.scale > 0 ? extent.half : null;
-            },
+            rowHalfExtents: (row) => this.measuredRow(row)?.half ?? null,
+            rowBorderReach: (row) => this.measuredRow(row)?.border ?? 0,
             positionScale: () => this.graphContext?.getStyles().config.data.knownFields.positionScale,
             knownFields: () => this.graphContext?.getStyles().config.data.knownFields,
             rankSets: () => this.dataManager.rankSets,
@@ -1793,25 +1934,36 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * A row as the row table measured it, under renderPath "batched" only: the "objects" path reads its `Node`s.
+     * @param row - The row; INVALID_INDEX for none.
+     * @returns Its extent; null off "batched", for no row, or before the row is measured.
+     */
+    private measuredRow(row: number): TableExtent | null {
+        if (row === INVALID_INDEX || this.dataManager.renderLimits?.batched() !== true) {
+            return null;
+        }
+
+        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
+        return extent === undefined || extent.scale <= 0 ? null : extent;
+    }
+
+    /**
      * How far a row drawn with no `Node` reaches, as the row table measured it, for `nodeGap`: what its `Node` would
      * answer for `layoutRadius` and `drawnHalfExtents`.
      * @param row - The row; INVALID_INDEX for none.
      * @returns The reach; null off renderPath "batched", for no row, or before the row is measured.
      */
     private rowExtent(row: number): RowExtent | null {
-        if (row === INVALID_INDEX || this.dataManager.renderLimits?.batched() !== true) {
+        const extent = this.measuredRow(row);
+        if (extent === null) {
             return null;
         }
 
-        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
-        if (extent === undefined || extent.scale <= 0) {
-            return null;
-        }
-
-        const { half } = extent;
+        // `layoutRadius` counts the border, so a row reaches as far whether or not it has its `Node`.
+        const { half, border } = extent;
         return extent.round === null
-            ? { radius: Math.max(half.x, half.y, half.z), half }
-            : { radius: extent.round, half: null };
+            ? { radius: Math.max(half.x, half.y, half.z) + border, half }
+            : { radius: extent.round + border, half: null };
     }
 
     /**
@@ -1988,7 +2140,7 @@ export class LayoutManager implements Manager {
     }
 
     /**
-     * Give a freshly initialised engine the nodes and edges that arrived while it initialised.
+     * Give a freshly initialized engine the nodes and edges that arrived while it initialized.
      * @param engine - The new engine.
      * @param nodeArray - The nodes it was given before `init()`.
      * @param edgeArray - The edges it was given before `init()`.
@@ -2055,7 +2207,14 @@ export class LayoutManager implements Manager {
             const batched = this.dataManager.renderLimits?.batched() ?? false;
             const nothingToStep = batched ? this.dataManager.nodes.size === 0 : nodeArray.length === 0;
             if (nothingToStep || this.sizesToCome(engine)) {
+                // Owed even on a switch to 2D: an empty graph has no arrangement to keep.
                 this.preStepsOwed = true;
+            } else if (this.flattens(engine, how)) {
+                // The arrangement it starts from is already laid out: stepping it before the first
+                // frame would move every node away from where the reader just saw it. Nor does the
+                // first frame step it: that frame draws the flattened arrangement as it is.
+                this.preStepsOwed = false;
+                this.#holdOneFrame = true;
             } else if (!(await this.spendPreSteps(engine, how.live))) {
                 throw cancelledBuild();
             }
@@ -2087,12 +2246,38 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Whether this build starts its engine from the element's arrangement: a 2D/3D switch of a
+     * force engine that would otherwise place its bodies from the seed. A static layout computes
+     * its own answer for the new dimension, and a {@link SimulationLayoutEngine} adopts the array.
+     * @param engine - The engine being built.
+     * @param how - How it is built.
+     * @returns True to load the arrangement and skip the pre-steps.
+     */
+    private flattens(engine: LayoutEngine, how: BuildOptions): boolean {
+        return how.flatten === true && (engine instanceof NGraphEngine || engine instanceof D3GraphEngine);
+    }
+
+    /**
+     * On a 2D/3D switch, start a force engine from the arrangement it replaces, on the plane in 2D.
+     * See {@link LayoutManager.flattens}.
+     * @param engine - The engine being built, initialized.
+     * @param how - How it is built.
+     */
+    private flattenOnSwitch(engine: LayoutEngine, how: BuildOptions): void {
+        // The engine drops the Z itself (a 2D engine holds its bodies on the plane), so its first
+        // publish flattens every row, and `putOnPlane` builds no `Node` for a row to drop one.
+        if (this.flattens(engine, how)) {
+            engine.loadArrangement();
+        }
+    }
+
+    /**
      * Tell a freshly built engine where every pinned node is, and that it is pinned.
      *
      * THIS IS WHY A PIN SURVIVES A LAYOUT CHANGE. The element owns the pin -- it is a byte beside
      * the node's coordinates -- but a live simulation also has to know, or it keeps spending force
      * on a body the element will then refuse to move, and d3 in particular would fix the node at
-     * whatever coordinates its own initialisation happened to invent.
+     * whatever coordinates its own initialization happened to invent.
      *
      * This one method covers all three rebuild paths, because `_setLayoutInternal` is the single
      * funnel for `setLayout`, the 2D/3D view-mode switch and a style template's layout.
@@ -2219,6 +2404,7 @@ export class LayoutManager implements Manager {
                 live: () => true,
                 explicitScope: scope !== undefined && this.carriedScope !== undefined,
                 transition: this.engine !== undefined,
+                fromSeed: true,
             });
         } catch (error) {
             this.carriedScope = previous;
@@ -2246,7 +2432,7 @@ export class LayoutManager implements Manager {
      * @param choice - The value.
      * @param options - How: `restoring` for undo, redo, a restore or a rollback (no pre-steps,
      *     nothing published, left at rest); `signal` stops the build, publishing nothing, when
-     *     the command that asked for it is cancelled or overtaken.
+     *     the command that asked for it is canceled or overtaken.
      * @param options.restoring - Whether this is a restore.
      * @param options.signal - The asking command's signal.
      * @param options.explicitScope - Whether the asking command named the scope.
@@ -2286,7 +2472,7 @@ export class LayoutManager implements Manager {
     ): Promise<void> {
         // A RESTORE OF THE ARRANGEMENT LANDING MID-BUILD STARTS THE BUILD OVER; it never fails it.
         // The restore drops pre-steps computed from the coordinates it replaced (`loadArrangement`),
-        // but the layout is still wanted: only its own command being cancelled or overtaken (the
+        // but the layout is still wanted: only its own command being canceled or overtaken (the
         // signal) ends it. Failing it made a `setLayout` reject with an AbortError whenever another
         // command's rollback -- a queued layout it overtook -- reached the arrangement hook after
         // this build began, which moved with every microtask between the two (issue #5613).
@@ -2368,9 +2554,20 @@ export class LayoutManager implements Manager {
                 restoring,
                 live,
                 explicitScope: options.explicitScope === true,
+                // The same layout going from 2D to 3D lifts the drawing rather than starting over (#9372).
+                lift:
+                    !restoring &&
+                    built !== null &&
+                    sameArrangement(built, choice) &&
+                    this.engineDimension === 2 &&
+                    dimension === 3,
+                // Only the dimension changed, to 2D: `sameLayout` fell through because the engine
+                // redraws. Not to 3D, where a force engine started flat has no force out of the plane.
+                flatten: sameLayout && !restoring && dimension === 2,
                 // A first layout, a restore and a 2D/3D switch place the nodes in one frame.
                 transition:
                     !restoring && built !== null && this.layoutEngine !== undefined && !sameArrangement(built, choice),
+                fromSeed: !restoring,
             });
         } catch (error) {
             this.carriedScope = previous;
@@ -2395,6 +2592,8 @@ export class LayoutManager implements Manager {
      *     restore landed on resumes the layout. Defaults to `restoring`.
      */
     loadArrangement(restoring: boolean, wrote = false, byReader = restoring): void {
+        // Coordinates written over a drawing rising into 3D end the rise where they put it.
+        this.#rise = null;
         if (restoring) {
             this.#generation++;
             this.#restoredByReader = byReader;
@@ -2457,7 +2656,7 @@ export class LayoutManager implements Manager {
 
     /**
      * Hand the manager the session it resolves scopes through.
-     * @param source - The session's canonicaliser and resolver.
+     * @param source - The session's canonicalizer and resolver.
      * @internal
      */
     setScopeSource(source: LayoutScopeSource): void {
@@ -2617,10 +2816,24 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Hand a new engine its hold before `init()` as well as after it, so a simulation starting from its seed
+     * keeps the held rows where they are (see `SimulationLayoutEngine.load`). `members` is recorded first: the
+     * freeze inside `init()` rebuilds the mask from it.
+     * @param engine - The engine about to be initialized.
+     * @param members - The members it lays out, or null when unscoped.
+     */
+    private holdBeforeInit(engine: LayoutEngine, members: ReadonlySet<NodeIdType> | null): void {
+        this.members = members;
+        if (members !== null) {
+            engine.setHoldMask(...this.holdMaskOf(members));
+        }
+    }
+
+    /**
      * Tell a freshly built scoped engine where every held node is, and then hold them.
      *
      * Placed first for the reason `replayPins` places before it pins: a live simulation's own idea
-     * of where a node is starts wherever its initialisation put it, and d3 fixes a node at that.
+     * of where a node is starts wherever its initialization put it, and d3 fixes a node at that.
      * @param engine - The engine about to become current.
      * @param members - The members it lays out.
      * @param nodes - Every node in the graph.
@@ -2656,7 +2869,7 @@ export class LayoutManager implements Manager {
      * awaited one chunk at a time, the chunk being the largest batch the GPU package takes, and
      * every other engine keeps the plain loop, whose `step()` returns having done the work.
      * @param engine - the engine to settle.
-     * @param live - Asked after every await: false once the build that spends them is cancelled or
+     * @param live - Asked after every await: false once the build that spends them is canceled or
      *     overtaken, or the arrangement was restored since, and then nothing is published.
      * @returns True once every pre-step has been taken and published; false when stopped.
      */
@@ -2995,7 +3208,7 @@ export class LayoutManager implements Manager {
     }
 
     /**
-     * The groups that follow their members, when the behaviour asks for it: see
+     * The groups that follow their members, when the behavior asks for it: see
      * `behavior.layout.groupsFollowMembers`.
      * @returns The groups with no stored position.
      */
@@ -3043,7 +3256,7 @@ export class LayoutManager implements Manager {
 
     /**
      * Place every group with no stored position on its members' bounding box, padded by its
-     * largest member's radius: its position is the box's centre, written as a placement, and the
+     * largest member's radius: its position is the box's center, written as a placement, and the
      * box is what {@link LayoutManager.groupBox} answers and the node is drawn at. A group inside a
      * group counts with its own box. Called before the nodes are drawn, every frame they are.
      */
@@ -3141,10 +3354,10 @@ export class LayoutManager implements Manager {
     /**
      * Grow a members' box by where a member's label draws its words: the words' rectangle on the
      * label plane's world bounds, taken relative to the member's mesh, around the member's box
-     * centre now (the plane follows its node, which may have moved since the last frame drew it),
+     * center now (the plane follows its node, which may have moved since the last frame drew it),
      * bounded as Cytoscape.js bounds a label ({@link labelBounds}).
      * @param id - The member.
-     * @param at - The member's centre now.
+     * @param at - The member's center now.
      * @param min - The box's low corner, grown in place.
      * @param max - Its high corner, grown in place.
      */
@@ -3237,7 +3450,7 @@ export class LayoutManager implements Manager {
      * Where a placed node is and how far its drawn surface reaches along each axis: the box a
      * layout that sizes nodes by their drawn extents (Graphviz) lays it out as.
      * @param id - The node.
-     * @returns Its centre and half extents, or null when it is not placed.
+     * @returns Its center and half extents, or null when it is not placed.
      */
     private nodeBox(id: NodeIdType): GroupBox | null {
         const extent = this.nodeExtent(id);
@@ -3248,7 +3461,7 @@ export class LayoutManager implements Manager {
     /**
      * Where a placed node is and how far its drawn sphere reaches.
      * @param id - The node.
-     * @returns Its centre and its radius on every axis, or null when it is not placed.
+     * @returns Its center and its radius on every axis, or null when it is not placed.
      */
     private nodeExtent(id: NodeIdType): GroupBox | null {
         const node = this.dataManager.nodes.get(id);
@@ -3266,7 +3479,7 @@ export class LayoutManager implements Manager {
     /**
      * The box a group with no stored position is drawn at, from the last {@link placeGroups}.
      * @param id - The node.
-     * @returns Its centre and half extents, or undefined for a node that is no such group.
+     * @returns Its center and half extents, or undefined for a node that is no such group.
      */
     groupBox(id: NodeIdType): GroupBox | undefined {
         return this.groupBoxes.get(id);
@@ -3277,7 +3490,7 @@ export class LayoutManager implements Manager {
      */
     step(): void {
         // An engine being built spends its own pre-steps; a frame stepping it meanwhile would
-        // publish what a cancelled build computed.
+        // publish what a canceled build computed.
         //
         // Nothing steps while undo, redo, a restore or a rollback is on its way to the position
         // array either: the `arrangement` hook places the restored coordinates, and a step before
@@ -3303,6 +3516,10 @@ export class LayoutManager implements Manager {
         this.syncFollowers();
 
         const engine = this.layoutEngine;
+        if (this.running) {
+            this.riseStep(engine);
+        }
+
         if (engine && this.running && !engine.isSettled) {
             engine.step();
             // Under reduced motion the layout runs unseen and is drawn once, settled.
@@ -3328,6 +3545,24 @@ export class LayoutManager implements Manager {
      * then drawn once. Set by the graph from its `reducedMotion` setting.
      */
     reducedMotion = false;
+
+    /** Set by a 2D/3D switch that flattened the arrangement, so the next frame draws it unstepped. */
+    #holdOneFrame = false;
+
+    /** A 2D drawing rising into 3D: the rows, each one's move per step and the steps left. See `liftIntoDepth`. */
+    #rise: { engine: LayoutEngine; rows: number[]; steps: number[]; left: number } | null = null;
+
+    /**
+     * Whether this frame takes no layout steps, which is once after a 2D/3D switch flattened the
+     * arrangement: that frame draws every node where it was (issue #9279). Asked once per frame.
+     * @returns True for the one frame held.
+     * @internal
+     */
+    takeFrameHold(): boolean {
+        const held = this.#holdOneFrame;
+        this.#holdOneFrame = false;
+        return held;
+    }
 
     /** Steps taken unseen under reduced motion since the last publish; see `MAX_UNSEEN_STEPS`. */
     #unseenSteps = 0;
@@ -3384,7 +3619,8 @@ export class LayoutManager implements Manager {
      * @returns True when the engine has converged, or when there is no engine.
      */
     get isSettled(): boolean {
-        return this.layoutEngine?.isSettled ?? true;
+        // A drawing still rising into 3D is not final, whatever the engine says between its steps.
+        return (this.layoutEngine?.isSettled ?? true) && this.#rise === null;
     }
 
     /**
@@ -3528,7 +3764,6 @@ export class LayoutManager implements Manager {
 
             this.eventManager.emit("layout-updated", {
                 nodeCount: nodes.length,
-                type: "incremental",
             });
 
             return Promise.resolve();
@@ -3560,7 +3795,6 @@ export class LayoutManager implements Manager {
         // Emit event that layout was updated
         this.eventManager.emit("layout-updated", {
             nodeCount: nodes.length,
-            type: "incremental",
         });
 
         return Promise.resolve();

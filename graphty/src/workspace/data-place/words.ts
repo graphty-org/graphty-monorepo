@@ -19,8 +19,8 @@ import {
     type LocationUnused,
     type LocationUsing,
     pathParts,
+    type PositionAxis,
     type Run,
-    type TableMapping,
     type TableMappingRead,
 } from "@graphty/graphty-element/session";
 
@@ -120,7 +120,7 @@ export function loadName(load: LoadedSource): string {
  */
 export function sourcesWords(sources: readonly LoadedSource[]): string | undefined {
     const files = sources.flatMap((load) =>
-        load.tables.length > 1 ? load.tables : [load.name ?? load.tables[0] ?? "Untitled data"],
+        load.tables.length > 1 ? load.tables : [load.name ?? load.tables.at(0) ?? "Untitled data"],
     );
     if (files.length <= 1) {
         return files.length === 0 ? undefined : `From ${files[0]}`;
@@ -230,9 +230,6 @@ export function attributeRows(
             };
         });
 }
-
-/** Why an attribute's verbs cannot run: it went away under the open menu. */
-export const GONE_WORD = "No longer in the data";
 
 /**
  * A notice for a filter change the element refused, with its reason when the app has words for
@@ -344,7 +341,7 @@ function matchedUnit(shape: JoinShape): "node" | "edge" | "row" {
  * @param bytes - how many bytes.
  * @returns such as "45 B", "12 KB" or "1.4 MB".
  */
-function sizeWords(bytes: number): string {
+export function sizeWords(bytes: number): string {
     if (bytes < 1000) {
         return `${String(bytes)} B`;
     }
@@ -543,7 +540,16 @@ export const FIELD_ROWS: readonly FieldRow[] = [
 
 /** What a Fields "+" entry is. */
 export type EntryId =
-    "label" | "kind" | "kindName" | "weight" | "time" | LocationKind | "edgeId" | "sourceKind" | "targetKind";
+    | "label"
+    | "kind"
+    | "kindName"
+    | "weight"
+    | "time"
+    | LocationKind
+    | PositionAxis
+    | "edgeId"
+    | "sourceKind"
+    | "targetKind";
 
 /** One kind of Fields "+" entry. */
 export interface FieldEntry {
@@ -575,6 +581,9 @@ export const FIELD_ENTRIES: Readonly<Record<FieldSide, readonly FieldEntry[]>> =
         { id: "weight", name: "Weight", role: "weight" },
         { id: "time", name: "Time", role: "time" },
         ...LOCATION_ENTRIES,
+        { id: "x", name: "X", role: "x" },
+        { id: "y", name: "Y", role: "y" },
+        { id: "z", name: "Z", role: "z" },
     ],
     edges: [
         { id: "edgeId", name: "Id", load: "edgeId" },
@@ -738,24 +747,6 @@ export function fileKindChoices(source: LoadedSource | undefined, current: strin
 }
 
 /**
- * A load-time mapping that changes one role, in the shape the load's table is named by: a bare
- * mapping for a load of one table, the table by id otherwise.
- * @param source - the load.
- * @param side - which table.
- * @param roles - the roles to change.
- * @returns the mapping.
- */
-export function remap(
-    source: LoadedSource,
-    side: FieldSide,
-    roles: TableMapping,
-): TableMapping | { tables: Record<string, TableMapping> } {
-    const tables = Object.entries(source.mapping?.tables ?? {});
-    const id = tables.find(([, table]) => table.rowsAre === side)?.[0];
-    return tables.length <= 1 || id === undefined ? roles : { tables: { [id]: roles } };
-}
-
-/**
  * The glyph the Data place's row draws for a column: free text as text, not as groups.
  * @param session - the session.
  * @param column - the column.
@@ -801,7 +792,9 @@ export function methodsWords(session: GraphSession, run: Run): string {
     const withSettings = settings.length === 0 ? "" : `, with ${settings.join(", ")}`;
     const lines = [
         `${name} was computed over ${over}${withSettings}.`,
-        `Computed by graphty-element ${run.engine.element} with @graphty/algorithms ${run.engine.algorithms}.`,
+        `Computed by ${Object.entries(run.engine.packages)
+            .map(([name, version]) => `${name} ${version}`)
+            .join(", ")}.`,
     ];
     if (run.record.seed !== null) {
         lines.push(`Seed: ${String(run.record.seed)}.`);

@@ -1,6 +1,7 @@
 import type { ScopeInput } from "../catalog/types";
 import type { OperationCategory } from "../managers/OperationQueueManager";
 
+/** How a data or algorithm call is put on the operation queue. */
 export interface QueueableOptions {
     /**
      * Skip the operation queue and execute immediately (for backwards compatibility).
@@ -38,7 +39,7 @@ export interface SetLayoutOptions extends QueueableOptions {
      *
      * CARRIED: absent keeps the scope the last layout ran over, so changing one option never
      * un-scopes a layout; `"graph"` clears it. Only a live simulation accepts one -- a layout
-     * whose catalogue entry reads `scoped: false` refuses it with `E_UNSUPPORTED` -- and a scope
+     * whose catalog entry reads `scoped: false` refuses it with `E_UNSUPPORTED` -- and a scope
      * that is malformed or names a removed set is refused with `E_BAD_COMMAND`.
      */
     scope?: ScopeInput;
@@ -56,6 +57,7 @@ export interface AlgorithmSpecificOptions {
     [key: string]: unknown;
 }
 
+/** The options of `runAlgorithm`: the queue options, and what to do with the result. */
 export interface RunAlgorithmOptions extends QueueableOptions {
     /**
      * Automatically apply suggested styles after running the algorithm

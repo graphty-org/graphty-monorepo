@@ -17,6 +17,7 @@ import {
     type GraphAnnotation,
     readAnnotations,
     readImageAnnotations,
+    statesStyles,
 } from "@graphty/graph-io/styles";
 
 import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, Path, RuleTree } from "../../../catalog/types";
@@ -24,11 +25,13 @@ import type { LoadReport } from "../../../data/report";
 import type { DataImportCommand } from "../../commands/data";
 import type { UndoableContext } from "../../project/Dispatcher";
 import type { TimeField } from "../../time/TimeApi";
+import type { GraphFraming } from "../../types";
 import { channelDescriptor } from "../channels";
 import type { CompiledLayer, LayerProblem } from "../Layer";
 import { quotePath } from "../predicate";
 import { FILE_STYLE_TRANSLATION_ISSUE } from "./codes";
 import { dataPaths, elementIdsOf, type ReaderColumnPath } from "./columns";
+import { lookColumnName } from "./oldLooks";
 import {
     carriedColumnOf,
     type FileStyleNote,
@@ -63,6 +66,11 @@ export interface FileStylesRead {
      * that its stored positions are fitted to the canvas; absent when it states none.
      */
     readonly framingPadding?: number;
+    /**
+     * The box of stored positions the file's own viewer fits to its canvas whatever the nodes' extent (Pajek's 0..1
+     * square), in the unit of the stored positions; absent when it fits the nodes.
+     */
+    readonly framingBox?: { readonly min: readonly [number, number]; readonly max: readonly [number, number] };
 }
 
 /** What a data source gives a load about the styles of what it read. */
@@ -194,6 +202,17 @@ export async function applyFileStyles(
     const { styles, options } = choiceOf(command);
     const loaded = outcome !== null && command.measure === undefined;
     const replacing = loaded && command.mode !== "merge";
+    // A fixed box frames the stored positions of the file that set it: a replacing load that does not frame as its
+    // file does drops it, so the new graph is not framed by the last file's box.
+    const framing = ctx.services.config?.().framing;
+    if (replacing && framing?.box !== undefined && (styles !== "file" || options.framing !== "file")) {
+        const { extent, padding } = framing;
+        await ctx.inline({
+            op: "config.set",
+            values: { framing: { extent, ...(padding === undefined ? {} : { padding }) } },
+        });
+    }
+
     if (!loaded || styles !== "file") {
         return null;
     }
@@ -218,13 +237,11 @@ export async function applyFileStyles(
     }
 
     // The file states that its node centers are fitted into the canvas: framed the same, the drawing fills the canvas
-    // as the file's own viewer does. A file that states no padding returns to the element's own framing.
+    // as the file's own viewer does. A file whose viewer fits a fixed box (Pajek's 0..1 square) has that box framed,
+    // edge to edge, in the unit its stored positions are drawn in. A file that states neither returns to the element's
+    // own framing.
     if (options.framing === "file" && replacing) {
-        const padding = read?.framingPadding;
-        await ctx.inline({
-            op: "config.set",
-            values: { framing: padding === undefined ? undefined : { extent: "centers", padding } },
-        });
+        await ctx.inline({ op: "config.set", values: { framing: fileFraming(read, sceneScale ?? 1) } });
     }
 
     const report: LoadReport = Object.freeze({
@@ -237,6 +254,27 @@ export async function applyFileStyles(
     });
     ctx.services.data?.values?.({ importReport: report }, ctx.draft);
     return sceneScale;
+}
+
+/**
+ * How a file's own viewer frames it, as the project setting `framing`.
+ * @param read - The file's styles, or null.
+ * @param k - The scene units one unit of the stored positions is drawn as.
+ * @returns The framing, or undefined for the element's own.
+ */
+function fileFraming(read: FileStylesRead | null, k: number): GraphFraming | undefined {
+    const padding = read?.framingPadding;
+    const box = read?.framingBox;
+    if (box === undefined) {
+        return padding === undefined ? undefined : { extent: "centers", padding };
+    }
+
+    // ponytail: the fixed layout's scale only; a positionScale the reader set is not applied to the box
+    return {
+        extent: "centers",
+        padding: padding ?? 0,
+        box: { min: [box.min[0] * k, box.min[1] * k], max: [box.max[0] * k, box.max[1] * k] },
+    };
 }
 
 /**
@@ -374,7 +412,9 @@ async function applyRead(
         positionsStored: read.positionsStored === true,
     });
     const notes = [...translation.notes];
-    const accepted = acceptedLayers(translation.layers, ctx.services.styles, notes);
+    // A file that states no style of its own adds no layers: its program's defaults alone are not the file's styles
+    // (issue #9298). Its stored positions' scale, framing, background and annotations still apply.
+    const accepted = statesStyles(read.extracted) ? acceptedLayers(translation.layers, ctx.services.styles, notes) : [];
 
     // The values, written onto the elements the element holds as ordinary data columns: only those a layer or the
     // visibility filter reads, so a value a layer the file rebuilt no longer reads leaves no column behind.
@@ -570,14 +610,12 @@ function columnNamer(
         const names = takenOf(kind);
         const copied = carried(kind, key);
         const base = copied ?? key.replaceAll(/\W/g, "_");
-        let name = base;
-        let n = 1;
         // A copy of a data column is that column's own values as written: they go back into it.
-        while (copied === null && names.has(name) && !holds(kind, name, values)) {
-            const count = n === 1 ? "" : ` ${String(n)}`;
-            name = `${base} (${sourceId}${count})`.replaceAll(".", "_");
-            n++;
-        }
+        const name = lookColumnName(
+            base,
+            sourceId,
+            (each) => copied === null && names.has(each) && !holds(kind, each, values),
+        );
 
         const at = `${DATA_PREFIX}${name}`;
         names.add(name);

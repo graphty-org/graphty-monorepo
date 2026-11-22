@@ -291,10 +291,6 @@ const KNOWN_GAPS: ReadonlyMap<string, string> = new Map([
         "a node's own opacity under a translucent class comes back opaque: the writer keeps it as an exceptions column the reader does not apply (graph-io ISSUES.md, Specimen sheets: Cytoscape.js)",
     ],
     [
-        "Cytoscape.js JSON: gexf/fidelity/graphology-rio.gexf.gz",
-        "a node's own opacity under a translucent class comes back opaque: the writer keeps it as an exceptions column the reader does not apply (graph-io ISSUES.md, Specimen sheets: Cytoscape.js)",
-    ],
-    [
         "Cytoscape.js JSON: xgmml/fidelity/aracne-mycccnd1.xgmml.gz",
         "a node's own opacity under a translucent class comes back opaque: the writer keeps it as an exceptions column the reader does not apply (graph-io ISSUES.md, Specimen sheets: Cytoscape.js)",
     ],

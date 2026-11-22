@@ -1044,14 +1044,16 @@ function visIcon(layer: VisLayer, site: CanonSite): Row {
     }
     const size = typeof layer.iconSize === "number" && layer.iconSize >= 0 ? layer.iconSize : 50;
     const color = typeof layer.iconColor === "string" ? canonColor(layer.iconColor, "vis", site) : null;
-    const weight = layer.iconWeight;
-    const bold = weight === "bold" || weight === "bolder" || (typeof weight === "number" && weight >= 600);
+    // a CSS weight: a keyword, or a number drawn at the nearest of the nine weights a face has
+    const raw = layer.iconWeight;
+    const weight = typeof raw === "number" ? Math.min(900, Math.max(100, Math.round(raw / 100) * 100)) : raw;
+    const glyphWeight = weight === undefined || weight === null ? null : canonEnum("weight", weight, "vis", site);
     return {
         glyph: code,
         glyphFont: typeof layer.iconFace === "string" && layer.iconFace !== "" ? layer.iconFace : "FontAwesome",
         glyphSize: size,
         glyphColor: color?.color ?? "#2b7ce9",
-        glyphWeight: bold ? "bold" : "normal",
+        glyphWeight: glyphWeight ?? "normal",
     };
 }
 
@@ -1752,6 +1754,12 @@ function visDashLengths(dashes: unknown, width: number, put: PutRow): void {
         put("dashLength", num6(pair.dash / width));
         put("dashGap", num6(pair.gap / width));
     }
+    // more than one dash and gap (vis.js [12, 3, 3, 3]): each as drawn, in widths, a width longer and shorter with its caps
+    const pairs = lengths.length % 2 === 1 ? [...lengths, ...lengths] : lengths;
+    if (pair !== null && pairs.length > 2) {
+        const drawn = pairs.map((d, i) => (i % 2 === 0 ? Math.max(0, d) + width : Math.max(0, d - width)) / width);
+        put("dashArray", drawn.map((d) => String(num6(d))).join(" "));
+    }
 }
 
 /**
@@ -1784,6 +1792,7 @@ function visDashesAtDrawnWidth(vals: Row, merged: VisLayer, width: number | unde
     }
     delete vals.dashLength;
     delete vals.dashGap;
+    delete vals.dashArray;
     visEdgeLineStyle({ ...merged, width }, (p, v) => {
         vals[p] = v;
     });

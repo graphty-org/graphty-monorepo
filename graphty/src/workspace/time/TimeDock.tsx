@@ -586,13 +586,15 @@ function AllTimeButton({
 /**
  * The dock's settings button: the timeline's settings (field, step, mode, zone and the rest) in the
  * settings popover every panel uses.
+ * @param props - Component props
+ * @param props.session - the element's session.
  * @returns the button and its popover.
  */
-function SettingsButton(): React.JSX.Element {
+function SettingsButton({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
     return (
         <PopoutManager>
             <SettingsPopout label="Timeline settings" width={280}>
-                <TimeCard />
+                <TimeCard session={session} />
             </SettingsPopout>
         </PopoutManager>
     );
@@ -793,7 +795,7 @@ export function TimeDock(): React.JSX.Element | null {
     const settingsButton = (
         <div className="tl-settings">
             <AllTimeButton session={session} store={store} />
-            <SettingsButton />
+            <SettingsButton session={session} />
         </div>
     );
     const chart = (

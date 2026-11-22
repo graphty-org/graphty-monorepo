@@ -75,7 +75,7 @@ export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.te
 /**
  * The rules file, with nx.json's sharedGlobals added to "everything".
  * @param root the checkout
- * @returns `{ everything, smoke, storySetup, noBuild, noTests, standalone, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel,
+ * @returns `{ everything, smoke, storySetup, noBuild, noTests, standalone, wholePackage, canary, alsoRun, opaque, readAtRunTime, fileLevel,
  *   fileLevelBrowser, stories }`
  */
 export function loadRules(root) {
@@ -96,6 +96,12 @@ export function loadRules(root) {
         noTests: raw.noTests.patterns.map(toRe),
         standalone: (raw.standaloneTools?.patterns ?? []).map(toRe),
         wholePackage: raw.wholePackage.patterns.map(toRe),
+        canary: {
+            patterns: (raw.canary?.patterns ?? []).map((p) => toRe(p)),
+            files: Object.fromEntries(
+                Object.entries(raw.canary?.files ?? {}).map(([f, ps]) => [f, ps.map((p) => toRe(p))]),
+            ),
+        },
         alsoRun: raw.alsoRun.entries.map((e) => ({ re: toRe(e.pattern), packages: e.packages, why: e.why })),
         opaque: toRe(raw.opaqueTest.pattern),
         readAtRunTime: toRe(raw.readAtRunTime.pattern),
@@ -1397,6 +1403,8 @@ export const FILE_OVERHEAD_MS = 5_000;
  */
 export const FAMILY_BIN_COST = {
     "graphty-element-browser": { overheadMs: 4_500, scale: 1 },
+    // the browser family's files again, one at a time in the same browser (ponytail: re-fit from its own PR bins)
+    "graphty-element-forced-batched": { overheadMs: 4_500, scale: 1 },
     "graphty-element-storybook": { overheadMs: 7_500, scale: 1 },
     graphty: { overheadMs: 2_000, scale: 1.35 },
     "graphty-element-default": { overheadMs: 500, scale: 1 },
@@ -1484,9 +1492,11 @@ export function lightPlan(root, shards, selection, durations = {}) {
     for (const [family, runs] of families) {
         const fileMs = new Map(Object.entries(durations[family] ?? {}));
         if (runs.some((r) => r.mode === "all")) {
-            if (!packWhole(root, family, runs, fileMs, out)) {
+            // a shard marked "pack-whole": false runs whole as its own slices (tools/ci-test-matrix.mjs)
+            if (runs[0].shard["pack-whole"] === false || !packWhole(root, family, runs, fileMs, out)) {
                 runWhole(family, runs, out);
             }
+            pinnedBins(root, family, runs, selection, fileMs, out);
             continue;
         }
         let n = 0;
@@ -1519,6 +1529,47 @@ export function lightPlan(root, shards, selection, durations = {}) {
         }
     }
     return out;
+}
+
+/**
+ * The files pinned to a features-on family that runs whole (pinChanged(), pinCanary()): a pull request never runs such
+ * a family whole (tools/ci-test-matrix.mjs plan()), so they run as bins of their own, numbered after its shards and
+ * packed bins, with no `whole` field.
+ * @param root the checkout
+ * @param family the family name
+ * @param runs its planRuns() entries
+ * @param selection lightPlan()'s selection
+ * @param fileMs Map(file -> recorded ms) of the family
+ * @param out lightPlan()'s output, which gets the bins
+ */
+function pinnedBins(root, family, runs, selection, fileMs, out) {
+    const shard = runs[0].shard;
+    const ours = selection.filter((s) => familyOf(s.shard) === family);
+    // a file pinned twice keeps its first reason
+    const why = new Map(
+        ours
+            .flatMap((s) => s.pinned ?? [])
+            .reverse()
+            .map((p) => [p.file, p.why]),
+    );
+    const files = [...why.keys()].sort();
+    if (shard["pull-request"] !== "selected" || files.length === 0) {
+        return;
+    }
+    let n = Math.max(ours.length, out.bins.filter((b) => b.family === family).length);
+    const { overheadMs, scale } = binCost(family);
+    for (const bin of packBins(files, fileMs, BIN_LIMIT_MS, overheadMs, scale)) {
+        n += 1;
+        out.bins.push({
+            name: `${family}-${n}`,
+            family,
+            shard: shard.shard,
+            covers: [shard.shard],
+            ...bin,
+            command: selectedCommand(root, shard, bin.files),
+            why: Object.fromEntries(bin.files.map((f) => [f, why.get(f)])),
+        });
+    }
 }
 
 /**
@@ -2126,7 +2177,7 @@ async function buildGraph(root, pkg, config, reuseFrom = null) {
 }
 
 /**
- * One file's edges, then its imports' (memoised across every test of the package).
+ * One file's edges, then its imports' (memoized across every test of the package).
  * @param project the Vitest project whose Vite server transforms the file
  * @param file an absolute path
  * @param ctx shared state of the run
@@ -3184,6 +3235,62 @@ async function graphChild(root, dir, config, on = false, base = null) {
 }
 
 /**
+ * The test files a change added or changed, and those the import graphs reached (a shard's `measured` answer), pinned
+ * to every shard that runs whole (#9274): lightPlan() runs them as bins of their own in a features-on family, which a
+ * pull request never runs whole, so a change that runs its package whole still runs its own tests with every
+ * experiment on, as the full run will.
+ * @param changed repo-relative changed paths
+ * @param selection selectShards() output
+ * @returns the selection, with `pinned: [{ file, why }]` on the shards that run whole and hold such a file
+ */
+export function pinChanged(changed, selection) {
+    const mine = new Set(changed);
+    return selection.map((s) => {
+        if (s.mode !== "all" || !s.specs) {
+            return s;
+        }
+        const pins = [
+            ...s.specs.filter((f) => mine.has(f)).map((file) => ({ file, why: "the pull request changed it" })),
+            ...(s.measured?.files ?? []),
+        ];
+        return pins.length === 0 ? s : { ...s, pinned: [...(s.pinned ?? []), ...pins] };
+    });
+}
+
+/**
+ * The canary configuration's tests added to a selection (test-select-rules.json "canary", #9234): when a changed
+ * build file matches a pattern, each named family's shards get the tracked test files its patterns match. A shard
+ * that selected files or none gets them as selected files; one that runs whole keeps them as `pinned`, which
+ * lightPlan() runs as a bin of their own for a features-on family (a pull request never runs one whole).
+ * @param changed repo-relative changed paths
+ * @param canary loadRules().canary
+ * @param selection selectShards() output
+ * @param tracked returns the checkout's tracked paths (called only when a pattern matches)
+ * @returns the selection, with the canary files added
+ */
+export function pinCanary(changed, canary, selection, tracked) {
+    const hit = changed.find((f) => canary.patterns.some((re) => re.test(f)) && buildInput(f.replace(/^[^/]+\//u, "")));
+    if (!hit) {
+        return selection;
+    }
+    const paths = tracked();
+    const why = `the canary configuration's tests run on every change to what it draws with (${hit} changed)`;
+    return selection.map((s) => {
+        const res = canary.files[familyOf(s.shard)] ?? [];
+        const files = paths.filter((f) => res.some((re) => re.test(f)));
+        if (files.length === 0) {
+            return s;
+        }
+        if (s.mode === "all") {
+            return { ...s, pinned: [...(s.pinned ?? []), ...files.map((file) => ({ file, why }))] };
+        }
+        const have = new Set((s.files ?? []).map((f) => f.file));
+        const added = files.filter((f) => !have.has(f)).map((file) => ({ file, why }));
+        return { ...s, mode: "files", files: [...(s.files ?? []), ...added] };
+    });
+}
+
+/**
  * The selection for a change, with everything it needs read from the checkout.
  * @param root the checkout
  * @param changed repo-relative changed paths
@@ -3215,9 +3322,12 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
         deferDownstream,
         lockfile: lockRefs && changed.includes(LOCK) ? lockfileImporters(root, lockRefs.base, lockRefs.head) : null,
     });
+    const picked = selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke);
     return {
         ...sel,
-        shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke),
+        shards: pinCanary(changed, rules.canary, pinChanged(changed, picked), () =>
+            execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 }).split("\n"),
+        ),
         graphs: all,
         // by directory: nx names remote-logger, which has no project.json, @graphty/remote-logger
         deps: new Map(
@@ -3287,6 +3397,62 @@ export function describe(selection) {
     return lines.join("\n");
 }
 
+/** The test file of the render-parity project that draws the stories (graphty-element vitest.config.ts). */
+const PARITY_SPEC = "test/render-parity/stories.test.ts";
+/** A story file PARITY_SPEC draws (its import.meta.glob takes `stories/**\/*.stories.ts`). */
+const PARITY_STORY = /\.stories\.ts$/u;
+const escapeRe = (text) => text.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
+
+/**
+ * The render-parity bins of a pull request (#9274): the shards marked "pull-request": "stories" (full-run-only
+ * otherwise, tools/ci-test-matrix.mjs) draw the story files the change added or changed under their package's
+ * stories/, every engine in one job (`job`, a group of the bins), each engine one `vitest run` of PARITY_SPEC that
+ * VITE_PARITY_STORIES narrows to those files. Packed so a job's stories take at most BIN_LIMIT_MS on all its engines
+ * together, at each shard's "story-ms".
+ * @param shards SHARDS entries
+ * @param changed repo-relative changed paths
+ * @param exists whether a path is in the checkout (a deleted story draws nothing)
+ * @param storiesIn the number of stories in a story file
+ * @returns lightPlan()-shaped bins, with `job`
+ */
+export function parityBins(shards, changed, exists, storiesIn) {
+    const bins = [];
+    for (const [pkg, lanes] of Map.groupBy(
+        shards.filter((s) => s["pull-request"] === "stories"),
+        (s) => s.package,
+    )) {
+        const files = changed
+            .filter((f) => f.startsWith(`${pkg}/stories/`) && PARITY_STORY.test(f) && exists(f))
+            .sort();
+        const perStory = lanes.reduce((ms, s) => ms + s["story-ms"], 0);
+        const fileMs = new Map(files.map((f) => [f, storiesIn(f) * perStory]));
+        packBins(files, fileMs, BIN_LIMIT_MS, 0).forEach((bin, i) => {
+            const names = bin.files.map((f) => f.slice(`${pkg}/stories/`.length).replace(PARITY_STORY, ""));
+            const re = String.raw`/stories/(${names.map((n) => escapeRe(n)).join("|")})\.stories\.ts$`;
+            for (const s of lanes) {
+                const run = "pnpm exec vitest run --project=render-parity";
+                if (!s["test-command"].includes(run)) {
+                    throw new Error(`${s.shard}: its command has no "${run}" to narrow to the changed stories`);
+                }
+                const narrowed = `VITE_PARITY_STORIES=${quote(re)} ${run} ${PARITY_SPEC} --passWithNoTests`;
+                const command = s["test-command"].replace(run, () => narrowed);
+                bins.push({
+                    name: `${s.shard}-${i + 1}`,
+                    family: s.shard,
+                    shard: s.shard,
+                    covers: [s.shard],
+                    job: `${pkg}-render-parity-${i + 1}`,
+                    files: bin.files,
+                    ms: bin.files.reduce((ms, f) => ms + storiesIn(f) * s["story-ms"], 0),
+                    command,
+                    why: Object.fromEntries(bin.files.map((f) => [f, "the pull request changed this story"])),
+                });
+            }
+        });
+    }
+    return bins;
+}
+
 /**
  * The light check's plan JSON (`--plan`): the test bins and the stories of a change.
  * @param root the checkout
@@ -3297,9 +3463,10 @@ export function describe(selection) {
  * @param input.base the base ref
  * @param input.head the head ref
  * @param input.durations lightPlan()'s durations
+ * @param input.parity the shards parityBins() plans (render-parity)
  * @returns `{ changed, everything, bins, whole, none, stories, storyBins }`
  */
-function planOf(root, { changed, selection, shards, base, head, durations }) {
+function planOf(root, { changed, selection, shards, base, head, durations, parity = [] }) {
     const show = (rev) => {
         try {
             return execFileSync("git", ["show", `${rev}:${LOCK}`], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
@@ -3324,18 +3491,25 @@ function planOf(root, { changed, selection, shards, base, head, durations }) {
     });
     const listFiles = (dir) =>
         execFileSync("git", ["ls-files", "--", dir], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
+    const storiesIn = (f) => {
+        try {
+            return storyCount(readFileSync(join(root, f), "utf8"));
+        } catch {
+            return 1;
+        }
+    };
+    const light = lightPlan(root, shards, selection.shards, durations);
+    const drawn = parityBins(parity, changed, (f) => existsSync(join(root, f)), storiesIn);
+    // the stories a parity bin draws reach its test file through import.meta.glob, which the import graphs skip
+    const spec = [...new Set(drawn.map((b) => `${parity.find((s) => s.shard === b.shard).package}/${PARITY_SPEC}`))];
     return {
         changed: changed.length,
         everything: selection.everything,
-        ...lightPlan(root, shards, selection.shards, durations),
+        ...light,
+        bins: [...light.bins, ...drawn],
+        touched: [...new Set([...light.touched, ...spec])].sort(),
         stories,
-        storyBins: storyBins(stories, projects, listFiles, durations, (f) => {
-            try {
-                return storyCount(readFileSync(join(root, f), "utf8"));
-            } catch {
-                return 1;
-            }
-        }),
+        storyBins: storyBins(stories, projects, listFiles, durations, storiesIn),
     };
 }
 
@@ -3370,8 +3544,9 @@ async function main(argv) {
     const base = arg("--base") ?? "origin/master";
     const head = arg("--head") ?? "HEAD";
     const changed = changedFiles(root, base, head);
-    // a pull request's selection: the full-run-only shards are never in it; the On shards are (their selected
-    // files run on a pull request, tools/ci-test-matrix.mjs plan()), with their -features-on import graphs
+    // a pull request's selection: the full-run-only shards are never in it; the On and forced-batched shards are
+    // (their selected files run on a pull request, tools/ci-test-matrix.mjs plan()), the On with their
+    // -features-on import graphs
     const shards = SHARDS.filter((s) => !s["full-run-only"]);
     const selection = await selectChange(root, changed, shards, undefined, argv.includes("--defer-downstream"), {
         base,
@@ -3379,7 +3554,8 @@ async function main(argv) {
     });
     if (argv.includes("--plan")) {
         const durations = arg("--durations") ? JSON.parse(readFileSync(arg("--durations"), "utf8")) : {};
-        console.log(JSON.stringify(planOf(root, { changed, selection, shards, base, head, durations })));
+        const parity = SHARDS.filter((s) => s["pull-request"] === "stories");
+        console.log(JSON.stringify(planOf(root, { changed, selection, shards, base, head, durations, parity })));
         return;
     }
     if (argv.includes("--json")) {

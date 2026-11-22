@@ -220,7 +220,6 @@ describe("model variant words", () => {
         );
         assert.equal(CUSTOM_MODEL.variantLine({ format: "glb", compression: ["draco"] }), "GLB, Draco");
         assert.equal(CUSTOM_MODEL.variantLine({ format: "gltf", gltfVersion: "1.0" }), "glTF, glTF 1.0");
-        assert.equal(CUSTOM_MODEL.variantLine({ format: "spz", geometry: "splats" }), "SPZ, Gaussian splats");
         assert.equal(CUSTOM_MODEL.variantLine({ format: "stl", encoding: "ascii" }), "STL, ASCII");
     });
 
@@ -236,6 +235,7 @@ describe("model variant words", () => {
                 textureBytes: 0,
                 upAxis: "unknown",
                 animations: [],
+                pictures: [],
                 skinned: false,
                 morphTargets: 0,
                 transparent: false,
@@ -260,6 +260,36 @@ describe("model variant words", () => {
         );
     });
 
+    it("names an FBX or USD file's units, by name when they have one", () => {
+        const units = (metersPerUnit: number): string | undefined =>
+            CUSTOM_MODEL.detailRows(
+                {
+                    format: "fbx",
+                    encoding: "binary",
+                    triangles: 12,
+                    meshes: 1,
+                    materials: [],
+                    textures: 0,
+                    textureBytes: 0,
+                    upAxis: "y",
+                    animations: [],
+                    pictures: [],
+                    skinned: false,
+                    morphTargets: 0,
+                    transparent: false,
+                    extensionsRequired: [],
+                    metersPerUnit,
+                },
+                undefined,
+            ).find((row) => row.name === "Units")?.value;
+        assert.equal(units(0.01), "Centimeters");
+        assert.equal(units(1), "Meters");
+        assert.equal(units(0.0254), "Inches");
+        assert.equal(units(0.05), "0.05 m");
+        assert.equal(CUSTOM_MODEL.variantLine({ format: "fbx", encoding: "ascii" }), "FBX, ASCII");
+        assert.equal(CUSTOM_MODEL.variantLine({ format: "usdz" }), "USDZ");
+    });
+
     it("lists clips with their lengths, and the extensions drawn without", () => {
         const rows = CUSTOM_MODEL.detailRows(
             {
@@ -271,6 +301,7 @@ describe("model variant words", () => {
                 textureBytes: 2_000_000,
                 upAxis: "y",
                 animations: [{ name: "Walk", seconds: 2 }],
+                pictures: [],
                 skinned: true,
                 morphTargets: 0,
                 transparent: true,
@@ -282,6 +313,25 @@ describe("model variant words", () => {
         const value = (name: string): string | undefined => rows.find((row) => row.name === name)?.value;
         assert.equal(value("Animations"), "Walk, 2.0 s");
         assert.equal(value("Textures"), "3, 2.0 MB");
+        const summary = {
+            format: "babylon",
+            triangles: 474,
+            meshes: 5,
+            materials: [],
+            textures: 2,
+            textureBytes: 12,
+            upAxis: "y",
+            animations: [],
+            pictures: [],
+            skinned: false,
+            morphTargets: 0,
+            transparent: false,
+            extensionsRequired: [],
+        } as const;
+        const textures = (waiting: Parameters<typeof CUSTOM_MODEL.detailRows>[3]): string | undefined =>
+            CUSTOM_MODEL.detailRows(summary, undefined, [], waiting).find((row) => row.name === "Textures")?.value;
+        assert.equal(textures({ count: 0, downloading: false, skipped: 2 }), "2, 2 skipped", "no size for stand-ins");
+        assert.equal(textures({ count: 2, downloading: false }), "2, 2 missing");
         assert.equal(rows.find((row) => row.name === "Materials")?.tip, "Glass");
         assert.equal(value("Extensions ignored"), "KHR_materials_transmission");
         assert.equal(value("Skinned"), "Yes");
@@ -291,6 +341,21 @@ describe("model variant words", () => {
     it("says how much of a load has come", () => {
         assert.equal(CUSTOM_MODEL.bytes(3_200_000, 12_400_000), "3.2 of 12.4 MB");
         assert.equal(CUSTOM_MODEL.bytes(640_000, null), "640 KB");
+    });
+
+    it("names what a count limit counted, and says byte limits as sizes", () => {
+        const tip = (params: Record<string, string | number>): string =>
+            modelChip({ code: "E_MODEL_TOO_LARGE", params }).tip;
+        assert.equal(tip({ what: "count", item: "materials", found: 148, limit: 64 }), "148 materials over 64");
+        assert.equal(
+            tip({ what: "sessionBytes", found: 271_678_933, limit: 268_435_456 }),
+            "271.7 MB in this session over 268.4 MB",
+        );
+        assert.equal(tip({ what: "bytes", found: 2_000_000, limit: 1_000_000 }), "2.0 MB over 1.0 MB");
+        assert.equal(
+            tip({ what: "triangles", found: 1_500_000, limit: 1_000_000 }),
+            "1,500,000 triangles over 1,000,000",
+        );
     });
 
     it("says why a decoder failed by its reason, and calls approximated points a chip", () => {
@@ -308,7 +373,43 @@ describe("model variant words", () => {
             tip: "points are drawn as small solids",
         });
         assert.equal(modelChip({ code: "E_MODEL_STRUCTURE", params: { rule: "ply" } }).tip, "PLY data damaged");
+        assert.equal(
+            modelChip({ code: "E_MODEL_STRUCTURE", params: { rule: "image", name: "maps/wood.png" } }).tip,
+            "picture not read: maps/wood.png",
+        );
+        for (const [rule, tip] of [
+            ["fbx", "FBX data damaged"],
+            ["usd", "USD data damaged"],
+            ["usdz", "USDZ package damaged"],
+            ["empty", "nothing to draw in this file"],
+        ]) {
+            assert.equal(modelChip({ code: "E_MODEL_STRUCTURE", params: { rule } }).tip, tip, rule);
+        }
         assert.match(modelWords({ code: "E_MODEL_STRUCTURE", params: { rule: "delayLoad" } }), /other files/);
+        // A refused format is named; a glTF refused for an extension names the extension.
+        assert.equal(modelChip({ code: "E_MODEL_FORMAT_UNSUPPORTED", params: { format: "dae" } }).word, "DAE not read");
+        const required = {
+            code: "E_MODEL_FORMAT_UNSUPPORTED",
+            params: { format: "gltf", extension: "EXT_foo" },
+        } as const;
+        assert.equal(modelChip(required).tip, "EXT_foo");
+        assert.match(modelWords(required), /needs EXT_foo/);
+        // Splats, in any format graphty-element marks as one (kind "splat"), are said to be splats
+        // and not supported, never a raw format code.
+        const splats: readonly Readonly<Record<string, string>>[] = [
+            { format: "spz", kind: "splat" },
+            { format: "splat-ply", kind: "splat" },
+            { format: "some-new-splat", kind: "splat" },
+            { format: "gltf", extension: "KHR_gaussian_splatting", kind: "splat" },
+            { format: "gltf", extension: "EXT_some_splatting", kind: "splat" },
+        ];
+        for (const params of splats) {
+            const splat = { code: "E_MODEL_FORMAT_UNSUPPORTED", params } as const;
+            assert.deepEqual(modelChip(splat), { word: "Not loaded", tip: "Gaussian splats are not supported" });
+            assert.equal(modelWords(splat), "Gaussian splats are not supported.");
+        }
+        // The app keeps no list of splat formats: without the element's kind, it is any refused format.
+        assert.equal(modelChip({ code: "E_MODEL_FORMAT_UNSUPPORTED", params: { format: "spz" } }).word, "SPZ not read");
     });
 });
 

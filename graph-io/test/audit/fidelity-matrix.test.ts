@@ -50,6 +50,8 @@ import { oboExporter } from "../../src/formats/obo/exporter.js";
 import { oboImporter } from "../../src/formats/obo/importer.js";
 import { pajekExporter } from "../../src/formats/pajek/exporter.js";
 import { pajekImporter } from "../../src/formats/pajek/importer.js";
+import { sifExporter } from "../../src/formats/sif/exporter.js";
+import { sifImporter } from "../../src/formats/sif/importer.js";
 import { xgmmlExporter } from "../../src/formats/xgmml/exporter.js";
 import { xgmmlImporter } from "../../src/formats/xgmml/importer.js";
 import { neutralPositions } from "../../src/positions/convert.js";
@@ -128,6 +130,7 @@ const PAIRS: Readonly<Record<CorpusFormat, Pair>> = {
         importer: xgmmlImporter,
     },
     cys: { exporter: null, importer: cysImporter },
+    sif: { exporter: sifExporter, importer: sifImporter },
 };
 
 /** The formats graph-io writes: the targets of the matrix. */
@@ -147,12 +150,12 @@ function exporterOf(format: CorpusFormat): GraphExporter<AnyExportOptions> {
 }
 
 /** Formats without mixed direction: the export of an expanded snapshot needs a policy. */
-const NO_MIXED_DIRECTION: ReadonlySet<CorpusFormat> = new Set(["cx", "dot", "gml", "json", "neo4j", "obo"]);
+const NO_MIXED_DIRECTION: ReadonlySet<CorpusFormat> = new Set(["cx", "dot", "gml", "json", "neo4j", "obo", "sif"]);
 
 /** The export options a target needs so that export() can run on any corpus snapshot. */
 function exportOptionsFor(target: CorpusFormat): AnyExportOptions {
     const options: AnyExportOptions = {};
-    if (target === "graphml" || target === "gml" || target === "cx" || target === "obo") {
+    if (target === "graphml" || target === "gml" || target === "cx" || target === "obo" || target === "sif") {
         options.sanitizeIds = "mangle";
     }
     if (target === "gml") {
@@ -550,6 +553,7 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["W_CX2_UNDIRECTED_AS_DIRECTED", { global: DIRECTION }],
     ["W_CX_UNDIRECTED_AS_DIRECTED", { global: DIRECTION }],
     ["W_OBO_UNDIRECTED_AS_DIRECTED", { global: DIRECTION }],
+    ["W_SIF_UNDIRECTED_AS_DIRECTED", { global: DIRECTION }],
     ["W_CSV_DIRECTION_DROPPED", { global: DIRECTION }],
     ["W_DIRECTION_DROPPED", { global: DIRECTION }],
     ["W_MIXED_DIRECTION", { global: DIRECTION }],
@@ -573,8 +577,12 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     // roles and names
     ["W_ROLE_DROPPED", { column: ROLE_CLASS }],
     ["W_CSV_ROLE_NAME", { column: ROLE_CLASS }],
-    // CX: a graph column "name" or "description" takes the graph's own name or description (meta, not a column)
-    ["W_ROLE_ASSUMED", { global: ["graph.name:missing", "graph.description:missing"], column: ROLE_CLASS }],
+    // CX: a graph column "name" or "description" takes the graph's own name or description (meta, not a column);
+    // CSV and JSON: a plain latitude and longitude pair reads back with a geographic position column built from it
+    [
+        "W_ROLE_ASSUMED",
+        { global: ["graph.name:missing", "graph.description:missing", "nodes.position:extra"], column: ROLE_CLASS },
+    ],
     ["W_COLUMN_NAME_CHANGED", { column: RENAME_CLASS }],
     ["W_ROLE_SHAPE", { column: [...ROLE_CLASS, ...DTYPE_CLASS] }],
     ["W_POSITION_Z_DROPPED", { column: ["value"] }],
@@ -583,6 +591,10 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     // the importer's own rules on re-import
     ["W_WEIGHT_KEY_CLASH", { global: ["weights", "flags"], column: MISSING_CLASS }],
     ["W_EMPTY_COLUMN_DROPPED", { column: MISSING_CLASS }],
+    ["W_WEIGHTS_DROPPED", { global: ["weights", "flags"] }],
+    // SIF: the attributes it does not write, and the "-" interaction of an edge without one
+    ["W_COLUMN_DROPPED", { column: MISSING_CLASS }],
+    ["W_SIF_INTERACTION_ADDED", { column: ["extra", "value"] }],
     ["W_STORAGE_CLASS_CHANGED", { column: DTYPE_CLASS }],
     ["W_INTEGRAL_F64_AS_I32", { column: DTYPE_CLASS }],
     ["W_TEXT_INFERRED", { column: DTYPE_CLASS }],
@@ -644,6 +656,7 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["W_RELATION_ASSUMED", { global: ["edges.relation:*"] }],
     ["W_OBO_TYPE_GAINED", { global: ["nodes.type:extra"] }],
     ["W_OBO_EDGE_ORDER", { global: ["topology", "weights", "edges.*:value"] }],
+    ["W_OBO_DUPLICATE_CLAUSE", { global: ["edgeCount", "topology", "flags", "weights", "edges.*:value"] }],
     ["W_OBOGRAPHS_EDGE_COLUMN_AS_META", { global: ["edges.meta:*", "weights", "flags"], column: MISSING_CLASS }],
     ["W_OBOGRAPHS_ID_CHANGED", { global: ["ids", "topology", "edges.relation:value"] }],
     ["W_OBOGRAPHS_DATATYPE_DROPPED", { column: ["value"] }],
@@ -667,6 +680,7 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["E_GML_RESERVED_KEY", { unobservable: true }],
     ["E_GML_NESTED_ARRAY", { unobservable: true }],
     ["E_PAJEK_TEXT", { unobservable: true }],
+    ["E_SIF_TEXT", { unobservable: true }],
     ["E_DOT_TRAILING_BACKSLASH", { unobservable: true }],
     ["E_XML_ILLEGAL_CHAR", { unobservable: true }],
     ["E_GRAPHML_YFILES_TREE", { unobservable: true }],

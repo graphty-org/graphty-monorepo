@@ -24,9 +24,10 @@ import type {
     StaticStyle,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { DRAFT_PATH } from "../sources/steps/paths";
 import { channelDescriptor } from "./channels";
 import type { CompiledLayer, PathDirectory } from "./Layer";
-import type { SelectorTarget } from "./predicate";
+import { ruleValuePath, type SelectorTarget } from "./predicate";
 import { selectorRule } from "./selector";
 
 /** What a row paints: nodes, edges, or both. */
@@ -249,10 +250,33 @@ type StartingRowId =
     | "graphty:starting-selected"
     | "graphty:starting-hovered"
     | typeof PINNED_ROW_ID
+    | typeof DRAFT_ROW_ID
     | typeof TIMELINE_HIDDEN_ROW_ID;
 
 /** The template id the Pinned row carries. */
 const PINNED_ROW_ID = "graphty:starting-pinned";
+
+/** The template id the Draft row carries (experimental: source-steps). */
+const DRAFT_ROW_ID = "graphty:source-draft";
+
+/**
+ * The Draft row's look: a ring on the nodes a drawn source draft's commit would merge, a dashed
+ * border on the nodes it would add, and the edges it would add drawn dashed. The literal part is
+ * `set`; what tells a merged node from a new one reads `graphty.draft` in `encode`.
+ */
+const STARTING_DRAFT_LOOK = {
+    set: {
+        "node.haloColor": "#7048E8",
+        "node.haloScale": 1.4,
+        "node.borderColor": "#7048E8",
+        "node.borderStyle": "dashed",
+        "edge.style": "dash",
+    },
+    encode: {
+        "node.haloOpacity": { by: DRAFT_PATH, map: { merged: 1, new: 0 } },
+        "node.borderWidth": { by: DRAFT_PATH, map: { merged: 0, new: 0.1 } },
+    },
+} as const;
 
 /** One default row: its template id, where it is pinned, and what it is written with. */
 export interface StartingRow {
@@ -274,7 +298,7 @@ export const LEGACY_GHOST_ROW_ID = "graphty:timeline-ghost";
 export type TimelineHiddenLook = "hidden" | "ghost";
 
 /**
- * The ghost look: grey at low opacity, so the elements outside the time window stay on screen as
+ * The ghost look: gray at low opacity, so the elements outside the time window stay on screen as
  * context without reading as part of it.
  */
 export const STARTING_GHOST_LOOK = {
@@ -327,10 +351,12 @@ export function outlineScaleOfBand(scale: number): number {
  * @param look.pinned.color - The halo's color.
  * @param look.pinned.scale - The halo's size.
  * @param look.pinned.opacity - How solid the halo is.
+ * @param look.draft - Whether to add the Draft row (the source-steps experiment): it selects on
+ *   `graphty.draft`, which reads nothing until a source draft is drawn.
  * @returns The rows, in the order they are added: Everything (pinned to the bottom), then Pinned,
- *   Selected and Hovered, each pinned to the top above the one before. Given `timelineHidden`
+ *   Draft, Selected and Hovered, each pinned to the top above the one before. Given `timelineHidden`
  *   instead, the timeline's one row, Timeline Hidden, pinned to the top: `"hidden"` sets
- *   `visible: false`; `"ghost"` draws what lies outside the time window grey and faint.
+ *   `visible: false`; `"ghost"` draws what lies outside the time window gray and faint.
  */
 export function startingRows(
     look:
@@ -343,6 +369,7 @@ export function startingRows(
               };
               readonly everything?: StaticStyle;
               readonly pinned?: { readonly color: string; readonly scale: number; readonly opacity: number };
+              readonly draft?: boolean;
           }
         | { readonly timelineHidden: TimelineHiddenLook },
 ): readonly StartingRow[] {
@@ -402,6 +429,27 @@ export function startingRows(
                       },
                   } as const,
               ]),
+        ...(look.draft === true
+            ? [
+                  {
+                      templateId: DRAFT_ROW_ID,
+                      pin: "top",
+                      spec: {
+                          name: "Draft",
+                          target: "both",
+                          // Read per element by each part: the node part rings merged nodes and
+                          // dashes new ones, the edge part dashes new edges (no edge is merged).
+                          selector: {
+                              match: "expression",
+                              where: `${DRAFT_PATH} == 'merged' || ${DRAFT_PATH} == 'new'`,
+                          },
+                          set: STARTING_DRAFT_LOOK.set,
+                          encode: STARTING_DRAFT_LOOK.encode,
+                          source: source(DRAFT_ROW_ID),
+                      },
+                  } as const,
+              ]
+            : []),
         {
             templateId: "graphty:starting-selected",
             pin: "top",
@@ -444,25 +492,6 @@ function source(templateId: StartingRowId): RowSpec["source"] {
 
 /** Rule leaves that always read nodes: their degree, component, neighborhood or isolation. */
 const NODE_LEAVES: ReadonlySet<string> = new Set(["degree", "component", "neighborhood", "isolated"]);
-
-/**
- * The value a leaf reads, when it reads one: the id is no kind's value.
- * @param leaf - The leaf.
- * @returns The path, or undefined.
- */
-function leafPath(leaf: RuleTree): Path | undefined {
-    switch (leaf.kind) {
-        case "range":
-        case "categories":
-            return leaf.attribute;
-        case "text":
-            return leaf.reads === "id" ? undefined : leaf.reads;
-        case "threshold":
-            return leaf.path;
-        default:
-            return undefined;
-    }
-}
 
 /**
  * A rule with every leaf passed through a change.
@@ -511,7 +540,7 @@ export function retargetSelector(
 
     if (to === "edge") {
         mapLeaves(rule.where, (leaf) => {
-            changed ||= NODE_LEAVES.has(leaf.kind) || onlyOn(leafPath(leaf), "node");
+            changed ||= NODE_LEAVES.has(leaf.kind) || onlyOn(ruleValuePath(leaf), "node");
             return leaf;
         });
         return changed ? { ...rule, edges: "incident" } : selector;
@@ -521,7 +550,7 @@ export function retargetSelector(
     const where = mapLeaves(rule.where, (leaf) => {
         const ends =
             (leaf.kind === "range" || leaf.kind === "categories" || leaf.kind === "text") &&
-            onlyOn(leafPath(leaf), "edge");
+            onlyOn(ruleValuePath(leaf), "edge");
         changed ||= ends;
         return ends ? { ...leaf, nodes: "ends" } : leaf;
     });

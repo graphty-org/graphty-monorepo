@@ -6,7 +6,7 @@
  * becomes the `detail`. That is deliberate for the events consumers are meant to have, and wrong
  * for the ones the element's own managers talk to each other with: an unprefixed name consumers
  * should not build against, carrying a payload of typed arrays and a live `Graph` reference that
- * no listener can structured-clone, post to a worker or serialise.
+ * no listener can structured-clone, post to a worker or serialize.
  *
  * `snapshot-replaced` is the first such event, and it is inert only until something emits it --
  * which is why the exclusion is tested before there is anything to see.
@@ -62,7 +62,19 @@ describe("element-internal events", () => {
     it("lists exactly the events that must not reach the DOM", () => {
         // Asserting the whole set, not just membership: adding an event here means deciding that
         // consumers must never see it, and that decision should have to be written down twice.
-        assert.deepStrictEqual([...INTERNAL_EVENT_TYPES], ["snapshot-replaced", "snapshot-dropped"]);
+        assert.deepStrictEqual(
+            [...INTERNAL_EVENT_TYPES],
+            [
+                "snapshot-replaced",
+                "snapshot-dropped",
+                "input-initialized",
+                "input-config-updated",
+                "input-pointer-lock-changed",
+                "input-recording-started",
+                "input-recording-stopped",
+                "input-playback-completed",
+            ],
+        );
     });
 
     it("refuses to forward snapshot-replaced and forwards the public events", () => {

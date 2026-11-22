@@ -6,11 +6,17 @@
 import { assert, describe, it } from "vitest";
 
 import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
-import type { Graph } from "../../../src/Graph";
-import { InputGraph } from "../input/harness";
-import { assertOverGeneratedScopes, describeScopedAdapter, runScoped, runWhole } from "./harness";
+import type { AlgorithmHost } from "../../../src/algorithms/host";
+import {
+    assertOverGeneratedScopes,
+    describeScopedAdapter,
+    runScoped,
+    runWhole,
+    type ScopedGraph,
+    scopedGraph,
+} from "./harness";
 
-const build = (graph: Graph): DijkstraAlgorithm => new DijkstraAlgorithm(graph);
+const build = (graph: AlgorithmHost): DijkstraAlgorithm => new DijkstraAlgorithm(graph);
 
 describeScopedAdapter("dijkstra", build);
 
@@ -22,7 +28,7 @@ describe("dijkstra over generated scopes", () => {
 
 describe("dijkstra over a scope", () => {
     it("with no source or target, routes from the scope's first node to its last", async () => {
-        const graph = new InputGraph(
+        const graph = await scopedGraph(
             ["x", "b", "c", "d", "y"],
             [
                 ["x", "b"],
@@ -41,8 +47,8 @@ describe("dijkstra over a scope", () => {
 
 describe("dijkstra over a weighted multigraph takes the shortest of parallel edges", () => {
     /** a to b twice, at 1 and at 4, then b to c at 2; z outside any scope below. */
-    const multigraph = (): InputGraph =>
-        new InputGraph(
+    const multigraph = (): Promise<ScopedGraph> =>
+        scopedGraph(
             ["a", "b", "c", "z"],
             [
                 ["a", "b", 4],
@@ -51,10 +57,11 @@ describe("dijkstra over a weighted multigraph takes the shortest of parallel edg
                 ["c", "z", 1],
             ],
         );
-    const route = (graph: Graph): DijkstraAlgorithm => new DijkstraAlgorithm(graph, { source: "a", target: "c" });
+    const route = (graph: AlgorithmHost): DijkstraAlgorithm =>
+        new DijkstraAlgorithm(graph, { source: "a", target: "c" });
 
     it("over the whole graph", async () => {
-        const graph = multigraph();
+        const graph = await multigraph();
         const result = await runWhole(route, graph);
 
         assert.deepInclude(result?.node("c"), { distance: 3 });
@@ -62,7 +69,7 @@ describe("dijkstra over a weighted multigraph takes the shortest of parallel edg
     });
 
     it("over a scope", async () => {
-        const graph = multigraph();
+        const graph = await multigraph();
         const result = await runScoped(route, graph, graph.scope(["a", "b", "c"]));
 
         assert.deepInclude(result?.node("c"), { distance: 3 });
@@ -70,7 +77,7 @@ describe("dijkstra over a weighted multigraph takes the shortest of parallel edg
     });
 
     it("marks only the parallel edge the route took, so a path set names one edge per step", async () => {
-        const result = await runWhole(route, multigraph());
+        const result = await runWhole(route, await multigraph());
 
         assert.deepStrictEqual(
             ["0", "1", "2", "3"].map((id) => result?.edge(id)?.onPath),
@@ -80,7 +87,7 @@ describe("dijkstra over a weighted multigraph takes the shortest of parallel edg
     });
 
     it("marks one edge of each direction of a reciprocal pair read undirected", async () => {
-        const graph = new InputGraph(
+        const graph = await scopedGraph(
             ["a", "b", "c"],
             [
                 ["a", "b", 1],

@@ -13,10 +13,14 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// A second source opens the join screen only with sources and steps off: on, it is staged.
+withoutFeatures(["source-steps"]);
 
 /** Eleven gauges, read as nodes. */
 const GAUGES = [
@@ -309,6 +313,49 @@ describe("the join screen on the real element", () => {
         });
         assert.include(session.data.joins()[0]?.choices.ignore ?? [], "repeatedKeys");
         assert.isUndefined(session.data.node("TP53")?.tissue);
+    });
+
+    it("edits the Match row: a second key pair and its removal, Ignore spaces, and what the rows are", async () => {
+        await projectWith("tp53-interactions.tsv", 60);
+        const join = await joinScreenFor("tumor-expression.tsv");
+
+        // + adds a key pair on the first column no pair uses yet, matched against the node id.
+        await userEvent.click(within(join).getByRole("button", { name: "Add key pair" }));
+        await waitFor(() => {
+            assert.strictEqual(valueOf(join, "Match 2 column"), "log2fc");
+        });
+        assert.strictEqual(valueOf(join, "Match 2 graph value"), "Id");
+        await userEvent.click(within(join).getByRole("combobox", { name: "Match 2 column" }));
+        await userEvent.click(await screen.findByRole("option", { name: "tissue" }));
+        await waitFor(() => {
+            assert.strictEqual(valueOf(join, "Match 2 column"), "tissue");
+        });
+        await userEvent.click(within(join).getByRole("button", { name: "Remove Match 2" }));
+        await waitFor(() => {
+            assert.isNull(within(join).queryByLabelText("Match 2 column"));
+        });
+        assert.strictEqual(valueOf(join, "Match column"), "symbol");
+
+        await userEvent.click(within(join).getByRole("checkbox", { name: "Ignore spaces +1" }));
+        await waitFor(() => {
+            assert.isTrue(within(join).getByRole("checkbox", { name: "Ignore spaces" }).matches(":checked"));
+        });
+
+        // Edges take a Source and a Target pair, and no + for another pair.
+        await userEvent.click(within(join).getByRole("combobox", { name: "Rows are" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Edges" }));
+        await waitFor(() => {
+            assert.isDefined(within(join).getByLabelText("Source column"));
+        });
+        assert.isDefined(within(join).getByLabelText("Target column"));
+        assert.isNull(within(join).queryByRole("button", { name: "Add key pair" }));
+
+        await userEvent.click(within(join).getByRole("combobox", { name: "Rows are" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Node values" }));
+        await waitFor(() => {
+            assert.isDefined(within(join).getByLabelText("Match column"));
+        });
+        assert.isNull(within(join).queryByLabelText("Source column"));
     });
 
     it("sizes incoming columns to their names", async () => {

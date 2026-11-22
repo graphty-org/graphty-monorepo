@@ -237,9 +237,9 @@ export const ArrowHeadStyles: Story = {
         await assertLayerPainted(scene, "every edge", { edges: 6 });
         await assertArrowCapsDrawn(scene, ["filled-triangle-arrow"]);
 
-        // THE CAPS ARE YELLOW. A cap's colour is a shader uniform, on neither the mesh nor its name,
+        // THE CAPS ARE YELLOW. A cap's color is a shader uniform, on neither the mesh nor its name,
         // so it is counted in pixels. Measured on a 1168x584 canvas: 5111 yellow pixels (0.75% of
-        // the canvas) with the top layer's colour, none without it.
+        // the canvas) with the top layer's color, none without it.
         const yellow = await pixelsOfColour(scene, "#ffff00");
 
         await holds(
@@ -509,9 +509,9 @@ export const LabelEnabledLayers: Story = {
         await assertLayerPainted(scene, "nodes where data.id == 'B'", { nodes: 1 });
         await assertLabelsDrawn(scene, { ids: ["A", "B", "C"] });
 
-        // Each label's most-used colour is its lettering, since these labels have no panel. Only
+        // Each label's most-used color is its lettering, since these labels have no panel. Only
         // B's may be red: a red A or C means the second layer leaked past its selector, and a
-        // black B means its colour never landed.
+        // black B means its color never landed.
         const red = (hex: string | undefined): boolean =>
             hex !== undefined &&
             Number.parseInt(hex.slice(1, 3), 16) > 200 &&

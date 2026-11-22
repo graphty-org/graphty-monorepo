@@ -13,6 +13,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf, renderManagerOf } from "../../src/Graph";
 import { fileStylesOn } from "../helpers/file-styles-on";
+import { NESTED_XGMML, savedWithParentRows } from "../helpers/nested-numeric-groups";
 
 fileStylesOn();
 
@@ -104,13 +105,25 @@ describe("a group with no stored position follows its members", () => {
     /**
      * Load a file, then step the force layout a counted number of times: the layout never moves a
      * group (its row is where the element last put it after every step), and once the element
-     * places it, the group sits at the centre of its members' box and its box holds every member.
+     * places it, the group sits at the center of its members' box and its box holds every member.
      * @param type - The data source.
      * @param data - The file.
      * @param groups - Each group and the nodes inside it, an inner group's included.
      */
     async function follows(type: string, data: string, groups: Record<string, readonly string[]>): Promise<void> {
-        await graph.addDataFromSource(type, { data });
+        await followsAfter(() => graph.addDataFromSource(type, { data }), groups);
+    }
+
+    /**
+     * {@link follows}, for graph data written some other way.
+     * @param load - Writes the graph.
+     * @param groups - Each group and the nodes inside it, an inner group's included.
+     */
+    async function followsAfter(
+        load: () => Promise<unknown>,
+        groups: Record<string, readonly string[]>,
+    ): Promise<void> {
+        await load();
         await operationQueueOf(graph).waitForCompletion();
         const layout = graph.getLayoutManager();
         assert.strictEqual(layout.layoutType, "ngraph");
@@ -157,6 +170,44 @@ describe("a group with no stored position follows its members", () => {
     it("puts Cytoscape.js compound nodes on their members' box, an inner one inside the outer", async () => {
         await follows("json", CYTOSCAPE, { inner: ["m1", "m2"], outer: ["m1", "m2", "m3"] });
         assert.strictEqual(graph.getDataManager().nodes.size, 6, "every node the file declares is in the graph");
+    });
+
+    it("puts plain node records on the box of the node their parent key names", async () => {
+        await followsAfter(
+            async () => {
+                await graph.addNodes([
+                    { id: "outer" },
+                    { id: "inner", parent: "outer" },
+                    { id: "m1", parent: "inner" },
+                    { id: "m2", parent: "inner" },
+                    { id: "m3", parent: "outer" },
+                    { id: "free" },
+                ]);
+                await graph.addEdges([
+                    { source: "m1", target: "m2" },
+                    { source: "m2", target: "m3" },
+                    { source: "m3", target: "free" },
+                ]);
+            },
+            { inner: ["m1", "m2"], outer: ["m1", "m2", "m3"] },
+        );
+        assert.isUndefined(graph.getLayoutManager().groupBox("free"), "a node with no parent key is laid out");
+    });
+
+    it("keeps a file's nested groups by id, its ids numbers, through a save and an open, an older save's too", async () => {
+        await graph.addDataFromSource("xgmml", { data: NESTED_XGMML });
+        await operationQueueOf(graph).waitForCompletion();
+        const { text } = await graph.getSession().project.save();
+        // As saved now, and as saved when a record's parent was the parent's row.
+        for (const saved of [text, savedWithParentRows(text)]) {
+            await followsAfter(() => graph.getSession().project.open(saved, { discard: true }), {
+                "5": ["3", "1", "0"],
+                "4": ["1", "0"],
+            });
+            for (const id of ["0", "2", "3"]) {
+                assert.isUndefined(graph.getLayoutManager().groupBox(id), `${id} holds no node`);
+            }
+        }
     });
 
     it("puts a Cytoscape.js compound the file saved a position for on its members' box", async () => {
@@ -276,6 +327,50 @@ describe("a group with no stored position follows its members", () => {
         }
 
         assert.strictEqual(hidden, 0, "the ray to every member's centre meets the member before its group");
+    });
+
+    it("draws a Cytoscape.js parent around all three of its children and behind them", async () => {
+        const three = JSON.stringify({
+            elements: [
+                { data: { id: "box" } },
+                { data: { id: "c1", parent: "box" } },
+                { data: { id: "c2", parent: "box" } },
+                { data: { id: "c3", parent: "box" } },
+                { data: { id: "free" } },
+                { data: { id: "e1", source: "c1", target: "c2" } },
+                { data: { id: "e2", source: "c2", target: "c3" } },
+                { data: { id: "e3", source: "c3", target: "free" } },
+            ],
+        });
+        await follows("json", three, { box: ["c1", "c2", "c3"] });
+        const { nodes } = graph.getDataManager();
+        for (const node of nodes.values()) {
+            node.update();
+        }
+
+        const group = nodes.get("box");
+        assert.isDefined(group);
+        group.mesh.computeWorldMatrix(true);
+        const drawnBox = group.mesh.getBoundingInfo().boundingBox;
+        const scene = graph.getScene();
+        for (const id of ["c1", "c2", "c3"]) {
+            const member = nodes.get(id);
+            assert.isDefined(member);
+            member.mesh.computeWorldMatrix(true);
+            const p = member.mesh.getAbsolutePosition();
+            assert.isTrue(
+                p.x >= drawnBox.minimumWorld.x && p.x <= drawnBox.maximumWorld.x,
+                `${id} is inside the drawn box across`,
+            );
+            assert.isTrue(
+                p.y >= drawnBox.minimumWorld.y && p.y <= drawnBox.maximumWorld.y,
+                `${id} is inside the drawn box up and down`,
+            );
+            // Both views look along +z: from in front of the member, the ray meets it before the group.
+            const ray = new Ray(p.subtract(new Vector3(0, 0, 1000)), new Vector3(0, 0, 1), 2000);
+            const hit = scene.pickWithRay(ray, (m) => m === member.mesh || m === group.mesh);
+            assert.strictEqual(hit?.pickedMesh, member.mesh, `${id} is drawn in front of its parent`);
+        }
     });
 
     it("draws a group the same size in 2D wherever the orthographic camera sits along the view axis", async () => {

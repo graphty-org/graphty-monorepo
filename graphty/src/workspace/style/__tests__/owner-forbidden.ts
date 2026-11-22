@@ -13,11 +13,11 @@ export interface Forbidden {
     readonly ledger: string;
     /** Visible words of a section title, "+" menu item, row name or pop-over line it shows as. */
     readonly text?: RegExp;
-    /** A section "+" menu item it shows as (not a kind in a row's Switch to). */
+    /** A section "+" menu item it shows as (not a kind in a row's Kind select). */
     readonly plusItem?: RegExp;
-    /** A "+" menu item or Switch to kind it shows as on the Node tab only (the edge tab keeps a look of that name). */
+    /** A "+" menu item or Kind select kind it shows as on the Node tab only (the edge tab keeps a look of that name). */
     readonly nodePlusItem?: RegExp;
-    /** A "+" menu item or Switch to kind it shows as in one section only (data-section, e.g. "node-border"). */
+    /** A "+" menu item or Kind select kind it shows as in one section only (data-section; a row's kinds: "node-effects[border]"). */
     readonly sectionItem?: { readonly section: string; readonly item: RegExp };
     /** The channels a line writing it names (a line's data-line, a layer's written channel). */
     readonly channel?: RegExp;
@@ -54,7 +54,7 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
     {
         what: "Glyph as a style of its own beside Label (it is a kind of the Label row)",
         ledger: "E275, E276",
-        // Only a "+" menu item: Glyph is rightly a kind in the Label row's Switch to, and names a row of that kind.
+        // Only a "+" menu item: Glyph is rightly a kind in the Label row's Kind select, and names a row of that kind.
         plusItem: /^Glyph$/,
         selector: '[data-thing="glyph"]',
     },
@@ -108,7 +108,7 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         check: "only-plus-adds",
     },
     {
-        what: "the node outline: an Outline item in a Node '+' menu or Switch to, a node.outline* line or source",
+        what: "the node outline: an Outline item in a Node '+' menu or Kind select, a node.outline* line or source",
         ledger: "E309, E310",
         nodePlusItem: /^Outline$/,
         channel: /^node\.outline/,
@@ -145,9 +145,9 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
     {
         what: "a Rings kind under Border: the ring is Effects' Ring item, and Border is the stroke on the node's own edge",
         ledger: "E675, E676",
-        // Scoped to the Border section: Effects rightly offers "Ring", so a tab-wide /^Rings?$/ would flag it.
-        sectionItem: { section: "node-border", item: /^Rings?$/ },
-        selector: '[data-section="node-border"] [data-thing="rings"]',
+        // Scoped to the Border row's kinds: Effects rightly offers "Ring", so a tab-wide /^Rings?$/ would flag it.
+        sectionItem: { section: "node-effects[border]", item: /^Rings?$/ },
+        selector: '[data-thing="border"] [data-thing="rings"]',
     },
     {
         what: "an edge Band or Underlay item: every band along the line is the Line section's Outline",
@@ -158,7 +158,7 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         source: /edge\.(band|underlay)/,
     },
     {
-        what: "a Look line in a label's pop-over: a label's look (Card, Dark, Pill, Callout) is a kind in its Switch to",
+        what: "a Look line in a label's pop-over: a label's look (Card, Dark, Pill, Callout) is a kind in its Kind select",
         ledger: "E196",
         selector: '.ws-row[data-line$=".look"]',
         source: /field: "look", name: "Look"/,

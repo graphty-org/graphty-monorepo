@@ -71,16 +71,15 @@ async function clickSegment(name: string): Promise<void> {
 }
 
 /**
- * Adds Border from the empty Border section's "+", which adds its one thing at once.
+ * Adds Border from the Effects section's "+" (Border is an Effects option).
  * @param tab - the Style tab.
  * @returns the Border row.
  */
 async function addBorder(tab: HTMLElement): Promise<HTMLElement> {
-    const border = sectionOf(tab, "node-border");
-    const plus = border.querySelector<HTMLElement>("[data-plus]");
-    assert.isNotNull(plus, 'the section\'s "+"');
-    await userEvent.click(plus);
-    return rowOf(border, "border");
+    const effects = sectionOf(tab, "node-effects");
+    await userEvent.click(within(effects).getByRole("button", { name: /^Add to node effects/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Border" }));
+    return rowOf(effects, "border");
 }
 
 describe("Style panel v2's node things", () => {

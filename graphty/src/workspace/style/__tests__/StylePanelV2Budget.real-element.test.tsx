@@ -72,13 +72,13 @@ describe("Style panel v2's budget", () => {
         }
     });
 
-    it("an empty layer draws its 6 sections and at most 8 marks (ia-design 2)", async () => {
+    it("an empty layer draws its 4 sections (Shape, Fill, Text, Effects) and at most 8 marks (ia-design 2)", async () => {
         const { session } = await openProject();
         await session.styles.add({ name: "Blank", target: "node", selector: { match: "everything" }, set: {} });
         await session.styles.settled();
         const tab = await openStyle("Blank");
         await waitFor(() => {
-            assert.lengthOf(sectionsIn(tab), 6);
+            assert.lengthOf(sectionsIn(tab), 4);
         });
         assert.isAtMost(marksIn(tab), 8);
     });

@@ -1,7 +1,7 @@
 /**
  * A node's Label is Text or Glyph, picked from its row (owner, 2026-11-19: "glyph seems duplicative to
  * label"), on the REAL graphty-element and real input: the Text "+" offers no Glyph; a Label switched to Glyph
- * from its Switch to and given a character draws it, its color moved from the text; Undo brings the text back;
+ * from the Kind select in its "..." settings and given a character draws it, its color moved from the text; Undo brings the text back;
  * and a file whose styles write a glyph (a vis-network icon node, through graph-io) opens as one Label row of
  * kind Glyph showing its character, drawn on the graph. A vis-network file stands in for the plan's Cytoscape.js
  * one: graph-io's Cytoscape.js styles write no node.glyph (Cytoscape.js has no glyph), vis-network's icons do.
@@ -17,7 +17,18 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { openGraph, openProject, openStyle, picture, pixelsApart, sectionOf, written } from "./v2Harness";
+import {
+    closeSettings,
+    kindOf,
+    openGraph,
+    openProject,
+    openStyle,
+    pickKind,
+    picture,
+    pixelsApart,
+    sectionOf,
+    written,
+} from "./v2Harness";
 
 /**
  * The Label row of the open node tab.
@@ -32,30 +43,17 @@ async function labelRow(tab: HTMLElement): Promise<HTMLElement> {
     });
 }
 
+/** The Label row's "..." settings button, of either kind. */
+const LABEL_SETTINGS = /^Node (label|glyph) settings/;
+
 /**
- * Picks a kind from the row's Switch to.
+ * Picks a kind from the Kind select in the row's "..." settings, and closes the settings.
  * @param row - the row.
  * @param kind - the kind's name.
  */
 async function switchTo(row: HTMLElement, kind: string): Promise<void> {
-    await userEvent.click(within(row).getByRole("button", { name: /^Switch node (label|glyph) to/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: kind }));
-}
-
-/**
- * The kind the row's Switch to has checked, read by opening it.
- * @param row - the row.
- * @returns its name.
- */
-async function kindOf(row: HTMLElement): Promise<string> {
-    await userEvent.click(within(row).getByRole("button", { name: /^Switch node (label|glyph) to/ }));
-    const menu = await screen.findByRole("menu");
-    const current = menu.querySelector('[aria-current="true"]')?.textContent.trim() ?? "";
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() => {
-        assert.isNull(screen.queryByRole("menu"));
-    });
-    return current;
+    await pickKind(row, LABEL_SETTINGS, kind);
+    await closeSettings();
 }
 
 /**
@@ -92,7 +90,7 @@ describe("a node's Label is Text or Glyph", () => {
         await session.styles.settled();
         const tab = await openStyle("Key people");
         for (const kind of ["Label", "Glyph"]) {
-            if ((await kindOf(await labelRow(tab))) !== kind) {
+            if ((await kindOf(await labelRow(tab), LABEL_SETTINGS)) !== kind) {
                 await switchTo(await labelRow(tab), kind);
             }
             await userEvent.click(
@@ -124,7 +122,7 @@ describe("a node's Label is Text or Glyph", () => {
         await session.styles.settled();
         const tab = await openStyle("Key people");
         const row = await labelRow(tab);
-        assert.equal(await kindOf(row), "Label");
+        assert.equal(await kindOf(row, LABEL_SETTINGS), "Label");
         const before = await picture(element);
 
         await switchTo(row, "Glyph");
@@ -133,7 +131,7 @@ describe("a node's Label is Text or Glyph", () => {
             assert.equal(written(session, nodes, "node.glyphColor"), "#1971C2", "the color moved to the glyph");
         });
         const glyphRow = await labelRow(tab);
-        assert.equal(await kindOf(glyphRow), "Glyph");
+        assert.equal(await kindOf(glyphRow, LABEL_SETTINGS), "Glyph");
         const field = await waitFor(() => {
             const found = glyphRow.querySelector<HTMLInputElement>('.ws-row[data-line="node.glyph"] input');
             assert.isNotNull(found);
@@ -149,7 +147,7 @@ describe("a node's Label is Text or Glyph", () => {
             "its tooltip names the character",
         );
         // Its buttons name the Glyph too, so a screen reader hears what the row shows.
-        for (const name of [/^Switch node glyph to/, "Node glyph settings", "Remove node glyph"]) {
+        for (const name of [/^Node glyph settings/, "Remove node glyph"]) {
             assert.isNotNull(within(glyphRow).queryByRole("button", { name }), String(name));
         }
         assert.isNull(within(glyphRow).queryByRole("button", { name: /node label/i }), "no button says label");
@@ -170,7 +168,7 @@ describe("a node's Label is Text or Glyph", () => {
             assert.isUndefined(written(session, nodes, "node.glyph"));
             assert.isUndefined(written(session, nodes, "node.glyphColor"));
         });
-        assert.equal(await kindOf(await labelRow(tab)), "Label");
+        assert.equal(await kindOf(await labelRow(tab), LABEL_SETTINGS), "Label");
     });
 
     it("a file writing a glyph opens as one Label row of kind Glyph, its character shown and drawn", async () => {
@@ -205,7 +203,7 @@ describe("a node's Label is Text or Glyph", () => {
         });
         assert.isNull(text.querySelector('[data-thing="glyph"]'), "no Glyph row of its own");
         const row = await labelRow(tab);
-        assert.equal(await kindOf(row), "Glyph");
+        assert.equal(await kindOf(row, LABEL_SETTINGS), "Glyph");
         const field = row.querySelector<HTMLInputElement>('.ws-row[data-line="node.glyph"] input');
         assert.equal(field?.value, "A", "the row shows the character");
         // Drawn in the picture: another character typed into the row repaints the nodes.

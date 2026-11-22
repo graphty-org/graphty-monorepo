@@ -3,7 +3,7 @@
  * round 5: "review all other controls that can be collapsed down ... implement the candidate list"): an edge's
  * four arrows are one Arrow item (C6), its two end captions one End caption item (C1) and a node's underlay and
  * overlay one Plate item (C2), and every band along an edge's line one Outline item (C7). A layer holding the channels graph-io writes for two kinds shows one row per kind
- * with its value; a row's Switch to moves it to a free kind and one Undo takes that back; "+" adds the first
+ * with its value; a row's Kind select moves it to a free kind and one Undo takes that back; "+" adds the first
  * kind no row draws yet.
  */
 
@@ -16,7 +16,20 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { findValuePicker, screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { openGraph, openStyle, picture, pixelsApart, sectionOf, switchView, written } from "./v2Harness";
+import {
+    closeSettings,
+    openGraph,
+    openStyle,
+    pickKind,
+    picture,
+    pixelsApart,
+    sectionOf,
+    switchView,
+    written,
+} from "./v2Harness";
+
+/** A row's one "..." settings button, whatever its kind. */
+const ROW_SETTINGS = /^.+ settings( |$)/;
 
 /** One collapse: its section, its thing, two kinds' channels as graph-io writes them, and a free kind. */
 interface Collapse {
@@ -114,7 +127,7 @@ const COLLAPSES: readonly Collapse[] = [
 ];
 
 /**
- * The thing's rows in the section, each read by its Switch to button's name.
+ * The thing's rows in the section.
  * @param section - the section.
  * @param thing - the thing's id.
  * @returns the rows.
@@ -148,7 +161,7 @@ describe("Style panel v2's collapsed kinds", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
     for (const collapse of COLLAPSES) {
-        it(`${collapse.name}: one row per kind, Switch to moves a row and Undo takes it back, '+' adds a free kind`, async () => {
+        it(`${collapse.name}: one row per kind, Kind moves a row and Undo takes it back, '+' adds a free kind`, async () => {
             const { session, nodes, edges } = await openGraph();
             const layer = collapse.side === "node" ? nodes : edges;
             await session.styles.update(layer, { set: Object.assign({}, ...collapse.kinds.map((kind) => kind.set)) });
@@ -164,7 +177,7 @@ describe("Style panel v2's collapsed kinds", () => {
                     assert.include(shownIn(row), kind.shows, `the ${kind.row} row shows its value`);
                 });
             });
-            // With only the first kind on the layer, its row's Switch to moves it to a free kind; Undo takes it back.
+            // With only the first kind on the layer, its row's Kind select moves it to a free kind; Undo takes it back.
             const [first] = collapse.kinds;
             await session.styles.update(layer, { set: { ...first?.set } });
             await session.styles.settled();
@@ -173,8 +186,8 @@ describe("Style panel v2's collapsed kinds", () => {
             });
             const before = written(session, layer, collapse.head);
             const [row] = rowsOf(section, collapse.thing);
-            await userEvent.click(within(row).getByRole("button", { name: /^Switch .* to/ }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: collapse.free.row }));
+            await pickKind(row, ROW_SETTINGS, collapse.free.row);
+            await closeSettings();
             await waitFor(() => {
                 assert.isUndefined(written(session, layer, collapse.head), "the old kind's value comes off");
                 assert.equal(written(session, layer, collapse.free.head), before, "and moves to the new kind");
@@ -264,7 +277,7 @@ describe("Style panel v2's collapsed kinds", () => {
         });
     });
 
-    it("Plate: Switch to Over starts at Opacity 30% and a padding of a tenth of the node (ia-design 2)", async () => {
+    it("Plate: Kind Over starts at Opacity 30% and a padding of a tenth of the node (ia-design 2)", async () => {
         const { session, nodes } = await openGraph();
         const tab = await openStyle("Key people");
         await showKind("node");
@@ -274,8 +287,7 @@ describe("Style panel v2's collapsed kinds", () => {
             assert.lengthOf(rowsOf(section, "plate"), 1);
         });
         const [row] = rowsOf(section, "plate");
-        await userEvent.click(within(row).getByRole("button", { name: /^Switch .* to/ }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Over" }));
+        await pickKind(row, ROW_SETTINGS, "Over");
         await waitFor(() => {
             assert.isUndefined(written(session, nodes, "node.underlayColor"));
             assert.equal(written(session, nodes, "node.overlayOpacity"), 0.3);
@@ -284,7 +296,7 @@ describe("Style panel v2's collapsed kinds", () => {
     });
 
     for (const shape of [undefined, "hexagon"] as const) {
-        it(`Plate: Switch to Behind on an Over plate ${shape === undefined ? "with no shape starts a card" : "keeps its shape"}`, async () => {
+        it(`Plate: Kind Behind on an Over plate ${shape === undefined ? "with no shape starts a card" : "keeps its shape"}`, async () => {
             const { session, nodes } = await openGraph();
             // An Over plate the layer already holds, as a file writes one: no Behind values held from an earlier switch.
             await session.styles.update(nodes, {
@@ -304,8 +316,7 @@ describe("Style panel v2's collapsed kinds", () => {
                 assert.lengthOf(rows, 1);
                 return rows;
             });
-            await userEvent.click(within(row).getByRole("button", { name: /^Switch .* to/ }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Behind" }));
+            await pickKind(row, ROW_SETTINGS, "Behind");
             await waitFor(() => {
                 assert.isUndefined(written(session, nodes, "node.overlayColor"));
                 assert.equal(written(session, nodes, "node.underlayShape"), shape ?? "round-rectangle");

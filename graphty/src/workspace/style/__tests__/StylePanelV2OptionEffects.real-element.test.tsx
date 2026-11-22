@@ -212,7 +212,7 @@ describe("Style panel v2: options that would change nothing", () => {
         const { session, nodes } = await openGraph();
         const waves = async (): Promise<string | null> => {
             const tab = await openStyle("Key people");
-            const pop = await openSettings(sectionOf(tab, "node-border"), "border", "Node border settings");
+            const pop = await openSettings(sectionOf(tab, "node-effects"), "border", "Node border settings");
             await userEvent.click(within(pop).getByRole("button", { name: "Add to node border settings" }));
             const item = await screen.findByRole("menuitem", { name: "Waves" });
             const title = item.getAttribute("title");
@@ -243,7 +243,7 @@ describe("Style panel v2: options that would change nothing", () => {
             await session.styles.settled();
             await switchView(view);
             const tab = await openStyle("Key people");
-            const pop = await openSettings(sectionOf(tab, "node-border"), "border", "Node border settings");
+            const pop = await openSettings(sectionOf(tab, "node-effects"), "border", "Node border settings");
             const group = within(pop).getByRole("radiogroup", { name: "Node border position" });
             let before = await picture(element);
             for (const option of ["Center", "Inside"]) {

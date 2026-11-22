@@ -13,15 +13,28 @@ describe("Style panel v2's sections", () => {
         it(`${side}: every part is a section and every item is in one thing`, () => {
             // The owner removed Order and groups (E420, E422): its part is no section. Shaders are Effects'
             // Shader item (E668): their part is no section either.
+            // Border and Visibility are things in Effects whose items come from their own part (`from`).
+            const homes = (section: (typeof SECTIONS)[typeof side][number]): string[] => [
+                section.part,
+                ...section.groups.flat().flatMap((thing) => (thing.from === undefined ? [] : [thing.from])),
+            ];
             assert.sameMembers(
-                SECTIONS[side].map((section) => section.part),
+                SECTIONS[side].flatMap((section) => homes(section)),
                 PARTS[side].map((part) => part.id).filter((id) => id !== "order" && id !== "shaders"),
             );
             for (const section of SECTIONS[side]) {
-                const part = PARTS[side].find((each) => each.id === section.part);
-                assert.isDefined(part, section.part);
-                const things = section.groups.flat();
-                assert.isAtMost(things.length, 12, `${section.part}: at most 12 in its menu`);
+                assert.isDefined(
+                    PARTS[side].find((each) => each.id === section.part),
+                    section.part,
+                );
+                assert.isAtMost(section.groups.flat().length, 12, `${section.part}: at most 12 in its menu`);
+            }
+            for (const home of SECTIONS[side].flatMap((section) => homes(section).map((id) => ({ id, section })))) {
+                const part = PARTS[side].find((each) => each.id === home.id);
+                assert.isDefined(part, home.id);
+                const things = home.section.groups
+                    .flat()
+                    .filter((thing) => (thing.from ?? home.section.part) === home.id);
                 // An item another section's thing takes whole as its own (the ring, in Effects) is that thing's.
                 const takenWhole = (channels: readonly string[]): number =>
                     SECTIONS[side]
@@ -30,11 +43,7 @@ describe("Style panel v2's sections", () => {
                         .length;
                 for (const item of part?.items ?? []) {
                     const owners = things.filter((thing) => thing.items.includes(item.id));
-                    assert.equal(
-                        owners.length + takenWhole(itemChannels(item)),
-                        1,
-                        `${side} ${section.part} ${item.id}`,
-                    );
+                    assert.equal(owners.length + takenWhole(itemChannels(item)), 1, `${side} ${home.id} ${item.id}`);
                 }
                 for (const thing of things) {
                     for (const item of thing.items) {
@@ -53,12 +62,22 @@ describe("the sections' order (ia-design.md section 2, E675)", () => {
     const order = (side: "node" | "edge"): string[] =>
         SECTIONS[side].map((section) => `${section.breakBefore === true ? "| " : ""}${section.title ?? section.part}`);
 
-    it("node: Fill, Text, Shape, Border | Visibility, Effects", () => {
-        assert.deepEqual(order("node"), ["fill", "text", "shape", "border", "| visibility", "effects"]);
+    it("node: Shape, Fill, Text | Effects, with Border and Visibility in Effects", () => {
+        assert.deepEqual(order("node"), ["shape", "fill", "text", "| effects"]);
+        const effects = SECTIONS.node.find((section) => section.part === "effects");
+        assert.deepEqual(
+            effects?.groups[0]?.map((thing) => thing.name),
+            ["Border", "Visibility"],
+        );
     });
 
-    it("edge: Line, Arrows, Route, Text | Visibility, Effects", () => {
-        assert.deepEqual(order("edge"), ["line", "Arrows", "route", "text", "| visibility", "effects"]);
+    it("edge: Line, Arrows, Route, Text | Effects, with Visibility in Effects", () => {
+        assert.deepEqual(order("edge"), ["line", "Arrows", "route", "text", "| effects"]);
+        const effects = SECTIONS.edge.find((section) => section.part === "effects");
+        assert.deepEqual(
+            effects?.groups[0]?.map((thing) => thing.name),
+            ["Visibility"],
+        );
     });
 
     it("each tab's Effects holds its one Shader item (E668)", () => {

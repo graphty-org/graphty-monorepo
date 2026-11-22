@@ -2,7 +2,7 @@
  * Style panel v2's Image absorbs the old Fill kind Picture (ia-design 2), on the REAL graphty-element and real
  * clicks: Image's settings hold "Wrap around shape"; off, the picture is placed on the node (`node.image`), on, it
  * wraps over the 3D surface (`node.texture`) and the placing settings are dimmed, from graphty-element's own
- * `drawnWhen`; the picture on the canvas changes each way. Fill's Switch to lists no Picture.
+ * `drawnWhen`; the picture on the canvas changes each way. Fill's Kind select lists no Picture.
  * Wrap around shape needs the node-models experiment (`node.texture` is its channel): review it at
  * ?features=file-styles,style-panel-v2,node-models.
  */
@@ -17,7 +17,7 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
 import { choose } from "./modelHarness";
-import { openGraph, openStyle, picture, pixelsApart, sectionOf, switchView, written } from "./v2Harness";
+import { openGraph, openKind, openStyle, picture, pixelsApart, sectionOf, switchView, written } from "./v2Harness";
 
 /**
  * Waits for a thing's row in a section.
@@ -131,12 +131,10 @@ describe("Style panel v2's Image wraps around the shape", () => {
         });
         await userEvent.keyboard("{Escape}");
 
-        // The picture's one home is Image: Fill's Switch to lists no Picture.
-        const fillRow = await rowOf(fill, "fill");
-        await userEvent.click(within(fillRow).getByRole("button", { name: "Switch node fill to" }));
-        const menu = await screen.findByRole("menu");
-        const members = within(menu)
-            .getAllByRole("menuitem")
+        // The picture's one home is Image: Fill's Kind select lists no Picture.
+        const list = await openKind(await rowOf(fill, "fill"), "Node fill");
+        const members = within(list)
+            .getAllByRole("option")
             .map((item) => item.textContent.trim());
         assert.deepEqual(members, ["Solid", "Gradient"]);
         await userEvent.keyboard("{Escape}");

@@ -231,3 +231,66 @@ export async function onlyPlusAdds(session: GraphSession, list: HTMLElement, wha
         });
     }
 }
+
+/**
+ * A row's "..." settings button's name.
+ * @param title - the row's name with its kind ("Node shape"), or the button's name.
+ * @returns the name to find it by; it ends in "has configured values" while the pop-over holds a set line.
+ */
+export function settingsName(title: string | RegExp): RegExp {
+    return typeof title === "string" ? new RegExp(`^${title} settings`, "i") : title;
+}
+
+/**
+ * Opens a row's "..." settings and its Kind select, as a reader does: the Kind line is the pop-over's first.
+ * @param row - the row (or a section holding one row with that settings button).
+ * @param title - the row's name with its kind ("Node shape"), or its settings button's name.
+ * @returns the open Kind list.
+ */
+export async function openKind(row: HTMLElement, title: string | RegExp): Promise<HTMLElement> {
+    const settings = within(row).getByRole("button", { name: settingsName(title) });
+    // A pick leaves the pop-over open: a second click on "..." would close it.
+    if (settings.getAttribute("aria-expanded") !== "true") {
+        await userEvent.click(settings);
+    }
+    await userEvent.click(await screen.findByRole("combobox", { name: "Kind" }));
+    return screen.findByRole("listbox");
+}
+
+/**
+ * Picks a kind in a row's Kind select, from its "..." settings.
+ * @param row - the row.
+ * @param title - the row's name with its kind ("Node shape").
+ * @param kind - the kind's name.
+ */
+export async function pickKind(row: HTMLElement, title: string | RegExp, kind: string): Promise<void> {
+    const list = await openKind(row, title);
+    await userEvent.click(within(list).getByRole("option", { name: kind }));
+}
+
+/**
+ * Closes the open settings pop-over with Escape, as a reader does.
+ */
+export async function closeSettings(): Promise<void> {
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("combobox", { name: "Kind" }));
+    });
+}
+
+/**
+ * The kind a row's Kind select reads.
+ * @param row - the row.
+ * @param title - the row's name with its kind ("Node shape").
+ * @returns the kind's name.
+ */
+export async function kindOf(row: HTMLElement, title: string | RegExp): Promise<string> {
+    const settings = within(row).getByRole("button", { name: settingsName(title) });
+    if (settings.getAttribute("aria-expanded") !== "true") {
+        await userEvent.click(settings);
+    }
+    const kind = await screen.findByRole<HTMLInputElement>("combobox", { name: "Kind" });
+    const { value } = kind;
+    await closeSettings();
+    return value;
+}

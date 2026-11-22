@@ -2,8 +2,8 @@
  * A label's look is a kind of its row (ledger E196: "the toggle between 'Plain' and 'Card' label must be removed
  * and replaced with `+` having label or card"), on the REAL graphty-element and real input: "+" Card writes the
  * look card; "+" Label always adds a Text label, a further one once a label is drawn; a Label switched to Card from
- * its Switch to writes only the look, on the node and the edge tab; a further label's Switch to writes only its own
- * look; an End caption's Switch to lists its ends, a divider and its looks; and no label pop-over has a Look line.
+ * its Kind select writes only the look, on the node and the edge tab; a further label's Kind select writes only its
+ * own look; an End caption's Kind select lists its ends, then its looks; and no label pop-over has a Look line.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -17,7 +17,18 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { openGraph, openStyle, picture, pixelsApart, sectionOf, written } from "./v2Harness";
+import {
+    closeSettings,
+    openGraph,
+    openKind,
+    openStyle,
+    pickKind,
+    picture,
+    pixelsApart,
+    sectionOf,
+    settingsName,
+    written,
+} from "./v2Harness";
 
 /**
  * Clicks a Text section's "+" and one of its items, then picks Node id from the source list that opens, or on the
@@ -42,14 +53,24 @@ async function plus(tab: HTMLElement, kind: "node" | "edge", item: string, list:
 }
 
 /**
- * Picks an item from a row's Switch to.
+ * Picks an item from a row's Kind select, in its "..." settings, and closes the settings.
  * @param root - where the row is.
  * @param title - the row's title ("node label").
  * @param item - the item.
  */
 async function switchTo(root: HTMLElement, title: string, item: string): Promise<void> {
-    await userEvent.click(within(root).getByRole("button", { name: `Switch ${title} to` }));
-    await userEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: item }));
+    await pickKind(root, title, item);
+    await closeSettings();
+}
+
+/**
+ * The row's "..." settings button, by the row's title, or null.
+ * @param root - where the row is.
+ * @param title - the row's title ("node card").
+ * @returns the button, or null.
+ */
+function rowButton(root: HTMLElement, title: string): HTMLElement | null {
+    return within(root).queryByRole("button", { name: settingsName(title) });
 }
 
 /**
@@ -81,7 +102,7 @@ function restOf(session: GraphSession, id: string, channel: string): string {
 describe("a label's look is a kind of its row", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("'+' Card writes the look card; '+' Label then adds a further Text label; its Switch to writes only its look", async () => {
+    it("'+' Card writes the look card; '+' Label then adds a further Text label; its Kind select writes only its look", async () => {
         const { session, element, nodes } = await openGraph();
         const tab = await openStyle("Key people");
         await plus(tab, "node", "Card", "Node card");
@@ -115,7 +136,7 @@ describe("a label's look is a kind of its row", () => {
         const entry = await waitFor(() => {
             const found = text.querySelector<HTMLElement>(`[data-label-entry="${id}"]`);
             assert.isNotNull(found);
-            assert.isNotNull(within(found).queryByRole("button", { name: "Switch node label 2 to" }), "named Label");
+            assert.isNotNull(rowButton(found, "node label 2"), "named Label");
             return found;
         });
         // Below the card, so its look shows apart from the card's.
@@ -154,7 +175,7 @@ describe("a label's look is a kind of its row", () => {
         assert.equal(pixelsApart(plain, await picture(element)), 0, "and draws plain again");
     });
 
-    it("a row over a Card beneath shows the Card, and its Switch to Label draws it plain", async () => {
+    it("a row over a Card beneath shows the Card, and its Kind Label draws it plain", async () => {
         const { session, element, nodes } = await openGraph();
         await session.styles.update(nodes, {
             set: { ...session.styles.get(nodes)?.set, "node.label": "x", "node.labelStyle": { look: "card" } },
@@ -170,7 +191,7 @@ describe("a label's look is a kind of its row", () => {
         const tab = await openStyle("Hubs");
         const text = sectionOf(tab, "node-text");
         await waitFor(() => {
-            assert.isNotNull(within(text).queryByRole("button", { name: "Switch node card to" }), "the Card it draws");
+            assert.isNotNull(rowButton(text, "node card"), "the Card it draws");
         });
         await switchTo(text, "node card", "Label");
         const hubs = session.styles.list().find((layer) => layer.name === "Hubs")?.id ?? "";
@@ -237,15 +258,12 @@ describe("a label's look is a kind of its row", () => {
         });
         await waitFor(() => {
             const text = sectionOf(tab, "node-text");
-            assert.isNotNull(within(text).queryByRole("button", { name: "Switch node card to" }), "the main is a Card");
-            assert.isNotNull(
-                within(text).queryByRole("button", { name: "Switch node label 2 to" }),
-                "the further label is still named Label",
-            );
+            assert.isNotNull(rowButton(text, "node card"), "the main is a Card");
+            assert.isNotNull(rowButton(text, "node label 2"), "the further label is still named Label");
         });
     });
 
-    it("a node Tooltip's Switch to Card writes only the look", async () => {
+    it("a node Tooltip's Kind Card writes only the look", async () => {
         const { session, nodes } = await openGraph();
         const tab = await openStyle("Key people");
         await plus(tab, "node", "Tooltip", "Node tooltip");
@@ -261,7 +279,7 @@ describe("a label's look is a kind of its row", () => {
         assert.equal(restOf(session, nodes, "node.tooltipStyle"), before, "the switch writes only the look");
     });
 
-    it("'+' Label on an empty Text adds a Text label, and its Switch to Card writes only the look", async () => {
+    it("'+' Label on an empty Text adds a Text label, and its Kind Card writes only the look", async () => {
         const { session, nodes } = await openGraph();
         const tab = await openStyle("Key people");
         await plus(tab, "node", "Label", "Node label");
@@ -280,10 +298,7 @@ describe("a label's look is a kind of its row", () => {
         });
         assert.equal(restOf(session, nodes, "node.labelStyle"), before, "the switch writes only the look");
         await waitFor(() => {
-            assert.isNotNull(
-                within(sectionOf(tab, "node-text")).queryByRole("button", { name: "Switch node card to" }),
-                "the row is the Card now",
-            );
+            assert.isNotNull(rowButton(sectionOf(tab, "node-text"), "node card"), "the row is the Card now");
         });
         // Back to Label takes the look off and keeps the rest.
         await switchTo(sectionOf(tab, "node-text"), "node card", "Label");
@@ -317,7 +332,7 @@ describe("a label's look is a kind of its row", () => {
         });
     });
 
-    it("an End caption's Switch to lists its ends, a divider and its looks; a look writes only the caption's look", async () => {
+    it("an End caption's Kind select lists its ends, then its looks; a look writes only the caption's look", async () => {
         const { session, edges } = await openGraph();
         await session.styles.update(edges, {
             set: { "edge.color": "#E8590C", "edge.arrowHeadText": "to", "edge.arrowHeadTextStyle": { size: 2 } },
@@ -326,14 +341,24 @@ describe("a label's look is a kind of its row", () => {
         const tab = await openStyle("Links");
         await showKind("edge");
         const text = sectionOf(tab, "edge-text");
-        await userEvent.click(within(text).getByRole("button", { name: "Switch edge target to" }));
-        const menu = await screen.findByRole("menu");
-        const items = [...menu.querySelectorAll('[role="menuitem"], .mantine-Menu-divider')].map((element) =>
-            element.getAttribute("role") === "menuitem" ? element.textContent : "|",
+        const list = await openKind(text, "edge target");
+        // Each group's heading, then its options.
+        const items = [...list.querySelectorAll('[role="option"], [class*="groupLabel"]')].map((element) =>
+            element.getAttribute("role") === "option" ? element.textContent : `${element.textContent}:`,
         );
-        assert.deepEqual(items, ["Target", "Source", "|", "End caption", "Card", "Dark", "Pill", "Callout"]);
+        assert.deepEqual(items, [
+            "Kind:",
+            "Target",
+            "Source",
+            "Look:",
+            "End caption",
+            "Card",
+            "Dark",
+            "Pill",
+            "Callout",
+        ]);
         const before = restOf(session, edges, "edge.arrowHeadTextStyle");
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Dark" }));
+        await userEvent.click(within(list).getByRole("option", { name: "Dark" }));
         await waitFor(() => {
             assert.deepEqual(styleOf(session, edges, "edge.arrowHeadTextStyle"), { size: 2, look: "dark" });
         });

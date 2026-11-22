@@ -17,7 +17,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { openGraph, openStyle, picture, pixelsApart, sectionOf, switchView, written } from "./v2Harness";
+import { openGraph, openStyle, pickKind, picture, pixelsApart, sectionOf, switchView, written } from "./v2Harness";
 
 /**
  * The Outline rows in the edge Line section.
@@ -60,13 +60,13 @@ async function typeWidth(row: HTMLElement, channel: string, text: string): Promi
 }
 
 /**
- * Switches an Outline row to a kind from its Switch to menu.
+ * Switches an Outline row to a kind from the Kind select in its "..." settings.
  * @param row - the row.
  * @param kind - the kind's name.
  */
 async function switchTo(row: HTMLElement, kind: string): Promise<void> {
-    await userEvent.click(within(row).getByRole("button", { name: /^Switch .* to/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: kind }));
+    await pickKind(row, /^Edge (under|over) line settings/i, kind);
+    await userEvent.keyboard("{Escape}");
 }
 
 /**
@@ -102,8 +102,7 @@ describe("Style panel v2's edge Outline", () => {
         const color = written(session, edges, "edge.outlineColor");
 
         const [row] = outlineRows(line);
-        await userEvent.click(within(row).getByRole("button", { name: /^Switch .* to/ }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Over line" }));
+        await switchTo(row, "Over line");
         await waitFor(() => {
             assert.isUndefined(written(session, edges, "edge.outlineColor"), "the casing comes off");
             assert.equal(written(session, edges, "edge.overlayColor"), color, "its color moves to the wash");
@@ -219,8 +218,7 @@ describe("Style panel v2's edge Outline", () => {
         const color = String(written(session, edges, "edge.outlineColor"));
 
         const [row] = outlineRows(line);
-        await userEvent.click(within(row).getByRole("button", { name: /^Switch .* to/ }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Over line" }));
+        await switchTo(row, "Over line");
         await waitFor(() => {
             assert.isDefined(written(session, edges, "edge.overlayColor"));
         });

@@ -29,7 +29,7 @@ import {
     type LabelGroup,
     type LabelLineSpec,
 } from "../v2/labelRubric";
-import { openGraph, openStyle, picture, pixelsApart, sectionOf, written } from "./v2Harness";
+import { openGraph, openStyle, pickKind, picture, pixelsApart, sectionOf, written } from "./v2Harness";
 
 type Style = Partial<Record<LabelField, unknown>>;
 
@@ -499,9 +499,9 @@ describe("every label field is reachable from the Label row and draws (E673)", (
             const descriptor = labelFieldDescriptor(field);
             assert.isDefined(descriptor, field);
             if (field === "look") {
-                // The look is a kind of the row, from its Switch to (E196).
-                await userEvent.click(within(await rowOf()).getByRole("button", { name: /^Switch node label to/ }));
-                await userEvent.click(await screen.findByRole("menuitem", { name: "Dark" }));
+                // The look is a kind of the row, from the Kind select in its "..." settings (E196).
+                await pickKind(await rowOf(), "Node label", "Dark");
+                await closeSettings();
                 return "dark";
             }
             const place = placeOf(field);

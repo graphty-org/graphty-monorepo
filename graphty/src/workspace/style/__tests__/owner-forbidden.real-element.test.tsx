@@ -27,9 +27,9 @@ interface Seen {
     readonly words: Set<string>;
     /** Every section "+" menu item. */
     readonly plusItems: Set<string>;
-    /** Every section "+" menu item and Switch to kind on the Node tab. */
+    /** Every section "+" menu item and Kind select kind on the Node tab. */
     readonly nodePlusItems?: Set<string>;
-    /** Every section "+" menu item and Switch to kind, as "<data-section>:<item>". */
+    /** Every section "+" menu item and Kind select kind, as "<data-section>:<item>". */
     readonly sectionItems?: Set<string>;
     /** Every line's channel (data-line) in the panel and its pop-overs. */
     readonly lines: Set<string>;
@@ -217,26 +217,34 @@ async function walkMenus(seen: Seen, adding: boolean, kind: "node" | "edge"): Pr
 }
 
 /**
- * Opens every row's settings pop-over and Switch to menu and records them.
+ * Opens every row's settings pop-over and its Kind select, and records them.
  * @param seen - the record.
  */
 async function walkPopovers(seen: Seen): Promise<void> {
-    const names = [
-        ...panel().querySelectorAll<HTMLElement>("button[aria-label$=' settings'], button[aria-label^='Switch ']"),
-    ].map((each) => each.getAttribute("aria-label") ?? "");
+    const names = [...panel().querySelectorAll<HTMLElement>("button[aria-label$=' settings']")].map(
+        (each) => each.getAttribute("aria-label") ?? "",
+    );
     for (const name of names) {
         const button = panel().querySelector<HTMLElement>(`button[aria-label="${CSS.escape(name)}"]`);
         if (button === null) {
             continue;
         }
         await userEvent.click(button);
-        const section = button.closest("[data-section]")?.getAttribute("data-section") ?? "";
+        // A row's kinds are recorded as its section's and its thing's ("node-effects[border]").
+        const thing = button.closest("[data-thing]")?.getAttribute("data-thing") ?? "";
+        const where = button.closest("[data-section]")?.getAttribute("data-section") ?? "";
+        const section = thing === "" ? where : `${where}[${thing}]`;
         for (const each of floating()) {
             look(seen, each);
-            if (name.startsWith("Switch ")) {
-                for (const item of within(each).queryAllByRole("menuitem")) {
-                    seen.sectionItems?.add(`${section}:${item.textContent.trim()}`);
-                }
+        }
+        // A family row's kinds are its pop-over's first line, the Kind select.
+        const kind = screen.queryByRole("combobox", { name: "Kind" });
+        if (kind !== null) {
+            await userEvent.click(kind);
+            const list = await screen.findByRole("listbox");
+            look(seen, list);
+            for (const item of within(list).queryAllByRole("option")) {
+                seen.sectionItems?.add(`${section}:${item.textContent.trim()}`);
             }
         }
         await closeAll();

@@ -29,16 +29,22 @@ import {
     written,
 } from "./v2Harness";
 
-/** Each tab's sections, in ia-design.md's order (E675), "|" where the separator between the two groups sits. */
+/**
+ * Each tab's sections, "|" where the separator sits: the parts of the mark, then Effects, which holds Border
+ * and Visibility (owner, 2026-11-22).
+ */
 const SECTION_ORDER = {
-    node: ["Fill", "Text", "Shape", "Border", "|", "Visibility", "Effects"],
-    edge: ["Line", "Arrows", "Route", "Text", "|", "Visibility", "Effects"],
+    node: ["Shape", "Fill", "Text", "|", "Effects"],
+    edge: ["Line", "Arrows", "Route", "Text", "|", "Effects"],
 } as const;
 
-/** Each tab's Effects "+" items, "|" where a divider sits: every shader is the one Shader item (E668). */
+/**
+ * Each tab's Effects "+" items, "|" where a divider sits: Border and Visibility first (owner, 2026-11-22), and
+ * every shader is the one Shader item (E668).
+ */
 const EFFECTS_ITEMS = {
-    node: ["Ring", "Shader", "Glow", "|", "Drop shadow", "Raised edge", "Plate"],
-    edge: ["Shader", "Animation"],
+    node: ["Border", "Visibility", "|", "Ring", "Shader", "Glow", "|", "Drop shadow", "Raised edge", "Plate"],
+    edge: ["Visibility", "|", "Shader", "Animation"],
 } as const;
 
 /**
@@ -195,14 +201,14 @@ describe("Style panel v2 on", () => {
         assert.isNotNull(plus, 'the section\'s "+"');
         await userEvent.click(plus);
         const menu = await screen.findByRole("menu");
-        // Every look around the node is an Effect; Border is only the stroke on its edge (ia-design 2, E675).
+        // Border and Visibility, then every look around the node (owner, 2026-11-22; ia-design 2, E675).
         assert.deepEqual(
             within(menu)
                 .getAllByRole("menuitem")
                 .map((item) => item.textContent),
-            ["Ring", "Shader", "Glow", "Drop shadow", "Raised edge", "Plate"],
+            ["Border", "Visibility", "Ring", "Shader", "Glow", "Drop shadow", "Raised edge", "Plate"],
         );
-        assert.lengthOf(menu.querySelectorAll(".mantine-Menu-divider"), 1, "a divider between the two groups");
+        assert.lengthOf(menu.querySelectorAll(".mantine-Menu-divider"), 2, "a divider between each two groups");
         await userEvent.click(within(menu).getByRole("menuitem", { name: "Ring" }));
         await waitFor(() => {
             assert.isDefined(written(session, id, "node.outerBorderColor"), "Ring starts with its color");
@@ -250,16 +256,17 @@ describe("Style panel v2 on", () => {
         assert.strictEqual(document.activeElement, add, "focus is still on its '+'");
     });
 
-    it("Border's '+' adds the one Border, a stroke with its color and width", async () => {
+    it("Effects' '+' Border adds the one Border, a stroke with its color and width", async () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
-        const border = sectionOf(tab, "node-border");
-        await userEvent.click(within(border).getByRole("button", { name: "Add to node border" }));
+        const effects = sectionOf(tab, "node-effects");
+        await userEvent.click(within(effects).getByRole("button", { name: "Add to node effects" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Border" }));
         await waitFor(() => {
             assert.isDefined(written(session, id, "node.borderColor"), "a color");
             assert.isAbove(Number(written(session, id, "node.borderWidth")), 0, "and a width (E305)");
+            assert.isNotNull(effects.querySelector('[data-thing="border"]'), "a Border row in Effects");
         });
-        assert.isNull(document.querySelector('[role="menu"]'), "one thing: no menu to choose from");
     });
 });
 
@@ -277,9 +284,9 @@ describe("Style panel v2's '+' lists", () => {
         for (const plus of panel.querySelectorAll("[data-plus]")) {
             assert.isNotNull(plus.closest("[data-plus-list]"), `${plus.getAttribute("aria-label") ?? ""} is in a list`);
         }
-        // Each section, set (Fill) and empty.
+        // Each section, set (Fill) and empty: Shape, Fill, Text and Effects.
         const sections = [...panel.querySelectorAll<HTMLElement>('[data-plus-list="section"]')];
-        assert.isAtLeast(sections.length, 6);
+        assert.isAtLeast(sections.length, 4);
         for (const section of sections) {
             await onlyPlusAdds(session, section, section.textContent ?? "a section");
         }

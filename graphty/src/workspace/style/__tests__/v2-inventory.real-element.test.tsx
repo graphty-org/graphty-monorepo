@@ -426,7 +426,7 @@ describe("Style panel v2's style inventory", () => {
                 // A Unit line writes the field with one unit and takes it off with the others.
                 offered = values;
             } else if (descriptor.field === "look") {
-                // A look is a kind of its text's row, picked from its Switch to (E196).
+                // A look is a kind of its text's row, picked from the Kind select in its "..." settings (E196).
                 offered = KIND_GROUPS.flatMap((group) =>
                     group.members.flatMap((m) => (m.look === undefined ? [] : [m.look.id])),
                 );

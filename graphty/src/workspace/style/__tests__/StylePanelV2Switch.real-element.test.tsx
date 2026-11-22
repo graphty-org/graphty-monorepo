@@ -1,7 +1,7 @@
 /**
  * Style panel v2's Switch to on the REAL graphty-element, driven by real clicks
- * (design/ui/style-panel-v2/design.md, section 5 and acceptance check 1): the glyph before a family row's
- * name opens a menu of its members, the current one checked. A star with rounded corners and a size
+ * (design/ui/style-panel-v2/design.md, section 5 and acceptance check 1): the Kind select, first in a
+ * family row's "..." settings, lists its members and reads the current one. A star with rounded corners and a size
  * switched to Sticker keeps its row, its name, its size, its color and its Size line, and switched back
  * brings the star and its corners back; every member's row has the same menu; after another row was
  * selected, one Undo brings the star back; Fill switches Solid -> Gradient -> Solid in one step each. No
@@ -17,7 +17,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { openProject, openStyle, sectionOf, written } from "./v2Harness";
+import { kindOf, openKind, openProject, openStyle, pickKind, sectionOf, written } from "./v2Harness";
 
 /**
  * Waits for a thing's row in a section.
@@ -47,39 +47,6 @@ async function openSettings(row: HTMLElement, name: string): Promise<HTMLElement
         assert.isNotNull(found);
         return found;
     });
-}
-
-/**
- * Picks a member from the row's Switch to menu.
- * @param row - the thing's row.
- * @param title - the row's name with its kind ("Node shape").
- * @param member - the member's name.
- */
-async function pickMember(row: HTMLElement, title: string, member: string): Promise<void> {
-    await userEvent.click(within(row).getByRole("button", { name: `Switch ${title.toLowerCase()} to` }));
-    const menu = await screen.findByRole("menu");
-    await userEvent.click(within(menu).getByRole("menuitem", { name: member }));
-}
-
-/**
- * The member the row's Switch to menu checks.
- * @param row - the thing's row.
- * @param title - the row's name with its kind.
- * @returns the checked member's name.
- */
-async function checkedMember(row: HTMLElement, title: string): Promise<string> {
-    await userEvent.click(within(row).getByRole("button", { name: `Switch ${title.toLowerCase()} to` }));
-    const menu = await screen.findByRole("menu");
-    const checked = within(menu)
-        .getAllByRole("menuitem")
-        .filter((item) => item.getAttribute("aria-current") === "true")
-        .map((item) => item.textContent ?? "");
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() => {
-        assert.isNull(screen.queryByRole("menu"));
-    });
-    assert.lengthOf(checked, 1, "one member is checked");
-    return checked[0];
 }
 
 /**
@@ -130,9 +97,9 @@ describe("Style panel v2's Switch to", () => {
         const size = (): Element | null => shape.querySelector('[data-thing="size"] [data-line="node.size"]');
         assert.isNotNull(size(), "Size is its own row");
         assert.isNull(row.querySelector('[data-line="node.size"]'), "not a line of the Shape row");
-        assert.equal(await checkedMember(row, "Node shape"), "Basic shape");
+        assert.equal(await kindOf(row, "Node shape"), "Basic shape");
 
-        await pickMember(row, "Node shape", "Sticker");
+        await pickKind(row, "Node shape", "Sticker");
         // The row keeps its basic shape until a sticker is picked.
         await screen.findByRole("dialog", { name: "Sticker" });
         assert.equal(written(session, id, "node.shape"), "star", "nothing switches before the pick");
@@ -148,9 +115,9 @@ describe("Style panel v2's Switch to", () => {
         assert.isNotNull(size(), "the Size row stays");
         assert.lengthOf(shape.querySelectorAll('[data-thing="shape"]'), 1, "still one Shape row, in the same section");
 
-        // The Sticker's row has the same Switch to.
-        assert.equal(await checkedMember(after, "Node shape"), "Sticker");
-        await pickMember(after, "Node shape", "Basic shape");
+        // The Sticker's row has the same Kind select.
+        assert.equal(await kindOf(after, "Node shape"), "Sticker");
+        await pickKind(after, "Node shape", "Basic shape");
         await waitFor(() => {
             assert.equal(written(session, id, "node.shape"), "star", "the star comes back");
             assert.equal(written(session, id, "node.cornerRadius"), 0.2, "with its corners");
@@ -170,7 +137,7 @@ describe("Style panel v2's Switch to", () => {
         });
         const tab = await openStyle("Key people");
         const row = await rowOf(sectionOf(tab, "node-shape"), "shape");
-        await pickMember(row, "Node shape", "Sticker");
+        await pickKind(row, "Node shape", "Sticker");
         await pickSticker();
         await waitFor(() => {
             assert.isUndefined(written(session, id, "node.shape"));
@@ -189,7 +156,7 @@ describe("Style panel v2's Switch to", () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const fill = sectionOf(tab, "node-fill");
-        await pickMember(await rowOf(fill, "fill"), "Node fill", "Gradient");
+        await pickKind(await rowOf(fill, "fill"), "Node fill", "Gradient");
         await waitFor(() => {
             const colors = written(session, id, "node.gradientColors");
             assert.isString(colors);
@@ -203,11 +170,11 @@ describe("Style panel v2's Switch to", () => {
             assert.isUndefined(written(session, id, "node.gradientColors"));
         });
 
-        await pickMember(await rowOf(fill, "fill"), "Node fill", "Gradient");
+        await pickKind(await rowOf(fill, "fill"), "Node fill", "Gradient");
         await waitFor(() => {
             assert.isString(written(session, id, "node.gradientColors"));
         });
-        await pickMember(await rowOf(fill, "fill"), "Node fill", "Solid");
+        await pickKind(await rowOf(fill, "fill"), "Node fill", "Solid");
         await waitFor(() => {
             assert.match(String(written(session, id, "node.color")), /^#E8590C$/i, "Solid brings the color back");
             assert.isUndefined(written(session, id, "node.gradientColors"));
@@ -233,7 +200,7 @@ describe("Style panel v2's Switch to", () => {
 describe("Style panel v2's keys inside a thing's pop-over", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("emptying W and pressing Enter unsets only the width, and Backspace on Switch to changes nothing", async () => {
+    it("emptying W and pressing Enter unsets only the width, and Backspace on the Kind select changes nothing", async () => {
         const { session, id } = await openStar();
         await session.styles.update(id, {
             set: {
@@ -263,16 +230,15 @@ describe("Style panel v2's keys inside a thing's pop-over", () => {
         assert.equal(written(session, id, "node.cornerRadius"), 0.2, "its corners stay");
         assert.equal(written(session, id, "node.size"), 2, "its size stays");
 
-        // Opened and closed again with Escape, the Switch to menu's button keeps focus.
+        // The Kind list opened and closed again with Escape, Backspace on the Kind select changes nothing.
         await userEvent.keyboard("{Escape}");
-        await userEvent.click(within(row).getByRole("button", { name: "Switch node shape to" }));
-        await screen.findByRole("menu");
+        await openKind(row, "Node shape");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("menu"));
+            assert.isNull(screen.queryByRole("listbox"));
         });
         await userEvent.keyboard("{Backspace}");
-        assert.equal(written(session, id, "node.shape"), "star", "Backspace on Switch to leaves the shape");
+        assert.equal(written(session, id, "node.shape"), "star", "Backspace on the Kind select leaves the shape");
         assert.equal(written(session, id, "node.size"), 2);
     });
 });

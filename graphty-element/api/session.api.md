@@ -268,32 +268,22 @@ export interface AttributeDescriptor {
     completeness: number;
     hidden?: boolean;
     holdsNodeIds?: true;
-    // (undocumented)
     kind: "node" | "edge";
-    // (undocumented)
     max?: number;
     measurement?: Measurement;
     measurementSource?: MeasurementSource;
-    // (undocumented)
     min?: number;
-    // (undocumented)
     name: string;
-    // (undocumented)
     origin: "imported" | "joined" | "computed" | "result";
     path: Path;
-    // (undocumented)
     plainName: string;
     roles?: readonly AttributeRole[];
     runId?: RunId;
-    // (undocumented)
     sampleValues: readonly unknown[];
     sources?: readonly SourceKey[];
-    // (undocumented)
     technicalName: string;
     token: string;
-    // (undocumented)
     type: AttributeType;
-    // (undocumented)
     uniqueCount?: number;
     usedBy?: readonly AttributeUse[];
     valuesAreColors?: true;
@@ -304,7 +294,7 @@ export interface AttributeDescriptor {
 export type AttributeLeafNodes = "all" | "ends" | "none";
 
 // @public
-export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city";
+export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city" | "x" | "y" | "z";
 
 // @public
 export type AttributeUse = {
@@ -354,6 +344,7 @@ export type Binding = {
     combine?: CombineMode;
 } | {
     template: readonly string[];
+    format?: BindingNumberFormat;
 } | {
     by: Path;
     combine?: CombineMode;
@@ -389,6 +380,7 @@ export interface BindingNumberFormat {
     locale?: string;
     maximumFractionDigits?: number;
     maximumSignificantDigits?: number;
+    useGrouping?: boolean;
 }
 
 // @public
@@ -471,7 +463,13 @@ export const browserProjects: BrowserProjects;
 // @public
 export interface BrowserProjectSaveOptions {
     readonly assets?: ProjectSaveOptions["assets"];
+    // @beta
+    readonly embed?: ProjectSaveOptions["embed"];
+    // @beta
+    readonly format?: ProjectSaveOptions["format"];
     readonly id?: string;
+    // @beta
+    readonly sections?: ProjectSaveOptions["sections"];
 }
 
 export { BuiltInModelFormat }
@@ -479,19 +477,24 @@ export { BuiltInModelFormat }
 // @beta
 export interface BySizeLeaf {
     readonly from?: "high" | "low";
-    // (undocumented)
     readonly kind: "by-size";
-    // (undocumented)
     readonly max?: number;
-    // (undocumented)
     readonly min?: number;
-    // (undocumented)
     readonly path: Path;
-    // (undocumented)
     readonly ties?: TopTies;
-    // (undocumented)
     readonly top?: number;
 }
+
+// @public
+export type ByTableMapping = TableMapping | {
+    readonly tables: Readonly<Record<string, TableMapping>>;
+};
+
+// @public
+export const CAMERA_GESTURE_KINDS: readonly CameraGestureKind[];
+
+// @public
+export type CameraGestureKind = "orbit" | "pan" | "zoom";
 
 // @public
 export interface Capabilities {
@@ -514,10 +517,11 @@ export interface CaptureCapability {
 }
 
 // @public
-export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "direction.mixed" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "all-paths.length-bounded" | "all-paths.capped" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "bfs.depth-bounded" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
+export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "layers.kept" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "direction.mixed" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "all-paths.length-bounded" | "all-paths.capped" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "bfs.depth-bounded" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
 
 // @public
 export interface Caveats {
+    readonly accelerator?: ComputeBackend;
     readonly componentScope?: "all" | "largest";
     readonly converged?: boolean;
     readonly direction: RunDirection;
@@ -539,7 +543,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.sizeSpace" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapSkipEndSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelMaxLines" | "node.labelMaxLinesEllipsis" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelLineBox" | "node.labelBorderAlign" | "node.labelBorderStyle" | "node.labelBackgroundShape" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.labelShiftOf" | "node.labelGapOf" | "node.labelBox" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.outlineWidth" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.meshDetail" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.relativeExtents" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.outerBorderCount" | "node.raisedBorderWidth" | "node.raisedBorderLightColor" | "node.raisedBorderDarkColor" | "node.shadowColor" | "node.shadowOpacity" | "node.shadowBlur" | "node.shadowOffsetX" | "node.shadowOffsetY" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.cornerFraction" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeRotation" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.labelTable" | "node.shapeLineWidth" | "node.shapeLineHaloColor" | "node.shapeLineHaloWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.labelFitQuantum" | "node.labelFitImage" | "node.labelFitImagePadding" | "node.imageAspect" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.gradientCenterX" | "node.gradientCenterY" | "node.gradientRadius" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.stripeFrame" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartWidth" | "node.chartHeight" | "node.chartOffsetX" | "node.chartOffsetY" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.chartBackgroundColor" | "node.chartBackgroundOpacity" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelDoubleSided" | "node.modelAnimation" | "node.modelAnimationSpeed" | "node.modelAnimationOffset" | "node.modelFit" | "node.modelCenter" | "node.texture" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.colorFrom" | "edge.width" | "edge.minScreenWidth" | "edge.fadeStart" | "edge.fadeEnd" | "edge.fadeOpacity" | "edge.blending" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.dashLength" | "edge.dashGap" | "edge.dashArray" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.supportScale" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadOutlineWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadStack" | "edge.arrowHeadColor" | "edge.arrowHeadFillColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailOutlineWidth" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailStack" | "edge.arrowTailColor" | "edge.arrowTailFillColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadOutlineWidth" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadFillColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailOutlineWidth" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailFillColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "node.shaders" | "edge.shaders" | "edge.taper" | "edge.taperSource" | "edge.lift" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapSkipEndSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelMaxLines" | "edge.labelMaxLinesEllipsis" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelTable" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelLineBox" | "edge.labelBorderAlign" | "edge.labelBorderStyle" | "edge.labelBackgroundShape" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY" | "edge.labelShiftOf" | "edge.labelGapOf" | "edge.labelBox" | "node.xlabel" | "node.xlabelStyle" | "node.xlabelLocation" | "node.xlabelOffsetX" | "node.xlabelOffsetY" | "node.xlabelTextAlign" | "edge.xlabel" | "edge.xlabelStyle" | "edge.xlabelLocation" | "edge.xlabelOffsetX" | "edge.xlabelOffsetY";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.sizeSpace" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapSkipEndSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelMaxLines" | "node.labelMaxLinesEllipsis" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelLineBox" | "node.labelBorderAlign" | "node.labelBorderStyle" | "node.labelBackgroundShape" | "node.labelImage" | "node.labelImageWidth" | "node.labelImageHeight" | "node.labelImageOffsetX" | "node.labelImageOffsetY" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.labelShiftOf" | "node.labelGapOf" | "node.labelBox" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.outlineWidth" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.meshDetail" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.relativeExtents" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.outerBorderCount" | "node.raisedBorderWidth" | "node.raisedBorderLightColor" | "node.raisedBorderDarkColor" | "node.shadowColor" | "node.shadowOpacity" | "node.shadowBlur" | "node.shadowOffsetX" | "node.shadowOffsetY" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.cornerFraction" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeRotation" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.labelTable" | "node.shapeLineWidth" | "node.shapeLineHaloColor" | "node.shapeLineHaloWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.labelFitQuantum" | "node.labelFitImage" | "node.labelFitImagePadding" | "node.imageAspect" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.gradientCenterX" | "node.gradientCenterY" | "node.gradientRadius" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.stripeFrame" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartWidth" | "node.chartHeight" | "node.chartOffsetX" | "node.chartOffsetY" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.chartBackgroundColor" | "node.chartBackgroundOpacity" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelDoubleSided" | "node.modelAnimation" | "node.modelAnimationSpeed" | "node.modelAnimationOffset" | "node.modelFit" | "node.modelCenter" | "node.texture" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.colorFrom" | "edge.width" | "edge.minScreenWidth" | "edge.drawOrder" | "edge.fadeStart" | "edge.fadeEnd" | "edge.fadeOpacity" | "edge.blending" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.strandColors" | "edge.strandSpacing" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.dashLength" | "edge.dashGap" | "edge.dashArray" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.supportScale" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadOutlineWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadStack" | "edge.arrowHeadColor" | "edge.arrowHeadFillColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailOutlineWidth" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailStack" | "edge.arrowTailColor" | "edge.arrowTailFillColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadOutlineWidth" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadFillColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailOutlineWidth" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailFillColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "node.shaders" | "edge.shaders" | "edge.taper" | "edge.taperSource" | "edge.lift" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapSkipEndSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelMaxLines" | "edge.labelMaxLinesEllipsis" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelTable" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelLineBox" | "edge.labelBorderAlign" | "edge.labelBorderStyle" | "edge.labelBackgroundShape" | "edge.labelImage" | "edge.labelImageWidth" | "edge.labelImageHeight" | "edge.labelImageOffsetX" | "edge.labelImageOffsetY" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY" | "edge.labelShiftOf" | "edge.labelGapOf" | "edge.labelBox" | "node.xlabel" | "node.xlabelStyle" | "node.xlabelLocation" | "node.xlabelOffsetX" | "node.xlabelOffsetY" | "node.xlabelTextAlign" | "node.xlabelColor" | "node.xlabelFont" | "node.xlabelWeight" | "node.xlabelItalic" | "edge.xlabel" | "edge.xlabelStyle" | "edge.xlabelLocation" | "edge.xlabelOffsetX" | "edge.xlabelOffsetY";
 
 // @public
 export type ChannelAgreement = {
@@ -650,7 +654,7 @@ export interface ColumnRef {
 }
 
 // @public
-export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId" | "kind" | LocationKind;
+export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId" | "kind" | LocationKind | PositionAxis;
 
 // @public
 export type CombineMode = "replace" | "multiply" | "add";
@@ -681,6 +685,7 @@ export interface CommandOutcomeMap {
     "data.label": Promise<void>;
     "data.setSource": Promise<void>;
     "data.source-expand": Promise<void>;
+    "data.steps-set": Promise<void>;
     "layout.rerun": Promise<void>;
     "layout.scope": Promise<void>;
     "layout.set": Promise<void>;
@@ -756,6 +761,9 @@ export interface ComponentStatistics {
     readonly sizes: readonly number[];
     readonly truncatedSizes: boolean;
 }
+
+// @public
+export type ComputeBackend = "cpu" | "webgpu" | (string & {});
 
 // @public
 export type Condition<F extends ConditionField = ConditionField> = {
@@ -861,14 +869,14 @@ export interface CostBasis {
 }
 
 // @public
-export type CostConfidence = "measured" | "calibrated" | "modelled" | "unknown";
+export type CostConfidence = "measured" | "calibrated" | "modeled" | "unknown";
 
 // @public
 export interface CostEstimate {
     readonly available: boolean;
     readonly basisFacts: CostBasis;
     readonly blocksFrame: boolean;
-    readonly cancellable: boolean;
+    readonly cancelable: boolean;
     readonly confidence: CostConfidence;
     readonly costClass: CostClass;
     readonly refusal?: CodedFact<EstimateRefusalCode>;
@@ -1036,10 +1044,59 @@ export interface DeriveOptions {
 }
 
 // @beta
-export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_CHANGED" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+export const DOCUMENT_SECTIONS: readonly DocumentSection[];
+
+// @beta
+export interface DocumentBindFacts {
+    readonly file: boolean;
+    readonly open: boolean;
+}
+
+// @beta
+export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_OPTION_NOT_SAVED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_ENGINE_CHANGED" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED" | "W_LAYOUT_ENGINE_UNAVAILABLE" | "W_LAYOUT_OPTION_NOT_APPLIED" | "W_NAME_UPGRADED";
+
+// @beta
+export interface DocumentHeldFacts {
+    readonly reads: number | null;
+    readonly reason: DocumentHeldReason;
+    readonly version: number | null;
+}
+
+// @beta
+export type DocumentHeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs" | "add";
 
 // @beta
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
+
+// @beta
+export interface DocumentSectionAbout {
+    readonly authors?: readonly {
+        readonly name: string;
+        readonly uri?: string;
+    }[];
+    readonly created?: string;
+    readonly description?: string;
+    readonly from?: string;
+    readonly license?: string;
+    readonly modified?: string;
+}
+
+// @beta
+export interface DocumentSectionFacts {
+    readonly counts: Readonly<Record<string, number>>;
+    readonly held?: DocumentHeldFacts;
+    readonly name?: string;
+    readonly section: DocumentSection;
+}
+
+// @beta
+export interface DocumentSectionNeed {
+    readonly found?: boolean;
+    readonly kind: "column" | "type" | "source" | "result";
+    readonly name: string;
+    readonly schema?: Readonly<Record<string, unknown>>;
+    readonly table?: "node" | "edge";
+}
 
 // @public
 export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"> {
@@ -1237,10 +1294,9 @@ export type EndpointSpelling = "source/target" | "src/dst" | "from/to" | "declar
 
 // @public
 export interface EngineVersions {
-    readonly algorithms: string;
-    readonly element: string;
-    readonly layout: string;
-    readonly plugins?: Readonly<Record<string, string>>;
+    readonly accelerator?: ComputeBackend;
+    readonly method?: string;
+    readonly packages: Readonly<Record<string, string>>;
 }
 
 // @public
@@ -1288,7 +1344,7 @@ export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "save-files-v2";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
 
 // @public
 export interface FieldBand {
@@ -1310,28 +1366,20 @@ export interface FieldDescriptor {
         readonly max: number;
     };
     interpretation?: FieldInterpretation;
-    // (undocumented)
     kind: "node" | "edge" | "graph";
     measurement?: Measurement;
     // @beta
     missing?: "unreached" | "unmeasured" | (string & {});
-    // (undocumented)
     name: string;
-    // (undocumented)
     normalization?: string;
     // @beta
     order?: readonly (string | number)[];
-    // (undocumented)
     path: Path;
-    // (undocumented)
     plainName: string;
     // @beta
     polarity?: "higher" | "lower";
-    // (undocumented)
     technicalName: string;
-    // (undocumented)
     type: "number" | "integer" | "boolean" | "string" | "table";
-    // (undocumented)
     unit?: string;
     // @beta
     unstable?: true;
@@ -1428,6 +1476,15 @@ export const FILE_STYLE_TRANSLATION_ISSUE: Readonly<{
     LAYER_SPEC_IGNORED: "W_STYLE_LAYER_SPEC_IGNORED";
     NOT_UNDERSTOOD: "W_STYLE_NOT_UNDERSTOOD";
 }>;
+
+// @beta
+export type FileKind = "project" | "recipe" | "style" | "document" | "graph";
+
+// @public
+export interface FilesApi {
+    // @beta
+    kindOf(source: ProjectSource): Promise<FileKind>;
+}
 
 // @public
 export type FileStyleCode = (typeof FILE_STYLE_ISSUE)[keyof typeof FILE_STYLE_ISSUE];
@@ -1536,6 +1593,24 @@ export interface FilterStep {
     readonly id: string;
     readonly on: boolean;
     readonly rule: RuleTree;
+}
+
+// @beta
+export interface FilterStepCount {
+    readonly after: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly before: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly id: string;
+    readonly leftOut: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly on: boolean;
 }
 
 // @public
@@ -1675,12 +1750,20 @@ export interface GraphAccelerator {
         reason: string;
     }>;
     readonly name: string;
+    readonly package?: {
+        readonly name: string;
+        readonly version: string;
+    };
     readonly precision?: AccelerationPrecision;
     verify?(): Promise<void>;
 }
 
 // @public
 export interface GraphFraming {
+    readonly box?: {
+        readonly min: readonly [number, number];
+        readonly max: readonly [number, number];
+    };
     readonly extent: "drawn" | "centers";
     readonly padding?: number;
 }
@@ -1701,8 +1784,11 @@ export interface GraphSession {
     estimate(command: SessionCommand): CostEstimate;
     execute<C extends SessionCommand>(command: C): CommandOutcome<C>;
     readonly features: EnabledFeatures;
+    // @beta
+    readonly files: FilesApi;
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
+    readonly graphs: SessionGraphs;
     // @beta
     readonly groups: GroupsApi;
     readonly hidden: SessionHidden;
@@ -1716,6 +1802,8 @@ export interface GraphSession {
     readonly positions: SessionPositions;
     readonly project: ProjectApi;
     recipe(): RecipeDocument;
+    // @beta
+    readonly recipes: RecipesApi;
     recommendLayout(): LayoutRecommendation | undefined;
     redo(): Promise<HistoryOutcome>;
     readonly results: ResultsApi;
@@ -1876,7 +1964,7 @@ export type GraphtyErrorCode =
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-* @beta
+* Beta: may change in a minor release.
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -1905,20 +1993,20 @@ export type GraphtyErrorCode =
 /**
 * A layer names a shader the catalog does not list, in a use on `node.shaders` or
 * `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER"
 /**
 * A layer names a shader where it cannot draw: an edge shader on `node.shaders`
 * (`shader.target-mismatch`), or a use at a place the shader does not allow
 * (`shader.place-unsupported`); the refused problem's `fact` carries the code.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_SHADER_KIND"
 /**
 * A layer sets or binds a parameter the shader does not declare, or binds one per element
 * that it does not declare `varies`. `details.candidates` lists the declared parameters.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER_PARAM"
 /**
@@ -1971,7 +2059,7 @@ export type GraphtyErrorCode =
 * A graph was constructed with the id of a page element that the document does not hold, so
 * there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
 * or passes the element itself.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_HOST_NOT_FOUND"
 /**
@@ -2025,6 +2113,14 @@ export type GraphtyErrorCode =
 */
 | "E_DUPLICATE_ID"
 /**
+* A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
+* incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
+* `details.column` and `details.rule` name them. The caller picks another rule for that column.
+* Under the source-steps experiment a step's merge refuses the same way, and `details.step`
+* also names the step.
+*/
+| "E_CLASH_RULE_TYPE"
+/**
 * Two edges run between the same ordered pair of nodes and `data.knownFields.repeatedEdges`
 * is `"error"`. `details` name both endpoints and the index of the edge already present. The
 * caller sets the policy to `keep`, `first`, `last`, `sum`, `min` or `max`.
@@ -2067,6 +2163,13 @@ export type GraphtyErrorCode =
 * the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
+/**
+* A workbook source's `sheet` option names no sheet of the workbook. `details` are
+* `{ sheet, available }`: the name asked for, and every sheet's name in tab order. The file
+* itself was read fine. The caller loads again naming one of the available sheets, or leaves
+* `sheet` out to read the first.
+*/
+| "E_SHEET_NOT_FOUND"
 /**
 * A graphty project or document file (one `session.project.save` writes) was handed to a data
 * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
@@ -2557,20 +2660,75 @@ export type GraphtyErrorCode =
 * stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
 * background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
 * it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_CAPTURE_FAILED"
 /**
 * A screenshot waited for the layout to stop moving and it was still moving when the wait ran
 * out. `details.timeoutMs` is the wait. The caller captures again later, raises
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_NOT_SETTLED"
 /**
+* A load or a stage names an id space the element reserves (`graph:...`). `details.space` is
+* the space. The caller names another space. Experimental: the source-steps experiment.
+*/
+| "E_SPACE_RESERVED"
+/**
+* A key names nodes in more than one id space, so it names no one node. `details.key` is the
+* key, `details.spaces` the spaces holding it. The caller names the space, or the
+* `<space>:<key>` NodeId. Experimental: the source-steps experiment.
+*/
+| "E_AMBIGUOUS_ID"
+/**
+* Make an edge would add a staged source in the id space of the nodes it connects to, so its
+* nodes would meet them instead of being joined by edges. `details.source` and `details.space`
+* name them. The caller stages the source in another space. Experimental: the source-steps
+* experiment.
+*/
+| "E_JOIN_SPACE_SAME"
+/**
+* A merge or Make an edge reads node rows the source does not hold. `details.source` is the
+* source. Experimental: the source-steps experiment.
+*/
+| "E_STEP_NEEDS_NODES"
+/**
+* An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
+* `details.column` is the column. Experimental: the source-steps experiment.
+*/
+| "E_EDIT_ROLE_COLUMN"
+/**
+* A role setter that names no source could mean several built sources: each carries the
+* column and can carry the role. `details.sources` lists them; the caller names one with the
+* setter's `source` option. Experimental: the source-steps experiment.
+*/
+| "E_ROLE_TARGET_AMBIGUOUS"
+/**
+* A draft of the sources and steps is open (`session.data.draft()`), so a data write, an undo
+* or a redo would change what its commit replaces. `details.draft` names the draft. The caller
+* commits or discards it first. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_OPEN"
+/**
+* A draft's commit was refused because the committed sources and steps changed after the
+* draft opened: a data write already on its way when it opened landed first, and the commit
+* would have undone it. `details.draft` names the draft, which stays open. The caller discards
+* it and opens a new one. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_STALE"
+/**
+* A draft opened with `askOverlap` holds a key-overlap question nobody answered: a source it
+* added meets nodes another source's node rows built (`W_SPACE_OVERLAP`). `details.space` and
+* `details.source` name the space and the source. The caller answers it with
+* `draft.answerOverlap(source, "merge" | "separate")` and commits again. Experimental: the
+* source-steps experiment.
+*/
+| "E_OVERLAP_UNANSWERED"
+/**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
-* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+* an `AnimationCanceledError`, a `GraphtyError` with this code. Added in 3.58.0.
 */
 | "E_CANCELED" | "E_INTERNAL";
 
@@ -2579,6 +2737,11 @@ export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> =
 
 // @public
 export interface GraphtyErrorDetailsMap {
+    E_CLASH_RULE_TYPE: {
+        readonly column: string;
+        readonly rule: string;
+        readonly step?: number;
+    };
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
@@ -2596,6 +2759,11 @@ export interface GraphtyErrorDetailsMap {
         readonly limit?: number;
         readonly issue?: string;
         readonly element?: string;
+    };
+    E_SHEET_NOT_FOUND: {
+        readonly format?: string;
+        readonly sheet?: string;
+        readonly available?: readonly string[];
     };
     E_TOO_LARGE: {
         readonly limit?: number;
@@ -2678,26 +2846,103 @@ export type GraphtyWarningCode =
 | "W_UNKNOWN_KIND"
 /** No longer reported: a project open computes each saved run again over the data it holds, so no saved result can disagree with it. */
 | "W_DATA_DIFFERS"
+/**
+* A source's keys meet nodes already in the id space it would join (`params.space`,
+* `params.count` of `params.of` keys; `params.other` names the other source for an untyped
+* one). Kept in the source's own space unless the load asked `overlap: "merge"`. In a draft's
+* preview `questions`, an open question a draft opened with `askOverlap` waits on:
+* `params.source` is the source asked about and `params.sources` the sources whose node rows
+* built the nodes it meets. Experimental: the source-steps experiment.
+*/
+| "W_SPACE_OVERLAP"
+/**
+* A step went with a removed source (`params.step`, `params.reason` `"source-removed"`,
+* `params.source`). Experimental: the source-steps experiment.
+*/
+| "W_STEP_REMOVED"
+/**
+* Values from different sources differ in one column of one step (`params.step`,
+* `params.column`, `params.count` cells, `params.rule` the step's rule for the column,
+* `params.decided` cells a reader decision settles). Experimental: the source-steps experiment.
+*/
+| "W_VALUES_DIFFER"
+/**
+* A refresh or replace brought a column the source's old rows did not hold (`params.source`,
+* `params.column`). Experimental: the source-steps experiment.
+*/
+| "W_COLUMN_UNUSED"
+/**
+* The value under a reader edit moved since it was made (`params.edit`, `params.was`,
+* `params.now`, and `params.picked` for a pick). Experimental: the source-steps experiment.
+*/
+| "W_EDIT_SOURCE_CHANGED"
+/**
+* A note, a pin or a reader edit names an element a rebuild left out (`params.ref`): the
+* reference is kept and binds again when Undo brings the element back. Experimental: the
+* source-steps experiment.
+*/
+| "W_REFERENCE_UNBOUND"
+/**
+* Rows of a step name more than one element, so they join nothing (`params.step`,
+* `params.rows`). Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_FAN_OUT"
+/**
+* Rows of a step meet no element (`params.step`, `params.rows`). Reported by a draft's preview.
+* Experimental: the source-steps experiment.
+*/
+| "W_UNMATCHED"
+/**
+* Nodes of the space a merge folds into that no row reached (`params.step`, `params.nodes`).
+* Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_UNTOUCHED"
+/**
+* A step joins end pairs an earlier edge already joins (`params.step`, `params.pairs`). Reported
+* by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_PARALLEL_EDGES"
+/**
+* A step makes edges whose two ends are one node (`params.step`, `params.count`). Reported by a
+* draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_SELF_LOOPS"
+/**
+* Rows of one repeated key hold different values in a column (`params.step`, `params.column`,
+* `params.keys`). Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_ROWS_DIFFER"
+/**
+* A source's edges name nodes of its own space its node rows lack (`params.step`,
+* `params.source`, `params.nodes`); a merge leaves them unmerged. Reported by a draft's preview.
+* Experimental: the source-steps experiment.
+*/
+| "W_NODE_NAMED_ONLY"
+/**
+* Edge ends of a step found no node in a space (`params.step`, `params.space`, `params.ends`).
+* Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_EDGE_END_MISSING"
 /** A run was still computing when the project was saved, so the file does not hold it. */
 | "W_RUN_PENDING"
 /**
 * A saved filter condition this reader cannot read (an effect it does not know, or a malformed
 * condition) was skipped; the rest were read, and what the file hides was read from its
 * filter steps. `params.slice` is `"visibility"`, `params.id` the condition's id when it has one.
-* @since 3.32.0
+* Since 3.32.0.
 */
 | "W_FILTER_CONDITION_SKIPPED"
 /**
 * A project's filter conditions are of a version this reader does not know, or are not a
 * list: they were read from the file's filter steps instead. `params.slice` is `"visibility"`,
 * `params.version` the version found.
-* @since 3.32.0
+* Since 3.32.0.
 */
 | "W_FILTER_CONDITIONS_UNREADABLE"
 /**
 * A project's filter steps and the keep and exclude filter conditions it also holds disagree
 * (a tool edited only one of them): the conditions were read. `params.slice` is `"visibility"`.
-* @since 3.32.0
+* Since 3.32.0.
 */
 | "W_FILTER_STEPS_DIFFER"
 /**
@@ -2715,7 +2960,7 @@ export type GraphtyWarningCode =
 /**
 * The element's `limits` were set, or are held, while `render-path` is `"objects"`, where the
 * shipped ceilings stand: they are honored only under `"batched"`. `params.renderPath`.
-* @experimental cosmograph
+* Experimental: may change in a minor release.
 */
 | "W_LIMITS_IGNORED"
 /**
@@ -2723,7 +2968,7 @@ export type GraphtyWarningCode =
 * than `limits.objectRows` allows, on `render-path="batched"`: the rows past it are drawn as
 * plain bodies and plain lines. `params.of` is `"nodes"` or `"edges"`, `params.wanted` how
 * many asked, `params.cap` the budget.
-* @experimental cosmograph
+* Experimental: may change in a minor release.
 */
 | "W_OBJECT_CAP"
 /**
@@ -2881,12 +3126,54 @@ export type GraphtyWarningCode =
 */
 | "W_WEIGHT_MEANING_MISMATCH"
 /**
+* Under the `source-steps` experiment, a layout that reads edge weights left them unread because
+* the edges' weights do not share one meaning, or some edges' sources read no weight (design
+* 8.6): every edge counts the same. Emitted as a `layout-warning` event. `params.sources` lists
+* the sources of the edges.
+*/
+| "W_WEIGHT_MEANING_MIXED"
+/**
+* Under the `source-steps` experiment, a Source scope on a source's edges named sources that
+* supplied no edges, so it holds their nodes and the edges between them instead (design 8.6).
+* Reported in `scope.count(...).issues`. `params.nodes` is how many nodes it holds.
+*/
+| "W_SCOPE_NO_EDGES"
+/**
+* Under the `source-steps` experiment, a filter condition reads a column no element carries, so
+* it is held off and judges nothing rather than hiding every node (design 8.4). Reported in
+* `visibility.held`. `params.filter` is the condition's id and `params.column` its column.
+*/
+| "W_FILTER_HELD"
+/**
 * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
 * the `graphty-sources` member: query parameters of a URL load's address, or of a network
 * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
 * names left out. See the project file guide, "What a save leaves out".
 */
 | "W_SOURCE_URL_REDACTED"
+/**
+* A load cannot be saved as a reference: there is nothing to read it from again. It stays a
+* copy. `params.source` is the load's key and `params.reason` why (`file`, `inline`, `join`,
+* `secret-url`, `relative-url`, `no-seed`; OPEN UNION).
+*/
+| "W_SOURCE_NO_PATH"
+/**
+* A load saved as a reference could not be read again: the project opened with its rows held
+* bare in their places (node ids and edge ends, with no values; a save writes them and the
+* reference back as they were), or a save kept it as a copy. `params.source` is the load's key
+* and `params.reason` is `not-found`, `denied` or `unreadable`. On an open, `params.name` (its
+* name, when it has one) and `params.url` (its address, for a URL load) say which it was.
+* When the read threw, `params.cause` is what it threw: the error's code (a `GraphtyErrorCode`,
+* or `unknown` for an error that is not a `GraphtyError`), and `params["cause.<name>"]` each
+* plain value of its `details` (`cause.status`, `cause.url`, ...; `cause.name`, the error's
+* name, for `unknown`). Absent when nothing was thrown (`denied`, or a copy that changed).
+*/
+| "W_SOURCE_UNAVAILABLE"
+/**
+* A load saved as a reference was read again and is no longer what the project was saved
+* with: its rows hold the new values. `params.source` is the load's key.
+*/
+| "W_SOURCE_CHANGED"
 /**
 * A `graphty-sources` entry of an opened project names a network source this release has not
 * registered: its elements are there and the entry is written back, but it is not offered to
@@ -2895,7 +3182,9 @@ export type GraphtyWarningCode =
 | "W_SOURCE_UNREGISTERED"
 /**
 * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
-* data applied. `params.graph` names the graph, null for the file's one graph.
+* data applied. `params.graph` names the graph, null for the file's one graph. Under the
+* `source-steps` experiment, also when the member's sources and steps build a graph other than
+* the one the file embeds: the embedded graph applied and the sources and steps were left out.
 */
 | "W_SOURCE_STEPS_IGNORED"
 /**
@@ -3062,14 +3351,14 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "asset.defaults" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.rename" | "view.move" | "view.key" | "view.starting" | "tour.save" | "tour.remove" | "tour.rename" | "tour.move" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.steps-set" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.duplicate-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "asset.defaults" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.rename" | "view.move" | "view.key" | "view.starting" | "view.open" | "tour.save" | "tour.remove" | "tour.rename" | "tour.move" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
     readonly kind: "undone" | "redone" | "restored";
     readonly steps: readonly HistoryStep[];
 } | {
-    readonly kind: "cancelled";
+    readonly kind: "canceled";
     readonly pending: readonly PendingStep[];
 } | {
     readonly kind: "nothing";
@@ -3098,11 +3387,8 @@ export type HistoryStepId = string & {
 
 // @beta
 export interface HopsLeaf {
-    // (undocumented)
     readonly direction?: SelectionDirection;
-    // (undocumented)
     readonly kind: "hops";
-    // (undocumented)
     readonly max?: number;
     readonly of?: StepReference;
 }
@@ -3133,9 +3419,19 @@ export interface ImportColumnsInput {
 
 // @public
 export interface ImportOptions {
+    readonly callerKey?: string;
+    readonly edges?: {
+        readonly from: SourceEndOption;
+        readonly to: SourceEndOption;
+        readonly id?: string;
+    };
     readonly history?: "step" | "start";
-    readonly layout?: "recommended" | "keep";
+    readonly key?: string;
+    readonly layout?: "recommended" | "placed" | "keep";
     readonly mode?: "replace" | "merge";
+    readonly overlap?: "separate" | "merge";
+    readonly space?: SourceSpaceName;
+    readonly type?: SourceTypeName;
 }
 
 // @public
@@ -3211,7 +3507,7 @@ export type ItemKey = {
 // @public
 export interface JoinChoices {
     readonly aggregate?: Readonly<Record<string, JoinReduce | readonly JoinReduce[]>>;
-    readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
+    readonly clash?: Readonly<Record<string, JoinClashRule>>;
     readonly columns?: readonly string[];
     readonly compare?: boolean;
     readonly endKinds?: {
@@ -3235,6 +3531,9 @@ export interface JoinChoices {
     readonly unmatchedRows?: "leave-out" | "add";
     readonly via?: SourceKey;
 }
+
+// @public
+export type JoinClashRule = "keep" | "overwrite" | "both" | "min" | "max" | "mean" | "vote";
 
 // @public
 export interface JoinKey {
@@ -3353,6 +3652,7 @@ export interface JournalApi {
 // @public
 export interface JournalEntry {
     readonly at: string;
+    readonly callerKey?: string;
     readonly coalesceKey?: string;
     readonly command: SessionCommand;
     readonly durationMs: number;
@@ -3360,6 +3660,8 @@ export interface JournalEntry {
     readonly id: JournalId;
     readonly kind: "data" | "run" | "style" | "filter" | "window" | "layout" | "view" | "selection" | "config" | "note" | "set";
     readonly runId?: RunId;
+    readonly step?: HistoryStepId;
+    readonly trigger?: "suggestion" | "project" | "load";
 }
 
 // @public
@@ -3475,25 +3777,16 @@ export type LayerSource = {
 
 // @public
 export interface LayerSpec {
-    // (undocumented)
     enabled?: boolean;
-    // (undocumented)
     encode?: Encoding;
-    // (undocumented)
     kind?: LayerKind;
-    // (undocumented)
     name: string;
     row?: LayerId;
-    // (undocumented)
     selector: Selector;
-    // (undocumented)
     set?: StaticStyle;
-    // (undocumented)
     source?: LayerSource;
-    // (undocumented)
     target?: "node" | "edge";
     unmatched?: readonly LayerUnmatchedGroup[];
-    // (undocumented)
     userData?: Record<string, unknown>;
 }
 
@@ -3627,6 +3920,7 @@ export interface LegendSwatch {
 // @public
 export interface Limits {
     edgesDrawn: number;
+    fullDetailTriangleBudget: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
     objectEdges: number;
@@ -3636,7 +3930,7 @@ export interface Limits {
 }
 
 // @public
-export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges">>;
+export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges" | "fullDetailTriangleBudget">>;
 
 // @public
 export function listAutosaves(key: string, options?: AutosaveLookupOptions): Promise<readonly AutosaveEntry[]>;
@@ -3694,17 +3988,25 @@ export interface LoadDraft {
 }
 
 // @public
+export interface LoadedChoices extends LoadChoices {
+    readonly mapping?: ByTableMapping;
+}
+
+// @public
 export interface LoadedSource extends DataSourceDescriptor {
     readonly added: {
         readonly nodes: number;
         readonly edges: number;
     };
-    readonly choices?: LoadChoices;
+    readonly choices?: LoadedChoices;
+    readonly copy?: "reference";
     readonly counts: {
         readonly nodes: number;
         readonly edges: number;
     };
+    readonly delimiter?: DraftTable["delimiter"];
     readonly features?: SourceFeatures;
+    readonly issues?: readonly SourceSpaceOverlap[];
     readonly join?: JoinRecord;
     readonly joinedOnto?: SourceKey;
     readonly key: SourceKey;
@@ -3721,7 +4023,11 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly loadedAt?: string;
     readonly loadKey?: string;
     readonly mapping?: LoadMappingRead;
+    readonly named?: number;
     readonly reloadable?: true;
+    readonly rowsLeftOut?: Readonly<Partial<Record<"left-out:empty-key" | "left-out:empty-end" | "left-out:unmatched" | "left-out:fan-out" | "left-out:no-step", number>>>;
+    readonly sameName?: SourceKey;
+    readonly state?: SourceBuildState;
     readonly tableRows?: readonly ("nodes" | "edges")[];
     readonly tables: readonly string[];
     readonly total?: number;
@@ -3736,6 +4042,10 @@ export type LoadedSourceKind = "file" | "url" | "server" | "sample" | "join";
 export interface LoadedWeight {
     readonly attribute: string;
     readonly meaning: WeightMeaning["meaning"] | null;
+    // @beta
+    readonly mixed?: {
+        readonly sources: readonly string[];
+    };
 }
 
 // @public
@@ -3749,9 +4059,7 @@ export interface LoadError {
 export { LoadFromSourceOptions }
 
 // @public
-export type LoadMapping = TableMapping | {
-    readonly tables: Readonly<Record<string, TableMapping>>;
-};
+export type LoadMapping = ByTableMapping | SideMapping;
 
 // @public
 export interface LoadMappingRead {
@@ -3855,12 +4163,9 @@ export interface MarkSuggestion {
 // @beta
 export interface MeasureLeaf {
     readonly algorithm: string;
-    // (undocumented)
     readonly bind?: Readonly<Record<string, StepReference>>;
     readonly field: string;
-    // (undocumented)
     readonly kind: "measure";
-    // (undocumented)
     readonly params?: Readonly<Record<string, unknown>>;
     readonly scope?: Scope;
     readonly test?: MeasureTest;
@@ -4061,7 +4366,7 @@ export interface NetworkRequest {
 export type NetworkRequestAsker = "file" | "ai" | "data" | "source" | "supplied";
 
 // @public
-export type NetworkRequestKind = "model" | "texture" | "source";
+export type NetworkRequestKind = "model" | "texture" | "source" | "data";
 
 // @public
 export function newCondition<F extends ConditionField>(field: F): Exclude<Condition<F>, {
@@ -4104,7 +4409,6 @@ export interface NodeSource {
 
 // @beta
 export interface NonemptyLeaf {
-    // (undocumented)
     readonly kind: "nonempty";
     readonly of?: StepReference;
 }
@@ -4372,7 +4676,10 @@ export type PartAnswer =
     readonly name: string;
     readonly use: string;
 }
-/** Draw without this part. Pictures and `.mtl` files only; never a `.bin` or other geometry. */
+/**
+* Draw without this part, missing or ambiguous. Pictures and `.mtl` files only; never a `.bin`
+* or other geometry.
+*/
 | {
     readonly name: string;
     readonly skip: true;
@@ -4387,6 +4694,7 @@ export type PartialCode = "partial.iteration-cap" | "partial.time-box" | "partia
 
 // @public
 export interface PartitionComparison extends ComparisonBase {
+    readonly adjustedMutualInformation: number | undefined;
     readonly agreement: number | undefined;
     readonly groups: {
         readonly a: number;
@@ -4502,6 +4810,9 @@ export type PlanEffect = {
 };
 
 // @public
+export type PositionAxis = "x" | "y" | "z";
+
+// @public
 export interface PositionEntry {
     readonly id: NodeId_2;
     readonly x: number;
@@ -4531,6 +4842,12 @@ export type PreparedBackgroundImage = {
     readonly ok: false;
     readonly problem: BackgroundImageProblem;
 };
+
+// @public
+export interface PreparePageControl {
+    readonly onProgress?: (fraction: number) => void;
+    readonly signal?: AbortSignal;
+}
 
 // @public
 export type PreviewDefaultedPart = "palette" | "scale" | "domain" | "range";
@@ -4569,7 +4886,7 @@ export interface ProgressChange {
         readonly details: Readonly<Record<string, unknown>>;
     };
     readonly fraction: number | null;
-    readonly outcome?: "succeeded" | "failed" | "cancelled";
+    readonly outcome?: "succeeded" | "failed" | "canceled";
     readonly phase: "progress" | "end";
     readonly run?: RunId;
     readonly source?: {
@@ -4590,8 +4907,12 @@ export const PROJECT_FILE: Readonly<{
 // @public
 export interface ProjectApi {
     assetChoices(): ProjectAssetChoice[];
+    // @beta
+    describe(options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths" | "handles" | "location">): Promise<ProjectSaveFacts>;
     readonly dirty: boolean;
     readonly id: string;
+    // @beta
+    inspect(source: ProjectSource, options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode" | "columns">): Promise<ProjectFileFacts | undefined>;
     markSaved(saved: SavedProject): void;
     readonly name: string | null;
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
@@ -4665,13 +4986,72 @@ export interface ProjectConfigPatch {
     readonly viewRotation?: number;
 }
 
+// @beta
+export interface ProjectFileFacts {
+    readonly form: "full" | "section";
+    readonly name: string | null;
+    readonly problems: readonly ProjectProblem[];
+    readonly runs: readonly ProjectFileRun[];
+    readonly sections: readonly ProjectFileSection[];
+    readonly sources: readonly ProjectFileSource[];
+}
+
+// @beta
+export interface ProjectFileHandle {
+    getFile(): Promise<Blob>;
+    readonly name: string;
+    queryPermission?(descriptor: {
+        mode: "read";
+    }): Promise<"granted" | "denied" | "prompt">;
+    requestPermission?(descriptor: {
+        mode: "read";
+    }): Promise<"granted" | "denied" | "prompt">;
+}
+
 // @public
-export function projectFileName(name: string | null | undefined): string;
+export function projectFileName(name: string | null | undefined, options?: {
+    readonly section?: DocumentSection;
+}): string;
+
+// @beta
+export interface ProjectFileRun {
+    readonly algorithm?: string;
+    readonly id: string;
+    readonly name?: string;
+    readonly replayable: boolean;
+    readonly restorable: boolean;
+}
+
+// @beta
+export interface ProjectFileSection extends DocumentSectionFacts {
+    readonly about: DocumentSectionAbout;
+    readonly binding?: SectionBinding;
+    readonly binds?: DocumentBindFacts;
+    readonly needs: readonly DocumentSectionNeed[];
+    readonly version: number | null;
+}
+
+// @beta
+export interface ProjectFileSource {
+    readonly id: string;
+    readonly kind: ProjectSourceKind;
+    readonly name: string;
+    readonly path?: string;
+    readonly storage: SourceStorage;
+    readonly url?: string;
+}
 
 // @public
 export interface ProjectOpenOptions {
     // @beta
+    readonly applyRecipe?: boolean;
+    // @beta
     readonly bindOtherData?: boolean;
+    // @beta
+    readonly columns?: {
+        readonly node?: Readonly<Record<string, string>>;
+        readonly edge?: Readonly<Record<string, string>>;
+    };
     // @beta
     readonly dataMode?: "replace" | "add";
     readonly discard?: boolean;
@@ -4697,6 +5077,8 @@ export interface ProjectOpenOptions {
     // @beta
     readonly rerun?: boolean;
     // @beta
+    readonly runs?: Readonly<Record<string, boolean>>;
+    // @beta
     readonly sections?: readonly DocumentSection[];
     // @beta
     readonly signal?: AbortSignal;
@@ -4715,6 +5097,13 @@ export interface ProjectOpenReport {
 // @public
 export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved">;
 
+// @beta
+export interface ProjectSaveFacts {
+    readonly project: boolean;
+    readonly sections: readonly ProjectSaveSection[];
+    readonly sources: readonly ProjectSourceChoice[];
+}
+
 // @public
 export interface ProjectSaveOptions {
     readonly assets?: Readonly<Record<string, AssetStorage>>;
@@ -4725,12 +5114,18 @@ export interface ProjectSaveOptions {
     readonly form?: "full" | "section";
     // @beta
     readonly format?: 1 | 2;
+    // @beta
+    readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
+    // @beta
+    readonly location?: string;
     readonly markSaved?: boolean;
     // @beta
     readonly paths?: Readonly<Record<string, string>>;
     // @beta
     readonly results?: boolean;
+    // @beta
+    readonly rewriteRecipe?: boolean;
     // @beta
     readonly sections?: readonly DocumentSection[];
 }
@@ -4740,6 +5135,12 @@ export interface ProjectSaveReport {
     readonly bytes: number;
     readonly leftOut: readonly ProjectProblem[];
     readonly written: readonly string[];
+}
+
+// @beta
+export interface ProjectSaveSection extends DocumentSectionFacts {
+    readonly required: boolean;
+    readonly saved: boolean;
 }
 
 // @public
@@ -4758,6 +5159,24 @@ export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement
 
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
+
+// @beta
+export interface ProjectSourceChoice {
+    readonly edges: number;
+    readonly format?: string;
+    readonly id: string;
+    readonly key?: string;
+    readonly kind: ProjectSourceKind;
+    readonly name: string;
+    readonly nodes: number;
+    readonly operations?: number;
+    readonly referable: boolean;
+    readonly refused?: CodedFact<DocumentCode>;
+    readonly storage: SourceStorage;
+}
+
+// @beta
+export type ProjectSourceKind = "file" | "url" | "network" | "sample" | "derived" | "reader";
 
 // @public
 export interface ProjectStatus {
@@ -4779,7 +5198,6 @@ export interface QueryValidation {
         position: number;
         params: Readonly<Record<string, unknown>>;
     };
-    // (undocumented)
     ok: boolean;
     unresolvedPaths: readonly {
         path: Path;
@@ -4864,6 +5282,25 @@ export interface ReadableValue {
 export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
 
 // @public
+export interface ReaderEditRow {
+    readonly column?: string;
+    readonly id: string;
+    readonly now?: SourceValue | null;
+    readonly op: "add" | "add-edge" | "remove" | "edit";
+    readonly picked?: SourceKey;
+    readonly state?: "applies" | "lost" | "source-changed";
+    readonly target: {
+        readonly space: SourceSpaceName;
+        readonly key: string;
+    } | {
+        readonly load: SourceKey;
+        readonly key: string;
+    };
+    readonly value?: SourceCellValue;
+    readonly was?: SourceValue | null;
+}
+
+// @public
 export type ReadingCode = "reading.metric" | "reading.metric-empty" | "reading.groups" | "reading.groups-empty" | "reading.path" | "reading.path-none" | "reading.set" | "reading.pairs" | "reading.series" | "reading.coverage";
 
 // @public
@@ -4932,6 +5369,12 @@ export interface RecipeJoin {
 
 // @public
 export type RecipeLeftOutCode = "names-elements";
+
+// @beta
+export interface RecipesApi {
+    apply(recipe: ProjectSource): Promise<ProjectOpenReport>;
+    export(): Promise<SavedProject>;
+}
 
 // @public
 export interface RecipeSource {
@@ -5011,6 +5454,7 @@ export function removeAutosave(key: string, id: string, options?: AutosaveLookup
 // @public
 export interface RemoveSourceResult {
     readonly alsoRemoved: readonly SourceKey[];
+    readonly issues?: readonly SourceRefreshIssue[];
     readonly kept: {
         readonly nodes: number;
         readonly edges: number;
@@ -5023,6 +5467,9 @@ export interface RemoveSourceResult {
 
 // @public
 export function renamePaths(where: Query, rename: (path: Path) => Query | undefined): Query;
+
+// @public
+export function renameRunPaths(where: Query, rename: (run: string) => string | undefined): Query;
 
 // @public
 export interface RenderQuality {
@@ -5069,6 +5516,7 @@ export interface ReplaceCounts {
 // @public
 export interface ReplaceReport {
     readonly edges: ReplaceCounts;
+    readonly issues?: readonly SourceRefreshIssue[];
     readonly nodes: ReplaceCounts;
     readonly unbound: readonly CodedFact<ReplaceUnboundCode>[];
 }
@@ -5488,7 +5936,7 @@ export function ruleValuePath(rule: RuleTree): Path | undefined;
 export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly algorithm: AlgorithmKey;
     cancel(reason?: string): void;
-    readonly cancellable: boolean;
+    readonly cancelable: boolean;
     readonly caveats: Caveats;
     readonly determinate: boolean;
     readonly distinguishedBy: RunDistinction | null;
@@ -5529,6 +5977,7 @@ export interface RunChange {
     readonly generation: number;
     readonly phase: RunPhase;
     readonly run: RunRecord;
+    readonly trigger?: "time-window" | "project";
 }
 
 // @public
@@ -5716,6 +6165,7 @@ export interface RunsApi {
     readers(id: RunId): readonly RunReader[];
     remove(id: RunId): RunRemoval;
     rename(id: RunId, name: string | null): Promise<void>;
+    stability(algorithm: AlgorithmKey, seeds: readonly number[], options?: StabilityOptions): Run<StabilityResult>;
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
     sweep(algorithm: AlgorithmKey, option: OptionDescriptor["name"], values: readonly unknown[], options?: SweepOptions): Run<SweepResult>;
 }
@@ -5780,7 +6230,6 @@ export interface RunWindow {
 // @beta
 export interface SameValueLeaf {
     readonly as?: StepReference;
-    // (undocumented)
     readonly kind: "same-value";
     readonly path: Path;
 }
@@ -5809,9 +6258,27 @@ export interface SavedTour {
 // @public
 export interface SavedView {
     readonly camera?: CameraState;
+    readonly filters?: readonly FilterCondition[];
     readonly follows?: string;
+    readonly hidden?: readonly NodeId_2[];
     readonly key?: string;
+    readonly layers?: StyleDocument;
+    readonly legend?: boolean;
+    readonly positions?: {
+        readonly order: readonly NodeId_2[];
+        readonly xyz: readonly number[];
+    };
 }
+
+// @public
+export interface SavedViewInput extends Omit<SavedView, "key"> {
+    readonly include?: readonly SavedViewPart[];
+    readonly key?: string | null;
+    readonly name: string;
+}
+
+// @public
+export type SavedViewPart = "filters" | "layers" | "hidden" | "positions" | "legend";
 
 // @public
 export type Scope = "visible" | "graph" | "selection" | "largest-component" | {
@@ -5865,6 +6332,7 @@ export interface ScopeApi {
 export interface ScopeCount {
     readonly edges: number;
     readonly exact: boolean;
+    readonly issues?: readonly CodedFact<"W_SCOPE_NO_EDGES">[];
     readonly missingEdges?: number;
     readonly missingNodes?: number;
     readonly nodes: number;
@@ -5892,6 +6360,14 @@ export type ScopeInput = Exclude<Scope, {
     define: unknown;
 }> | {
     define: SetDefinitionInput;
+}
+/**
+* Under the `source-steps` experiment: the nodes whose one type (`graphty.type`) is listed and
+* the edges between them. Read back as its canonical `{ where }` on `graphty.type`.
+* Experimental: may change or be removed in a minor release.
+*/
+| {
+    types: readonly string[];
 };
 
 // @beta
@@ -5916,7 +6392,6 @@ export interface ScreenshotPreset {
     readonly enhanceQuality?: boolean;
     readonly format: "png" | "jpeg" | "webp";
     readonly height?: number;
-    // (undocumented)
     readonly id: ScreenshotPresetId;
     readonly multiplier?: number;
     readonly quality?: number;
@@ -5926,6 +6401,9 @@ export interface ScreenshotPreset {
 
 // @public
 export type ScreenshotPresetId = "print" | "web-share" | "thumbnail" | "documentation";
+
+// @beta
+export type SectionBinding = "loads" | "held" | "other-data";
 
 // @public
 export interface SelectionApi {
@@ -6010,6 +6488,7 @@ export interface SelectionDelta {
     readonly truncated: boolean;
     readonly unmatched?: readonly string[];
     readonly unresolvedPaths: readonly Path[];
+    readonly via?: "click" | "box" | "keys";
 }
 
 // @public
@@ -6144,6 +6623,9 @@ export type SelectionTarget = ElementIdTarget | NeighborhoodTarget
 export type SelectionTextMode = TextMatchMode | "attribute";
 
 // @public
+export type SelectionVia = NonNullable<SelectionDelta["via"]>;
+
+// @public
 export type Selector = {
     match: "expression";
     where: Query;
@@ -6225,6 +6707,21 @@ export type Selector = {
     reach?: "node" | "neighbors";
     invert?: boolean;
     orSelected?: boolean;
+}
+/**
+* The elements of some types, under the `source-steps` experiment: those whose one type
+* (the readable path `graphty.type`) is listed, such as the accounts of a graph of accounts and
+* merchants. Refused with `E_FEATURE_OFF` while the experiment is off.
+*
+* ```ts
+* session.styles.add({ name: "Accounts", target: "node",
+*     selector: { match: "type", types: ["account"] }, set: { "node.color": "#4c6ef5" } });
+* ```
+* Experimental: may change or be removed in a minor release.
+*/
+| {
+    match: "type";
+    types: readonly string[];
 };
 
 // @public
@@ -6258,7 +6755,7 @@ export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr" | "ca
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | AssetCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | TourCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | DataStepsSetCommand | StyleCommand | ShaderCommand | AssetCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | TourCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -6273,22 +6770,32 @@ export interface SessionConfig extends ProjectConfig {
 
 // @public
 export interface SessionDataApi {
+    add(source: SourceKey, options?: {
+        readonly overlap?: "separate" | "merge";
+    }): Promise<void>;
     addEdges(records: readonly EdgeRecordInput[]): Promise<void>;
     addNodes(records: readonly NodeRecordInput[]): Promise<void>;
-    attributes(): readonly AttributeDescriptor[];
+    attributes(options?: SourceElementsFilter): readonly AttributeDescriptor[];
+    cell(ref: SourceElementRef, column: string): SourceCellState | null;
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     clear(): Promise<void>;
     collapse(id: NodeId_2): Promise<CollapseResult>;
+    conflicts(query?: SourceConflictQuery): readonly SourceConflict[];
+    connect(options: SourceConnectOptions): Promise<number>;
+    copies(): readonly SourceCopy[];
     count(options?: {
         readonly scope?: "graph" | "visible";
-    }): {
+    } & SourceElementsFilter): {
         readonly nodes: number;
         readonly edges: number;
     };
+    currentDraft(): SourceDraft | null;
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
+    declareType(entry: SourceTypeEntry): Promise<void>;
     derive(name: string, expression: Query, options?: DeriveOptions): Promise<void>;
     derivedColumns(): readonly DerivedColumn[];
     deriveScore(name: string, terms: readonly ScoreTerm[], options?: DeriveOptions): Promise<void>;
+    draft(options?: SourceDraftOptions): SourceDraft;
     edge(id: EdgeId): EdgeRecord | undefined;
     edgeName(edge: {
         readonly source: NodeId_2;
@@ -6306,7 +6813,9 @@ export interface SessionDataApi {
     }): readonly EdgeRecord[];
     editJoin(source: SourceKey, choices: JoinChoices): Promise<void>;
     editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport;
+    edits(): readonly ReaderEditRow[];
     expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<SourceExpandResult>;
+    extract(source: SourceKey, options: SourceExtractOptions): Promise<number>;
     fingerprint(): string;
     fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
@@ -6314,7 +6823,7 @@ export interface SessionDataApi {
     hiddenColumns(): readonly ColumnRef[];
     histogram(column: ColumnRef, options?: HistogramOptions & {
         readonly scope?: "graph" | "visible";
-    }): ColumnHistogram;
+    } & SourceElementsFilter): ColumnHistogram;
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     ignoreIssues(issues: readonly (IssueId | Pick<DataIssue, "id">)[], ignored?: boolean): Promise<void>;
     import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
@@ -6326,17 +6835,24 @@ export interface SessionDataApi {
     }): readonly DataIssue[];
     joins(): readonly JoinRecord[];
     lastImport(): LoadReport | null;
+    lineage(ref: SourceElementRef): SourceLineage | null;
     listSource(source: SourceInput, query?: Omit<SourceListQuery<Record<string, unknown>>, "params">, options?: SourceLoadOptions): Promise<SourceListing>;
     loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
     loadedWeight(): LoadedWeight | null;
     loadExample(source: string, example: string, options?: LoadChoices & SourceLoadOptions): Promise<void>;
     loads(): readonly SourceLoadRecord[];
+    matchCounts(pair: SourceMatchPair, options?: SourceMatchOptions): SourceMatchCounts;
     matchesSource(source: DataSourceInput): Promise<SourceKey | null>;
+    matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
+    merge(options: SourceMergeOptions): Promise<void>;
     mergeNodes(ids: readonly NodeId_2[], options?: MergeNodesOptions): Promise<void>;
     more(options?: SourceMoreOptions): Promise<void>;
+    moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): Promise<void>;
     name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
-    node(id: NodeId_2): NodeRecord | undefined;
+    node(id: NodeId_2, options?: {
+        readonly space?: string;
+    }): NodeRecord | undefined;
     nodeName(id: NodeId_2): NodeName;
     nodePage(options: RecordPageOptions & {
         readonly columns: readonly ResultColumn[];
@@ -6344,63 +6860,91 @@ export interface SessionDataApi {
         readonly columns: readonly PageColumn[];
     };
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
+    nodeRef(id: NodeId_2): SourceNodeRef | null;
     nodes(options?: {
         readonly scope?: "graph" | "visible";
     }): readonly NodeRecord[];
     nodeSource(id: NodeId_2): NodeSource | null;
     overRepresented(groupBy: Path, options?: OverRepresentedOptions): OverRepresentedValues;
     pendingSourceLoads(): readonly PendingSourceLoad[];
+    pick(ref: SourceElementRef, column: string, source: SourceKey): Promise<void>;
     prepare(source: DataSourceInput, options?: {
         readonly signal?: AbortSignal;
         readonly onto?: "graph";
         readonly guess?: "names" | "values";
         readonly onProgress?: (change: ProgressChange) => void;
     }): Promise<LoadDraft>;
+    preparePage(kind: "node" | "edge", options?: EdgePageOptions, control?: PreparePageControl): Promise<void>;
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;
+    profile(options: {
+        readonly space: SourceSpaceName;
+    }): SourceColumnProfile;
     readableValues(): readonly ReadableValue[];
     readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
+    ref(key: string, options?: {
+        readonly space?: string;
+    }): SourceNodeRef | null;
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
     remap(options: RemapOptions): Promise<ReplaceReport>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
+    removeEdit(id: string): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
     removeSource(key: SourceKey): Promise<RemoveSourceResult>;
-    renameColumn(column: ColumnRef, name: string): Promise<void>;
+    removeStep(index: number): Promise<void>;
+    renameColumn(column: ColumnRef, name: string, options?: {
+        readonly source?: SourceKey;
+    }): Promise<void>;
     renameSource(name: string, key?: SourceKey): Promise<void>;
     replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices & SourceLoadOptions): Promise<ReplaceReport>;
+    resolveStep(index: number, resolution: SourceStepResolution): Promise<void>;
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
     roleCandidate(kind: "node" | "edge", role: ColumnRole): string | null;
     runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
+    setCopy(source: SourceKey, copy: SourceCopyChoice): SourceCopy;
     setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void>;
-    setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
+    setMapping(source: SourceKey, patch: SourceMappingPatch): Promise<void>;
+    setRole(column: ColumnRef, role: ColumnRole | null, options?: SourceRoleOptions): Promise<void>;
+    setStepOff(index: number, off: boolean): Promise<void>;
+    settleEdit(id: string, choice: SourceEditChoice): Promise<void>;
     setType(column: ColumnRef, type: ValueType): Promise<void>;
     setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void>;
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
     sourceInput(key: SourceKey): DataSourceInput | undefined;
-    sources(): readonly LoadedSource[];
+    sources(options?: {
+        readonly staged?: boolean;
+    }): readonly LoadedSource[];
     sourceSettings(key: SourceKey): SourceSettings | undefined;
     sourcesOf(id: NodeId_2 | EdgeId, options?: {
         readonly kind?: "node" | "edge";
     }): readonly SourceKey[];
+    sourceTable(source: SourceKey): SourceTable;
+    spaces(): readonly SourceSpaceRow[];
+    stage(source: DataSourceInput, options?: StageOptions): Promise<string>;
+    staged(): readonly LoadedSource[];
     statistics(options?: {
         readonly scope?: "all" | "visible";
-    }): GraphStatistics;
+    } & SourceElementsFilter): GraphStatistics;
+    steps(): readonly SourceStepRow[];
     readonly store: SessionGraphStore;
     structureValue(id: NodeId_2, path: Path, options?: {
         readonly scope?: "graph" | "visible";
     }): number | undefined;
     structureValues(): readonly StructureValue[];
     testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
+    types(): readonly SourceTypeEntry[];
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
     updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void>;
     updateNodes(rows: readonly RowUpdate<NodeId_2>[]): Promise<void>;
+    use(ref: SourceElementRef, column: string, source: SourceKey): Promise<void>;
     valueCounts(path: Path, options?: {
         readonly kind?: "node" | "edge";
         readonly scope?: "graph" | "visible";
-    }): ValueCounts;
+    } & SourceElementsFilter): ValueCounts;
     valueLabels(path: Path): ReadonlyMap<string, string>;
+    values(ref: SourceElementRef, column: string): SourceCellValues | null;
 }
 
 // @public
@@ -6408,6 +6952,9 @@ export type SessionDataConfig = Readonly<z.output<typeof DataConfig>>;
 
 // @public
 export interface SessionEventMap {
+    "camera:gesture-end": {
+        readonly kind: CameraGestureKind;
+    };
     "canvas:element-click": {
         readonly node: NodeId_2;
     } | {
@@ -6423,6 +6970,7 @@ export interface SessionEventMap {
         readonly capabilities: SessionCapabilities;
     };
     "data:changed": DataChange;
+    "data:draft-changed": SourceDraftChange;
     "history:changed": {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
     };
@@ -6472,9 +7020,14 @@ export interface SessionEventMap {
     "shader:status": {
         readonly id: string;
     } & ShaderStatus;
+    "source:copy": {
+        readonly source: SourceKey;
+        readonly copy: SourceCopyChoice;
+    };
     "source:expand-failed": SourceExpandFailed;
     "source:expand-start": SourceExpandStart;
     "source:expanded": SourceExpanded;
+    "source:loaded": SourceLoaded;
     "source:refreshed": {
         readonly load: string;
     };
@@ -6522,6 +7075,27 @@ export interface SessionEventMap {
     "visibility:not-drawn-changed": {
         readonly notDrawn: readonly HiddenNotDrawn[];
     };
+}
+
+// @public
+export interface SessionGraph {
+    readonly current: boolean;
+    readonly id: string;
+    readonly name: string | null;
+}
+
+// @public
+export interface SessionGraphCreateOptions {
+    readonly from?: ScopeInput;
+    readonly name?: string | null;
+}
+
+// @public
+export interface SessionGraphs {
+    create(options?: SessionGraphCreateOptions): Promise<SessionGraph>;
+    readonly currentId: string;
+    list(): readonly SessionGraph[];
+    switch(id: string): Promise<void>;
 }
 
 // @public
@@ -6574,6 +7148,7 @@ export interface SessionLayout {
     readonly options: Readonly<Record<string, unknown>>;
     pause(): Promise<void>;
     play(): Promise<void>;
+    readonly provenance: EngineVersions;
     rerun(): Promise<void>;
     set(id: LayoutId, options?: {
         readonly engine?: string;
@@ -6677,14 +7252,12 @@ export interface SessionTours extends ReadonlyMap<string, Tour> {
 // @public
 export interface SessionViews extends ReadonlyMap<string, SavedView> {
     move(name: string, index: number): Promise<void>;
+    open(name: string, options?: {
+        readonly animate?: boolean;
+    }): Promise<void>;
     remove(names: readonly string[]): Promise<void>;
     rename(from: string, to: string): Promise<void>;
-    save(views: readonly {
-        readonly name: string;
-        readonly camera?: CameraState;
-        readonly follows?: string;
-        readonly key?: string | null;
-    }[]): Promise<void>;
+    save(views: readonly SavedViewInput[]): Promise<void>;
     setKey(name: string, key: string | null): Promise<void>;
     setStartingCameras(list: readonly StartingCamera[] | null): Promise<void>;
 }
@@ -6980,6 +7553,12 @@ export interface ShaderUse {
 }
 
 // @public
+export interface SideMapping {
+    readonly edges?: TableMapping;
+    readonly nodes?: TableMapping;
+}
+
+// @public
 export const SOURCE_ATTR: Readonly<{
     loads: "_source.loads";
     expansion: "_source.expansion";
@@ -7006,8 +7585,39 @@ export const SOURCE_RECORD_MEMBER = "graphty-sources";
 export const SOURCE_RECORD_VERSION = 1;
 
 // @public
+export type SourceBuildState = "staged" | "built" | "off" | "held";
+
+// @public
 export interface SourceCatalogEntry extends SourceInfo {
     readonly features: SourceFeatures;
+}
+
+// @public
+export type SourceCellState = {
+    readonly state: "value";
+    readonly value: SourceValue;
+    readonly edited?: true;
+} | {
+    readonly state: "empty";
+} | {
+    readonly state: "not-carried";
+};
+
+// @public
+export type SourceCellValue = string | number | boolean | null;
+
+// @public
+export interface SourceCellValues {
+    readonly disagree: boolean;
+    readonly list: readonly {
+        readonly source: SourceKey;
+        readonly value: SourceValue;
+        readonly step?: number;
+        readonly row?: number;
+        readonly from?: SourceNodeRef["key"];
+    }[];
+    readonly origin: SourceKey | null;
+    readonly shown: SourceValue | null;
 }
 
 // @public
@@ -7015,7 +7625,79 @@ export interface SourceCheck {
     readonly changed: boolean | null;
 }
 
+// @public
+export type SourceClashRule = "keep" | "overwrite" | "both" | "min" | "max" | "mean" | "vote";
+
+// @public
+export interface SourceClearPicksOptions {
+    readonly column: string;
+    readonly refs?: readonly SourceElementRef[];
+}
+
+// @public
+export interface SourceColumnProfile {
+    readonly distinct: number;
+    readonly empty: number;
+    readonly kind: SourceProfileKind;
+    readonly repeated: {
+        readonly keys: number;
+        readonly rows: number;
+    };
+    readonly rows: number;
+    readonly samples: readonly SourceCellValue[];
+    readonly valid: number;
+}
+
+// @public
+export interface SourceConflict {
+    readonly by: SourceClashRule | "reader";
+    readonly column: string;
+    readonly ref: SourceElementRef;
+    readonly rule: SourceClashRule;
+    readonly shown: SourceValue | null;
+    readonly step: number;
+    readonly steps: readonly number[];
+    readonly values: readonly {
+        readonly source: SourceKey;
+        readonly value: SourceValue;
+    }[];
+}
+
+// @public
+export interface SourceConflictQuery {
+    readonly column?: string;
+    readonly only?: "open" | "decided";
+    readonly source?: SourceKey;
+    readonly step?: number;
+}
+
+// @public
+export interface SourceConnectOptions {
+    readonly direction?: "into-from" | "from-into";
+    readonly edgeType?: SourceTypeName;
+    readonly from: SourceField;
+    readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
+    readonly into: SourceJoinInto;
+}
+
 export { SourceContext }
+
+// @public
+export interface SourceCopy {
+    readonly copy: SourceCopyChoice;
+    readonly refused?: {
+        readonly code: "W_SOURCE_NO_PATH";
+        readonly params: {
+            readonly source: SourceKey;
+            readonly reason: SourceNoPathReason;
+        };
+    };
+    readonly source: SourceKey;
+}
+
+// @public
+export type SourceCopyChoice = "copy" | "reference";
 
 // @public
 export interface SourceCounts {
@@ -7037,7 +7719,301 @@ export { SourceCursor }
 
 export { SourceDescriptor }
 
+// @public
+export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "matchValues" | "sourceTable" | "profile"> {
+    add(source: SourceKey, options?: {
+        readonly overlap?: "separate" | "merge";
+    }): void;
+    answerOverlap(source: SourceKey, answer: "merge" | "separate"): void;
+    clearPicks(options: SourceClearPicksOptions): number;
+    commit(): Promise<void>;
+    connect(options: SourceConnectOptions): number;
+    declareType(entry: SourceTypeEntry): void;
+    display(on: boolean): Promise<void>;
+    readonly displayed: boolean;
+    dispose(): void;
+    edits(): readonly ReaderEditRow[];
+    editStep(index: number, patch: SourceStepPatch): void;
+    exclude(step: number, keys: readonly SourceCellValue[], options?: {
+        readonly column?: string;
+    }): void;
+    extract(source: SourceKey, options: SourceExtractOptions): number;
+    readonly id: string;
+    import(source: DataSourceInput, options?: ImportOptions & {
+        readonly overlap?: "separate" | "merge";
+    }): Promise<string>;
+    include(step: number, keys: readonly SourceCellValue[]): void;
+    merge(options: SourceMergeOptions): void;
+    moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): void;
+    moveStep(index: number, to: number): void;
+    readonly open: boolean;
+    pick(ref: SourceElementRef, column: string, source: SourceKey): void;
+    pickAll(options: SourcePickAllOptions): number;
+    preview(): SourceDraftPreview;
+    removeEdit(id: string): void;
+    removeSource(source: SourceKey): void;
+    removeStep(index: number): void;
+    renameColumn(column: ColumnRef, name: string, options: {
+        readonly source: SourceKey;
+    }): void;
+    setMapping(source: SourceKey, patch: SourceMappingPatch): void;
+    show(side: "before" | "after"): Promise<void>;
+    readonly side: "before" | "after";
+    stage(source: DataSourceInput, options?: StageOptions): Promise<string>;
+    steps(): readonly SourceStepRow[];
+    types(): readonly SourceTypeEntry[];
+    undo(): boolean;
+    use(ref: SourceElementRef, column: string, source: SourceKey): void;
+}
+
+// @public
+export type SourceDraftBucket = keyof SourceStepCountsChange;
+
+// @public
+export interface SourceDraftCell extends SourceConflict {
+    readonly decided: boolean;
+}
+
+// @public
+export interface SourceDraftCells {
+    readonly cells: readonly SourceDraftCell[];
+    readonly total: number;
+}
+
+// @public
+export interface SourceDraftCellsQuery {
+    readonly column: string;
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly only?: "all" | "open" | "decided";
+    readonly step?: number;
+}
+
+// @public
+export interface SourceDraftChange {
+    readonly draft: string;
+    readonly reason: "opened" | "changed" | "committed" | "discarded" | "displayed";
+}
+
+// @public
+export interface SourceDraftElementsQuery {
+    readonly bucket: SourceDraftBucket;
+    readonly name?: string;
+    readonly step: number;
+}
+
+// @public
+export interface SourceDraftOptions {
+    readonly askOverlap?: boolean;
+}
+
+// @public
+export interface SourceDraftPreview {
+    readonly after: SourceDraftPreviewTotals;
+    readonly before: SourceDraftPreviewTotals;
+    cells(query: SourceDraftCellsQuery): SourceDraftCells;
+    readonly draft: string;
+    readonly edges: SourceDraftPreviewChanges;
+    readonly edits: readonly ReaderEditRow[];
+    elements(query: SourceDraftElementsQuery): readonly SourceElementRef[];
+    readonly issues: readonly SourceDraftPreviewIssue[];
+    readonly nodes: SourceDraftPreviewChanges;
+    readonly questions: readonly SourceOverlapQuestion[];
+    rows(query: SourceDraftRowsQuery): SourceDraftRows;
+    readonly sources: readonly SourceDraftPreviewSource[];
+    readonly steps: readonly SourceDraftPreviewStep[];
+}
+
+// @public
+export interface SourceDraftPreviewChanges {
+    readonly added: number;
+    readonly changed: number;
+    readonly removed: number;
+}
+
+// @public
+export type SourceDraftPreviewIssue = {
+    readonly code: "W_STEP_REMOVED";
+    readonly params: {
+        readonly step: number;
+        readonly reason: "source-removed" | "step-removed" | "source-held";
+        readonly source: SourceKey;
+    };
+} | {
+    readonly code: "W_REFERENCE_UNBOUND";
+    readonly params: {
+        readonly ref: SourceElementRef;
+    };
+} | {
+    readonly code: "W_FILTER_HELD";
+    readonly params: {
+        readonly filter: string;
+        readonly column: Path;
+    };
+} | Extract<SourceRefreshIssue, {
+    readonly code: "W_EDIT_SOURCE_CHANGED";
+}> | SourceValuesDiffer | {
+    readonly code: "W_FAN_OUT";
+    readonly params: {
+        readonly step: number;
+        readonly rows: number;
+    };
+} | {
+    readonly code: "W_UNMATCHED";
+    readonly params: {
+        readonly step: number;
+        readonly rows: number;
+    };
+} | {
+    readonly code: "W_UNTOUCHED";
+    readonly params: {
+        readonly step: number;
+        readonly nodes: number;
+    };
+} | {
+    readonly code: "W_PARALLEL_EDGES";
+    readonly params: {
+        readonly step: number;
+        readonly pairs: number;
+    };
+} | {
+    readonly code: "W_SELF_LOOPS";
+    readonly params: {
+        readonly step: number;
+        readonly count: number;
+    };
+} | {
+    readonly code: "W_ROWS_DIFFER";
+    readonly params: {
+        readonly step: number;
+        readonly column: string;
+        readonly keys: number;
+    };
+} | {
+    readonly code: "W_NODE_NAMED_ONLY";
+    readonly params: {
+        readonly step: number;
+        readonly source: SourceKey;
+        readonly nodes: number;
+    };
+} | {
+    readonly code: "W_EDGE_END_MISSING";
+    readonly params: {
+        readonly step: number;
+        readonly space: SourceSpaceName;
+        readonly ends: number;
+    };
+} | {
+    readonly code: "W_KEY_EMPTY";
+    readonly params: {
+        readonly source: SourceKey;
+        readonly column: string;
+        readonly rows: number;
+    };
+} | {
+    readonly code: "W_VALUE_HUB";
+    readonly params: {
+        readonly source: SourceKey;
+        readonly column: string;
+        readonly value: string;
+        readonly rows: number;
+    };
+} | {
+    readonly code: "E_EDGE_KEY_COLLISION";
+    readonly params: {
+        readonly load: SourceKey;
+        readonly key: string;
+        readonly steps: readonly number[];
+    };
+};
+
+// @public
+export interface SourceDraftPreviewSource {
+    readonly change: {
+        readonly nodes: number;
+        readonly edges: number;
+        readonly named: number;
+        readonly noStep: number;
+    };
+    readonly edges: number;
+    readonly named: number;
+    readonly nodes: number;
+    readonly noStep: number;
+    readonly source: SourceKey;
+    readonly state: "staged" | "built" | "off" | "held" | "removed";
+}
+
+// @public
+export interface SourceDraftPreviewStep extends SourceStepRow {
+    readonly change: SourceStepCountsChange | null;
+    readonly committed: number | null;
+    readonly state: "new" | "edited" | "kept";
+}
+
+// @public
+export interface SourceDraftPreviewTotals {
+    readonly edges: number;
+    readonly edgeTypes: Readonly<Record<SourceTypeName, number>>;
+    readonly nodes: number;
+    readonly nodeTypes: Readonly<Record<SourceTypeName, number>>;
+}
+
+// @public
+export interface SourceDraftRow {
+    readonly codes: readonly SourceDraftPreviewIssue["code"][];
+    readonly effect: "added" | "changed" | "removed" | "unchanged" | "left-out";
+    readonly element: SourceElementRef | null;
+    readonly held: Readonly<Record<string, SourceValue>> | null;
+    readonly incoming: Readonly<Record<string, SourceCellValue | undefined>> | null;
+    readonly key: SourceCellValue | null;
+    readonly name: string | null;
+    readonly row: number | null;
+    readonly shown: Readonly<Record<string, SourceValue>> | null;
+    readonly source: SourceKey;
+    readonly table: "nodes" | "edges" | null;
+}
+
+// @public
+export interface SourceDraftRows {
+    readonly rows: readonly SourceDraftRow[];
+    readonly total: number;
+}
+
+// @public
+export interface SourceDraftRowsQuery extends SourceDraftElementsQuery {
+    readonly limit?: number;
+    readonly offset?: number;
+}
+
 export { SourceEdgeRecord }
+
+// @public
+export interface SourceEdgeRef {
+    readonly key: string;
+    readonly load: SourceKey;
+}
+
+// @public
+export type SourceEditChoice = "follow" | "keep" | "drop";
+
+// @public
+export type SourceElementRef = SourceNodeRef | SourceEdgeRef;
+
+// @public
+export interface SourceElementsFilter {
+    readonly source?: string;
+    readonly type?: string | null;
+}
+
+// @beta
+export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind" | "options";
+
+// @public
+export interface SourceEndOption {
+    readonly column: string;
+    readonly space?: SourceSpaceName;
+    readonly type?: SourceTypeName;
+}
 
 export { sourceEndpoint }
 
@@ -7069,6 +8045,16 @@ export interface SourceExpansionRecord {
     readonly validators: SourceValidators;
 }
 
+// @public
+export interface SourceExtractOptions {
+    readonly column: string;
+    readonly columns?: readonly string[];
+    readonly edgeType?: SourceTypeName;
+    readonly from?: "source" | "target";
+    readonly space?: SourceSpaceName;
+    readonly type?: SourceTypeName;
+}
+
 export { SourceFeature }
 
 // @public
@@ -7078,6 +8064,12 @@ export interface SourceFeatures {
     readonly refresh: boolean;
 }
 
+// @public
+export interface SourceField {
+    readonly field: string;
+    readonly source: SourceKey;
+}
+
 export { SourceFile }
 
 export { sourceFileName }
@@ -7085,6 +8077,12 @@ export { sourceFileName }
 export { SourceFinish }
 
 export { SourceFreshness }
+
+// @public
+export interface SourceHubValue {
+    readonly rows: number;
+    readonly value: string;
+}
 
 export { SourceInfo }
 
@@ -7100,6 +8098,17 @@ export { SourceIssueCode }
 export { SourceIssueParams }
 
 // @public
+export type SourceJoinInto = {
+    readonly source: SourceKey;
+    readonly field?: string;
+    readonly space?: SourceSpaceName;
+} | {
+    readonly space: SourceSpaceName;
+    readonly source?: undefined;
+    readonly field?: undefined;
+};
+
+// @public
 export type SourceKey = string;
 
 export { SourceKind }
@@ -7108,11 +8117,44 @@ export { SourceLimitOptions }
 
 export { SourceLimits }
 
+// @public
+export interface SourceLineage {
+    readonly aliases: readonly SourceElementRef[];
+    readonly named: readonly SourceKey[];
+    readonly otherTypes: readonly (SourceTypeName | null)[];
+    readonly reader: readonly string[];
+    readonly steps: readonly {
+        readonly step: number;
+        readonly source: SourceKey;
+        readonly row: number;
+    }[];
+    readonly supplied: readonly SourceKey[];
+    readonly type: SourceTypeName | null;
+}
+
 export { SourceListing }
 
 export { SourceListItem }
 
 export { SourceListQuery }
+
+// @public
+export interface SourceLoaded {
+    readonly callerKey?: string;
+    readonly format?: FormatId;
+    readonly kind: LoadedSourceKind;
+    readonly mode: "replace" | "merge";
+    readonly replaced?: "replaceSource" | "reloadSource";
+    readonly sample?: {
+        readonly datasetId: string;
+    } | {
+        readonly generatorId: string;
+    } | {
+        readonly exampleId: string;
+    };
+    readonly source: SourceKey;
+    readonly sourceId?: string;
+}
 
 // @public
 export interface SourceLoadOptions extends LoadChoices {
@@ -7148,15 +8190,135 @@ export interface SourceLoadRecord {
 }
 
 // @public
+export interface SourceMappingPatch {
+    readonly edges?: SourceRolePatch & {
+        readonly source?: string;
+        readonly target?: string;
+        readonly sourceSpace?: SourceSpaceName;
+        readonly targetSpace?: SourceSpaceName;
+        readonly edgeId?: string;
+        readonly weight?: string;
+        readonly weightMeaning?: string;
+    };
+    readonly endTypes?: {
+        readonly source?: SourceTypeName | null;
+        readonly target?: SourceTypeName | null;
+    };
+    readonly nodes?: SourceRolePatch & {
+        readonly key?: string;
+    };
+    readonly rows?: "nodes" | "edges" | "both";
+    readonly space?: SourceSpaceName;
+    readonly type?: SourceTypeName | null;
+}
+
+// @public
+export interface SourceMatchCounts {
+    readonly fanOut: number;
+    readonly matched: number;
+    readonly moreWithIgnoreCase: number | null;
+    readonly moreWithIgnoreSpaces: number | null;
+    readonly only1: number;
+    readonly only2: number;
+    readonly repeated1: number;
+    readonly repeated2: number;
+    readonly textVersusNumber: number;
+}
+
+// @public
+export interface SourceMatchOptions {
+    readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
+}
+
+// @public
+export interface SourceMatchPair {
+    readonly from: SourceField;
+    readonly into: SourceJoinInto;
+}
+
+// @public
+export interface SourceMatchValue {
+    readonly count1: number;
+    readonly count2: number;
+    readonly value: SourceCellValue;
+}
+
+// @public
+export interface SourceMatchValues {
+    readonly total: number;
+    readonly values: readonly SourceMatchValue[];
+}
+
+// @public
+export interface SourceMatchValuesOptions extends SourceMatchOptions {
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly only?: "matched" | "only1" | "only2";
+}
+
+// @public
+export interface SourceMergeOptions {
+    readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
+    readonly except?: SourceRowFilter;
+    readonly from: SourceField;
+    readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
+    readonly into: SourceJoinInto;
+    readonly repeated?: "first" | "last";
+    readonly unmatchedFrom?: "keep" | "drop";
+}
+
+// @public
 export interface SourceMoreOptions extends SourceLoadOptions {
     readonly load?: string;
 }
 
+// @public
+export interface SourceMoveColumnsOptions {
+    readonly columns: readonly string[];
+    readonly to: "source" | "target" | {
+        readonly column: string;
+        readonly space: SourceSpaceName;
+    };
+}
+
 export { SourceNodeRecord }
+
+// @public
+export interface SourceNodeRef {
+    readonly key: string;
+    readonly space: SourceSpaceName;
+}
+
+// @public
+export type SourceNoPathReason = "file" | "inline" | "join" | "secret-url" | "relative-url" | "no-seed";
+
+// @public
+export interface SourceOverlapQuestion {
+    readonly code: "W_SPACE_OVERLAP";
+    readonly params: {
+        readonly space: SourceSpaceName;
+        readonly count: number;
+        readonly of: number;
+        readonly source: SourceKey;
+        readonly sources: readonly SourceKey[];
+    };
+}
 
 export { SourceParamDescriptor }
 
 export { SourceParamType }
+
+// @public
+export interface SourcePickAllOptions {
+    readonly column: string;
+    readonly only?: "all" | "open" | "decided";
+    readonly otherThan?: SourceKey;
+    readonly refs?: readonly SourceElementRef[];
+    readonly source?: SourceKey;
+    readonly step?: number;
+}
 
 // @public
 export interface SourcePreview {
@@ -7183,6 +8345,9 @@ export interface SourcePreviewRow {
 export { SourceProbe }
 
 // @public
+export type SourceProfileKind = "text" | "number" | "date" | "boolean";
+
+// @public
 export interface SourceRead extends SourceInput {
     readonly edges: number;
     readonly nodes: number;
@@ -7190,9 +8355,57 @@ export interface SourceRead extends SourceInput {
 }
 
 // @public
+export type SourceRefreshIssue = {
+    readonly code: "E_COLUMN_MISSING";
+    readonly params: {
+        readonly source: SourceKey;
+        readonly column: string;
+        readonly table: "nodes" | "edges";
+        readonly step?: number;
+        readonly type?: SourceTypeName;
+    };
+} | {
+    readonly code: "E_READ_ROLE_MISSING";
+    readonly params: {
+        readonly step: number;
+        readonly source: SourceKey;
+        readonly column: string;
+        readonly role: SourceRoleName;
+        readonly table: "nodes" | "edges";
+    };
+} | {
+    readonly code: "W_COLUMN_UNUSED";
+    readonly params: {
+        readonly source: SourceKey;
+        readonly column: string;
+    };
+} | {
+    readonly code: "W_STEP_REMOVED";
+    readonly params: {
+        readonly step: number;
+        readonly reason: "source-removed";
+        readonly source: SourceKey;
+    };
+} | {
+    readonly code: "W_EDIT_SOURCE_CHANGED";
+    readonly params: {
+        readonly edit: ReaderEditRow["id"];
+        readonly was: SourceValue | null;
+        readonly now: SourceValue | null;
+        readonly picked?: SourceKey;
+    };
+} | {
+    readonly code: "W_REFERENCE_UNBOUND";
+    readonly params: {
+        readonly ref: SourceElementRef;
+    };
+};
+
+// @public
 export interface SourceRefreshReport {
     readonly added: SourceCounts;
     readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
+    readonly issues?: readonly SourceRefreshIssue[];
     readonly removed: SourceCounts;
     readonly updated: SourceCounts;
 }
@@ -7200,6 +8413,33 @@ export interface SourceRefreshReport {
 export { SourceReportInfo }
 
 export { SourceRequestInit }
+
+// @public
+export type SourceRoleName = "weight" | "time" | "timeEnd" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city";
+
+// @public
+export interface SourceRoleOptions {
+    readonly source?: string;
+}
+
+// @public
+export interface SourceRolePatch {
+    readonly city?: string;
+    readonly coordinates?: string;
+    readonly country?: string;
+    readonly latitude?: string;
+    readonly longitude?: string;
+    readonly region?: string;
+    readonly time?: string;
+    readonly timeEnd?: string;
+    readonly timeParseZone?: string;
+}
+
+// @public
+export interface SourceRowFilter {
+    readonly column: string;
+    readonly values: readonly SourceCellValue[];
+}
 
 export { SourceRuntime }
 
@@ -7213,10 +8453,241 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
     readonly limits?: SourceLimitOptions;
 };
 
+// @public
+export type SourceSpaceName = string;
+
+// @public
+export interface SourceSpaceOverlap {
+    readonly code: "W_SPACE_OVERLAP";
+    readonly params: {
+        readonly space: SourceSpaceName;
+        readonly count: number;
+        readonly of: number;
+        readonly other?: SourceKey;
+    };
+}
+
+// @public
+export interface SourceSpaceRow {
+    readonly nodes: number;
+    readonly ownedBy?: SourceKey;
+    readonly sources: readonly SourceKey[];
+    readonly space: SourceSpaceName;
+}
+
+// @public
+export interface SourceStepAct {
+    readonly act: "connect" | "merge";
+    readonly aggregate: Readonly<Record<string, JoinReduce>> | null;
+    readonly direction?: "into-from" | "from-into";
+    readonly edgeType?: SourceTypeName;
+    readonly from: SourceField;
+    readonly ignoreCase: boolean;
+    readonly ignoreSpaces: boolean;
+    readonly into: SourceJoinInto & {
+        readonly space: SourceSpaceName;
+    };
+    readonly repeated: "first" | "last" | "both" | null;
+    readonly unmatchedFrom?: "keep" | "drop";
+}
+
+// @public
+export type SourceStepByName = "valuesDiffer" | "ruleType" | "rowsDifferIn" | "endsMeet" | "endsMissing" | "newNodeTypes" | "newEdgeTypes";
+
+// @public
+export interface SourceStepCounts {
+    readonly emptyKey: number;
+    readonly endsMeet: Readonly<Record<SourceSpaceName, number>>;
+    readonly endsMissing: Readonly<Record<SourceSpaceName, number>>;
+    readonly fanOut: number;
+    readonly groups: readonly number[];
+    readonly hub: readonly SourceHubValue[];
+    readonly keptNew: number;
+    readonly matched: number;
+    readonly merged: number;
+    readonly namedOnly: number;
+    readonly newEdges: number;
+    readonly newEdgeTypes: Readonly<Record<SourceTypeName, number>>;
+    readonly newNodes: number;
+    readonly newNodeTypes: Readonly<Record<SourceTypeName, number>>;
+    readonly op: SourceStepOp;
+    readonly parallelPairs: number;
+    readonly part?: number;
+    readonly repeated1: number;
+    readonly repeated2: number;
+    readonly repeatedKept: number;
+    readonly rowsDiffer: number;
+    readonly rowsDifferIn: Readonly<Record<string, number>>;
+    readonly ruleType: Readonly<Record<string, number>>;
+    readonly selfLoops: number;
+    readonly source: SourceKey;
+    readonly step: number;
+    readonly typeDiffers: number;
+    readonly unmatched: number;
+    readonly untouched: number;
+    readonly valuesDiffer: Readonly<Record<string, number>>;
+}
+
+// @public
+export type SourceStepCountsChange = {
+    readonly [K in SourceStepNumber]: number;
+} & {
+    readonly [K in SourceStepByName]: Readonly<Record<string, number>>;
+};
+
+// @public
+export type SourceStepNumber = Exclude<{
+    [K in keyof SourceStepCounts]-?: SourceStepCounts[K] extends number | undefined ? K : never;
+}[keyof SourceStepCounts], "step" | "part">;
+
+// @public
+export type SourceStepOp = "join.add" | "join.merge" | "join.node-values" | "join.edge-values" | "join.edges";
+
+// @public
+export interface SourceStepPatch {
+    readonly aggregate?: Readonly<Record<string, JoinReduce>> | null;
+    readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
+    readonly except?: SourceRowFilter | null;
+    readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
+    readonly off?: boolean;
+    readonly repeated?: "first" | "last" | "both" | null;
+    readonly unmatchedFrom?: "keep" | "drop";
+}
+
+// @public
+export type SourceStepResolution = {
+    readonly column: string;
+} | {
+    readonly none: true;
+};
+
+// @public
+export interface SourceStepRow {
+    readonly act: SourceStepAct | null;
+    readonly buckets: SourceStepCounts | null;
+    readonly except: SourceRowFilter | null;
+    readonly held: boolean;
+    readonly index: number;
+    readonly missing: readonly SourceRefreshIssue[];
+    readonly off: boolean;
+    readonly op: SourceStepOp;
+    readonly reads: readonly Path[];
+    readonly source: SourceKey;
+    readonly spaces: readonly SourceSpaceName[];
+    readonly types: readonly SourceTypeName[];
+    readonly valuesDiffer: readonly SourceValuesDiffer[];
+}
+
 // @beta
 export type SourceStorage = "embedded" | "referenced";
 
+// @public
+export interface SourceTable {
+    profile(column: string, options?: {
+        readonly table?: "nodes" | "edges";
+    }): SourceColumnProfile;
+    readonly source: SourceKey;
+    summary(): SourceTableFacts;
+}
+
+// @public
+export interface SourceTableFacts {
+    readonly delimiter?: DraftTable["delimiter"];
+    readonly format?: string;
+    readonly loadedAt?: string;
+    readonly mapping: SourceTableMapping;
+    readonly origin: string;
+    readonly size?: number;
+    readonly tables: readonly SourceTablePart[];
+}
+
+// @public
+export interface SourceTableMapping {
+    readonly edges?: {
+        readonly source: string;
+        readonly target: string;
+        readonly sourceSpace?: SourceSpaceName;
+        readonly targetSpace?: SourceSpaceName;
+        readonly edgeId?: string;
+    };
+    readonly endTypes?: {
+        readonly source?: SourceTypeName;
+        readonly target?: SourceTypeName;
+    };
+    readonly key?: string;
+    readonly rows: "nodes" | "edges" | "both";
+    readonly space?: SourceSpaceName;
+    readonly type?: SourceTypeName;
+}
+
+// @public
+export interface SourceTablePart {
+    readonly columns: readonly string[];
+    readonly rows: number;
+    readonly table: "nodes" | "edges";
+}
+
+// @public
+export interface SourceTypeEntry {
+    readonly kind: "node" | "edge";
+    readonly name: SourceTypeName;
+    readonly plainName?: string;
+    readonly rules: readonly SourceTypeRule[];
+    readonly schema?: Readonly<Record<string, unknown>>;
+}
+
+// @public
+export type SourceTypeName = string;
+
+// @public
+export interface SourceTypeRule {
+    readonly column?: string;
+    readonly end?: "source" | "target";
+    readonly part?: number;
+    readonly source: SourceKey;
+    readonly values?: readonly SourceCellValue[];
+}
+
+// @beta
+export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind" | "copy-form" | "options" | "ledger";
+
 export { SourceValidators }
+
+// @public
+export type SourceValue = SourceCellValue | readonly SourceCellValue[];
+
+// @public
+export interface SourceValuesDiffer {
+    readonly code: "W_VALUES_DIFFER";
+    readonly params: {
+        readonly step: number;
+        readonly column: string;
+        readonly count: number;
+        readonly rule: SourceClashRule;
+        readonly decided: number;
+        readonly rules: readonly SourceClashRule[];
+    };
+}
+
+// @public
+export interface StabilityOptions extends Omit<SweepOptions, "seed"> {
+    readonly field?: string;
+}
+
+// @public
+export interface StabilityResult extends BatchResult {
+    readonly adjustedMutualInformation: number | undefined;
+    readonly agreement: number | undefined;
+    readonly correlation: number | undefined;
+    readonly pairs: readonly ResultComparison[];
+    readonly rows: readonly SweepRow[];
+}
+
+// @public
+export interface StageOptions extends ImportOptions {
+    readonly guess?: "names" | "values";
+}
 
 // @public
 export interface StaleNote {
@@ -7253,7 +8724,6 @@ export interface StartOptions extends RunOptions {
 
 // @public
 export interface StateLeaf {
-    // (undocumented)
     readonly kind: "state";
     readonly state: ElementState;
 }
@@ -7409,7 +8879,6 @@ export interface StyleCounts {
 // @public
 export interface StyleDocument {
     labelLooks?: readonly LabelLookDescriptor[];
-    // (undocumented)
     layers: readonly LayerSpec[];
     palettes?: readonly PaletteDescriptor[];
     problems?: readonly ShaderProblem[];
@@ -7418,7 +8887,6 @@ export interface StyleDocument {
         readonly text: ShaderText;
     }[];
     tree?: readonly StyleDocumentRow[];
-    // (undocumented)
     version: 1;
 }
 
@@ -7479,7 +8947,7 @@ export interface StyleProblem {
 }
 
 // @public
-export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "hidden" | "layer";
+export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "hidden" | "layer" | "draft";
 
 // @public
 export interface StyleRepaintFailure {
@@ -7526,6 +8994,7 @@ export interface StylesApi {
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     drawnCount(id: LayerId): number;
     drawnValues(channel: Channel): readonly DrawnValue[];
+    duplicateRow(id: StyleRowId, name?: string, options?: RunOptions): Run<RowParts>;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
@@ -7770,13 +9239,9 @@ export interface TimeApi {
 
 // @beta
 export interface TimeBin {
-    // (undocumented)
     readonly edges: number;
-    // (undocumented)
     readonly end: number;
-    // (undocumented)
     readonly nodes: number;
-    // (undocumented)
     readonly start: number;
     readonly step?: TimeStep;
 }
@@ -7808,17 +9273,13 @@ export interface TimeCandidate {
 
 // @beta
 export interface TimeChanges {
-    // (undocumented)
     readonly entered: TimeIds;
-    // (undocumented)
     readonly left: TimeIds;
 }
 
 // @beta
 export interface TimeCountPair {
-    // (undocumented)
     readonly edges: number;
-    // (undocumented)
     readonly nodes: number;
 }
 
@@ -7831,21 +9292,15 @@ export interface TimeCounts {
 
 // @beta
 export interface TimeExtent {
-    // (undocumented)
     readonly edges: TimeCounts;
-    // (undocumented)
     readonly from: number;
-    // (undocumented)
     readonly nodes: TimeCounts;
-    // (undocumented)
     readonly to: number;
 }
 
 // @beta
 export interface TimeField {
-    // (undocumented)
     readonly edges?: TimeSource;
-    // (undocumented)
     readonly nodes?: TimeSource;
 }
 
@@ -7856,11 +9311,8 @@ export interface TimeFieldOptions {
 
 // @beta
 export interface TimeFieldResult {
-    // (undocumented)
     readonly edges?: TimeCounts;
-    // (undocumented)
     readonly field: TimeField | null;
-    // (undocumented)
     readonly nodes?: TimeCounts;
     readonly notices: readonly CodedFact<TimeNoticeCode>[];
 }
@@ -7877,9 +9329,7 @@ export interface TimeFound extends CodedFact<"time.found"> {
 
 // @beta
 export interface TimeIds {
-    // (undocumented)
     readonly edges: readonly EdgeId[];
-    // (undocumented)
     readonly nodes: readonly NodeId[];
 }
 
@@ -7919,7 +9369,6 @@ export type TimeResultsPolicy = "keep" | "stale" | "rerun";
 
 // @beta
 export interface TimeSeries {
-    // (undocumented)
     readonly rows: readonly TimeSeriesRow[];
 }
 
@@ -7937,16 +9386,11 @@ export interface TimeSeriesOptions {
 
 // @beta
 export interface TimeSeriesRow {
-    // (undocumented)
     readonly entered: TimeCountPair;
-    // (undocumented)
     readonly from: number;
-    // (undocumented)
     readonly left: TimeCountPair;
-    // (undocumented)
     readonly to: number;
     readonly values: Readonly<Record<string, number | null>>;
-    // (undocumented)
     readonly visible: TimeCountPair;
 }
 
@@ -7978,14 +9422,10 @@ export interface TimeStepEvent {
     readonly atEnd: boolean;
     readonly atStart: boolean;
     readonly cause: "play" | "step" | "seek" | "window";
-    // (undocumented)
     readonly entered: TimeCountPair;
-    // (undocumented)
     readonly from: number;
     readonly index: number;
-    // (undocumented)
     readonly left: TimeCountPair;
-    // (undocumented)
     readonly to: number;
     readonly untimed: TimeCountPair;
     readonly visible: TimeCountPair;
@@ -8050,9 +9490,7 @@ export type TopTies = "fewer" | "all";
 
 // @beta
 export interface TouchingLeaf {
-    // (undocumented)
     readonly ends: "either" | "both" | "one";
-    // (undocumented)
     readonly kind: "touching";
     readonly of?: StepReference;
 }
@@ -8105,6 +9543,7 @@ export type TourStop = (ViewWaypoint & {
 // @public
 export interface TransactionOptions {
     readonly after?: HistoryStepId;
+    readonly callerKey?: string;
     readonly provenance?: Readonly<Record<string, string>>;
 }
 
@@ -8136,6 +9575,7 @@ export type UndrawnCode = "caption.noArrow" | "shader.unknown" | "shader.target-
 
 // @beta
 export interface UnionBranch {
+    readonly autoName?: boolean;
     readonly color?: string;
     readonly id?: string;
     readonly name?: string;
@@ -8147,7 +9587,6 @@ export interface UnionBranch {
 // @beta
 export interface UnionLeaf {
     readonly branches: readonly UnionBranch[];
-    // (undocumented)
     readonly kind: "union";
     readonly side: "nodes" | "edges";
     readonly sources?: readonly SourceKey[];
@@ -8257,6 +9696,12 @@ export type ValueKind = "number" | "time" | "ordered" | "category" | "tags" | "f
 export type ValueType = "text" | "number" | "boolean" | "date" | "category";
 
 // @public
+export const VIDEO_FORMATS: readonly VideoFormat[];
+
+// @public
+export type VideoFormat = "webm" | "mp4";
+
+// @public
 export interface VisibilityApi {
     // @beta
     addCondition(condition: FilterConditionInput, options?: RunOptions): Run<FilterResult & {
@@ -8271,7 +9716,10 @@ export interface VisibilityApi {
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;
+    readonly held: readonly CodedFact<"W_FILTER_HELD">[];
     isVisible(id: NodeId | EdgeId): boolean;
+    // @beta
+    moveStep(id: string, index: number, options?: RunOptions): Run<FilterResult>;
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;
     // @beta
@@ -8284,6 +9732,8 @@ export interface VisibilityApi {
     setSteps(steps: readonly FilterStep[], options?: RunOptions): Run<FilterResult>;
     setWindow(window: TimeWindow | null, options?: RunOptions): Run<FilterResult>;
     showContext: boolean;
+    // @beta
+    stepCounts(): readonly FilterStepCount[];
     readonly steps: readonly FilterStep[];
     readonly summary: VisibilitySummary;
     summaryOf(source: SourceKey): VisibilitySummary;
@@ -8314,7 +9764,7 @@ export interface WeightMeaning {
 }
 
 // @public
-export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
+export type WeightSkip = CodedFact<"weight.meaning-mismatch" | "weight.meaning-mixed">;
 
 // @public
 export interface WorkerCapability {

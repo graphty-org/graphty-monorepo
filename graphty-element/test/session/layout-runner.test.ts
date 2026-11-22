@@ -171,6 +171,46 @@ describe("running the layout of a session with no renderer", () => {
         session.dispose();
     });
 
+    it("places nodes at their latitude and longitude with the geographic layout", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "north-east", latitude: 30, longitude: 60 },
+            { id: "south-west", latitude: "-30", longitude: "-60" },
+            { id: "nowhere" },
+        ]);
+        await session.layout.set("geographic");
+
+        await session.layout.settle();
+
+        // equirectangular on a globe of radius 100 (the default scalingFactor): x = 100 * lon, y = 100 * lat, in radians
+        const r = (degrees: number): number => (100 * degrees * Math.PI) / 180;
+        const ne = session.positions.get("north-east");
+        const sw = session.positions.get("south-west");
+        assert.isDefined(ne);
+        assert.isDefined(sw);
+        assert.closeTo(ne.x, r(60), 1e-3, "east is +x");
+        assert.closeTo(ne.y, r(30), 1e-3, "north is +y");
+        assert.closeTo(sw.x, r(-60), 1e-3, "a string attribute reads as degrees");
+        assert.closeTo(sw.y, r(-30), 1e-3);
+        assert.deepStrictEqual(session.positions.get("nowhere"), { x: 0, y: 0, z: 0 }, "no coordinates: the origin");
+        session.dispose();
+    });
+
+    it("reads the geographic layout's coordinates from the attributes its options or the designated fields name", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a", lat: 10, lon: 20, y: 40, x: 50 }]);
+        await session.config.set({ data: { knownFields: { nodeLatitudePath: "lat", nodeLongitudePath: "lon" } } });
+        await session.layout.set("geographic", { options: { projection: "equirectangular" } });
+        await session.layout.settle();
+        const r = (degrees: number): number => (100 * degrees * Math.PI) / 180;
+        assert.closeTo(session.positions.get("a")?.x ?? Number.NaN, r(20), 1e-3, "the designated longitude");
+
+        await session.layout.set("geographic", { options: { latitude: "y", longitude: "x" } });
+        await session.layout.settle();
+        assert.closeTo(session.positions.get("a")?.y ?? Number.NaN, r(40), 1e-3, "the option wins");
+        session.dispose();
+    });
+
     it("holds pinned nodes still", async () => {
         const session = await ring();
         await session.positions.set([{ id: "a", x: 1, y: 2, z: 3 }]);

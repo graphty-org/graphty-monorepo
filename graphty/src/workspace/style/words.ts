@@ -534,6 +534,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelBorderAlign": "Label border align",
     "node.labelBorderStyle": "Label border style",
     "node.labelBackgroundShape": "Label background shape",
+    "node.labelImage": "Label image",
+    "node.labelImageWidth": "Label image width",
+    "node.labelImageHeight": "Label image height",
+    "node.labelImageOffsetX": "Label image offset X",
+    "node.labelImageOffsetY": "Label image offset Y",
     "node.labelOffsetX": "Label offset x",
     "node.labelOffsetY": "Label offset y",
     "node.labelShiftX": "Label shift x",
@@ -550,6 +555,10 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.xlabelOffsetX": "Outside label offset x",
     "node.xlabelOffsetY": "Outside label offset y",
     "node.xlabelTextAlign": "Outside label text align",
+    "node.xlabelColor": "Outside label color",
+    "node.xlabelFont": "Outside label font",
+    "node.xlabelWeight": "Outside label weight",
+    "node.xlabelItalic": "Outside label italic",
     "edge.xlabel": "Outside label",
     "edge.xlabelStyle": "Outside label style",
     "edge.xlabelLocation": "Outside label location",
@@ -653,6 +662,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.gradientCenterY": "Gradient center y",
     "node.gradientRadius": "Gradient radius",
     "edge.minScreenWidth": "Min screen width",
+    "edge.drawOrder": "Draw order",
     "edge.fadeEnd": "Fade end",
     "edge.fadeStart": "Fade start",
     "edge.fadeOpacity": "Fade opacity",
@@ -670,6 +680,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.gradientColors": "Gradient colors",
     "edge.gradientStops": "Gradient stops",
     "edge.gradientKind": "Gradient kind",
+    "edge.strandColors": "Strand colors",
+    "edge.strandSpacing": "Strand spacing",
     "edge.waveAmplitude": "Wave amplitude",
     "edge.wavePeriod": "Wave period",
     "edge.dashLength": "Dash length",
@@ -752,6 +764,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelBorderAlign": "Label border align",
     "edge.labelBorderStyle": "Label border style",
     "edge.labelBackgroundShape": "Label background shape",
+    "edge.labelImage": "Label image",
+    "edge.labelImageWidth": "Label image width",
+    "edge.labelImageHeight": "Label image height",
+    "edge.labelImageOffsetX": "Label image offset X",
+    "edge.labelImageOffsetY": "Label image offset Y",
     "edge.labelOffsetX": "Label offset x",
     "edge.labelOffsetY": "Label offset y",
     "edge.labelShiftX": "Label shift x",
@@ -2095,7 +2112,7 @@ export const CUSTOM_MODEL = {
      * @param name - what was loading.
      * @returns the words.
      */
-    cancelled: (name: string): string => `Stopped loading ${name}`,
+    canceled: (name: string): string => `Stopped loading ${name}`,
     /** What a load is doing, by graphty-element's stage. */
     stages: { downloading: "Downloading", reading: "Reading", unpacking: "Unpacking" } as Readonly<
         Record<string, string>
@@ -2282,12 +2299,8 @@ export const CUSTOM_MODEL = {
     add: "Add model",
     addToProject: "Add to project",
     addFirst: "Add a model first",
-    /**
-     * Add's tooltip while a part is missing.
-     * @param part - the part's file name.
-     * @returns the words.
-     */
-    missing: (part: string): string => `${part} is missing`,
+    /** Add's tooltip while a set holds several models and none is said to be the model. */
+    whichModel: "Choose which file is the model",
     /**
      * The preview's text alternative.
      * @param name - the model's name.

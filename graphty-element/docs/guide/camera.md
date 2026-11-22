@@ -84,8 +84,20 @@ await element.session.config.set({ framing: { extent: "centers", padding: 30 } }
 await element.session.config.set({ framing: undefined }); // back to framing every node whole
 ```
 
+`box` frames a fixed area instead of the nodes, given by its smallest and largest x and y in the
+units node positions are drawn in: the canvas shows that area whatever the nodes' extent. It frames
+stored positions, so it applies only while the `"fixed"` layout draws them; under any other layout
+the nodes are framed. A replacing load that does not set it from its file drops it.
+
+```typescript
+await element.session.config.set({
+    framing: { extent: "centers", padding: 0, box: { min: [0, -500], max: [500, 0] } },
+});
+```
+
 A file load can set it to how the file's own program frames it, with the file style option
-`framing: "file"`: a sigma.js (graphology) file is then framed as sigma.js draws it.
+`framing: "file"`: a sigma.js (graphology) file is then framed as sigma.js draws it, and a Pajek
+file shows the whole 0..1 square Pajek fits to its Draw window.
 
 ```typescript
 await element.session.data.import(source, { styles: "file", styleOptions: { framing: "file" } });
@@ -246,6 +258,7 @@ coded problem when it cannot be played, so this path needs no checks of its own.
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `views.save([{ name, camera?, follows?, key? }])` | Keeps a view, at the end of the order; no `camera` and no `follows` keeps the current one |
 | `views.setKey(name, key)`                         | Gives a view a key, taking it from any other view that holds it; null clears it           |
+| `views.open(name, { animate })`                   | Brings a view back: what it keeps beside the camera (one undo step), then the camera      |
 | `views.rename(from, to)`                          | Renames a view in its place, and every tour stop naming it follows                        |
 | `views.move(name, index)`                         | Puts a view at a 0-based place in the order                                               |
 | `views.remove([name])`                            | Forgets views; tour stops naming them stay, and `planTour` reports them                   |
@@ -288,6 +301,41 @@ it can no longer reach.
 
 **From a name to a pose.** `resolveCameraPreset(name)` answers where a camera view or a saved view
 (a following one recomputed now) would put the camera, without moving it.
+
+#### Views that keep more than the camera
+
+A view saved with `include` also keeps parts of the project, read at the save, and `views.open`
+brings them back as one undo step before it moves the camera:
+
+```ts
+import "@graphty/graphty-element";
+const g = document.querySelector("graphty-element")!;
+await g.waitForSettled();
+
+// Filter to the well-connected nodes and hide one, then keep it all as "Hubs".
+await g.session.visibility.setSteps([{ id: "hubs", on: true, rule: { kind: "degree", min: 3 } }]);
+await g.session.hidden.add(["n7"]);
+await g.session.views.save([{ name: "Hubs", include: ["filters", "layers", "hidden", "positions", "legend"] }]);
+
+// ...the reader changes things...
+await g.session.views.open("Hubs", { animate: true }); // all of it back; undo takes it out
+await g.session.views.rename("Hubs", "Hub nodes"); // one undo step
+```
+
+| Part        | What it keeps                                                       |
+| ----------- | ------------------------------------------------------------------- |
+| `filters`   | The filter steps and conditions (`session.visibility.conditions`)   |
+| `layers`    | The style layers (`session.styles.toDocument()`)                    |
+| `hidden`    | The nodes hidden from the drawing (`session.hidden`)                |
+| `positions` | Where every node is (`session.positions.snapshot()`)                |
+| `legend`    | Whether the element's legend is shown; not an undo step when opened |
+
+With no `include` a view keeps only the camera, as before. Each part can also be given as a value
+(`{ name, camera, hidden: ["n7"] }`). A node the graph no longer holds is skipped when positions
+come back. A part is a field of the saved view (`session.views.get(name)?.hidden`), and the project
+file saves it. A session that draws nothing (a `createGraphSession()` in Node) brings back every part
+but the camera, and keeps no `legend`. An unknown part is refused with `E_OPTION_RANGE`
+`{ option: "include", value }`.
 
 #### Keys
 
@@ -341,7 +389,7 @@ however the tour ended, with `{ reason }`:
 | `reason`         | What ended the tour                                                                                   |
 | ---------------- | ----------------------------------------------------------------------------------------------------- |
 | `"finished"`     | The last hold ended                                                                                   |
-| `"cancelled"`    | `options.signal` aborted, or `cancelCameraAnimation()`                                                |
+| `"canceled"`     | `options.signal` aborted, or `cancelCameraAnimation()`                                                |
 | `"interrupted"`  | The reader dragged, pinched, scrolled, pressed a camera key or clicked the canvas                     |
 | `"replaced"`     | Another tour, a recording, `setCameraState`, `applyCameraView` or a screenshot with a `camera` option |
 | `"mode-changed"` | The drawing mode switched between 2D, 3D and immersive                                                |
@@ -376,7 +424,7 @@ reduced now, and `reduced-motion-changed` fires when that changes.
 
 | Call                                | When canceled                                     | The camera afterwards                                                                                |
 | ----------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `playTour`                          | Resolves `{ reason: "cancelled" }`                | Stays where the tour left it; with `restoreCamera: true` (default false) put back when it finishes   |
+| `playTour`                          | Resolves `{ reason: "canceled" }`                 | Stays where the tour left it; with `restoreCamera: true` (default false) put back when it finishes   |
 | `captureAnimation` with a `tour`    | Rejects with a `GraphtyError`, code `E_CANCELED`  | Always put back, except after the reader's own move, an outside camera move or a drawing mode switch |
 | `captureScreenshot` with a `camera` | Rejects with the signal's reason, an `AbortError` | Always put back                                                                                      |
 
@@ -484,6 +532,30 @@ graph.on("camera-state-changed", ({ state }) => {
     console.log("Camera moved:", state);
 });
 ```
+
+`camera-state-changed` fires for every move, the element's own included. To hear the reader's own
+camera gestures once each, listen on the session for `camera:gesture-end`:
+
+```typescript
+element.session.on("camera:gesture-end", ({ kind }) => {
+    console.log("the reader finished a camera gesture:", kind); // "orbit" | "pan" | "zoom"
+});
+```
+
+It fires once per gesture, never per frame, and the input decides when a gesture ends, never a
+timer:
+
+- A drag or a pinch ends at the pointer up that ends it. A click that moved nothing is no gesture.
+- A run of wheel events ends at the first frame with no new wheel event since the frame before.
+  Wheel events that arrive together, before a frame runs, are always one gesture.
+- A camera key ends when the last camera key held is released and the camera has come to rest
+  (in 2D, once its inertia has damped away). A key pressed before then continues the gesture.
+
+`kind` is `"orbit"` for a turn (a 3D drag, the arrow keys in 3D, a roll), `"pan"` for a sideways
+move and `"zoom"` for the wheel, a pinch or the zoom keys. Moves the element makes itself (a fit,
+a glide, `camera.autoRotate`) and calls such as `setCameraState` publish nothing. More kinds may
+be added. The type is `CameraGestureKind`, and `CAMERA_GESTURE_KINDS` lists every kind this
+version reports; both are exported from `@graphty/graphty-element/session`.
 
 ## Minimap
 

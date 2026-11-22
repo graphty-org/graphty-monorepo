@@ -7,7 +7,7 @@ import { detachedRunContext, METRIC_CHUNK_SIZE, walkInChunks } from "../../../sr
 import type { MetricRunContext } from "../../../src/algorithms/metrics/types";
 import { YIELD_BUDGET_MS } from "../../../src/algorithms/results/types";
 import type { RunProgressReport } from "../../../src/session/runs";
-import { createMockGraph } from "../../helpers/mockGraph";
+import { createSessionGraph } from "../../helpers/session-graph";
 
 /** A context that remembers everything a measurement told it. */
 interface Recording {
@@ -125,7 +125,7 @@ describe("walkInChunks", () => {
         }
     });
 
-    it("stops when the run is cancelled", async () => {
+    it("stops when the run is canceled", async () => {
         const controller = new AbortController();
         const recording = recordingContext(controller.signal);
         const seen: number[] = [];
@@ -162,7 +162,7 @@ describe("detachedRunContext", () => {
 
 describe("a metric run through a run context", () => {
     it("publishes under the run id the context names", async () => {
-        const graph = await createMockGraph({ dataPath: "./data4.json" });
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const recording = recordingContext();
         const algorithm = new DegreeAlgorithm(graph);
 
@@ -175,7 +175,7 @@ describe("a metric run through a run context", () => {
     });
 
     it("reports what it is doing", async () => {
-        const graph = await createMockGraph({ dataPath: "./data4.json" });
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const recording = recordingContext();
 
         await new BetweennessCentralityAlgorithm(graph).measureRun(recording.context);
@@ -186,7 +186,7 @@ describe("a metric run through a run context", () => {
     });
 
     it("reports eigenvector progress as codes with figures, never a sentence", async () => {
-        const graph = await createMockGraph({ dataPath: "./data4.json" });
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const recording = recordingContext();
 
         await new EigenvectorCentralityAlgorithm(graph, { maxIterations: 500 }).measureRun(recording.context);
@@ -200,8 +200,8 @@ describe("a metric run through a run context", () => {
         assert.isTrue(recording.reports.every((report) => report.message === undefined));
     });
 
-    it("refuses to start once the run has been cancelled", async () => {
-        const graph = await createMockGraph({ dataPath: "./data4.json" });
+    it("refuses to start once the run has been canceled", async () => {
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const controller = new AbortController();
         const recording = recordingContext(controller.signal);
         const algorithm = new DegreeAlgorithm(graph);

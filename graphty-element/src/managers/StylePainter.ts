@@ -175,7 +175,7 @@ export function isPlainPaint(paint: { readonly meshKey: string }): boolean {
 }
 
 /** The line keys a plain line keeps. */
-const PLAIN_LINE_KEYS: ReadonlySet<string> = new Set(["width", "color", "opacity", "minScreenWidth"]);
+const PLAIN_LINE_KEYS: ReadonlySet<string> = new Set(["width", "color", "opacity", "minScreenWidth", "drawOrder"]);
 
 /**
  * The paint an edge past `limits.objectEdges` is drawn with: its line's width, color and opacity
@@ -848,11 +848,11 @@ function keyedByFloor<T extends NodePaint | EdgePaint>(paint: T, resolved: Resol
 const COARSE = new WeakSet<ResolvedStyle>();
 
 /**
- * A node's resolved style drawn at low detail on a large graph (`Limits.largeGraphThreshold`):
+ * A node's resolved style drawn at low detail on a large graph (`Limits.fullDetailTriangleBudget`):
  * a node no layer gives a `node.meshDetail` is drawn `"low"`. A layer that sets one, `"full"`
  * included, keeps it, which is how a consumer keeps full detail on a large graph.
  * @param resolved - Everything the stack painted the node, after {@link floored}.
- * @param large - Whether the graph holds more nodes than the threshold.
+ * @param large - Whether the graph's nodes at full detail would pass the triangle budget.
  * @returns The style to paint from.
  */
 function coarsened(resolved: ResolvedStyle, large: boolean): ResolvedStyle {
@@ -1368,8 +1368,8 @@ export class StylePainter {
      *     `minMarkSize`), asked as often; absent, every mark is drawn as painted.
      * @param modelDefaults - A model's own settings, by what `node.model` names; asked once per
      *     node painted with a model.
-     * @param largeGraph - Whether the graph holds more nodes than `Limits.largeGraphThreshold`, so
-     *     a node no layer gives a detail is drawn at low detail ({@link coarsened}); asked once per
+     * @param largeGraph - Whether the graph's nodes at full detail would pass
+     *     `Limits.fullDetailTriangleBudget`, so a node no layer gives a detail is drawn at low detail ({@link coarsened}); asked once per
      *     node painted, so it must be cheap.
      * @param dark - Whether the color scheme is dark, so a label no layer colored is drawn light;
      *     asked as often as the minimums.
@@ -1441,6 +1441,9 @@ export class StylePainter {
     /** Whether every pending edge came from a pass marked `rowsOnly`. False unless one says so. */
     private edgesRowsOnly = false;
 
+    /** Whether every pending node was queued for a `Node` built from its row ({@link queue}), and no pass painted one. */
+    private nodesQueuedOnly = false;
+
     /** How to stop listening to the pass currently bound, or null when nothing is bound. */
     private stopListening: (() => void) | null = null;
 
@@ -1469,6 +1472,7 @@ export class StylePainter {
         this.pendingEdges.clear();
         this.nodesRowsOnly = false;
         this.edgesRowsOnly = false;
+        this.nodesQueuedOnly = false;
 
         if (paint !== null) {
             this.stopListening = paint.onPainted(() => {
@@ -1511,6 +1515,7 @@ export class StylePainter {
 
         if (nodes.length > 0) {
             this.nodesRowsOnly = rowsOnly && (this.nodesRowsOnly || this.pendingNodes.size === 0);
+            this.nodesQueuedOnly = false;
         }
 
         if (edges.length > 0) {
@@ -1555,6 +1560,27 @@ export class StylePainter {
     }
 
     /**
+     * Whether every pending node was queued for a `Node` built from its row, without taking the answer.
+     * @returns True when they were.
+     */
+    get nodesFromBuildsOnly(): boolean {
+        return this.nodesQueuedOnly;
+    }
+
+    /**
+     * Whether the nodes just drawn were only `Node`s built from their rows ({@link queue}): each is drawn as its row
+     * was, so only its own edges are placed again, not every edge (issue #9166). Asked by the frame that drew the
+     * last of them.
+     * @returns True when they were, once.
+     */
+    takeNodesBuildsOnly(): boolean {
+        const buildsOnly = this.nodesQueuedOnly;
+        this.nodesQueuedOnly = false;
+
+        return buildsOnly;
+    }
+
+    /**
      * Whether the edges just drawn came only from a time window's slide; see
      * {@link StylePainter.takeNodesRowsOnly}.
      * @returns True when they did, once.
@@ -1575,6 +1601,9 @@ export class StylePainter {
      */
     queue(target: SelectorTarget, index: number): void {
         if (index >= 0) {
+            if (target === "node") {
+                this.nodesQueuedOnly ||= this.pendingNodes.size === 0;
+            }
             (target === "node" ? this.pendingNodes : this.pendingEdges).add(index);
             this.nodesRowsOnly &&= target !== "node";
             this.edgesRowsOnly &&= target !== "edge";
@@ -1663,6 +1692,7 @@ export class StylePainter {
     invalidate(nodes: number, edges: number): void {
         this.nodesRowsOnly = false;
         this.edgesRowsOnly = false;
+        this.nodesQueuedOnly = false;
 
         for (let index = 0; index < nodes; index++) {
             this.pendingNodes.add(index);
@@ -1704,6 +1734,25 @@ export class StylePainter {
      */
     nodePaint(index: number): NodePaint | null {
         return this.rowPaint(index);
+    }
+
+    /**
+     * What one node is painted, for a reader that applies it to a `Node` outside the pass's own
+     * drain: null while a pass is painting, with the node queued so the frame after the pass draws it.
+     *
+     * NOT WHILE A PASS IS PAINTING, for the reason `UpdateManager.syncStyles` gives (#440): the
+     * paint is then the mesh key from before the pass with a style from the middle of it, and the
+     * mesh built from that pair is kept when the pass announces the same key (#9414, #9442).
+     * @param index - Its dense index.
+     * @returns The paint, or null while a pass is painting, when nothing is bound or the index is not an element's.
+     */
+    settledNodePaint(index: number): NodePaint | null {
+        if (this.isPainting) {
+            this.queue("node", index);
+            return null;
+        }
+
+        return this.nodePaint(index);
     }
 
     /**

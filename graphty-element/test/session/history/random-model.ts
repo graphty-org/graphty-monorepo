@@ -43,9 +43,6 @@ import type { GraphSession, HistoryOutcome, HistoryStepId, PendingId } from "../
 import type { HeldQueue, RunGate } from "./fakes";
 import { SKYBOX_PNG } from "./fixtures";
 
-/** The history's coalescing window. */
-export const COALESCE_MS = 1000;
-
 /** Coordinates by node id, as `x,y,z`. */
 type Coords = ReadonlyMap<string, string>;
 
@@ -154,8 +151,6 @@ export interface Model {
     position: number;
     /** The coalesce key of the top step, while the next edit could still merge into it. */
     mergeKey: string | null;
-    /** When the top step last took an edit. */
-    lastAt: number;
     /** Whether the top step may still take a merge: false once the cursor moved. */
     mergeable: boolean;
     /** Whether the layout has moved the lane since the last capture. */
@@ -227,7 +222,6 @@ export function baselineModel(real: Real): Model {
         steps: [position(real, null, 0)],
         position: 0,
         mergeKey: null,
-        lastAt: 0,
         mergeable: false,
         moved: false,
         tick: 1,
@@ -621,13 +615,11 @@ async function edit(
         refused = true;
     }
 
-    const now = real.clock.now();
     const recorded = history.position > 0 && history.steps[history.position - 1]?.id !== top;
     if (recorded) {
         assert.isFalse(refused, `${label} was refused and recorded a step`);
         pushStep(model, real, { fresh: freshSince(real, held), before, reshapes: shapeOf(real) !== shape });
         model.mergeKey = merges.key;
-        model.lastAt = now;
         model.mergeable = true;
         if (arranges.replaces === true || arranges.rests === true) {
             // Sealed at its commit, or where the layout came to rest while it was open.
@@ -672,12 +664,7 @@ async function edit(
     // section 5.2): merged, the step would reach back across that work.
     const topAt = model.steps[model.position].recordedAt;
     const pendingSinceTop = model.pending.some((item) => item.seq > topAt);
-    const coalesces =
-        merges.key !== null &&
-        !pendingSinceTop &&
-        model.mergeable &&
-        model.mergeKey === merges.key &&
-        now - model.lastAt < COALESCE_MS;
+    const coalesces = merges.key !== null && !pendingSinceTop && model.mergeable && model.mergeKey === merges.key;
     const amends =
         merges.into !== undefined &&
         merges.into !== null &&
@@ -691,9 +678,6 @@ async function edit(
         step.recordedAt = model.tick++;
         step.graph ||= history.steps[history.position - 1].slices.includes("graph");
         step.reshapes ||= shapeOf(real) !== shape;
-        if (coalesces) {
-            model.lastAt = now;
-        }
 
         return "merge";
     }
@@ -754,23 +738,23 @@ function plan(model: Model, direction: "undo" | "redo", target: number): Pending
 /**
  * Drop canceled work from the model, and check the history canceled exactly it.
  * @param model - The model.
- * @param cancelled - The items.
+ * @param canceled - The items.
  * @param reported - What the history said it canceled.
  * @param when - What happened, for the message.
  */
-function dropCancelled(
+function dropCanceled(
     model: Model,
-    cancelled: readonly Pending[],
+    canceled: readonly Pending[],
     reported: readonly { id: string }[],
     when: string,
 ): void {
     assert.deepEqual(
         reported.map((each) => each.id),
-        cancelled.map((each) => each.id),
-        `${when}: the pending work cancelled`,
+        canceled.map((each) => each.id),
+        `${when}: the pending work canceled`,
     );
-    model.pending = model.pending.filter((item) => !cancelled.includes(item));
-    if (model.tx !== null && cancelled.includes(model.tx.item)) {
+    model.pending = model.pending.filter((item) => !canceled.includes(item));
+    if (model.tx !== null && canceled.includes(model.tx.item)) {
         // Aborted: its writes are rolled back, and its body stays stuck until the end.
         model.tx.wrote = false;
     }
@@ -1107,16 +1091,16 @@ class Move implements Command {
         if (to !== from) {
             expectedKind = done[this.kind];
         } else if (cancel.length > 0) {
-            expectedKind = "cancelled";
+            expectedKind = "canceled";
         }
 
         assert.strictEqual(outcome.kind, expectedKind, `${this.toString()}: what it did`);
-        const reported = outcome.kind === "cancelled" ? outcome.pending : [];
-        if (outcome.kind !== "cancelled") {
+        const reported = outcome.kind === "canceled" ? outcome.pending : [];
+        if (outcome.kind !== "canceled") {
             // A move that also canceled reports only the steps it passed.
             model.pending = model.pending.filter((item) => !cancel.includes(item));
         } else {
-            dropCancelled(model, cancel, reported, this.toString());
+            dropCanceled(model, cancel, reported, this.toString());
         }
 
         if (model.tx !== null && cancel.includes(model.tx.item)) {
@@ -1250,7 +1234,7 @@ class UndoFromListener implements Command {
     }
 }
 
-/** Move the clock of the coalescing window. */
+/** Move the history's clock: whether edits merge must not depend on it. */
 class Advance implements Command {
     constructor(private readonly ms: number) {}
 
@@ -1501,7 +1485,6 @@ class EndTransaction implements Command {
         if (recorded) {
             pushStep(model, real, { fresh: freshSince(real, held), before: tx.before });
             model.mergeKey = null;
-            model.lastAt = real.clock.now();
             model.mergeable = true;
             followEviction(model, real, `${this.toString()} recorded`);
         }
@@ -1740,7 +1723,7 @@ class Cancel implements Command {
         const item = choose(model.pending, this.pick) as Pending;
         const expected = cascade(model, [item]);
         const reported = real.session.history.cancel(item.id);
-        dropCancelled(model, expected, reported, this.toString());
+        dropCanceled(model, expected, reported, this.toString());
         expectSealed(model, real, `after ${this.toString()}`);
         return Promise.resolve();
     }

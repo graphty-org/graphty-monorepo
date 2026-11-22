@@ -228,6 +228,32 @@ describe("a yEd GML edge label", () => {
         expect(at[2]).toBeCloseTo(0, 2);
     });
 
+    it("places a label on a line with smoothed bends as on its polyline", async () => {
+        // gml-synthetic-coverage e65: yEd places it from the polyline, and graphty-element hangs a bent line's label at
+        // its route's middle whether it rounds the bends or not
+        const bent = (smooth: number): string =>
+            gml('model "side_slider" position "center"').replace(
+                "edge [ source 0 target 1",
+                `edge [ source 0 target 1 graphics [ smoothBends ${String(smooth)} Line [ point [ x 0 y 0 ] point [ x 50 y -60 ] point [ x 100 y 0 ] ] ]`,
+            );
+        const smoothed = await placeOf("gml", bent(1));
+        expect(smoothed[0]).toBe("center");
+        expect(smoothed[1]).not.toBeNull();
+        expect(smoothed).toEqual(await placeOf("gml", bent(0)));
+    });
+
+    it("starts the line at a node's corner where its route runs along the node's side", async () => {
+        // gml-synthetic-coverage e65: the route bends on its source's top side, and yEd's line leaves at its corner
+        const file = gml('model "center_slider" position "center"').replace(
+            "edge [ source 0 target 1",
+            "edge [ source 0 target 1 graphics [ Line [ point [ x 0 y 0 ] point [ x 0 y -20 ] point [ x 100 y -20 ] point [ x 100 y 0 ] ] ]",
+        );
+        const at = await placeOf("gml", file);
+        // the line runs (20,-20) to (80,-20), and graphty-element hangs the label at (50,-20)
+        expect(at[1]).toBeCloseTo(20 + 10 + (3 * 0.55 * 10 + 4) / 2 - 50, 2);
+        expect(at[2]).toBeNull();
+    });
+
     it("keeps graphty's place for a free label", async () => {
         expect((await placeOf("gml", gml('model "free" position "anywhere" x 10 y -20')))[0]).toBeNull();
     });

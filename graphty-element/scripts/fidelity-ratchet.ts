@@ -25,11 +25,12 @@
  *         [--suite oracle|drawn]
  *     npm run fidelity:ratchet -- --prune [--keys <key>,<key>]
  *     npm run fidelity:ratchet -- --recite "why, naming the issue tracking them now (#1234)" --keys <key>,<key>
- *         --ids <id>,<id> [--properties <p>,<p>] [--suite oracle|drawn]
+ *         --ids <id>,<id> [--id <id>]... [--properties <p>,<p>] [--suite oracle|drawn]
  *
  * `--keys` limits `--prune` to those keys too. `--recite` reads no run: it moves listed known failures (the named ids
  * under the named keys) off the reasons that added them onto one new reason, so they cite the issue tracking them now
- * (an accepted difference with its own issue).
+ * (an accepted difference with its own issue). `--id` names one id each time it is given, for an id with commas in it
+ * (a stray's, `polyline@1560,578,1564,581`), which `--ids` would split.
  */
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -55,6 +56,7 @@ const { values } = parseArgs({
         keys: { type: "string" },
         properties: { type: "string" },
         ids: { type: "string" },
+        id: { type: "string", multiple: true },
         prune: { type: "boolean" },
         recite: { type: "string" },
         suite: { type: "string" },
@@ -117,14 +119,15 @@ function report(name: string, out: { removed: number; added: number; unlisted: n
 const suite = values.suite ?? "all";
 
 if (values.recite !== undefined) {
-    if (keys === undefined || values.ids === undefined) {
-        throw new Error("--recite needs --keys and --ids");
+    const ids = [...(values.ids?.split(",") ?? []), ...(values.id ?? [])];
+    if (keys === undefined || ids.length === 0) {
+        throw new Error("--recite needs --keys and --ids (or --id)");
     }
     const recite = {
         reason: values.recite,
         date: today,
         keys,
-        ids: values.ids.split(","),
+        ids,
         properties: values.properties?.split(","),
     };
     const files = [

@@ -115,7 +115,7 @@ export interface AddAssetOptions {
      * Hears how far the files have been read: changes with `task: "asset"`, `unit: "bytes"` and
      * `asset.stage` (`"downloading"`, `"reading"` or `"unpacking"`), then one `phase: "end"` change
      * with its `outcome` (`"succeeded"` when the record is accepted, `"failed"` with the first
-     * problem's code otherwise, `"cancelled"` when the signal stopped it).
+     * problem's code otherwise, `"canceled"` when the signal stopped it).
      */
     readonly onProgress?: (change: ProgressChange) => void;
     /**
@@ -151,7 +151,10 @@ export type PartAnswer =
      * moved to the part's name.
      */
     | { readonly name: string; readonly use: string }
-    /** Draw without this part. Pictures and `.mtl` files only; never a `.bin` or other geometry. */
+    /**
+     * Draw without this part, missing or ambiguous. Pictures and `.mtl` files only; never a `.bin`
+     * or other geometry.
+     */
     | { readonly name: string; readonly skip: true }
     /** Which file of the set is the model (`E_MODEL_AMBIGUOUS`). */
     | { readonly main: string };
@@ -459,7 +462,7 @@ export interface AssetsApi {
     supply(ref: string, answer: PartAnswer, options?: { readonly signal?: AbortSignal }): Promise<AssetRecord>;
     /**
      * Accept a model waiting for parts without the ones it can be drawn without: every missing
-     * picture and `.mtl` is skipped at once, as `supply`'s `skip` would skip it one at a time, and
+     * or ambiguous picture and `.mtl` is skipped at once, as `supply`'s `skip` would skip it one at a time, and
      * the record lists them in `skipped`. For an "add it anyway" button beside a model whose
      * pictures did not come.
      * @param ref - What a layer named, or the record's id.
@@ -718,7 +721,7 @@ function progressEnd(outcome: unknown, source: ProgressChange["source"]): Progre
     const failed = settled && record.state !== "accepted";
     let ended: ProgressChange["outcome"] = "succeeded";
     if (!settled) {
-        ended = "cancelled";
+        ended = "canceled";
     } else if (failed) {
         ended = "failed";
     }
@@ -929,10 +932,18 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
         return promise;
     }
 
-    signal.throwIfAborted();
+    const stopped = (): Error => (signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason)));
+    // Rejected, never thrown: `ready` and `supply` return this, and a caller chaining `.catch` on
+    // them must hear an already-stopped signal there.
+    if (signal.aborted) {
+        // Nobody waits for the work now, so its own failure is not an unhandled rejection.
+        promise.catch(() => undefined);
+        return Promise.reject(stopped());
+    }
+
     return new Promise<T>((resolve, reject) => {
         const onAbort = (): void => {
-            reject(signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason)));
+            reject(stopped());
         };
         signal.addEventListener("abort", onAbort, { once: true });
         promise.then(
@@ -1085,7 +1096,9 @@ function skipStep(missing: readonly CodedFact[], name: string): Step {
         throw supplyError("E_MODEL_PART_REQUIRED", { name: cutParam(name), role });
     }
 
-    return part?.code === "E_MODEL_MISSING_FILE" ? { skip: String(part.params.name) } : { unused: name };
+    return part?.code === "E_MODEL_MISSING_FILE" || part?.code === "E_MODEL_PART_AMBIGUOUS"
+        ? { skip: String(part.params.name) }
+        : { unused: name };
 }
 
 /**
@@ -2553,7 +2566,10 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             }
 
             let current = await api.ready(ref);
-            const missing = (current.parts ?? []).filter((part) => part.state === "missing");
+            // A part several files match is left out as a missing one is.
+            const missing = (current.parts ?? []).filter(
+                (part) => part.state === "missing" || part.state === "ambiguous",
+            );
             const geometry = missing.find((part) => part.role === "geometry" || part.role === "model");
             if (geometry !== undefined) {
                 throw supplyError("E_MODEL_PART_REQUIRED", { id: current.id, name: geometry.name });

@@ -45,18 +45,18 @@ import type { GraphStatistics } from "../types";
  *
  * The four values are a ladder, not a mood. "measured" means this machine has run this algorithm
  * and the estimate was scaled from that run. "calibrated" means this machine's throughput was
- * probed but this algorithm has never run on it. "modelled" means neither, so built-in rates
+ * probed but this algorithm has never run on it. "modeled" means neither, so built-in rates
  * apply. "unknown" means the inputs do not support a number at all, and the estimate says so
  * rather than inventing one.
  */
-export type CostConfidence = "measured" | "calibrated" | "modelled" | "unknown";
+export type CostConfidence = "measured" | "calibrated" | "modeled" | "unknown";
 
 /**
  * What a run would cost, and how much the answer is worth.
  *
  * Every field is something a consumer would otherwise guess at. `seconds` gates the button,
  * `confidence` decides whether the sentence beside it reads "about" or "at least",
- * `blocksFrame` decides whether a spinner is honest, `cancellable` decides whether a Cancel
+ * `blocksFrame` decides whether a spinner is honest, `cancelable` decides whether a Cancel
  * button appears at all, `available` and `refusal` decide whether the control is offered, and
  * `basisFacts` says where the number came from.
  */
@@ -77,7 +77,7 @@ export interface CostEstimate {
     /** Whether running it would hold the render loop, so a UI knows a spinner would freeze. */
     readonly blocksFrame: boolean;
     /** Whether the work can be stopped once it has started. */
-    readonly cancellable: boolean;
+    readonly cancelable: boolean;
     /** Whether it can run on this graph at all. */
     readonly available: boolean;
     /**
@@ -382,7 +382,7 @@ export const MEASUREMENT_EXTRAPOLATION_LIMIT = 10;
 /**
  * The iteration count assumed for an iterative algorithm that declares no bound of its own.
  *
- * An assumed bound is a guess, so it caps the confidence at "modelled" however well this machine
+ * An assumed bound is a guess, so it caps the confidence at "modeled" however well this machine
  * is calibrated. The number a real algorithm uses is read from its own option descriptor, which
  * is what stops this package's defaults from being copied into a consumer's model.
  */
@@ -854,7 +854,10 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
        0.55 to 2.3 ns per element per unit of log2(n + m) (48 ns on the object graph before), and a
        pass 1.7 to 7.1 ns per element, the most on sparse random graphs, whose passes miss the
        cache most. Pinned at 3.3 ns per unit of log2(n + m) (1 / (100 * the iterative rate)) and
-       7.4 ns per pass (1 / (45 * the iterative rate)) while the graph stays in a core's cache.
+       5.2 ns per pass (1 / (64 * the iterative rate)) while the graph stays in a core's cache.
+       The pass was 7.4 ns (1 / 45) until 2026-11-19 (issue #8475), when a pass stopped copying
+       the scores before scaling them: the 10,000-node grid then read 4.2 to 4.5x pessimistic and
+       random m = 1.2n at 100,000 nodes 1.9x, on CI and on the reference machine alike.
        A pass that misses the cache costs more beside the calibration probe, which never does: on
        2026-11-14 (issue #7920) a pass over random m = 1.2n at 100,000 nodes (about 1.8 MB) took
        6.7 ns per element on the reference machine against 3.3 on a 10,000-node grid, and on CI's
@@ -867,7 +870,7 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
         seconds: (nodes, edges, rates, iterations) =>
             ((nodes + edges) *
                 (Math.log2(Math.max(2, nodes + edges)) / 100 +
-                    (iterations / 45) * (1 + cacheMissShare(nodes, edges) / 2))) /
+                    (iterations / 64) * (1 + cacheMissShare(nodes, edges) / 2))) /
             rates.iterativeElementsPerSecond,
     },
 };
@@ -924,7 +927,7 @@ function unknownEstimate(
         confidence: "unknown",
         costClass,
         blocksFrame: !chunked,
-        cancellable: chunked,
+        cancelable: chunked,
         available,
         basisFacts,
     };
@@ -933,7 +936,7 @@ function unknownEstimate(
 }
 
 /** The seconds and the provenance one rate model produced. */
-interface ModelledSeconds {
+interface ModeledSeconds {
     /** The estimate in seconds. */
     readonly seconds: number;
     /** How much it is worth. */
@@ -962,7 +965,7 @@ function fromMeasurement(
     units: number,
     iterations: number,
     machine: string | undefined,
-): ModelledSeconds | undefined {
+): ModeledSeconds | undefined {
     if (!isUsableCount(measurement.seconds) || !isUsableCount(measurement.nodes) || !isUsableCount(measurement.edges)) {
         return undefined;
     }
@@ -991,7 +994,7 @@ function fromMeasurement(
 
     return {
         seconds,
-        confidence: "modelled",
+        confidence: "modeled",
         source: provenanceOf("cost.extrapolated", {
             at: measurement.at,
             ratio,
@@ -1040,7 +1043,7 @@ export function estimateCost(input: CostInput): CostEstimate {
             confidence: "unknown" as const,
             costClass,
             blocksFrame: false,
-            cancellable: chunked,
+            cancelable: chunked,
             available: false,
             refusal,
             basisFacts: bareBasis("cost.refused", nodes, edges),
@@ -1149,7 +1152,7 @@ function availableEstimate(input: CostInput, descriptor: AlgorithmDescriptor, ru
             ? undefined
             : fromMeasurement(measurement, work.unitsOf, units, iterations, calibration?.machine);
 
-    const modelled =
+    const modeled =
         scaled ??
         modelFromRates(
             descriptor,
@@ -1159,12 +1162,11 @@ function availableEstimate(input: CostInput, descriptor: AlgorithmDescriptor, ru
             ownUnits !== undefined,
             statistics,
         );
-    const confidence =
-        work.iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
+    const confidence = work.iterationsAreGuessed && modeled.confidence !== "modeled" ? "modeled" : modeled.confidence;
     const derivation = input.derivationSeconds ?? 0;
     const seconds =
-        Number.isFinite(modelled.seconds) && modelled.seconds >= 0
-            ? modelled.seconds + derivation
+        Number.isFinite(modeled.seconds) && modeled.seconds >= 0
+            ? modeled.seconds + derivation
             : Number.POSITIVE_INFINITY;
 
     return Object.freeze({
@@ -1172,7 +1174,7 @@ function availableEstimate(input: CostInput, descriptor: AlgorithmDescriptor, ru
         confidence,
         costClass,
         blocksFrame: !chunked && seconds > FRAME_BUDGET_SECONDS,
-        cancellable: chunked,
+        cancelable: chunked,
         available: true,
         basisFacts: Object.freeze({
             nodes,
@@ -1183,7 +1185,7 @@ function availableEstimate(input: CostInput, descriptor: AlgorithmDescriptor, ru
             iterationsAssumed: work.iterationsAreGuessed,
             sample: work.sample ?? null,
             derivationSeconds: derivation,
-            provenance: modelled.source,
+            provenance: modeled.source,
         } satisfies CostBasis),
     });
 }
@@ -1193,7 +1195,7 @@ function availableEstimate(input: CostInput, descriptor: AlgorithmDescriptor, ru
  *
  * A descriptor that declares its own `cost` function wins over the rate table, because its
  * author knows the shape of the work better than a cost class does -- but it is still a model
- * written somewhere else about some other machine, so it reports "modelled" however well this
+ * written somewhere else about some other machine, so it reports "modeled" however well this
  * one is calibrated.
  * @param descriptor - The algorithm's descriptor.
  * @param costClass - The class it declares.
@@ -1222,7 +1224,7 @@ function modelFromRates(
     calibration: MachineCalibration | undefined,
     ownUnits: boolean,
     statistics: GraphStatistics,
-): ModelledSeconds {
+): ModeledSeconds {
     const { nodes, edges, units, iterations, sampleFactor } = work;
     /* THE REGISTRATION IS ASKED FIRST, AND IT IS THE ONLY PLACE A PLUGIN CAN PUT ONE. A cost
        model is a function, and a function stops a descriptor surviving `JSON.stringify` and a
@@ -1239,7 +1241,7 @@ function modelFromRates(
         if (isUsableCount(declared)) {
             return {
                 seconds: declared * sampleFactor,
-                confidence: "modelled",
+                confidence: "modeled",
                 source: provenanceOf("cost.declared-model"),
             };
         }
@@ -1282,7 +1284,7 @@ function modelFromRates(
 
     return {
         seconds,
-        confidence: "modelled",
+        confidence: "modeled",
         source: provenanceOf("cost.built-in", { calibratedAt: calibration?.at ?? null }),
     };
 }

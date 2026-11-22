@@ -126,9 +126,9 @@ env:
 
 jobs:
     # The cap on concurrent pull request runs (tools/ci-run-cap.mjs). On a pull request it waits, on one small
-    # runner, while earlier pull request runs hold CI_PR_JOB_BUDGET (a repository variable, default 150) or more
-    # jobs, while CI_PR_RUN_CAP (default 2) or more of them are active, or while a release.yml run waits for a
-    # runner, so the full run goes first. Every other job needs the Build job, which needs this one, so a waiting
+    # runner, while earlier pull request runs hold CI_PR_JOB_BUDGET (a repository variable, default 120) or more
+    # jobs, while CI_PR_RUN_CAP (default 2) or more of them are active, or while a master push build or a
+    # release.yml run waits for a runner, so master's build and the full run go first (#9153). Every other job needs the Build job, which needs this one, so a waiting
     # run holds nothing else. It never fails the run: an API error proceeds, and the wait ends (the run proceeds)
     # at the script's MAX_WAIT_MINUTES, before this job's timeout, since a timed-out job is canceled and that
     # skips Build and every job after it (#8219). A push to master, a dispatch and the release train's call
@@ -147,12 +147,17 @@ jobs:
             contents: read
             actions: read
             checks: read
+            # a red fix skips the wait: its commits and the open alarm issues they name (#9473)
+            pull-requests: read
+            issues: read
         steps:
             - uses: actions/checkout@v7
               if: github.event_name == 'pull_request'
               with:
                   ref: ${{ inputs.ref }}
-                  sparse-checkout: tools/ci-run-cap.mjs
+                  sparse-checkout: |
+                      tools/ci-run-cap.mjs
+                      tools/lib/github.mjs
                   sparse-checkout-cone-mode: false
             # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
             - name: Use the workflow's own tools and actions
@@ -1147,13 +1152,16 @@ jobs:
             # lint targets; a local lint never caches). Master's full lint fills it and saves it; a pull request restores the newest one, so ESLint
             # re-lints only the files whose content differs from master's (graphty-element took about 300 s here,
             # beside two other packages on the runner's 4 cores). The key holds what changes a rule's verdict on an
-            # unchanged file -- the lockfile, the ESLint configs and rules, the tsconfigs -- so a change to any of
-            # them lints everything. An unchanged file that a pull request's type change makes fail a type-aware
+            # unchanged file -- the resolved versions of eslint, its plugins and parsers, typescript and globals
+            # (tools/eslint-cache-key.mjs reads them from the lockfile; hashing the whole lockfile made every
+            # dependency bump lint from a cold cache, #9541), the ESLint configs and rules, the tsconfigs -- so a
+            # change to any of them misses the exact key. The prefix restore-key still restores the newest cache on
+            # a miss (ESLint re-checks each restored entry against its own config hash). An unchanged file that a pull request's type change makes fail a type-aware
             # rule is caught by master's and the full run's lint, which never restore the cache. The key's last part
             # is the day, so master saves one cache a day (about 3 MB), not one per commit.
             - name: Key the ESLint caches
               id: eslint-cache
-              run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"; echo "prefix=eslint-v1-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.js', 'tsconfig.base.json', 'tools/eslint-rules/**', 'compact-mantine/eslint/**', 'graphty-element/eslint.config.js', 'graphty-element/eslint-rules/**', 'graphty-element/tsconfig*.json', 'graphty/eslint.config.js', 'graphty/eslint-rules/**', 'graphty/tsconfig*.json') }}-" >> "$GITHUB_OUTPUT"
+              run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"; echo "prefix=eslint-v2-$(node tools/eslint-cache-key.mjs | cut -c1-16)-${{ hashFiles('eslint.config.js', 'graphty-element/test/saved-format/eslint-saved-format.js', 'graphty-element/working-graph-whole-readers.json', 'tsconfig.base.json', 'tools/eslint-rules/**', 'compact-mantine/eslint/**', 'graphty-element/eslint.config.js', 'graphty-element/eslint-rules/**', 'graphty-element/tsconfig*.json', 'graphty/eslint.config.js', 'graphty/eslint-rules/**', 'graphty/tsconfig*.json') }}-" >> "$GITHUB_OUTPUT"
 
             - name: Restore the ESLint caches (PR)
               if: needs.packages.outputs.full == 'false'
@@ -1222,6 +1230,35 @@ jobs:
             - name: Bundle size (graphty app, PR, when affected)
               if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty')
               run: pnpm --filter @graphty/graphty run size
+
+            # The built app loads its landing page, draws its graph, opens a sample and draws it, with no page
+            # error, console error or failed request (graphty/acceptance/smoke.mjs, #9633): a build threw "nn is
+            # not a function" on its landing page and every test passed (#9616). Here because this job already
+            # has the built app: built above on a pull request, downloaded with the package builds on master and
+            # the full run. Chromium draws in software; no GPU is needed.
+            - uses: ./.github/actions/drop-microsoft-apt-source
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+
+            - name: Install Playwright system packages
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              uses: ./.github/actions/playwright-system-deps
+
+            - name: Install Chromium for the app's smoke check
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              run: pnpm exec playwright install --only-shell chromium
+
+            - name: Smoke check the built app
+              id: app-smoke
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              continue-on-error: ${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'lint/Smoke check the built app') }}
+              # a few seconds when the app loads; a page that stalls fails the step, not the whole Lint job
+              timeout-minutes: 5
+              run: node graphty/acceptance/smoke.mjs --dist graphty/dist
+
+            - name: Warn that the app's smoke check failed
+              if: ${{ steps.app-smoke.outcome == 'failure' }}
+              continue-on-error: true
+              run: echo "::warning::advisory check lint/Smoke check the built app failed"
 
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
@@ -1726,7 +1763,7 @@ jobs:
             # most 6, 30 runners in all, so the full run never starves pull requests of runners (#3448); the
             # Run cap lets pull requests go once the full run holds that share (RELEASE_SHARE in
             # tools/ci-run-cap.mjs), and the default pull request job budget is the ~180-runner ceiling less
-            # it: 150 (CI_PR_JOB_BUDGET overrides it). At 14 its Test jobs ended at about 66 minutes; 24 brings
+            # it and master's share: 120 (CI_PR_JOB_BUDGET overrides it). At 14 its Test jobs ended at about 66 minutes; 24 brings
             # that to about 35-38 (#7849). A pull request keeps 40. The features-on shards come last in the matrix
             # (tools/ci-test-matrix.mjs), so the Off shards start first and the On ones queue behind them.
             max-parallel: ${{ github.event_name == 'pull_request' && 40 || 24 }}
@@ -2336,7 +2373,82 @@ jobs:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: node tools/results/post-benchmarks.mjs algorithms algorithms/benchmark-results/benchmark-sessions-*-comprehensive.json
 
-    # graphty-element's browser and timing benchmarks and the graphty app's load time.
+    # graphty-element's browser timing benchmarks, in Chromium. Its own job, beside Performance Benchmarks: run one
+    # after the other under one 44-minute deadline, the bench step got whatever this one left (6 to 12 minutes)
+    # and ran out of it on a slower runner (issue #9544; #8148 moved the algorithms benchmark out the same way).
+    browser-benchmarks:
+        name: Browser Benchmarks
+        needs: packages
+        if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 50
+        permissions:
+            contents: read
+        steps:
+            - name: Note when the benchmarks must end
+              run: echo "DEADLINE=$(( $(date +%s) + 44 * 60 ))" >> "$GITHUB_ENV"
+
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: pnpm/action-setup@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # Every package's dist: graphty-element imports the other packages through their dist.
+            - name: Download all package builds
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-packages
+                  path: .
+
+            # browser-bench runs in Chromium only.
+            - name: Restore Playwright browsers
+              if: ${{ !cancelled() }}
+              uses: actions/cache/restore@v6
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+              if: ${{ !cancelled() }}
+
+            - name: Install Playwright system packages
+              if: ${{ !cancelled() }}
+              uses: ./.github/actions/playwright-system-deps
+
+            - name: Install Playwright browsers
+              if: ${{ !cancelled() }}
+              run: pnpm exec playwright install chromium
+
+            - name: Run the graphty-element browser timing benchmarks
+              if: ${{ !cancelled() }}
+              working-directory: graphty-element
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=browser-bench
+
+    # graphty-element's timing benchmarks (the bench project) and the graphty app's load time; the browser timing
+    # benchmarks run beside it, in Browser Benchmarks.
     performance:
         name: Performance Benchmarks
         needs: packages
@@ -2386,10 +2498,9 @@ jobs:
                   name: build-packages
                   path: .
 
-            # Both benchmark projects launch browsers: browser-bench runs in Chromium, and bench's
-            # test/lifecycle/autosave-engines.bench.test.ts launches Chromium, Firefox and WebKit
-            # through Playwright. Installed as the graphty-element-lifecycle shard installs them (same
-            # cache key, all three browsers' system packages), before either benchmark runs.
+            # bench's test/lifecycle/autosave-engines.bench.test.ts launches Chromium, Firefox and WebKit
+            # through Playwright, and the app's load time runs in Chromium. Installed as the
+            # graphty-element-lifecycle shard installs them (same cache key, all three browsers' system packages).
             # Restore only: saving all three browsers under the shared key would hand Firefox and WebKit
             # to every Chromium-only shard that restores it.
             - name: Restore Playwright browsers
@@ -2412,13 +2523,6 @@ jobs:
             - name: Install Playwright browsers
               if: ${{ !cancelled() }}
               run: pnpm exec playwright install chromium firefox webkit
-
-            # Before the bench project: its three-engine autosave run is the long one, and a job that
-            # runs out of time there must not cost the browser numbers.
-            - name: Run the graphty-element browser timing benchmarks
-              if: ${{ !cancelled() }}
-              working-directory: graphty-element
-              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=browser-bench
 
             # The repaint's frame budget and undo's cost against a load, timed without coverage. A
             # stopwatch measures whatever else the machine is doing, so these never gate a push;
@@ -4164,6 +4268,7 @@ jobs:
                 test,
                 links,
                 algorithms-benchmarks,
+                browser-benchmarks,
                 performance,
                 cost-accuracy,
                 story-tests-merge,

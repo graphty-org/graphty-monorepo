@@ -11,6 +11,7 @@ import {
     assertBackgroundColour,
     assertSkyboxDrawn,
     assertViewMode,
+    canvasPixels,
     type Drawn,
     drawn,
     eventually,
@@ -83,17 +84,14 @@ function projectState(scene: Drawn): string {
 const CHANNEL_TOLERANCE = 2;
 
 /**
- * The finished picture on the canvas.
+ * The finished picture on the canvas, read inside a frame so a WebGPU canvas is not read empty.
  * @param scene - What the story drew.
  * @returns Its pixels, four bytes each.
  */
 async function picture(scene: Drawn): Promise<Uint8Array> {
-    const { graph } = scene;
     await scene.session.styles.settled();
-    await graph.waitForStableFrame();
-    graph.getUpdateManager().renderFrames(1);
-    const { engine } = graph;
-    return (await engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight())) as unknown as Uint8Array;
+    await scene.graph.waitForStableFrame();
+    return canvasPixels(scene);
 }
 
 /**

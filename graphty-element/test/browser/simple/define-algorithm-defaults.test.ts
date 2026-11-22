@@ -168,7 +168,7 @@ describe("a map keyed by the wrong ids", () => {
     });
 });
 
-describe("cancelling a whole-graph function", () => {
+describe("canceling a whole-graph function", () => {
     it("stops the author's loop at its next progress call, as a cancel and not as a failure", async () => {
         let stopped = false;
         let started: () => void = () => undefined;

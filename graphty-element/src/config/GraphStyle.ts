@@ -43,6 +43,7 @@ const GraphBackgroundShaderLook = z.strictObject({
 });
 
 const GraphBackgroundColor = z.strictObject({
+    /** `"color"`: the graph is drawn against a flat color. */
     backgroundType: z.literal("color"),
     /** Absent, the element draws {@link DEFAULT_BACKGROUND_COLOR}. */
     color: ColorStyle.optional(),
@@ -56,8 +57,16 @@ const GraphBackgroundColor = z.strictObject({
 });
 
 const GraphBackgroundSkybox = z.strictObject({
+    /** `"skybox"`: the graph is drawn against an image. */
     backgroundType: z.literal("skybox"),
+    /** The image: a URL, or a base64-encoded PNG. */
     data: ImageData,
+    /**
+     * How the image is drawn: `"dome"` wraps the graph in it, turning with the camera; `"flat"`
+     * draws it still behind the graph, covering the canvas and cropped to its shape, never
+     * stretched. Absent, `"dome"`. @since 3.40.0
+     */
+    projection: z.literal(["dome", "flat"]).optional(),
     /** Drawn while the image loads, and wherever it is transparent. @since 3.36.0 */
     color: ColorStyle.optional(),
     /** `color` under a dark color scheme, as on a color background. @since 3.58.0 */
@@ -72,7 +81,8 @@ const GraphBackgroundSkybox = z.strictObject({
  *
  * The color accepts any CSS color the element understands and is normalized to hex on parse;
  * absent, the element draws {@link DEFAULT_BACKGROUND_COLOR} (`session.config.backgroundColor`
- * reports the color drawn). The skybox's `data` is an image URL or a base64 PNG. Either member
+ * reports the color drawn). The skybox's `data` is an image URL or a base64 PNG, drawn as a photo
+ * dome or, with `projection: "flat"`, flat behind the graph. Either member
  * may carry a `shader`, drawn over the color or the image behind every node and label at 30
  * frames a second or fewer: `{ backgroundType: "color", color: "#000", shader: { id: "nebula" } }`.
  * Where the shader's alpha is low, what is beneath it shows. It is the shape

@@ -330,7 +330,7 @@ export async function inBrowserZone(zone: string, run: () => Promise<void>): Pro
  * @param element - Where the finger goes down.
  * @param distance - How far the finger moves down before the cancel, in CSS pixels.
  */
-export async function touchDragCancelled(element: Element, distance: number): Promise<void> {
+export async function touchDragCanceled(element: Element, distance: number): Promise<void> {
     const send = cdpSend();
     const { x, y } = topPagePoint(element);
     const steps = 10;
@@ -344,4 +344,29 @@ export async function touchDragCancelled(element: Element, distance: number): Pr
     }
     await send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
     await send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}
+
+/**
+ * Drags a file from outside the window over the middle of an element and holds it there, as a
+ * reader brings a file in from the desktop.
+ * @param element - What the drag is over.
+ * @param file - The file's path on disk.
+ */
+export async function dragFileOver(element: Element, file: string): Promise<void> {
+    const send = cdpSend();
+    const at = topPagePoint(element);
+    const data = { items: [], files: [file], dragOperationsMask: 1 };
+    await send("Input.dispatchDragEvent", { type: "dragEnter", ...at, data });
+    await send("Input.dispatchDragEvent", { type: "dragOver", ...at, data });
+}
+
+/**
+ * Lets go of a file dragged over an element with `dragFileOver`, dropping it there.
+ * @param element - Where it is dropped.
+ * @param file - The file's path on disk.
+ */
+export async function dropFileOn(element: Element, file: string): Promise<void> {
+    const send = cdpSend();
+    const data = { items: [], files: [file], dragOperationsMask: 1 };
+    await send("Input.dispatchDragEvent", { type: "drop", ...topPagePoint(element), data });
 }

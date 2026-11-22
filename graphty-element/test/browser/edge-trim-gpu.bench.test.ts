@@ -350,7 +350,12 @@ describe.skipIf(!GPU_LANE)("trimmed ends at a million edges, CPU rays against a 
                 drawnScaling: Vector3.One(),
                 drawnByRowScan: true,
             };
-            const scan = new RowScan(babylon, { rows: ROWS, rowBounds }, () => node, null);
+            const scan = new RowScan(
+                babylon,
+                { rows: ROWS, rowBounds, centerOf: (row) => Vector3.FromArray(rowBounds, row * 4) },
+                () => node,
+                null,
+            );
 
             const cpuStart = performance.now();
             const cpu = cpuReach(scan, rowBounds, ends, CPU_EDGES);

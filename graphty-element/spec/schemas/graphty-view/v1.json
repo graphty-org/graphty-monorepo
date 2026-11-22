@@ -24,159 +24,75 @@
             "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/bindsToData"
         },
         "camera": {
-            "type": "object",
-            "description": "graphty-element's CameraState members as they are, but type, plus dimension and controller. controller is the authority. Open: a member a later or third-party controller adds is kept.",
-            "required": ["dimension", "controller"],
-            "properties": {
-                "dimension": {
-                    "enum": [2, 3]
-                },
-                "controller": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "orbit, 2d, or a later or third-party controller (an open vocabulary)."
-                },
-                "type": false,
-                "position": {
-                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
-                },
-                "target": {
-                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
-                },
-                "alpha": {
-                    "type": "number"
-                },
-                "beta": {
-                    "type": "number"
-                },
-                "radius": {
-                    "type": "number"
-                },
-                "fov": {
-                    "type": "number",
-                    "exclusiveMinimum": 0
-                },
-                "zoom": {
-                    "type": "number",
-                    "exclusiveMinimum": 0
-                },
-                "pan": {
-                    "type": "object",
-                    "properties": {
-                        "x": {
-                            "type": "number"
-                        },
-                        "y": {
-                            "type": "number"
-                        }
-                    },
-                    "required": ["x", "y"],
-                    "unevaluatedProperties": false
-                },
-                "rotation": {
-                    "type": "number"
-                },
-                "orthoLeft": {
-                    "type": "number"
-                },
-                "orthoRight": {
-                    "type": "number"
-                },
-                "orthoTop": {
-                    "type": "number"
-                },
-                "orthoBottom": {
-                    "type": "number"
-                },
-                "pivotRotation": {
-                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
-                },
-                "cameraDistance": {
-                    "type": "number"
-                }
-            }
+            "$ref": "#/$defs/camera"
         },
         "views": {
             "type": "array",
             "items": {
                 "type": "object",
-                "required": ["name", "camera"],
+                "required": ["name"],
+                "anyOf": [
+                    {
+                        "required": ["camera"]
+                    },
+                    {
+                        "required": ["follows"]
+                    }
+                ],
                 "properties": {
                     "name": {
                         "type": "string"
                     },
-                    "camera": {
-                        "type": "object",
-                        "description": "graphty-element's CameraState members as they are, but type, plus dimension and controller. controller is the authority. Open: a member a later or third-party controller adds is kept.",
-                        "required": ["dimension", "controller"],
-                        "properties": {
-                            "dimension": {
-                                "enum": [2, 3]
-                            },
-                            "controller": {
-                                "type": "string",
-                                "minLength": 1,
-                                "description": "orbit, 2d, or a later or third-party controller (an open vocabulary)."
-                            },
-                            "type": false,
-                            "position": {
-                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
-                            },
-                            "target": {
-                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
-                            },
-                            "alpha": {
-                                "type": "number"
-                            },
-                            "beta": {
-                                "type": "number"
-                            },
-                            "radius": {
-                                "type": "number"
-                            },
-                            "fov": {
-                                "type": "number",
-                                "exclusiveMinimum": 0
-                            },
-                            "zoom": {
-                                "type": "number",
-                                "exclusiveMinimum": 0
-                            },
-                            "pan": {
-                                "type": "object",
-                                "properties": {
-                                    "x": {
-                                        "type": "number"
-                                    },
-                                    "y": {
-                                        "type": "number"
-                                    }
-                                },
-                                "required": ["x", "y"],
-                                "unevaluatedProperties": false
-                            },
-                            "rotation": {
-                                "type": "number"
-                            },
-                            "orthoLeft": {
-                                "type": "number"
-                            },
-                            "orthoRight": {
-                                "type": "number"
-                            },
-                            "orthoTop": {
-                                "type": "number"
-                            },
-                            "orthoBottom": {
-                                "type": "number"
-                            },
-                            "pivotRotation": {
-                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
-                            },
-                            "cameraDistance": {
-                                "type": "number"
-                            }
+                    "follows": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "A camera view id the view is recomputed from when applied. A reader that knows no such camera view opens the view at camera, written beside it whenever a renderer gave a pose."
+                    },
+                    "key": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "filters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
                         }
+                    },
+                    "layers": {
+                        "type": "object",
+                        "description": "The style document (session.styles.toDocument()) the view brings back, element ids written as element references."
+                    },
+                    "hidden": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                        }
+                    },
+                    "positions": {
+                        "type": "object",
+                        "required": ["order", "xyz"],
+                        "properties": {
+                            "order": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                                }
+                            },
+                            "xyz": {
+                                "type": "array",
+                                "description": "x, y and z per node in order; null for a node nothing had placed.",
+                                "items": {
+                                    "type": ["number", "null"]
+                                }
+                            }
+                        },
+                        "unevaluatedProperties": false
+                    },
+                    "legend": {
+                        "type": "boolean"
+                    },
+                    "camera": {
+                        "$ref": "#/$defs/camera"
                     }
                 }
             }
@@ -264,10 +180,9 @@
                                 },
                                 "dtypes": {
                                     "type": "object",
-                                    "description": "The graph-format dtype each column in columns is declared with, as a reader add declares it.",
+                                    "description": "The dtype (builtins.md \"Column dtypes\") each column in columns is declared with, as a reader add declares it.",
                                     "additionalProperties": {
-                                        "type": "string",
-                                        "minLength": 1
+                                        "enum": ["f32", "f64", "i32", "u32", "u8", "bool", "dict", "string", "json"]
                                     }
                                 }
                             },
@@ -730,11 +645,16 @@
                         "minLength": 1
                     },
                     "params": {
-                        "type": "object"
+                        "type": "object",
+                        "description": "Every option the implementation declares with a default, at the value used (spec 9 rule 10). A reader applies its own default for an absent one."
                     },
                     "seed": {
                         "type": "integer",
                         "minimum": 0
+                    },
+                    "engine": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/engine",
+                        "description": "With a seed, the code the seed was given to (spec 4.5 rule 6)."
                     },
                     "scope": {
                         "description": "One of graphty-element's Scope forms. Bare selection and visible are never written. An unknown form stops that run's replay and is kept.",
@@ -963,51 +883,29 @@
         },
         "layout": {
             "type": "object",
-            "description": "The layout record in force: the layout's name in algorithm, and engine graphty-element's EngineVersions, as in results.",
+            "description": "The layout record in force: the arrangement in id, the engine that drew it only in drawnBy (spec 5 rule 9), and engine the code that drew the positions in force (spec 4.5 rule 6).",
             "properties": {
                 "id": {
                     "type": "string",
-                    "minLength": 1
-                },
-                "algorithm": {
-                    "type": "string",
                     "minLength": 1,
-                    "description": "The layout that draws it, as layout.set spells it."
+                    "description": "An arrangement in the layout registry, never the engine that draws it (spec 5 rule 9)."
                 },
                 "options": {
-                    "type": "object"
+                    "type": "object",
+                    "description": "The arrangement's options, by the layout registry's names: every one declared with a default, at the value used (spec 5 rule 9, 9 rule 10). A reader applies its own default for an absent one."
+                },
+                "drawnBy": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/layoutDrawnBy"
                 },
                 "dimension": {
                     "enum": [2, 3]
                 },
                 "engine": {
-                    "type": "object",
-                    "description": "graphty-element's EngineVersions.",
-                    "required": ["element", "algorithms", "layout"],
-                    "properties": {
-                        "element": {
-                            "type": "string",
-                            "minLength": 1
-                        },
-                        "algorithms": {
-                            "type": "string",
-                            "minLength": 1
-                        },
-                        "layout": {
-                            "type": "string",
-                            "minLength": 1
-                        },
-                        "plugins": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string",
-                                "minLength": 1
-                            }
-                        }
-                    }
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/engine",
+                    "description": "The engine that drew the positions in force (spec 4.5 rule 6). Written when they were drawn; absent for a layout that has not been drawn yet."
                 }
             },
-            "required": ["id", "algorithm", "dimension", "engine"],
+            "required": ["id", "dimension"],
             "unevaluatedProperties": false
         },
         "xr": false,
@@ -1033,6 +931,121 @@
                     },
                     "required": ["groupBy", "group"],
                     "unevaluatedProperties": false
+                }
+            ]
+        },
+        "camera": {
+            "type": "object",
+            "description": "A neutral camera pose, one shape per dimension (spec 4.7 rule 2): in 3D the eye (position), the point looked at (target), up and the vertical field of view; in 2D the world point at the center, the half width in world units and the counterclockwise turn. controller names how a reader drives it and never changes what the pose means; controllers holds state a controller keeps beyond the pose, by controller name. Open: a member a later version adds is kept.",
+            "required": ["dimension"],
+            "properties": {
+                "dimension": {
+                    "enum": [2, 3]
+                },
+                "controller": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "orbit (3D), 2d (2D), or a third party's controller by reverse-domain name (an open vocabulary). Absent, the reader's default controller for the dimension."
+                },
+                "controllers": {
+                    "type": "object",
+                    "description": "State a controller keeps beyond the pose, by controller name. Kept on re-save; the pose wins where the two disagree.",
+                    "additionalProperties": {
+                        "type": "object"
+                    }
+                },
+                "position": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position",
+                    "description": "3D: the eye."
+                },
+                "target": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position",
+                    "description": "3D: the point looked at; differs from position."
+                },
+                "up": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position",
+                    "description": "3D: which way is up on screen; only its part perpendicular to the line of sight counts. Absent or parallel to the line of sight, {x: 0, y: 1, z: 0}."
+                },
+                "fov": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "exclusiveMaximum": 3.141592653589793,
+                    "description": "3D: the vertical field of view in radians. Absent, the reader's default."
+                },
+                "center": {
+                    "type": "object",
+                    "description": "2D: the world point at the view's center.",
+                    "properties": {
+                        "x": {
+                            "type": "number"
+                        },
+                        "y": {
+                            "type": "number"
+                        }
+                    },
+                    "required": ["x", "y"],
+                    "unevaluatedProperties": false
+                },
+                "halfWidth": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "2D: world units from center to the left and right edges."
+                },
+                "rotation": {
+                    "type": "number",
+                    "description": "2D: radians the drawing is turned counterclockwise on screen about center. Absent, 0."
+                },
+                "type": false,
+                "mode": false,
+                "alpha": false,
+                "beta": false,
+                "radius": false,
+                "pivotRotation": false,
+                "cameraDistance": false,
+                "zoom": false,
+                "pan": false,
+                "orthoLeft": false,
+                "orthoRight": false,
+                "orthoTop": false,
+                "orthoBottom": false
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "dimension": {
+                                "const": 3
+                            }
+                        },
+                        "required": ["dimension"]
+                    },
+                    "then": {
+                        "required": ["position", "target"],
+                        "properties": {
+                            "center": false,
+                            "halfWidth": false,
+                            "rotation": false
+                        }
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "dimension": {
+                                "const": 2
+                            }
+                        },
+                        "required": ["dimension"]
+                    },
+                    "then": {
+                        "required": ["center", "halfWidth"],
+                        "properties": {
+                            "position": false,
+                            "target": false,
+                            "up": false,
+                            "fov": false
+                        }
+                    }
                 }
             ]
         }

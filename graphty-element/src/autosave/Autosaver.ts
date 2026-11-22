@@ -14,7 +14,8 @@
  *   built at once and written, and the entry is marked `ended: "replaced"` in the same commit as
  *   the new entry's first write, so a kill in between leaves the old entry restorable.
  * - **Fencing.** Every write states the generation it expects. A write the store rejects because
- *   another writer committed to the entry moves this session to a new entry holding all of it.
+ *   another writer committed to the entry moves this session to a new entry holding all of it,
+ *   and so does a write whose entry's lock another tab holds: one tab writes an entry.
  * - **Failures** become `status.problem` codes; the work stays in memory and the next change
  *   tries again.
  * @module autosave
@@ -27,8 +28,9 @@ import { dispatcherOf } from "../session/dispatchers";
 import { loadLineOf, type LoadTurn, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
-import { ENGINE_VERSIONS } from "../session/runs";
+import { ELEMENT_VERSION } from "../session/runs";
 import type { CodedFact } from "../session/shared";
+import { openingKeptWork } from "../session/sources/references";
 import type { GraphSession, ProjectSlice } from "../session/types";
 import { wholeGraph } from "../session/working/graphs";
 import { buildParts, EVERY_PART, type PartTag, PartTooLarge, reassemble, stashOf } from "./parts";
@@ -47,6 +49,7 @@ import {
 import {
     type AutosaveAvailable,
     type AutosaveCode,
+    AutosaveConflict,
     type AutosaveEntry,
     type AutosaveEntryMeta,
     type AutosaveParts,
@@ -1622,7 +1625,9 @@ export class Autosaver {
             this.#restoringFlag = true;
             // The reader's own work coming back: a network load they ran stays live.
             report = await line.within(turn, () =>
-                this.#session.project.open(text, { discard: true, ownWork: true, limits: { fileBytes: Infinity } }),
+                openingKeptWork(this.#session, () =>
+                    this.#session.project.open(text, { discard: true, ownWork: true, limits: { fileBytes: Infinity } }),
+                ),
             );
         } catch (error) {
             this.#restoringFlag = false;
@@ -1939,7 +1944,7 @@ export class Autosaver {
             edges: snapshot.edgeCount,
             runs: [...dispatcherOf(session).state.runs.keys()],
             formatVersion: AUTOSAVE_FORMAT_VERSION,
-            elementVersion: ENGINE_VERSIONS.element,
+            elementVersion: ELEMENT_VERSION,
             source: this.#source,
             pageConfig: this.#pageConfig,
             bytes: [...sizes.values()].reduce((sum, size) => sum + size, 0),
@@ -2139,8 +2144,12 @@ export class Autosaver {
         arm();
         try {
             for (const entry of job.claim) {
-                await this.#claim(entry);
-                // ponytail: a fresh random id is never held elsewhere; a refused claim is not retried.
+                // One writer per entry: a lock held by another tab refuses the write before the
+                // store sees it, even when the entry's generation still matches, and the work moves
+                // to a new entry as after a fenced conflict (#818).
+                if ((await this.#claim(entry)) === null) {
+                    return { error: new AutosaveConflict(entry.id, entry.gen, entry.gen), stalled: false };
+                }
             }
 
             await this.#store.commit(job.writes, {

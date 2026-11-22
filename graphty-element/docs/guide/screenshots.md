@@ -159,10 +159,13 @@ A PDF needs no extra package: its text is set in the fonts every PDF reader has 
 or Courier, whichever is nearest each label's font), so characters outside Western European
 alphabets print as `?`; use SVG for those.
 
-A figure draws each node's flat color, without the canvas's lighting, with its border; draws edges
-straight, with their arrowheads in the shape, size and color the canvas draws them; and draws a
-label's solid background as a box behind its text. Curved edges, picture arrowheads and gradient
-label backgrounds are not in it yet.
+A figure draws each node's flat color, without the canvas's lighting, with its border; draws each
+edge along the path the canvas draws it (straight, curved, through its bends or fanned out of a
+bundle), ending where the canvas ends it, with its arrowheads in the shape, size and color the canvas
+draws them; draws a label's background, solid or a linear or radial gradient, as a box behind
+its text; and draws a node's glyph (`node.glyph`) as text in its font, color and size, centered where
+the canvas draws it. An icon font's glyph keeps its font in an SVG, which shows it where that font
+is installed; a PDF sets it in the nearest standard font. Picture arrowheads are not in it yet.
 
 ### From a saved view
 
@@ -272,6 +275,10 @@ const { blob, metadata } = await graph.captureAnimation({
 
 // blob is the video; metadata.format says which format the browser recorded
 ```
+
+`metadata.format` is `"webm"` or `"mp4"` (the `VideoFormat` type); `VIDEO_FORMATS`, exported
+from `@graphty/graphty-element` and from `@graphty/graphty-element/session` (which loads no
+element), lists them.
 
 `metadata.framesCaptured` counts the frames the graph drew while recording (at most one in each
 1/fps interval), and `framesDropped` and `dropRate` the frames expected that it did not draw in
@@ -383,7 +390,7 @@ says how many frames to expect and whether the machine is likely to drop some.
 
 | Call                                | When canceled                                     | The camera afterwards                                                                                |
 | ----------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `playTour`                          | Resolves `{ reason: "cancelled" }`                | Stays where the tour left it; with `restoreCamera: true` (default false) put back when it finishes   |
+| `playTour`                          | Resolves `{ reason: "canceled" }`                 | Stays where the tour left it; with `restoreCamera: true` (default false) put back when it finishes   |
 | `captureAnimation` with a `tour`    | Rejects with a `GraphtyError`, code `E_CANCELED`  | Always put back, except after the reader's own move, an outside camera move or a drawing mode switch |
 | `captureScreenshot` with a `camera` | Rejects with the signal's reason, an `AbortError` | Always put back                                                                                      |
 
@@ -490,7 +497,7 @@ Add a screenshot button to your UI:
             const { blob, metadata } = await capturePromise;
             downloadBlob(blob, `recording.${metadata.format}`);
         } catch (error) {
-            // Stop cancels the recording: a cancelled recording keeps no video
+            // Stop cancels the recording: a canceled recording keeps no video
             if (error.code !== "E_CANCELED") {
                 throw error;
             }

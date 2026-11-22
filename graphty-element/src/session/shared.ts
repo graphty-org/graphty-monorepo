@@ -119,19 +119,29 @@ export interface ProgressChange {
      * What is being read, on every change of a load or a prepare: the name the source was given or its file's
      * name or URL's last part, and the URL when it was read from one. Absent for a run.
      */
-    readonly source?: { readonly name?: string; readonly url?: string };
+    readonly source?: {
+        /** The source's name, its file's name, or its URL's last part. */
+        readonly name?: string;
+        /** The URL it was read from, when it was read from one. */
+        readonly url?: string;
+    };
     /**
      * How a load or a prepare stopped, on its `phase: "end"` change only.
      *
      * OPEN UNION: later releases may add outcomes.
      */
-    readonly outcome?: "succeeded" | "failed" | "cancelled";
+    readonly outcome?: "succeeded" | "failed" | "canceled";
     /**
      * Why a load or a prepare failed, on its `phase: "end"` change when `outcome` is `"failed"` and the failure
      * carried a code: the code and the details the rejection carries (for `E_TOO_LARGE`, its
      * `limit`, `count` and `of`).
      */
-    readonly error?: { readonly code: string; readonly details: Readonly<Record<string, unknown>> };
+    readonly error?: {
+        /** The error code the rejection carried. */
+        readonly code: string;
+        /** The details the rejection carried. */
+        readonly details: Readonly<Record<string, unknown>>;
+    };
     /**
      * For an `"asset"` change: which step is under way, `"downloading"` a URL, `"reading"` files
      * or `"unpacking"` a zip, and the file being read, by its name in the set.
@@ -139,7 +149,9 @@ export interface ProgressChange {
      * OPEN UNION: later releases may add stages.
      */
     readonly asset?: {
+        /** The step under way. */
         readonly stage: "downloading" | "reading" | "unpacking";
+        /** The file being read, by its name in the set. */
         readonly part?: string;
     };
     /** What `completed` and `total` count, when it is not records or rows: `"bytes"` for an asset. */

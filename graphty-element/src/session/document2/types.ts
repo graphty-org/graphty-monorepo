@@ -9,7 +9,7 @@
  */
 
 import type { EdgeId, NodeId, RunId } from "../../catalog/types";
-import type { CannedOutcomes } from "../projectFile";
+import type { CannedOutcomes, ProjectSaveOptions } from "../projectFile";
 import type { CodedFact } from "../shared";
 import type { GraphSession, ProjectSlice, TransactionScope } from "../types";
 
@@ -20,7 +20,12 @@ import type { GraphSession, ProjectSlice, TransactionScope } from "../types";
  */
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
 
-/** The sections in the order a full file writes them (spec 1). */
+/**
+ * The sections in the order a full file writes them (spec 1).
+ * @since 3.40.0
+ * @experimental save-files-v2
+ * @beta
+ */
 export const DOCUMENT_SECTIONS: readonly DocumentSection[] = Object.freeze([
     "data",
     "style",
@@ -53,6 +58,40 @@ export const APPLY_ORDER: readonly DocumentSection[] = Object.freeze([
  */
 export type SourceStorage = "embedded" | "referenced";
 
+/**
+ * Why a save asked to reference a source embedded it (`W_SOURCE_EMBEDDED` `params.reason`):
+ * `edited`, the reader edited, removed or merged rows; `bytes`, the session kept no digest of the
+ * bytes it read; `rows`, another load also supplied one of its rows; `mapping`, its read has no
+ * spelling in a mapping; `kind`, no open reads its kind again. OPEN UNION.
+ * @experimental save-files-v2
+ * @beta
+ */
+export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind" | "options";
+
+/**
+ * Why a referenced source supplied nothing on open (`W_SOURCE_UNAVAILABLE` `params.reason`): the
+ * source is held until `data.refresh`. `not-found` (its fetch failed), `needs-file` (no location to
+ * read it from), `read` (unreadable), `too-large` (over the open's size limit), `needs-permission`
+ * (a fetch the caller did not allow), `copy-changed` (its bytes changed since the save, `params.size`
+ * the new byte count; a network source always), `kind` (no open reads its kind again, or this
+ * release does not know it), `copy-form` (an embedded copy in a form this release cannot read; its
+ * record and copy are written back as read), `options` (a parse option this release does not
+ * read), `ledger` (a network request history this release cannot read). OPEN UNION.
+ * @experimental save-files-v2
+ * @beta
+ */
+export type SourceUnavailableReason =
+    | "not-found"
+    | "needs-file"
+    | "read"
+    | "too-large"
+    | "needs-permission"
+    | "copy-changed"
+    | "kind"
+    | "copy-form"
+    | "options"
+    | "ledger";
+
 /** A JSON object as read from or written to a document. */
 export type JsonObject = Record<string, unknown>;
 
@@ -73,8 +112,8 @@ export type DocumentCode =
     | "W_ELEMENT_NAMING_LEFT_OUT"
     | "W_SOURCE_NO_PATH"
     | "W_SOURCE_UNAVAILABLE"
-    | "W_SOURCE_CHANGED"
     | "W_SOURCE_EMBEDDED"
+    | "W_OPTION_NOT_SAVED"
     | "W_REFERENCE_UNBOUND"
     | "W_DATA_CHANGED"
     | "W_DATA_MISMATCH"
@@ -82,13 +121,20 @@ export type DocumentCode =
     | "W_CAMERA_CONTROLLER_UNKNOWN"
     | "W_RUN_NOT_RUN"
     | "W_RESULTS_DIFFER"
+    | "W_ENGINE_CHANGED"
     | "W_EDGE_MATCH_AMBIGUOUS"
     | "W_SOURCE_UNKEYED"
     | "W_NODE_NAMED_ONLY"
     | "W_EDGE_END_MISSING"
+    | "W_KEY_EMPTY"
+    | "W_ROLES_DIFFER"
+    | "W_CLASH_RULE_TYPE"
     | "W_COLUMN_WIDENED"
     | "W_MEMBER_LEFT_OUT"
-    | "W_RECIPE_NOT_APPLIED";
+    | "W_RECIPE_NOT_APPLIED"
+    | "W_LAYOUT_ENGINE_UNAVAILABLE"
+    | "W_LAYOUT_OPTION_NOT_APPLIED"
+    | "W_NAME_UPGRADED";
 
 /**
  * One report entry of a version 2 save or open: a code and plain values (spec 13). A reference
@@ -171,7 +217,8 @@ export interface NodeRef {
 
 /**
  * An edge reference (spec 6.2): `load` the source whose row made the edge, `key` its edge-id value,
- * a reader-added edge's edge-id value or, with none, a minted ULID, or `<copy id>#<row from 0>` for a keyless row.
+ * a reader-added edge's edge-id value or, with none, a minted ULID, or `<from>|<to>#<n>` for a keyless row
+ * (spec 6.1), with `<part>/` in front for a `join.edges` step.
  */
 export interface EdgeRef {
     readonly load: string;
@@ -234,13 +281,10 @@ export interface BuildStamp {
 }
 
 /** What a codec's `write` is given. */
-export interface WriteContext extends CodecContext {
+export interface WriteContext
+    extends CodecContext, Pick<ProjectSaveOptions, "paths" | "handles" | "location" | "rewriteRecipe"> {
     /** The saver's choice per source id or load key; a source with no entry is embedded. */
     readonly embed: Readonly<Record<string, SourceStorage>>;
-    /** A file source's path relative to the folder the file is saved in, per source id or load key. */
-    readonly paths?: Readonly<Record<string, string>>;
-    /** Write the recipe from the session even when one was opened from a file (spec 8.1 rule 5). Default false. */
-    readonly rewriteRecipe?: boolean;
     /** Whether a run's id was minted by the element (its namespace is the element's own). */
     isDerived(id: RunId): boolean;
     /** The `bindsTo` of a bound section: `{ data }` alone; a results run carries its own build stamp. */
@@ -275,6 +319,14 @@ export interface ReadContext extends CodecContext {
     readonly canned: CannedOutcomes;
     /** Mark a restored run's id as minted by the element. */
     restoreDerived(id: RunId): void;
+    /** The open data's column for each column a style section names, by table (spec 3.6 rule 1). */
+    readonly columns?: ColumnRenames;
+}
+
+/** The open data's column for each column a reusable section names, by table: file name to open name. */
+export interface ColumnRenames {
+    readonly node?: Readonly<Record<string, string>>;
+    readonly edge?: Readonly<Record<string, string>>;
 }
 
 /**

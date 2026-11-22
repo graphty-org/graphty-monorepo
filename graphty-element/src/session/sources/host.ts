@@ -6,9 +6,10 @@
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import type { DefaultableLimits } from "../limits";
 import type { SessionCommand } from "../planning";
-import type { SessionEventMap } from "../types";
+import type { SessionEventMap, SourceLoaded } from "../types";
 import type { SourceLedger } from "./ledger";
-import type { ExpandOptions, SourceLoadRecord } from "./types";
+import type { Row } from "./steps/types";
+import type { ExpandOptions, SourceLoadRecord, SourceRefreshReport } from "./types";
 
 /** One edge as the expand code reads it. */
 export interface HostEdge {
@@ -23,6 +24,12 @@ interface HostPlacement {
     /** Scene units; null while no layout has placed it. */
     readonly at: { readonly x: number; readonly y: number; readonly z: number } | null;
     readonly pinned: boolean;
+}
+
+/** What a load stamps on its journal entries: `trigger: "load"` and the caller's key. */
+export interface LoadStamp {
+    readonly trigger: "load";
+    readonly callerKey?: string;
 }
 
 /** The session pieces a source load or expansion works through. */
@@ -60,9 +67,10 @@ export interface SourceHost {
     /**
      * Dispatch a command through the session's dispatcher, as one undoable step.
      * @param command - the command
+     * @param stamp - for a load: what its journal entry carries
      * @returns what it settles with
      */
-    dispatch(command: SessionCommand): Promise<unknown>;
+    dispatch(command: SessionCommand, stamp?: LoadStamp): Promise<unknown>;
     /**
      * Waits for every load asked for before this one to dispatch, for a load that holds a
      * place in line (`session.data.import`, `loadExample`); unset, or undefined, when none is ahead.
@@ -75,6 +83,23 @@ export interface SourceHost {
      * @param detail - what it carries
      */
     emit<K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]): void;
+    /**
+     * The keys `data.sources()` stores now, read before a load door dispatches.
+     * @returns the keys
+     */
+    sourceKeys?(): ReadonlySet<SourceKey>;
+    /**
+     * Publish `source:loaded` for each source a load door's load added, once it committed. Only a
+     * load door calls it, never `runPendingSourceLoad`, a refresh or a next page.
+     * @param before - the keys {@link SourceHost.sourceKeys} read before the dispatch
+     * @param mode - whether the load replaced the graph or merged into it
+     * @param facts - what the door knows beside the source list
+     */
+    loaded?(
+        before: ReadonlySet<SourceKey>,
+        mode: "replace" | "merge",
+        facts: Pick<SourceLoaded, "sourceId" | "sample" | "callerKey">,
+    ): void;
     /**
      * A node's record, its id as the graph holds it.
      * @param id - the id, an integer id either way
@@ -118,6 +143,15 @@ export interface SourceHost {
      * @returns the scale
      */
     positionScale(): number;
+    /**
+     * Under the source-steps experiment: swap a network load's rows in as its source's new copy,
+     * in place of the difference a refresh applies otherwise. Absent with the experiment off; settles
+     * with `undefined`, changing nothing, when no step reads the load.
+     */
+    readonly refreshSteps?: (
+        load: string,
+        tables: { readonly nodes?: readonly Row[]; readonly edges?: readonly Row[] },
+    ) => Promise<SourceRefreshReport | undefined>;
 }
 
 /** An expansion running for some seeds, and the options it was asked with. */

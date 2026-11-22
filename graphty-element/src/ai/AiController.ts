@@ -326,8 +326,14 @@ const NO_TOTALS: MessageState["totals"] = { removeNodes: 0, removeEdges: 0, chan
 export type AiApprovalsSetting =
     | "none"
     | "writes"
-    | { readonly ask: readonly string[] }
-    | { readonly policy: (call: AiToolCallFacts) => AiApprovalVerdict };
+    | {
+          /** The tools (by command name) whose calls the reader is asked about; every other call runs. */
+          readonly ask: readonly string[];
+      }
+    | {
+          /** Decides each call: `"allow"` runs it, `"ask"` holds it for the reader, `"deny"` refuses it. */
+          readonly policy: (call: AiToolCallFacts) => AiApprovalVerdict;
+      };
 
 /** How an answer to a question was given. */
 export interface AiAnswerOptions {
@@ -347,7 +353,10 @@ export interface AiApprovalAnswer {
      * runs as the model made it. Edited arguments are checked as the model's are: invalid ones
      * run nothing (`AI_TOOL_INVALID_ARGUMENTS`).
      */
-    readonly calls?: readonly { readonly arguments?: Readonly<Record<string, unknown>> }[];
+    readonly calls?: readonly {
+        /** The arguments to run the call with in place of the model's. */
+        readonly arguments?: Readonly<Record<string, unknown>>;
+    }[];
 }
 
 /** What the main model is told a change after reading the web does, by `tools.webContentWrites`. */
@@ -741,7 +750,7 @@ export class AiController {
     private lastInput: string | null = null;
     private lastError: Error | null = null;
     /** The messages `cancel()` ended, so their results say canceled, not undone. */
-    private readonly cancelled = new WeakSet<AbortController>();
+    private readonly canceled = new WeakSet<AbortController>();
     /** Who hears that an open live connection no longer knows the conversation. */
     private readonly liveWatchers = new Set<() => void>();
     /** Batches held for approval, by request id, until an event ends each. */
@@ -780,6 +789,8 @@ export class AiController {
      * it, so two never write into each other's transactions or share the status.
      */
     private queue: Promise<unknown>;
+    /** How many turns have ended so far (`ai-command-complete` or `ai-command-error` emitted). */
+    private endings = 0;
     /** Where conversations are kept, and how; undefined when none are. */
     private readonly history: AiHistoryOptions | undefined;
     private readonly secrets: () => readonly string[];
@@ -934,8 +945,8 @@ export class AiController {
      * experiment, so an application that mounts a fresh element can tell that from the reader's Stop.
      * @returns The code.
      */
-    private get cancelCode(): "AI_CANCELLED" | "AI_DISPOSED" {
-        return this.disposed && this.graph.getSession().features.has("assistant") ? "AI_DISPOSED" : "AI_CANCELLED";
+    private get cancelCode(): "AI_CANCELED" | "AI_DISPOSED" {
+        return this.disposed && this.graph.getSession().features.has("assistant") ? "AI_DISPOSED" : "AI_CANCELED";
     }
 
     /**
@@ -943,6 +954,10 @@ export class AiController {
      * @param event - The AI event to emit
      */
     private emitAiEvent(event: AiEvent): void {
+        if (event.type === "ai-command-complete" || event.type === "ai-command-error") {
+            this.endings++;
+        }
+
         if (this.emitEvent) {
             this.emitEvent(event);
         }
@@ -969,12 +984,14 @@ export class AiController {
         // Read now, not when its turn comes: a selection changed while it waits is not its scope.
         const scope = options.scope === undefined ? undefined : this.readScope(options.scope);
         if (scope === null) {
-            return {
+            const result: ExecutionResult = {
                 success: false,
                 message: "",
                 code: "AI_CONFIG_INVALID",
                 params: { field: "scope", reason: "needs-generated-toolset" },
             };
+            this.emitAiEvent({ type: "ai-command-complete", result, duration: 0 });
+            return result;
         }
 
         // Track input for retry
@@ -990,35 +1007,37 @@ export class AiController {
         // Registered now, so `cancel()` reaches a message still waiting for the one before it.
         const abortController = new AbortController();
         this.running.set(abortController, input);
-        return this.enqueue(async () => {
-            if (abortController.signal.aborted) {
-                this.running.delete(abortController);
-                return { success: false, message: "", code: this.cancelCode, params: {} };
-            }
-
-            if (options.conversation !== undefined && !(await this.switchTo(options.conversation))) {
-                this.running.delete(abortController);
-                return UNKNOWN_CONVERSATION;
-            }
-
-            const live = (options as AiCommandOptions & { [LIVE_MESSAGE]?: LiveMessage })[LIVE_MESSAGE];
-            let planned: AiPlan | undefined;
-            try {
-                const refused = await this.refuseBeforeSending(input, live !== undefined);
-                if ("result" in refused) {
+        return this.enqueue(() =>
+            this.announced(async () => {
+                if (abortController.signal.aborted) {
                     this.running.delete(abortController);
-                    return refused.result;
+                    return { success: false, message: "", code: this.cancelCode, params: {} };
                 }
 
-                ({ planned } = refused);
-            } catch {
-                // A part of the assistant that would not load: nothing was sent.
-                this.running.delete(abortController);
-                return { success: false, message: "", code: "AI_FAILED", params: {} };
-            }
+                if (options.conversation !== undefined && !(await this.switchTo(options.conversation))) {
+                    this.running.delete(abortController);
+                    return UNKNOWN_CONVERSATION;
+                }
 
-            return this.executeNow(input, abortController, options, planned, scope);
-        });
+                const live = (options as AiCommandOptions & { [LIVE_MESSAGE]?: LiveMessage })[LIVE_MESSAGE];
+                let planned: AiPlan | undefined;
+                try {
+                    const refused = await this.refuseBeforeSending(input, live !== undefined);
+                    if ("result" in refused) {
+                        this.running.delete(abortController);
+                        return refused.result;
+                    }
+
+                    ({ planned } = refused);
+                } catch {
+                    // A part of the assistant that would not load: nothing was sent.
+                    this.running.delete(abortController);
+                    return { success: false, message: "", code: "AI_FAILED", params: {} };
+                }
+
+                return this.executeNow(input, abortController, options, planned, scope);
+            }),
+        );
     }
 
     /**
@@ -1214,6 +1233,24 @@ export class AiController {
     private enqueue<T>(turn: () => Promise<T>): Promise<T> {
         const result = this.queue.then(turn);
         this.queue = result.then(settled, settled);
+        return result;
+    }
+
+    /**
+     * Run one queued turn so that it ends with exactly one `ai-command-complete` or
+     * `ai-command-error`: a turn that returned before running (refused, stale, canceled while it
+     * waited) emits `ai-command-complete` with its result, as one that ran already did.
+     * @param turn - The turn.
+     * @returns Its result.
+     */
+    private async announced(turn: () => Promise<ExecutionResult>): Promise<ExecutionResult> {
+        const before = this.endings;
+        const startTime = Date.now();
+        const result = await turn();
+        if (this.endings === before) {
+            this.emitAiEvent({ type: "ai-command-complete", result, duration: Date.now() - startTime });
+        }
+
         return result;
     }
 
@@ -1491,7 +1528,7 @@ export class AiController {
             result = { ...result, code: "AI_ROLLBACK_PARTIAL", params: { ...result.params, steps: remaining } };
         }
         // The batch's rollback aborts the message too, so only a cancel overrides the tool's code.
-        if (this.cancelled.has(run.abortController)) {
+        if (this.canceled.has(run.abortController)) {
             result = { ...result, ...this.cancelOutcome(run) };
         }
 
@@ -1568,15 +1605,8 @@ export class AiController {
 
         this.statusManager.setError(errorObj, true);
 
-        // Emit error event
-        this.emitAiEvent({
-            type: "ai-command-error",
-            error: errorObj,
-            input: run.input,
-            canRetry: true,
-        });
-
         const { code, params } = this.failureOutcome(error, run);
+
         const failed: ExecutionResult = {
             success: false,
             message: `Error: ${errorMessage}`,
@@ -1588,6 +1618,16 @@ export class AiController {
             await this.saveUnkept(run, conversation, base, failed, error instanceof TurnFailed ? error.said : "");
             this.hearLater(run, conversation, base);
         }
+
+        // Emitted once the message is saved, as ai-command-complete is: a listener reading the
+        // conversation finds this turn's own reader message, a spoken one included.
+        this.emitAiEvent({
+            type: "ai-command-error",
+            error: errorObj,
+            code,
+            input: run.input,
+            canRetry: true,
+        });
 
         return failed;
     }
@@ -1729,7 +1769,7 @@ export class AiController {
      * @returns Canceled when `cancel()` ended it, undone otherwise.
      */
     private abortOutcome(run: MessageRun): Outcome {
-        return this.cancelled.has(run.abortController) ? this.cancelOutcome(run) : { code: "AI_UNDONE", params: {} };
+        return this.canceled.has(run.abortController) ? this.cancelOutcome(run) : { code: "AI_UNDONE", params: {} };
     }
 
     /**
@@ -2216,7 +2256,7 @@ export class AiController {
      */
     resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult> {
         // An answer given while its message still runs (from inside the listener) waits for it.
-        return this.enqueue(() => this.resolveNow(id, answer));
+        return this.enqueue(() => this.announced(() => this.resolveNow(id, answer)));
     }
 
     /**
@@ -2316,7 +2356,7 @@ export class AiController {
         answer: string | readonly string[],
         options: AiAnswerOptions = {},
     ): Promise<ExecutionResult> {
-        return this.enqueue(() => this.answerNow(id, answer, options));
+        return this.enqueue(() => this.announced(() => this.answerNow(id, answer, options)));
     }
 
     /**
@@ -3177,7 +3217,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     cancel(): void {
         // Every request and question still waiting ends too, its message with it.
         for (const id of [...this.approvals.keys(), ...this.questions.keys()]) {
-            const pending = this.closePending(id, { code: "AI_CANCELLED", params: {} });
+            const pending = this.closePending(id, { code: "AI_CANCELED", params: {} });
             void this.enqueue(() => this.saveClosed(pending));
         }
 
@@ -3186,11 +3226,9 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 continue;
             }
 
-            this.cancelled.add(abortController);
+            this.canceled.add(abortController);
             abortController.abort();
-            // `ai-command-cancelled` is the deprecated British name, still sent until the next major.
             this.emitAiEvent({ type: "ai-command-canceled", input, reason: "user" });
-            this.emitAiEvent({ type: "ai-command-cancelled", input, reason: "user" });
         }
     }
 

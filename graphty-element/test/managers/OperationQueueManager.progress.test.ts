@@ -1,7 +1,11 @@
 import { assert, beforeEach, describe, it, vi } from "vitest";
 
 import { EventManager } from "../../src/managers/EventManager";
-import { type OperationContext, OperationQueueManager } from "../../src/managers/OperationQueueManager";
+import {
+    type OperationContext,
+    OperationQueueManager,
+    type PendingWorkProgress,
+} from "../../src/managers/OperationQueueManager";
 
 describe("Progress Tracking", () => {
     let eventManager: EventManager;
@@ -159,7 +163,7 @@ describe("Progress Tracking", () => {
         assert.isTrue(newEvents.every((e) => e.id === opId2));
     });
 
-    it("should handle progress for cancelled operations", async () => {
+    it("should handle progress for canceled operations", async () => {
         let started!: () => void;
         const running = new Promise<void>((resolve) => {
             started = resolve;
@@ -193,7 +197,7 @@ describe("Progress Tracking", () => {
         assert.notInclude(
             ours.map((e) => e.progress),
             100,
-            "a cancelled operation never reports itself complete",
+            "a canceled operation never reports itself complete",
         );
     });
 
@@ -271,5 +275,44 @@ describe("Progress Tracking", () => {
             const lastDuration = capturedEvents[capturedEvents.length - 1].duration ?? 0;
             assert.isTrue(lastDuration >= firstDuration, "Duration should increase over time");
         }
+    });
+});
+
+describe("pending work readings", () => {
+    it("reports the queued and running work as coded facts until stopped", async () => {
+        const queueManager = new OperationQueueManager(new EventManager());
+        const facts: PendingWorkProgress[] = [];
+        let release = (): void => undefined;
+        const gate = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        let started = (): void => undefined;
+        const running = new Promise<void>((resolve) => {
+            started = resolve;
+        });
+
+        queueManager.queueOperation("data-add", async (context) => {
+            context.progress.setProgress(40);
+            started();
+            await gate;
+        });
+        const stop = queueManager.watchPendingWork((fact) => facts.push(fact));
+        assert.deepEqual(facts[0], { code: "PENDING_WORK", params: { operations: 1, category: null, percent: null } });
+
+        const done = queueManager.waitForCompletion();
+        await running;
+        assert.deepInclude(facts, {
+            code: "PENDING_WORK",
+            params: { operations: 1, category: "data-add", percent: 40 },
+        });
+        release();
+        await done;
+        stop();
+        assert.deepEqual(facts.at(-1)?.params.operations, 0, "the last reading counts nothing left");
+
+        const count = facts.length;
+        queueManager.queueOperation("data-add", () => undefined);
+        await queueManager.waitForCompletion();
+        assert.strictEqual(facts.length, count, "nothing is reported after stop");
     });
 });

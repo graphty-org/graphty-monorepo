@@ -113,7 +113,7 @@ for (const step of session.history.steps) {
 }
 session.history.position; // how many steps are applied; steps[position..] can be redone
 await session.history.restoreTo(session.history.steps[1].id); // jump; null jumps to the baseline
-// Take back an abandoned edit (a draft the reader cancelled): jump back and leave nothing to redo.
+// Take back an abandoned edit (a draft the reader canceled): jump back and leave nothing to redo.
 await session.history.restoreTo(before, { redo: "drop" });
 ```
 
@@ -174,11 +174,16 @@ Every step's `fact.code` is one of the `HistoryCode` values, each documenting it
 A parameter that came from the data (a node id, a set's name) is the data's own text: escape it
 before putting it into HTML.
 
-**Coalescing.** Edits of the same thing within a second of each other merge into the step on top:
-dragging a color picker, typing into a filter, moving the time window, placing nodes one at a
-time in a loop. The whole drag is one step. Work queued in between -- a run, an import -- ends the
-merge: the next edit starts a step of its own, so undo takes back that edit before it cancels the
-queued work.
+**Coalescing.** Consecutive edits of the same thing merge into the step on top: dragging a color
+picker, typing into a filter, moving the time window, placing the same nodes one call at a time.
+The whole drag is one step. Whether two edits merge depends only on what they change and on what
+happened between them, never on the time between them, so the same calls make the same steps on
+any machine. A style update merges only while it changes channels the step already changes: a
+color drag is one step, and a size edit after it is a step of its own. Another step, an undo, or
+work queued in between -- a run, an import -- ends the merge: the next edit starts a step of its
+own, so undo takes back that edit before it cancels the queued work. To keep an edit out of the
+step before it (a second, separate drag of the same slider), make it inside `session.transaction`:
+a transaction is always a step of its own, and no edit after it merges into it.
 
 ## Transactions
 
@@ -266,7 +271,7 @@ A run or a load becomes a step when it finishes. Until then it is **pending**, l
 `session.history.pending`, and undo treats it as the newest thing to take back:
 
 - Undo while a run or load that started after the last step is still going **cancels it**, and
-  does not also undo the step. `undo()` resolves with `{ kind: "cancelled", pending }`.
+  does not also undo the step. `undo()` resolves with `{ kind: "canceled", pending }`.
 - Undo while an older run is still going undoes the step on top and leaves the run alone. When
   the run finishes it becomes the new top step, and the redo list is dropped.
 - Undo while a transaction is open aborts it and rolls it back.

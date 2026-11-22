@@ -3,7 +3,7 @@
  */
 
 import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
-import type { Graph } from "../../../src/Graph";
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { describeScopedAdapter } from "./harness";
 
-describeScopedAdapter("bellman-ford", (graph: Graph) => new BellmanFordAlgorithm(graph));
+describeScopedAdapter("bellman-ford", (graph: AlgorithmHost) => new BellmanFordAlgorithm(graph));

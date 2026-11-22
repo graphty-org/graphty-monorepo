@@ -629,6 +629,17 @@ const CASES: readonly Case[] = [
             };
         },
     },
+    {
+        method: "StylesApi.duplicateRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.duplicateRow(id);
+                await session.styles.settled();
+            };
+        },
+    },
     // Notes: one note per node, so a write that walks every note grows with the graph. The write
     // itself does not (#1890, test/session/notes/scaling.test.ts), nor does the commit after it,
     // which no longer republishes the whole step list (#2733).
@@ -788,6 +799,17 @@ const CASES: readonly Case[] = [
         prepare: async (session) => {
             await session.visibility.addCondition({ id: "c", effect: "exclude", rule: { kind: "degree", min: 2 } });
             return () => session.visibility.removeCondition("c");
+        },
+    },
+    {
+        method: "VisibilityApi.moveStep",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.visibility.setConditions([
+                { id: "a", effect: "keep", rule: { kind: "degree", min: 1 } },
+                { id: "b", effect: "exclude", rule: { kind: "degree", min: 3 } },
+            ]);
+            return () => session.visibility.moveStep("b", 0);
         },
     },
     {

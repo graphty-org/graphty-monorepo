@@ -165,7 +165,7 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
             code: "config.set",
             params: { keys: configLeaves(command.values).map(([path]) => path) },
         }),
-        // Dragging a color picker is one step: sets of the same keys recorded close together merge.
+        // Dragging a color picker is one step: consecutive sets of the same keys merge.
         coalesce: (command) =>
             `config:${configLeaves(command.values)
                 .map(([path]) => path)

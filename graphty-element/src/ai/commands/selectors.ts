@@ -10,7 +10,7 @@
  * @module ai/commands/selectors
  */
 
-import type { RuleTree, Scope } from "../../catalog/types";
+import type { EdgeId, NodeId, RuleTree, Scope } from "../../catalog/types";
 import type { Graph } from "../../Graph";
 
 /** The sentence every selector parameter carries, so each tool describes the language the same way. */
@@ -69,7 +69,7 @@ export async function matchingNodeIds(
     const keep = (ids: Iterable<unknown>): string[] =>
         Array.from(ids, String).filter((id) => shown === null || shown.nodes.has(id));
     if (connectedBy === undefined && (selector === undefined || isMatchAllSelector(selector))) {
-        return keep(graph.getDataManager().nodes.keys());
+        return keep(nodeItemsOf(graph).map((node) => node.id));
     }
 
     const scope = await graph.getSession().scope.resolve(nodeScopeOf(selector, connectedBy));
@@ -95,6 +95,34 @@ export function shownIdsOf(graph: Graph): { nodes: ReadonlySet<string>; edges: R
         nodes: ids(session.data.nodePage({ limit: Infinity }).records),
         edges: ids(session.data.edgePage({ limit: Infinity }).records),
     };
+}
+
+/**
+ * Every node of the graph, shown or not, as `{ id, data }`: its session record and the record as
+ * its data.
+ * @param graph - The graph.
+ * @returns The nodes, in the graph's order.
+ */
+export function nodeItemsOf(graph: Graph): { id: NodeId; data: Record<string, unknown> }[] {
+    return graph
+        .getSession()
+        .data.nodes({ scope: "graph" })
+        .map((record) => ({ id: record.id, data: record }));
+}
+
+/**
+ * Every edge of the graph, shown or not, as its id, its ends and its data: the attributes its
+ * record carried, without the id and ends the session adds.
+ * @param graph - The graph.
+ * @returns The edges, in the graph's order.
+ */
+export function edgeItemsOf(
+    graph: Graph,
+): { id: EdgeId; source: NodeId; target: NodeId; data: Record<string, unknown> }[] {
+    return graph
+        .getSession()
+        .data.edges({ scope: "graph" })
+        .map(({ id, source, target, ...data }) => ({ id, source, target, data }));
 }
 
 /**

@@ -103,6 +103,8 @@ type AccelerationDecision =
           readonly accelerator: GraphAccelerator;
           /** The arithmetic the result will have been computed in. Belongs on `Caveats.precision`. */
           readonly precision: AccelerationPrecision;
+          /** Whether the accelerator runs on a software adapter (SwiftShader, llvmpipe), which only `"required"` accepts. */
+          readonly software: boolean;
       }
     | {
           /** The work goes to the CPU path. */
@@ -756,7 +758,12 @@ export class AccelerationController {
             }
         }
 
-        return { accelerated: true, accelerator, precision: accelerator.precision ?? DEFAULT_ACCELERATOR_PRECISION };
+        return {
+            accelerated: true,
+            accelerator,
+            precision: accelerator.precision ?? DEFAULT_ACCELERATOR_PRECISION,
+            software: this.#attachment?.software === true,
+        };
     }
 
     /**

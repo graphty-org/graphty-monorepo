@@ -1,0 +1,280 @@
+/**
+ * @file Scopes, readable paths and the type selector under the source-steps experiment (design
+ * section 3.9, 8.4 to 8.6), ported from the reference model's scope-inside-visible,
+ * type-filter-is-judged, phases 10 and review-round-5 "Select nodes on an edge-list source" cases.
+ */
+
+import { assert, describe, it } from "vitest";
+
+import type { Scope } from "../../../src/catalog/types";
+import { createGraphSession, type GraphSession } from "../../../src/session";
+import { sessionWithRuns } from "../../helpers/project-session";
+import { full, phase6, refused } from "./scenario";
+
+/**
+ * A Source scope as the Analyze popover writes it: inside the visible graph (design 8.6).
+ * @param source - The source.
+ * @param side - Which half it keeps.
+ * @returns The scope.
+ */
+const sourceScope = (source: string, side: "nodes" | "edges") =>
+    ({
+        define: {
+            kind: "rule",
+            where: {
+                kind: "all",
+                of: [
+                    { kind: "member", of: "visible" },
+                    { kind: "source", sources: [source], side },
+                ],
+            },
+            reading: side === "edges" ? "listed" : "clipped",
+        },
+    }) as const;
+
+/**
+ * A Type scope inside the visible graph.
+ * @param types - The types.
+ * @returns The scope.
+ */
+const typeScope = (types: readonly string[]) =>
+    ({
+        define: {
+            kind: "rule",
+            where: {
+                kind: "all",
+                of: [
+                    { kind: "member", of: "visible" },
+                    { kind: "expression", where: types.map((t) => `graphty.type == '${t}'`).join(" || ") },
+                ],
+            },
+            reading: "clipped",
+        },
+    }) as const;
+
+/**
+ * The nodes of a session shown now.
+ * @param session - The session.
+ * @returns Their ids.
+ */
+async function shownNodes(session: GraphSession): Promise<Set<string>> {
+    return new Set([...(await session.scope.resolve("visible")).nodes].map(String));
+}
+
+describe("source-steps: scopes and readable paths", () => {
+    it("lists the readable paths and reads them in rules (design 3.9)", async () => {
+        const { session, t } = await full();
+        const paths = session.data
+            .readableValues()
+            .filter((v) => v.from === "element")
+            .map((v) => `${v.on}:${v.path}`);
+        for (const path of ["node:graphty.type", "node:graphty.space", "node:graphty.key", "edge:graphty.load"]) {
+            assert.include(paths, path);
+        }
+        // They are the element's facts, not data columns.
+        assert.notInclude(
+            session.data.attributes().map((a) => a.name),
+            "graphty.type",
+        );
+        const loads = session.data.valueCounts("graphty.load", { kind: "edge" });
+        // Its four transfers and the two device edges extracted from it.
+        assert.strictEqual(loads.values.find((v) => v.value === t)?.count, 6);
+        session.dispose();
+    });
+
+    it("{ types } is the nodes of those types and the edges between them", async () => {
+        const { session } = await full();
+        const accounts = await session.scope.count({ types: ["account"] });
+        assert.strictEqual(accounts.edges, 0, "Type: account has no edges on an account-merchant graph");
+        assert.isAbove(accounts.nodes, 0);
+        const both = await session.scope.count({ types: ["account", "merchant"] });
+        // The four transfers and bank B's X-1; X-2 ends on B-7, which no end rule types.
+        assert.strictEqual(both.edges, 5);
+        session.dispose();
+    });
+
+    it("the type selector paints the elements of the listed types", async () => {
+        const { session } = await full();
+        const layer = await session.styles.add({
+            name: "Devices",
+            target: "node",
+            selector: { match: "type", types: ["device"] },
+            set: { "node.color": "#ff0000" },
+        });
+        assert.strictEqual(session.styles.counts(layer.id).matched, 2);
+        session.dispose();
+    });
+
+    it("Type and Source scopes leave out what a filter hides (scope-inside-visible)", async () => {
+        const { session, t } = await full();
+        const before = [
+            await session.scope.count(typeScope(["account", "merchant"])),
+            await session.scope.count(sourceScope(t, "edges")),
+        ];
+        await session.visibility.addCondition({
+            effect: "keep",
+            source: t,
+            rule: { kind: "range", attribute: "data.amount", min: 8 },
+        });
+        const after = [
+            await session.scope.count(typeScope(["account", "merchant"])),
+            await session.scope.count(sourceScope(t, "edges")),
+        ];
+        for (const [i, scope] of after.entries()) {
+            assert.isBelow(scope.edges, before[i].edges, `scope ${String(i)} still counts hidden edges`);
+        }
+        session.dispose();
+    });
+
+    it("a graph-wide condition on graphty.type is judged, not held (type-filter-is-judged)", async () => {
+        const { session } = await full();
+        await session.visibility.addCondition({
+            effect: "keep",
+            rule: { kind: "categories", attribute: "graphty.type", values: ["account"] },
+        });
+        const shown = await shownNodes(session);
+        assert.isFalse(shown.has("D-1") || shown.has("D-2"), "device nodes stay shown");
+        session.dispose();
+    });
+
+    it("phase 10: a Source scope holds the source's edges and their ends", async () => {
+        const { session, b } = await full();
+        const scope = await session.scope.count(sourceScope(b, "edges"));
+        assert.strictEqual(scope.edges, 2);
+        // X-1 and X-2's ends: A-1, M-1, B-7 and M-9, and no other node.
+        assert.strictEqual(scope.nodes, 4);
+        assert.isUndefined(scope.issues);
+        const resolved = await session.scope.resolve(sourceScope(b, "edges"));
+        assert.deepStrictEqual([...resolved.nodes].map(String).sort(), ["A-1", "B-7", "M-1", "M-9"]);
+        session.dispose();
+    });
+
+    it("a Source scope on edges of a node-only source falls back to its nodes (W_SCOPE_NO_EDGES)", async () => {
+        const { session, a } = await full();
+        const scope = await session.scope.count(sourceScope(a, "edges"));
+        // accounts.csv supplied A-1, A-2 and A-9, and no edge runs between two of them.
+        assert.strictEqual(scope.nodes, 3);
+        assert.strictEqual(scope.edges, 0);
+        assert.deepStrictEqual(scope.issues, [{ code: "W_SCOPE_NO_EDGES", params: { nodes: 3 } }]);
+        session.dispose();
+    });
+
+    it("Select nodes on an edge-list source selects the nodes its edge ends created (review-round-5 3.1)", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(
+            { type: "csv", config: { data: "from,to\np1,p2\np2,p3\n" }, name: "knows.csv" },
+            { edges: { from: { column: "from" }, to: { column: "to" } } },
+        );
+        const [{ key: id }] = session.data.sources();
+        assert.strictEqual((await session.scope.count(sourceScope(id, "nodes"))).nodes, 3);
+        const onEdges = await session.scope.count(sourceScope(id, "edges"));
+        assert.strictEqual(onEdges.nodes, 3);
+        assert.strictEqual(onEdges.edges, 2);
+        const loads = session.data.valueCounts("graphty.load", { kind: "node" });
+        assert.deepStrictEqual(
+            loads.values.map((v) => [v.value, v.count]),
+            [[id, 3]],
+        );
+        session.dispose();
+    });
+});
+
+describe("source-steps off: readable paths read nothing", () => {
+    it("a record's own graphty.type key matches no selector, and a type selector and { types } are refused", async () => {
+        const session = createGraphSession({ features: [] });
+        await session.data.addNodes([{ id: "a", "graphty.type": "x" }, { id: "b" }, { id: "c" }]);
+        const layersBefore = session.styles.list().length + 1;
+        const has = await session.styles.add({
+            name: "Has",
+            target: "node",
+            selector: { match: "has", path: "graphty.type" },
+            set: { "node.color": "#ff0000" },
+        });
+        assert.strictEqual(session.styles.counts(has.id).matched, 0);
+        const typed = await refused(
+            async () =>
+                await session.styles.add({
+                    name: "Typed",
+                    target: "node",
+                    selector: { match: "type", types: ["x"] },
+                    set: { "node.color": "#00ff00" },
+                }),
+            "E_FEATURE_OFF",
+        );
+        assert.strictEqual((typed.errors as readonly { code: string }[])[0]?.code, "E_FEATURE_OFF");
+        assert.strictEqual(session.styles.list().length, layersBefore, "the refused layer is not saved");
+        await refused(() => session.scope.count({ types: ["x"] }), "E_FEATURE_OFF");
+        session.dispose();
+    });
+});
+
+/**
+ * A `{ types }` scope where the type of the position says `Scope` (a filter's member leaf, a
+ * member selector): the runtime accepts it there under the experiment.
+ * @param types - The types.
+ * @returns The scope.
+ */
+const typesAt = (types: string[]): Scope => ({ types }) as unknown as Scope;
+
+describe("{ types } outside session.scope", () => {
+    it("off: a run, a filter's member leaf and a member selector refuse { types }, and nothing is saved", async () => {
+        const session = sessionWithRuns([]);
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await refused(
+            async () => await session.runs.start("degree", undefined, { scope: { types: ["x"] }, style: false }),
+            "E_FEATURE_OFF",
+        );
+        await refused(
+            async () => await session.visibility.set({ kind: "member", of: typesAt(["x"]) }),
+            "E_FEATURE_OFF",
+        );
+        assert.isNull(session.visibility.filter);
+        const layersBefore = session.styles.list().length;
+        await refused(
+            async () =>
+                await session.styles.add({
+                    name: "Typed",
+                    target: "node",
+                    selector: { match: "member", of: typesAt(["x"]) },
+                    set: { "node.color": "#00ff00" },
+                }),
+            "E_FEATURE_OFF",
+        );
+        assert.strictEqual(session.styles.list().length, layersBefore, "the refused layer is not saved");
+        session.dispose();
+    });
+
+    it("off: sets.status and sets.createFrom refuse { types }, and no set is saved", async () => {
+        const session = createGraphSession({ features: [] });
+        await session.data.addNodes([{ id: "a", "graphty.type": "x" }, { id: "b" }]);
+        const setsBefore = session.sets.list().length;
+        await refused(async () => await Promise.resolve(session.sets.status({ types: ["x"] })), "E_FEATURE_OFF");
+        await refused(async () => await session.sets.createFrom({ types: ["x"] }), "E_FEATURE_OFF");
+        assert.strictEqual(session.sets.list().length, setsBefore, "the refused set is not saved");
+        session.dispose();
+    });
+
+    it("on: a run, a filter's member leaf and a member selector read { types } as the nodes of those types", async () => {
+        const { session } = await phase6(undefined, sessionWithRuns(["source-steps"]));
+        const accounts = (await session.scope.count({ types: ["account"] })).nodes;
+        assert.isAbove(accounts, 0);
+
+        const run = session.runs.start("degree", undefined, { scope: { types: ["account"] }, style: false });
+        await run;
+        assert.strictEqual(session.runs.get(run.id)?.status, "succeeded");
+        assert.strictEqual(session.runs.get(run.id)?.scope.nodes.size, accounts);
+
+        await session.visibility.set({ kind: "member", of: typesAt(["account"]) });
+        assert.strictEqual((await shownNodes(session)).size, accounts);
+        await session.visibility.set(null);
+
+        const layer = await session.styles.add({
+            name: "Accounts",
+            target: "node",
+            selector: { match: "member", of: typesAt(["account"]) },
+            set: { "node.color": "#ff0000" },
+        });
+        assert.strictEqual(session.styles.counts(layer.id).matched, accounts);
+        session.dispose();
+    });
+});

@@ -23,7 +23,7 @@ import {
     styleMember,
     viewStateMember,
 } from "../../src/session/projectFile";
-import { ENGINE_VERSIONS } from "../../src/session/runs";
+import { ELEMENT_VERSION } from "../../src/session/runs";
 import { gltfPair } from "../fixtures/models/fixtures";
 import { baseSession, sessionWithRuns } from "../helpers/project-session";
 
@@ -299,7 +299,7 @@ describe("the project file's generator", () => {
         const { version } = JSON.parse(readFileSync(join(__dirname, "../../package.json"), "utf8")) as {
             version: string;
         };
-        assert.strictEqual(ENGINE_VERSIONS.element, version);
+        assert.strictEqual(ELEMENT_VERSION, version);
         const session = await baseSession();
         const file = JSON.parse((await session.project.save()).text) as { generator: unknown };
         assert.deepStrictEqual(file.generator, { name: "graphty-element", version });

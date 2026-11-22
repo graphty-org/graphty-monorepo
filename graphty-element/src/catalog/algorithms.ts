@@ -47,6 +47,7 @@ import type {
     FieldDescriptor,
     FieldInterpretation,
     KnownAlgorithm,
+    LegacyAlgorithmKey,
     OptionDescriptor,
 } from "./types";
 
@@ -54,20 +55,7 @@ import type {
 // The descriptor, plus the 1.10 keys it replaces
 // ---------------------------------------------------------------------------------------------
 
-/**
- * One 1.10 registry key a 2.0 descriptor replaces, with the parameters that reproduce what that
- * key used to do.
- *
- * The parameters are what makes this a migration source of truth rather than a rename list:
- * `scc` does not become `components`, it becomes `components` run with `{ strength: "strong" }`,
- * and a compatibility shim that forgets the second half silently computes the wrong answer.
- */
-export interface LegacyAlgorithmKey {
-    /** The `static type` the class carried in 1.10, without the "graphty:" namespace. */
-    readonly key: string;
-    /** The 2.0 parameters that reproduce the 1.10 behavior. Absent when only the key changed. */
-    readonly params?: Readonly<Record<string, unknown>>;
-}
+export type { LegacyAlgorithmKey } from "./types";
 
 /**
  * A built-in algorithm descriptor: the published descriptor, plus the 1.10 keys that folded
@@ -743,10 +731,20 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 kind: "graph",
                 type: "integer",
             }),
+            field({
+                name: "tiedRoutes",
+                plainName: "Routes tied for cheapest",
+                technicalName: "tiedRoutes",
+                kind: "graph",
+                type: "number",
+            }),
             HAS_NEGATIVE_CYCLE,
         ],
         options: mergeOptions(
-            optionsOf("dijkstra", { bidirectional: { internal: true } }),
+            optionsOf("dijkstra", {
+                bidirectional: { internal: true },
+                timeOrder: { type: "attribute", on: "edge" },
+            }),
             optionsOf("bellman-ford"),
             optionsFromZod(shortestPathEngineOptions),
         ),
@@ -1239,12 +1237,52 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         complexity: "O(n + m)",
         legacyKeys: [{ key: "removal-impact" }],
     },
+    {
+        key: "articulation-points",
+        plainName: "Cut points",
+        technicalName: "Articulation points",
+        description:
+            "Finds the nodes whose removal would split their piece of the graph into more pieces: the single points of failure.",
+        category: "structure",
+        keywords: ["single point of failure", "cut vertex", "chokepoint", "vulnerability"],
+        shape: "node-set",
+        fields: setFields("node", "Cut point", {
+            name: "share",
+            plainName: "Share of nodes",
+            technicalName: "share",
+            type: "number",
+        }),
+        options: optionsOf("articulation-points"),
+        costClass: "instant",
+        complexity: "O(n + m)",
+        legacyKeys: [{ key: "articulation-points" }],
+    },
+    {
+        key: "bridges",
+        plainName: "Cut edges",
+        technicalName: "Bridges",
+        description:
+            "Finds the edges whose removal would split their piece of the graph in two: the links nothing else backs up.",
+        category: "structure",
+        keywords: ["single point of failure", "cut edge", "weak link", "vulnerability"],
+        shape: "edge-set",
+        fields: setFields("edge", "Cut edge", {
+            name: "share",
+            plainName: "Share of edges",
+            technicalName: "share",
+            type: "number",
+        }),
+        options: optionsOf("bridges"),
+        costClass: "instant",
+        complexity: "O(n + m)",
+        legacyKeys: [{ key: "bridges" }],
+    },
 ];
 
 /**
  * Every algorithm this package registers, as a plain-JSON descriptor.
  *
- * Thirty-one descriptors for thirty-three registered algorithms: the two single-source
+ * Thirty-three descriptors for thirty-five registered algorithms: the two single-source
  * shortest-path engines are one key with a `method` parameter, and the two component algorithms
  * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
  * replaces and the parameters that reproduce them.
@@ -1261,6 +1299,7 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHOR
     return {
         ...descriptor,
         descriptionId: `algorithm.${descriptor.key}`,
+        formerKeys: descriptor.legacyKeys.filter((legacy) => legacy.key !== descriptor.key),
         options: withDescriptionIds(
             `algorithm.${descriptor.key}`,
             weightMeaning === null ? descriptor.options : [...descriptor.options, weightOption],

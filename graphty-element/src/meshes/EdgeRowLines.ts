@@ -5,6 +5,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import type { EdgeStyleConfig } from "../config";
 import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import { GraphtyError } from "../errors/GraphtyError";
 import { type EdgePaint, isPlainPaint } from "../managers/StylePainter";
 import type { RowTable } from "../render/RowTable";
 import { EdgeMesh } from "./EdgeMesh";
@@ -19,7 +20,16 @@ const ROW_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band
  * Line keys a row line draws exactly as an `Edge`'s pulled straight line does. A curve, a fan, a gap, bends, a
  * support point is shaped per edge, and an animation (a non-zero `animationSpeed`) moves, so each needs an `Edge`.
  */
-const ROW_LINE_KEYS = new Set(["type", "animationSpeed", "width", "color", "opacity", "minScreenWidth", "route"]);
+const ROW_LINE_KEYS = new Set([
+    "type",
+    "animationSpeed",
+    "width",
+    "color",
+    "opacity",
+    "minScreenWidth",
+    "route",
+    "drawOrder",
+]);
 
 /**
  * Whether every key set on a style block is one of the keys named.
@@ -343,7 +353,18 @@ export class EdgeRowLines {
         });
         // as `Edge.pullLine` gives its piece the look: in 2D a world width
         const drawnWidth = EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20;
-        const piece = batch.acquire(drawnWidth);
+        let piece: number;
+        try {
+            piece = batch.acquire(drawnWidth, style.line?.drawOrder);
+        } catch (error) {
+            // a batch the card cannot hold more of: the row's `Edge` draws it, and reports it (`Edge.refuseTooLarge`)
+            if (error instanceof GraphtyError && error.code === "E_TOO_LARGE") {
+                return false;
+            }
+
+            throw error;
+        }
+
         batch.setLook(piece, look.rgb, look.opacity, drawnWidth);
         batch.setRows(piece, source, target);
         let at = this.batches.indexOf(batch);

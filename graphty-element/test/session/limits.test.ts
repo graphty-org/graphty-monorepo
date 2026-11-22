@@ -145,4 +145,15 @@ describe("RenderLimits", () => {
     it("is not ignoring anything when nothing was asked for", () => {
         assert.isFalse(new RenderLimits(false).ignored);
     });
+
+    it("puts the full-detail triangle budget in force on either render path", () => {
+        const limits = new RenderLimits(false);
+        limits.request({ fullDetailTriangleBudget: 8_000_000 });
+        assert.strictEqual(limits.effective.fullDetailTriangleBudget, 8_000_000);
+        assert.strictEqual(limits.effective.renderCeiling, DEFAULT_LIMITS.renderCeiling);
+        assert.isFalse(limits.ignored, "the budget is not a ceiling the objects path sets aside");
+
+        limits.request({});
+        assert.strictEqual(limits.effective, DEFAULT_LIMITS);
+    });
 });

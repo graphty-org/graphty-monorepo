@@ -15,6 +15,7 @@ export { circular } from "./circular.js";
 export type { CommonLayoutOptions, LayoutErrorCode } from "./common.js";
 export type { IndexedForceAtlas2Options, IndexedFruchtermanReingoldOptions } from "./force.js";
 export { forceAtlas2, fruchtermanReingold } from "./force.js";
+export { geographic, type GeographicLayoutOptions, type GeographicProjection } from "./geographic.js";
 export { grid, type GridLayoutOptions } from "./grid.js";
 export type { KamadaKawaiOptions } from "./kamada-kawai.js";
 export { kamadaKawai } from "./kamada-kawai.js";

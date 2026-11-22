@@ -12,6 +12,7 @@ import { MockLlmProvider } from "@graphty/graphty-element/ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { onUsageEvent } from "../../../lib/analytics";
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { elementPrototype, scriptEnable } from "../../../test/element-prototype";
 import { forgetAutosave, reload } from "../../../test/reload";
@@ -203,20 +204,25 @@ function fakeSpeech(slow = false): () => void {
     };
 }
 
+/** A fresh page for the Assistant: the experiment on, nothing stored, the scripted model in place. */
+async function freshAssistant(): Promise<void> {
+    resetSiteConfig();
+    await loadSiteConfig(SITE);
+    await page.viewport(1440, 900);
+    localStorage.clear();
+    sessionStorage.clear();
+    await forgetAutosave();
+    await new Promise((resolve) => {
+        indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
+    });
+    model = new ScriptedModel();
+    sent = [];
+    scriptElement();
+}
+
 describe("checking what the Assistant says", () => {
     beforeEach(async () => {
-        resetSiteConfig();
-        await loadSiteConfig(SITE);
-        await page.viewport(1440, 900);
-        localStorage.clear();
-        sessionStorage.clear();
-        await forgetAutosave();
-        await new Promise((resolve) => {
-            indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
-        });
-        model = new ScriptedModel();
-        sent = [];
-        scriptElement();
+        await freshAssistant();
     });
 
     afterEach(() => {
@@ -1213,3 +1219,135 @@ function notice(): HTMLElement {
 function inLog(button: HTMLElement): boolean {
     return button.closest(".ws-assistant-log") !== null;
 }
+
+describe("usage counts of the Assistant", () => {
+    /** Every assistant_used and style_changed the app made, with its properties. */
+    let usage: { name: string; props: Record<string, unknown> }[] = [];
+    let offUsage: () => void = () => undefined;
+
+    beforeEach(async () => {
+        await freshAssistant();
+        usage = [];
+        offUsage = onUsageEvent((name, props) => {
+            if (name === "assistant_used" || name === "style_changed") {
+                usage.push({ name, props: { ...props } });
+            }
+        });
+    });
+
+    afterEach(() => {
+        offUsage();
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+        resetSiteConfig();
+        writeAssistantChoice(null);
+    });
+
+    /**
+     * The properties of every count of a name so far.
+     * @param name - the event name.
+     * @returns them, in order.
+     */
+    const counted = (name: string): Record<string, unknown>[] =>
+        usage.filter((each) => each.name === name).map((each) => each.props);
+
+    it("counts a typed message once, by provider, step, outcome and what it changed, never its words", async () => {
+        await openOn(3);
+        await say("SECRET_QUESTION about the graph");
+        await finished();
+        await waitFor(() => {
+            assert.lengthOf(counted("assistant_used"), 1);
+        });
+        // The mock provider is test-only: it is sent as other.
+        assert.deepEqual(counted("assistant_used"), [
+            { provider: "other", step: "message", voice: false, outcome: "AI_COMPLETED", changed: "none" },
+        ]);
+        assert.notInclude(JSON.stringify(usage), "SECRET_QUESTION");
+    });
+
+    it("counts a style the assistant made as its own style edit, and the change in its turn", async () => {
+        await openOn(3);
+        model.turns = [calling("style", COLOR), { text: "Colored.", toolCalls: [] }];
+        await say("Color them");
+        await finished();
+        await waitFor(() => {
+            assert.lengthOf(counted("assistant_used"), 1);
+        });
+        assert.deepInclude(counted("style_changed"), { op: "style.patch", action: "add", by: "assistant" });
+        assert.deepInclude(counted("assistant_used")[0], { outcome: "AI_COMPLETED", changed: "AI_EFFECT_STYLE" });
+    });
+
+    it("counts a turn that waits on an approval, then the approval, without counting the same change twice", async () => {
+        await openOn(12);
+        model.turns = [
+            calling("edit_data", { action: "remove_nodes", ids: ids(12) }),
+            { text: "Gone.", toolCalls: [] },
+        ];
+        await say("Remove them");
+        const section = await screen.findByRole("region", { name: "Waiting for you" });
+        await waitFor(() => {
+            assert.lengthOf(counted("assistant_used"), 1);
+        });
+        assert.deepInclude(counted("assistant_used")[0], {
+            step: "message",
+            outcome: "AI_CONFIRMATION_NEEDED",
+            changed: "none",
+        });
+        await userEvent.click(within(section).getByRole("button", { name: "Remove" }));
+        await within(log()).findByText("Removed 12 nodes");
+        await finished();
+        await waitFor(() => {
+            assert.lengthOf(counted("assistant_used"), 2);
+        });
+        const approved = counted("assistant_used")[1];
+        assert.deepInclude(approved, { step: "approval", outcome: "AI_COMPLETED" });
+        assert.notStrictEqual(approved.changed, "none", "the approved removal is this turn's change");
+    });
+
+    it("counts the answer to a question as the answer step", async () => {
+        await openOn(3);
+        model.turns = [
+            calling("ask_reader", { question: "Which group?", choices: ["even", "odd"] }),
+            { text: "Odd it is.", toolCalls: [] },
+        ];
+        await say("Pick one");
+        await userEvent.click(await screen.findByRole("radio", { name: "odd" }));
+        await waitFor(() => {
+            assert.lengthOf(counted("assistant_used"), 1);
+        });
+        assert.deepInclude(counted("assistant_used")[0], { step: "message", outcome: "AI_QUESTION_ASKED" });
+        await userEvent.click(screen.getByRole("button", { name: "Answer" }));
+        await screen.findByText(/Odd it is\./);
+        await waitFor(() => {
+            assert.lengthOf(counted("assistant_used"), 2);
+        });
+        assert.deepInclude(counted("assistant_used")[1], { step: "answer", outcome: "AI_COMPLETED" });
+    });
+
+    it("counts a failed turn by its result code", async () => {
+        await openOn(3);
+        model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
+        await say("Again");
+        await screen.findByRole("alert");
+        await waitFor(() => {
+            assert.lengthOf(counted("assistant_used"), 1);
+        });
+        const [failed] = counted("assistant_used");
+        assert.notInclude(["AI_COMPLETED", "other"], failed.outcome);
+        assert.match(String(failed.outcome), /^(AI_|E_)/);
+    });
+
+    it("counts a message sent by Talk as spoken", async () => {
+        fakeSpeech();
+        await openOn(3);
+        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
+        await screen.findByRole("heading", { name: "You (spoken)" });
+        await finished();
+        await waitFor(() => {
+            assert.lengthOf(counted("assistant_used"), 1);
+        });
+        assert.deepInclude(counted("assistant_used")[0], { step: "message", voice: true });
+        assert.notInclude(JSON.stringify(usage), "color these red");
+    });
+});

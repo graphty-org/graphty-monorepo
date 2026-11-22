@@ -23,11 +23,10 @@ import {
 } from "../../src/algorithms/ClosenessCentralityAlgorithm";
 import type { NodeId } from "../../src/catalog/types";
 import { isGraphtyError } from "../../src/errors";
-import type { Graph } from "../../src/Graph";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { createFakeAccelerator, type FakeAccelerator } from "../../src/testing/fakeAccelerator";
-import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
 import { byId, referenceSnapshot } from "../helpers/reference-snapshot";
+import { createSessionGraph, type SessionGraph, type SessionGraphOpts } from "../helpers/session-graph";
 import { makeSession } from "../session/helpers";
 
 const FLOOR = ACCELERATION_MIN_NODES_BY_CAPABILITY.closenessCentrality ?? NaN;
@@ -35,14 +34,14 @@ const FLOOR = ACCELERATION_MIN_NODES_BY_CAPABILITY.closenessCentrality ?? NaN;
 const K_AT_FLOOR = (ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY.closenessCentrality ?? NaN) / FLOOR;
 
 /** Les Miserables co-appearances. */
-const LES_MIS: MockGraphOpts = { dataPath: "./data4.json" };
+const LES_MIS: SessionGraphOpts = { dataPath: "./data4.json" };
 
 /**
  * A ring of n nodes.
  * @param n - The node count.
  * @returns The records.
  */
-function ring(n: number): MockGraphOpts {
+function ring(n: number): SessionGraphOpts {
     const nodes = Array.from({ length: n }, (_, i) => ({ id: `n${String(i)}` }));
     return { nodes, edges: nodes.map((node, i) => ({ srcId: node.id, dstId: `n${String((i + 1) % n)}` })) };
 }
@@ -55,11 +54,11 @@ function ring(n: number): MockGraphOpts {
  * @returns The graph.
  */
 async function graphWith(
-    opts: MockGraphOpts,
+    opts: SessionGraphOpts,
     fake?: FakeAccelerator,
     policy: "auto" | "required" = "auto",
-): Promise<Graph> {
-    const graph = await createMockGraph(opts);
+): Promise<SessionGraph> {
+    const graph = await createSessionGraph(opts);
     (graph as unknown as { acceleration: AccelerationController }).acceleration = new AccelerationController({
         policy,
         registry: new AcceleratorRegistry(),
@@ -95,7 +94,7 @@ function closenessFake(): { fake: FakeAccelerator; handed: unknown[] } {
  * @param algorithm - The run.
  * @returns The values by node id and the caveats.
  */
-async function measured(graph: Graph, algorithm: ClosenessCentralityAlgorithm) {
+async function measured(graph: SessionGraph, algorithm: ClosenessCentralityAlgorithm) {
     await algorithm.run();
     const { result } = algorithm;
     assert.isDefined(result);

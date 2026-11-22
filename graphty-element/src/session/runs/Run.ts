@@ -1,5 +1,5 @@
 /**
- * @file The run object: the addressable, watchable, cancellable handle a started computation
+ * @file The run object: the addressable, watchable, cancelable handle a started computation
  * hands back.
  *
  * A run sits in front of the element's existing operation queue rather than beside it. The queue
@@ -33,7 +33,7 @@ import { bindResultPath, type ResultSummary, type RunResult } from "../results/t
 import type { HeldCaptures } from "../sets/captures";
 import type { CodedFact, CodedFactParam } from "../shared";
 import { type StyleSuggestion, suggestStyles } from "../styles/derive";
-import type { PartialCode } from "./caveatFacts";
+import { caveat, type PartialCode } from "./caveatFacts";
 import { keepGroupNumbers } from "./groupNumbers";
 import {
     type Caveats,
@@ -42,6 +42,7 @@ import {
     type Progress,
     type ResolvedScope,
     type Run,
+    type RunChange,
     type RunDistinction,
     type RunPhase,
     type RunRecord,
@@ -341,6 +342,12 @@ export interface RunSurroundings {
      * @returns The result, or undefined when there is none.
      */
     numberedAfter?(): unknown;
+    /**
+     * The style layers reading this run now, which a re-execution draws its new result with as
+     * they stand (the `layers.kept` caveat fact). Optional: absent, nothing is reported.
+     * @returns The layer ids.
+     */
+    keptLayers?(): readonly string[];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -555,6 +562,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     /** How many executions this handle has started. */
     private generationValue = 0;
 
+    /** Why the session started the latest execution by itself, when it did; see `RunChange.trigger`. */
+    private triggerValue: RunChange["trigger"] = undefined;
+
     /** Why a cancel is being honored, when the run publishes what it has instead of rejecting. */
     private cancelReason: string | null = null;
     /** The reason the caller gave `cancel()`, when it gave one. */
@@ -670,6 +680,15 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     }
 
     /**
+     * Why the session started the latest execution by itself, or undefined for one a caller asked
+     * for: what `run:changed` carries as `trigger`.
+     * @returns The trigger.
+     */
+    get trigger(): RunChange["trigger"] {
+        return this.triggerValue;
+    }
+
+    /**
      * Whether an execution is waiting or working.
      * @returns True while queued or running.
      */
@@ -708,7 +727,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * Whether the run can still be stopped. Not the same question as whether it has been.
      * @returns True while the run has not settled.
      */
-    get cancellable(): boolean {
+    get cancelable(): boolean {
         return !this.settledFlag && !isTerminalRunStatus(this.statusValue);
     }
 
@@ -887,7 +906,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             durationMs: this.durationMs,
             partial: this.partial,
             stale: this.stale,
-            engine: this.engine,
+            // The hardware is known only once the work has run; until then, and for work that
+            // never reaches an accelerator, it is the CPU.
+            engine: { ...this.engine, accelerator: this.savedCaveats.accelerator ?? "cpu" },
             fields: this.fields,
             shape: this.shape,
             caveats: this.savedCaveats,
@@ -919,11 +940,16 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
     /**
      * Hand the run's work to the queue. Calling this twice does nothing.
+     * @param trigger - Why the session started this execution by itself, published as
+     *     `RunChange.trigger`; absent for a caller's start.
      */
-    start(): void {
+    start(trigger?: RunChange["trigger"]): void {
         if (this.ticket !== null || this.settledFlag) {
             return;
         }
+
+        // Before "queued" is announced below: every phase of this execution carries it.
+        this.triggerValue = trigger;
 
         const { signal } = this.definition;
 
@@ -953,7 +979,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @param reason - Why, for the message and for the journal.
      */
     cancel(reason?: string): void {
-        if (!this.cancellable) {
+        if (!this.cancelable) {
             return;
         }
 
@@ -982,9 +1008,11 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      *
      * The run keeps its id, so every style layer, legend and saved reference bound to it survives.
      * A run that has not finished is left alone rather than restarted.
+     * @param trigger - Internal: why the session re-ran it by itself, published as
+     *     `RunChange.trigger`; absent for a caller's re-run.
      * @returns This run, restarted.
      */
-    rerun(): Run<T> {
+    rerun(trigger?: RunChange["trigger"]): Run<T> {
         if (!isTerminalRunStatus(this.status)) {
             return this;
         }
@@ -996,18 +1024,19 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             this.definition = { ...this.definition, params: held.params, seed: held.seed };
         }
 
-        return this.restart();
+        return this.restart(trigger);
     }
 
     /**
      * Execute again with the definition as it stands.
+     * @param trigger - Why the session re-ran it by itself, when it did.
      * @returns This run, restarted.
      */
-    private restart(): Run<T> {
+    private restart(trigger?: RunChange["trigger"]): Run<T> {
         // Before the result goes: what held references keep of it is captured now.
         this.heldValue = this.surroundings.captureHeld?.(this.held) ?? this.heldValue;
         this.beginExecution();
-        this.start();
+        this.start(trigger);
 
         return this;
     }
@@ -1053,17 +1082,23 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @param params - The new parameters, canonicalized.
      * @param seed - The new seed, or null.
      * @param caveats - The caveats the new execution starts from.
+     * @param trigger - Why the session restarted it by itself, when it did.
      * @returns This run, restarted.
      * @internal
      */
-    retune(params: Readonly<Record<string, unknown>>, seed: number | null, caveats: Caveats): Run<T> {
+    retune(
+        params: Readonly<Record<string, unknown>>,
+        seed: number | null,
+        caveats: Caveats,
+        trigger?: RunChange["trigger"],
+    ): Run<T> {
         if (!isTerminalRunStatus(this.statusValue)) {
             this.cancel(`Run "${this.id}" was restarted with other parameters.`);
         }
 
         this.definition = { ...this.definition, params, seed, caveats };
 
-        return isTerminalRunStatus(this.status) ? this.restart() : this;
+        return isTerminalRunStatus(this.status) ? this.restart(trigger) : this;
     }
 
     /**
@@ -1250,8 +1285,20 @@ export class ManagedRun<T = RunResult> implements Run<T> {
                 .map((field) => field.name),
         );
         const kept = keepGroupNumbers(before, outcome.result, unstable, this.mergeCaveats(outcome, partial, timedOut));
+        // A re-execution paints nothing new: the layers already reading the run draw the new
+        // result as they stand, with whatever was changed on them since, and the caveats say so.
+        const layers = this.result === undefined ? [] : (this.surroundings.keptLayers?.() ?? []);
         this.resultValue = kept.result;
-        this.caveatsValue = kept.caveats;
+        this.caveatsValue =
+            layers.length === 0
+                ? kept.caveats
+                : Object.freeze({
+                      ...kept.caveats,
+                      facts: Object.freeze([
+                          ...(kept.caveats.facts ?? []),
+                          caveat("layers.kept", { layers: [...layers] }),
+                      ]),
+                  });
         this.partialValue = partial;
         this.durationValue = Math.round(nowMs() - this.startedAtMs);
         this.statusValue = canceled ? "canceled" : "succeeded";
@@ -1454,7 +1501,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @param signal - The signal that aborted.
      */
     private cancelFromSignal(signal: AbortSignal): void {
-        if (!this.cancellable) {
+        if (!this.cancelable) {
             return;
         }
 
@@ -1504,6 +1551,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * caveats and timings -- stays readable until this one finishes: a re-run keeps what it had.
      */
     private beginExecution(): void {
+        this.triggerValue = undefined;
         this.settledFlag = false;
         this.committed = false;
         this.cancelReason = null;

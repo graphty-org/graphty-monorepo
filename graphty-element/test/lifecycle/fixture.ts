@@ -61,7 +61,9 @@ export interface Fixture {
      *   `delay` (the debounce in ms; a large one leaves a write to the lifecycle events), `list` (`1`: report
      *   `listAutosaves` before the element mounts, as `listed`), and for a page
      *   that drives itself, `auto` (edits to make and save) and `tail` (`1`: one more edit, left pending);
-     *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle.
+     *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle;
+     *   `detail` (`low`: a layer draws every node at low detail, so a benchmark compares the same
+     *   geometry at every size whatever `fullDetailTriangleBudget` chooses).
      */
     url(params: Record<string, string | number>): string;
     /** The reports of one tab. */
@@ -247,6 +249,22 @@ const summary = (r) => r && { revision: r.revision, entry: r.entry.id, wasDiscar
 const ready = el.autosaver.ready.then(async (restored) => {
     if (params.get("rows") === "late") rows();
     await el.waitForSettled();
+    // detail=low: every node drawn at low detail, the same geometry at every size.
+    // On a large graph the new meshes land over many frames: wait for them, then check the frame
+    // drew every node at 20 triangles, so a write is never timed beside a half-drawn scene (#9632).
+    // The edge batches are thin-instance meshes, left out of the count.
+    if (params.get("detail") === "low") {
+        await el.session.styles.add({ name: "Low detail", target: "node", selector: { match: "everything" }, set: { "node.meshDetail": "low" } });
+        await el.waitForPainted();
+        await el.waitForStableFrame();
+        const active = el.graph.scene.getActiveMeshes();
+        let triangles = 0;
+        for (let i = 0; i < active.length; i++) if (!active.data[i].hasThinInstances) triangles += active.data[i].getTotalIndices() / 3;
+        if (triangles !== n * 20) {
+            report("not-ready", { triangles, expected: n * 20, n });
+            throw new Error("drew " + triangles + " node triangles of " + n * 20);
+        }
+    }
     const { nodeCount, edgeCount } = el.session.data.snapshot();
     if (nodeCount < n || edgeCount < n) {
         report("not-ready", { nodeCount, edgeCount, n });
@@ -592,7 +610,7 @@ export interface LifecycleFixture {
 }
 
 /**
- * Start the fixture server for a test file, and after each test close the browsers it tracked, remove
+ * Start the fixture server for a test file, and after each test close the browsers it tracked, then remove
  * their profiles and drop its pending waits (with LIFECYCLE_DEBUG=1, print the whole log first).
  * @param options - As {@link startFixture}.
  * @param options.bundles - More builds by name.
@@ -615,8 +633,15 @@ export function useLifecycleFixture(options: { bundles?: Record<string, string> 
         }
 
         fx.dropWaits();
-        for (const { close, dir } of open.splice(0)) {
+        const tracked = open.splice(0);
+        for (const { close } of tracked) {
             await close().catch(() => undefined);
+        }
+
+        // A test that relaunches a profile tracks it once per browser: it is removed only after every
+        // browser on it has closed, or removing it after the first (killed) one races the relaunched
+        // browser, still running and writing into it (ENOTEMPTY, issue #9025).
+        for (const dir of new Set(tracked.map((entry) => entry.dir))) {
             // A browser's helpers may still be writing as it exits.
             rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
         }

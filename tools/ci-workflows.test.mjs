@@ -918,6 +918,21 @@ describe("ci.yml", () => {
         assert.ok(parseJobs(ci)["all-checks"].needs.includes("cost-accuracy"));
     });
 
+    it("loads the built app in a browser wherever it is built or affected, in a required job (#9633)", () => {
+        const steps = parseYaml(ci).jobs.lint.steps;
+        const smoke = steps.find((s) => s.name === "Smoke check the built app");
+        assert.equal(smoke.run, "node graphty/acceptance/smoke.mjs --dist graphty/dist");
+        assert.equal(
+            smoke.if,
+            "needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')",
+        );
+        // after the app is built (a pull request) and before the early verdict
+        const at = (name) => steps.findIndex((s) => s.name === name);
+        assert.ok(at("Build the graphty app (PR, when affected)") < steps.indexOf(smoke));
+        assert.ok(steps.indexOf(smoke) < at("Fail the summary checks now"));
+        assert.ok(parseJobs(ci)["all-checks"].needs.includes("lint"));
+    });
+
     it("reports flaky screenshots after the story tests without gating anything on them", () => {
         const jobs = parseJobs(ci);
         assert.deepEqual(jobs["visual-flaky"].needs, ["story-tests", "story-tests-merge"]);
@@ -937,7 +952,7 @@ describe("ci.yml", () => {
     });
 
     it("keeps the benchmarks advisory, outside the verdict and beside the tests", () => {
-        for (const name of ["algorithms-benchmarks", "performance"]) {
+        for (const name of ["algorithms-benchmarks", "browser-benchmarks", "performance"]) {
             assert.match(job(ci, name), /continue-on-error: true/, name);
             assert.doesNotMatch(job(ci, name), /needs: .*test/, name);
             assert.doesNotMatch(job(ci, "all-checks"), new RegExp(`needs: .*${name}`));
@@ -950,7 +965,8 @@ describe("ci.yml", () => {
         // each job runs its own benchmarks under its own deadline (issue #8148: one job for all four outgrew it)
         for (const [name, count] of [
             ["algorithms-benchmarks", 1],
-            ["performance", 3],
+            ["browser-benchmarks", 1],
+            ["performance", 2],
         ]) {
             const perf = parseYaml(ci).jobs[name];
             const deadline = Number(/\+ (\d+) \* 60 \)\)" >> "\$GITHUB_ENV"/.exec(perf.steps[0].run)?.[1]);
@@ -1318,7 +1334,7 @@ describe("ci.yml", () => {
             );
         }
         // the benchmarks need only the build, and a light run (master) skips them
-        for (const name of ["algorithms-benchmarks", "performance"]) {
+        for (const name of ["algorithms-benchmarks", "browser-benchmarks", "performance"]) {
             assert.match(job(ci, name), /needs: packages\n/, name);
             assert.match(job(ci, name), /&& needs.packages.outputs.light != 'true'\n/, name);
         }
@@ -1365,6 +1381,7 @@ describe("ci.yml", () => {
             "links",
             "cost-accuracy",
             "algorithms-benchmarks",
+            "browser-benchmarks",
             "performance",
             "lint",
             "checks",
@@ -1373,7 +1390,7 @@ describe("ci.yml", () => {
             const body = job(ci, name).replace(/\n {8}environment: .*|\n {18}WRITES: .*/g, "");
             assert.doesNotMatch(body, /event_name == 'push'|refs\/heads\/master/, name);
         }
-        for (const name of ["algorithms-benchmarks", "performance"]) {
+        for (const name of ["algorithms-benchmarks", "browser-benchmarks", "performance"]) {
             assert.match(job(ci, name), /if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
         }
     });
@@ -1560,7 +1577,7 @@ describe("verification runs of ci.yml", () => {
     });
 
     it("skips the benchmarks on a verification run", () => {
-        for (const name of ["algorithms-benchmarks", "performance"]) {
+        for (const name of ["algorithms-benchmarks", "browser-benchmarks", "performance"]) {
             assert.match(job(ci, name), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
         }
     });
@@ -5859,7 +5876,8 @@ describe("release.yml", () => {
                 writeFileSync(join(dir, project, "package.json"), JSON.stringify({ name: `@graphty/${project}` }));
             }
             writeFileSync(join(dir, "bin", "pnpm"), '#!/bin/sh\necho "{\\"root\\": \\"$5\\"}"\n', { mode: 0o755 });
-            for (const f of ["publish-hold.mjs", "release-status.mjs"]) {
+            mkdirSync(join(dir, "tools", "lib"));
+            for (const f of ["publish-hold.mjs", "release-status.mjs", "lib/github.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             if (absent !== undefined) writeFileSync(join(dir, "absent.txt"), absent);
@@ -6833,10 +6851,10 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
         // pnpm (and check-links.sh) that logs its call and passes.
         const dir = mkdtempSync(join(tmpdir(), "prepush-source-checks-"));
         try {
-            mkdirSync(join(dir, "tools"));
+            mkdirSync(join(dir, "tools/lib"), { recursive: true });
             mkdirSync(join(dir, "bin"));
             mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs"]) {
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs", "lib/git.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$*" >> ${dir}/calls\n`, { mode: 0o755 });
@@ -6924,7 +6942,8 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             ]) {
                 mkdirSync(d, { recursive: true });
             }
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs"]) {
+            mkdirSync(join(gate, "tools/lib"), { recursive: true });
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs", "lib/git.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(gate, "tools", f));
             }
             writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });

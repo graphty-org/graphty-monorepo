@@ -65,7 +65,7 @@ and `right` still read a bare `Uint32Array` as a node mask, as they always have.
 | Family                   | Functions                                                                                                                                                                                                                                                                                                |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Traversal                | `breadthFirstSearch`, `directionOptimizedBfs`, `depthFirstSearch`, `topologicalSort`, `hasCycle`, `isBipartite`                                                                                                                                                                                          |
-| Components               | `connectedComponents`, `weaklyConnectedComponents`, `stronglyConnectedComponents`, `condensation`                                                                                                                                                                                                        |
+| Components               | `connectedComponents`, `weaklyConnectedComponents`, `stronglyConnectedComponents`, `condensation`, `articulationPoints`, `bridges`                                                                                                                                                                       |
 | Shortest paths           | `dijkstra`, `bellmanFord`, `bidirectionalDijkstra`, `astar`, `allSimplePaths`, `allPairsShortestPath`                                                                                                                                                                                                    |
 | Spanning trees           | `kruskalMST`, `primMST`                                                                                                                                                                                                                                                                                  |
 | Centrality               | `degrees`, `degreeCentrality`, `betweennessCentrality`, `edgeBetweennessCentrality`, `closenessCentrality`, `nodeClosenessCentrality`, `eigenvectorCentrality`, `katzCentrality`, `hits`, `pageRank`, `personalizedPageRank`, `DeltaPageRank`, `PriorityDeltaPageRank`                                   |
@@ -93,7 +93,7 @@ console.log(dijkstra.result, dijkstra.values.join(", ")); // shortest-paths dist
 console.log(dijkstra.dispatch, dijkstra.accelerator); // sssp sssp
 
 const undirectedOnly = Object.values(ALGORITHMS).filter((a) => a.direction === "undirected");
-console.log(undirectedOnly.map((a) => a.name).join(", ")); // connectedComponents, kCoreDecomposition, louvain, leiden, girvanNewman, primMST
+console.log(undirectedOnly.map((a) => a.name).join(", ")); // connectedComponents, kCoreDecomposition, articulationPoints, bridges, louvain, leiden, girvanNewman, primMST
 ```
 
 - `direction`: `"any"`, `"directed"` or `"undirected"`; an algorithm throws on the other kind of graph.

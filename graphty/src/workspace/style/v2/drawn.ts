@@ -9,6 +9,7 @@
 import {
     type Channel,
     type ChannelCondition,
+    type ChannelDescriptor,
     channelDescriptor,
     channelDrawn,
     type LabelFieldCondition,
@@ -51,6 +52,23 @@ function unmetWords(unmet: ChannelCondition | LabelFieldCondition, name: string)
     const SWITCH: Readonly<Record<string, string>> = { true: "on", false: "off" };
     const values = unmet.values.map((value) => SWITCH[value] ?? enumWords(value));
     return `Only when ${name} is ${values.join(" or ")}`;
+}
+
+/**
+ * Why one value of a channel draws nothing in the view shown now (`valueViews`: a node size's Pivot draws only in
+ * 3D), or undefined when it draws there.
+ * @param ctx - the row.
+ * @param descriptor - the channel's descriptor.
+ * @param value - the value.
+ * @returns the tooltip words, or undefined.
+ */
+export function valueDimOf(ctx: RowContext, descriptor: ChannelDescriptor, value: string): string | undefined {
+    const views = descriptor.valueViews?.[value];
+    if (views === undefined || views.length === 0) {
+        return undefined;
+    }
+    const view = viewOf(ctx.session);
+    return views.includes(view) ? undefined : unmetWords({ dimension: views[0] }, "");
 }
 
 /**

@@ -2,6 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import type { Channel, FieldDescriptor, LayerSpec, PaletteId, RunId } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
+import { createGraphSession } from "../../../src/session";
 import type { RunRef } from "../../../src/session/results/types";
 import type { ColorValue } from "../../../src/session/styles/channels";
 import {
@@ -1008,5 +1009,51 @@ describe("a number written as label text", () => {
             codeOf(() => prepare("node.label", { by: "x", format: { maximumSignificantDigits: 0 } }, [1])),
             "E_BAD_LAYER",
         );
+    });
+});
+
+describe("a color bound to a column with no scale named (issue #9622)", () => {
+    /** The node.color legend block of a session whose nodes carry `values` under `data.v`. */
+    async function colorBlock(values: readonly (string | number)[], entry?: [string, string]) {
+        const s = createGraphSession();
+        await s.data.addNodes(values.map((v, at) => ({ id: `n${at}`, v })));
+        const layer = await s.styles.add({
+            name: "By v",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.color": { by: "data.v" } },
+        });
+        await s.styles.settled();
+        if (entry !== undefined) {
+            await s.styles.setValueEntry(layer.id, "node.color", entry[0], entry[1]);
+            await s.styles.settled();
+        }
+        const block = s.styles.legend().find((each) => each.channel === "node.color");
+        assert.isDefined(block);
+        return block;
+    }
+
+    it("reads a text column as groups, one palette color per value", async () => {
+        const block = await colorBlock(["#0640A0", "#A00640", "#40A006", "#0640A0"]);
+        assert.strictEqual(block.kind, "categorical");
+        assert.sameMembers(
+            block.swatches.map((swatch) => swatch.value),
+            ["#0640A0", "#A00640", "#40A006"],
+        );
+        assert.lengthOf(new Set(block.swatches.map((swatch) => swatch.color)), 3, "each group its own color");
+    });
+
+    it("keeps reading a text column as groups after one value is given its own color", async () => {
+        const block = await colorBlock(["gene", "protein", "drug"], ["gene", "#000000"]);
+        assert.strictEqual(block.kind, "categorical");
+        assert.strictEqual(block.swatches.find((swatch) => swatch.value === "gene")?.color, "#000000");
+        assert.lengthOf(new Set(block.swatches.map((swatch) => swatch.color)), 3);
+    });
+
+    it("still ramps a numeric column", async () => {
+        const block = await colorBlock([1, 2, 3, 4]);
+        assert.strictEqual(block.kind, "sequential");
+        assert.strictEqual(block.domain?.min, 1);
+        assert.strictEqual(block.domain?.max, 4);
     });
 });

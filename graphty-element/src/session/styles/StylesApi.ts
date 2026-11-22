@@ -292,6 +292,7 @@ import {
     foldPatch,
     groupsOf,
     type LayerGroup,
+    type ScaleRead,
     type ValueCategory,
     valueEntriesPatch,
     valueEntryPatch,
@@ -2452,6 +2453,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         // below on every element it matches.
         return branchesShown === null && viewPending === 0 ? prepared : (lastPainted.get(versionsOf(own)) ?? prepared);
     };
+
+    /**
+     * The scale the last paint read each channel of one layer through, for a value-table edit that
+     * names the scale a binding left to its column.
+     * @param layerId - The layer.
+     * @returns The lookup by channel.
+     */
+    const scaleReadOf =
+        (layerId: LayerId): ScaleRead =>
+        (channel) =>
+            encodingOf(layerId).find((each) => each.channel === channel)?.scale;
 
     /**
      * What a layer was last painted with, for the group reads: between an edit of a layer and the
@@ -5160,7 +5172,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     op: "style.patch",
                     action: "update",
                     id,
-                    patch: valueEntriesPatch(layerIn(state, id), by, writes),
+                    patch: valueEntriesPatch(layerIn(state, id), by, writes, scaleReadOf(id)),
                 }),
                 options,
             );
@@ -5201,7 +5213,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     op: "style.patch",
                     action: "update",
                     id,
-                    patch: valueEntryPatch(layerIn(state, id), channel, value, entry),
+                    patch: valueEntryPatch(layerIn(state, id), channel, value, entry, scaleReadOf(id)),
                 }),
                 options,
             );

@@ -988,7 +988,7 @@ export type GraphtyErrorCode =
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-* @beta
+* Beta: may change in a minor release.
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -1017,20 +1017,20 @@ export type GraphtyErrorCode =
 /**
 * A layer names a shader the catalog does not list, in a use on `node.shaders` or
 * `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER"
 /**
 * A layer names a shader where it cannot draw: an edge shader on `node.shaders`
 * (`shader.target-mismatch`), or a use at a place the shader does not allow
 * (`shader.place-unsupported`); the refused problem's `fact` carries the code.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_SHADER_KIND"
 /**
 * A layer sets or binds a parameter the shader does not declare, or binds one per element
 * that it does not declare `varies`. `details.candidates` lists the declared parameters.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER_PARAM"
 /**
@@ -1083,7 +1083,7 @@ export type GraphtyErrorCode =
 * A graph was constructed with the id of a page element that the document does not hold, so
 * there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
 * or passes the element itself.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_HOST_NOT_FOUND"
 /**
@@ -1684,14 +1684,14 @@ export type GraphtyErrorCode =
 * stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
 * background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
 * it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_CAPTURE_FAILED"
 /**
 * A screenshot waited for the layout to stop moving and it was still moving when the wait ran
 * out. `details.timeoutMs` is the wait. The caller captures again later, raises
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_NOT_SETTLED"
 /**

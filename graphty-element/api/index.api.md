@@ -499,10 +499,8 @@ export { AwsCredentials }
 
 // @public
 export interface BaseDataSourceConfig {
-    // (undocumented)
     chunkSize?: number;
     data?: SourceData;
-    // (undocumented)
     errorLimit?: number;
     file?: File;
     graphIndex?: number;
@@ -975,11 +973,9 @@ export abstract class DataSource {
     protected declareRequestedLayout(layout: RequestedLayout | null): void;
     // @beta
     protected declareTime(field: TimeField): void;
-    // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
     static descriptor?: FormatDescriptor;
     static detect?: (sample: string) => boolean;
-    // (undocumented)
     edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
@@ -1005,25 +1001,20 @@ export abstract class DataSource {
     static getRegisteredTypes(): string[];
     protected graphChoice(): GraphChoiceOptions;
     static listGraphs?: GraphLister;
-    // (undocumented)
     nodeSchema: z.core.$ZodObject | null;
     static register<T extends DataSourceClass>(cls: T, options?: RegisterOptions): T;
     get requestedLayout(): RequestedLayout | null;
     protected resolveOptions(passed: object): Record<string, unknown>;
-    // (undocumented)
     abstract sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown>;
     static toRecord(fields: Readonly<Record<string, unknown>>): AdHocData;
     static toRecords(records: readonly Readonly<Record<string, unknown>>[]): AdHocData[];
-    // (undocumented)
     static readonly type: string;
     get type(): string;
 }
 
-// @public (undocumented)
+// @public
 export interface DataSourceChunk {
-    // (undocumented)
     edges: AdHocData[];
-    // (undocumented)
     nodes: AdHocData[];
 }
 
@@ -4107,7 +4098,7 @@ export type GraphtyErrorCode =
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-* @beta
+* Beta: may change in a minor release.
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -4136,20 +4127,20 @@ export type GraphtyErrorCode =
 /**
 * A layer names a shader the catalog does not list, in a use on `node.shaders` or
 * `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER"
 /**
 * A layer names a shader where it cannot draw: an edge shader on `node.shaders`
 * (`shader.target-mismatch`), or a use at a place the shader does not allow
 * (`shader.place-unsupported`); the refused problem's `fact` carries the code.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_SHADER_KIND"
 /**
 * A layer sets or binds a parameter the shader does not declare, or binds one per element
 * that it does not declare `varies`. `details.candidates` lists the declared parameters.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER_PARAM"
 /**
@@ -4202,7 +4193,7 @@ export type GraphtyErrorCode =
 * A graph was constructed with the id of a page element that the document does not hold, so
 * there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
 * or passes the element itself.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_HOST_NOT_FOUND"
 /**
@@ -4803,14 +4794,14 @@ export type GraphtyErrorCode =
 * stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
 * background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
 * it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_CAPTURE_FAILED"
 /**
 * A screenshot waited for the layout to stop moving and it was still moving when the wait ran
 * out. `details.timeoutMs` is the wait. The caller captures again later, raises
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_NOT_SETTLED"
 /**
@@ -5101,20 +5092,20 @@ export type GraphtyWarningCode =
 * A saved filter condition this reader cannot read (an effect it does not know, or a malformed
 * condition) was skipped; the rest were read, and what the file hides was read from its
 * filter steps. `params.slice` is `"visibility"`, `params.id` the condition's id when it has one.
-* @since 3.32.0
+* Since 3.32.0.
 */
 | "W_FILTER_CONDITION_SKIPPED"
 /**
 * A project's filter conditions are of a version this reader does not know, or are not a
 * list: they were read from the file's filter steps instead. `params.slice` is `"visibility"`,
 * `params.version` the version found.
-* @since 3.32.0
+* Since 3.32.0.
 */
 | "W_FILTER_CONDITIONS_UNREADABLE"
 /**
 * A project's filter steps and the keep and exclude filter conditions it also holds disagree
 * (a tool edited only one of them): the conditions were read. `params.slice` is `"visibility"`.
-* @since 3.32.0
+* Since 3.32.0.
 */
 | "W_FILTER_STEPS_DIFFER"
 /**
@@ -5132,7 +5123,7 @@ export type GraphtyWarningCode =
 /**
 * The element's `limits` were set, or are held, while `render-path` is `"objects"`, where the
 * shipped ceilings stand: they are honored only under `"batched"`. `params.renderPath`.
-* @experimental cosmograph
+* Experimental: may change in a minor release.
 */
 | "W_LIMITS_IGNORED"
 /**
@@ -5140,7 +5131,7 @@ export type GraphtyWarningCode =
 * than `limits.objectRows` allows, on `render-path="batched"`: the rows past it are drawn as
 * plain bodies and plain lines. `params.of` is `"nodes"` or `"edges"`, `params.wanted` how
 * many asked, `params.cap` the budget.
-* @experimental cosmograph
+* Experimental: may change in a minor release.
 */
 | "W_OBJECT_CAP"
 /**

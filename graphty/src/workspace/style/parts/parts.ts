@@ -311,6 +311,10 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         "node.xlabelOffsetX",
                         "node.xlabelOffsetY",
                         "node.xlabelTextAlign",
+                        "node.xlabelColor",
+                        "node.xlabelFont",
+                        "node.xlabelWeight",
+                        "node.xlabelItalic",
                     ],
                 },
                 {

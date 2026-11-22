@@ -238,7 +238,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 675 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 4 | 6 | 69 | 46% | 0% | 0 | 479 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 354 | 100% | 0% | 0 | 893 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 3 | 366 | 100% | 0% | 0 | 481 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 3 | 366 | 100% | 0% | 0 | 481 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/generated/fill-oddities.graphml | ok | 15 | 3 | 4 | 2 | 19 | 100% | 11% | 0 | 165 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NO_FILL |
 | graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 400 | 0 |  |
 | graphml/generated/labels-multi.graphml | ok | 6 | 0 | 3 | 1 | 0 | - | - | 0 | 49 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_EXTRA_LABELS |

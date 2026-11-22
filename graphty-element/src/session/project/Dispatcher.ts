@@ -1166,6 +1166,21 @@ export class Dispatcher {
     }
 
     /**
+     * Whether a transaction is open: its writes are in the state but in no step yet, so the
+     * state is ahead of every done step.
+     * @returns True while one is.
+     */
+    get transacting(): boolean {
+        for (const group of this.open) {
+            if (group.tx !== null && !group.done) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Whether a call through a group-tagged facade is on the stack, so a door that would take a
      * turn on the operation queue dispatches at once instead: the queue's slot is the running
      * command's own, and waiting for it would never end.

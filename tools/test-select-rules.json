@@ -148,7 +148,7 @@
         ],
         "storyless": [
             "^\\.github/(?!workflows/ci\\.yml$|actions/)",
-            "^tools/(?!(ai-framework-packages|browser-crash-log|build-bundle|features-on|storybook-brand-theme|test-slots|test-wait-guard|wait-log|ci-test-matrix|ci-reuse-plan|test-select|vite-raw-model-workers)\\.mjs$|results/)",
+            "^tools/(?!(ai-framework-packages|browser-crash-log|browser-test-no-store|build-bundle|features-on|storybook-brand-theme|test-slots|test-wait-guard|wait-log|ci-test-matrix|ci-reuse-plan|test-select|vite-raw-model-workers)\\.mjs$|results/)",
             "^design/",
             "^docs/",
             "^(?!.*/(\\.storybook|stories)/).*\\.md$"

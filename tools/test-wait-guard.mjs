@@ -48,10 +48,13 @@
  *
  * A page that goes away mid-run (its renderer crashed or was killed, the browser exited) leaves vitest
  * saying only "Browser connection was closed" (#8763), so `withTestGuards` also makes every Playwright
- * provider print why when it happens (tools/browser-crash-log.mjs).
+ * provider print why when it happens (tools/browser-crash-log.mjs), and gives every config or project with a
+ * `browser` block the Vite plugin that keeps such a page from running out of file descriptors
+ * (tools/browser-test-no-store.mjs).
  */
 
 import { logBrowserCrashes } from "./browser-crash-log.mjs";
+import { noStoreRevalidated } from "./browser-test-no-store.mjs";
 
 /** How long one wait (waitFor, findBy*, vi.waitFor, expect.poll, expect.element, a real action) may run. */
 export const WAIT_GUARD_MS = 900_000;
@@ -111,6 +114,19 @@ function guardTest(test) {
 }
 
 /**
+ * Adds the no-store plugin to a config or inline project that runs in a browser.
+ * @param config - a config, or an inline project, with its `test` block already guarded
+ * @returns it, with the plugin when its tests run in a browser
+ */
+function withNoStore(config) {
+    if (!config.test?.browser) {
+        return config;
+    }
+    const plugins = [config.plugins ?? []].flat().filter((p) => p?.name !== "graphty:browser-test-no-store");
+    return { ...config, plugins: [...plugins, noStoreRevalidated()] };
+}
+
+/**
  * Puts the one hang guard on a vitest config and every inline project in it. Inline projects do
  * not inherit the root's `test` options, so each gets them; a project given as a path is left alone.
  * @param config - the object passed to `defineConfig`
@@ -125,10 +141,10 @@ export function withTestGuards(config) {
     test.coverage = { ...test.coverage, reportOnFailure: true };
     if (Array.isArray(test.projects)) {
         test.projects = test.projects.map((p) =>
-            p && typeof p === "object" && !Array.isArray(p) ? { ...p, test: guardTest(p.test ?? {}) } : p,
+            p && typeof p === "object" && !Array.isArray(p) ? withNoStore({ ...p, test: guardTest(p.test ?? {}) }) : p,
         );
     }
-    return { ...config, test };
+    return withNoStore({ ...config, test });
 }
 
 /**

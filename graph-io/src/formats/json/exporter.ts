@@ -31,6 +31,7 @@ import { jsonText } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
 import { neutralPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -232,11 +233,14 @@ const SLOT_ROLES: Readonly<Record<JsonDialect, ReadonlySet<string>>> = Object.fr
     "node-link": new Set<string>(),
     d3: new Set<string>(),
     jgf: new Set(["label", "kind"]),
-    cytoscape: new Set(["classes"]),
+    cytoscape: new Set(["classes", "fixed"]),
     graphology: new Set<string>(),
     vis: new Set<string>(),
     obographs: new Set(["label", "kind"]),
 });
+
+/** The node roles Cytoscape writes on the element, read back under the element key's name. */
+const CYTOSCAPE_NODE_ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({ fixed: "locked" });
 
 /** The element domains. */
 type Domain = "node" | "edge" | "graph";
@@ -674,6 +678,7 @@ function plan(snapshot: GraphSnapshot, resolved: Resolved): Plan {
     // plain attributes and read back without their role)
     const notes = checkCapabilities(snapshot, caps, resolved.common, {
         roles: SLOT_ROLES[dialect],
+        ...(dialect === "cytoscape" ? { nodeRoleNames: CYTOSCAPE_NODE_ROLE_NAMES } : {}),
         positionDtype: "f64",
         // Deprecated (next major): role columns are written as plain attributes; styles go through the style writer.
         vizAsAttributes: true,
@@ -794,6 +799,10 @@ function planTable(ctx: PlanContext, table: Iterable<Column>, domain: Domain): C
     // a position written as x / y (vis, graphology) takes those keys from any plain column, whatever the order
     if (domain === "node" && columns.some((column) => xySlotOf(ctx.dialect, column) !== undefined)) {
         used.add("attribute:x").add("attribute:y");
+    }
+    // so is Cytoscape's element `locked`, by the fixed role column
+    if (columns.some((column) => isLockedSlot(ctx.dialect, column, domain))) {
+        used.add("element:locked");
     }
     for (const column of columns) {
         const { role } = column.meta;
@@ -1035,6 +1044,9 @@ function planDialectSlot(dialect: JsonDialect, column: Column, domain: Domain): 
     if (dialect === "cytoscape" && role === "classes" && column.dtype === "list" && column.child.dtype === "string") {
         return { column, key: "classes", slot: "classes" };
     }
+    if (isLockedSlot(dialect, column, domain)) {
+        return { column, key: "locked", slot: "element" };
+    }
     if (dialect !== "jgf" || (column.dtype !== "string" && column.dtype !== "dict")) {
         return null;
     }
@@ -1045,6 +1057,17 @@ function planDialectSlot(dialect: JsonDialect, column: Column, domain: Domain): 
         return { column, key: "relation", slot: "relation" };
     }
     return null;
+}
+
+/**
+ * Whether a column is written as Cytoscape's element `locked`: the bool node column of the fixed role.
+ * @param dialect - the dialect
+ * @param column - the column
+ * @param domain - its domain
+ * @returns true for that column
+ */
+function isLockedSlot(dialect: JsonDialect, column: Column, domain: Domain): boolean {
+    return dialect === "cytoscape" && domain === "node" && column.meta.role === "fixed" && column.dtype === "bool";
 }
 
 /**
@@ -2014,55 +2037,58 @@ function resolveStyled(snapshot: GraphSnapshot, options: JsonWriteOptions | unde
  * default dialect); check() applies the table of the dialect actually selected.
  * @category Built-in formats
  */
-export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
-    format: "json",
-    options: Object.freeze([
-        "dialect",
-        "edgesKey",
-        "indent",
-        "indexLinks",
-        "nodeIdKey",
-        "ontologyIri",
-        "sourceKey",
-        "targetKey",
-        "weightKey",
-    ]),
-    capabilities: dialectCapabilities("node-link"),
-    styles: Object.freeze({ capabilities: JSON_STYLE_CAPABILITIES }),
+export const jsonExporter: GraphExporter<JsonExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: "json",
+        options: Object.freeze([
+            "dialect",
+            "edgesKey",
+            "indent",
+            "indexLinks",
+            "nodeIdKey",
+            "ontologyIri",
+            "sourceKey",
+            "targetKey",
+            "weightKey",
+        ]),
+        capabilities: dialectCapabilities("node-link"),
+        styles: Object.freeze({ capabilities: JSON_STYLE_CAPABILITIES }),
 
-    /**
-     * Pre-flight: every loss of the selected dialect, without writing anything.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): readonly LossNote[] {
-        const resolved = resolveStyled(snapshot, options);
-        const s = resolved.styled?.snapshot ?? snapshot;
-        const notes = resolved.dialect === "obographs" ? planObographs(s, resolved).notes : plan(s, resolved).notes;
-        return Object.freeze([...notes, ...(resolved.styled?.notes ?? [])]);
-    },
+        /**
+         * Pre-flight: every loss of the selected dialect, without writing anything.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the notes, empty when the export is exact
+         */
+        check(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): readonly LossNote[] {
+            const resolved = resolveStyled(snapshot, options);
+            const s = resolved.styled?.snapshot ?? snapshot;
+            const notes = resolved.dialect === "obographs" ? planObographs(s, resolved).notes : plan(s, resolved).notes;
+            return Object.freeze([...notes, ...(resolved.styled?.notes ?? [])]);
+        },
 
-    /**
-     * Write the document as UTF-8 chunks.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(parts(snapshot, resolveStyled(snapshot, options)));
-    },
+        /**
+         * Write the document as UTF-8 chunks.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the chunks
+         */
+        export(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
+            return encodeChunks(parts(snapshot, resolveStyled(snapshot, options)));
+        },
 
-    /**
-     * Write the document as one string.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the document
-     */
-    exportToString(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): Promise<string> {
-        return joinText(parts(snapshot, resolveStyled(snapshot, options)));
-    },
-});
+        /**
+         * Write the document as one string.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the document
+         */
+        exportToString(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): Promise<string> {
+            return joinText(parts(snapshot, resolveStyled(snapshot, options)));
+        },
+    }),
+    () => true,
+);
 
 /**
  * The capability table of one dialect, for callers that pick a dialect before check().

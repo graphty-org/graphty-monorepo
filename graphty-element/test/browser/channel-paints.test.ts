@@ -151,6 +151,10 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     "node.xlabelOffsetY": { "node.xlabel": "OUT" },
     // and how its lines line up shows only on lines of different widths
     "node.xlabelTextAlign": { "node.xlabel": "OUT\nOUTSIDE" },
+    "node.xlabelColor": { "node.xlabel": "OUT" },
+    "node.xlabelFont": { "node.xlabel": "OUT" },
+    "node.xlabelWeight": { "node.xlabel": "OUT" },
+    "node.xlabelItalic": { "node.xlabel": "OUT" },
     "edge.xlabelStyle": { "edge.xlabel": "OUT" },
     "edge.xlabelLocation": { "edge.xlabel": "OUT" },
     "edge.xlabelOffsetX": { "edge.xlabel": "OUT" },

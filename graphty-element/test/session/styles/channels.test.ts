@@ -70,6 +70,11 @@ const DECLARED = [
     "node.labelBorderAlign",
     "node.labelBorderStyle",
     "node.labelBackgroundShape",
+    "node.labelImage",
+    "node.labelImageWidth",
+    "node.labelImageHeight",
+    "node.labelImageOffsetX",
+    "node.labelImageOffsetY",
     "node.labelOffsetX",
     "node.labelOffsetY",
     "node.labelShiftX",
@@ -238,8 +243,10 @@ const DECLARED = [
     "node.modelCenter",
     "node.texture",
     "edge.color",
+    "edge.colorFrom",
     "edge.width",
     "edge.minScreenWidth",
+    "edge.drawOrder",
     "edge.opacity",
     "edge.fadeEnd",
     "edge.fadeStart",
@@ -261,6 +268,8 @@ const DECLARED = [
     "edge.gradientColors",
     "edge.gradientStops",
     "edge.gradientKind",
+    "edge.strandColors",
+    "edge.strandSpacing",
     "edge.style",
     "edge.patternCount",
     "edge.waveAmplitude",
@@ -402,6 +411,11 @@ const DECLARED = [
     "edge.labelBorderAlign",
     "edge.labelBorderStyle",
     "edge.labelBackgroundShape",
+    "edge.labelImage",
+    "edge.labelImageWidth",
+    "edge.labelImageHeight",
+    "edge.labelImageOffsetX",
+    "edge.labelImageOffsetY",
     "edge.labelOffsetX",
     "edge.labelOffsetY",
     "edge.labelShiftX",
@@ -420,6 +434,10 @@ const DECLARED = [
     "node.xlabelOffsetX",
     "node.xlabelOffsetY",
     "node.xlabelTextAlign",
+    "node.xlabelColor",
+    "node.xlabelFont",
+    "node.xlabelWeight",
+    "node.xlabelItalic",
     "edge.labelTable",
     "edge.xlabel",
     "edge.xlabelStyle",
@@ -452,9 +470,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and nineteen node channels and one hundred and seventy-eight edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 219);
-        assert.strictEqual(channelsFor("edge").length, 178);
+    it("splits into two hundred and twenty-eight node channels and one hundred and eighty-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 228);
+        assert.strictEqual(channelsFor("edge").length, 187);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -701,6 +719,10 @@ describe("what a style editor needs to draw a row", () => {
         "node.xlabelOffsetX",
         "node.xlabelOffsetY",
         "node.xlabelTextAlign",
+        "node.xlabelColor",
+        "node.xlabelFont",
+        "node.xlabelWeight",
+        "node.xlabelItalic",
         // Unset, an edge has no external label, and one that has sits beside its middle or where the layout put it.
         "edge.xlabel",
         "edge.xlabelStyle",
@@ -719,6 +741,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.borderScreenWidth",
         // Unset, a node is drawn where it always was, with no order among its neighbors.
         "node.drawOrder",
+        // Unset, a line is drawn over every line with an order, in the order it always was.
+        "edge.drawOrder",
         // Unset, a round-rectangle's corners are a quarter of its shorter side.
         "node.cornerRadius",
         // Unset, a polygon is drawn as its box.
@@ -818,6 +842,8 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, a line is painted in its color.
         "edge.gradientColors",
         "edge.gradientStops",
+        // Unset, a line is one strand in its color.
+        "edge.strandColors",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
         "edge.arrowHeadTextLetterSize",
@@ -888,6 +914,11 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelBorderAlign",
         "node.labelBorderStyle",
         "node.labelBackgroundShape",
+        "node.labelImage",
+        "node.labelImageWidth",
+        "node.labelImageHeight",
+        "node.labelImageOffsetX",
+        "node.labelImageOffsetY",
         "node.labelOffsetX",
         "node.labelOffsetY",
         "node.labelShiftX",
@@ -925,6 +956,11 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelBorderAlign",
         "edge.labelBorderStyle",
         "edge.labelBackgroundShape",
+        "edge.labelImage",
+        "edge.labelImageWidth",
+        "edge.labelImageHeight",
+        "edge.labelImageOffsetX",
+        "edge.labelImageOffsetY",
         "edge.labelOffsetX",
         "edge.labelOffsetY",
         "edge.labelShiftX",
@@ -1063,6 +1099,7 @@ describe("colour channels", () => {
             "edge.arrowTailTextBackground",
             "edge.labelOutline",
             "edge.labelBorder",
+            "node.xlabelColor",
         ];
 
         assert.deepEqual([...COLOR_CHANNELS], fromTheType);

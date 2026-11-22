@@ -14,10 +14,12 @@ import { assert, describe, it } from "vitest";
 import { createGraphSession, type GraphSession } from "../../../session";
 import type { LayerSpec } from "../../../src/catalog/types";
 import { layerNamesElements } from "../../../src/session/document2/codecs/elementNaming";
+import { renameRuns } from "../../../src/session/document2/codecs/recipeCommands";
 import { runName, styleCodec } from "../../../src/session/document2/codecs/style";
 import { openDocument2, saveDocument2 } from "../../../src/session/document2/document";
 import { parseDocument } from "../../../src/session/document2/framing";
 import type { CodecRegistry, DocumentProblem, JsonObject, SectionCodec } from "../../../src/session/document2/types";
+import { expressionPaths } from "../../../src/session/styles/predicate";
 
 const SPEC = new URL("../../../spec/", import.meta.url);
 const readJson = (path: string): JsonObject => JSON.parse(readFileSync(new URL(path, SPEC), "utf8")) as JsonObject;
@@ -166,7 +168,14 @@ describe("the style codec writes", () => {
             ["Keep"],
         );
         assert.deepEqual(problems, [
-            { code: "W_ELEMENT_NAMING_LEFT_OUT", params: { section: "style", pointer: "/layers/1" } },
+            {
+                code: "W_ELEMENT_NAMING_LEFT_OUT",
+                params: {
+                    section: "style",
+                    pointer: "/layers/1",
+                    layer: session.styles.list().find((layer) => layer.name === "Picked")?.id ?? null,
+                },
+            },
         ]);
         assert.deepEqual(invalid(section), []);
     });
@@ -548,5 +557,111 @@ describe("runName", () => {
         assert.strictEqual(runName("team_overview__influence"), "influence");
         assert.strictEqual(runName("Hubs 2024"), "hubs_2024");
         assert.strictEqual(runName("2nd"), "r_2nd");
+    });
+});
+
+describe("paths in a style section are renamed by token", () => {
+    it("renames a quoted run fully and never a string literal holding a path", () => {
+        const layer = {
+            selector: {
+                match: "expression",
+                where: "results.\"min-cut\".value > `1` && data.note != 'results.min-cut.value'",
+            },
+            encode: { "node.size": { by: "results.min-cut.value" } },
+            name: "results.min-cut.value",
+        };
+        const renamed = renameRuns(layer, (run) => (run === "min-cut" ? "ns__min-cut" : undefined));
+        assert.deepEqual(renamed, {
+            selector: {
+                match: "expression",
+                where: "results.\"ns__min-cut\".value > `1` && data.note != 'results.min-cut.value'",
+            },
+            encode: { "node.size": { by: "results.ns__min-cut.value" } },
+            name: "results.min-cut.value",
+        });
+    });
+
+    /**
+     * Open a style section with its columns mapped, and give back the selectors and bindings the
+     * session holds.
+     * @param layers - The layers.
+     * @param node - The node column renames.
+     * @returns The applied layers' selectors and encodings.
+     */
+    async function mapped(layers: JsonObject[], node: Record<string, string>): Promise<unknown[]> {
+        const session = createGraphSession(ON);
+        const file = { kind: "graphty-style", version: 2, generator: { name: "test", version: "0" }, layers };
+        await openDocument2(
+            session,
+            CODECS,
+            parseDocument(file, CODECS),
+            { columns: { node } },
+            { canned: new Map(), restoreDerived: () => undefined, beforeReplace: () => undefined, name: null },
+        );
+        return session.styles
+            .list()
+            .filter((each) => !each.locked)
+            .map((each) => ({ selector: each.selector, encode: each.encode }));
+    }
+
+    const layer = (id: string, selector: JsonObject, encode?: JsonObject): JsonObject => ({
+        id,
+        name: id,
+        target: "node",
+        selector,
+        ...(encode === undefined ? { set: { "node.size": 2 } } : { encode }),
+    });
+
+    it("writes a mapped column raw in a path member and quoted in an expression", async () => {
+        const applied = await mapped(
+            [
+                layer("has", { match: "has", path: "data.amount" }),
+                layer("expression", { match: "expression", where: "data.amount > `100`" }),
+            ],
+            { amount: "amount (usd)" },
+        );
+        assert.deepEqual(applied, [
+            { selector: { match: "has", path: "data.amount (usd)" }, encode: undefined },
+            { selector: { match: "expression", where: 'data."amount (usd)" > `100`' }, encode: undefined },
+        ]);
+    });
+
+    it("maps a column to a dotted name that still parses", async () => {
+        const [applied] = (await mapped([layer("dotted", { match: "expression", where: "data.amount > `1`" })], {
+            amount: "a.b",
+        })) as { selector: { where: string } }[];
+        assert.strictEqual(applied.selector.where, "data.a.b > `1`");
+        assert.deepEqual(expressionPaths(applied.selector.where), ["data.a.b"]);
+    });
+
+    it("leaves a binding with no root alone when a column of that name is mapped", async () => {
+        const session = createGraphSession(ON);
+        const bare = layer("bare", { match: "everything" }, { "node.size": { by: "run", scale: "linear" } });
+        const file = { kind: "graphty-style", version: 2, generator: { name: "test", version: "0" }, layers: [bare] };
+        await openDocument2(
+            session,
+            CODECS,
+            parseDocument(file, CODECS),
+            { columns: { node: { run: "renamed" } } },
+            { canned: new Map(), restoreDerived: () => undefined, beforeReplace: () => undefined, name: null },
+        );
+        assert.deepEqual((await saveStyle(session)).section.layers, [bare]);
+    });
+
+    it("reads no value through a version 2 binding with no root: the layer is kept, not applied", async () => {
+        const session = createGraphSession(ON);
+        const bare = layer("bare", { match: "everything" }, { "node.size": { by: "amount", scale: "linear" } });
+        const problems = await open(session, {
+            kind: "graphty-style",
+            version: 2,
+            generator: { name: "test", version: "0" },
+            layers: [bare],
+        });
+        assert.deepEqual(ownLayers(session), []);
+        assert.deepInclude(problems, {
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: "style", pointer: "/layers/0", reason: "E_UNKNOWN_ATTRIBUTE" },
+        });
+        assert.deepEqual((await saveStyle(session)).section.layers, [bare]);
     });
 });

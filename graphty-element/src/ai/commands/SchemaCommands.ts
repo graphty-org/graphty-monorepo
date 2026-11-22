@@ -15,6 +15,7 @@ import {
     getDataField,
     truncateObjectStrings,
 } from "../schema/utils";
+import { edgeItemsOf, nodeItemsOf } from "./selectors";
 import type { CommandResult, GraphCommand } from "./types";
 
 /**
@@ -180,12 +181,11 @@ export const sampleData: GraphCommand = {
         };
 
         try {
-            const dataManager = graph.getDataManager();
             const result: { nodes?: SampleNode[]; edges?: SampleEdge[] } = {};
 
             // Sample nodes
             if (target === "nodes" || target === "both") {
-                const nodes = Array.from(dataManager.nodes.values());
+                const nodes = nodeItemsOf(graph);
                 let sampledNodes: typeof nodes;
 
                 if (stratifyBy) {
@@ -205,7 +205,7 @@ export const sampleData: GraphCommand = {
 
             // Sample edges
             if (target === "edges" || target === "both") {
-                const edges = Array.from(dataManager.edges.values());
+                const edges = edgeItemsOf(graph);
                 let sampledEdges: typeof edges;
 
                 if (stratifyBy) {
@@ -219,8 +219,8 @@ export const sampleData: GraphCommand = {
 
                 result.edges = sampledEdges.map((edge) => ({
                     id: edge.id,
-                    source: String(edge.srcId),
-                    target: String(edge.dstId),
+                    source: String(edge.source),
+                    target: String(edge.target),
                     data: truncateObjectStrings(edge.data, MAX_STRING_LENGTH),
                 }));
             }
@@ -611,9 +611,7 @@ export const describeProperty: GraphCommand = {
         };
 
         try {
-            const dataManager = graph.getDataManager();
-            const items =
-                target === "nodes" ? Array.from(dataManager.nodes.values()) : Array.from(dataManager.edges.values());
+            const items = target === "nodes" ? nodeItemsOf(graph) : edgeItemsOf(graph);
 
             // Check if items exist
             if (items.length === 0) {

@@ -2,8 +2,8 @@
  * @file label-propagation over a scope: a listed scope and a multigraph (design/sets/sets-design.md 10.1).
  */
 
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { LabelPropagationAlgorithm } from "../../../src/algorithms/LabelPropagationAlgorithm";
-import type { Graph } from "../../../src/Graph";
 import { describeScopedAdapter } from "./harness";
 
 /*
@@ -11,7 +11,7 @@ import { describeScopedAdapter } from "./harness";
  * form a clique, which spreads one label over all four, while the listed edges a>b and c>d are two
  * pairs that cannot share one.
  */
-describeScopedAdapter("label-propagation", (graph: Graph) => new LabelPropagationAlgorithm(graph), {
+describeScopedAdapter("label-propagation", (graph: AlgorithmHost) => new LabelPropagationAlgorithm(graph), {
     nodes: ["a", "b", "c", "d", "e"],
     edges: [
         ["a", "b", 1],

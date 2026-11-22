@@ -23,6 +23,7 @@ import { NodeShapes } from "../../src/config";
 import { operationQueueOf } from "../../src/Graph";
 import { pickNodeId, pickWork, rowScanOf } from "../../src/render/PickService";
 import { transitionsOf } from "../../src/transitions/LayoutTransitionRunner";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { click } from "../helpers/real-input";
 
@@ -83,7 +84,7 @@ async function mounted(viewMode: "2d" | "3d"): Promise<Graphty> {
  */
 async function drawn(element: Graphty, set: Record<string, unknown>, seed: number): Promise<void> {
     const random = seeded(seed);
-    const flat = element.graph.scene.metadata?.twoD === true;
+    const flat = (element.graph.scene.metadata as GraphSceneMetadata | null)?.twoD === true;
     const place = (): { x: number; y: number; z: number } => ({
         x: (random() - 0.5) * 14,
         y: (random() - 0.5) * 14,

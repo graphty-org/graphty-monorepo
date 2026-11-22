@@ -421,6 +421,15 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     /**
+     * Step again from where the bodies are: the layout manager lifted them toward 3D.
+     * @returns True: the next refresh reheats the simulation.
+     */
+    override wakeForLift(): boolean {
+        this.reheat = true;
+        return true;
+    }
+
+    /**
      * Start the simulation again because a node's drawn size changed, when `nodeGap` keeps nodes apart by that size.
      * @returns True when the frame loop has to start stepping this layout again.
      */
@@ -891,7 +900,7 @@ export class D3GraphEngine extends LayoutEngine {
         const snapshot = this.rowBodies.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
-            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
+            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at, this.rowSource?.positions)) {
                 body.x = at.x;
                 body.y = at.y;
                 body.z = this.dim === 2 ? 0 : at.z;

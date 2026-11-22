@@ -26,6 +26,7 @@ export const STATIC_LAYOUTS = [
     "spectral",
     "kamada-kawai",
     "arf",
+    "geographic",
 ] as const;
 
 /** The generated networks the layout and algorithm stories run on. */

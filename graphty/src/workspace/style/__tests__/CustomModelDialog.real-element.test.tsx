@@ -1515,6 +1515,46 @@ describe("the Load custom model dialog, on the real element", () => {
         });
     });
 
+    it("offers a web page's file address, and Retry loads an address not reached the first time", async () => {
+        const raw = "https://raw.githubusercontent.com/acme/kit/main/quad.glb";
+        // The file's own address answers 404 once, then the model.
+        let asked = 0;
+        const original = globalThis.fetch.bind(globalThis);
+        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            const to = input instanceof Request ? input.url : String(input);
+            if (to !== raw) {
+                return original(input, init);
+            }
+            asked += 1;
+            return Promise.resolve(
+                asked === 1 ? new Response("missing", { status: 404 }) : new Response(quadGlb(), { status: 200 }),
+            );
+        });
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        const field = within(dialog).getByRole<HTMLInputElement>("textbox", { name: "Model address" });
+        await userEvent.type(field, "https://github.com/acme/kit/blob/main/quad.glb");
+        await userEvent.tab();
+        assert.isNotNull(
+            await within(dialog).findByText("Web page: github.com -- check the address or choose the file instead"),
+        );
+        assert.isNull(within(dialog).queryByRole("button", { name: "Retry" }), "a page is not retried");
+
+        await userEvent.click(within(dialog).getByRole("button", { name: "Use file address" }));
+        assert.strictEqual(field.value, raw, "the file's own address is filled in");
+        assert.isNull(within(dialog).queryByText(/^Web page: /), "the page's line goes");
+        // The address filled in counts as given: leaving the field loads nothing, Enter loads it.
+        await userEvent.click(field);
+        await userEvent.keyboard("{Enter}");
+        assert.isNotNull(await within(dialog).findByText(/^Not reached: .*404 -- check the address/));
+        assert.isNull(within(dialog).queryByRole("button", { name: "Use file address" }));
+
+        await userEvent.click(within(dialog).getByRole("button", { name: "Retry" }));
+        await previewOf(dialog, "quad");
+        assert.strictEqual(asked, 2, "Retry asked for the same address again");
+        assert.isNull(within(dialog).queryByRole("button", { name: "Retry" }), "loaded, nothing to retry");
+    });
+
     it("shows, sets up and adds a model by address while its picture still downloads (#8614)", async () => {
         const base = "https://models.example.com/kit/";
         // The model arrives at once; its picture never does, until Add stops it.

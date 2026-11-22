@@ -111,7 +111,7 @@ function incorrect(mismatch: DeviceCheckMismatch): AcceleratorDeclined {
     };
 }
 
-vi.mock("@graphty/webgpu-graph-algorithms", () => ({ EXACT_MAX_NODES: 32_768 }));
+vi.mock("@graphty/webgpu-graph-algorithms", () => ({ EXACT_MAX_NODES: 32_768, VERSION: "9.8.7" }));
 
 vi.mock("@graphty/webgpu-graph-algorithms/browser", () => ({
     acquireAccelerator: () => ({ current: peer.current, dispose: peer.dispose }),
@@ -141,6 +141,8 @@ describe("the ./webgpu entry point: the device self-check", () => {
         assert.isNotNull(accelerator);
         assert.isUndefined(accelerator?.verify);
         assert.strictEqual(accelerator?.device?.description, "Acme Fake GPU");
+        // A run it computes lists the peer at the version the peer itself states.
+        assert.deepStrictEqual(accelerator?.package, { name: "@graphty/webgpu-graph-algorithms", version: "9.8.7" });
         accelerator?.dispose?.();
         assert.strictEqual(peer.dispose.mock.calls.length, 1);
     });

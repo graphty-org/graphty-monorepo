@@ -73,6 +73,42 @@ export const ENTRANCE_CAP = 64;
 /** How recently something must have happened to a node for a shader it starts carrying to enter. */
 const CAUSE_WINDOW_MS = 400;
 
+/**
+ * When each row stored with no element arrived, oldest first, for the element built for it later.
+ * Only the last {@link CAUSE_WINDOW_MS} of arrivals are kept, since an older one plays nothing.
+ */
+export class RowArrivals<K> {
+    readonly #at = new Map<K, number>();
+
+    /**
+     * A row was stored with no element: remember it arrived now.
+     * @param key - The row's key.
+     */
+    note(key: K): void {
+        const now = performance.now();
+        for (const [old, at] of this.#at) {
+            if (now - at <= CAUSE_WINDOW_MS) {
+                break;
+            }
+
+            this.#at.delete(old);
+        }
+
+        this.#at.delete(key);
+        this.#at.set(key, now);
+    }
+
+    /**
+     * When a row arrived.
+     * @param key - The row's key.
+     * @returns The time by `performance.now()`; -Infinity when it was never noted or arrived too
+     *   long ago to play an entrance.
+     */
+    of(key: K): number {
+        return this.#at.get(key) ?? Number.NEGATIVE_INFINITY;
+    }
+}
+
 /** The stamp of a state that never changed. */
 const NEVER = -1;
 
@@ -641,12 +677,42 @@ export class NodeShaderDrawing {
 
     /**
      * A node arrived in a graph already drawing shaders: a shader it starts carrying enters, and
-     * its `sinceChanged` counts from now.
+     * its `sinceChanged` counts from when it arrived.
      * @param node - The node.
+     * @param at - When it arrived, by `performance.now()`; now when absent. -Infinity records
+     *   nothing: a node built for a row stored before this drawing existed, or too long ago to
+     *   play an entrance, is not arriving (issue #9447). A node that already drew a shader
+     *   records nothing: its entrances were decided as it drew.
      */
-    arrived(node: ShadedNode): void {
-        this.arrivals.set(node, performance.now());
+    arrived(node: ShadedNode, at = performance.now()): void {
+        if (at !== Number.NEGATIVE_INFINITY && !this.entries.has(node)) {
+            this.arrivals.set(node, at);
+        }
     }
+
+    /**
+     * A node row was stored with no `Node` (on "batched"): remember when, so the `Node` built for
+     * it later plays the entrances a node arriving now plays. Only the last
+     * {@link CAUSE_WINDOW_MS} of arrivals are kept, since an older one plays nothing. Keyed by id,
+     * since a freeze can renumber a node's row.
+     * @param id - The node's id.
+     */
+    rowArrived(id: string | number): void {
+        this.rowArrivals.note(id);
+    }
+
+    /**
+     * When a node row stored with no `Node` arrived, for the `Node` built for it now.
+     * @param id - The node's id.
+     * @returns The time by `performance.now()`; -Infinity when it arrived before this drawing
+     *   existed, or too long ago to play an entrance.
+     */
+    rowArrivalOf(id: string | number): number {
+        return this.rowArrivals.of(id);
+    }
+
+    /** When each node row stored with no `Node` arrived, oldest first; see {@link rowArrived}. */
+    private readonly rowArrivals = new RowArrivals<string | number>();
 
     /**
      * The graph's outline width (`layoutBehavior.node.outlineWidth`) changed: draw again every
@@ -1077,7 +1143,8 @@ export class NodeShaderDrawing {
         const arrived = this.arrivals.get(node);
         if (arrived !== undefined && this.runtime !== null) {
             this.arrivals.delete(node);
-            entry.causedAt = arrived;
+            // A `Node` built long before its first shader (a batched row given one) keeps the later cause.
+            entry.causedAt = Math.max(entry.causedAt, arrived);
             data.stamp(entry.row, "changed", this.runtime.uniforms.now() - (performance.now() - arrived) / 1000);
         }
 

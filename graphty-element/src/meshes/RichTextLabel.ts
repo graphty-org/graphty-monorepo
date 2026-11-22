@@ -17,7 +17,8 @@ import { type RichTextStyleType } from "../config";
 import { DEFAULT_LABEL_GRADIENT_COLORS } from "../config/RichTextStyle";
 import { GraphtyLogger, type Logger } from "../logging";
 import { toColorValue } from "../session/styles/channels";
-import { addGradientStops } from "./edgeGradient";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
+import { addGradientStops, gradientOffsets } from "./edgeGradient";
 import { FrameRoster } from "./FrameRoster";
 import { type GlyphLabelEntry, GlyphLabels, recordRuns } from "./GlyphLabels";
 import {
@@ -32,10 +33,11 @@ import { closeGlyphRect, closeHitFractions, closeReserve, drawCloseGlyph, markCl
 import { keepOnEyeLine } from "./labelEyeLine";
 import { fontFamilies, noteLabelFont } from "./labelFonts";
 import { fitToScreen, type LabelPlacement, type PlacementBounds } from "./labelScreenFit";
-import { type LabelTable, layoutLabelTable, readLabelTable, type TableDrawing } from "./labelTable";
+import { type LabelTable, layoutLabelTable, readLabelTable, roundedBoxOutline, type TableDrawing } from "./labelTable";
 import { LabelTexture } from "./LabelTexture";
 import { fitTexturesToScreen } from "./labelTextureFit";
 import { labelBoxOf } from "./NodeShapeGeometry";
+import { drawablePicture } from "./pictureSize";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { hasWords, measureLine, RichTextParser, wrapLines } from "./RichTextParser";
@@ -256,6 +258,11 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "borderAlign"
     | "borderStyle"
     | "backgroundShape"
+    | "image"
+    | "imageWidth"
+    | "imageHeight"
+    | "imageOffsetX"
+    | "imageOffsetY"
     | "minScreenSize"
     | "minNodeScreenSize"
     | "declutter"
@@ -325,6 +332,18 @@ function withOpacity<T>(color: T, opacity: number | undefined): T | string {
     return value === null ? color : (toColorValue({ ...value, a: value.a * Math.max(0, opacity) })?.hex ?? color);
 }
 
+/** A gradient's line, from its first color to its last, or its circle, its first color at the middle. */
+export type PanelGradientShape =
+    | { kind: "linear"; x1: number; y1: number; x2: number; y2: number }
+    | { kind: "radial"; cx: number; cy: number; r: number };
+
+/** A label panel's gradient: its line or circle, its colors, where each sits (0 to 1) and its opacity. */
+export type PanelGradient = PanelGradientShape & {
+    colors: readonly string[];
+    stops: readonly number[];
+    opacity: number;
+};
+
 /** Which side of a target's bounds, on one axis: before it, centered on it, or after it. */
 type Side = -1 | 0 | 1;
 
@@ -370,15 +389,19 @@ function inward(side: Side, half: number, gap: number, keepSide: boolean): numbe
  * @param label.height - Its height.
  * @param label.offset - Its gap from the side.
  * @param label.keepSide - Whether it stays against the side when it is larger than the bounds.
+ * @param label.onFace - Whether it lies on a flat target's face: then it is in front of the target's
+ *     center by the target's own depth, just off the face, rather than by its bounding radius.
  */
 function placeInFront(
     at: Vector3,
     bounds: { min: Vector3; max: Vector3 },
     drawn: Vector3,
     inside: { x: Side; y: Side } | null,
-    label: { width: number; height: number; offset: number; keepSide: boolean },
+    label: { width: number; height: number; offset: number; keepSide: boolean; onFace: boolean },
 ): void {
-    at.z = -Vector3.Distance(bounds.min.multiply(drawn), bounds.max.multiply(drawn)) / 2;
+    at.z = label.onFace
+        ? -(bounds.max.z - bounds.min.z) * drawn.z
+        : -Vector3.Distance(bounds.min.multiply(drawn), bounds.max.multiply(drawn)) / 2;
     if (inside !== null) {
         const { keepSide } = label;
         at.x = inward(
@@ -395,6 +418,13 @@ function placeInFront(
         );
     }
 }
+
+/**
+ * How many times its own depth a target's width and height must each be, at least, for a label
+ * inside it to lie on its face in 3D: flat shapes and groups are drawn a fiftieth of their smaller
+ * side deep, solids about as deep as they are wide.
+ */
+const FLAT_FACE_RATIO = 10;
 
 /** How far to the side (x) and up (y) of its target's bounds a label sits, per position. */
 const SIDES: Record<Exclude<AttachPosition, InsidePosition>, { x: Side; y: Side }> = {
@@ -481,6 +511,10 @@ export const labelInternals = {} as {
         options: RichTextLabel["options"];
         /** The room round the panel on every side, for its shadow and the words' outline. */
         shadowMargin: number;
+        /** The further room on each side, across and down, for its picture (`image`). */
+        imageRoom: Readonly<{ x: number; y: number }>;
+        /** Where its picture is drawn, in canvas units from the top left; null while none is drawn. */
+        imageBox: { x: number; y: number; width: number; height: number } | null;
     };
 };
 
@@ -495,6 +529,8 @@ export class RichTextLabel {
             textSize: label.textSize,
             options: label.options,
             shadowMargin: label.shadowMargin,
+            imageRoom: label.imageRoom,
+            imageBox: label.imagePicture() === null ? null : label.imageBox(),
         });
     }
 
@@ -529,6 +565,8 @@ export class RichTextLabel {
     private spanWidth = 0;
     /** The room around the panel, on every side, its drop shadow and the outline past its padding are drawn in. */
     private shadowMargin = 0;
+    /** The further room on each side, across and down, its picture (`image`) is drawn in where it reaches past. */
+    private imageRoom = { x: 0, y: 0 };
     private pointerInfo: PointerInfo | null = null;
     private _progressValue = 0;
     private readonly id: string;
@@ -564,6 +602,8 @@ export class RichTextLabel {
     private stopEyeLine: (() => void) | null = null;
     /** Whether the label last undid a stretch of its target, so a target back at its own size resets it. */
     private undoesStretch = false;
+    /** Whether the label lies on its flat target's face rather than facing the camera; see {@link onFlatFace}. */
+    private onFace = false;
     private animationStarted = false;
     /** Takes the plane off its scene's count of labels with a close button. */
     private unmarkClose: (() => void) | null = null;
@@ -708,7 +748,7 @@ export class RichTextLabel {
             position: { x: 0, y: 0, z: 0 },
             resolution: 512,
             autoSize: true,
-            font: "Verdana",
+            font: "Verdana, sans-serif",
             fontSize: 48,
             fontWeight: "normal",
             fontStyle: "normal",
@@ -1063,6 +1103,10 @@ export class RichTextLabel {
         const inset = Math.min(Math.max(0, this.table.border ?? 0), this.totalBorderWidth);
         this.tableDrawing = drawn;
         this.tableInset = inset;
+        // a rounded table's outline is the panel's border, rounded as the table is in the middle of its border
+        if (drawn.radius > 0 && this.options.cornerRadius === 0) {
+            this.options.cornerRadius = drawn.radius + Math.max(0, this.table.border ?? 0) / 2;
+        }
         this.contentArea = {
             x: this.totalBorderWidth,
             y: this.totalBorderWidth,
@@ -1098,16 +1142,36 @@ export class RichTextLabel {
         const x0 = this.contentArea.x - this.tableInset;
         const y0 = this.contentArea.y - this.tableInset;
         ctx.save();
+        const outline = (box: { x: number; y: number; width: number; height: number }, radius = 0): void => {
+            ctx.beginPath();
+            for (const [x, y] of roundedBoxOutline({ ...box, x: x0 + box.x, y: y0 + box.y }, radius)) {
+                ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+        };
         for (const f of drawn.fills) {
             ctx.fillStyle = f.color;
-            ctx.fillRect(x0 + f.x, y0 + f.y, f.width, f.height);
+            if (f.gradient !== undefined) {
+                // from the box's middle out half its width and height along the angle, as a node's gradient runs
+                const a = (f.gradient.angle * Math.PI) / 180;
+                const [cx, cy] = [x0 + f.x + f.width / 2, y0 + f.y + f.height / 2];
+                const [dx, dy] = [(Math.cos(a) * f.width) / 2, (Math.sin(a) * f.height) / 2];
+                const ramp = ctx.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
+                ramp.addColorStop(0, f.color);
+                ramp.addColorStop(1, f.gradient.to);
+                ctx.fillStyle = ramp;
+            }
+            outline(f, f.radius);
+            ctx.fill();
         }
 
         ctx.strokeStyle = this.tableLineColor;
         // each cell's outline drawn inside its box, as Graphviz strokes it
         for (const f of drawn.frames.filter((frame) => frame.border > 0)) {
             ctx.lineWidth = f.border;
-            ctx.strokeRect(x0 + f.x + f.border / 2, y0 + f.y + f.border / 2, f.width - f.border, f.height - f.border);
+            const i = f.border / 2;
+            outline({ x: f.x + i, y: f.y + i, width: f.width - f.border, height: f.height - f.border }, f.radius);
+            ctx.stroke();
         }
 
         ctx.lineWidth = drawn.frames[0]?.border ?? 1;
@@ -1216,6 +1280,59 @@ export class RichTextLabel {
             this.contentArea.y += this.shadowMargin;
             this.heightInLines *= this.actualDimensions.height / panelHeight;
         }
+        this.addImageRoom();
+    }
+
+    /**
+     * Where the label's picture (`image`) is drawn, in canvas units from the top left: its size, its middle the words'
+     * box's middle moved by its offsets.
+     * @returns The box.
+     */
+    private imageBox(): { x: number; y: number; width: number; height: number } {
+        const o = this.options;
+        const width = o.imageWidth ?? o.fontSize;
+        const height = o.imageHeight ?? o.fontSize;
+        const area = this.contentArea;
+        return {
+            x: area.x + area.width / 2 + (o.imageOffsetX ?? 0) - width / 2,
+            y: area.y + area.height / 2 + (o.imageOffsetY ?? 0) - height / 2,
+            width,
+            height,
+        };
+    }
+
+    /** Grow the canvas evenly across, and evenly down, as far as the picture reaches past it, so the words stay put. */
+    private addImageRoom(): void {
+        this.imageRoom = { x: 0, y: 0 };
+        if (this.options.image === undefined) {
+            return;
+        }
+        const box = this.imageBox();
+        const { width, height } = this.actualDimensions;
+        const x = Math.max(0, -box.x, box.x + box.width - width);
+        const y = Math.max(0, -box.y, box.y + box.height - height);
+        this.imageRoom = { x, y };
+        this.actualDimensions.width += x * 2;
+        this.actualDimensions.height += y * 2;
+        this.contentArea.x += x;
+        this.contentArea.y += y;
+        this.heightInLines *= this.actualDimensions.height / height;
+    }
+
+    /**
+     * The label's picture, once loaded; the first ask loads it and paints the label again when it lands.
+     * @returns The picture, or null for none, while it loads and when it cannot be.
+     */
+    private imagePicture(): HTMLImageElement | null {
+        const src = this.options.image;
+        if (src === undefined || src === "") {
+            return null;
+        }
+        return drawablePicture(this.scene, src, () => {
+            if (this.mesh !== null && !this.mesh.isDisposed()) {
+                this._drawContent();
+            }
+        });
     }
 
     /**
@@ -1254,8 +1371,12 @@ export class RichTextLabel {
      * @returns The plane's height in lines.
      */
     private measureHeightInLines(ctx: CanvasRenderingContext2D, totalHeight: number): number {
-        // The first line WITH WORDS: a blank line has no height of its own to measure.
-        const firstLine = this.parsedContent.find(hasWords);
+        // The first line WITH WORDS: a blank line has no height of its own to measure. A label that is only its
+        // picture (yEd's wordless label icon) measures a blank line of its font, so its canvas is drawn at the scale
+        // of a label with words, not stretched to one line's height (#7792).
+        const firstLine =
+            this.parsedContent.find(hasWords) ??
+            (this.options.image === undefined ? undefined : this.parser.blankLine());
         if (firstLine === undefined) {
             return 1;
         }
@@ -1525,6 +1646,7 @@ export class RichTextLabel {
             o.pointer ||
             o._badgeType !== undefined ||
             o._progressBar ||
+            o.image !== undefined ||
             this.tableDrawing !== null
         ) {
             return null;
@@ -1610,6 +1732,12 @@ export class RichTextLabel {
                 width: this.contentArea.width,
                 height: this.contentArea.height - progressBarHeight - this.options.marginBottom / 2,
             };
+        }
+
+        const picture = RichTextLabel.measuring ? null : this.imagePicture();
+        if (picture !== null) {
+            const box = this.imageBox();
+            ctx.drawImage(picture, box.x, box.y, box.width, box.height);
         }
 
         if (this.tableDrawing === null) {
@@ -1927,117 +2055,79 @@ export class RichTextLabel {
 
     private _fillBackground(ctx: CanvasRenderingContext2D): void {
         const bgColor = this.options.backgroundColor;
+        const gradient = this._panelGradient();
+        if (gradient !== undefined) {
+            ctx.save();
+            ctx.globalAlpha *= gradient.opacity;
+            const ramp =
+                gradient.kind === "linear"
+                    ? ctx.createLinearGradient(gradient.x1, gradient.y1, gradient.x2, gradient.y2)
+                    : ctx.createRadialGradient(gradient.cx, gradient.cy, 0, gradient.cx, gradient.cy, gradient.r);
+            addGradientStops(ramp, gradient.colors, gradient.stops);
+            ctx.fillStyle = ramp;
+            ctx.fill();
+            ctx.restore();
+            return;
+        }
         if (typeof bgColor === "object" && "colorType" in bgColor) {
             ctx.save();
             ctx.globalAlpha *= (bgColor.opacity ?? 1) * (this.options.backgroundOpacity ?? 1);
-            if (bgColor.colorType === "solid") {
-                ctx.fillStyle = bgColor.value ?? "transparent";
-            } else {
-                const gradient =
-                    bgColor.colorType === "gradient"
-                        ? this._angledGradient(ctx, bgColor.direction)
-                        : this._radialGradient(
-                              ctx,
-                              bgColor.centerX ?? 0.5,
-                              bgColor.centerY ?? 0.5,
-                              bgColor.radius ?? 1,
-                          );
-                addGradientStops(gradient, bgColor.colors, bgColor.stops);
-                ctx.fillStyle = gradient;
-            }
+            ctx.fillStyle = bgColor.colorType === "solid" ? (bgColor.value ?? "transparent") : "transparent";
             ctx.fill();
             ctx.restore();
             return;
         }
 
-        // Handle legacy gradient properties
-        if (this.options.backgroundGradient) {
-            ctx.fillStyle = this._legacyBackgroundGradient(ctx);
-        } else {
-            ctx.fillStyle = typeof bgColor === "string" ? bgColor : "transparent";
-        }
-
+        ctx.fillStyle = typeof bgColor === "string" ? bgColor : "transparent";
         ctx.fill();
     }
 
     /**
-     * The gradient the legacy `backgroundGradient*` options describe, over the content area.
-     * @param ctx - The canvas context the gradient is made for.
-     * @returns The gradient, with its color stops added.
+     * The gradient the panel is filled with, in canvas pixels over the content area: a
+     * `backgroundColor` of `colorType` "gradient" or "radial-gradient", or the legacy
+     * `backgroundGradient*` options. Undefined for a panel of one color.
+     * @returns The gradient's line or circle, its colors, where each sits and its opacity, or undefined.
      */
-    private _legacyBackgroundGradient(ctx: CanvasRenderingContext2D): CanvasGradient {
-        let gradient: CanvasGradient;
-
-        // Use content area coordinates for gradient to ensure it's positioned correctly
-        const gradientX = this.contentArea.x;
-        const gradientY = this.contentArea.y;
-        const gradientWidth = this.contentArea.width;
-        const gradientHeight = this.contentArea.height;
-
-        if (this.options.backgroundGradientType === "radial") {
-            gradient = this._radialGradient(ctx, 0.5, 0.5, 1);
-        } else {
-            switch (this.options.backgroundGradientDirection) {
-                case "horizontal":
-                    gradient = ctx.createLinearGradient(gradientX, gradientY, gradientX + gradientWidth, gradientY);
-                    break;
-                case "diagonal":
-                    gradient = ctx.createLinearGradient(
-                        gradientX,
-                        gradientY,
-                        gradientX + gradientWidth,
-                        gradientY + gradientHeight,
-                    );
-                    break;
-                case "vertical":
-                default:
-                    gradient = ctx.createLinearGradient(gradientX, gradientY, gradientX, gradientY + gradientHeight);
-                    break;
-            }
-        }
-
-        addGradientStops(gradient, this.options.backgroundGradientColors);
-
-        return gradient;
-    }
-
-    /**
-     * A linear gradient across the content area at an angle, 0 degrees running left to right, as a
-     * node's gradient runs across its box.
-     * @param ctx - The canvas context the gradient is made for.
-     * @param direction - The angle in degrees.
-     * @returns The gradient, with no stops yet.
-     */
-    private _angledGradient(ctx: CanvasRenderingContext2D, direction: number): CanvasGradient {
+    private _panelGradient(): PanelGradient | undefined {
+        const bg = this.options.backgroundColor;
         const { x, y, width, height } = this.contentArea;
-        const angle = (direction * Math.PI) / 180;
-        const dx = (Math.cos(angle) * width) / 2;
-        const dy = (Math.sin(angle) * height) / 2;
-        const cx = x + width / 2;
-        const cy = y + height / 2;
-        return ctx.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
-    }
-
-    /**
-     * A radial gradient over the content area.
-     * @param ctx - The canvas context the gradient is made for.
-     * @param centerX - Its middle across the area, 0 at the left to 1 at the right.
-     * @param centerY - Its middle down the area, 0 at the top to 1 at the bottom.
-     * @param radius - How far it reaches, in halves of the area's longer side; 0 is all the last color.
-     * @returns The gradient, with no stops yet.
-     */
-    private _radialGradient(
-        ctx: CanvasRenderingContext2D,
-        centerX: number,
-        centerY: number,
-        radius: number,
-    ): CanvasGradient {
-        const { x, y, width, height } = this.contentArea;
-        const cx = x + width * centerX;
-        const cy = y + height * centerY;
         // a canvas paints nothing for a circle of radius 0, so 0 is drawn as a point, as on a node
-        const r = (Math.max(width, height) / 2) * Math.max(radius, 1e-6);
-        return ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        const radial = (centerX: number, centerY: number, radius: number): PanelGradientShape => ({
+            kind: "radial",
+            cx: x + width * centerX,
+            cy: y + height * centerY,
+            r: (Math.max(width, height) / 2) * Math.max(radius, 1e-6),
+        });
+        if (typeof bg === "object" && "colorType" in bg) {
+            if (bg.colorType === "solid") {
+                return undefined;
+            }
+            const opacity = (bg.opacity ?? 1) * (this.options.backgroundOpacity ?? 1);
+            const colors = bg.colors.map((c) => c ?? "transparent");
+            const stops = gradientOffsets(colors.length, bg.stops);
+            if (bg.colorType === "gradient") {
+                // 0 degrees runs left to right, as a node's gradient runs across its box
+                const angle = (bg.direction * Math.PI) / 180;
+                const dx = (Math.cos(angle) * width) / 2;
+                const dy = (Math.sin(angle) * height) / 2;
+                const cx = x + width / 2;
+                const cy = y + height / 2;
+                return { kind: "linear", x1: cx - dx, y1: cy - dy, x2: cx + dx, y2: cy + dy, colors, stops, opacity };
+            }
+            return { ...radial(bg.centerX ?? 0.5, bg.centerY ?? 0.5, bg.radius ?? 1), colors, stops, opacity };
+        }
+        if (!this.options.backgroundGradient) {
+            return undefined;
+        }
+        const colors = this.options.backgroundGradientColors.map((c) => c ?? "transparent");
+        const stops = gradientOffsets(colors.length);
+        if (this.options.backgroundGradientType === "radial") {
+            return { ...radial(0.5, 0.5, 1), colors, stops, opacity: 1 };
+        }
+        const direction = this.options.backgroundGradientDirection;
+        const x2 = direction === "horizontal" || direction === "diagonal" ? x + width : x;
+        const y2 = direction === "horizontal" ? y : y + height;
+        return { kind: "linear", x1: x, y1: y, x2, y2, colors, stops, opacity: 1 };
     }
 
     private _drawProgressBar(ctx: CanvasRenderingContext2D): void {
@@ -2440,6 +2530,7 @@ export class RichTextLabel {
         const inside = Object.hasOwn(INSIDE, position) ? INSIDE[position as InsidePosition] : null;
         const inFront = (position === "center" || inside !== null) && !(target instanceof Vector3);
         const frontBounds = inFront ? bounds : null;
+        this.onFace = this.onFlatFace(target, bounds, inside);
         let newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, frontBounds);
         // A target drawn stretched (a group over its members' box) leaves its label the size the
         // label's style gives: the label undoes the stretch and its gaps are measured in it.
@@ -2451,14 +2542,15 @@ export class RichTextLabel {
                 height: labelHeight,
                 offset: this.options.attachOffset,
                 keepSide: this.options.box === "words-at-side" || this.options.box === "target-width",
+                onFace: this.onFace,
             });
             // What a screen fit places it beside: the bounds in the pivot's frame, whose origin is
-            // the node's center.
+            // the node's center; a label on its target's face is at the face, not a radius off it.
             const centre = bounds.min.add(bounds.max).scaleInPlace(0.5);
             this.placementBounds = {
                 min: bounds.min.subtract(centre),
                 max: bounds.max.subtract(centre),
-                z: -Vector3.Distance(bounds.min, bounds.max) / 2,
+                z: this.frontDepth(bounds, newPos),
             };
         } else {
             placeBeside(
@@ -2607,6 +2699,48 @@ export class RichTextLabel {
     }
 
     /**
+     * Whether a label inside its target lies on the target's face: in a 3D view, on a target drawn
+     * flat (a group's box behind its members, a flat shape), whose depth is a small part of its
+     * width and height as drawn. Turned toward the camera and hung one bounding radius in front, as
+     * a solid's label is, it floated far off the box in perspective (issue #2320); on the face it is
+     * drawn where the box is, as the 2D view draws it.
+     * @param target - What the label is attached to.
+     * @param bounds - Its bounds, in its own frame.
+     * @param bounds.min - Their lower corner.
+     * @param bounds.max - Their upper corner.
+     * @param inside - The side and end the label sits inside against, or null when it is not inside.
+     * @returns True when it lies on the face.
+     */
+    private onFlatFace(
+        target: RichTextLabelOptions["attachTo"],
+        bounds: { min: Vector3; max: Vector3 },
+        inside: { x: Side; y: Side } | null,
+    ): boolean {
+        if (
+            inside === null ||
+            !(target instanceof AbstractMesh) ||
+            (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true
+        ) {
+            return false;
+        }
+
+        const { x, y, z } = bounds.max.subtract(bounds.min).multiplyInPlace(target.scaling);
+        return z * FLAT_FACE_RATIO <= Math.min(x, y);
+    }
+
+    /**
+     * How far in front of its target's center a label placed in front of it is, for a screen fit.
+     * @param bounds - The target's bounds, in its own frame.
+     * @param bounds.min - Their lower corner.
+     * @param bounds.max - Their upper corner.
+     * @param at - Where the label was placed.
+     * @returns The depth: the label's own on its target's face, otherwise the bounds' radius.
+     */
+    private frontDepth(bounds: { min: Vector3; max: Vector3 }, at: Vector3): number {
+        return this.onFace ? at.z : -Vector3.Distance(bounds.min, bounds.max) / 2;
+    }
+
+    /**
      * Parent the label to the mesh it is attached to.
      *
      * A "center" label sits in the middle of its node, which is inside the node's mesh, so the
@@ -2632,11 +2766,14 @@ export class RichTextLabel {
         this.centerPivot.parent = target;
         this.centerPivot.position =
             this.options.centerAtOrigin === true ? Vector3.Zero() : center.min.add(center.max).scaleInPlace(0.5);
-        this.centerPivot.billboardMode = this.billboard();
+        this.centerPivot.billboardMode = this.onFace ? Mesh.BILLBOARDMODE_NONE : this.billboard();
         if (this.eyeLineShift === null) {
             this.eyeLineShift = new TransformNode(`richTextEyeLine_${this.id}`, this.scene);
             this.eyeLineShift.parent = this.centerPivot;
-            this.stopEyeLine = keepOnEyeLine(this.scene, this.centerPivot, this.eyeLineShift, () => mesh.position.z);
+            // a label lying on its target's face is not turned like the camera, so it needs no slide
+            this.stopEyeLine = keepOnEyeLine(this.scene, this.centerPivot, this.eyeLineShift, () =>
+                this.onFace ? 0 : mesh.position.z,
+            );
         }
         mesh.parent = this.eyeLineShift;
         mesh.billboardMode = Mesh.BILLBOARDMODE_NONE;
@@ -2651,7 +2788,7 @@ export class RichTextLabel {
      */
     private billboard(): number {
         const mode = this.options.billboardMode;
-        return mode === Mesh.BILLBOARDMODE_ALL && this.scene.metadata?.twoD === true
+        return mode === Mesh.BILLBOARDMODE_ALL && (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true
             ? Mesh.BILLBOARDMODE_X | Mesh.BILLBOARDMODE_Y
             : mode;
     }
@@ -2954,27 +3091,81 @@ export class RichTextLabel {
     }
 
     /**
-     * The panel behind the words when it is one solid color: the color, and its rectangle and
-     * corner radius as fractions of the plane, as {@link textBounds} measures. Undefined for no
-     * panel, a transparent one, or a gradient.
+     * What the label draws on its plane, as {@link textBounds} measures: its words, grown by their
+     * outline, and the panel behind them when it has one. Two labels whose words are apart but
+     * whose panels meet still draw over each other, so the declutter keeps these apart (#9275).
+     * @returns The drawn rectangle as fractions of the plane.
+     */
+    public get drawnBounds(): { left: number; right: number; top: number; bottom: number } {
+        const words = this.textBounds;
+        const { width, height } = this.actualDimensions;
+        const reach = this.options.textOutline ? this.options.textOutlineWidth : 0;
+        const box = {
+            left: words.left - reach / Math.max(width, 1),
+            right: words.right + reach / Math.max(width, 1),
+            top: words.top - reach / Math.max(height, 1),
+            bottom: words.bottom + reach / Math.max(height, 1),
+        };
+        const { panel } = this;
+        if (panel === undefined) {
+            return box;
+        }
+
+        return {
+            left: Math.min(box.left, panel.left),
+            right: Math.max(box.right, panel.right),
+            top: Math.min(box.top, panel.top),
+            bottom: Math.max(box.bottom, panel.bottom),
+        };
+    }
+
+    /**
+     * The panel behind the words: its color, and its rectangle and corner radius as fractions of
+     * the plane, as {@link textBounds} measures. A panel filled with a gradient also has the
+     * gradient, its line or circle as fractions of the plane (x and a radius by its width, y by its
+     * height), and `color` is its first color. Undefined for no panel or a transparent one.
      * @returns The panel, or undefined.
      */
     public get panel():
-        { color: string; left: number; right: number; top: number; bottom: number; radius: number } | undefined {
+        | {
+              color: string;
+              left: number;
+              right: number;
+              top: number;
+              bottom: number;
+              radius: number;
+              gradient?: PanelGradient;
+          }
+        | undefined {
         const bg: unknown = this.options.backgroundColor;
         const { width, height } = this.actualDimensions;
-        if (typeof bg !== "string" || bg === "" || bg === "transparent" || width <= 0 || height <= 0) {
+        const gradient = this._panelGradient();
+        const solid = typeof bg === "string" && bg !== "" && bg !== "transparent";
+        if ((!solid && gradient === undefined) || width <= 0 || height <= 0) {
             return undefined;
         }
         const { x, y, width: w, height: h } = this.contentArea;
-        return {
-            color: bg,
+        const box = {
             left: x / width,
             right: (x + w) / width,
             top: y / height,
             bottom: (y + h) / height,
             radius: this.options.cornerRadius / width,
         };
+        if (gradient === undefined) {
+            return { color: bg as string, ...box };
+        }
+        const shape: PanelGradientShape =
+            gradient.kind === "linear"
+                ? {
+                      kind: "linear",
+                      x1: gradient.x1 / width,
+                      y1: gradient.y1 / height,
+                      x2: gradient.x2 / width,
+                      y2: gradient.y2 / height,
+                  }
+                : { kind: "radial", cx: gradient.cx / width, cy: gradient.cy / height, r: gradient.r / width };
+        return { color: gradient.colors[0] ?? "transparent", ...box, gradient: { ...gradient, ...shape } };
     }
 
     /**

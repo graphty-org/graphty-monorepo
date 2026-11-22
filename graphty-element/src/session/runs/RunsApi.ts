@@ -54,6 +54,7 @@ import {
 } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import type { RunEntry } from "../project/state";
+import { compareResults, type ResultComparison } from "../results/compare";
 import { elementIdsOf } from "../results/RunResult";
 import { RESULT_ROOT, type RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
@@ -118,6 +119,8 @@ import {
     type RunScopeFacts,
     type RunSpec,
     type RunStyle,
+    type StabilityOptions,
+    type StabilityResult,
     type StaleNote,
     type StartOptions,
     type SuggestionOutcome,
@@ -270,8 +273,11 @@ export interface RunsApiOptions {
     readonly setName?: (id: SetId) => string | undefined;
     /** The thing that actually runs an algorithm. */
     readonly execute: RunExecutor;
-    /** Which versions are producing the numbers. */
-    readonly engine: EngineVersions;
+    /**
+     * Which code is producing the numbers, or a function read each time a run is defined, so a run
+     * records the accelerator attached when it ran.
+     */
+    readonly engine: EngineVersions | (() => EngineVersions);
     /** What a call that names no scope gets. Defaults to the visible graph. */
     readonly defaultScope?: Scope;
     /**
@@ -333,6 +339,13 @@ export interface RunsApiOptions {
 
 /** The runs API, plus the things a session needs and a consumer never calls. */
 export interface SessionRunsApi extends RunsApi {
+    /**
+     * Every run this session holds, finished or not: each one the session's own, so the session
+     * can re-run it as itself.
+     * @returns The runs, in the order they were started.
+     */
+    list(): readonly ManagedRun[];
+
     /**
      * Whether the element minted this run's id rather than the author naming it with `as:`.
      *
@@ -536,6 +549,54 @@ function refusedOutcome(suggestion: StyleSuggestion, error: unknown): Suggestion
     return Object.freeze({ outcome: "refused", suggestion, code: isGraphtyError(error) ? error.code : "E_INTERNAL" });
 }
 
+/**
+ * One batch member per value of a series (a sweep's values, a stability run's seeds), each its own
+ * listed run named `<algorithm>_<option>_<value>`.
+ * @param algorithm - Which algorithm.
+ * @param option - What the series varies, for the run ids.
+ * @param values - The values, in order.
+ * @param shared - The scope and style every member takes.
+ * @param shared.scope - The scope.
+ * @param shared.style - The style; off when absent.
+ * @param vary - What each value sets on its member.
+ * @returns The members.
+ */
+function seriesSpecs<V>(
+    algorithm: AlgorithmKey,
+    option: string,
+    values: readonly V[],
+    shared: { readonly scope: ScopeInput | undefined; readonly style: RunStyle | undefined },
+    vary: (value: V) => Pick<RunSpec, "params" | "seed">,
+): RunSpec[] {
+    const taken = new Set<string>();
+    return values.map((value, index): RunSpec => {
+        const named = sweepRunId(algorithm, option, value);
+        // Two values that spell the same id (0.5 and "0.5") still get a run each.
+        const id = taken.has(named) ? `${named}_${String(index + 1)}` : named;
+        taken.add(id);
+
+        return {
+            algorithm,
+            ...vary(value),
+            as: assertRunId(id),
+            ...(shared.scope === undefined ? {} : { scope: shared.scope }),
+            // Off unless asked: a series is read as a table, and its runs painting over each other
+            // would show only the last.
+            style: shared.style ?? false,
+        };
+    });
+}
+
+/**
+ * The mean of the defined values.
+ * @param values - The values.
+ * @returns The mean, or undefined when none is defined.
+ */
+function meanOf(values: readonly (number | undefined)[]): number | undefined {
+    const defined = values.filter((value): value is number => value !== undefined);
+    return defined.length === 0 ? undefined : defined.reduce((sum, value) => sum + value, 0) / defined.length;
+}
+
 const DEFAULT_CAVEATS: Caveats = Object.freeze({
     exact: true,
     seed: null,
@@ -624,20 +685,31 @@ function formatParamValue(value: unknown): string {
 }
 
 /**
- * The versions to record on a run, with the registered algorithm's own version beside them.
+ * The engine one run records: the session's, plus the version a registered extension declares.
  *
- * A run records the versions of the code that produced its numbers, and the three fixed fields
- * name the element and its two sibling packages -- which says nothing at all about a third
- * party's algorithm. The version is read from an optional `static version` on the registered
- * class, so an algorithm that declares none leaves the record exactly as it was.
+ * A run records the packages whose code produced its numbers, and the element's own say nothing at
+ * all about a third party's algorithm. The version is read from an optional `static version` on
+ * the registered class and listed under the run's catalog key, so an algorithm that declares none
+ * leaves the record exactly as it was.
  * @param key - The catalog key the run was started by.
- * @param base - The element's own versions.
- * @returns The versions to record on this run.
+ * @param base - The session's engine.
+ * @returns The engine to record on this run.
  */
 function engineVersionsFor(key: AlgorithmKey, base: EngineVersions): EngineVersions {
     const version = registeredAlgorithmByKey(key)?.version;
 
-    return version === undefined ? base : Object.freeze({ ...base, plugins: Object.freeze({ [key]: version }) });
+    return version === undefined
+        ? base
+        : Object.freeze({ ...base, packages: Object.freeze({ ...base.packages, [key]: version }) });
+}
+
+/**
+ * The session's engine as it stands now.
+ * @param engine - The engine, or the function that reads it.
+ * @returns The engine.
+ */
+function engineNow(engine: EngineVersions | (() => EngineVersions)): EngineVersions {
+    return typeof engine === "function" ? engine() : engine;
 }
 
 /**
@@ -961,6 +1033,15 @@ class Runs implements SessionRunsApi {
     // -- starting -----------------------------------------------------------------------------
 
     /**
+     * Why the session is starting the run a call on the stack starts, as `RunChange.trigger`
+     * names it: `"project"` while opening a project brings its saved runs back.
+     * @returns The trigger, or undefined for a caller's own start.
+     */
+    private get startingTrigger(): RunChange["trigger"] {
+        return this.dispatcher.startingTrigger === "project" ? "project" : undefined;
+    }
+
+    /**
      * Start one algorithm, or hand back the run that already answers this question.
      * @param algorithm - Which algorithm to run.
      * @param params - Its parameters.
@@ -1032,24 +1113,10 @@ class Runs implements SessionRunsApi {
         options: SweepOptions = {},
     ): Run<SweepResult> {
         const { params, scope, seed, style, ...batchOptions } = options;
-        const taken = new Set<string>();
-        const specs = values.map((value, index): RunSpec => {
-            const named = sweepRunId(algorithm, option, value);
-            // Two values that spell the same id (0.5 and "0.5") still get a run each.
-            const id = taken.has(named) ? `${named}_${String(index + 1)}` : named;
-            taken.add(id);
-
-            return {
-                algorithm,
-                params: { ...params, [option]: value },
-                as: assertRunId(id),
-                ...(scope === undefined ? {} : { scope }),
-                ...(seed === undefined ? {} : { seed }),
-                // Off unless asked: a sweep is read as a table, and its runs painting over each
-                // other would show only the last.
-                style: style ?? false,
-            };
-        });
+        const specs = seriesSpecs(algorithm, option, values, { scope, style }, (value) => ({
+            params: { ...params, [option]: value },
+            ...(seed === undefined ? {} : { seed }),
+        }));
 
         return this.batchRun(specs, batchOptions, (result) =>
             Object.freeze({
@@ -1058,6 +1125,47 @@ class Runs implements SessionRunsApi {
                 rows: Object.freeze(result.steps.map((step) => this.sweepRow(step, values[step.index]))),
             }),
         );
+    }
+
+    /**
+     * Run one algorithm once per seed, as one batch, and compare what the seeds found.
+     * @param algorithm - Which algorithm.
+     * @param seeds - The seeds, in order.
+     * @param options - The parameters, the field to compare, the scope, the style, the label and
+     *   the ordinary run options.
+     * @returns A run over the batch, resolving to the rows, the pairs and their means.
+     */
+    stability(algorithm: AlgorithmKey, seeds: readonly number[], options: StabilityOptions = {}): Run<StabilityResult> {
+        const { params, scope, style, field, ...batchOptions } = options;
+        const specs = seriesSpecs(algorithm, "seed", seeds, { scope, style }, (seed) => ({
+            ...(params === undefined ? {} : { params }),
+            seed,
+        }));
+
+        return this.batchRun(specs, batchOptions, (result) => {
+            const rows = result.steps.map((step) => this.sweepRow(step, seeds[step.index]));
+            const finished = rows.flatMap((row) => {
+                const found = row.ok && row.runId !== undefined ? this.runs.get(row.runId)?.result : undefined;
+                return found === undefined ? [] : [found];
+            });
+            const pairs: ResultComparison[] = [];
+            for (let i = 0; i < finished.length; i++) {
+                for (let j = i + 1; j < finished.length; j++) {
+                    pairs.push(compareResults(finished[i], finished[j], field, field));
+                }
+            }
+            const partitions = pairs.filter((pair) => pair.kind === "partition");
+            const rankings = pairs.filter((pair) => pair.kind === "ranking");
+
+            return Object.freeze({
+                ...result,
+                rows: Object.freeze(rows),
+                pairs: Object.freeze(pairs),
+                agreement: meanOf(partitions.map((pair) => pair.agreement)),
+                adjustedMutualInformation: meanOf(partitions.map((pair) => pair.adjustedMutualInformation)),
+                correlation: meanOf(rankings.map((pair) => pair.correlation)),
+            });
+        });
     }
 
     /**
@@ -1125,7 +1233,7 @@ class Runs implements SessionRunsApi {
             style: false,
             shape: "fact",
             fields: [],
-            engine: this.options.engine,
+            engine: engineNow(this.options.engine),
             caveats: this.defaultCaveats,
             execute: async (context) => {
                 const outcome = await execute(context);
@@ -1228,7 +1336,7 @@ class Runs implements SessionRunsApi {
      * Every algorithm run this session holds, finished or not.
      * @returns The runs, in the order they were started.
      */
-    list(): readonly Run[] {
+    list(): readonly ManagedRun[] {
         return Object.freeze([...this.runs.values()].filter((run) => this.listed(run)));
     }
 
@@ -1406,6 +1514,19 @@ class Runs implements SessionRunsApi {
     private readonly dispatch: DispatchFunction = (command, options) => this.dispatcher.dispatch(command, options);
 
     /**
+     * Throw what the dispatcher would refuse a run's command with now (a draft's After drawn), so
+     * the caller gets its code rather than a run started and canceled when its command is refused.
+     * @param command - The run's command.
+     * @param command.op - Its op.
+     */
+    private refuseNow(command: { readonly op: string }): void {
+        const refusal = this.dispatcher.services.refuse?.(command) ?? null;
+        if (refusal !== null) {
+            throw refusal;
+        }
+    }
+
+    /**
      * Start one algorithm, or hand back the run that already answers this question.
      * @param via - Where the run's command is dispatched.
      * @param algorithm - Which algorithm to run.
@@ -1457,6 +1578,7 @@ class Runs implements SessionRunsApi {
         // A run of its own under a counted id: its command names that id, or carrying it out would
         // derive the shared id again and re-run that run in place.
         const command = own ? this.pinnedTo(id, asked) : asked;
+        this.refuseNow(command);
         const launch: Launch = { via, command, beside: options.queue === "now" };
         const existing = this.runs.get(id);
         algorithmLog.info("run requested", { algorithm, id, params: params ?? null, existing: existing !== undefined });
@@ -1660,7 +1782,7 @@ class Runs implements SessionRunsApi {
             style: options.style ?? true,
             shape: descriptor.shape,
             fields: descriptor.fields,
-            engine: engineVersionsFor(descriptor.key, this.options.engine),
+            engine: engineVersionsFor(descriptor.key, engineNow(this.options.engine)),
             caveats: this.caveatsFor(identity, descriptor),
             execute: this.options.execute,
             ...(options.signal === undefined ? {} : { signal: options.signal }),
@@ -1686,6 +1808,7 @@ class Runs implements SessionRunsApi {
             },
             entry: () => this.dispatcher.state.runs.get(id),
             numberedAfter: () => this.sameQuestion(id)?.result,
+            keptLayers: () => this.bindings(id),
         };
         const run = new ManagedRun<RunResult>(definition, surroundings);
 
@@ -1701,7 +1824,8 @@ class Runs implements SessionRunsApi {
             this.names.delete(id);
         }
 
-        run.start();
+        // A run that opening a project brings back says so (`RunChange.trigger`).
+        run.start(this.startingTrigger);
 
         return run;
     }
@@ -1776,12 +1900,17 @@ class Runs implements SessionRunsApi {
             // The same result under other parameters: its re-execution is the new command.
             this.commands.set(existing.id, withoutSuggested(launch.command));
             this.launches.set(existing.id, launch);
-            return existing.retune(identity.params, identity.seed, this.caveatsFor(identity, descriptor));
+            return existing.retune(
+                identity.params,
+                identity.seed,
+                this.caveatsFor(identity, descriptor),
+                this.startingTrigger,
+            );
         }
 
         if (this.shouldReexecute(existing)) {
             this.launches.set(existing.id, launch);
-            existing.rerun();
+            existing.rerun(this.startingTrigger);
         } else if (
             (launch.command.applySuggestedStyles === true || launch.command.restoreLayer === true) &&
             !this.adopting
@@ -3107,7 +3236,7 @@ class Runs implements SessionRunsApi {
             const runId = idOf(suggestion.spec.run);
 
             try {
-                const outcome = await via(suggestionCommand(suggestion, true));
+                const outcome = await via(suggestionCommand(suggestion, true), { trigger: "suggestion" });
                 record(
                     addedOutcome(
                         suggestion,
@@ -3190,11 +3319,12 @@ class Runs implements SessionRunsApi {
      * @param run - The run, or the batch.
      * @param run.record - Its record, which the observer is handed.
      * @param run.generation - Which execution of it this is.
+     * @param run.trigger - Why the session started that execution by itself, when it did.
      * @param phase - Which moment it reached.
      * @param cause - What moved it.
      */
     private announce(
-        run: { readonly record: RunRecord; readonly generation: number },
+        run: { readonly record: RunRecord; readonly generation: number; readonly trigger?: RunChange["trigger"] },
         phase: RunPhase,
         cause: RunChange["cause"] = "command",
     ): void {
@@ -3205,7 +3335,17 @@ class Runs implements SessionRunsApi {
         }
 
         try {
-            onChange(Object.freeze({ run: run.record, phase, cause, generation: run.generation }));
+            // An undo, a redo or a restore moved it, not the execution the trigger describes.
+            const trigger = cause === "command" ? run.trigger : undefined;
+            onChange(
+                Object.freeze({
+                    run: run.record,
+                    phase,
+                    cause,
+                    generation: run.generation,
+                    ...(trigger === undefined ? {} : { trigger }),
+                }),
+            );
         } catch {
             // A watcher's failure is the watcher's. The run carries on.
         }

@@ -198,10 +198,11 @@ const withSample = (): void => {
 };
 
 /**
- * Answers every download with a two-node dataset file, until the test ends.
- * @returns When the file is ready.
+ * Answers every download with a two-node dataset file, until the test ends. It is sent unzipped,
+ * as a server using `Content-Encoding: gzip` delivers it: a made-up gzip file would fail the
+ * dataset's published checksum.
  */
-async function answerDownloads(): Promise<void> {
+function answerDownloads(): void {
     const bytes = fromEdgeArrays({
         directed: false,
         nodeCount: 2,
@@ -209,10 +210,7 @@ async function answerDownloads(): Promise<void> {
         dst: new Uint32Array([1]),
         ids: ["d1", "d2"],
     }).toBytes();
-    const zipped = await new Response(
-        new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip")),
-    ).arrayBuffer();
-    vi.stubGlobal("fetch", () => Promise.resolve(new Response(zipped)));
+    vi.stubGlobal("fetch", () => Promise.resolve(new Response(bytes.slice())));
 }
 
 /** A reference call for every action, by `tool.action`. */
@@ -364,8 +362,8 @@ const ROWS: Record<string, Row> = {
     "view.save": { args: { action: "save", name: "overview" } },
     "view.restore": {
         args: { action: "restore", name: "kept" },
-        setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 } }]),
-        code: "AI_NOT_AVAILABLE",
+        // Brings back what the view keeps; a session that draws nothing has no camera to move.
+        setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 }, hidden: ["a"] }]),
     },
     "view.remove_saved": {
         args: { action: "remove_saved", name: "kept" },
@@ -479,6 +477,13 @@ const ROWS: Record<string, Row> = {
     "conditions.update": { args: { action: "update", id: "c1", enabled: false }, setup: withCondition },
     "conditions.remove": { args: { action: "remove", id: "c1" }, setup: withCondition },
     "conditions.clear": { args: { action: "clear" }, setup: withCondition },
+    "conditions.move_step": {
+        args: { action: "move_step", id: "c2", index: 0 },
+        setup: async (session: GraphSession) => {
+            await withCondition(session);
+            await session.visibility.addCondition({ id: "c2", effect: "exclude", rule: { kind: "degree", max: 0 } });
+        },
+    },
     "conditions.set_steps": { args: { action: "set_steps", steps: [{ id: "s1", where: "data.load > `0.5`" }] } },
     "columns.list": { args: { action: "list" } },
     "columns.values": { args: { action: "values", column: "team" } },

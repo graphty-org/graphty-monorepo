@@ -21,10 +21,12 @@ import { isGraphtyError } from "../../../errors/GraphtyError";
 import { assetsMember, restoreAssets, withAcceptedAssetIds } from "../../assets/projectMember";
 import { dispatcherOf } from "../../dispatchers";
 import { channelDescriptor, isEnumCount } from "../../styles/channels";
+import { quotePath, renamePaths, renameRunInPath } from "../../styles/predicate";
 import type { GraphSession } from "../../types";
 import { valueLabelOf } from "../../valueLabels";
 import { projectMemory } from "../memory";
 import type {
+    ColumnRenames,
     DocumentProblem,
     JsonObject,
     ReadContext,
@@ -36,7 +38,18 @@ import type {
 } from "../types";
 import { typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
-import { asName, columnSchema, dataColumnsIn, isNamespace, namespaceFromId, splitRunId } from "./recipeCommands";
+import {
+    asName,
+    columnSchema,
+    dataColumnsIn,
+    isNamespace,
+    namespaceFromId,
+    PATH_MEMBERS,
+    renameRuns,
+    runsRead,
+    splitRunId,
+    unansweredPath,
+} from "./recipeCommands";
 import { fileIdsOf, fileSetId } from "./viewParts";
 
 /** One opened layer: as the file held it, and the session's form of it right after the open. */
@@ -156,11 +169,6 @@ const LAYER_MEMBERS = new Set([
 /** A shader parameter's address, `<target>.shaders.<id>.<param>`, which is a channel of its own. */
 const SHADER_ADDRESS = /^(node|edge)\.shaders\.[^.]+\..+$/;
 
-/** A run named in a path or an expression: `results.<run>`. */
-// ponytail: a regular expression over the text, so a quoted path or a string literal holding
-// `results.x` is read as a path too; parse the expression when that matters.
-const RESULT_PATH = /(?<![\w."])results\.([A-Za-z_]\w*)/g;
-
 /**
  * Whether a value is a plain JSON object.
  * @param value - The value.
@@ -190,47 +198,6 @@ export function runName(id: string): string {
 }
 
 /**
- * Every string in a value with each `results.<run>` renamed.
- * @param value - The value.
- * @param rename - From the name written to the name wanted.
- * @returns A copy, keys in the same order.
- */
-function renameRuns<T>(value: T, rename: (run: string) => string): T {
-    if (typeof value === "string") {
-        return value.replaceAll(RESULT_PATH, (_match, run: string) => `results.${rename(run)}`) as T;
-    }
-
-    if (Array.isArray(value)) {
-        return value.map((each: unknown) => renameRuns(each, rename)) as T;
-    }
-
-    return isObject(value)
-        ? (Object.fromEntries(Object.entries(value).map(([key, each]) => [key, renameRuns(each, rename)])) as T)
-        : value;
-}
-
-/**
- * Every match of a pattern's first group in the strings of a value.
- * @param value - The value.
- * @param pattern - A global pattern.
- * @param into - Where to collect, in order of first appearance.
- */
-function collect(value: unknown, pattern: RegExp, into: Set<string>): void {
-    if (typeof value === "string") {
-        for (const match of value.matchAll(pattern)) {
-            into.add(match[1]);
-        }
-    } else if (Array.isArray(value) || isObject(value)) {
-        for (const each of Object.values(value)) {
-            collect(each, pattern, into);
-        }
-    }
-}
-
-/** The members whose text is one path, never an expression: a selector's `path`, a binding's `by`. */
-const PATH_MEMBERS = new Set(["path", "by"]);
-
-/**
  * Collect every column a value's paths and expressions read: a path member's whole rest after
  * `data.`, and each `data.` path an expression names.
  * @param value - The value.
@@ -253,6 +220,81 @@ function collectColumns(value: unknown, into: Set<string>, member = ""): void {
             collectColumns(each, into, name);
         }
     }
+}
+
+/**
+ * A value with every column it reads renamed, as `collectColumns` finds them: a path member's
+ * `data.<column>`, and each `data.` path an expression names.
+ * @param value - The value.
+ * @param renamed - The open data's column, by the column the section names.
+ * @param member - The member the value is held under.
+ * @returns The value, renamed.
+ */
+function renameColumns(value: unknown, renamed: ReadonlyMap<string, string>, member = ""): unknown {
+    if (typeof value === "string") {
+        return PATH_MEMBERS.has(member) ? renamePath(value, renamed) : renameIn(value, renamed);
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((each) => renameColumns(each, renamed));
+    }
+
+    return isObject(value)
+        ? Object.fromEntries(Object.entries(value).map(([name, each]) => [name, renameColumns(each, renamed, name)]))
+        : value;
+}
+
+/**
+ * One path member renamed: its `data.<column>`, written raw (spec 4.8.1 rule 2).
+ * @param path - The path.
+ * @param renamed - The open data's column, by the column the section names.
+ * @returns The path.
+ */
+function renamePath(path: string, renamed: ReadonlyMap<string, string>): string {
+    const to = path.startsWith("data.") ? renamed.get(path.slice("data.".length)) : undefined;
+    return to === undefined ? path : `data.${to}`;
+}
+
+/**
+ * The `data.` paths an expression names, renamed; text that is no expression is kept.
+ * @param text - The expression.
+ * @param renamed - The open data's column, by the column the section names.
+ * @returns The expression.
+ */
+function renameIn(text: string, renamed: ReadonlyMap<string, string>): string {
+    if (!text.includes("data.")) {
+        return text;
+    }
+
+    try {
+        return renamePaths(text, (path) => {
+            const to = path.startsWith("data.") ? renamed.get(path.slice("data.".length)) : undefined;
+            return to === undefined ? undefined : quotePath(`data.${to}`);
+        });
+    } catch {
+        return text; // Words, not an expression.
+    }
+}
+
+/**
+ * A raw layer with the columns its selector and encodings read renamed to the open data's, for its
+ * target's table (the column mapping step, spec 3.6 rule 1).
+ * @param raw - The layer as the file holds it.
+ * @param columns - The renames, by table.
+ * @returns The layer.
+ */
+function withColumns(raw: unknown, columns: ColumnRenames | undefined): unknown {
+    const renames = isObject(raw) ? columns?.[raw.target === "edge" ? "edge" : "node"] : undefined;
+    if (renames === undefined || Object.keys(renames).length === 0 || !isObject(raw)) {
+        return raw;
+    }
+
+    const renamed = new Map(Object.entries(renames));
+    return {
+        ...raw,
+        ...(raw.selector === undefined ? {} : { selector: renameColumns(raw.selector, renamed) }),
+        ...(raw.encode === undefined ? {} : { encode: renameColumns(raw.encode, renamed) }),
+    };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -402,13 +444,7 @@ function readsOf(layer: JsonObject, columns: Set<string>, runs: Set<string>, typ
     const kind = layer.target === "edge" ? "edge" : "node";
     const names = new Set<string>();
     collectColumns([layer.selector, layer.encode], names);
-    collect([layer.selector, layer.encode], RESULT_PATH, runs);
-    // A `by` with no prefix reads a column (style.md, "Paths" rule 1).
-    for (const binding of Object.values(isObject(layer.encode) ? layer.encode : {})) {
-        if (isObject(binding) && typeof binding.by === "string" && !/^(data|results)\./.test(binding.by)) {
-            names.add(binding.by);
-        }
-    }
+    runsRead([layer.selector, layer.encode]).forEach((run) => runs.add(run));
 
     names.forEach((name) => columns.add(`${kind}:${name}`));
     if (isObject(layer.selector) && layer.selector.match === "type" && Array.isArray(layer.selector.types)) {
@@ -478,9 +514,10 @@ function palettesFor(
  * The section's header and body from the session as it is now.
  * @param session - The session.
  * @param problems - Where to report the layers left out.
+ * @param toView - Whether the same save writes the view section, which carries those layers.
  * @returns What the codec writes.
  */
-function compose(session: GraphSession, problems: DocumentProblem[]): SectionWrite {
+function compose(session: GraphSession, problems: DocumentProblem[], toView = false): SectionWrite {
     const memory = memoryOf(session);
     const document = withAcceptedAssetIds(session, session.styles.toDocument());
     const ids = session.styles
@@ -518,7 +555,14 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
             placeIds.push(undefined);
             problems.push({
                 code: "W_ELEMENT_NAMING_LEFT_OUT",
-                params: { section: "style", pointer: `/layers/${place}` },
+                // `layer`: the session's layer, so a caller can name what was left out; `movedTo`:
+                // the section of the same save that carries it instead.
+                params: {
+                    section: "style",
+                    pointer: `/layers/${place}`,
+                    layer: id,
+                    ...(toView ? { movedTo: "view" } : {}),
+                },
             });
             return;
         }
@@ -543,7 +587,7 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
 
     const valueLabels = [...dispatcherOf(session).state.valueLabels].map(([key, label]) => {
         const { path, value } = valueLabelOf(key);
-        return { path: renameRuns(path, runName), value, label };
+        return { path: renameRunInPath(path, runName), value, label };
     });
     const assets = assetsMember(session).member?.assets as JsonObject[] | undefined;
     const body: JsonObject = {
@@ -733,13 +777,28 @@ function readChannels(part: JsonObject, encode: boolean, reading: Reading, at: s
 }
 
 /**
- * One layer as the session applies it, or why it is kept instead.
+ * One layer as the session applies it, or why it is kept instead. A layer reading a readable path
+ * this release does not compute, or the reserved `graphty.types`, would paint nothing: it is kept
+ * as read and written back (spec 4.2 rule 4).
  * @param raw - The layer as the file holds it.
  * @param index - Its place in `layers`.
  * @param reading - The read.
  * @returns The spec, or the code that keeps the layer.
  */
 function prepareLayer(raw: unknown, index: number, reading: Reading): Prepared {
+    return isObject(raw) && unansweredPath({ selector: raw.selector, encode: raw.encode }) !== undefined
+        ? { kept: "E_UNKNOWN_ATTRIBUTE" }
+        : readLayer(raw, index, reading);
+}
+
+/**
+ * One layer as the session applies it, or why it is kept instead, its paths all answered.
+ * @param raw - The layer as the file holds it.
+ * @param index - Its place in `layers`.
+ * @param reading - The read.
+ * @returns The spec, or the code that keeps the layer.
+ */
+function readLayer(raw: unknown, index: number, reading: Reading): Prepared {
     const at = `/layers/${index}`;
     if (!isObject(raw) || !isObject(raw.selector) || typeof raw.selector.match !== "string") {
         return { kept: "E_BAD_LAYER" };
@@ -1081,7 +1140,9 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
         }
     }
 
-    const raws: unknown[] = Array.isArray(body.layers) ? body.layers : [];
+    const raws: unknown[] = (Array.isArray(body.layers) ? body.layers : []).map((raw: unknown) =>
+        withColumns(raw, context.columns),
+    );
     const specs: LayerSpec[] = [];
     const indexes: number[] = [];
     const keptAt = new Map<number, string>();
@@ -1146,7 +1207,7 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
     for (const entry of Array.isArray(body.valueLabels) ? body.valueLabels : []) {
         if (isObject(entry) && typeof entry.path === "string" && typeof entry.label === "string") {
             const { value } = entry;
-            const path = renameRuns(entry.path, (run) => reading.rename(run) ?? run);
+            const path = renameRunInPath(entry.path, (run) => reading.rename(run) ?? run);
             if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
                 await context.tx.data.setValueLabel(path, value, entry.label);
             }
@@ -1199,7 +1260,7 @@ export const styleCodec: SectionCodec = {
     bound: false,
     members: ["palettes", "shaders", "layers", "tree", "valueLabels", "assets"],
     write(context: WriteContext) {
-        return Promise.resolve(compose(context.session, context.problems));
+        return Promise.resolve(compose(context.session, context.problems, context.sections.has("view")));
     },
     read,
 };

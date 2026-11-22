@@ -174,11 +174,16 @@ Every step's `fact.code` is one of the `HistoryCode` values, each documenting it
 A parameter that came from the data (a node id, a set's name) is the data's own text: escape it
 before putting it into HTML.
 
-**Coalescing.** Edits of the same thing within a second of each other merge into the step on top:
-dragging a color picker, typing into a filter, moving the time window, placing nodes one at a
-time in a loop. The whole drag is one step. Work queued in between -- a run, an import -- ends the
-merge: the next edit starts a step of its own, so undo takes back that edit before it cancels the
-queued work.
+**Coalescing.** Consecutive edits of the same thing merge into the step on top: dragging a color
+picker, typing into a filter, moving the time window, placing the same nodes one call at a time.
+The whole drag is one step. Whether two edits merge depends only on what they change and on what
+happened between them, never on the time between them, so the same calls make the same steps on
+any machine. A style update merges only while it changes channels the step already changes: a
+color drag is one step, and a size edit after it is a step of its own. Another step, an undo, or
+work queued in between -- a run, an import -- ends the merge: the next edit starts a step of its
+own, so undo takes back that edit before it cancels the queued work. To keep an edit out of the
+step before it (a second, separate drag of the same slider), make it inside `session.transaction`:
+a transaction is always a step of its own, and no edit after it merges into it.
 
 ## Transactions
 

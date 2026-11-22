@@ -248,6 +248,9 @@ export { readChannelList, writeChannelList } from "./src/catalog/channelValues";
 // What a shader parameter declared `varies` is bound as, by its encode address: the descriptor an
 // editor's vary picker and `styles.proposeEncoding` read for it.
 export { shaderParamChannel } from "./src/session/styles/encoding";
+// Every `action` a `style.patch` command may carry, so an application that reads the journal can
+// check one against the element's own list rather than copy it.
+export { STYLE_PATCH_ACTIONS } from "./src/session/commands/style";
 // The one color reader a channel uses: a hex string, any CSS color the element understands, or
 // Rgba components in, a clamped and rounded color with its `#rrggbb[aa]` hex out (null when the
 // value is not a color). A color control reads a layer's value through this rather than

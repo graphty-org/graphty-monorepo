@@ -23,6 +23,7 @@ import { Observable } from "@babylonjs/core/Misc/observable.js";
 import { RenderingGroup } from "@babylonjs/core/Rendering/renderingGroup.js";
 import { Scene } from "@babylonjs/core/scene.js";
 import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
+import { WebXRState } from "@babylonjs/core/XR/webXRTypes.js";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
@@ -36,6 +37,7 @@ import { flatMapReach } from "./layout/locationMap/reach";
 import { GraphtyLogger, type Logger } from "./logging";
 import { BasemapManager, mapCorners } from "./managers/BasemapManager";
 import { CAMERA_LOG_INTERVAL_MS, frameFacts, throttle, viewLog } from "./managers/viewLog";
+import type { GraphSceneMetadata } from "./types/sceneMetadata";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
@@ -90,9 +92,9 @@ const ZOOM_STEP_FACTOR = 1.25;
 const MAP_CLEARANCE = 1e-4;
 
 import { measureBounds } from "./camera/bounds.js";
-import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
 import { cameraRefusal, stateProblem } from "./camera/mode.js";
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "./camera/orbit.js";
 import { orientationOf } from "./camera/orientation.js";
 import type { GraphOverview, OverviewOptions } from "./camera/overview.js";
 import { presetsOf, type SkippedPreset, splitPresetImport } from "./camera/presets.js";
@@ -115,6 +117,7 @@ import {
 } from "./camera/tour.js";
 import type { CameraState, CameraViewExtent, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
+import type { CameraGestureKind } from "./cameras/gestureEnd";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
 import { type OverviewInputs, OverviewSource, watchOverview } from "./cameras/overview";
 import { TwoDCameraController } from "./cameras/TwoDCameraController";
@@ -141,6 +144,7 @@ import {
     type ColorScheme,
     defaultXRConfig,
     FetchEdgesFn,
+    FetchNeighborEdgesFn,
     FetchNodesFn,
     GraphBackground,
     type GraphBackgroundConfig,
@@ -174,11 +178,14 @@ import {
     type RenderRestoredEvent,
     type TourEndedEvent,
     type TourProgressEvent,
+    type XRMenuSelectEvent,
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
 import { attachRegionGesture } from "./input/RegionSelectGesture";
+import { FixedLayout } from "./layout/FixedLayoutEngine";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
+import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import {
     type AddEdgesOptions,
     AlgorithmManager,
@@ -227,6 +234,8 @@ import {
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
+import { arrowCapMeshes } from "./meshes/ArrowCapBatch";
+import { edgeDrawPlace } from "./meshes/EdgeLineBatch";
 import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
@@ -305,6 +314,7 @@ import {
     paintAddedRows,
     repaintGraphPass,
     scopeResolverOfSession,
+    sessionDataOf,
     sessionRunsOf,
     setsNotifierOfSession,
     workingGraphOfSession,
@@ -718,6 +728,52 @@ export interface StableFrameOptions {
     timeoutMs?: number;
 }
 
+/** How `loadFromFile` and `loadFromUrl` load, on {@link Graph} and on the element. */
+export interface FileLoadOptions {
+    /** The format (e.g. "json", "csv", "graphml"); detected from the name and the content when unset. */
+    format?: string;
+    /** JMESPath for the node id field. */
+    nodeIdPath?: string;
+    /**
+     * Where the node an edge starts at is named in the record. Left unset, the element reads
+     * `source`, then `src`, then `from`.
+     */
+    edgeSource?: string;
+    /** Where the node an edge ends at is named in the record. */
+    edgeTarget?: string;
+    /**
+     * Replace the graph with this data, but only once it has all parsed: a malformed or empty
+     * file rejects and leaves the current graph untouched.
+     */
+    replace?: boolean;
+    /**
+     * Which graph to read, by position, from a file that holds several (`listGraphs` from
+     * `@graphty/graphty-element/catalog` lists them); the first when neither this nor `graphName` is given.
+     */
+    graphIndex?: number;
+    /** Which graph to read, by name, from a file that holds several. */
+    graphName?: string;
+    /**
+     * `"file"` also draws the file's own styles (colors, sizes, shapes, labels) as style layers, so
+     * the graph looks as it does in the program that wrote it; `"none"` (the default) loads the data alone.
+     */
+    styles?: "file" | "none";
+    /** How the file's styles are turned into layers. */
+    styleOptions?: FileStyleOptions;
+    /**
+     * `"recommended"` chooses a layout for what was loaded once it is loaded: `fixed`, which draws
+     * each node where the file put it, when every node arrived with a position, and a computed one
+     * otherwise. `"placed"` chooses `fixed` in the same case and otherwise leaves the layout as it
+     * is. `"keep"` (the default) leaves the layout as it is.
+     */
+    layout?: "recommended" | "placed" | "keep";
+    /**
+     * Cancels the load, its read or fetch included: it rejects with the signal's reason (an
+     * `AbortError` by default) and adds nothing, leaving the graph as it was.
+     */
+    signal?: AbortSignal;
+}
+
 /**
  * Where one node is drawn on screen. Pixels count from the element's top-left corner, the same
  * pixels `worldToScreen` returns and a pointer event's `offsetX` / `offsetY` on the canvas use.
@@ -877,6 +933,19 @@ export class Graph implements GraphContext {
         this.#initialCameraStateOwed = false;
         this.updateManager.stopAutoZoomToFit();
     };
+    /**
+     * A reader's camera gesture ended: published as `camera:gesture-end`.
+     * @param kind - What the gesture did.
+     */
+    readonly #cameraGestureEnded = (kind: CameraGestureKind): void => {
+        this.session.cameraGestureEnd(kind);
+    };
+
+    /** Hooks the render manager's camera's reader input to the session. */
+    #hookCamera(): void {
+        this.camera.onReaderMove = this.#readerMovedCamera;
+        this.camera.onGestureEnd = this.#cameraGestureEnded;
+    }
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
     /**
      * Announces a new skybox's image: `skybox-loaded` once its texture arrived, `skybox-failed`
@@ -900,6 +969,8 @@ export class Graph implements GraphContext {
     #thumbnailQueue: Promise<unknown> = Promise.resolve();
     /** Whether each model's template could be built, by digest and stand-ins (`checkModel`). */
     readonly #modelChecks = new Map<string, Promise<ModelCheck>>();
+    /** Where `checkModel` builds its templates; see {@link Graph.#checkScene}. */
+    #checkSceneHeld: Scene | null = null;
     /** Margins of the canvas something else covers, in CSS pixels; see {@link setViewInsets}. */
     #viewInsets: Required<ViewInsets> = fullInsets(undefined);
     skybox?: string;
@@ -915,6 +986,11 @@ export class Graph implements GraphContext {
     // graph
     fetchNodes?: FetchNodesFn;
     fetchEdges?: FetchEdgesFn;
+    /**
+     * The parsed `layoutBehavior.fetchNeighborEdges`, read by expansion; set it through that option.
+     * @internal
+     */
+    fetchNeighborEdges?: FetchNeighborEdgesFn;
     initialized = false;
 
     /**
@@ -1095,11 +1171,10 @@ export class Graph implements GraphContext {
     private readonly drawsOnDemand = (): boolean =>
         this.viewSettings.behavior.rendering?.onDemand ?? onDemandWhenUnset();
     /**
-     * Whether the render loop flushes after each frame's WebGL fence, and keeps one WebGPU frame in
-     * flight: only under renderPath "batched". Its frames are short enough that waiting for the
-     * browser's own flush set their floor, and its million-row frames are long enough on the GPU
-     * that unpaced WebGPU frames queued minutes of work ahead of every readback. Asked each frame,
-     * so a live path change takes effect on the next one.
+     * Whether the render loop flushes after each frame's WebGL fence and rests between layout
+     * landings: only under renderPath "batched", whose frames are short enough that waiting for the
+     * browser's own flush set their floor. (WebGPU frames in flight are bounded on every path.)
+     * Asked each frame, so a live path change takes effect on the next one.
      * @returns True under renderPath "batched".
      */
     readonly #batchedFrames = (): boolean => this.#renderPath === "batched";
@@ -1158,6 +1233,8 @@ export class Graph implements GraphContext {
     // XR managers
     private xrSessionManager: XRSessionManager | null = null;
     private xrUIManager: XRUIManager | null = null;
+    /** The in-headset menu (`xr.menu`) while a session draws one. */
+    private xrMenu: import("./xr/menu").XrCardStack | null = null;
     /** What VR and AR can do here, and which is presenting: `session.capabilities.xr`. */
     private readonly xrAvailability: XrAvailability;
     /** Stops redrawing the canvas XR buttons on each availability change. */
@@ -1289,7 +1366,6 @@ export class Graph implements GraphContext {
             drawsOnDemand: this.drawsOnDemand,
             restsBetweenLandings: this.#batchedFrames,
             flushesFrameFence: this.#batchedFrames,
-            pacesWebGpuFrames: this.#batchedFrames,
             antialias: this.#multisampled,
             antialiasAtRest: this.#antialiasAtRest,
             preserveDrawingBuffer: this.preserveDrawingBuffer,
@@ -1314,7 +1390,7 @@ export class Graph implements GraphContext {
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
-        this.camera.onReaderMove = this.#readerMovedCamera;
+        this.#hookCamera();
 
         // Initialize StatsManager
         this.statsManager = new StatsManager(this.eventManager);
@@ -1393,6 +1469,7 @@ export class Graph implements GraphContext {
                 batched: () => this.#renderPath === "batched",
                 nodeSizeSpace: () => this.styles.config.behavior.node.sizeSpace,
                 darkScheme: () => this.#darkScheme,
+                layoutHidden: () => this.#layoutHidden,
             },
         );
 
@@ -1592,16 +1669,19 @@ export class Graph implements GraphContext {
                 }
                 return this.getCameraState();
             },
-            move: (command) =>
-                this.setCameraState(
-                    command.preset === undefined
+            move: (command) => {
+                const state =
+                    command.camera === undefined
                         ? {
                               ...(command.position === undefined ? {} : { position: { ...command.position } }),
                               ...(command.target === undefined ? {} : { target: { ...command.target } }),
                           }
-                        : { preset: command.preset },
+                        : { ...command.camera };
+                return this.setCameraState(
+                    command.preset === undefined ? state : { preset: command.preset },
                     command.animate === true ? { animate: true } : undefined,
-                ),
+                );
+            },
             state: () => this.getCameraState(),
         };
 
@@ -1696,6 +1776,10 @@ export class Graph implements GraphContext {
             },
             immersive: (mode) => this.setImmersive(mode),
             followsFilters: () => this.followsShown(workingGraphOfSession(this.session)),
+            accelerator: () => {
+                const engine = this.layoutManager.layoutEngine;
+                return engine instanceof SimulationLayoutEngine ? engine.accelerator : "cpu";
+            },
         };
         lane.register("layout", async (_rendered, target) => {
             const choice = target.layout ?? DEFAULT_LAYOUT;
@@ -1860,7 +1944,7 @@ export class Graph implements GraphContext {
             "labels",
             "the node label counts have not been announced",
             () => {
-                const declutter: unknown = this.scene.metadata?.labelDeclutter;
+                const declutter: unknown = (this.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
                 return declutter instanceof LabelDeclutter && !declutter.published();
             },
             "wait",
@@ -2674,13 +2758,12 @@ export class Graph implements GraphContext {
             drawsOnDemand: this.drawsOnDemand,
             restsBetweenLandings: this.#batchedFrames,
             flushesFrameFence: this.#batchedFrames,
-            pacesWebGpuFrames: this.#batchedFrames,
             antialiasAtRest: this.#antialiasAtRest,
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
-        this.camera.onReaderMove = this.#readerMovedCamera;
+        this.#hookCamera();
         this.camera.setViewInsets(this.#viewInsets);
         this.camera.setZoomToPointer(this.#zoomToPointer);
         this.camera.setInstantGlides(this.#cameraMoveMs() === 0);
@@ -3216,6 +3299,7 @@ export class Graph implements GraphContext {
                 this.#followedFrame = frame;
                 viewLog.info("map frame", frameFacts(frame));
                 this.#followFrame(frame);
+                this.#hideOffMap(frame);
             }
 
             this.#drawOverMap(frame);
@@ -3495,6 +3579,7 @@ export class Graph implements GraphContext {
         // property.
         this.fetchNodes = parsed.fetchNodes as FetchNodesFn | undefined;
         this.fetchEdges = parsed.fetchEdges as FetchEdgesFn | undefined;
+        this.fetchNeighborEdges = parsed.fetchNeighborEdges as FetchNeighborEdgesFn | undefined;
 
         if (typeof type === "string") {
             // The settings and the layout it names are one step.
@@ -3526,7 +3611,7 @@ export class Graph implements GraphContext {
      * @returns The counts.
      */
     get nodeLabelCounts(): NodeLabelCounts {
-        const declutter: unknown = this.scene.metadata?.labelDeclutter;
+        const declutter: unknown = (this.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
         return declutter instanceof LabelDeclutter ? declutter.counts : NO_NODE_LABELS;
     }
 
@@ -3536,7 +3621,7 @@ export class Graph implements GraphContext {
      * @returns The counts.
      */
     get edgeLabelCounts(): EdgeLabelCounts {
-        const declutter: unknown = this.scene.metadata?.labelDeclutter;
+        const declutter: unknown = (this.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
         return declutter instanceof LabelDeclutter ? declutter.edgeCounts : NO_EDGE_LABELS;
     }
 
@@ -3773,7 +3858,12 @@ export class Graph implements GraphContext {
         try {
             // Waited for only when an earlier load still reads, so one with nothing ahead of it
             // dispatches before this call returns, as it did before the line existed.
-            await turn.take(() => this.dataManager.addDataFromSource(type, opts, { ...place, ...extras }));
+            // `source:loaded` for what it added, as `session.data`'s own loads publish it.
+            await turn.take(() =>
+                sessionDataOf(this.session).announcing(place.replace ? "replace" : "merge", () =>
+                    this.dataManager.addDataFromSource(type, opts, { ...place, ...extras }),
+                ),
+            );
         } finally {
             this.leaveLine(load);
         }
@@ -3784,41 +3874,9 @@ export class Graph implements GraphContext {
      * Load graph data from a File object with auto-format detection
      * @param file - File object from file input
      * @param options - Loading options
-     * @param options.format - Explicit format override (e.g., "graphml", "json")
-     * @param options.nodeIdPath - JMESPath for node ID extraction
-     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
-     *     unset, the element reads `source`, then `src`, then `from`
-     * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @param options.replace - Replace the graph, once the file has parsed; see `addDataFromSource`
-     * @param options.signal - Cancels the load, its read included; see `addDataFromSource`
-     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
-     *     (`listGraphs` from `./catalog` lists them); the first when neither choice is given
-     * @param options.graphName - Which graph to read, by name, from a file that holds several
-     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
-     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
-     *     `"none"` (the default) loads the data alone
-     * @param options.styleOptions - How the file's styles are turned into layers
-     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
-     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
-     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to the load's id when data is loaded
      */
-    async loadFromFile(
-        file: File,
-        options?: {
-            format?: string;
-            nodeIdPath?: string;
-            edgeSource?: string;
-            edgeTarget?: string;
-            replace?: boolean;
-            graphIndex?: number;
-            graphName?: string;
-            styles?: "file" | "none";
-            styleOptions?: FileStyleOptions;
-            layout?: "recommended" | "keep";
-            signal?: AbortSignal;
-        },
-    ): Promise<{ loadId: number }> {
+    async loadFromFile(file: File, options?: FileLoadOptions): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace, options?.signal);
         try {
             const { detectFormat } = await import("./data/format-detection.js");
@@ -3872,22 +3930,6 @@ export class Graph implements GraphContext {
      * the data source to avoid a double-fetch.
      * @param url - URL to fetch graph data from
      * @param options - Loading options
-     * @param options.format - Explicit format override (e.g., "graphml", "json")
-     * @param options.nodeIdPath - JMESPath for node ID extraction
-     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
-     *     unset, the element reads `source`, then `src`, then `from`
-     * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
-     * @param options.signal - Cancels the load, its fetch included; see `addDataFromSource`
-     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
-     * @param options.graphName - Which graph to read, by name, from a file that holds several
-     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
-     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
-     *     `"none"` (the default) loads the data alone
-     * @param options.styleOptions - How the file's styles are turned into layers
-     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
-     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
-     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to the load's id when data is loaded
      * @example
      * ```typescript
@@ -3901,22 +3943,7 @@ export class Graph implements GraphContext {
      * await graph.loadFromUrl("https://example.com/data.txt", { format: "graphml" });
      * ```
      */
-    async loadFromUrl(
-        url: string,
-        options?: {
-            format?: string;
-            nodeIdPath?: string;
-            edgeSource?: string;
-            edgeTarget?: string;
-            replace?: boolean;
-            graphIndex?: number;
-            graphName?: string;
-            styles?: "file" | "none";
-            styleOptions?: FileStyleOptions;
-            layout?: "recommended" | "keep";
-            signal?: AbortSignal;
-        },
-    ): Promise<{ loadId: number }> {
+    async loadFromUrl(url: string, options?: FileLoadOptions): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace, options?.signal);
         const pair = pairImports.get(this);
         try {
@@ -4608,7 +4635,8 @@ export class Graph implements GraphContext {
                         });
                     }
                 },
-                { fact: { code: "style.suggested", params: { algorithms: [...keys] } } },
+                // Every entry it writes, the layers and the moves stacking them, is the suggestion's.
+                { fact: { code: "style.suggested", params: { algorithms: [...keys] } }, trigger: "suggestion" },
             )
             .then(undefined, report);
         // Entered in the record of pending work until the layers are stacked, so
@@ -5484,7 +5512,14 @@ export class Graph implements GraphContext {
      * @returns The counts as of the last frame.
      */
     get rowCounts(): RowCounts {
-        const batchedNodes = this.#nodeBatches?.batchedNodes ?? 0;
+        const batches = this.#nodeBatches;
+        const batchedNodes = batches?.batchedNodes ?? 0;
+        // Only a `Node` has a mesh of its own: a row stored with no `Node` that no batch draws is drawn by nothing.
+        let objectNodes = 0;
+        for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
+            objectNodes += batches?.draws(node) === true ? 0 : 1;
+        }
+
         // An edge stored with no `Edge` is drawn from the row tables (`EdgeRowLines`), never as an object.
         let objectEdges = 0;
         for (const edge of this.builtEdges()) {
@@ -5493,7 +5528,7 @@ export class Graph implements GraphContext {
 
         return {
             batchedNodes,
-            objectNodes: this.dataManager.nodes.size - batchedNodes,
+            objectNodes,
             pulledEdges: this.dataManager.edges.size - objectEdges,
             objectEdges,
         };
@@ -5586,6 +5621,7 @@ export class Graph implements GraphContext {
             this.#nodeIds = target;
             useNodeIdTarget(this.scene, {
                 target,
+                // Builds the hovered row's Node on purpose: hover is delivered to its pointer handler.
                 nodeIdAt: (row) => this.dataManager.nodeAtRow(row)?.id,
                 hiddenRows: () => batches.hiddenRows(),
             });
@@ -5642,6 +5678,7 @@ export class Graph implements GraphContext {
                 this.#rowTable,
                 (row) => this.dataManager.nodeAtRow(row),
                 this.renderManager.graphRoot,
+                (row) => this.#nodeBatches?.columnRowOf(row) ?? this.dataManager.nodeAtRow(row),
             );
         }
 
@@ -5864,8 +5901,8 @@ export class Graph implements GraphContext {
             return ids;
         }
 
-        const project = screenProjector(this.scene);
-        const view = this.scene.getViewMatrix().m;
+        const project = screenProjector(this.scene, camera);
+        const view = camera.getViewMatrix().m;
         for (const node of this.dataManager.nodes.values()) {
             regionWork.nodes++;
             if (node.getRenderState() !== "visible") {
@@ -5917,7 +5954,9 @@ export class Graph implements GraphContext {
                 const distance = Math.hypot(dx, dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
-                    this.handleBackgroundClick(pointerInfo.event);
+                    this.session.selection.byInput("click", () => {
+                        this.handleBackgroundClick(pointerInfo.event);
+                    });
                 }
             }
         });
@@ -5935,7 +5974,9 @@ export class Graph implements GraphContext {
                 }
             },
             select: (polygon) => {
-                this.session.selection.applyNow({ region: { polygon } }, "add", "user");
+                this.session.selection.byInput("box", () =>
+                    this.session.selection.applyNow({ region: { polygon } }, "add", "user"),
+                );
             },
         });
 
@@ -5966,7 +6007,7 @@ export class Graph implements GraphContext {
                 this.scene.doNotHandleCursors ||
                 (buttons ?? 0) !== 0 ||
                 canvas.style.cursor === this.scene.hoverCursor ||
-                this.scene.metadata?.xrHelper?.baseExperience?.state === 2
+                (this.scene.metadata as GraphSceneMetadata | null)?.xrHelper?.baseExperience?.state === WebXRState.IN_XR
             ) {
                 return;
             }
@@ -6171,10 +6212,11 @@ export class Graph implements GraphContext {
      */
     private writeSceneDimension(twoD: boolean): void {
         this.scene.metadata ??= {};
-        const was = this.scene.metadata.viewMode as string | undefined;
-        this.scene.metadata.twoD = twoD;
-        this.scene.metadata.viewMode = this.viewSettings.graph.immersive ?? (twoD ? "2d" : "3d");
-        if (was !== undefined && was !== this.scene.metadata.viewMode) {
+        const metadata = this.scene.metadata as GraphSceneMetadata;
+        const was = metadata.viewMode;
+        metadata.twoD = twoD;
+        metadata.viewMode = this.viewSettings.graph.immersive ?? (twoD ? "2d" : "3d");
+        if (was !== undefined && was !== metadata.viewMode) {
             // The drawing mode switched: a tour playing ends, and every view is judged again.
             this.#endTour("mode-changed");
             this.eventManager.emit("views-changed", {});
@@ -6187,7 +6229,7 @@ export class Graph implements GraphContext {
      * @returns True when nothing about the scene needs to change for it.
      */
     private sceneDrawn(choice: LayoutChoice): boolean {
-        return (this.scene.metadata?.twoD === true) === (choice.dimension === "2d");
+        return ((this.scene.metadata as GraphSceneMetadata | null)?.twoD === true) === (choice.dimension === "2d");
     }
 
     /**
@@ -6211,7 +6253,7 @@ export class Graph implements GraphContext {
 
         twoD.rotation = ((this.session.config.viewRotation ?? 0) * Math.PI) / 180;
         this.updateManager.viewMoved();
-        if (reframe && this.scene.metadata?.twoD === true) {
+        if (reframe && (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true) {
             this.autoFrame();
         }
     }
@@ -6404,6 +6446,12 @@ export class Graph implements GraphContext {
             }
         }
 
+        // A cap is part of its edge: drawn among the nodes in material order, a cap and a node
+        // meeting at one depth drew a different pixel on each render path (#9179).
+        for (const mesh of arrowCapMeshes(this.scene)) {
+            this.#edgeMeshes.add(mesh);
+        }
+
         if (mapped === this.#overMap) {
             return;
         }
@@ -6427,10 +6475,20 @@ export class Graph implements GraphContext {
         // Everything else in Babylon's own order, then the map, then the edges' bands, their lines,
         // then the nodes over them (nodes rank with everything else when no map is drawn) -- in the
         // blended pass too over a map, where the edge lines (antialiased) and their outlines are drawn.
+        // edge lines with a draw order (`line.drawOrder`) are drawn lowest first, before those with none
+        // (`stackByDrawOrder`); every other mesh keeps the order it had
+        const lineOrder = (a: AbstractMesh, b: AbstractMesh): number => {
+            const [at, bt] = [edgeDrawPlace(a), edgeDrawPlace(b)];
+            if (at === bt || !this.#edgeMeshes.has(a) || !this.#edgeMeshes.has(b)) {
+                return 0;
+            }
+
+            return at < bt ? -1 : 1;
+        };
         const byRank =
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>
-                rank(a.getMesh()) - rank(b.getMesh()) || then(a, b);
+                rank(a.getMesh()) - rank(b.getMesh()) || lineOrder(a.getMesh(), b.getMesh()) || then(a, b);
         const opaque = byRank((a, b) => RenderingGroup.PainterSortCompare(a, b));
         this.scene.setRenderingOrder(
             0,
@@ -6443,6 +6501,35 @@ export class Graph implements GraphContext {
 
     /** The frame the camera last followed; see {@link #followFrame}. */
     #followedFrame: LocationMapFrame | null = null;
+
+    /** The nodes the map layout keeps off the canvas (`unplaced: "hide"`), or null; see {@link #hideOffMap}. */
+    #layoutHidden: readonly NodeId[] | null = null;
+
+    /**
+     * Keep the nodes a map frame leaves unplaced off the canvas when it hides them (`unplaced:
+     * "hide"`), their edges with them, and paint again whenever that list changes.
+     * @param frame - The frame now active, or null.
+     */
+    #hideOffMap(frame: LocationMapFrame | null): void {
+        const next = frame?.hidesUnplaced === true && frame.unplacedIds.size > 0 ? [...frame.unplacedIds] : null;
+        const was = this.#layoutHidden;
+        if (next === null ? was === null : was?.length === next.length && next.every((id, at) => was[at] === id)) {
+            return;
+        }
+
+        this.#layoutHidden = next as readonly NodeId[] | null;
+        void this.operationQueue
+            .queueOperationAsync(
+                "style-apply",
+                async () => {
+                    await this.repaintFromSession();
+                },
+                { description: "Repainting for the map's unplaced nodes" },
+            )
+            .catch((error: unknown) => {
+                graphLogger.error("The repaint for the map's unplaced nodes failed.", asError(error));
+            });
+    }
 
     /**
      * The camera's rules on a map: the wheel zooms toward the pointer, and on a globe the camera
@@ -6704,6 +6791,9 @@ export class Graph implements GraphContext {
 
         this.#lighting = lighting;
         this.renderManager.applyLighting(lighting);
+        // A frozen list of what is drawn skips each mesh's material check, so a mesh would keep
+        // drawing the old lighting's shader, or nothing once its material is marked not ready (#9246).
+        this.updateManager.thawActiveMeshes();
     }
 
     /**
@@ -6949,6 +7039,10 @@ export class Graph implements GraphContext {
         // building one for it cost 8.7 KB a row (#8204).
         const nodes = [...dataManagerInternals.builtNodes(this.dataManager)];
         const edges = [...this.builtEdges()];
+        // The edge rows drawn with no `Edge` are drawn in line batches the cache is about to dispose: taken out of
+        // them now, while they are live, and painted again into the new dimension's batches below (#9223).
+        const lineRows = this.#edgeRowLines?.rows() ?? [];
+        this.#edgeRowLines?.clear();
 
         // Every mesh goes in one bulk teardown, then every mesh is built again. Disposed one
         // element at a time, each mesh, action manager and drag handler left scene-wide lists by
@@ -6988,6 +7082,10 @@ export class Graph implements GraphContext {
         const painter = this.getStylePainter();
         for (const row of dataManagerInternals.unbuiltRows(this.dataManager)) {
             painter.queue("node", row);
+        }
+
+        for (const row of lineRows) {
+            painter.queue("edge", row);
         }
 
         this.updateManager.meshesAdded();
@@ -7179,6 +7277,7 @@ export class Graph implements GraphContext {
 
         this.xrSessionManager?.configure(this.xrSessionConfig());
         this.drawXRButtons();
+        void this.drawXRMenu();
         this.xrAvailability.changed();
     }
 
@@ -7273,11 +7372,12 @@ export class Graph implements GraphContext {
      * @returns Screen coordinates {x, y}
      */
     worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
-        if (!this.scene.activeCamera?.viewport) {
+        const camera = this.scene.activeCamera;
+        if (!camera?.viewport) {
             return { x: 0, y: 0 };
         }
 
-        return screenProjector(this.scene)(worldPos);
+        return screenProjector(this.scene, camera)(worldPos);
     }
 
     /**
@@ -7340,7 +7440,7 @@ export class Graph implements GraphContext {
         const { x, y } = this.worldToScreen(centre);
 
         // Distance in front of the camera along its view axis; the same test LabelDeclutter uses.
-        const view = this.scene.getViewMatrix().m;
+        const view = camera.getViewMatrix().m;
         const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
         const inDepth = depth >= camera.minZ && (camera.maxZ <= 0 || depth <= camera.maxZ);
 
@@ -7351,7 +7451,7 @@ export class Graph implements GraphContext {
 
         // The largest half-extent projected: the projection's y scale over the clip w (the depth in
         // perspective, 1 in orthographic), in pixels.
-        const projection = this.scene.getProjectionMatrix().m;
+        const projection = camera.getProjectionMatrix().m;
         const w = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : depth;
         const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
 
@@ -7433,13 +7533,15 @@ export class Graph implements GraphContext {
                 continue;
             }
 
-            // A batched row is never turned: its box is its half extents about its place.
+            // A batched row is never turned: its box is its half extents about its source's box center.
             const local = columnCenter(table, row);
             const half = column.drawnHalfExtents;
-            const corners = boxCorners(local, half, world);
+            const off = column.drawnBoxCenter;
+            const corners = boxCorners(local.add(new Vector3(off.x, off.y, off.z)), half, world);
             const centre = world === undefined ? local : Vector3.TransformCoordinates(local, world);
             const worldRadius = Math.max(half.x, half.y, half.z) * rootScale;
-            const at = this.#screenSpot(centre, worldRadius, corners, !table.isHidden(row));
+            // A row whose source is off its batch (an object row of that look) is drawn by nothing.
+            const at = this.#screenSpot(centre, worldRadius, corners, batches.draws(column) && !table.isHidden(row));
             yield { id, row, at, centre, corners, node: null, column };
         }
     }
@@ -7605,8 +7707,9 @@ export class Graph implements GraphContext {
      * @remarks
      * This waits for the operation QUEUE -- data loading, layout changes, algorithm runs -- and
      * for nothing else. When it resolves, everything asked for has been carried out; the layout
-     * may still be running and the camera may still be moving, because neither of those is a
-     * queued operation.
+     * may still be running, the camera may still be moving, and a picture -- a background image,
+     * a node's image or 3D model -- may still be loading, because none of those is a queued
+     * operation.
      *
      * For a picture that will not change again -- a screenshot, a video frame, a visual
      * regression snapshot -- wait for {@link Graph.waitForStableFrame} instead, which waits for
@@ -7629,9 +7732,9 @@ export class Graph implements GraphContext {
      * await graph.waitForSettled();
      * graph.zoomToFit();
      *
-     * // Wait before taking a screenshot
+     * // Wait for the finished picture -- pictures loaded, layout at rest -- before a screenshot
      * await graph.setLayout('circular');
-     * await graph.waitForSettled();
+     * await graph.waitForStableFrame();
      * const screenshot = await graph.captureScreenshot();
      *
      * // Chain operations with settle
@@ -8160,6 +8263,27 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The scene `checkModel` builds its templates in: a virtual scene of the graph's engine, which
+     * nothing draws. Built in the graph's own scene, a check's loading, meshes and shaders each
+     * made the graph draw a frame that showed nothing new, about ten per model -- under software
+     * WebGL on a busy machine, seconds of drawing for a dialog's check (#9219). Kept for the next
+     * check, so its environment loads once; the engine frees it with itself.
+     * @returns The scene.
+     */
+    #checkScene(): Scene {
+        const held = this.#checkSceneHeld;
+        if (held !== null && !held.isDisposed && held.getEngine() === this.engine) {
+            return held;
+        }
+
+        const scene = new Scene(this.engine, { virtual: true });
+        // Nothing is drawn or picked in it: the graph's canvas input stays the graph scene's alone.
+        scene.detachControl();
+        this.#checkSceneHeld = scene;
+        return scene;
+    }
+
+    /**
      * Whether a model can be drawn, without drawing it: its template is built once and freed. See
      * {@link ModelCheck}. Kept by the model's files, so asking again, or for every member of a set,
      * costs one build each.
@@ -8201,7 +8325,7 @@ export class Graph implements GraphContext {
         if (check === undefined) {
             check = this.#thumbnailQueue.then(async () => {
                 try {
-                    (await this.#modelTemplate(this.scene, ref, record, standIn, {})).dispose();
+                    (await this.#modelTemplate(this.#checkScene(), ref, record, standIn, {})).dispose();
                     return { drawable: true };
                 } catch (error) {
                     return failed(error);
@@ -9070,8 +9194,7 @@ export class Graph implements GraphContext {
             // Calculate current zoom from ortho bounds
             const currentSize = (twoDController.camera.orthoRight ?? 1) - (twoDController.camera.orthoLeft ?? -1);
             const halfSize = currentSize / 2;
-            const initialSize = twoDController.config.initialOrthoSize;
-            state.zoom = initialSize / halfSize;
+            state.zoom = FLAT_HALF_WIDTH_AT_ZOOM_ONE / halfSize;
 
             // Get pan from camera position
             state.pan = {
@@ -9320,7 +9443,7 @@ export class Graph implements GraphContext {
     ): void {
         // Set zoom (ortho bounds), then any edge the state names over it
         if (state.zoom !== undefined) {
-            controller.updateOrtho(controller.config.initialOrthoSize / state.zoom);
+            controller.updateOrtho(FLAT_HALF_WIDTH_AT_ZOOM_ONE / state.zoom);
         }
 
         for (const edge of ORTHO_EDGES) {
@@ -9710,8 +9833,8 @@ export class Graph implements GraphContext {
         // Animate the frustum: the zoom's symmetric frame, with any edge the state names over it
         const edges = { ...dummy };
         if (targetState.zoom !== undefined) {
-            // Zoom is absolute: 1.0 = initial size, 2.0 = half size (zoomed in), 0.5 = double size (zoomed out)
-            const targetSize = twoDController.config.initialOrthoSize / targetState.zoom;
+            // Zoom is absolute: 1.0 = FLAT_HALF_WIDTH_AT_ZOOM_ONE units either side, 2.0 = half that
+            const targetSize = FLAT_HALF_WIDTH_AT_ZOOM_ONE / targetState.zoom;
             // Keep the current proportions
             const aspect = (dummy.orthoTop - dummy.orthoBottom) / (dummy.orthoRight - dummy.orthoLeft);
             edges.orthoLeft = -targetSize;
@@ -10149,16 +10272,18 @@ export class Graph implements GraphContext {
             return nodes;
         }
 
-        for (const row of unbuilt) {
-            const id =
-                batches?.columnRowOf(row) === undefined
-                    ? dataManagerInternals.unbuiltAt(this.dataManager, row)
-                    : undefined;
-            const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
-            if (node !== undefined) {
-                nodes.push(node);
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const row of unbuilt) {
+                const id =
+                    batches?.columnRowOf(row) === undefined
+                        ? dataManagerInternals.unbuiltAt(this.dataManager, row)
+                        : undefined;
+                const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
+                if (node !== undefined) {
+                    nodes.push(node);
+                }
             }
-        }
+        });
 
         return nodes;
     }
@@ -10632,7 +10757,8 @@ export class Graph implements GraphContext {
      * it is built as one string and read back by `session.project.open`.
      * @param format - The format id, as `session.catalog.formats()` lists it.
      * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
-     * and the element's `notes` and `styles`.
+     * and the element's `notes`, `styles` and `onProgress` (told what queued work the export waits
+     * behind, as `PENDING_WORK` facts, until it starts writing).
      * @returns What the export loses (`losses`, coded facts), and the document as text or as UTF-8
      * chunks.
      * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,
@@ -10641,9 +10767,15 @@ export class Graph implements GraphContext {
      * options. A refusal found only while writing rejects `text()` or `bytes` instead.
      */
     async exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult> {
-        await this.operationQueue.waitForCompletion();
+        const { onProgress, ...writeOptions } = options ?? {};
+        const stop = onProgress === undefined ? undefined : this.operationQueue.watchPendingWork(onProgress);
+        try {
+            await this.operationQueue.waitForCompletion();
+        } finally {
+            stop?.();
+        }
         const painter = this.getStylePainter();
-        return exportSession(this.session, format, options, {
+        return exportSession(this.session, format, writeOptions, {
             nodeStyle: (row) => {
                 const paint = painter.nodePaint(row) ?? bootstrapNodePaint();
                 return {
@@ -10655,6 +10787,10 @@ export class Graph implements GraphContext {
             edgeStyle: (row) => {
                 const { style } = painter.edgePaint(row) ?? bootstrapEdgePaint();
                 return { color: toColorValue(style.line?.color), width: style.line?.width };
+            },
+            positionFactor: () => {
+                const engine = this.layoutManager.layoutEngine;
+                return engine instanceof FixedLayout ? engine.spread : 1;
             },
         });
     }
@@ -10840,9 +10976,7 @@ export class Graph implements GraphContext {
         checkAiConfig(config);
 
         // Dynamically import to avoid loading AI code when not needed
-        const { AiManager, assistantXr, loadEncryptStorage } = await import("./ai/AiManager");
-        // Its key manager restores persisted keys as it is built, so the store's package loads first.
-        await loadEncryptStorage();
+        const { AiManager, assistantXr } = await import("./ai/AiManager");
 
         // The in-browser provider loads asynchronously, and only when it is picked. Built before
         // the old assistant goes, so a missing package leaves the current one in place.
@@ -10868,7 +11002,7 @@ export class Graph implements GraphContext {
         // this one meanwhile disposes `manager` itself, and leaves its own in place.
         await manager.ready();
         // Enabled inside an immersive session: bind to it now.
-        const xrCameraController = this.scene.metadata?.xrCameraController as
+        const xrCameraController = (this.scene.metadata as GraphSceneMetadata | null)?.xrCameraController as
             import("./cameras/XRPivotCameraController").XRPivotCameraController | null | undefined;
         if (xrCameraController && this.aiManager === manager) {
             await xr.enter(xrCameraController.getInputHandler(), this.scene, this.graphContext.getConfig().xr?.ai);
@@ -11322,35 +11456,32 @@ export class Graph implements GraphContext {
         const { provider, prefix } = options;
         const keys =
             this.getApiKeyManager() ?? (await Graph.createApiKeyManager(prefix === undefined ? {} : { prefix }));
-        if (provider === undefined) {
-            keys.forgetKeys();
-        } else {
-            keys.forgetKey(provider);
-        }
+        await (provider === undefined ? keys.forgetKeys() : keys.forgetKey(provider));
     }
 
     /**
      * Create a standalone ApiKeyManager for key management without enabling AI.
      * Useful for settings UIs that configure keys before AI activation.
      *
-     * ASYNCHRONOUS, AND THE REASON IS THE BUNDLE. The key store encrypts what it persists, so it
-     * imports `encrypt-storage`. This method used to construct one directly, which made that a
-     * STATIC import of `Graph` -- and `Graph` is what the root entry point pulls in. The result
-     * was that an encryption library shipped to every consumer who drew a graph and never touched
-     * the AI layer, which is exactly what the separate `./ai` entry point exists to prevent. The
-     * entry point's own comment claimed no such cost; for the three LLM SDKs that was true, and
-     * for this one it was not.
+     * Asynchronous for two reasons. The key store lives behind the `./ai` entry point, so this
+     * method imports it dynamically rather than making it a static import of `Graph`, which the
+     * root entry point pulls in for every consumer who draws a graph. And the store restores keys
+     * an earlier page saved with Web Crypto, which is asynchronous: the returned manager has
+     * finished that restore.
      *
      * A consumer who wants it synchronously imports `ApiKeyManager` from
-     * `@graphty/graphty-element/ai` and constructs it themselves -- which is the honest shape,
-     * because they are then choosing to load the encryption library.
+     * `@graphty/graphty-element/ai`, constructs it, and awaits `ready()` before reading keys.
+     *
+     * Keys saved without an `encryptionKey` are only obscured, not encrypted: anyone with access
+     * to the page or the browser profile can read them. Use `enablePersistenceWithPassphrase` with
+     * a passphrase the reader types.
      * @param options - Where persisted keys live
      * @returns A new ApiKeyManager instance
      * @example
      * ```typescript
      * // In a settings UI component
      * const keyManager = await Graph.createApiKeyManager();
-     * keyManager.enablePersistence({
+     * await keyManager.enablePersistence({
      *   encryptionKey: userSecret,
      *   storage: 'localStorage',
      * });
@@ -11358,10 +11489,10 @@ export class Graph implements GraphContext {
      * ```
      */
     static async createApiKeyManager(options?: import("./ai/keys").ApiKeyManagerOptions): Promise<ApiKeyManager> {
-        const { ApiKeyManager: KeyManager, loadEncryptStorage } = await import("./ai/keys");
-        await loadEncryptStorage();
-
-        return new KeyManager(options);
+        const { ApiKeyManager: KeyManager } = await import("./ai/keys");
+        const manager = new KeyManager(options);
+        await manager.ready();
+        return manager;
     }
 
     // ===========================================
@@ -11656,7 +11787,7 @@ export class Graph implements GraphContext {
 
         // Store XR helper in scene metadata for isXRMode() detection
         this.scene.metadata ??= {};
-        this.scene.metadata.xrHelper = xrHelper;
+        (this.scene.metadata as GraphSceneMetadata).xrHelper = xrHelper;
 
         // Create XR pivot camera controller (handles input via pivot-based system)
         const { XRPivotCameraController } = await import("./cameras/XRPivotCameraController");
@@ -11676,8 +11807,8 @@ export class Graph implements GraphContext {
         );
 
         // Store for cleanup
-        this.scene.metadata.xrCameraController = xrCameraController;
-        this.scene.metadata.xrUpdateObserver = xrUpdateObserver;
+        (this.scene.metadata as GraphSceneMetadata).xrCameraController = xrCameraController;
+        (this.scene.metadata as GraphSceneMetadata).xrUpdateObserver = xrUpdateObserver;
 
         // The assistant's talk, approve and deny buttons, pointing and cards (`xr.ai`).
         await this.aiXr
@@ -11686,7 +11817,35 @@ export class Graph implements GraphContext {
                 // The session runs on without the assistant's controls.
                 graphLogger.warn("The assistant could not bind to the XR session", { error });
             });
+        await this.drawXRMenu();
         this.xrAvailability.changed();
+    }
+
+    /**
+     * Draw the in-headset menu (`xr.menu`) where the reader is now, or take it down when it has no
+     * items or no session is running. Pressing an item emits `xr-menu-select`.
+     */
+    private async drawXRMenu(): Promise<void> {
+        const items = this.xrConfig().menu ?? [];
+        const inSession = (): boolean => Boolean((this.scene.metadata as GraphSceneMetadata | null)?.xrHelper);
+        if (items.length === 0 || !inSession()) {
+            this.xrMenu?.dispose();
+            this.xrMenu = null;
+            return;
+        }
+
+        const { menuCards, MENU_HEIGHT, MENU_SIDE, XrCardStack } = await import("./xr/menu");
+        // The session can end while the module loads.
+        if (!inSession()) {
+            return;
+        }
+
+        this.xrMenu ??= new XrCardStack(this.scene, "graphty-xr-menu", MENU_HEIGHT, MENU_SIDE);
+        this.xrMenu.show(
+            menuCards(items, (id) => {
+                this.eventManager.emit("xr-menu-select", { id } satisfies Omit<XRMenuSelectEvent, "type">);
+            }),
+        );
     }
 
     /**
@@ -11700,6 +11859,8 @@ export class Graph implements GraphContext {
         this.immersiveSince = null;
         // Leaving XR closes a held microphone without sending, and stops speech.
         this.aiXr?.leave();
+        this.xrMenu?.dispose();
+        this.xrMenu = null;
 
         // Clean up XR camera controller
         const metadata = this.scene.metadata as {
@@ -11711,15 +11872,15 @@ export class Graph implements GraphContext {
         }
 
         // Remove render loop observer
-        const xrUpdateObserver = this.scene.metadata?.xrUpdateObserver as Nullable<Observer<Scene>> | undefined;
+        const xrUpdateObserver = (this.scene.metadata as GraphSceneMetadata | null)?.xrUpdateObserver;
         if (xrUpdateObserver) {
             this.scene.onBeforeRenderObservable.remove(xrUpdateObserver);
-            this.scene.metadata.xrUpdateObserver = null;
+            (this.scene.metadata as GraphSceneMetadata).xrUpdateObserver = null;
         }
 
         // Clear XR helper from metadata
-        if (this.scene.metadata?.xrHelper) {
-            this.scene.metadata.xrHelper = null;
+        if ((this.scene.metadata as GraphSceneMetadata | null)?.xrHelper) {
+            (this.scene.metadata as GraphSceneMetadata).xrHelper = null;
         }
 
         try {

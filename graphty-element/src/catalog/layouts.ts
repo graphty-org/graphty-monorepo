@@ -49,7 +49,9 @@ import type {
 export interface LayoutImplementation {
     /** The registered engine name, exactly as `LayoutEngine.getRegisteredTypes` reports it. */
     engine: string;
+    /** The engine's default name for a reader, such as "D3 Force". */
     plainName: string;
+    /** The library or algorithm the engine runs, such as "d3-force-3d". */
     technicalName: string;
     /**
      * What this engine draws, in one English sentence.
@@ -63,7 +65,12 @@ export interface LayoutImplementation {
      * @since 3.55.0
      */
     descriptionId?: string;
+    /**
+     * How the engine places nodes: `"live"` moves them a step each frame until it settles,
+     * `"batch"` computes every position at once.
+     */
     kind: "live" | "batch";
+    /** The most dimensions the engine lays out in: 2 for a flat drawing only, 3 for 2D or 3D. */
     maxDimensions: 2 | 3;
     /** True for the engine the element runs when this layout is asked for by name. */
     isDefault: boolean;
@@ -80,6 +87,7 @@ export interface LayoutImplementation {
      * @since 3.20.0
      */
     fact: CodedFact<LayoutImplementationCode>;
+    /** The options this engine takes, in the same shape as every other catalog option. */
     options: readonly OptionDescriptor[];
     /**
      * Whether this engine arranges a graph differently when its edges carry weights.
@@ -177,7 +185,9 @@ export interface LayoutCatalogEntry {
 
 /** A built-in layout name that no registered engine draws yet. */
 export interface UnservedLayout {
+    /** The built-in layout name. */
     id: (typeof KNOWN_LAYOUT_IDS)[number];
+    /** Why no engine draws it, in English for a developer reading a log. */
     reason: string;
 }
 
@@ -415,7 +425,7 @@ const spiral: LayoutImplementationSpec = {
     plainName: "Spiral",
     technicalName: "Archimedean spiral layout",
     kind: "batch",
-    maxDimensions: 2,
+    maxDimensions: 3,
     description: "Places nodes one after another along a spiral winding out from the center.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
@@ -518,6 +528,24 @@ const locationMap: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
     ...layoutFacts("location-map", LOCATION_OVERRIDE),
+};
+
+/** The map projection's latitude and longitude options name node attributes. */
+const COORDINATES_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
+    latitude: { type: "attribute", on: "node" },
+    longitude: { type: "attribute", on: "node" },
+};
+
+const geographic: LayoutImplementationSpec = {
+    engine: "geographic",
+    plainName: "Map Projection",
+    technicalName: "Map projection layout",
+    kind: "batch",
+    maxDimensions: 2,
+    description: "Places every node at its latitude and longitude, projected onto a flat map, with no map drawn.",
+    reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
+    ...layoutFacts("geographic", COORDINATES_OVERRIDE),
 };
 
 /** What each Graphviz engine is, as the catalog describes it. */
@@ -716,7 +744,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             description: "Places nodes one after another along a spiral winding out from the center.",
             family: "geometric",
             kind: "batch",
-            maxDimensions: 2,
+            maxDimensions: 3,
             sizeRating: "any",
             structuralInputs: [],
         },
@@ -840,6 +868,22 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
         },
         locationMap,
     ),
+    entry(
+        {
+            id: "geographic",
+            plainName: "Map Projection",
+            technicalName: "Map projection layout",
+            description:
+                "Places every node at its latitude and longitude, projected onto a flat map (equirectangular, " +
+                "Web Mercator or Equal Earth), north up, with no map drawn under it.",
+            family: "special",
+            kind: "batch",
+            maxDimensions: 2,
+            sizeRating: "any",
+            structuralInputs: [],
+        },
+        geographic,
+    ),
     ...(["dot", "neato", "fdp", "sfdp", "circo", "twopi", "osage", "patchwork"] as const).map(graphvizEntry),
 ];
 
@@ -929,6 +973,20 @@ export function layoutEntry(id: LayoutId): LayoutCatalogEntry | undefined {
 }
 
 /**
+ * The options a layout takes on one of its engines: each engine has its own vocabulary.
+ * @param descriptor - The layout.
+ * @param engine - The engine, or its default when absent.
+ * @returns The engine's options.
+ */
+export function engineOptionsOf(descriptor: LayoutDescriptor, engine?: string): readonly OptionDescriptor[] {
+    const wanted = engine ?? descriptor.engine;
+    return (
+        layoutEntry(descriptor.id)?.implementations.find((each) => each.engine === wanted)?.options ??
+        descriptor.options
+    );
+}
+
+/**
  * Find the public layout name an engine serves, which is the question a consumer holding a
  * 1.x engine name needs answered to migrate.
  * @param engine - A registered engine name, such as "ngraph".
@@ -947,4 +1005,57 @@ export function layoutIdForEngine(engine: string): LayoutId | undefined {
     // question this function answers for the element's own engines -- which public arrangement
     // does this implementation serve -- answers itself for a registered one.
     return registeredLayoutById(engine)?.descriptor.id;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The names a save file gives layout options (spec/README.md 5 rule 9)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The options a saved force layout keeps as its own, by name: the ones that mean the same on
+ * every engine that draws `force`. Everything else an engine takes is that engine's, and a file
+ * records it only as provenance.
+ */
+export const FORCE_SAVED_OPTIONS: readonly string[] = [
+    "seed",
+    "dim",
+    "clusterBy",
+    "clusterStrength",
+    "nodeGap",
+    "nodeGapFront",
+];
+
+/**
+ * The option names a save file writes in a layout record's own `options` for one arrangement.
+ * @param id - The arrangement.
+ * @returns Its option names: the force set for `force`, the one engine's names for an arrangement
+ *   drawn by a single engine, a registered layout's declared names, or none when nothing answers.
+ */
+export function savedLayoutOptions(id: string): readonly string[] {
+    if (id === "force") {
+        return FORCE_SAVED_OPTIONS;
+    }
+
+    const implementations = layoutEntry(id)?.implementations;
+    if (implementations?.length === 1) {
+        return implementations[0].options.map((option) => option.name);
+    }
+
+    return registeredLayoutById(id)?.descriptor.options.map((option) => option.name) ?? [];
+}
+
+/**
+ * The option names an engine takes when it draws an arrangement.
+ * @param id - The arrangement.
+ * @param engine - The registered engine name.
+ * @returns The names, or undefined when that engine does not draw that arrangement.
+ */
+export function engineOptionNames(id: string, engine: string): readonly string[] | undefined {
+    const implementation = layoutEntry(id)?.implementations.find((each) => each.engine === engine);
+    if (implementation !== undefined) {
+        return implementation.options.map((option) => option.name);
+    }
+
+    const registered = registeredLayoutById(engine);
+    return registered?.descriptor.id === id ? registered.descriptor.options.map((option) => option.name) : undefined;
 }

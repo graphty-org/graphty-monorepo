@@ -257,10 +257,73 @@
             }
         },
         "graphs": {
-            "description": "Reserved for a later file that holds several graphs (spec/README.md 2.2 rule 4). A file of one graph never writes it."
+            "type": "array",
+            "minItems": 2,
+            "description": "The graphs of a file holding two or more, in order (spec/README.md 2.2 rule 4). The first entry names the graph whose sections are the top-level sections and has no sections of its own; each later entry holds its own data, view, notes and results. Written only with two or more graphs.",
+            "prefixItems": [
+                {
+                    "$ref": "#/$defs/graphEntry",
+                    "not": {
+                        "required": ["sections"]
+                    }
+                }
+            ],
+            "items": {
+                "$ref": "#/$defs/graphEntry",
+                "required": ["sections"]
+            }
         },
         "extensions": {
             "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/extensions"
+        }
+    },
+    "$defs": {
+        "graphEntry": {
+            "type": "object",
+            "required": ["id", "name"],
+            "properties": {
+                "id": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/graphId"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 1024,
+                    "description": "The graph's name: words the reader gave."
+                },
+                "sections": {
+                    "type": "object",
+                    "properties": {
+                        "data": {
+                            "$ref": "#/properties/sections/properties/data"
+                        },
+                        "view": {
+                            "$ref": "#/properties/sections/properties/view"
+                        },
+                        "notes": {
+                            "$ref": "#/properties/sections/properties/notes"
+                        },
+                        "results": {
+                            "$ref": "#/properties/sections/properties/results"
+                        }
+                    },
+                    "additionalProperties": {
+                        "type": "object",
+                        "required": ["kind", "version"],
+                        "properties": {
+                            "kind": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "version": {
+                                "type": "integer",
+                                "minimum": 1
+                            }
+                        }
+                    },
+                    "description": "A later graph's own sections, each as the top-level section of that key holds it: data, view, notes and results. Open: an unknown key is skipped, reported and written back."
+                }
+            },
+            "description": "A graph of a file holding several. Open: a reader keeps a member it does not know and writes it back."
         }
     }
 }

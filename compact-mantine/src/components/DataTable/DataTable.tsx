@@ -1253,7 +1253,12 @@ function DataTableInner<TRow extends object>(
             index < pinnedStart.length ? { position: "sticky", insetInlineStart: pinnedStart[index], zIndex: 1 } : {};
 
         return {
-            flex: index === columnCount - 1 ? `1 1 ${String(width)}px` : `0 0 ${String(width)}px`,
+            // A table sized to its content keeps every column at its own width, so the columns sit
+            // together and the spare room falls after the last one (#9224).
+            flex:
+                index === columnCount - 1 && columnSizing !== "content"
+                    ? `1 1 ${String(width)}px`
+                    : `0 0 ${String(width)}px`,
             justifyContent: column?.align === "end" ? "flex-end" : "flex-start",
             ...pinned,
         };

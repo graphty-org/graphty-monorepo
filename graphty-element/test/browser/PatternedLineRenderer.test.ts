@@ -2,6 +2,7 @@ import { ArcRotateCamera, Engine, Scene, ShaderMaterial, StandardMaterial, Vecto
 import { assert, test } from "vitest";
 
 import { PatternedLineRenderer } from "../../src/meshes/PatternedLineRenderer";
+import type { LineMeshMetadata } from "../../src/types/sceneMetadata";
 
 // Setup helper
 function createTestScene(): { scene: Scene; engine: Engine; cleanup: () => void } {
@@ -29,7 +30,11 @@ test("a 2D pattern element is a slot drawn with a StandardMaterial, lying in the
         element.place(new Vector3(1, 2, 0), Vector3.Right());
 
         assert(element.batchMesh?.material instanceof StandardMaterial, "Expected StandardMaterial for 2D mode");
-        assert.strictEqual(element.batchMesh.metadata?.is2D, true, "Expected is2D metadata to be true");
+        assert.strictEqual(
+            (element.batchMesh.metadata as LineMeshMetadata | null)?.is2D,
+            true,
+            "Expected is2D metadata to be true",
+        );
 
         // The shape is built in the XZ plane; its slot turns it a quarter turn about X into XY, as
         // the per-element mesh's own rotation did.
@@ -50,7 +55,11 @@ test("a 3D pattern element is a slot drawn by the billboard shader", () => {
         });
 
         assert(element.batchMesh?.material instanceof ShaderMaterial, "Expected ShaderMaterial for 3D mode");
-        assert.strictEqual(element.batchMesh.metadata?.is2D, undefined, "Expected no is2D metadata in 3D mode");
+        assert.strictEqual(
+            (element.batchMesh.metadata as LineMeshMetadata | null)?.is2D,
+            undefined,
+            "Expected no is2D metadata in 3D mode",
+        );
         assert.isNotNull(element.drawnAppearance, "direction, size and colour are the slot's own");
     } finally {
         cleanup();
@@ -79,7 +88,11 @@ test("every discrete pattern builds a 2D element", () => {
             });
 
             assert(element.batchMesh?.material instanceof StandardMaterial, `Expected StandardMaterial for ${pattern}`);
-            assert.strictEqual(element.batchMesh.metadata?.is2D, true, `Expected is2D metadata for ${pattern}`);
+            assert.strictEqual(
+                (element.batchMesh.metadata as LineMeshMetadata | null)?.is2D,
+                true,
+                `Expected is2D metadata for ${pattern}`,
+            );
         }
     } finally {
         cleanup();

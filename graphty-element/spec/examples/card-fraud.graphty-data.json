@@ -41,9 +41,7 @@
             "kind": "file",
             "format": "csv",
             "options": {
-                "delimiter": ",",
-                "encoding": "utf-8",
-                "header": true
+                "delimiter": ","
             },
             "origin": {
                 "name": "accounts-2026-11.csv",
@@ -104,20 +102,28 @@
             "id": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
             "label": "Bank API: card activity, week 46",
             "kind": "network",
-            "format": "json",
-            "options": {
-                "nodesPath": "counterparties",
-                "edgesPath": "events",
-                "maxRows": 50000
-            },
             "origin": {
                 "url": "https://api.example-bank.test/v1/activity?week=46",
                 "credentials": {
-                    "slot": "bank-api-token"
+                    "slot": "default"
                 },
                 "copy": "01JCBQ2F5H7K9M1P3R5T7W9Y2A",
-                "etag": "\"a41f-46\"",
-                "lastModified": "Fri, 14 Nov 2026 17:30:00 GMT"
+                "ledger": {
+                    "source": "url",
+                    "sourceVersion": 1,
+                    "endpoint": "https://api.example-bank.test/v1/activity",
+                    "params": {
+                        "url": "https://api.example-bank.test/v1/activity?week=46",
+                        "format": "json"
+                    },
+                    "pages": 1,
+                    "next": null,
+                    "validators": {
+                        "etag": "\"a41f-46\"",
+                        "lastModified": "Fri, 14 Nov 2026 17:30:00 GMT"
+                    },
+                    "expansions": []
+                }
             },
             "mapping": {
                 "nodes": {
@@ -231,7 +237,12 @@
                     }
                 }
             },
-            "loaded": "2026-11-14T17:42:00.000Z"
+            "loaded": "2026-11-14T17:42:00.000Z",
+            "extensions": {
+                "org.example.refresh": {
+                    "every": "P1D"
+                }
+            }
         }
     ],
     "types": [
@@ -374,7 +385,8 @@
         },
         {
             "op": "join.add",
-            "source": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"
+            "source": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+            "clash": { "*": "keep", "label": "both" }
         }
     ],
     "graph": {
@@ -483,7 +495,7 @@
                 "source": 1,
                 "target": 4,
                 "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
-                "graphty.key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3",
+                "graphty.key": "acct-1002|dev-9f3#1",
                 "graphty.types": ["used-device"],
                 "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
                 "account_id": "acct-1002",
@@ -495,7 +507,7 @@
                 "source": 2,
                 "target": 4,
                 "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
-                "graphty.key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#4",
+                "graphty.key": "acct-1003|dev-9f3#1",
                 "graphty.types": ["used-device"],
                 "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
                 "account_id": "acct-1003",

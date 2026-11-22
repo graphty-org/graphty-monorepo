@@ -1,6 +1,7 @@
 import type { EasingName } from "../camera/tour.js";
 import type { CameraState } from "../camera/types.js";
 import type { GraphtyError } from "../errors/index.js";
+import type { PendingWorkProgress } from "../managers/OperationQueueManager.js";
 
 /**
  * What happened to a capture's clipboard copy. `"not-requested"` when the clipboard was not one of
@@ -88,6 +89,12 @@ export interface ScreenshotOptions {
      */
     signal?: AbortSignal;
     /**
+     * Told how much queued work -- loads, layouts, algorithm runs, earlier captures, this one
+     * among them -- the capture is waiting behind, now and on every change, until it is taken.
+     * Not called when `timing.waitForOperations` is false.
+     */
+    onProgress?: (fact: PendingWorkProgress) => void;
+    /**
      * Enable quality enhancement for the screenshot.
      * Can be a boolean (true = default settings) or an object with specific settings.
      *
@@ -139,7 +146,11 @@ export interface ScreenshotOptions {
               /** The view's own options, checked against the ones its descriptor declares. */
               params?: Readonly<Record<string, unknown>>;
           };
-    /** What the capture waits for before it reads the canvas. */
+    /**
+     * What the capture waits for before it reads the canvas. Whatever these say, it also waits for
+     * pictures still loading -- a background, a node's image or 3D model, a label's font, the map --
+     * and a frame drawn once they have landed, as `waitForStableFrame()` does; `captureNow` ends that wait too.
+     */
     timing?: {
         /** Wait for a moving layout to come to rest, failing with `E_NOT_SETTLED` after `settleTimeoutMs`. @default true */
         waitForSettle?: boolean;
@@ -152,8 +163,8 @@ export interface ScreenshotOptions {
         settleTimeoutMs?: number;
         /**
          * Abort this signal to stop waiting and capture the frame on screen now: a capture still
-         * queued behind earlier work starts at once, and one waiting for the layout to settle stops
-         * waiting. Already aborted, the capture waits for nothing.
+         * queued behind earlier work starts at once, and one waiting for the layout to settle or for
+         * a picture to load stops waiting. Already aborted, the capture waits for nothing.
          * @example
          * const now = new AbortController();
          * const shot = graph.captureScreenshot({ timing: { captureNow: now.signal } });

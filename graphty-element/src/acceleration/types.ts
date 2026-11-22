@@ -143,12 +143,26 @@ export interface GraphAccelerator {
     /** The hardware, when the backend can describe it. */
     readonly device?: AcceleratorDeviceInfo;
     /**
+     * The package that implements it and its version, read from the package itself. A run or a
+     * layout this accelerator computed lists it among the packages that produced it
+     * (spec/README.md 4.5 rule 6). Absent, none is listed.
+     */
+    readonly package?: {
+        /** The package name, such as `"@graphty/webgpu-graph-algorithms"`. */
+        readonly name: string;
+        /** Its version. */
+        readonly version: string;
+    };
+    /**
      * Resolves when the underlying device is lost and this accelerator stops working.
      *
      * The element awaits it, reports `state: "error"` with `E_DEVICE_LOST`, and attempts to
      * attach a fresh accelerator. A backend with no notion of device loss omits it.
      */
-    readonly lost?: Promise<{ reason: string }>;
+    readonly lost?: Promise<{
+        /** The backend's description of why the device was lost. */
+        reason: string;
+    }>;
     /** The arithmetic this accelerator computes in. Absent means {@link DEFAULT_ACCELERATOR_PRECISION}. */
     readonly precision?: AccelerationPrecision;
     /**
@@ -357,7 +371,12 @@ export interface XrCapability {
     /** Whether an immersive AR session can be entered. */
     readonly ar: boolean;
     /** Why each mode cannot be entered, or null when it can. */
-    readonly reasons: { readonly vr: XrUnavailableReason | null; readonly ar: XrUnavailableReason | null };
+    readonly reasons: {
+        /** Why immersive VR cannot be entered, or null when it can. */
+        readonly vr: XrUnavailableReason | null;
+        /** Why immersive AR cannot be entered, or null when it can. */
+        readonly ar: XrUnavailableReason | null;
+    };
     /** The immersive session the graph is presenting now, or null. */
     readonly active: "vr" | "ar" | null;
 }

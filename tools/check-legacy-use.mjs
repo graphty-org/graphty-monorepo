@@ -9,7 +9,7 @@
  *                                 or dynamic import):
  *                                 anything tagged @deprecated, and every export declared outside the
  *                                 replacement code (algorithms: indexed/, data-structures/, types/,
- *                                 utils/ except graph-converters.ts, errors.ts; layout: everything but
+ *                                 utils/ except graph-converters.ts, errors.ts, version.ts; layout: everything but
  *                                 layouts/, generators/ and utils/rescale.ts)
  *   legacy-graph-bridge           calls toAlgorithmGraph or algorithmGraph
  *   legacy-graph-construction     constructs the legacy Graph class of @graphty/algorithms
@@ -53,7 +53,9 @@ function algorithmsLegacyFile(path) {
     if (path === "utils/graph-converters.ts") {
         return true;
     }
-    return !["indexed/", "data-structures/", "types/", "utils/", "errors.ts"].some((p) => path.startsWith(p));
+    return !["indexed/", "data-structures/", "types/", "utils/", "errors.ts", "version.ts"].some((p) =>
+        path.startsWith(p),
+    );
 }
 
 /**

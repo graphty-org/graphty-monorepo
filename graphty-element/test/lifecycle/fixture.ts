@@ -61,7 +61,9 @@ export interface Fixture {
      *   `delay` (the debounce in ms; a large one leaves a write to the lifecycle events), `list` (`1`: report
      *   `listAutosaves` before the element mounts, as `listed`), and for a page
      *   that drives itself, `auto` (edits to make and save) and `tail` (`1`: one more edit, left pending);
-     *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle.
+     *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle;
+     *   `detail` (`low`: a layer draws every node at low detail, so a benchmark compares the same
+     *   geometry at every size whatever `fullDetailTriangleBudget` chooses).
      */
     url(params: Record<string, string | number>): string;
     /** The reports of one tab. */
@@ -247,6 +249,8 @@ const summary = (r) => r && { revision: r.revision, entry: r.entry.id, wasDiscar
 const ready = el.autosaver.ready.then(async (restored) => {
     if (params.get("rows") === "late") rows();
     await el.waitForSettled();
+    // detail=low: every node drawn at low detail, the same geometry at every size.
+    if (params.get("detail") === "low") await el.session.styles.add({ name: "Low detail", target: "node", selector: { match: "everything" }, set: { "node.meshDetail": "low" } });
     const { nodeCount, edgeCount } = el.session.data.snapshot();
     if (nodeCount < n || edgeCount < n) {
         report("not-ready", { nodeCount, edgeCount, n });

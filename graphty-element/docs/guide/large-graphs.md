@@ -68,12 +68,23 @@ On `"objects"` the `limits` are ignored and the element fires `limits-warning` w
 `W_LIMITS_IGNORED`. See [Renderer](./renderer.md#loading-past-the-size-caps) for the caps on
 how many object rows a batched graph may hold.
 
-## Less detail past 10,000 nodes
+## Less detail past a triangle budget
 
-Past `DEFAULT_LIMITS.largeGraphThreshold` nodes (10,000) the element draws round node shapes at
-low detail: a node whose style layers set no `node.meshDetail` is drawn as if they set `"low"` (a
-sphere becomes an 80-triangle icosphere), and drops back to full detail when the graph shrinks
-below the threshold. To keep full detail on a large graph, set it in a layer:
+Round node shapes are drawn at full detail until the nodes would draw more than
+`limits.fullDetailTriangleBudget` triangles (1,000,000 by default), each node counted as the
+default shape's 320 -- so past 3,125 nodes. Past the budget a node whose style layers set no
+`node.meshDetail` is drawn as if they set `"low"` (a 20-triangle icosphere), and it goes back to
+full detail when the graph shrinks under the budget. The default was measured: 30 frames a second
+held to about 9.6 million node triangles on an RTX 4070 SUPER and to about 160,000 in software
+rendering, and the default leaves room for a GPU ten times slower than that card.
+
+On a fast GPU, raise the budget (honored on both render paths):
+
+```js
+graph.limits = { fullDetailTriangleBudget: 8_000_000 };
+```
+
+Or choose the detail yourself in a layer, which wins at any size:
 
 ```js
 await graph.session.styles.add({
@@ -84,8 +95,8 @@ await graph.session.styles.add({
 });
 ```
 
-The same threshold makes `session.recommendLayout()` suggest a random layout rather than a force
-simulation.
+Past `DEFAULT_LIMITS.largeGraphThreshold` nodes (10,000), `session.recommendLayout()` suggests a
+random layout rather than a force simulation.
 
 ## Loading the fastest way
 

@@ -873,10 +873,11 @@ export class NGraphEngine extends LayoutEngine {
      * size until the layout had spread them (issue #9280). A box of ten spring lengths whatever the count was tried before: a
      * 20-node graph took four times as long to settle, and was drawn a few pixels wide while it did.
      * @param id - The body's ngraph id.
+     * @param fresh - The body was just made by an edge to it, so its links lead to no placed neighbor.
      */
-    private place(id: NodeIdType): void {
+    private place(id: NodeIdType, fresh = false): void {
         const { rng, dim, seeded } = this.placement;
-        if (!seeded && (this.ngraph.getLinks(id)?.size ?? 0) > 0) {
+        if (!seeded && !fresh && (this.ngraph.getLinks(id)?.size ?? 0) > 0) {
             return;
         }
 
@@ -973,8 +974,17 @@ export class NGraphEngine extends LayoutEngine {
             }
 
             const data: PairData = { edges: new Set(), rows: new Set(), row, key: target };
+            // An end with no body yet is made by addLink, and ngraph puts it near the middle or
+            // beside the other end, placed the same way. Unseeded, it starts in the box instead;
+            // seeded, its own row places it from the seed when it arrives.
+            const fresh = this.placement.seeded
+                ? []
+                : [source, target].filter((id) => this.ngraph.getNode(id) === undefined);
             link = this.ngraph.addLink(source, target, data);
             row.set(target, link);
+            for (const id of fresh) {
+                this.place(id, true);
+            }
         }
 
         return link;

@@ -3843,7 +3843,7 @@ export class UpdateManager implements Manager {
         // The rows drawn with no Node, which no walk above reaches, move by their rows.
         transitionsOf(this.layoutManager)?.placeRows();
         if (roster === null) {
-            this.nodesFollowed = this.dataManager[WRITABLE_LANE].changes;
+            this.nodesFollowed = writableLane(this.dataManager)?.changes ?? -1;
         }
 
         this.statsManager.nodeUpdate.endMonitoring();

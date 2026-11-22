@@ -2978,6 +2978,12 @@ export class DataManager implements Manager {
             nodeResizedFrom(node, drawn.paint.style, rowPaint.style);
         }
 
+        // Not painted yet, but placed: paintBuilt places a node it paints, and with no paint nothing else put this one
+        // where its layout has it before the frames that paint it, which left it at the mesh template's place.
+        if (undrawn) {
+            node.update();
+        }
+
         this.lateNodeVersions += this.nodeVersion - before;
         this.graphContext?.getUpdateManager?.().adoptBuiltNode(node);
         return node;

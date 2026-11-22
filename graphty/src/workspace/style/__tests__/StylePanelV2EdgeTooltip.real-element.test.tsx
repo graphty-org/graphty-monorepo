@@ -67,7 +67,7 @@ describe("Style panel v2's edge Tooltip", () => {
         await userEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Tooltip" }));
         // A tooltip's words come from its source list, open at once; Fixed text opens the words' own field.
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
-        await userEvent.click(await screen.findByRole("textbox", { name: /tooltip/i }));
+        await userEvent.click(await screen.findByRole("textbox", { name: "Edge tooltip text" }));
         await userEvent.keyboard("busy line{Enter}");
         await waitFor(() => {
             assert.equal(written(session, edges, "edge.tooltip"), "busy line");

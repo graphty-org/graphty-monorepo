@@ -3,7 +3,7 @@
  * sections 2.4, 2.5, 5.1 and 7.3): its name, its text source (R12: today's source list, with
  * Fixed text first) as the main control, its settings button and its minus; then its Size and
  * color common lines. Added with "+", the row waits empty with its source list open, and nothing
- * is written until a source is picked or a line is set.
+ * is written until a source is picked or a line is set. Size and Color are drawn under it whether set or not.
  */
 
 import { type Channel, type ChannelDescriptor } from "@graphty/graphty-element/catalog";
@@ -302,7 +302,8 @@ export function LabelRow({
         if (
             line.unit !== undefined ||
             fields.some((field) => seen.has(field)) ||
-            !fields.some((field) => fieldSet(field))
+            // Size and Color are drawn on the row set or not (ia-design 2); every other line once set.
+            (!fields.some((field) => fieldSet(field)) && !LABEL_RUBRIC.common.includes(line))
         ) {
             return false;
         }

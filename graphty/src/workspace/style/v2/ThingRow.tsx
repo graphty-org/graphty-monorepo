@@ -149,9 +149,15 @@ function ReplacePreset({ ctx, shader }: Readonly<{ ctx: RowContext; shader: stri
  * @param ctx - the row.
  * @param rubric - the thing's rubric, if any.
  * @param main - the row's main channel.
+ * @param always - its common lines are drawn set or not (a label row's Size and Color, ia-design 2).
  * @returns the lines.
  */
-function setLinesOf(ctx: RowContext, rubric: ThingRubric | undefined, main: Channel): readonly LineSpec[] {
+function setLinesOf(
+    ctx: RowContext,
+    rubric: ThingRubric | undefined,
+    main: Channel,
+    always = false,
+): readonly LineSpec[] {
     if (rubric === undefined) {
         return [];
     }
@@ -162,7 +168,8 @@ function setLinesOf(ctx: RowContext, rubric: ThingRubric | undefined, main: Chan
             if (
                 line.unit !== undefined ||
                 channels.some((channel) => seen.has(channel)) ||
-                !channels.some((channel) => setOn(ctx, channel))
+                (!channels.some((channel) => setOn(ctx, channel)) &&
+                    !(always && rubric.common?.includes(line) === true))
             ) {
                 return false;
             }
@@ -452,7 +459,8 @@ export function ThingRow({
         return descriptor?.renderable === true ? [descriptor] : [];
     });
     const common = rubric?.common ?? [];
-    const setLines = setLinesOf(ctx, rubric, main.channel);
+    // A label row (its Glyph kind here) always draws its Size and Color lines (ia-design 2).
+    const setLines = setLinesOf(ctx, rubric, main.channel, thing.id === "label");
     const commonChannels = new Set(common.flatMap((line) => [line.channel, ...(line.units ?? [])]));
     const changed =
         others.length > 0 ||

@@ -68,7 +68,7 @@ export function LabelPopover({
                 write(Object.fromEntries(labelGroupFields(group).map((field) => [field, undefined])), drop);
             }}
             main={[
-                // The common lines lead Main: under the row only once set, here always (design 2.5).
+                // The common lines lead Main as they lead the row (ia-design 2).
                 ...[...LABEL_RUBRIC.common, ...LABEL_RUBRIC.main].map((line) => (
                     <LabelFieldLine key={`main-${line.field}-${line.name ?? ""}`} label={label} line={line} />
                 )),

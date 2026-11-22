@@ -25,6 +25,7 @@ catalog:
     vitest: 4.1.12
     "@vitest/browser": 4.1.12
     "@vitest/browser-playwright": 4.1.12
+    "@vitest/browser-webdriverio": 4.1.12
     "@vitest/coverage-v8": 4.1.12
     "@vitest/ui": 4.1.12
 
@@ -120,6 +121,13 @@ overrides:
     # uuid 9).
     "ip-address@<10.7.4": ^10.7.4
     "uuid@<11.1.1": ^11.1.1
+    # webdriverio 10 (webgpu-graph-algorithms' Safari lane; 9 pulls extract-zip 2.0.1, GHSA-jmr9-qjv8-65gv and
+    # GHSA-7pqw-9j4j-h8q3, never patched) and its webdriver, @wdio/repl and @wdio/types ask for @types/node ^22. The
+    # repository types Node 20, and a second @types/node splits vitest into peer variations whose types clash.
+    "webdriverio>@types/node": ^20.19.43
+    "webdriver>@types/node": ^20.19.43
+    "@wdio/repl>@types/node": ^20.19.43
+    "@wdio/types>@types/node": ^20.19.43
     # storybook 9.1.20 pins @vitest/mocker 3.2.4; GHSA-82fw-gwwq-j7x9 is patched only in 4.1.11, and
     # GHSA-qxg6-89mg-rqv8 and GHSA-xp26-3454-mjgp only in 4.1.12.
     "@vitest/mocker@>=2.1.0 <4.1.12": ^4.1.12

@@ -3,7 +3,8 @@
 # Simulator, including a return to a discarded tab that must keep its session storage and its own autosave entry
 # (design/work-protection/design.md section 9, plan.md step 7). The Linux half of the same checks is
 # ci.yml's graphty-element-lifecycle shard, on every pull request that affects graphty-element. The safari job
-# also reopens kept work while the autosave database is held (#8207), which only real Safari showed stalling.
+# also reopens kept work while the autosave database is held (#8207), which only real Safari showed stalling, and
+# runs webgpu-graph-algorithms' browser tests in real Safari, the one lane on WebKit's own WebGPU (#8276).
 #
 # Where it runs: the release train calls it on the commit it is about to release, beside hosts.yml, and a red run
 # holds the release; and on demand (gh workflow run work-protection-macos.yml --ref <branch>). Never on a pull
@@ -130,7 +131,7 @@ jobs:
         needs: bundle
         if: ${{ !inputs.files || contains(inputs.files, 'test/lifecycle/safari.test.ts') }}
         runs-on: macos-26
-        timeout-minutes: 20
+        timeout-minutes: 35
         # id-token: write is the results store's credential (tools/results/run-group.mjs posts each test step's record,
         # RESULTS_RECORD_ONLY: run once as it would bare, no retry on a paid macOS runner, its exit code untouched)
         permissions:
@@ -171,6 +172,18 @@ jobs:
             - name: The hide transition, stall detection, a stalled reopen and persist()
               timeout-minutes: 10
               run: cd .. && node tools/results/run-group.mjs macos-safari-lifecycle "cd graphty-element && pnpm exec vitest run --project=lifecycle test/lifecycle/safari.test.ts -t 'hidden|stalled|stalls|persist'"
+            # webgpu-graph-algorithms' browser tests on WebKit's own WebGPU (its WGSL compiler to Metal), which no other
+            # lane reaches: every other GPU lane is Dawn, and Playwright's WebKit has no navigator.gpu. A WebKit-only
+            # defect (#8215: an override expression Safari could not evaluate) otherwise reaches an iPad first (#8276).
+            # GRAPHTY_BROWSER=safari drives this Safari through WebdriverIO and safaridriver (vitest.config.ts); the
+            # adapter must exist (GRAPHTY_GPU_REQUIRE=any), whatever device the VM grants (GRAPHTY_BROWSER_GPU=metal).
+            - name: WebGPU browser tests in Safari (webgpu-graph-algorithms)
+              timeout-minutes: 15
+              env:
+                  GRAPHTY_BROWSER: safari
+                  GRAPHTY_BROWSER_GPU: metal
+                  GRAPHTY_GPU_REQUIRE: any
+              run: pnpm exec nx run webgpu-graph-algorithms:build && cd .. && node tools/results/run-group.mjs macos-safari-webgpu "cd webgpu-graph-algorithms && node scripts/run-browser-project.js"
             # A session that never starts (#5564) leaves nothing in the step's log: keep safaridriver's own session
             # logs (--diagnose, safaridriver.ts) and the system log of Safari, WebKit and the automation daemons.
             - name: Collect safaridriver's logs and the system log of a failed run

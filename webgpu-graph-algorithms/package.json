@@ -119,6 +119,7 @@
         "@graphty/layout": "workspace:^",
         "@graphty/remote-logger": "workspace:^",
         "@vitest/browser-playwright": "catalog:",
+        "@vitest/browser-webdriverio": "catalog:",
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
         "eslint": "^9.39.5",
@@ -131,6 +132,7 @@
         "typescript-eslint": "^8.72.2",
         "vite": "^8.3.8",
         "vitest": "catalog:",
+        "webdriverio": "10.2.0",
         "webgpu": "0.6.1"
     }
 }

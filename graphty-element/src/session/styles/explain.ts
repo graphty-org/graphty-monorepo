@@ -1240,7 +1240,11 @@ function walkWins(stack: readonly StackEntry[], at: Located, columns: ElementCol
             ? mergeListValue(channel, values[channel], result, winner.id, useLayers)
             : result;
         if (winner.id === layerId) {
-            own[channel] = isShaderListChannel(channel) ? [...((own[channel] as []) ?? []), ...(result as [])] : result;
+            // A bound shader parameter paints a patch to one use, not a list: merged, as the
+            // repaint merges it.
+            own[channel] = isShaderListChannel(channel)
+                ? mergeChannelValue(channel, own[channel], result as object)
+                : result;
         }
     });
 

@@ -58,6 +58,12 @@ describe("a camera turn after a switch to 3D", () => {
     }
 
     it("frames the settled graph on every 2D -> 3D switch, as a switch with no turn does", async () => {
+        // A switch to 3D lifts the 2D drawing it finds (issue #9372), so the first one lifts the
+        // seeded 2D layout and every later one the flattened 3D drawing, a third wider. One round
+        // trip first, so all three switches compared lift the same kind of drawing.
+        await switchTo3d(false);
+        await graph.setViewMode("2d");
+        await graph.waitForSettled();
         const untouched = await switchTo3d(false);
         await graph.setViewMode("2d");
         await graph.waitForSettled();

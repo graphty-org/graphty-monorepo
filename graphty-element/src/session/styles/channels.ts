@@ -2390,6 +2390,8 @@ const OTHER_TEXT_FIELDS: ReadonlyMap<string, { readonly into: Channel; readonly 
             { into: `${target}.xlabelStyle` as Channel, field },
         ]),
     ),
+    // How an external label's lines line up; its color, font, weight and italic are labelFieldOf's.
+    ["node.xlabelTextAlign", { into: "node.xlabelStyle", field: "textAlign" }],
     ...(["Head", "Tail"] as const).flatMap((end) =>
         (
             [
@@ -6215,6 +6217,7 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
     ],
     ["edge.dashLength", [{ channel: "edge.style", value: "dash" }]],
     ["edge.dashGap", [{ channel: "edge.style", value: "dash" }]],
+    ["edge.dashArray", [{ channel: "edge.style", value: "dash" }]],
     ["edge.waveAmplitude", [{ channel: "edge.style", value: "sinewave" }]],
     ["edge.wavePeriod", [{ channel: "edge.style", value: "sinewave" }]],
     // Short enough that an ordinary graph's longer lines reach it and fade all the way.
@@ -6264,6 +6267,7 @@ const ENUM_DEFAULTS: ReadonlyMap<string, string> = new Map<Channel, string>([
                 ["RunAlign", "baseline"],
                 ["LineBox", "font"],
                 ["BorderAlign", "outside"],
+                ["BorderStyle", "solid"],
                 ["BackgroundShape", "rectangle"],
                 ["ShiftOf", "box"],
                 ["GapOf", "box"],

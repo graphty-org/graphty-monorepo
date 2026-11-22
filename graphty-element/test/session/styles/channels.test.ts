@@ -467,9 +467,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and eleven node channels and one hundred and seventy-eight edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 211);
-        assert.strictEqual(channelsFor("edge").length, 178);
+    it("splits into two hundred and twenty-two node channels and one hundred and ninety edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 222);
+        assert.strictEqual(channelsFor("edge").length, 190);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -891,10 +891,6 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelPadding",
         "node.labelCornerRadius",
         "node.labelLineHeight",
-        "node.labelLineBox",
-        "node.labelBorderAlign",
-        "node.labelBorderStyle",
-        "node.labelBackgroundShape",
         "node.labelImage",
         "node.labelImageWidth",
         "node.labelImageHeight",
@@ -927,10 +923,6 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelPadding",
         "edge.labelCornerRadius",
         "edge.labelLineHeight",
-        "edge.labelLineBox",
-        "edge.labelBorderAlign",
-        "edge.labelBorderStyle",
-        "edge.labelBackgroundShape",
         "edge.labelImage",
         "edge.labelImageWidth",
         "edge.labelImageHeight",
@@ -1402,6 +1394,7 @@ describe("ChannelDescriptor.drawnWhen", () => {
         "edge.nodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
         "edge.sourceNodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
         "edge.targetNodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
+        "edge.dashArray": "replaces the line's own dash length and gap, on whichever dashed line draws it",
     };
 
     it("covers every caveat that says a channel is ignored somewhere", () => {
@@ -1606,6 +1599,7 @@ describe("a channel's range", () => {
     const MAX_SNAPSHOT: Readonly<Record<string, number>> = {
         "edge.bundleIterations": 500,
         "edge.bundleStrength": 1,
+        "edge.drawOrder": 100,
         "edge.arrowHeadOpacity": 1,
         "edge.arrowHeadPosition": 1,
         "edge.arrowHeadTextOpacity": 1,
@@ -1625,6 +1619,7 @@ describe("a channel's range", () => {
         "edge.outlineOpacity": 1,
         "edge.overlayOpacity": 1,
         "edge.taper": 4,
+        "edge.taperSource": 4,
         "node.borderOpacity": 1,
         "node.chartBackgroundOpacity": 1,
         "node.chartGap": 1,
@@ -1713,6 +1708,8 @@ describe("a channel's range", () => {
         "edge.arrowTailSide": "unset, the whole cap",
         "edge.arrowMiddleHeadSide": "unset, the whole cap",
         "edge.arrowMiddleTailSide": "unset, the whole cap",
+        "node.xlabelTextAlign": "unset, the label's own",
+        "node.xlabelWeight": "unset, the label's own",
     };
 
     it("declares the value every enum channel draws while unset, or says what unset draws", () => {
@@ -1777,8 +1774,11 @@ describe("textFieldOf", () => {
             if (kind === "node.label" || kind === "edge.label") {
                 assert.deepStrictEqual(labelFieldOf(channel), field, channel);
             } else {
-                // labelFieldOf answers only for the label kinds: the graph-io gate leans on it.
-                assert.isUndefined(labelFieldOf(channel), channel);
+                // labelFieldOf answers only for the label kinds, and the external label's own look the repaint
+                // paints through it: the graph-io gate leans on it.
+                if (!/^node\.xlabel(Color|Font|Weight|Italic)$/.test(channel)) {
+                    assert.isUndefined(labelFieldOf(channel), channel);
+                }
             }
             mapped += 1;
         }

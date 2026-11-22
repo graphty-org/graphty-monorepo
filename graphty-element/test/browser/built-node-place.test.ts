@@ -3,7 +3,7 @@
  *
  * Under renderPath "batched" a row has no `Node` until something asks for one. A `Node` built after the graph had
  * settled kept its anchor's world place from the hidden mesh template, (0, -10000, 0), whenever its row's center
- * equalled the anchor's position: the place was then refreshed with an unforced `computeWorldMatrix`, which returns
+ * equaled the anchor's position: the place was then refreshed with an unforced `computeWorldMatrix`, which returns
  * the cached matrix whenever it already ran in this render id. Every node read in one go stood at one point, which
  * failed 76 render-parity stories (issue #9164).
  */

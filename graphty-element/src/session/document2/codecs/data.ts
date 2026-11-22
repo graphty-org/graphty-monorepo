@@ -55,10 +55,12 @@ import type { ColumnSettings } from "../../commands/data";
 import type { SessionData } from "../../data";
 import type { TransactionOptions } from "../../project/Dispatcher";
 import { SOURCE_ATTR } from "../../sources/ids";
+import { recordOfLedger } from "../../sources/member";
 import { causeParams, type ReadCause } from "../../sources/references";
+import { keylessEdgeKeys, keylessNodeKeys } from "../../sources/rowKeys";
 import type { SourceLoadRecord, SourceRefreshReport } from "../../sources/types";
 import type { GraphSession, LoadedSource, TransactionScope } from "../../types";
-import { token } from "../framing";
+import { ignorableOf, isExtensions, token } from "../framing";
 import type {
     DocumentProblem,
     EdgeRef,
@@ -84,14 +86,18 @@ import {
     nodeRefOf,
     numericCell,
     READER,
+    readerAddKey,
     recordKey,
     referencedOf,
     rememberRead,
     rowTypeOf,
     SOURCE_ID,
+    type SourceExtras,
+    TIMESTAMP,
     ULID,
 } from "./dataRefs";
 import { flushHandles } from "./fileHandles";
+import { configOf, readsOption } from "./parseOptions";
 import { knownOf, rolesAsRead, type TableRoles } from "./roles";
 import { mintUlid } from "./viewParts";
 
@@ -99,13 +105,14 @@ import { mintUlid } from "./viewParts";
 // Closed objects and vocabularies (spec 4.1, 10)
 // ---------------------------------------------------------------------------------------------
 
+/** The source kinds this reader knows; `kind` is an open vocabulary (spec 4.1.2, 10). */
 const SOURCE_KINDS = new Set(["file", "url", "network", "sample", "derived"]);
 /** The kinds whose copy id hashes the bytes; the rest (network, derived, reader) mint a ULID. */
 const HASHED_KINDS = new Set(["file", "url", "sample"]);
 /** A hashed copy id: `sha256:` and lowercase hex. */
 const SHA256 = /^sha256:[0-9a-f]{64}$/;
 /** A network source's closed `origin` (spec 4.1.2). */
-const NETWORK_ORIGIN = new Set(["copy", "url", "credentials", "etag", "lastModified", "ledger"]);
+const NETWORK_ORIGIN = new Set(["copy", "url", "credentials", "ledger"]);
 /** The join shapes of version 2; only `join.add` is built by this reader (spec 4.1.8). */
 const JOIN_OPS = new Set(["join.add", "join.merge", "join.node-values", "join.edge-values", "join.edges"]);
 const JOIN_MEMBERS = new Set([
@@ -158,21 +165,26 @@ const READ_SPACES = [
     ["target", "targetSpace"],
 ] as const;
 const DUPLICATE_IDS = new Set(["first", "merge", "refuse"]);
-/**
- * The parse options of spec 4.1.2 rule 9, the formats whose parser reads each, and the values it
- * takes: a source parsed again with one its format does not read, or a malformed value, is held.
- */
-const PARSE_OPTIONS: Readonly<Record<string, { formats: readonly string[]; valid: (value: unknown) => boolean }>> = {
-    pointer: {
-        formats: ["json"],
-        valid: (value) => typeof value === "string" && /^(?:\/(?:[^~/]|~[01])*)*$/.test(value),
-    },
-    sheet: { formats: ["xlsx"], valid: (value) => typeof value === "string" },
-    missing: {
-        formats: ["csv", "json", "xlsx"],
-        valid: (value) => Array.isArray(value) && value.every((text) => typeof text === "string"),
-    },
-};
+/** A network ledger's members (spec 4.1.2 rule 7), and those of its closed sub-objects. */
+const LEDGER = new Set([
+    "source",
+    "sourceVersion",
+    "endpoint",
+    "params",
+    "limits",
+    "pages",
+    "next",
+    "validators",
+    "expand",
+    "expansions",
+]);
+const LEDGER_LIMITS = new Set(["maxNodes", "maxEdges", "maxBytes", "maxRequests", "timeoutMs"]);
+const VALIDATORS = new Set(["etag", "lastModified", "modified", "serverVersion", "contentHash"]);
+const LEDGER_EXPAND = new Set(["depth", "direction", "limit", "relationshipTypes", "layout"]);
+const EXPANSION = new Set(["seeds", "depth", "direction", "limit", "at", "next", "validators"]);
+const DIRECTIONS = new Set(["out", "in", "both"]);
+const isDirection = (value: unknown): boolean => typeof value === "string" && DIRECTIONS.has(value);
+const CONTENT_HASH = /^[0-9a-f]{64}$/;
 const SOURCE_MEMBERS = new Set([
     "id",
     "label",
@@ -266,15 +278,54 @@ function need(ok: boolean, pointer: string): asserts ok {
 }
 
 /**
- * Check that an object has only members a closed set names.
+ * What the closed objects of a data section carry besides their own members (spec 10,
+ * "Must-understand members"): never read for meaning, kept for the next save.
+ */
+interface Extras {
+    /** Each object's kept members, its `extensions`, `ignorable` and the members it names, by its pointer. */
+    readonly kept: Map<string, JsonObject>;
+    /** The pointer of each member ignored because its object's `ignorable` names it. */
+    readonly ignored: string[];
+}
+
+/**
+ * Check that an object has only members a closed set names. Where `extras` is given the object
+ * may also carry `extensions`, `ignorable` and the unknown members `ignorable` names, all kept in
+ * `extras`; a malformed slot, or any other unknown member, refuses the build.
  * @param value - The object.
  * @param known - The members it may have.
  * @param pointer - Its pointer.
+ * @param extras - Collects what it carries besides its members; absent, it carries nothing else.
  */
-function closed(value: unknown, known: ReadonlySet<string>, pointer: string): asserts value is JsonObject {
+function closed(
+    value: unknown,
+    known: ReadonlySet<string>,
+    pointer: string,
+    extras?: Extras,
+): asserts value is JsonObject {
     need(isPlainObject(value), pointer);
+    const listed = extras === undefined ? new Set<string>() : ignorableOf(value.ignorable);
+    const kept: JsonObject = {};
     for (const name of Object.keys(value)) {
-        need(known.has(name), `${pointer}/${name}`);
+        if (known.has(name)) {
+            continue;
+        }
+
+        const at = `${pointer}/${token(name)}`;
+        if (extras !== undefined && name === "extensions") {
+            need(isExtensions(value.extensions), at);
+        } else if (extras !== undefined && name === "ignorable") {
+            need(listed !== undefined, at);
+        } else {
+            need(listed?.has(name) === true, at);
+            extras?.ignored.push(at);
+        }
+
+        kept[name] = value[name];
+    }
+
+    if (extras !== undefined && Object.keys(kept).length > 0) {
+        extras.kept.set(pointer, kept);
     }
 }
 
@@ -426,17 +477,20 @@ interface ReadSource {
     readonly size?: number;
     /** For a referenced source whose read failed: what it threw. */
     readonly cause?: ReadCause;
+    /** What its record, origin, mapping and settings carry besides their own members. */
+    readonly extras: SourceExtras;
 }
 
 /**
  * Check a source's `mapping` (spec 4.1.3).
  * @param mapping - The mapping.
  * @param pointer - Its pointer.
+ * @param extras - Collects what its objects carry besides their members.
  */
-function checkMapping(mapping: unknown, pointer: string): void {
-    closed(mapping, new Set(["nodes", "edges"]), pointer);
+function checkMapping(mapping: unknown, pointer: string, extras: Extras): void {
+    closed(mapping, new Set(["nodes", "edges"]), pointer, extras);
     if (mapping.nodes !== undefined) {
-        closed(mapping.nodes, NODE_MAPPING, `${pointer}/nodes`);
+        closed(mapping.nodes, NODE_MAPPING, `${pointer}/nodes`, extras);
         need((mapping.nodes.key === undefined) === (mapping.nodes.space === undefined), `${pointer}/nodes`);
         if (mapping.nodes.space !== undefined) {
             spaceOf(mapping.nodes.space, `${pointer}/nodes/space`);
@@ -444,7 +498,7 @@ function checkMapping(mapping: unknown, pointer: string): void {
     }
 
     if (mapping.edges !== undefined) {
-        closed(mapping.edges, EDGE_MAPPING, `${pointer}/edges`);
+        closed(mapping.edges, EDGE_MAPPING, `${pointer}/edges`, extras);
         for (const role of ["source", "target"]) {
             need(typeof mapping.edges[role] === "string", `${pointer}/edges/${role}`);
             spaceOf(mapping.edges[`${role}Space`], `${pointer}/edges/${role}Space`);
@@ -456,12 +510,13 @@ function checkMapping(mapping: unknown, pointer: string): void {
  * Check one reader operation: its closed members per `op` (spec 4.1.4).
  * @param operation - The operation.
  * @param pointer - Its pointer.
+ * @param extras - Collects what it carries besides its members.
  */
-function checkOperation(operation: unknown, pointer: string): void {
+function checkOperation(operation: unknown, pointer: string, extras: Extras): void {
     need(isPlainObject(operation), pointer);
     const members = OPERATION_MEMBERS[String(operation.op)];
     need(members !== undefined, `${pointer}/op`);
-    closed(operation, members, pointer);
+    closed(operation, members, pointer, extras);
     if (operation.op === "add") {
         const node = operation.node === undefined ? undefined : nodeRefOf(operation.node);
         const edge = operation.edge === undefined ? undefined : edgeRefOf(operation.edge);
@@ -478,13 +533,14 @@ function checkOperation(operation: unknown, pointer: string): void {
 }
 
 /**
- * Check the reader source (spec 4.1.4).
+ * Check the reader source (spec 4.1.4). Its `origin` and `copy` carry nothing else.
  * @param record - The source record.
  * @param pointer - Its pointer.
+ * @param extras - Collects what it and its operations carry besides their members.
  * @returns Its operations.
  */
-function checkReader(record: JsonObject, pointer: string): JsonObject[] {
-    closed(record, READER_MEMBERS, pointer);
+function checkReader(record: JsonObject, pointer: string, extras: Extras): JsonObject[] {
+    closed(record, READER_MEMBERS, pointer, extras);
     need(record.id === READER, `${pointer}/id`);
     closed(record.origin, new Set(["copy"]), `${pointer}/origin`);
     need(typeof record.origin.copy === "string" && ULID.test(record.origin.copy), `${pointer}/origin/copy`);
@@ -492,41 +548,290 @@ function checkReader(record: JsonObject, pointer: string): JsonObject[] {
     const { operations } = record.copy;
     need(Array.isArray(operations), `${pointer}/copy/operations`);
     operations.forEach((operation: unknown, at: number) => {
-        checkOperation(operation, `${pointer}/copy/operations/${String(at)}`);
+        checkOperation(operation, `${pointer}/copy/operations/${String(at)}`, extras);
     });
     return operations as JsonObject[];
 }
 
 /**
- * Check one source record (spec 4.1.2).
+ * What a source's record, origin, mapping and settings carry besides their own members, as
+ * `closed` kept them.
+ * @param pointer - The record's pointer.
+ * @param extras - What the section's closed objects carry.
+ * @returns The source's.
+ */
+function sourceExtrasOf(pointer: string, extras: Extras): SourceExtras {
+    const parts = {
+        record: pointer,
+        origin: `${pointer}/origin`,
+        mapping: `${pointer}/mapping`,
+        nodes: `${pointer}/mapping/nodes`,
+        edges: `${pointer}/mapping/edges`,
+        settings: `${pointer}/settings`,
+        options: `${pointer}/options`,
+        ledger: `${pointer}/origin/ledger`,
+    } as const;
+    return Object.fromEntries(
+        Object.entries(parts).flatMap(([part, at]) => {
+            const kept = extras.kept.get(at);
+            return kept === undefined ? [] : [[part, kept]];
+        }),
+    );
+}
+
+/**
+ * Whether an embedded copy is in the one form this reader reads (spec 4.1.2 rule 3): tables, an
+ * object whose members are `nodes` and/or `edges` and nothing else.
+ * @param copy - The copy.
+ * @returns True for tables.
+ */
+function isTables(copy: unknown): copy is JsonObject {
+    const names = isPlainObject(copy) ? Object.keys(copy) : [];
+    return names.length > 0 && names.every((name) => name === "nodes" || name === "edges");
+}
+
+/**
+ * Check `validators` (spec 4.1.2 rule 7): closed, each a string, `contentHash` lower-case hex.
+ * @param value - The validators.
+ * @param pointer - Their pointer.
+ */
+function checkValidators(value: unknown, pointer: string): void {
+    closed(value, VALIDATORS, pointer);
+    for (const [name, text] of Object.entries(value)) {
+        need(typeof text === "string" && (name !== "contentHash" || CONTENT_HASH.test(text)), `${pointer}/${name}`);
+    }
+}
+
+/**
+ * Whether a value is an integer in a range.
+ * @param value - The value.
+ * @param min - The least.
+ * @param max - The most.
+ * @returns True for one.
+ */
+function isInt(value: unknown, min: number, max = Number.MAX_SAFE_INTEGER): boolean {
+    return Number.isInteger(value) && (value as number) >= min && (value as number) <= max;
+}
+
+/**
+ * Check one expansion of a ledger (spec 4.1.2 rule 7): closed, its seeds node references.
+ * @param value - The expansion.
+ * @param pointer - Its pointer.
+ */
+function checkExpansion(value: unknown, pointer: string): void {
+    closed(value, EXPANSION, pointer);
+    const { seeds } = value;
+    need(
+        Array.isArray(seeds) && seeds.length > 0 && seeds.every((seed) => nodeRefOf(seed) !== undefined),
+        `${pointer}/seeds`,
+    );
+    need(isInt(value.depth, 1, 10), `${pointer}/depth`);
+    need(isDirection(value.direction), `${pointer}/direction`);
+    need(value.limit === undefined || isInt(value.limit, 1), `${pointer}/limit`);
+    need(typeof value.at === "string" && TIMESTAMP.test(value.at), `${pointer}/at`);
+    need(value.next === null || isPlainObject(value.next), `${pointer}/next`);
+    checkValidators(value.validators, `${pointer}/validators`);
+}
+
+/**
+ * Check a ledger's `expand` (spec 4.1.2 rule 7): closed, with no trigger.
+ * @param expand - The expand behavior.
+ * @param pointer - Its pointer.
+ */
+function checkExpand(expand: unknown, pointer: string): void {
+    closed(expand, LEDGER_EXPAND, pointer);
+    need(expand.depth === undefined || isInt(expand.depth, 1, 10), `${pointer}/depth`);
+    need(expand.direction === undefined || isDirection(expand.direction), `${pointer}/direction`);
+    need(expand.limit === undefined || isInt(expand.limit, 1), `${pointer}/limit`);
+    need(
+        expand.relationshipTypes === undefined ||
+            (Array.isArray(expand.relationshipTypes) &&
+                expand.relationshipTypes.every((name) => typeof name === "string")),
+        `${pointer}/relationshipTypes`,
+    );
+    need(expand.layout === undefined || expand.layout === "continue" || expand.layout === "none", `${pointer}/layout`);
+}
+
+/**
+ * Check a network source's `origin.ledger` (spec 4.1.2 rule 7): closed, with the closed-object
+ * slots at its top level only.
+ * @param ledger - The ledger.
+ * @param pointer - Its pointer.
+ * @param extras - Collects what its top level carries besides its members.
+ */
+function checkLedger(ledger: unknown, pointer: string, extras: Extras): void {
+    closed(ledger, LEDGER, pointer, extras);
+    const { source, limits, expand, expansions } = ledger;
+    need(typeof source === "string" && source.length > 0 && source.length <= 128, `${pointer}/source`);
+    need(isInt(ledger.sourceVersion, 1), `${pointer}/sourceVersion`);
+    need(ledger.endpoint === null || typeof ledger.endpoint === "string", `${pointer}/endpoint`);
+    need(isPlainObject(ledger.params), `${pointer}/params`);
+    if (limits !== undefined) {
+        closed(limits, LEDGER_LIMITS, `${pointer}/limits`);
+        for (const [name, value] of Object.entries(limits)) {
+            need(isInt(value, 1), `${pointer}/limits/${name}`);
+        }
+    }
+
+    need(isInt(ledger.pages, 1), `${pointer}/pages`);
+    need(ledger.next === null || isPlainObject(ledger.next), `${pointer}/next`);
+    checkValidators(ledger.validators, `${pointer}/validators`);
+    if (expand !== undefined) {
+        checkExpand(expand, `${pointer}/expand`);
+    }
+
+    need(Array.isArray(expansions), `${pointer}/expansions`);
+    expansions.forEach((expansion: unknown, at: number) => {
+        checkExpansion(expansion, `${pointer}/expansions/${String(at)}`);
+    });
+}
+
+/**
+ * What a source's parse options or network ledger hold that this reader cannot read (spec 4.1.2
+ * rules 7 and 9). They are read only to read the source again, so they fail that source alone
+ * (spec 4.1.10): never the section.
+ * @param record - The source record.
+ * @param pointer - Its pointer.
+ * @param extras - Collects what a readable ledger's top level carries besides its members.
+ * @returns Why, and the pointer of each member that cannot be read; undefined when all can.
+ */
+function unreadOf(
+    record: JsonObject,
+    pointer: string,
+    extras: Extras,
+): { readonly reason: "options" | "ledger"; readonly pointers: string[] } | undefined {
+    if (record.kind === "network") {
+        const ledger = isPlainObject(record.origin) ? record.origin.ledger : undefined;
+        if (ledger === undefined) {
+            return undefined;
+        }
+
+        // Kept only when the whole ledger reads.
+        const scratch: Extras = { kept: new Map(), ignored: [] };
+        try {
+            checkLedger(ledger, `${pointer}/origin/ledger`, scratch);
+        } catch (error) {
+            if (!(error instanceof Unbuildable)) {
+                throw error;
+            }
+
+            return { reason: "ledger", pointers: [error.pointer] };
+        }
+
+        for (const [at, kept] of scratch.kept) {
+            extras.kept.set(at, kept);
+        }
+
+        extras.ignored.push(...scratch.ignored);
+        return undefined;
+    }
+
+    const options = record.options ?? {};
+    if (!isPlainObject(options)) {
+        return { reason: "options", pointers: [`${pointer}/options`] };
+    }
+
+    const format = typeof record.format === "string" ? record.format : undefined;
+    const pointers = Object.entries(options)
+        .filter(([name, value]) => !readsOption(format, name, value))
+        .map(([name]) => `${pointer}/options/${token(name)}`);
+    return pointers.length === 0 ? undefined : { reason: "options", pointers };
+}
+
+/**
+ * Keep what an embedded source's options or ledger hold that this reader cannot read: reported
+ * `W_UNKNOWN_MEMBER`, and its options written back as read. The source is built from its copy and
+ * is not refreshable.
+ * @param record - The source record.
+ * @param pointer - Its pointer.
+ * @param unread - What cannot be read, as `unreadOf` gave it.
+ * @param unread.reason - Options or ledger.
+ * @param unread.pointers - Each member's pointer.
+ * @param extras - Collects them.
+ */
+function keepUnread(
+    record: JsonObject,
+    pointer: string,
+    unread: { readonly reason: "options" | "ledger"; readonly pointers: string[] },
+    extras: Extras,
+): void {
+    extras.ignored.push(...unread.pointers);
+    if (unread.reason === "options" && isPlainObject(record.options)) {
+        const format = typeof record.format === "string" ? record.format : undefined;
+        extras.kept.set(
+            `${pointer}/options`,
+            Object.fromEntries(
+                Object.entries(record.options).filter(([name, value]) => !readsOption(format, name, value)),
+            ),
+        );
+    }
+}
+
+/**
+ * Check what a network source record holds besides what every source does (spec 4.1.2 rule 7):
+ * no format or parse options, since its request is its ledger, and a closed origin.
  * @param record - The record.
  * @param pointer - Its pointer.
+ * @param extras - Collects what its origin carries besides its members.
+ */
+function checkNetwork(record: JsonObject, pointer: string, extras: Extras): void {
+    need(record.format === undefined && record.options === undefined, pointer);
+    const { origin } = record;
+    closed(origin, NETWORK_ORIGIN, `${pointer}/origin`, extras);
+    closed(origin.credentials ?? {}, new Set(["slot"]), `${pointer}/origin/credentials`);
+}
+
+/**
+ * Check one source record (spec 4.1.2). A kind this reader does not know, or a copy in a form it
+ * cannot read, is that source's state, never the section's (spec 10).
+ * @param record - The record.
+ * @param pointer - Its pointer.
+ * @param extras - Collects what its objects carry besides their members.
  * @returns The source.
  */
-function checkSource(record: JsonObject, pointer: string): ReadSource {
-    closed(record, SOURCE_MEMBERS, pointer);
+function checkSource(record: JsonObject, pointer: string, extras: Extras): ReadSource {
+    closed(record, SOURCE_MEMBERS, pointer, extras);
     const { id, kind, origin, copy } = record;
     need(typeof id === "string" && SOURCE_ID.test(id), `${pointer}/id`);
-    need(typeof kind === "string" && SOURCE_KINDS.has(kind), `${pointer}/kind`);
+    need(typeof kind === "string" && kind !== "", `${pointer}/kind`);
     need(isPlainObject(origin) && typeof origin.copy === "string", `${pointer}/origin`);
-    // The copy id's form follows the kind: a bytes hash, or a ULID (spec 4.1.2); an embedded copy
-    // holding the reader's edits has a ULID whatever its kind.
+    // The copy id's form follows a known kind: a bytes hash, or a ULID (spec 4.1.2); an embedded
+    // copy holding the reader's edits has a ULID whatever its kind. An unknown kind may have either.
     const hashed = HASHED_KINDS.has(kind) && !(copy !== undefined && ULID.test(origin.copy));
-    need((hashed ? SHA256 : ULID).test(origin.copy), `${pointer}/origin/copy`);
+    const forms = SOURCE_KINDS.has(kind) ? [hashed ? SHA256 : ULID] : [SHA256, ULID];
+    need(
+        forms.some((form) => form.test(String(origin.copy))),
+        `${pointer}/origin/copy`,
+    );
     if (kind === "network") {
-        closed(origin, NETWORK_ORIGIN, `${pointer}/origin`);
-        closed(origin.credentials ?? {}, new Set(["slot"]), `${pointer}/origin/credentials`);
+        checkNetwork(record, pointer, extras);
     }
 
-    checkMapping(record.mapping ?? {}, `${pointer}/mapping`);
-    closed(record.settings ?? {}, SETTINGS, `${pointer}/settings`);
+    checkMapping(record.mapping ?? {}, `${pointer}/mapping`, extras);
+    closed(record.settings ?? {}, SETTINGS, `${pointer}/settings`, extras);
+    const unread = unreadOf(record, pointer, extras);
     if (copy === undefined) {
         need(kind !== "derived", pointer);
-        return referencedSource(record, pointer);
+        const held = sourceExtrasOf(pointer, extras);
+        // Options or a ledger it cannot read: its bytes alone would not read as they were read, so
+        // it is held and its record written back as read.
+        return unread === undefined
+            ? referencedSource(record, pointer, held)
+            : { record, id, pointer, copyId: origin.copy, embedded: false, reason: unread.reason, extras: held };
     }
 
-    // Tables, or an unknown copy form.
-    closed(copy, new Set(["nodes", "edges"]), `${pointer}/copy`);
+    if (unread !== undefined) {
+        keepUnread(record, pointer, unread, extras);
+    }
+
+    const kept = sourceExtrasOf(pointer, extras);
+
+    need(isPlainObject(copy), `${pointer}/copy`);
+    if (!isTables(copy)) {
+        // A copy form this reader cannot read: the source alone is held, and written back as read.
+        return { record, id, pointer, copyId: origin.copy, embedded: false, reason: "copy-form", extras: kept };
+    }
+
     const decls = isPlainObject(record.columns) ? record.columns : {};
     return {
         record,
@@ -534,6 +839,7 @@ function checkSource(record: JsonObject, pointer: string): ReadSource {
         pointer,
         copyId: origin.copy,
         embedded: true,
+        extras: kept,
         nodes: tableOf(copy.nodes, decls.nodes, `${pointer}/copy/nodes`),
         edges: tableOf(copy.edges, decls.edges, `${pointer}/copy/edges`),
     };
@@ -545,9 +851,10 @@ function checkSource(record: JsonObject, pointer: string): ReadSource {
  * not read it, none, and why.
  * @param record - The checked record.
  * @param pointer - Its pointer.
+ * @param extras - What its objects carry besides their members.
  * @returns The source.
  */
-function referencedSource(record: JsonObject, pointer: string): ReadSource {
+function referencedSource(record: JsonObject, pointer: string, extras: SourceExtras): ReadSource {
     const id = String(record.id);
     const expected = String((record.origin as JsonObject).copy);
     const fetched = refetchedOf(record);
@@ -565,6 +872,7 @@ function referencedSource(record: JsonObject, pointer: string): ReadSource {
             copyId: expected,
             embedded: false,
             reason,
+            extras,
             ...(size === undefined ? {} : { size }),
             ...(cause === undefined ? {} : { cause }),
         };
@@ -585,6 +893,7 @@ function referencedSource(record: JsonObject, pointer: string): ReadSource {
         pointer,
         copyId: fetched.copyId,
         embedded: true,
+        extras,
         rebuilt: { expected, mapping },
         ...(fetched.repeats === true ? { repeats: true } : {}),
         nodes: tableOf(tables.nodes, columns.nodes, `${pointer}/copy/nodes`),
@@ -628,15 +937,20 @@ interface Checked {
     readonly adds: ReadonlyMap<string, JsonObject>;
     readonly conversions: readonly JsonObject[];
     readonly issues: JsonObject;
+    /** What its closed objects carry besides their own members. */
+    readonly extras: Extras;
+    /** The members the reader source's `add`s carry besides their own, by the element each adds. */
+    readonly readerAdds: ReadonlyMap<string, JsonObject>;
 }
 
 /**
  * Check `{ column, values }` (a step's `rows` or `except`, spec 4.1.8 rule 4).
  * @param value - The member.
  * @param pointer - Its pointer.
+ * @param extras - Collects what it carries besides its members.
  */
-function checkRows(value: unknown, pointer: string): void {
-    closed(value, new Set(["column", "values"]), pointer);
+function checkRows(value: unknown, pointer: string, extras: Extras): void {
+    closed(value, new Set(["column", "values"]), pointer, extras);
     need(typeof value.column === "string" && value.column !== "", `${pointer}/column`);
     need(Array.isArray(value.values) && value.values.every((each) => typeof each === "string"), `${pointer}/values`);
 }
@@ -648,11 +962,13 @@ function checkRows(value: unknown, pointer: string): void {
  * @param read - The member.
  * @param op - The step's op.
  * @param pointer - Its pointer.
+ * @param extras - Collects what it carries besides its members.
  */
-function checkRead(read: unknown, op: string, pointer: string): void {
-    closed(read, READ_MEMBERS, pointer);
+function checkRead(read: unknown, op: string, pointer: string, extras: Extras): void {
+    closed(read, READ_MEMBERS, pointer, extras);
     need(read.table === undefined || read.table === "nodes" || read.table === "edges", `${pointer}/table`);
-    for (const [name, value] of Object.entries(read)) {
+    const kept = extras.kept.get(pointer) ?? {};
+    for (const [name, value] of Object.entries(read).filter(([each]) => !(each in kept))) {
         const nullable = name === "weight" || name === "time";
         // A role names a column, never ""; a meaning or a unit may be empty.
         const words = name === "weightMeaning" || name === "timeUnit";
@@ -694,8 +1010,13 @@ function checkClash(clash: unknown, pointer: string): void {
  * only `clash`, `columns` and `duplicateIds`; `ignoreCase` and `ignoreSpaces` belong to the rest.
  * @param step - The step, closed.
  * @param at - A member's pointer.
+ * @param kept - What the step carries besides its members, if anything.
  */
-function checkAddChoices(step: Readonly<JsonObject>, at: (name: string) => string): void {
+function checkAddChoices(
+    step: Readonly<JsonObject>,
+    at: (name: string) => string,
+    kept: Readonly<JsonObject> = {},
+): void {
     if (step.op !== "join.add") {
         need(step.duplicateIds === undefined, at("duplicateIds"));
         for (const name of ["ignoreCase", "ignoreSpaces"]) {
@@ -706,7 +1027,7 @@ function checkAddChoices(step: Readonly<JsonObject>, at: (name: string) => strin
     }
 
     for (const name of Object.keys(step)) {
-        need(ADD_MEMBERS.has(name), at(name));
+        need(ADD_MEMBERS.has(name) || name in kept, at(name));
     }
 
     const { duplicateIds } = step;
@@ -717,23 +1038,48 @@ function checkAddChoices(step: Readonly<JsonObject>, at: (name: string) => strin
 }
 
 /**
- * Check one join step's shape (spec 4.1.8), whether or not this reader builds it.
+ * Check a join step's `source` and `off`, and, for an `off` step, its `op`: all an off step is
+ * checked for (spec 4.1.8 rule 8).
  * @param step - The step.
  * @param pointer - Its pointer.
  * @param sources - The section's sources.
+ * @returns Whether the step is off.
+ */
+function isOffStep(step: Readonly<JsonObject>, pointer: string, sources: ReadonlyMap<string, ReadSource>): boolean {
+    need(typeof step.source === "string" && sources.has(step.source), `${pointer}/source`);
+    need(step.off === undefined || step.off === true, `${pointer}/off`);
+    if (step.off !== true) {
+        return false;
+    }
+
+    need(typeof step.op === "string" && step.op !== "", `${pointer}/op`);
+    return true;
+}
+
+/**
+ * Check one join step's shape (spec 4.1.8), whether or not this reader builds it. An `off` step is
+ * checked only for its `op`, `source` and `off`: it is kept as read and not built, whatever its op.
+ * @param step - The step.
+ * @param pointer - Its pointer.
+ * @param sources - The section's sources.
+ * @param extras - Collects what it carries besides its members.
  */
 function checkStep(
     step: unknown,
     pointer: string,
     sources: ReadonlyMap<string, ReadSource>,
+    extras: Extras,
 ): asserts step is JsonObject {
-    closed(step, JOIN_MEMBERS, pointer);
+    need(isPlainObject(step), pointer);
+    if (isOffStep(step, pointer, sources)) {
+        return;
+    }
+
+    closed(step, JOIN_MEMBERS, pointer, extras);
     const { op } = step;
     need(typeof op === "string" && JOIN_OPS.has(op), `${pointer}/op`);
-    need(typeof step.source === "string" && sources.has(step.source), `${pointer}/source`);
-    need(step.off === undefined || step.off === true, `${pointer}/off`);
     const at = (name: string): string => `${pointer}/${name}`;
-    checkAddChoices(step, at);
+    checkAddChoices(step, at, extras.kept.get(pointer));
     checkClash(step.clash, at("clash"));
     for (const name of ["edges", "via"]) {
         need(step[name] === undefined || (typeof step[name] === "string" && step[name] !== ""), at(name));
@@ -764,12 +1110,12 @@ function checkStep(
     );
     for (const name of ["rows", "except"]) {
         if (step[name] !== undefined) {
-            checkRows(step[name], at(name));
+            checkRows(step[name], at(name), extras);
         }
     }
 
     if (step.read !== undefined) {
-        checkRead(step.read, op, at("read"));
+        checkRead(step.read, op, at("read"), extras);
     }
 
     // A fan-out translation (`mapping.many`) is reserved (spec 4.1.8 rule 10).
@@ -782,23 +1128,28 @@ function checkStep(
  * this reader does not build it; an `off` step is checked, kept and not built.
  * @param joins - The history.
  * @param sources - The section's sources.
+ * @param extras - Collects what the steps carry besides their members.
  * @returns The `join.add` of each built source.
  */
-function checkJoins(joins: readonly unknown[], sources: ReadonlyMap<string, ReadSource>): Map<string, JsonObject> {
+function checkJoins(
+    joins: readonly unknown[],
+    sources: ReadonlyMap<string, ReadSource>,
+    extras: Extras,
+): Map<string, JsonObject> {
     const parts = new Set<string>();
     const adds = new Map<string, JsonObject>();
     joins.forEach((step: unknown, at: number) => {
         const pointer = `/joins/${String(at)}`;
-        checkStep(step, pointer, sources);
+        checkStep(step, pointer, sources, extras);
+        if (step.off === true) {
+            return;
+        }
+
         if (step.op === "join.edges") {
             // A part names a step among its source's steps (spec 4.1.8 rule 11).
             const part = JSON.stringify([step.source, step.part]);
             need(!parts.has(part), `${pointer}/part`);
             parts.add(part);
-        }
-
-        if (step.off === true) {
-            return;
         }
 
         need(step.op === "join.add", `${pointer}/op`);
@@ -812,17 +1163,18 @@ function checkJoins(joins: readonly unknown[], sources: ReadonlyMap<string, Read
 /**
  * Check the types, conversions and issues: their closed members.
  * @param body - The section's body.
+ * @param extras - Collects what the types and their rules carry besides their members.
  */
-function checkRegistry(body: Readonly<JsonObject>): void {
+function checkRegistry(body: Readonly<JsonObject>, extras: Extras): void {
     need(Array.isArray(body.types), "/types");
     body.types.forEach((type: unknown, at: number) => {
         const pointer = `/types/${String(at)}`;
-        closed(type, TYPE_MEMBERS, pointer);
+        closed(type, TYPE_MEMBERS, pointer, extras);
         need(type.kind === "node" || type.kind === "edge", `${pointer}/kind`);
         need(Array.isArray(type.rules), `${pointer}/rules`);
         (type.rules as unknown[]).forEach((rule, index) => {
             const at = `${pointer}/rules/${String(index)}`;
-            closed(rule, RULE_MEMBERS, at);
+            closed(rule, RULE_MEMBERS, at, extras);
             // A part names one `join.edges` step of the rule's source (spec 4.1.5).
             need(rule.part === undefined || (Number.isSafeInteger(rule.part) && Number(rule.part) >= 1), `${at}/part`);
         });
@@ -860,20 +1212,23 @@ function checked(body: Readonly<JsonObject>): Checked {
     );
     need(Array.isArray(body.sources), "/sources");
     need(Array.isArray(body.joins), "/joins");
-    checkRegistry(body);
+    const extras: Extras = { kept: new Map(), ignored: [] };
+    checkRegistry(body, extras);
     const sources = new Map<string, ReadSource>();
+    const readerAdds = new Map<string, JsonObject>();
     let reader: Checked["reader"];
     body.sources.forEach((record: unknown, at: number) => {
         const pointer = `/sources/${String(at)}`;
         need(isPlainObject(record) && typeof record.kind === "string", pointer);
         if (record.kind === "reader") {
             need(reader === undefined, pointer);
-            const operations = checkReader(record, pointer);
+            const operations = checkReader(record, pointer, extras);
             reader = { copyId: String((record.origin as JsonObject).copy), operations };
+            keepReaderAdds(operations, pointer, extras, readerAdds);
             return;
         }
 
-        const source = checkSource(record, pointer);
+        const source = checkSource(record, pointer, extras);
         need(!sources.has(source.id), `${pointer}/id`);
         sources.set(source.id, source);
     });
@@ -886,21 +1241,7 @@ function checked(body: Readonly<JsonObject>): Checked {
             `/sources/reader/copy/operations/${String(at)}/picked`,
         );
     });
-    const adds = checkJoins(body.joins, sources);
-    for (const id of adds.keys()) {
-        const { record, pointer } = sources.get(id) as ReadSource;
-        const options = isPlainObject(record.options) ? record.options : {};
-        // Parsed again with an option its parser does not read, it would build another graph.
-        if (record.copy === undefined) {
-            for (const [name, { formats, valid }] of Object.entries(PARSE_OPTIONS)) {
-                need(
-                    !(name in options) || (formats.includes(String(record.format)) && valid(options[name])),
-                    `${pointer}/options/${name}`,
-                );
-            }
-        }
-    }
-
+    const adds = checkJoins(body.joins, sources, extras);
     return {
         sources,
         ...(reader === undefined ? {} : { reader }),
@@ -909,7 +1250,36 @@ function checked(body: Readonly<JsonObject>): Checked {
         adds,
         conversions: (body.conversions ?? []) as JsonObject[],
         issues: (body.issues ?? {}) as JsonObject,
+        extras,
+        readerAdds,
     };
+}
+
+/**
+ * Keep what each reader `add` carries besides its members, by the element it adds, since a save
+ * writes the reader's adds from the session rather than as read (spec 10, rule 5).
+ * @param operations - The reader's operations, checked.
+ * @param pointer - The reader source's pointer.
+ * @param extras - What the closed objects carry.
+ * @param into - Collects them, by `readerAddKey`.
+ */
+function keepReaderAdds(
+    operations: readonly JsonObject[],
+    pointer: string,
+    extras: Extras,
+    into: Map<string, JsonObject>,
+): void {
+    const record = extras.kept.get(pointer);
+    if (record !== undefined) {
+        into.set(READER, record);
+    }
+
+    operations.forEach((operation, at) => {
+        const kept = extras.kept.get(`${pointer}/copy/operations/${String(at)}`);
+        if (operation.op === "add" && kept !== undefined) {
+            into.set(readerAddKey(operation.node, operation.edge), kept);
+        }
+    });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -998,6 +1368,10 @@ interface Built {
      * source's own row, so a save writes every source's own value back (design 3.10).
      */
     readonly shared: ReadonlyMap<BuiltNode, { readonly baseline: JsonObject; readonly rows: Map<string, JsonObject> }>;
+    /** What each source's record, origin, mapping and settings carry besides their members, by source id. */
+    readonly extras: readonly (readonly [string, SourceExtras])[];
+    /** What the reader source and its `add`s carry besides their members (`readerAddKey`). */
+    readonly readerAdds: ReadonlyMap<string, JsonObject>;
 }
 
 /** Saved edge ids, by load and then key. */
@@ -1234,7 +1608,7 @@ function reportEmpty(into: Building, source: string, empty: ReadonlyMap<string, 
 
 /**
  * Build a source's node rows by key in its space. With no key column every row is keyless (spec
- * 4.1.3 rule 2): it keeps its row, in the space `source:<source id>`. A row whose key cell is null
+ * 4.1.3 rule 2): it is keyed by its content (spec 6.1), in the space `source:<source id>`. A row whose key cell is null
  * or empty is left out and counted (spec 6.1).
  * @param source - The source.
  * @param into - The build so far.
@@ -1243,13 +1617,14 @@ function reportEmpty(into: Building, source: string, empty: ReadonlyMap<string, 
  * @param clash - The step's clash rules.
  */
 function buildNodes(source: ReadSource, into: Building, nodeMap: JsonObject, duplicates: string, clash: Clash): void {
-    const { id, copyId, nodes } = source;
+    const { id, nodes } = source;
     const keyColumn = typeof nodeMap.key === "string" ? nodeMap.key : undefined;
+    const rows = Array.from({ length: nodes?.length ?? 0 }, (_, row) => rowOf(nodes as Table, row));
+    const keyless = keyColumn === undefined ? keylessNodeKeys(rows) : [];
     const keyedSpace = keyColumn === undefined ? undefined : String(nodeMap.space).normalize("NFC");
     const seen = new Set<BuiltNode>();
     const empty = new Map<string, number>();
-    for (let row = 0; nodes !== undefined && row < nodes.length; row++) {
-        const values = rowOf(nodes, row);
+    for (const [row, values] of rows.entries()) {
         const cell = keyColumn === undefined ? undefined : values[keyColumn];
         const keyed = keyText(cell);
         if (keyColumn !== undefined && keyed === undefined) {
@@ -1257,7 +1632,7 @@ function buildNodes(source: ReadSource, into: Building, nodeMap: JsonObject, dup
             continue;
         }
 
-        const ref = keyedRef(keyedSpace, keyed) ?? { space: `source:${id}`, key: `${copyId}#${String(row)}` };
+        const ref = keyedRef(keyedSpace, keyed) ?? { space: `source:${id}`, key: keyless[row] };
         supplyNode(nodeAt(into, ref, keyed === undefined ? ref.key : cell), values, id, {
             seen,
             duplicates,
@@ -1314,16 +1689,17 @@ function supplyNode(
  * @param choices - Its `duplicateIds` and `unmatched`.
  */
 function buildEdges(source: ReadSource, into: Building, edgeMap: JsonObject, choices: Choices): void {
-    const { id, copyId, edges } = source;
+    const { id, edges } = source;
     const edgeId = typeof edgeMap.edgeId === "string" ? edgeMap.edgeId : undefined;
     const [from, to] = [String(edgeMap.source), String(edgeMap.target)];
+    const rows = Array.from({ length: edges?.length ?? 0 }, (_, row) => rowOf(edges as Table, row));
+    const keyless = keylessEdgeKeys(rows, { source: from, target: to, edgeId });
     const [fromSpace, toSpace] = [String(edgeMap.sourceSpace), String(edgeMap.targetSpace)].map((each) =>
         each.normalize("NFC"),
     );
     const own = new Set<BuiltEdge>();
     const empty = new Map<string, number>();
-    for (let row = 0; edges !== undefined && row < edges.length; row++) {
-        const values = rowOf(edges, row);
+    for (const [row, values] of rows.entries()) {
         const [a, b] = [keyText(values[from]), keyText(values[to])];
         if (a === undefined || b === undefined) {
             // An empty end never becomes a node: the row is left out and counted (spec 6.1).
@@ -1332,7 +1708,7 @@ function buildEdges(source: ReadSource, into: Building, edgeMap: JsonObject, cho
             continue;
         }
 
-        const key = (edgeId === undefined ? undefined : keyText(values[edgeId])) ?? `${copyId}#${String(row)}`;
+        const key = (edgeId === undefined ? undefined : keyText(values[edgeId])) ?? String(keyless[row]);
         const ref: EdgeRef = { load: id, key };
         // Every working column is the edge's, its end columns included (spec 4.1.9).
         const columns: JsonObject = { ...values };
@@ -1787,12 +2163,13 @@ function loadOf(record: JsonObject, key: string, added: { nodes: number; edges: 
     const origin = isPlainObject(record.origin) ? record.origin : {};
     const settings = isPlainObject(record.settings) ? record.settings : {};
     const label = typeof record.label === "string" ? record.label : key;
-    const options = isPlainObject(record.options) ? record.options : {};
+    const format = typeof record.format === "string" ? record.format : undefined;
+    const options = configOf(format, isPlainObject(record.options) ? record.options : {});
     return {
         key,
         kind: LOAD_KINDS[String(record.kind)] ?? "file",
         name: label,
-        ...(typeof record.format === "string" ? { type: record.format } : {}),
+        ...(format === undefined ? {} : { type: format }),
         config: typeof origin.url === "string" ? { ...options, url: origin.url } : options,
         ...(typeof origin.name === "string" ? { fileName: origin.name } : {}),
         ...(typeof origin.size === "number" ? { size: origin.size } : {}),
@@ -1950,9 +2327,14 @@ function joinsKept(section: Checked): Pick<Built, "staged" | "joins" | "addChoic
         staged: [...section.sources.values()].filter(({ id }) => !section.adds.has(id)).map(({ record }) => record),
         joins: section.joins,
         addChoices: [...section.adds].flatMap(([id, step]) => {
-            const kept = Object.fromEntries(
-                ["clash", "duplicateIds"].flatMap((name) => (step[name] === undefined ? [] : [[name, step[name]]])),
-            );
+            // Its slots and the members its `ignorable` names go with it (spec 10, rule 5).
+            const extras = section.extras.kept.get(`/joins/${String(section.joins.indexOf(step))}`) ?? {};
+            const kept = {
+                ...Object.fromEntries(
+                    ["clash", "duplicateIds"].flatMap((name) => (step[name] === undefined ? [] : [[name, step[name]]])),
+                ),
+                ...extras,
+            };
             return Object.keys(kept).length === 0 ? [] : [[id, kept] as const];
         }),
     };
@@ -2019,6 +2401,10 @@ function sharedNodes(nodes: Iterable<BuiltNode>): Built["shared"] {
 function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
     const section = checked(body);
     const before = problems.length;
+    for (const pointer of section.extras.ignored) {
+        problems.push({ code: "W_UNKNOWN_MEMBER", params: { section: "data", pointer } });
+    }
+
     const held = new Set(
         [...section.sources.values()]
             .filter((source) => !source.embedded && section.adds.has(source.id))
@@ -2082,6 +2468,8 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
         sourceRoles,
         edits: into.edits,
         shared,
+        extras: [...section.sources.values()].map(({ id, extras }) => [id, extras] as const),
+        readerAdds: section.readerAdds,
         ...joinsKept(section),
         refused: problems
             .slice(before)
@@ -2172,15 +2560,26 @@ async function restoreSettings(built: Built, tx: TransactionScope): Promise<void
  */
 function ledgersOf(built: Built): Map<string, SourceLoadRecord> {
     const kinds = new Map(built.kinds);
+    const ids = new Map(built.nodes.map((node) => [recordKey(node.ref.space, node.ref.key), node.id]));
+    const loaded = new Map(built.loads.map((load) => [load.key, load.loadedAt]));
+    const now = new Date().toISOString();
     return new Map(
         built.origins.flatMap(([id, origin]) => {
-            const { ledger } = origin;
-            return kinds.get(id) === "network" &&
-                isPlainObject(ledger) &&
-                typeof ledger.source === "string" &&
-                Array.isArray(ledger.expansions)
-                ? [[id, { ...(ledger as unknown as SourceLoadRecord), key: id }] as const]
-                : [];
+            const record = { kind: "network", origin };
+            // A ledger this reader cannot read leaves its source not refreshable (spec 4.1.10).
+            if (
+                kinds.get(id) !== "network" ||
+                !isPlainObject(origin.ledger) ||
+                unreadOf(record, "", { kept: new Map(), ignored: [] }) !== undefined
+            ) {
+                return [];
+            }
+
+            const idOf = (seed: unknown): NodeId | undefined => {
+                const ref = nodeRefOf(seed);
+                return ref === undefined ? undefined : ids.get(recordKey(ref.space, ref.key));
+            };
+            return [[id, recordOfLedger(id, origin.ledger, loaded.get(id) ?? now, idOf)] as const];
         }),
     );
 }
@@ -2230,8 +2629,13 @@ async function apply(
     // A network source's nodes name its load, as a load the session made does, so `data.refresh`
     // replays the request history its record keeps (spec 4.1.2 rule 7).
     const ledgers = ledgersOf(built);
+    // The file does not say which nodes an expansion brought, so each of the source's nodes names
+    // its expansions too: the record keeps them while any of its nodes is in the graph.
     const named = (element: { readonly loads: readonly string[] }): JsonObject => {
-        const keys = element.loads.filter((load) => ledgers.has(load));
+        const keys = element.loads.flatMap((load) => {
+            const ledger = ledgers.get(load);
+            return ledger === undefined ? [] : [load, ...ledger.expansions.map((expansion) => expansion.key)];
+        });
         return keys.length === 0 ? {} : { [SOURCE_ATTR.loads]: keys };
     };
     await tx.execute({
@@ -2384,6 +2788,8 @@ async function apply(
         joins: built.joins,
         addChoices: built.addChoices,
         roles: { patch: built.roles.patch, sources: built.sourceRoles },
+        extras: built.extras,
+        readerAdds: built.readerAdds,
         edits: built.edits.flatMap(({ operation, node, edge, column, before }) => {
             const id = node === undefined ? ids.get(edge as BuiltEdge) : node.id;
             return id === undefined
@@ -2553,6 +2959,7 @@ async function rebuildKeepingPlaces(tx: TransactionScope, rebuild: () => Promise
 const REFRESH_REFUSED: Readonly<Record<string, "E_TOO_LARGE" | "E_PARSE_FAILED" | "E_FETCH_FAILED">> = {
     "too-large": "E_TOO_LARGE",
     read: "E_PARSE_FAILED",
+    options: "E_PARSE_FAILED",
 };
 
 /**
@@ -2568,8 +2975,9 @@ const REFRESH_REFUSED: Readonly<Record<string, "E_TOO_LARGE" | "E_PARSE_FAILED" 
  * @param how.signal - Aborts the fetch.
  * @returns What the refresh added, or undefined when the source is not held.
  * @throws A `GraphtyError`: `E_FETCH_FAILED` (`details.source`, `details.reason`) when it still
- *     cannot be fetched, `E_TOO_LARGE` past the open's size limit, `E_PARSE_FAILED` when its bytes
- *     do not parse; the source stays held.
+ *     cannot be fetched or its ledger cannot be read, `E_TOO_LARGE` past the open's size limit,
+ *     `E_PARSE_FAILED` when its bytes do not parse or its parse options cannot be read; the
+ *     source stays held.
  */
 export async function refreshHeldSource(
     session: GraphSession,
@@ -2579,6 +2987,17 @@ export async function refreshHeldSource(
     const held = heldRecordOf(session, source);
     if (held === undefined) {
         return undefined;
+    }
+
+    // Parse options or a ledger this reader cannot read: no read of it would read it as saved.
+    const unread = unreadOf(held, "", { kept: new Map(), ignored: [] });
+    if (unread !== undefined) {
+        throw new GraphtyError({
+            code: REFRESH_REFUSED[unread.reason] ?? "E_FETCH_FAILED",
+            message: `The source ${source} could not be read again (${unread.reason}).`,
+            source: "data",
+            details: { source, reason: unread.reason },
+        });
     }
 
     // Every other source read by reference is built from its rows as the session holds them now.

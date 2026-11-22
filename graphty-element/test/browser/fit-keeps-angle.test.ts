@@ -70,10 +70,14 @@ async function mounted(mode: "2d" | "3d", pivotOnSelection = false): Promise<Gra
     return element;
 }
 
-/** Orbit by a real pointer drag across the canvas. */
+/** Orbit by a real pointer drag across the canvas, from a corner no node is drawn over. */
 async function orbit(element: Graphty): Promise<void> {
-    await drag(element.graph.canvas, { x: 200, y: 150 }, { x: 330, y: 230 });
+    await drag(element.graph.canvas, { x: 60, y: 40 }, { x: 190, y: 120 });
     await element.waitForStableFrame();
+    // A drag that lands on a node moves the node and leaves the view as it was.
+    const turn = element.graph.getCameraState().pivotRotation;
+    assert.exists(turn);
+    assert.isAbove(Math.hypot(turn.x, turn.y, turn.z), 0.1, "the drag turned the view");
 }
 
 function direction(element: Graphty): number[] {

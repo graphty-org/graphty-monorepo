@@ -29,7 +29,7 @@ import type { EdgeEffectBatch, ShadedEdgeBatch, ShadedLineOptions } from "./Edge
 import { EDGE_STATIC_FLOATS } from "./edgeJoinShader";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import type { MeshCache } from "./MeshCache";
-import { ENTRANCE_CAP, NodeShaderData } from "./NodeShaderDrawing";
+import { ENTRANCE_CAP, NodeShaderData, RowArrivals } from "./NodeShaderDrawing";
 
 /** The stamp of a state that never changed. */
 export const EDGE_NEVER = -1;
@@ -266,17 +266,7 @@ export class EdgeShaderDrawing {
      * @param row - The edge's row.
      */
     rowArrived(row: number): void {
-        const now = performance.now();
-        for (const [old, at] of this.rowArrivals) {
-            if (now - at <= CAUSE_WINDOW_MS) {
-                break;
-            }
-
-            this.rowArrivals.delete(old);
-        }
-
-        this.rowArrivals.delete(row);
-        this.rowArrivals.set(row, now);
+        this.rowArrivals.note(row);
     }
 
     /**
@@ -288,11 +278,11 @@ export class EdgeShaderDrawing {
      *   add must not play (issue #9438).
      */
     rowArrivalOf(row: number): number {
-        return this.rowArrivals.get(row) ?? Number.NEGATIVE_INFINITY;
+        return this.rowArrivals.of(row);
     }
 
     /** When each edge row stored with no `Edge` arrived, oldest first; see {@link rowArrived}. */
-    private readonly rowArrivals = new Map<number, number>();
+    private readonly rowArrivals = new RowArrivals<number>();
 
     /**
      * Decide whether a shader an edge starts carrying plays its entrance: when the edge arrived or

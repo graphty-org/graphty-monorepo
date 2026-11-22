@@ -150,10 +150,12 @@ import {
     type Caveats,
     createLocalRunQueue,
     createRunsApi,
-    ENGINE_VERSIONS,
+    type EngineVersions,
+    LAYOUT_ENGINE,
     ManagedRun,
     type ResolvedScope,
     type Run,
+    RUN_ENGINE,
     type RunExecutionContext,
     type RunExecutor,
     type RunOptions,
@@ -161,6 +163,7 @@ import {
     type RunReader,
     type RunsApi,
     type SessionRunsApi,
+    withAcceleratorPackage,
 } from "./runs";
 import { canonicalize, freezeScope, frozenSelection, type LiveKeyword } from "./runs/runId";
 import type { RunLiveScope } from "./runs/types";
@@ -1640,6 +1643,15 @@ class Session implements ElementSession {
     private layoutDrive(): LayoutDrive {
         return {
             motion: () => this.motion,
+            provenance: () => {
+                const service = this.dispatcher.services.layout;
+                return service === undefined
+                    ? this.runner.provenance
+                    : {
+                          ...withAcceleratorPackage(LAYOUT_ENGINE, this.controller.accelerator ?? null),
+                          accelerator: service.accelerator?.() ?? "cpu",
+                      };
+            },
             steps: () => this.runner.steps,
             runner: () => (this.dispatcher.services.layout === undefined ? this.runner : null),
             rested: () =>
@@ -2076,6 +2088,8 @@ function restoredEntries(saved: { readonly order: readonly NodeId[]; readonly xy
 /** What the layout verbs reach besides the dispatcher. */
 interface LayoutDrive {
     motion(): LayoutMotion;
+    /** The code that draws the layout in force. */
+    provenance(): EngineVersions;
     steps(): number;
     /** The runner while no renderer draws; null once one does. */
     runner(): LayoutRunner | null;
@@ -2121,6 +2135,9 @@ function layoutOf(
         },
         get arrangedDimension() {
             return arrangedDimension(choice());
+        },
+        get provenance() {
+            return drive.provenance();
         },
         get motion() {
             return drive.motion();
@@ -3715,6 +3732,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         inputs.tick.advance();
     };
     const acceleration = resolveAcceleration(options.acceleration, policy, minNodes);
+    /**
+     * The code a run reports when the host names none: the element, the algorithms and the
+     * attached accelerator's package.
+     * @returns The engine.
+     */
+    const runEngine = (): EngineVersions =>
+        withAcceleratorPackage(RUN_ENGINE, acceleration.controller.accelerator ?? null);
     const snapshot = (): WholeSnapshot => wholeGraph(store.store);
     const dataRevision = dataRevisionOf(snapshot, inputs);
     dispatcher.arrangement.bind({
@@ -4343,7 +4367,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             snapshot,
             () => dispatcher.state.graph.token,
         ),
-        engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        // Read when a run is defined, so a run records the accelerator attached when it ran.
+        engine: runsOptions.engine ?? runEngine,
         defaultScope,
         onExecution: advanceTick,
         onRemoved: (id: RunId) => {
@@ -4552,7 +4577,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The journal, published as `session.journal`: every command that finishes writes one entry,
     // before its promise resolves, so a run reports its entry by the time it reports done.
     const journal = createJournal({
-        engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        engine: runsOptions.engine ?? runEngine(),
         onAppend: (entry) => {
             publish(watchers, "journal:appended", { entry });
         },
@@ -5259,7 +5284,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // stack draws it (Outside: Ghost), never a held condition's ghosts.
         drawn: () =>
             visibility.outsideWindowBytes() !== null && drawsOutsideWindow(dispatcher.state.styles) ? drawnRows : null,
-        engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        engine: runsOptions.engine ?? runEngine(),
         inputRevision: () => inputs.tick.value,
         stateRevision: () => stateRevision,
         onChange: (change) => {

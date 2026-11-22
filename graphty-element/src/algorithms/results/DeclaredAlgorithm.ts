@@ -193,6 +193,7 @@ export abstract class DeclaredAlgorithm<
         declared?: readonly FieldDescriptor[],
     ): Promise<RunResult | undefined> {
         const startedAt = Date.now();
+        this.forgetReachedAccelerator();
         // The weight the run asked its input for, if any: the element states it in the caveats,
         // so a plugin cannot read one weight and report another.
         let weight: Caveats["weight"];
@@ -241,7 +242,14 @@ export abstract class DeclaredAlgorithm<
                 snapshotIds: input.graph.ids,
                 edges: output.edges,
                 // An output written without `facts` (an extension's own literal) has none.
-                caveats: { facts: [], ...output.caveats, ...(weight === undefined ? {} : { weight }) },
+                // The hardware is the element's to state, as the weight is: the accelerator the
+                // work reached, else what an extension's own output says, else the CPU.
+                caveats: {
+                    facts: [],
+                    ...output.caveats,
+                    ...(weight === undefined ? {} : { weight }),
+                    accelerator: this.reachedAccelerator?.backend ?? output.caveats.accelerator ?? "cpu",
+                },
                 durationMs: Date.now() - startedAt,
             }),
         );

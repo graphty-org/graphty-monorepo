@@ -509,7 +509,8 @@ export interface NodeStyleValues {
     /** The tooltip text. */
     readonly tooltip: string;
     /**
-     * A second label drawn outside the node, beside it, in the label's font, size and color (Graphviz's `xlabel`).
+     * A second label drawn outside the node, beside it, in the label's font, size and color unless the `xlabel` ones
+     * below say otherwise (Graphviz's `xlabel`).
      * Unset `xlabelOffsetX` and `xlabelOffsetY`, it sits against the node's top left corner, outside it.
      */
     readonly xlabel: string;
@@ -519,6 +520,14 @@ export interface NodeStyleValues {
     readonly xlabelOffsetY: number;
     /** How the lines of `xlabel` line up with one another; unset, as the label's (`labelTextAlign`). */
     readonly xlabelTextAlign: StyleLabelTextAlign;
+    /** The text color of `xlabel`; unset, the label's (`labelColor`). */
+    readonly xlabelColor: StyleColor;
+    /** The font family of `xlabel`, as the file names it; unset, the label's (`labelFont`). */
+    readonly xlabelFont: string;
+    /** The font weight of `xlabel`; unset, the label's (`labelWeight`). */
+    readonly xlabelWeight: StyleLabelWeight;
+    /** Whether `xlabel` is italic; unset, as the label is (`labelItalic`). */
+    readonly xlabelItalic: boolean;
     /** The label's font family, as the file names it. */
     readonly labelFont: string;
     /** The label's font weight. */
@@ -934,6 +943,10 @@ export interface EdgeStyleValues {
      * line is drawn at its width alone.
      */
     readonly minScreenWidth: number;
+    /**
+     * Where the line is drawn among crossing lines, 0 to 100: a higher one is drawn over a lower one. Unset, no order.
+     */
+    readonly drawOrder: number;
     /** The label's font size. */
     readonly labelSize: number;
     /** The arrow size as a factor: 1 is the writing tool's normal size. With `sourceArrowSize`, the target's alone. */

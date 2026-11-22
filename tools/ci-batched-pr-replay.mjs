@@ -19,10 +19,11 @@
  * its tests.
  */
 
-import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+
+import { git as runGit } from "./lib/git.mjs";
 
 /** A file's test time, ms (see the header). */
 const FILE_MS = 3_900;
@@ -42,7 +43,7 @@ const root = resolve(values.root);
 const tools = resolve(values.tools ?? `${root}/tools`);
 const sel = await import(pathToFileURL(`${tools}/test-select.mjs`).href);
 const { plan, SHARDS } = await import(pathToFileURL(`${tools}/ci-test-matrix.mjs`).href);
-const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 }).trim();
+const git = (...args) => runGit(args, { cwd: root });
 
 const shards = SHARDS.filter((s) => s.package === "graphty-element");
 const durations = Object.fromEntries(Object.values(FAMILIES).map((f) => [f, { "(every file)": FILE_MS }]));

@@ -29,7 +29,7 @@ import {
     type JoinedLineOptions,
     type JoinedPatternKind,
 } from "./CustomLineRenderer";
-import type { EdgeLineBatch } from "./EdgeLineBatch";
+import { type EdgeLineBatch, stackByDrawOrder } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
 import { FrameRoster } from "./FrameRoster";
@@ -426,6 +426,9 @@ export class EdgeMesh {
      *     still when widened.
      * @param byShape - Share the batch with every line of the same shape, whatever its color (see
      *     above); the caller then colors each slot it takes.
+     *
+     * A line with a draw order (`line.drawOrder`) is drawn by a batch of that order, drawn after every batch of a
+     * lower one and before every batch with none ({@link stackByDrawOrder}).
      * @returns The batch to take a slot in, or null for a patterned line.
      */
     static lineBatch(
@@ -436,14 +439,41 @@ export class EdgeMesh {
         widened = false,
         byShape = false,
     ): EdgeLineBatch | null {
+        const batch = this.lineBatchOf(cache, options, style, scene, widened, byShape);
+        if (batch !== null) {
+            stackByDrawOrder(batch.mesh, style.line?.drawOrder);
+        }
+
+        return batch;
+    }
+
+    /**
+     * {@link EdgeMesh.lineBatch}, before it is stacked by draw order.
+     * @param cache - The mesh cache.
+     * @param options - Edge mesh options.
+     * @param style - Full edge style configuration.
+     * @param scene - Babylon.js scene.
+     * @param widened - A batch whose slots carry a taper.
+     * @param byShape - Share the batch with every line of the same shape.
+     * @returns The batch, or null for a patterned line.
+     */
+    private static lineBatchOf(
+        cache: MeshCache,
+        options: EdgeMeshOptions,
+        style: EdgeStyleConfig,
+        scene: Scene,
+        widened: boolean,
+        byShape: boolean,
+    ): EdgeLineBatch | null {
         const lineType = style.line?.type ?? "solid";
         const styleKey = `edge-style-${options.styleId}${widened ? "-w" : ""}`;
         const shared = byShape && !widened;
         // a program's own dash length and gap (`line.dashLength`, `line.dashGap`) are the batch's pattern, so they
         // part batches as the line type does
         const dashes = `${String(style.line?.dashLength ?? "")}|${String(style.line?.dashGap ?? "")}|${String(this.dashArrayOf(style))}`;
+        const order = style.line?.drawOrder === undefined ? "" : `|o${String(style.line.drawOrder)}`;
         const key = shared
-            ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${this.pulledPass(style)}|${String(style.line?.patternCount ?? "")}|${dashes}`
+            ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${this.pulledPass(style)}|${String(style.line?.patternCount ?? "")}|${dashes}${order}`
             : styleKey;
         // A batch shared by shape holds edges of many opacities, so its first edge's opacity is not
         // its mesh's visibility: at 0 Babylon would draw none of them. Its translucent slots put it
@@ -1445,18 +1475,36 @@ export class EdgeMesh {
         arrowLength: number,
         geometry: ArrowGeometry,
     ): Vector3 {
+        return EdgeMesh.arrowPositionToRef(surfacePoint, direction, arrowLength, geometry, new Vector3());
+    }
+
+    /**
+     * {@link calculateArrowPosition} into a vector the caller holds, for a placement made every frame.
+     * @param surfacePoint - Point on the node surface where the arrow should touch
+     * @param direction - Direction vector from surface outward
+     * @param arrowLength - Length of the arrow in world units
+     * @param geometry - Arrow geometry configuration
+     * @param out - Receives the position.
+     * @returns `out`.
+     */
+    static arrowPositionToRef(
+        surfacePoint: Vector3,
+        direction: Vector3,
+        arrowLength: number,
+        geometry: ArrowGeometry,
+        out: Vector3,
+    ): Vector3 {
         const scaleFactor = geometry.scaleFactor ?? 1;
-
-        if (geometry.positioningMode === "center") {
-            // Center-based: position center back by radius so front edge touches surface
-            const actualSize = arrowLength * scaleFactor;
-            const radius = actualSize / 2;
-            return surfacePoint.subtract(direction.scale(radius));
-        }
-
-        // Tip-based: apply custom offset
-        const offset = arrowLength * geometry.positionOffset;
-        return surfacePoint.subtract(direction.scale(offset));
+        // Center-based: position center back by radius so front edge touches surface; tip-based: a custom offset
+        const back =
+            geometry.positioningMode === "center"
+                ? (arrowLength * scaleFactor) / 2
+                : arrowLength * geometry.positionOffset;
+        return out.set(
+            surfacePoint.x - direction.x * back,
+            surfacePoint.y - direction.y * back,
+            surfacePoint.z - direction.z * back,
+        );
     }
 
     /**

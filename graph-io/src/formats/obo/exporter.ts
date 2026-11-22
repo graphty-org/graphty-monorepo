@@ -53,6 +53,7 @@ import { agree, plural } from "../../common/plural.js";
 import { itemAt, jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { BOOL_TAGS, DEPRECATED_TAGS, ID_LIST_TAGS, TEXT_TAGS, TYPEDEF_TAGS } from "./importer.js";
 import {
@@ -2202,38 +2203,40 @@ function* written(
  * The OBO exporter plugin.
  * @category Built-in formats
  */
-export const oboExporter: GraphExporter<OboExportOptions> = Object.freeze({
-    format: "obo",
-    options: Object.freeze(["ontology", "relation"]),
-    capabilities: OBO_CAPABILITIES,
+export const oboExporter: GraphExporter<OboExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: "obo",
+        options: Object.freeze(["ontology", "relation"]),
+        capabilities: OBO_CAPABILITIES,
 
-    /**
-     * Pre-flight: what export() would lose, without writing anything.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: OboExportOptions & CommonExportOptions): readonly LossNote[] {
-        return Object.freeze([...plan(snapshot, options).notes]);
-    },
+        /**
+         * Pre-flight: what export() would lose, without writing anything.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the notes, empty when the export is exact
+         */
+        check(snapshot: GraphSnapshot, options?: OboExportOptions & CommonExportOptions): readonly LossNote[] {
+            return Object.freeze([...plan(snapshot, options).notes]);
+        },
 
-    /**
-     * Write the file as UTF-8 chunks.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: OboExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(written(snapshot, options));
-    },
+        /**
+         * Write the file as UTF-8 chunks.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the chunks
+         */
+        export(snapshot: GraphSnapshot, options?: OboExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
+            return encodeChunks(written(snapshot, options));
+        },
 
-    /**
-     * Write the file as one string.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the file
-     */
-    exportToString(snapshot: GraphSnapshot, options?: OboExportOptions & CommonExportOptions): Promise<string> {
-        return joinText(written(snapshot, options));
-    },
-});
+        /**
+         * Write the file as one string.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the file
+         */
+        exportToString(snapshot: GraphSnapshot, options?: OboExportOptions & CommonExportOptions): Promise<string> {
+            return joinText(written(snapshot, options));
+        },
+    }),
+);

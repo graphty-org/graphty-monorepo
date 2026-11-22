@@ -15,7 +15,16 @@ const EVENTS = "layoutstart layoutready layoutstop";
 function gridElements(): ElementDefinition[] {
     const els: ElementDefinition[] = [];
     for (let i = 0; i < 12; i++) {
-        els.push({ data: { id: `n${i}`, subset: i % 3, side: (Math.floor(i / 4) + (i % 4)) % 2 } });
+        els.push({
+            data: {
+                id: `n${i}`,
+                subset: i % 3,
+                side: (Math.floor(i / 4) + (i % 4)) % 2,
+                // for graphty-geographic
+                latitude: 10 * Math.floor(i / 4),
+                longitude: 10 * (i % 4),
+            },
+        });
     }
     for (let i = 0; i < 12; i++) {
         if (i % 4 < 3) {
@@ -82,8 +91,8 @@ beforeAll(() => {
 const runnable = LAYOUT_NAMES.filter((n) => n !== "spring-electrical");
 
 describe("every graphty layout", () => {
-    it("registers thirteen static layouts and three simulations", () => {
-        expect(LAYOUT_NAMES).toHaveLength(16);
+    it("registers fourteen static layouts and three simulations", () => {
+        expect(LAYOUT_NAMES).toHaveLength(17);
     });
 
     for (const name of runnable) {
@@ -181,6 +190,35 @@ describe("static layouts", () => {
             expect(p.y).toBeLessThanOrEqual(corners.y2 + 1e-6);
         }
         expectPlaced(cy);
+    });
+
+    it("graphty-geographic reads lat / lon fields by graph-io's name rule with no options", async () => {
+        const cy = cytoscape({
+            headless: true,
+            elements: [
+                { data: { id: "west", lat: 0, Lon: -60 } },
+                { data: { id: "east", lat: 0, Lon: 60 } },
+                { data: { id: "north", lat: 50, Lon: 0 } },
+            ],
+        });
+        await run(cy, { name: "graphty-geographic" });
+        const p = positions(cy);
+        expect(p.get("east")?.x).toBeGreaterThan(p.get("west")?.x ?? Infinity);
+        // Cytoscape's y grows down
+        expect(p.get("north")?.y).toBeLessThan(p.get("west")?.y ?? -Infinity);
+    });
+
+    it("graphty-geographic reads the fields it is given over ones the name rule would find", async () => {
+        const cy = cytoscape({
+            headless: true,
+            elements: [
+                { data: { id: "a", lat: 0, lon: -60, y: 0, x: 60 } },
+                { data: { id: "b", lat: 0, lon: 60, y: 0, x: -60 } },
+            ],
+        });
+        await run(cy, { name: "graphty-geographic", latitude: "y", longitude: "x" });
+        const p = positions(cy);
+        expect(p.get("a")?.x).toBeGreaterThan(p.get("b")?.x ?? Infinity);
     });
 
     it("graphty-spectral brings a grid's columns and rows back", async () => {

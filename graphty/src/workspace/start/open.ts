@@ -21,12 +21,13 @@ import { APP_CALLER_KEY } from "../../lib/analytics";
 import { siteConfig } from "../../siteConfig";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
-import { fileStylesOn } from "../features";
+import { fileStylesOn, sourceStepsOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { notReadWords } from "../project/words";
 import { replaceWith } from "../replace/commands";
 import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
+import { askIfDraftOpen } from "../source-steps/preview";
 import { newProjectId, type Opener, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
 import { labelRow } from "../style/row";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
@@ -73,6 +74,9 @@ export function openProject(
             },
         }),
         ends: null,
+        sourceCard: null,
+        stagedEnds: null,
+        draftOpen: null,
         pickedSource: null,
         dataTab: "loaded",
     }));
@@ -359,8 +363,12 @@ async function drawFirst(
     const mapping = lone ? { rowsAre: "nodes" as const } : draft.mapping;
     // A graph file keeps the roles its format sets.
     const styled = fileStylesOn(session);
+    const styles = styled ? fileStylesChoice() : "none";
     await draft.load({
-        ...(styled ? { styles: fileStylesChoice(), styleOptions: FILE_STYLE_OPTIONS } : {}),
+        ...(styled ? { styles, styleOptions: FILE_STYLE_OPTIONS } : {}),
+        // Drawn with its file's styles, the graph is laid out as the element recommends for it, so a file that stores
+        // its drawing (a Cytoscape session) opens where its program put its nodes (issue #9297).
+        ...(styles === "file" ? { layout: "recommended" as const } : {}),
         ...(fixed ? {} : { mapping }),
         ...(fresh ? OPENING : {}),
         ...(origin === undefined ? {} : { origin }),
@@ -375,14 +383,20 @@ async function drawFirst(
     }
     if (!ready) {
         workspace.set({ dockOpen: true, dockMaximized: true, place: "data", ...panelsInView() });
-    } else if (session.data.issues().length > 0) {
+    } else if (
+        // A graph file's repeated edges are its own parallel edges (Cytoscape draws them side by side), not a problem
+        // to show at once (issue #9297); the Data panel still lists them.
+        session.data.issues().some((issue) => !(fixed && issue.code === "repeated-edge"))
+    ) {
         workspace.set({ dockOpen: true });
     }
 }
 
 /**
  * A second source while the graph holds data (spec sections 2.1, 3.6 and 3.7): a copy of a loaded
- * source replaces it; anything else is read as a table to join and waits for the join screen.
+ * source replaces it; anything else is read as a table to join and waits for the join screen. With
+ * the source-steps experiment on, every second source is staged instead (design
+ * design/data/multiple-data-sources-design.md, section 5.1).
  * @param workspace - the workspace store.
  * @param session - the project's session.
  * @param incoming - the source.
@@ -394,6 +408,22 @@ async function takeIn(
     incoming: Incoming,
     read?: LoadDraft,
 ): Promise<void> {
+    if (sourceStepsOn(session)) {
+        // Sources and steps: it waits staged in its own section of the Data place, drawing nothing,
+        // until the reader adds or joins it there. Its key is guessed as a first source's is.
+        read?.dispose();
+        const stage = async (): Promise<void> => {
+            await session.data.stage(incoming.source, { guess: "values" });
+            workspace.set({ place: "data", dataTab: "loaded" });
+        };
+        // An open source card's draft refuses it: the reader commits or discards the draft first.
+        await stage().catch((error: unknown) => {
+            if (!askIfDraftOpen(workspace, error, stage)) {
+                throw error;
+            }
+        });
+        return;
+    }
     // The same columns: the same file again replaces at once; another file (next month's) opens
     // the join screen on Replace, with Add as rows beside it.
     const matches = await session.data.matchesSource(incoming.source);

@@ -20,10 +20,14 @@ import {
 import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// A second file by address opens the join screen only with sources and steps off: on, it is staged.
+withoutFeatures(["source-steps"]);
 
 /** The element, as the tag map names it. */
 type ElementTag = HTMLElementTagNameMap["graphty-element"];

@@ -30,6 +30,7 @@ export const SEARCH_ALIASES: Readonly<Partial<Record<Channel, readonly string[]>
     "node.texture": ["picture", "icon"],
     "node.opacity": ["transparency", "alpha"],
     "edge.opacity": ["transparency", "alpha"],
+    "edge.drawOrder": ["z-index", "z order", "paint order"],
     "node.visible": ["hide", "display"],
     "edge.visible": ["hide", "display"],
     "node.gradientColors": ["gradient stops"],

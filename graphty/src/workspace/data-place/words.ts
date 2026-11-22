@@ -19,6 +19,7 @@ import {
     type LocationUnused,
     type LocationUsing,
     pathParts,
+    type PositionAxis,
     type Run,
     type TableMappingRead,
 } from "@graphty/graphty-element/session";
@@ -340,7 +341,7 @@ function matchedUnit(shape: JoinShape): "node" | "edge" | "row" {
  * @param bytes - how many bytes.
  * @returns such as "45 B", "12 KB" or "1.4 MB".
  */
-function sizeWords(bytes: number): string {
+export function sizeWords(bytes: number): string {
     if (bytes < 1000) {
         return `${String(bytes)} B`;
     }
@@ -539,7 +540,16 @@ export const FIELD_ROWS: readonly FieldRow[] = [
 
 /** What a Fields "+" entry is. */
 export type EntryId =
-    "label" | "kind" | "kindName" | "weight" | "time" | LocationKind | "edgeId" | "sourceKind" | "targetKind";
+    | "label"
+    | "kind"
+    | "kindName"
+    | "weight"
+    | "time"
+    | LocationKind
+    | PositionAxis
+    | "edgeId"
+    | "sourceKind"
+    | "targetKind";
 
 /** One kind of Fields "+" entry. */
 export interface FieldEntry {
@@ -571,6 +581,9 @@ export const FIELD_ENTRIES: Readonly<Record<FieldSide, readonly FieldEntry[]>> =
         { id: "weight", name: "Weight", role: "weight" },
         { id: "time", name: "Time", role: "time" },
         ...LOCATION_ENTRIES,
+        { id: "x", name: "X", role: "x" },
+        { id: "y", name: "Y", role: "y" },
+        { id: "z", name: "Z", role: "z" },
     ],
     edges: [
         { id: "edgeId", name: "Id", load: "edgeId" },

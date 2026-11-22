@@ -92,7 +92,7 @@ const ZOOM_STEP_FACTOR = 1.25;
 const MAP_CLEARANCE = 1e-4;
 
 import { measureBounds } from "./camera/bounds.js";
-import { orbitAnglesToPosition } from "./camera/builtins.js";
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
 import { cameraRefusal, stateProblem } from "./camera/mode.js";
 import { orientationOf } from "./camera/orientation.js";
@@ -234,6 +234,7 @@ import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter"
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
 import { arrowCapMeshes } from "./meshes/ArrowCapBatch";
+import { edgeDrawPlace } from "./meshes/EdgeLineBatch";
 import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
@@ -5615,6 +5616,7 @@ export class Graph implements GraphContext {
             this.#nodeIds = target;
             useNodeIdTarget(this.scene, {
                 target,
+                // Builds the hovered row's Node on purpose: hover is delivered to its pointer handler.
                 nodeIdAt: (row) => this.dataManager.nodeAtRow(row)?.id,
                 hiddenRows: () => batches.hiddenRows(),
             });
@@ -5671,6 +5673,7 @@ export class Graph implements GraphContext {
                 this.#rowTable,
                 (row) => this.dataManager.nodeAtRow(row),
                 this.renderManager.graphRoot,
+                (row) => this.#nodeBatches?.columnRowOf(row) ?? this.dataManager.nodeAtRow(row),
             );
         }
 
@@ -6467,10 +6470,20 @@ export class Graph implements GraphContext {
         // Everything else in Babylon's own order, then the map, then the edges' bands, their lines,
         // then the nodes over them (nodes rank with everything else when no map is drawn) -- in the
         // blended pass too over a map, where the edge lines (antialiased) and their outlines are drawn.
+        // edge lines with a draw order (`line.drawOrder`) are drawn lowest first, before those with none
+        // (`stackByDrawOrder`); every other mesh keeps the order it had
+        const lineOrder = (a: AbstractMesh, b: AbstractMesh): number => {
+            const [at, bt] = [edgeDrawPlace(a), edgeDrawPlace(b)];
+            if (at === bt || !this.#edgeMeshes.has(a) || !this.#edgeMeshes.has(b)) {
+                return 0;
+            }
+
+            return at < bt ? -1 : 1;
+        };
         const byRank =
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>
-                rank(a.getMesh()) - rank(b.getMesh()) || then(a, b);
+                rank(a.getMesh()) - rank(b.getMesh()) || lineOrder(a.getMesh(), b.getMesh()) || then(a, b);
         const opaque = byRank((a, b) => RenderingGroup.PainterSortCompare(a, b));
         this.scene.setRenderingOrder(
             0,
@@ -7515,10 +7528,11 @@ export class Graph implements GraphContext {
                 continue;
             }
 
-            // A batched row is never turned: its box is its half extents about its place.
+            // A batched row is never turned: its box is its half extents about its source's box center.
             const local = columnCenter(table, row);
             const half = column.drawnHalfExtents;
-            const corners = boxCorners(local, half, world);
+            const off = column.drawnBoxCenter;
+            const corners = boxCorners(local.add(new Vector3(off.x, off.y, off.z)), half, world);
             const centre = world === undefined ? local : Vector3.TransformCoordinates(local, world);
             const worldRadius = Math.max(half.x, half.y, half.z) * rootScale;
             // A row whose source is off its batch (an object row of that look) is drawn by nothing.
@@ -9175,8 +9189,7 @@ export class Graph implements GraphContext {
             // Calculate current zoom from ortho bounds
             const currentSize = (twoDController.camera.orthoRight ?? 1) - (twoDController.camera.orthoLeft ?? -1);
             const halfSize = currentSize / 2;
-            const initialSize = twoDController.config.initialOrthoSize;
-            state.zoom = initialSize / halfSize;
+            state.zoom = FLAT_HALF_WIDTH_AT_ZOOM_ONE / halfSize;
 
             // Get pan from camera position
             state.pan = {
@@ -9425,7 +9438,7 @@ export class Graph implements GraphContext {
     ): void {
         // Set zoom (ortho bounds), then any edge the state names over it
         if (state.zoom !== undefined) {
-            controller.updateOrtho(controller.config.initialOrthoSize / state.zoom);
+            controller.updateOrtho(FLAT_HALF_WIDTH_AT_ZOOM_ONE / state.zoom);
         }
 
         for (const edge of ORTHO_EDGES) {
@@ -9815,8 +9828,8 @@ export class Graph implements GraphContext {
         // Animate the frustum: the zoom's symmetric frame, with any edge the state names over it
         const edges = { ...dummy };
         if (targetState.zoom !== undefined) {
-            // Zoom is absolute: 1.0 = initial size, 2.0 = half size (zoomed in), 0.5 = double size (zoomed out)
-            const targetSize = twoDController.config.initialOrthoSize / targetState.zoom;
+            // Zoom is absolute: 1.0 = FLAT_HALF_WIDTH_AT_ZOOM_ONE units either side, 2.0 = half that
+            const targetSize = FLAT_HALF_WIDTH_AT_ZOOM_ONE / targetState.zoom;
             // Keep the current proportions
             const aspect = (dummy.orthoTop - dummy.orthoBottom) / (dummy.orthoRight - dummy.orthoLeft);
             edges.orthoLeft = -targetSize;

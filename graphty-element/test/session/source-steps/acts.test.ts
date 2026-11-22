@@ -89,7 +89,7 @@ describe("source-steps: the acts", () => {
     it("phase 6: after the merge, one undo step returns accounts.csv to staged", async () => {
         const { session, t, a } = await phase6();
         assert.deepStrictEqual(spaces(session), { account: 4, merchant: 3, device: 2 });
-        assert.strictEqual(session.data.sources().find((s) => s.key === a)?.state, "built");
+        assert.strictEqual(session.data.sources({ staged: true }).find((s) => s.key === a)?.state, "built");
         const ref = { space: "account", key: "A-1" };
         const lineage = session.data.lineage(ref);
         assert.deepStrictEqual(lineage?.supplied, [t, a]);
@@ -103,7 +103,7 @@ describe("source-steps: the acts", () => {
         assert.strictEqual(session.data.cell(ref, "email")?.state, "value");
         assert.strictEqual(session.data.cell(ref, "nonexistent")?.state, "not-carried");
         await session.undo();
-        assert.strictEqual(session.data.sources().find((s) => s.key === a)?.state, "staged");
+        assert.strictEqual(session.data.sources({ staged: true }).find((s) => s.key === a)?.state, "staged");
         assert.deepStrictEqual(spaces(session), { account: 3, merchant: 3, device: 2 });
         session.dispose();
     });
@@ -196,7 +196,7 @@ describe("source-steps: the acts", () => {
         const index = session.data.steps().findIndex((s) => s.source === b);
         await session.data.removeStep(index);
         assert.strictEqual(ends(session).length, before - 2);
-        assert.strictEqual(session.data.sources().find((s) => s.key === b)?.state, "staged");
+        assert.strictEqual(session.data.sources({ staged: true }).find((s) => s.key === b)?.state, "staged");
         assert.isNull(session.data.lineage({ space: "account", key: "B-7" }));
         await session.undo();
         assert.strictEqual(ends(session).length, before);
@@ -219,12 +219,12 @@ describe("source-steps: the acts", () => {
         const at = (op: string): number => merged.session.data.steps().findIndex((s) => s.op === op && s.source === a2);
         await merged.session.data.removeStep(at("join.merge"));
         await merged.session.data.removeStep(at("join.add"));
-        assert.strictEqual(merged.session.data.sources().find((s) => s.key === a2)?.state, "staged");
+        assert.strictEqual(merged.session.data.sources({ staged: true }).find((s) => s.key === a2)?.state, "staged");
         await merged.session.data.add(a2);
         assert.deepStrictEqual(spaces(merged.session), spaces(fresh.session));
         assert.deepStrictEqual(
-            merged.session.data.sources().find((s) => s.key === a2)?.issues,
-            fresh.session.data.sources().find((s) => s.key === a1)?.issues,
+            merged.session.data.sources({ staged: true }).find((s) => s.key === a2)?.issues,
+            fresh.session.data.sources({ staged: true }).find((s) => s.key === a1)?.issues,
         );
         await refused(() => merged.session.data.add(a2), "E_BAD_COMMAND");
         fresh.session.dispose();
@@ -321,7 +321,11 @@ describe("source-steps: the acts", () => {
                 }),
             "E_AMBIGUOUS_ID",
         );
-        assert.strictEqual(session.data.sources().find((s) => s.key === k)?.state, "staged", "nothing changed");
+        assert.strictEqual(
+            session.data.sources({ staged: true }).find((s) => s.key === k)?.state,
+            "staged",
+            "nothing changed",
+        );
         // Naming the end by its space joins onto that end's nodes.
         await session.data.connect({
             from: { source: k, field: "account_id" },
@@ -337,7 +341,7 @@ describe("source-steps: the acts", () => {
             '{"nodes":[{"id":"K-1","account_id":"A-1"},{"id":"K-2","account_id":"A-2"}],' +
             '"edges":[{"source":"K-1","target":"K-2"}]}';
         const k = await session.data.stage({ type: "json", config: { data }, name: "k.json" }, { type: "account" });
-        assert.strictEqual(session.data.sources().find((s) => s.key === k)?.state, "staged");
+        assert.strictEqual(session.data.sources({ staged: true }).find((s) => s.key === k)?.state, "staged");
         await session.data.merge({ from: { source: k, field: "account_id" }, into: { space: "account" } });
         assert.isNull(session.data.lineage({ space: "account", key: "K-1" }), "no stray account node");
         assert.include(ends(session), "A-1>A-2", "the staged edge follows its merged ends");
@@ -374,13 +378,13 @@ describe("source-steps: the acts", () => {
             { type: "csv", config: { data: "acct,merch,acct_name\na1,m1,Ann" }, name: "T" },
             options,
         );
-        const [t] = session.data.sources();
+        const [t] = session.data.sources({ staged: true });
         await session.data.moveColumns(t.key, { columns: ["acct_name"], to: "source" });
         await session.data.import(
             { type: "csv", config: { data: "acct,merch\na1,m2" }, name: "B" },
             { ...options, mode: "merge" },
         );
-        const b = session.data.sources()[1];
+        const b = session.data.sources({ staged: true })[1];
         const lineage = session.data.lineage({ space: "account", key: "a1" });
         assert.deepStrictEqual(lineage?.supplied, [t.key]);
         assert.deepStrictEqual(lineage?.named, [b?.key]);
@@ -449,7 +453,7 @@ describe("source-steps: the acts", () => {
             { type: "csv", config: { data: "id,name,score\na,Ann,1\nb,Bo,2" }, name: "a.csv" },
             { key: "id" },
         );
-        const a = session.data.sources()[0]?.key ?? "";
+        const a = session.data.sources({ staged: true })[0]?.key ?? "";
         const details = await refused(
             () => session.data.renameColumn({ kind: "node", name: "name" }, "label"),
             "E_UNSUPPORTED",
@@ -476,7 +480,7 @@ describe("source-steps: the acts", () => {
             { type: "csv", config: { data: "id,amount,amount_eur\np1,10,9\np2,20,18" }, name: "s.csv" },
             { key: "id", type: "payment" },
         );
-        const [s] = session.data.sources();
+        const [s] = session.data.sources({ staged: true });
         const details = await refused(
             () => session.data.renameColumn({ kind: "node", name: "amount_eur" }, "amount", { source: s.key }),
             "E_BAD_COMMAND",
@@ -496,7 +500,7 @@ describe("source-steps: the acts", () => {
             { type: "csv", config: { data: "id,city\np1,Bergen" }, name: "erp.csv" },
             { mode: "merge", key: "id", type: "person", overlap: "merge" },
         );
-        const b = session.data.sources()[1]?.key ?? "";
+        const b = session.data.sources({ staged: true })[1]?.key ?? "";
         const ref = { space: "person", key: "p1" };
         await session.data.updateNodes([{ id: "p1", values: { city: "Trondheim" } }]);
         await session.data.renameColumn({ kind: "node", name: "city" }, "erp_city", { source: b });

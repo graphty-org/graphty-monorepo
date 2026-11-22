@@ -283,6 +283,7 @@ import type {
     SessionTours,
     SessionViews,
     SettingEffect,
+    SourceDraftChange,
     StartingCamera,
     TransactionOptions,
     TransactionScope,
@@ -3246,6 +3247,11 @@ function fieldWordsOf(
             }
         }
 
+        // What a shown source draft does to each element (source-steps).
+        if (path === DRAFT_PATH) {
+            return { plainName: "Draft", technicalName: "draft" };
+        }
+
         // The values graphty-element keeps itself: a node's degrees.
         const structure = target === "node" ? STRUCTURE_VALUES.find((each) => each.path === path) : undefined;
         return structure === undefined
@@ -3681,6 +3687,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let stopAfter = (): void => undefined;
     // Settles once the graph draws what the open source draft shows.
     let draftDrawn = (): Promise<void> => Promise.resolve();
+    // The draft events waiting for the graph to draw what they say, published in order.
+    let draftEvents: Promise<void> | null = null;
     // True while a drawn draft's After dispatches its own writes, which the open draft lets through.
     let drawingAfter = false;
     // True while a draft's After is drawn: the graph is the draft's, and a reader's command that
@@ -3795,10 +3803,32 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
             send: (command, stamp) => dispatcher.dispatch(command, stamp),
             emit: (event, detail) => {
-                if (event === "data:draft-changed") {
-                    redrawDraft();
+                if (event !== "data:draft-changed") {
+                    publish(watchers, event, detail);
+                    return;
                 }
-                publish(watchers, event, detail);
+                // Drawn before or after the redraw: either way the graph changes under the listener.
+                const wasDrawn = afterDrawn;
+                redrawDraft();
+                const drawn = wasDrawn || afterDrawn;
+                const change = detail as SourceDraftChange;
+                // A change to a drawn After is told once the graph draws it, so a listener reading the
+                // graph counts what it shows; the events after it wait their turn, in order.
+                const redrawn = drawn && (change.reason === "changed" || change.reason === "displayed");
+                if (draftEvents === null && !redrawn) {
+                    publish(watchers, "data:draft-changed", change);
+                    return;
+                }
+                const next: Promise<void> = (draftEvents ?? Promise.resolve()).then(async () => {
+                    if (redrawn) {
+                        await draftDrawn();
+                    }
+                    publish(watchers, "data:draft-changed", change);
+                    if (draftEvents === next) {
+                        draftEvents = null;
+                    }
+                });
+                draftEvents = next;
             },
             readers: () => ({
                 styles: dispatcher.state.styles,
@@ -3806,7 +3836,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 visibility: dispatcher.state.visibility,
             }),
             drawing: {
-                drawn: () => draftDrawn(),
+                // Once drawn and the events saying so are out, so a caller's next act comes after them.
+                drawn: async () => {
+                    await draftDrawn();
+                    await draftEvents;
+                },
                 stop: () => {
                     stopAfter();
                 },
@@ -4815,7 +4849,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // so the history never holds it, and a save takes it off while it writes. While it is on,
     // statistics, the legend and a count read the draft's graph, and a reader's command that would
     // measure or name its elements (a run, a pin, a note) is refused. `marks` is what it was drawn for.
-    let after: { readonly marks: object; readonly abort: () => void; readonly landed: Promise<void> } | null = null;
+    let after: { readonly marks: object; readonly abort: () => void; readonly ended: Promise<void> } | null = null;
+    // Settles once the graph draws what the draft shows now: After landed, or taken off again.
+    let drawing: Promise<void> = Promise.resolve();
     /**
      * Dispatch one of After's writes through its transaction, past the open draft's refusal.
      * @param tx - The transaction.
@@ -4837,6 +4873,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return;
         }
         const { diff, idPath } = drawn;
+        // The After taken off for this one is still rolling back: its rollback lands first, or the
+        // two interleave and leave neither graph drawn.
+        const prior = drawing;
         let abort = (): void => undefined;
         let land = (): void => undefined;
         const landed = new Promise<void>((resolve) => {
@@ -4848,6 +4887,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 abort = (): void => {
                     dispatcher.abort(tx);
                 };
+                await prior;
+                if (signal.aborted) {
+                    return;
+                }
                 const writes: DataMutation[] = [];
                 removeAndPatch(diff, (mutation) => writes.push(mutation));
                 if (diff.addNodes.length > 0) {
@@ -4888,29 +4931,38 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             { moves: true, unlisted: true },
         );
         // Aborting it is how it ends; a waiter on the drawing is never left waiting.
-        held.catch(() => undefined).finally(land);
+        const ended = held.catch(() => undefined).finally(land);
         afterDrawn = true;
+        drawing = landed;
         after = {
             marks,
             abort: () => {
                 abort();
             },
-            landed,
+            ended,
         };
     };
     stopAfter = (): void => {
         if (after === null) {
             return;
         }
-        const { abort } = after;
+        const { abort, ended } = after;
         after = null;
+        drawing = ended;
         afterDrawn = false;
         data.drawnAfter(null);
         abort();
         // The abort queues the arrangement it began from for the next pass; a save made now reads it.
         dispatcher.arrangement.flush();
     };
-    draftDrawn = (): Promise<void> => after?.landed ?? Promise.resolve();
+    // A drawing begun while the last one was landing is waited for too.
+    draftDrawn = async (): Promise<void> => {
+        let waited: Promise<void> | null = null;
+        while (waited !== drawing) {
+            waited = drawing;
+            await waited;
+        }
+    };
     let draftShown = false;
     redrawDraft = (): void => {
         const shown = data.shownDraft();

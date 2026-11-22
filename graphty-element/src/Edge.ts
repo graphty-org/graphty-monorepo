@@ -157,6 +157,7 @@ const PULLED_LINE_KEYS = new Set([
     "color",
     "opacity",
     "minScreenWidth",
+    "drawOrder",
     "bezier",
     "fanned",
     "fanSpacing",
@@ -1149,6 +1150,8 @@ export class Edge {
         run: number[];
         /** The look its pieces are given, for the pieces a curve takes later. */
         look: { color: Color3; opacity: number; width: number };
+        /** Its `line.drawOrder`, undefined for none, for the pieces a curve takes later ({@link PulledLineBatch.acquire}). */
+        drawOrder: number | undefined;
         /** A curve's last span and the centers it was cut between, null while it draws nothing ({@link Edge.drawnCurve}). */
         path?: { src: Vector3; dst: Vector3; span: CurveSpan } | null;
         /** A line through bends' block in the batch's route table and the cut path it holds ({@link Edge.pullSpan}). */
@@ -3366,9 +3369,10 @@ export class Edge {
         const look = this.pulledLook(options, style);
         const { opacity } = look;
         const animationSpeed = style.line?.animationSpeed ?? 0;
+        const drawOrder = style.line?.drawOrder;
         let piece: number;
         try {
-            piece = batch.acquire(look.width);
+            piece = batch.acquire(look.width, drawOrder);
         } catch (error) {
             // a batch the card cannot hold more of: this line is drawn as the object path draws it
             this.refuseTooLarge(batch, error);
@@ -3398,6 +3402,7 @@ export class Edge {
             curve,
             run: [],
             look,
+            drawOrder,
         };
         this.pullRows();
         // the walk leaves a straight pulled line alone ({@link Edge.followsRows}), so what it last placed is stale
@@ -3539,12 +3544,12 @@ export class Edge {
         // an entry a CURVE_STRIDE pieces, taken as the cut grows and kept while the edge is pulled; each entry is
         // written before the next is taken, so its pieces take their draw slots in piece order, as the object path's
         // curve takes its batch slots
-        const { look, run } = pulled;
+        const { look, run, drawOrder } = pulled;
         const parts = Math.ceil((span?.pieces ?? 0) / CURVE_STRIDE);
         batch.setCurve(pulled.piece, 0, span, at);
         for (let part = 1; part < parts || part <= run.length; part++) {
             if (part > run.length) {
-                const piece = batch.acquire(look.width);
+                const piece = batch.acquire(look.width, drawOrder);
                 batch.setLook(piece, look.color, look.opacity, look.width);
                 batch.setRows(piece, pulled.source, pulled.target);
                 run.push(piece);

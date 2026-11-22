@@ -367,6 +367,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.gradientCenterX": "Gradient",
     "node.gradientCenterY": "Gradient",
     "node.gradientRadius": "Gradient",
+    "edge.drawOrder": "Draw order",
     "edge.minScreenWidth": "Min screen width",
     "edge.fadeEnd": "Fade end",
     "edge.fadeStart": "Fade start",

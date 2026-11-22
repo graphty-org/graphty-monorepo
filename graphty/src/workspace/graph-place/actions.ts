@@ -8,8 +8,9 @@ import {
     type StyleRowPlace,
 } from "@graphty/graphty-element/session";
 
+import { showUndoNotice } from "../frame/undoNotice";
 import { errorWords } from "../project/words";
-import type { Notice, WorkspaceState, WorkspaceStore } from "../state/store";
+import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { viewProblemWords } from "../toolbar/viewWords";
 import { findTreeRow, paintingParts } from "./rows";
@@ -171,24 +172,13 @@ export async function deleteRow(session: GraphSession, store: WorkspaceStore, ro
         return step !== undefined && now?.kind === "undo" && now.step.id === step;
     };
     const kindWord = row.kind === "folder" ? "" : " layer";
-    const notice: Notice = {
-        message: fromRun ? `Deleted ${row.name}${kindWord}. Its results are kept.` : `Deleted ${row.name}.`,
-        action: {
-            label: "Undo",
-            run: () => {
-                if (isNext()) {
-                    void session.undo();
-                }
-            },
-        },
-    };
-    const off = session.on("history:changed", () => {
-        if (!isNext()) {
-            off();
-            store.set((state) => (state.notice === notice ? { notice: null } : {}));
-        }
-    });
-    store.set({ inspected: null, notice });
+    store.set({ inspected: null });
+    showUndoNotice(
+        session,
+        store,
+        fromRun ? `Deleted ${row.name}${kindWord}. Its results are kept.` : `Deleted ${row.name}.`,
+        isNext,
+    );
 }
 
 /**

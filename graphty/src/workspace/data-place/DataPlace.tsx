@@ -44,6 +44,8 @@ export function DataPlace(): React.JSX.Element {
     };
 
     const tab = useWorkspaceState((state) => state.dataTab);
+    // While the Join card is open (the source-steps experiment) the other sections fold away (design 7.1).
+    const joining = useWorkspaceState((state) => state.sourceCard?.kind === "join");
     const sourcesSection = <Sources sources={sources} selected={selected?.key} onSelect={select} />;
     return (
         <section className="dp" data-tabs="" aria-label="Data place">
@@ -68,9 +70,13 @@ export function DataPlace(): React.JSX.Element {
                     {sourcesSection}
                     {/* Each load's filters sit in its own section; with no load, or several, the
                         filters of every load sit here, under Data sources. */}
-                    {sources.length === 1 ? null : <FiltersSection unscoped={sources.length > 1} />}
-                    <ServerPlace />
-                    <Fields sources={sources} selected={selected} />
+                    {sources.length === 1 || joining ? null : <FiltersSection unscoped={sources.length > 1} />}
+                    {joining ? null : (
+                        <>
+                            <ServerPlace />
+                            <Fields sources={sources} selected={selected} />
+                        </>
+                    )}
                 </Tabs.Panel>
                 <Tabs.Panel value="calculated" className="dp-tab-body">
                     <ResultsList />

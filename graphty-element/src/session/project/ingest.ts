@@ -1452,6 +1452,7 @@ export class Ingest<K extends KnownEdge> {
 
         // create path to node ids
         const query = idPath ?? this.host.dataConfig().knownFields.nodeIdPath;
+        const axes = this.host.dataConfig().knownFields;
 
         // The ids first, so the ceiling is checked against the nodes this batch would ADD (a
         // re-supplied node costs nothing) and checked before any of them is created: a batch
@@ -1493,7 +1494,7 @@ export class Ingest<K extends KnownEdge> {
             // graph-format will not take, and the host draws the node anyway.
             // Frozen once, here, so the render object holds the record the graph slice holds.
             const record = frozenRecord(node);
-            const { index } = writer.addNode(nodeId, record, readSeedPosition(node));
+            const { index } = writer.addNode(nodeId, record, readSeedPosition(node, axes));
             this.noteMade(nodeId);
             this.host.nodeStored(nodeId, record, index);
         }

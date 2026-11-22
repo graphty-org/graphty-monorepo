@@ -30,6 +30,9 @@ const ROLE_WORDS: Readonly<Record<PageRole, string>> = {
     country: "Country",
     region: "Region",
     city: "City",
+    x: "X",
+    y: "Y",
+    z: "Z",
     attribute: "Attribute",
 };
 

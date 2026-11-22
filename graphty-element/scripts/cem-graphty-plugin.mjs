@@ -30,6 +30,14 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TAG_NAME = "graphty-element";
 
 /**
+ * Descriptions for the standard attributes the element observes (its `observedAttributes`), which
+ * the analyzer lists with no description because no element field declares them.
+ */
+const STANDARD_ATTRIBUTE_DESCRIPTIONS = {
+    "aria-label": "Names the graph for assistive technology: it is copied onto the canvas that takes keyboard focus.",
+};
+
+/**
  * Builds the analyzer plugin.
  * @returns {{ name: string, packageLinkPhase: (context: { customElementsManifest: unknown }) => void }}
  *     A plugin for `@custom-elements-manifest/analyzer`.
@@ -53,8 +61,9 @@ export function graphtyManifestPlugin() {
 }
 
 /**
- * Rewrites the element's declaration: drops its private members and lists its events, its own
- * first and then the ones it forwards, sorted by name.
+ * Rewrites the element's declaration: drops its private members, describes the standard
+ * attributes it observes, and lists its events, its own first and then the ones it forwards,
+ * sorted by name.
  * @param {Record<string, unknown>} declaration - The element's declaration in the manifest.
  * @param {ReturnType<typeof readOwnDomEvents>} own - The events the element dispatches itself.
  * @param {ReturnType<typeof readDomEvents>} forwarded - The events the element forwards.
@@ -64,17 +73,25 @@ function rewriteElementDeclaration(declaration, own, forwarded) {
         (member) => typeof member.name === "string" && !member.name.startsWith("#"),
     );
 
+    for (const attribute of declaration.attributes ?? []) {
+        const standard = STANDARD_ATTRIBUTE_DESCRIPTIONS[attribute.name];
+        if (standard !== undefined && !attribute.description) {
+            attribute.description = standard;
+        }
+    }
+
     /** @type {Map<string, Record<string, unknown>>} */
     const events = new Map();
 
-    // The element's own events come from its declaration, keeping whatever the
-    // analyzer found about each. Nothing else the analyzer found is kept: an event
-    // dispatched under a computed name comes out named after the variable that
-    // held it ("name").
+    // The element's own events come from its declaration, with each member's doc
+    // comment, keeping whatever the analyzer found about each. Nothing else the
+    // analyzer found is kept: an event dispatched under a computed name comes out
+    // named after the variable that held it ("name").
     const analyzed = new Map((declaration.events ?? []).map((event) => [event.name, event]));
 
     for (const event of own) {
         events.set(event.name, {
+            ...(event.description ? { description: event.description } : {}),
             ...analyzed.get(event.name),
             name: event.name,
             type: { text: event.type },

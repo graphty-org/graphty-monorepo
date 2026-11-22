@@ -58,16 +58,10 @@ import {
 import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { git as runGit } from "./lib/git.mjs";
 import { pushBaseRef } from "./push-base.mjs";
 
-const git = (root, args, input) =>
-    execFileSync("git", args, {
-        cwd: root,
-        encoding: "utf8",
-        input,
-        maxBuffer: 1 << 30,
-        stdio: ["pipe", "pipe", "ignore"],
-    });
+const git = (root, args, input) => runGit(args, { cwd: root, input, trim: false, stdio: ["pipe", "pipe", "ignore"] });
 const split0 = (s) => s.split("\0").filter(Boolean);
 const sha256 = (data) => createHash("sha256").update(data).digest("hex");
 

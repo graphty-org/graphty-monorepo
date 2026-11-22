@@ -47,6 +47,14 @@ export const MIN_RADIUS_PX = 1.5;
  */
 export const HOVER_RADIUS_PX = 0.71;
 
+/**
+ * The most meshes that are not batched rows (labels, nodes drawn as objects, models) the target
+ * draws. Each is a draw call of its own, and a pixel on one is answered by the mesh pick anyway, so
+ * past this many the target draws nothing and every read leaves the answer to the mesh pick: a
+ * pointer move then costs what it costs on the objects path, not a redraw of every such mesh.
+ */
+export const MAX_OBJECT_MESHES = 64;
+
 /** The texel a non-batch mesh writes; rows go up to one less. */
 const OBJECT_TEXEL = 0xffffff;
 
@@ -237,6 +245,8 @@ export class NodeIdTarget {
     private readonly unscaledRowMaterial: ShaderMaterial;
     private readonly objectMaterial: ShaderMaterial;
     private readonly list: AbstractMesh[] = [];
+    /** More than {@link MAX_OBJECT_MESHES} non-row meshes are on screen: reads leave the answer to the mesh pick. */
+    private crowded = false;
     /** Whether the target is a float target whose rows also carry where they were drawn (WebGPU). */
     private readonly float: boolean;
     private readonly pixels = new Vector2();
@@ -345,7 +355,8 @@ export class NodeIdTarget {
      * @param x - X in CSS pixels.
      * @param y - Y in CSS pixels.
      * @returns The row, {@link ID_NONE} or {@link ID_OBJECT}, now or once read; null when the
-     * target cannot answer yet, so the caller picks.
+     * target cannot answer yet, or more than {@link MAX_OBJECT_MESHES} meshes that are not rows
+     * are on screen, so the caller picks.
      */
     read(x: number, y: number): number | Promise<number> | null {
         const pick = this.pick(x, y);
@@ -364,7 +375,7 @@ export class NodeIdTarget {
      * @returns The answer, now or once read; null when the target cannot answer yet.
      */
     pick(x: number, y: number): IdPick | Promise<IdPick> | null {
-        if (this.disposed) {
+        if (this.disposed || this.crowded) {
             return null;
         }
 
@@ -466,24 +477,32 @@ export class NodeIdTarget {
         // holds while the list is the same. A changed list, or a freeze evaluating outside a
         // frame, makes it stale.
         let kept = 0;
+        let objects = 0;
         let same = true;
+        let crowded = false;
         for (let i = 0; i < length; i++) {
             const mesh = drawn[i];
             if (isRowBatch(mesh)) {
                 NodeIdTarget.assign(mesh, target.renderPassId, this.rowMaterialFor(mesh));
-            } else if (mesh.isPickable) {
+            } else if (!mesh.isPickable) {
+                continue;
+            } else if (++objects > MAX_OBJECT_MESHES) {
+                // Too many meshes of their own: draw none, and let reads go to the mesh pick.
+                crowded = true;
+                kept = 0;
+                break;
+            } else {
                 const owner = mesh.isAnInstance ? (mesh as InstancedMesh).sourceMesh : mesh;
                 NodeIdTarget.assign(owner, target.renderPassId, this.objectMaterial);
-            } else {
-                continue;
             }
 
             same &&= list[kept] === mesh;
             list[kept++] = mesh;
         }
 
-        if (!same || kept !== list.length) {
+        if (!same || kept !== list.length || crowded !== this.crowded) {
             list.length = kept;
+            this.crowded = crowded;
             this.drawnIn = -1;
         }
     }

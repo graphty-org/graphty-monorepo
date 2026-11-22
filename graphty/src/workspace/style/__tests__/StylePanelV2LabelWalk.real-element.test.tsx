@@ -1,5 +1,5 @@
 /**
- * Every one of graphty-element's 90 label style fields is reachable from a node Label's row and changes the
+ * Every one of graphty-element's 96 label style fields is reachable from a node Label's row and changes the
  * picture (owner, 2026-11-20: "it seems like we are missing 90 label styles"; E673), on the REAL graphty-element
  * and real input. For each field the layer holds what the field needs beside it to draw (its `drawnWhen` partners,
  * as graphty-element's own label-fields render test sets them), except the partners graphty-element names as its
@@ -301,7 +301,7 @@ function same(got: unknown, want: unknown): boolean {
 describe("every label field is reachable from the Label row and draws (E673)", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("walks all 90 label fields by real clicks, each changing the picture", async () => {
+    it("walks all 96 label fields by real clicks, each changing the picture", async () => {
         const { session, element, nodes } = await openGraph();
         let tab = await openStyle("Key people");
         // The drawing itself, where a reader clicks.
@@ -627,6 +627,6 @@ describe("every label field is reachable from the Label row and draws (E673)", (
         }
         assert.deepEqual(failed, [], "every field is reached, written and drawn from the panel");
         assert.sameMembers(reached, [...LABEL_STYLE_FIELDS], "every field is reached");
-        assert.lengthOf(LABEL_STYLE_FIELDS, 90);
+        assert.lengthOf(LABEL_STYLE_FIELDS, 96);
     });
 });

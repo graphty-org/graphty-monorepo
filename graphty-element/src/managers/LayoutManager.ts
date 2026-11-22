@@ -3746,6 +3746,27 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Publish the running engine's answer, reporting a refusal as {@link LayoutManager.updatePositions} does
+     * instead of throwing it into the frame that asked (planar's E_NOT_PLANAR between a batch's writes).
+     * @returns False when the engine refused the graph, and so placed nothing.
+     * @internal
+     */
+    publishOrReport(): boolean {
+        const engine = this.layoutEngine;
+        if (engine === undefined) {
+            return true;
+        }
+
+        try {
+            engine.publishPositions();
+            return true;
+        } catch (error) {
+            this.reportLayoutFailure(engine.type, error, "stepped");
+            return false;
+        }
+    }
+
+    /**
      * Settle nodes that reached the graph after this layout was already running.
      *
      * Still hands back a promise, because a plugin that has to fetch or recompute something to

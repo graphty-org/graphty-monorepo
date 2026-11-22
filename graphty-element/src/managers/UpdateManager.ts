@@ -3864,9 +3864,10 @@ export class UpdateManager implements Manager {
             return false;
         }
 
-        // The re-run a node's read would start, started here, so its writes are in the lane's log.
-        if (engine.stale) {
-            engine.publishPositions();
+        // The re-run a node's read would start, started here, so its writes are in the lane's log. A
+        // refusal is reported by its code, not thrown into the frame, and places nothing.
+        if (engine.stale && !this.layoutManager.publishOrReport()) {
+            return true;
         }
 
         const lane = this.dataManager[WRITABLE_LANE];

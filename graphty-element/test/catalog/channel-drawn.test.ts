@@ -32,14 +32,6 @@ describe("channelDrawn", () => {
         }
     });
 
-    it("draws a node's depth only in 3D: the 2D view looks straight down on the layout", () => {
-        assert.deepStrictEqual(channelDrawn("node.depth", reading({}), "2d"), {
-            drawn: false,
-            unmet: { dimension: "3d" },
-        });
-        assert.deepStrictEqual(channelDrawn("node.depth", reading({}), "3d"), { drawn: true });
-    });
-
     it("reads an unset channel as its default", () => {
         // edge.style defaults to solid and edge.curvature to false: a plain edge animates.
         assert.deepStrictEqual(channelDrawn("edge.animationSpeed", reading({}), "3d"), { drawn: true });

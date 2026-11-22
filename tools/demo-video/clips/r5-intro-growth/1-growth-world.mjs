@@ -6,13 +6,16 @@
 // into 3D as glass spreads over it and its glow swells, the camera tilting and circling at once,
 // while airports keep coming, faster; Louvain's communities ignite outward from the middle, each
 // its own lobe, their routes lit with comets, the brightest moment; then the world darkens toward
-// Sydney, the route to New York lights up airport by airport, and the camera flies along it like
-// an airplane, starting from where the orbit left it -- slowing near each airport so each in turn
-// grows large up front, then gliding past beside it, never through one, banking gently -- and
-// comes round into a short close-up on New York's airport, seen from the side the globe will show
-// it from. The cut dissolves the earth in behind it (tmp/demo-video/intros/growth/shots.md), and
-// the camera pulls back from it, starting within the dissolve, in one long eased move to the whole
-// globe centered in the frame, the network's colors and comets coming back outward from New York,
+// Sydney and the route to New York lights up airport by airport, while the camera leaves its orbit,
+// carrying its motion on, and swoops in behind Sydney, its look coming round onto the route; and it
+// flies the route like an airplane -- riding beside it and looking along its line ahead, faster and
+// faster, each airport coming up along the line and sweeping by large beside it, never through one,
+// turning after each, banking gently -- into a short
+// close-up on New York's airport, the other airports shrinking away, New York at the size it keeps on
+// the globe. The cut dissolves the earth
+// in behind it (tmp/demo-video/intros/growth/shots.md), and the camera pulls back from it,
+// starting within the dissolve, in one long eased move to the whole globe (evenly lit, no night
+// side) centered in the frame, the network's colors and comets coming back outward from New York,
 // the globe turning in the clear band between the logo and its line. While the drawing is flat
 // (the first FLAT airports) each airport lands beside the one it joins (flatPlaces), so the
 // drawing grows as an untangled tree; the lift is two moves: each airport rises to its depth in the
@@ -22,17 +25,16 @@
 // every change spreads (a layer's selector grown or narrowed over time, values tweened), and the
 // take updates styles at most a few times a second: an update costs the page tens of milliseconds
 // (tmp/demo-video/intros/growth/defects.md), and the take must keep its frame rate.
-import { add, sub } from "../../lib/vec.mjs";
 import { hideLegend } from "../r2-5b-and-more/more.js";
 import { addLayer, CINE_CLIP, noCursor, onElement, slowMotion, tween, tweenShader } from "../r4-intro/cine.js";
 import { steadyShaders } from "../r4-intro-shape/shape.js";
 import {
     accelerating,
     analyze,
+    carry,
     FLIGHTS,
     flightPoses,
     follow,
-    govern,
     GLOBE,
     GRAY,
     grown,
@@ -89,36 +91,51 @@ const BOX = { top: 72, bottom: 169 };
  * the middle of the finished frame.
  */
 const RAISE = (BOX.bottom - BOX.top) / 1016;
-/** The close-up on New York: the camera's distance from it as the flight arrives (world units). */
-const CLOSE = 5.2;
+/**
+ * New York's size, from the route's lighting to the end (SCENE, so on the globe too): about twice
+ * the size of the globe's other airports, so it still reads as an airport on the end globe.
+ */
+const NY_SIZE = 1.2;
+/**
+ * The close-up on New York: the camera's distance from it as the flight arrives (world units),
+ * near enough that it fills most of the frame.
+ */
+const CLOSE = 3.1;
 /** The cut's speed through the close-up and the dissolve (cuts/intro-growth.json's ramp there). */
 const END = 3.2;
-/** How much the close-up creeps in while it is held before the dissolve. */
-const CREEP = 0.02;
 /** How long the close-up is held, creeping in, before the dissolve starts (take ms: 0.1 s in the cut). */
 const HOLD = 100 * END;
 /**
- * How long the flight is planned to take, from the orbit to the close-up (take ms), before the
- * governor (GOV) slows parts of it.
+ * How many times slower the take plays the hush (from mark hush to mark flight) than the rest:
+ * the hush restyles many layers while the camera swoops, and each restyle stalls the page
+ * (defects.md 5); played slower, a stall is a smaller share of an output frame. The cut plays the
+ * hush as much faster (cuts/intro-growth.json's ramp from marks hush and route: 9.6x).
  */
-const FLY = S(13000);
-/** The cut's speed over the flight (cuts/intro-growth.json's ramp from mark flight). */
-const PLAY = 3.1;
+const HUSH_SLOW = 2;
 /**
- * The flight's speed governor (growth.js govern), in the output video's seconds: wherever a route
- * airport would slide across the frame faster than `maxSlide` half-widths a second, the middle
- * airport's route line turn faster than `maxSpin`, or the look faster than `maxLook` (rad a
- * second), the flight slows (each airport slides off its side over half a second or more, no turn
- * is a whip); where no route airport is `lull` of the frame's height, it goes twice as fast.
+ * A length on screen in the hush, in the take's milliseconds (S, HUSH_SLOW times slower).
+ * @param ms - milliseconds on screen
+ * @returns milliseconds in the take
  */
-const GOV = { play: PLAY, maxSlide: 0.8, maxSpin: 2.6, maxLook: 1, lull: 0.3, fast: 0.5, maxSlow: 4 };
+const H = (ms) => S(ms) * HUSH_SLOW;
 /**
- * The stretch of the governed flight the route's line fades over (take ms before the flight's
- * end: from 2.4 s to 0.5 s of output before the close-up), played FADE_SLOW times slower in the
- * take (stretch); cuts/intro-growth.json plays it FADE_SLOW times faster, from mark close minus
- * (FADE length x FADE_SLOW + 1.5 s) of take.
+ * How long the swoop takes, from the orbit to the run-in behind Sydney (take ms at the flight's
+ * speed), and how many times slower the take plays it: the cut plays the hush at 9.6x and the
+ * flight at 3.1x (cuts/intro-growth.json's ramp from marks hush and flight), so the camera's speed
+ * carries on unchanged into the flight.
  */
-const FADE = [S(2400), S(500)];
+const APPROACH = S(3000);
+const APPROACH_SLOW = (4.8 * HUSH_SLOW) / 3.1;
+/** How long the flight takes, from the run-in to the close-up (take ms). */
+const FLY = S(4100);
+/**
+ * The stretch of the flight the route's line and the other airports fade over (take ms before the
+ * flight's end: from 0.9 s of output before the close-up, as Philadelphia passes, to 0.15 s
+ * before), played FADE_SLOW times slower in the take (stretch); cuts/intro-growth.json plays it
+ * FADE_SLOW times faster, from mark close minus (FADE length x FADE_SLOW + FADE[1]) of take (6.75 s)
+ * to mark close minus FADE[1] (0.45 s).
+ */
+const FADE = [S(900), S(150)];
 const FADE_SLOW = 3;
 /** How much longer the take's flight is for that (take ms). */
 const FADE_EXTRA = (FADE[0] - FADE[1]) * (FADE_SLOW - 1);
@@ -140,18 +157,23 @@ const PULL = S(12000);
  */
 const PULL_LIGHT = S(6000);
 const PULL_SLOW = 2;
-/** The route's airports' size: large enough to fill most of the frame in the close-up. */
-const ROUTE_SIZE = 2.2;
+/** The size of the route's airports but New York, large as the flight sweeps past them. */
+const ROUTE_SIZE = 3.2;
 /** The comets on the routes, in their source airports' colors (their speed slowed with the take). */
 const COMETS = { useEdgeColor: true, intensity: 2.6, bloom: 2, tail: 200, spacing: 260, speed: 1.2 / K };
 /** The route's airports: amber glass. */
 const ROUTE_AMBER = "#c98a3a";
+/**
+ * New York: amber pearl, opaque, so it looks the same before the earth comes in and after (glass
+ * shows what lies behind it: the dark sky, then the bright map).
+ */
+const NY_LOOK = { "node.color": ROUTE_AMBER, "node.shaders": [{ shader: "pearl", params: { tint: 0.8 } }] };
 /** Drawn at their scene size, even on the globe (the map draws nodes at a size on screen). */
 const SCENE = { "node.sizeSpace": "scene" };
 /** The plain airports' size on the globe (a size on screen there): near New York, and far out. */
 const GLOBE_SIZE = [0.12, 0.6];
-/** The plain airports' size in 3D. */
-const SIZE_3D = 1.15;
+/** The plain airports' size in 3D (scaled with the spread-out drawing, so they stay visible). */
+const SIZE_3D = 2.4;
 /** The glass the airports take as the drawing lifts, and the lantern that lights the communities. */
 const GLASS = { shader: "glass", params: { sparkle: 0.6, bloom: 0, tint: 1 } };
 const LANTERN = (intensity, bloom) => ({ shader: "lantern", params: { intensity, flicker: 0, bloom } });
@@ -169,13 +191,13 @@ function meanwhile(p) {
 }
 
 /**
- * The reveal's camera: the close-up on New York's place on the globe, seen from the flight's side
+ * The reveal's camera: the close-up on New York's place on the globe, straight down on it
  * and creeping in into the dissolve, then the long pull back, turning toward the North Atlantic,
  * to the whole globe in the middle of the frame (the title's logo above it and its line below),
  * and on, turning (also flown once in setup, so the map's tiles are cached for the take).
  * @param spot - where the globe puts New York
  * @param europe - where it puts Europe
- * @param [o] - the flight's close-up: `from`, its side, `close`, `creepV`
+ * @param [o] - the close-up: `close`, `creepV`
  * @returns the poses and their rate (revealPoses)
  */
 const reveal = (spot, europe, o = {}) =>
@@ -183,6 +205,7 @@ const reveal = (spot, europe, o = {}) =>
         close: CLOSE,
         ...o,
         hold: REST,
+        creepFade: 0.03,
         pull: PULL,
         turn: S(4000),
         far: 9.5,
@@ -204,12 +227,6 @@ export default {
     caption: "",
     dataset: FLIGHTS,
     async setup(h) {
-        await onElement(h, (el) => {
-            // the sun over the Atlantic: the Americas and Europe in daylight, so the globe reads as the
-            // Earth; low, so its glint on the sea sits below the airports the camera ends on (globeLook
-            // has no specular setting)
-            el.globeLook = { atmosphere: true, sun: { lat: 5, lon: -12 }, background: "#05070d" };
-        });
         h.steps = await plan(
             h,
             async (spot, europe) => {
@@ -222,6 +239,11 @@ export default {
             },
             FLAT,
         );
+        // no sun: every side of the globe lit alike, so no night side ever crosses the pull back,
+        // which sweeps from America to Europe (a fixed sun leaves one end or the other in the dark)
+        await onElement(h, (el) => {
+            el.globeLook = { atmosphere: true, background: "#05070d" };
+        });
         await h.app.ready2D();
         await onElement(
             h,
@@ -397,8 +419,8 @@ export default {
             })(),
         );
         const orbit = {
-            fill: 0.95,
-            share: 0.85,
+            fill: 0.92,
+            share: 1,
             tau: S(1000),
             beta: 1.05,
             tilt: 1.4,
@@ -493,7 +515,7 @@ export default {
             },
         });
         const middle = { x: 0, y: 0, z: 0 };
-        await follow(h, { ...orbit, fill: 0.82, share: 0.92, tau: S(1500), spin: 0.36 / K });
+        await follow(h, { ...orbit, fill: 0.86, share: 1, tau: S(1500), spin: 0.36 / K });
         const bloomSky = meanwhile(
             (async () => {
                 await tween(h, "background", { color: SKY.day }, { color: SKY.bloom }, S(1800), 200);
@@ -506,13 +528,17 @@ export default {
             tweenShader(h, h.glass, "intensity", 0.9, 1.9, S(2200), { ease: true, stepMs: 400 }),
         ]);
         // the bloom settles while the full color holds, the orbit gathering speed, the comets running
-        await follow(h, { ...orbit, fill: 0.82, share: 0.92, tau: S(1500), spin: 0.46 / K });
+        await follow(h, { ...orbit, fill: 0.86, share: 1, tau: S(1500), spin: 0.46 / K });
         await tweenShader(h, h.glass, "intensity", 1.9, 1.3, S(2200), { ease: true, stepMs: 400 });
         await bloomSky;
         await h.pause(S(900));
         // ---- the hush: the world darkens toward Sydney (the far side first), the comets and the
-        // glow going out with it, the camera slowing as it turns to Sydney; before the dark has
-        // landed, the route to New York starts to light up airport by airport
+        // glow going out with it, while the camera leaves its orbit and closes in on the run-in
+        // behind Sydney (the flight's approach), its look coming round onto the route; before the
+        // dark has landed, the route to New York starts to light up airport by airport
+        // from here to the flight the take runs HUSH_SLOW times slower (the cut as much faster): the
+        // orbit's turn slowed with it at once (its framing has long settled, so a short tau moves nothing)
+        await follow(h, { ...orbit, fill: 0.86, share: 1, tau: 50, spin: 0.46 / K / HUSH_SLOW });
         h.mark("hush");
         const path = await analyze(h, "shortest-path", { source: PATH_ENDS[0], target: PATH_ENDS[1] }, h.gray);
         console.log(`  growth-world: path ${path.nodes.join(" > ")}`);
@@ -520,15 +546,20 @@ export default {
         const where = new Map(all);
         const pts = path.nodes.map((id) => where.get(id));
         const sydney = pts[0];
+        console.log(
+            `  growth-world: route at ${JSON.stringify(pts)}, New York on the globe ${JSON.stringify(h.steps.spot)}`,
+        );
+        const others = all.filter(([id]) => !path.nodes.includes(id));
+        const dimSet = {
+            "node.color": "#232838",
+            "node.shaders": [{ ...GLASS, params: { ...GLASS.params, sparkle: 0.5 } }],
+        };
         const dim = {
             nodes: await addLayer(h, {
                 name: "Dim nodes",
                 target: "node",
                 selector: { match: "ids", nodes: [] },
-                set: {
-                    "node.color": "#232838",
-                    "node.shaders": [{ ...GLASS, params: { ...GLASS.params, sparkle: 0.5 } }],
-                },
+                set: dimSet,
             }),
             edges: await addLayer(h, {
                 name: "Dim edges",
@@ -537,25 +568,105 @@ export default {
                 set: { ...plainEdges("#2a3045", 2), "edge.opacity": 0.12 },
             }),
         };
-        await follow(h, { ...orbit, only: path.nodes.slice(0, 3), fill: 0.6, tau: S(2200), spin: 0.12 / K });
+        // the flight, planned from where the orbit has the camera now (flightPoses): the approach
+        // to the run-in, then the route; on into the reveal's first SEAM played round New York's
+        // place in this drawing (where the globe will put it is only known once it is up; plan
+        // measured its surface point, near enough for the dissolve's first moments). The approach
+        // is played APPROACH_SLOW times slower (the cut plays the hush that much faster than the
+        // flight), then the line's fade FADE_SLOW times slower (stretch); and the airports near
+        // its lens (nearLens)
+        // where the orbit has the camera, what it looks at and how it moves (take units a second)
+        const cam = await onElement(h, () => {
+            // as playPoses' blend reads the orbit: round the target it really looks at
+            const { alpha, beta, radius, spin = 0, target, aim } = globalThis.__follow.state;
+            const c = aim ?? target;
+            const [sa, ca, sb] = [Math.sin(alpha), Math.cos(alpha), Math.sin(beta)];
+            return {
+                position: { x: c.x + radius * ca * sb, y: c.y + radius * Math.cos(beta), z: c.z + radius * sa * sb },
+                look: c,
+                v: { x: -radius * spin * sa * sb, y: 0, z: radius * spin * ca * sb },
+            };
+        });
+        console.log(`  growth-world: the flight starts from ${JSON.stringify(cam)}`);
+        const flight = flightPoses(pts, {
+            from: cam.position,
+            // the swoop's poses play APPROACH_SLOW times slower than their own clock
+            fromV: { x: cam.v.x * APPROACH_SLOW, y: 0, z: cam.v.z * APPROACH_SLOW },
+            look: cam.look,
+            approachMs: APPROACH,
+            ms: FLY,
+            hold: HOLD,
+            close: CLOSE,
+            aim: RAISE,
+        });
+        // the globe's close-up looks straight down on New York; the flight's plate plays the same
+        // move round New York's place in this drawing, turned onto the side the flight came in
+        // from (carry), so the two plates show the same picture of it through the dissolve
+        const atRest = { close: CLOSE - (flight.vEnd * HOLD) / 1000, creepV: flight.vEnd };
+        const into = carry(
+            reveal(h.steps.spot, h.steps.europe, atRest).poses.slice(1, Math.round((SEAM * flight.hz) / 1000) + 1),
+            { at: h.steps.spot, dir: h.steps.spot },
+            { at: pts.at(-1), dir: flight.dir },
+        );
+        const runMs = flight.runMs * APPROACH_SLOW;
+        const flyMs = runMs + FLY;
+        const fade = [flyMs - FADE[0], flyMs - FADE[1]];
+        const poses = stretch(
+            stretch([...flight.poses, ...into], flight.hz, 0, flight.runMs, APPROACH_SLOW),
+            flight.hz,
+            fade[0],
+            fade[1],
+            FADE_SLOW,
+        );
+        const near = nearLens(poses, others, 7, 25);
+        console.log(`  growth-world: flight ${flightStats(flight, pts, others, near)}`);
+        // the airports in a corridor round the flight's path, to shrink away while the route lights up
+        const lens = await addLayer(h, {
+            name: "Near the lens",
+            target: "node",
+            selector: { match: "ids", nodes: near },
+            set: { "node.size": SIZE_3D },
+        });
+        // ---- the flight: the camera leaves its orbit and closes in on Sydney, then flies the route
+        // to New York, gathering speed, looking along it, and comes into the close-up, creeping in;
+        // the other airports and the route's line fade as the camera closes on New York, so only
+        // New York is left to meet the globe and the line never stabs end-on into the lens (that
+        // fade's stretch played slower: its style updates' stalls stay under an output frame,
+        // defects.md 5)
+        const flownAt = Date.now();
+        const flown = meanwhile(
+            playPoses(
+                h,
+                { poses, hz: flight.hz },
+                {
+                    // the swoop starts where the orbit is, moving as it moves; the blend takes up the
+                    // little the orbit turned while the flight was planned
+                    blendMs: H(600),
+                    marks: [
+                        [runMs, "flight"],
+                        [flyMs + FADE_EXTRA, "close"],
+                        [flyMs + FADE_EXTRA + HOLD + SEAM, "seam"],
+                    ],
+                },
+            ),
+        );
         const dark = meanwhile(
             Promise.all([
-                sweep(h, { id: dim.nodes, by: sydney, reverse: true, grow: true, ms: S(2200), stepMs: 450 }),
+                sweep(h, { id: dim.nodes, by: sydney, reverse: true, grow: true, ms: H(2200), stepMs: 900 }),
                 sweep(h, {
                     id: dim.edges,
                     edges: true,
                     by: sydney,
                     reverse: true,
                     grow: true,
-                    ms: S(2200),
-                    stepMs: 450,
+                    ms: H(2200),
+                    stepMs: 900,
                 }),
-                sweep(h, { id: h.routes, edges: true, by: sydney, reverse: true, ms: S(2200), stepMs: 450 }),
-                tween(h, "background", { color: SKY.day }, { color: SKY.hush }, S(2200), 200),
+                sweep(h, { id: h.routes, edges: true, by: sydney, reverse: true, ms: H(2200), stepMs: 900 }),
+                tween(h, "background", { color: SKY.day }, { color: SKY.hush }, H(2200), 400),
             ]),
         );
-        await h.pause(S(1500));
-        const others = all.filter(([id]) => !path.nodes.includes(id));
+        await h.pause(H(1200));
         const routeLine = (opacity, width) => ({
             "edge.color": "#fff4d6",
             "edge.arrowHead": "none",
@@ -588,77 +699,50 @@ export default {
                     ],
                 },
             }),
+            // scene-sized even on the globe (the map draws nodes screen-sized): the airports the
+            // flight passes large, New York at the size it keeps on the globe
             size: await addLayer(h, {
                 name: "Route size",
                 target: "node",
-                selector: { match: "ids", nodes: path.nodes },
-                // scene-sized even on the globe (the map draws nodes screen-sized), so New York is
-                // the same in the close-up before and after the globe appears
+                selector: { match: "ids", nodes: path.nodes.slice(0, -1) },
                 set: { ...SCENE, "node.size": SIZE_3D },
             }),
+            ny: await addLayer(h, {
+                name: "New York size",
+                target: "node",
+                selector: { match: "ids", nodes: [PATH_ENDS[1]] },
+                set: { ...SCENE, ...NY_LOOK, "node.size": SIZE_3D },
+            }),
         };
-        // the flight, planned from a camera position (flightPoses), on into the reveal's first SEAM
-        // played round New York's place in this drawing (where the globe will put it is only known
-        // once it is up; plan measured its surface point, near enough for the dissolve's first
-        // moments), with its fade stretched (stretch), and the airports near its lens (nearLens)
-        const flyFrom = (from) => {
-            // tuned offline against the output video's clock, with the governor (GOV) on
-            // (tmp/demo-video/intros/growth/v5/feval3.mjs, opt3.mjs): the flight leaves the orbit
-            // where it is and swings round to come in on Sydney from behind it (`out`, away from Manila), so the rest of it is the same wherever the orbit
-            // happens to be; near each route airport its speed is at most the distance to it over `tau`,
-            // so each one grows at a steady rate and sits large up front, the cruise between them quick;
-            // each is passed to its side (`sides`), the look moving on to the next (`handoff`) so it
-            // slides off that side with the next already in the frame; the look turns slowly (`maxTurn`)
-            const f = flightPoses(pts, {
-                from,
-                out: { x: -0.833, y: 0.364, z: -0.58 },
-                normal: h.steps.spot,
-                ms: FLY,
-                hold: HOLD,
-                close: CLOSE,
-                creep: CREEP,
-                lead: 21.4,
-                clear: [7.75, 10.91, 8, 12.9],
-                sides: [1.82, 1.27, 0.5, 0.41],
-                handoff: [
-                    [19.4, 21.6],
-                    [2.6, 7.3],
-                    [3.9, 14.2],
-                    [1.2, 14.5],
-                ],
-                pace: 47.3,
-                paceExp: 1.4,
-                dip: 0.9,
-                tau: 2.2,
-                swingOut: 6.9,
-                v0: 0.6,
-                land: 0.92,
-                sigma: 0.4,
-                maxTurn: 0.278,
-                aim: RAISE,
-            });
-            const rest = { from: f.dir, close: CLOSE - (f.vEnd * HOLD) / 1000, creepV: f.vEnd };
-            const shift = sub(pts.at(-1), h.steps.spot);
-            const into = reveal(h.steps.spot, h.steps.europe, rest)
-                .poses.slice(1, Math.round((SEAM * f.hz) / 1000) + 1)
-                .map((q) => ({ ...q, p: add(q.p, shift), t: add(q.t, shift) }));
-            // slowed wherever the route would move too fast on screen (GOV), then the fade stretched
-            const g = govern(f.poses, f.hz, pts, { ...GOV, upto: FLY });
-            const flyMs = g.at(FLY);
-            const fade = [flyMs - FADE[0], flyMs - FADE[1]];
-            const all = stretch([...g.poses, ...into], f.hz, fade[0], fade[1], FADE_SLOW);
-            return { flight: f, atRest: rest, poses: all, near: nearLens(all, others, 7, 25), flyMs, fade };
-        };
-        // the airports in a corridor round the flight shrink away while the route lights up (the
-        // orbit runs on, so the flight is planned again as it starts; the corridor barely moves):
-        // here the restyles cost the take no visible frames, at the flight's start they did
-        const lensIds = flyFrom(await onElement(h, (el) => el.getCameraState().position)).near;
-        const lens = await addLayer(h, {
-            name: "Near the lens",
-            target: "node",
-            selector: { match: "ids", nodes: lensIds },
-            set: { "node.size": SIZE_3D },
-        });
+        // the route's line fades and the other airports, the route's passed ones too, shrink away
+        // over FADE before the close-up (the take plays that stretch FADE_SLOW times slower), each
+        // restyle offset from the others', so only New York is left when the earth comes in (glass
+        // airports faded by node.opacity instead stayed on screen into the dissolve, a ghost over
+        // the globe; shrinking them also avoids a new transparent material at every step)
+        const faded = meanwhile(
+            (async () => {
+                await h.pause(Math.max(0, flownAt + fade[0] - Date.now()));
+                const later = async (ms, run) => {
+                    await h.pause(ms);
+                    await run();
+                };
+                const gone = (FADE[0] - FADE[1]) * FADE_SLOW - 600;
+                await Promise.all([
+                    tween(h, route.edges, routeLine(1, 6), routeLine(0, 2), gone, 450),
+                    later(300, () => tween(h, h.size, { "node.size": SIZE_3D }, { "node.size": 0.01 }, gone, 450)),
+                    later(600, () =>
+                        tween(
+                            h,
+                            route.size,
+                            { ...SCENE, "node.size": ROUTE_SIZE },
+                            { ...SCENE, "node.size": 0.01 },
+                            gone,
+                            450,
+                        ),
+                    ),
+                ]);
+            })(),
+        );
         h.mark("route");
         // the route's airports out of the lantern's layer: a lantern near the lens fills the frame
         await onElement(h, (el, [id, nodes]) => el.session.styles.update(id, { selector: { match: "ids", nodes } }), [
@@ -666,58 +750,29 @@ export default {
             others.map(([id]) => id),
         ]);
         await Promise.all([
-            tween(h, lens, { "node.size": SIZE_3D }, { "node.size": 0.01 }, S(1600), 450),
-            sweep(h, { id: route.nodes, by: path.nodes, grow: true, ms: S(1600), stepMs: 450 }),
-            sweep(h, { id: route.edges, edges: true, by: path.edges, grow: true, ms: S(1600), stepMs: 450 }),
+            tween(h, lens, { "node.size": SIZE_3D }, { "node.size": 0.01 }, H(1300), 900),
+            sweep(h, { id: route.nodes, by: path.nodes, grow: true, ms: H(1300), stepMs: 900 }),
+            sweep(h, { id: route.edges, edges: true, by: path.edges, grow: true, ms: H(1300), stepMs: 900 }),
             tween(
                 h,
                 route.size,
                 { ...SCENE, "node.size": SIZE_3D },
                 { ...SCENE, "node.size": ROUTE_SIZE },
-                S(1600),
-                450,
+                H(1300),
+                900,
+            ),
+            tween(
+                h,
+                route.ny,
+                { ...SCENE, ...NY_LOOK, "node.size": SIZE_3D },
+                { ...SCENE, ...NY_LOOK, "node.size": NY_SIZE },
+                H(1300),
+                900,
             ),
         ]);
         await dark;
-        // the flight's path (in to the close-up from the side the globe will show New York from),
-        // planned from where the orbit has the camera now, as the flight starts
-        const cam = await onElement(h, (el) => el.getCameraState().position);
-        console.log(`  growth-world: the flight starts from ${JSON.stringify(cam)}`);
-        const { flight, poses, near, atRest, flyMs, fade } = flyFrom(cam);
-        // airports the near-lens shrink (during the route's reveal) missed: shrunk in the same step as the flight starts
-        const late = near.filter((id) => !lensIds.includes(id));
-        if (late.length)
-            await onElement(
-                h,
-                (el, [id, nodes]) => el.session.styles.update(id, { selector: { match: "ids", nodes } }),
-                [lens, [...lensIds, ...late]],
-            );
-        console.log(`  growth-world: flight ${flightStats(flight, pts, others, near)}, ${late.length} shrunk late`);
-        // ---- the flight: the camera leaves its orbit for Sydney and flies the route to New York,
-        // gathering speed, and comes round into the close-up, creeping in; the route's line fades as
-        // the camera closes on New York, so it never stabs end-on into the lens. That fade's
-        // stretch is played FADE_SLOW times slower (and sped up as much more in the cut), so the
-        // stalls its style updates cost the page (defects.md 5) stay under an output frame
-        h.mark("flight");
-        meanwhile(
-            (async () => {
-                await h.pause(fade[0]);
-                await tween(h, route.edges, routeLine(1, 6), routeLine(0, 2), S(1800) * FADE_SLOW, 900);
-            })(),
-        );
-        await playPoses(
-            h,
-            { poses, hz: flight.hz },
-            {
-                // the flight starts where the camera is; the blend eases the orbit's turn into it and
-                // swings the look round to Sydney
-                blendMs: S(2500),
-                marks: [
-                    [flyMs + FADE_EXTRA, "close"],
-                    [flyMs + FADE_EXTRA + HOLD + SEAM, "seam"],
-                ],
-            },
-        );
+        await faded;
+        await flown;
         // ---- the globe: switched to in one frame (it cannot fade in, defects.md 8: the cut
         // dissolves from the plate before to the plate after), the camera put on New York's place
         // on it where the flight's plate was SEAM before its end, at the reveal's start; then the
@@ -725,7 +780,7 @@ export default {
         await slowMotion(h, { layoutSeconds: null });
         h.mark("switch");
         // in the same cut-away: the map draws the other airports at a size on screen, so they are
-        // made small; only New York keeps its close-up size; the darkened ones are hidden (on the
+        // made small (the route's other airports with them); New York keeps its own size; the darkened ones are hidden (on the
         // bright map dark glass reads as dead black balls, pale glass as white flares) and come
         // back lit as the pull reveals them; the glowing glass becomes marbles (on the sunlit map any
         // glow, the lantern's or the glass's, reads as a white flare: defects.md 14)
@@ -735,7 +790,10 @@ export default {
                 const { styles } = el.session;
                 await styles.update(o.size, { set: { "node.size": o.small } });
                 await styles.remove(o.lens);
-                await styles.update(o.routeSize, { selector: { match: "ids", nodes: [o.ny] } });
+                await styles.update(o.routeSize, { selector: { match: "ids", nodes: [] } });
+                // the route's other airports left to the darkened layer, hidden with the rest until
+                // the pull back brings them back lit (marbles round New York read as dark balls)
+                await styles.update(o.routeNodes, { selector: { match: "ids", nodes: [o.ny] } });
                 // hidden by opacity: on the map a node has a least size on screen, so 0.01 is no help
                 await styles.update(o.dimNodes, { set: { "node.color": "#232838", "node.opacity": 0 } });
                 await styles.update(o.dimEdges, {
@@ -748,6 +806,7 @@ export default {
                 small: GLOBE_SIZE[0],
                 lens,
                 routeSize: route.size,
+                routeNodes: route.nodes,
                 ny: PATH_ENDS[1],
                 dimNodes: dim.nodes,
                 dimEdges: dim.edges,
@@ -835,16 +894,6 @@ export default {
             // a restyle on the globe stalls the page 100-200 ms (defects.md 5): few layers, slow steps
             sweep(h, { id: dim.nodes, by: landed, ms: L(S(5000)), stepMs: L(700) }),
             after(140, () => sweep(h, { id: dim.edges, edges: true, by: landed, ms: L(S(5000)), stepMs: L(700) })),
-            after(280, () =>
-                tween(
-                    h,
-                    route.size,
-                    { ...SCENE, "node.size": ROUTE_SIZE },
-                    { ...SCENE, "node.size": 0.45 },
-                    L(S(5000)),
-                    L(800),
-                ),
-            ),
             after(420, () =>
                 tween(
                     h,

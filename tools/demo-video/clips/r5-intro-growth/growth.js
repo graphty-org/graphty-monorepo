@@ -17,8 +17,14 @@ export const SEED = "FRA";
 export const PATH_ENDS = ["SYD", "JFK"];
 /** The airport the globe turns toward at the end, so Europe's network passes the camera. */
 export const EUROPE = "FRA";
-/** How wide the network is drawn (scene units), round its middle. */
-const SPAN = 90;
+/** How wide the force layout's drawing is scaled to (scene units) before its communities are drawn apart. */
+const SPAN = 110;
+/** How wide the drawing the flat places are laid out from is (scene units): the 2D tree's scale. */
+const SPAN_FLAT = 90;
+/** The least distance between two airports of one community in the 3D drawing (scene units). */
+const APART = 11;
+/** The empty space between two communities in the 3D drawing (scene units). */
+const GAP = 20;
 /** The gray of the plain drawing, before color arrives. */
 export const GRAY = { node: "#6a7180", edge: "#566072" };
 
@@ -81,7 +87,7 @@ export function growthOrder(routes) {
  * @param flat - how many airports join while the drawing is flat (their flat places: flatPlaces)
  * @returns the steps: [{ node: <record>, edges: [{ id, source, target }] }], SEED's first; and
  *     `spot` and `europe`, where the globe puts the path's end and EUROPE; each node carries
- *     `position`, its place in the 3D drawing (SPAN across, centered on the origin); `flat`, the
+ *     `position`, its place in the 3D drawing (centered on the origin: groupsApart); `flat`, the
  *     first `flat` airports' places in the flat drawing, by id
  */
 export async function plan(h, preload, flat) {
@@ -162,18 +168,34 @@ export async function plan(h, preload, flat) {
         },
         [steps.map((s) => s.node), steps.flatMap((s) => s.edges.map(({ source, target }) => ({ source, target })))],
     );
-    const at = lobes(drawn.ps, SPAN, 1.8, 0.5);
-    // turned so the drawing's widest spread lies across the screen and its thinnest is the depth:
-    // the flat view (z 0) is then the least tangled one, and the lift adds the rest
-    const turn = principalAxes(Object.values(at));
+    // the 3D drawing: each community its own lobe, its airports at least APART, with GAP of empty
+    // space between lobes, so it is airy and its communities distinct groups (groupsApart); the
+    // flat drawing is laid out from a tighter version of the same drawing, SPAN_FLAT across
+    // (lobes), so the 2D tree is drawn at the scale the 2D camera and the airports' size suit
+    const at = groupsApart(drawn.ps, SPAN, APART, GAP);
+    const tight = lobes(drawn.ps, SPAN_FLAT, 1.8, 0.5);
+    // both turned alike, so the drawing's widest spread lies across the screen and its thinnest is
+    // the depth: the flat view (z 0) is then the least tangled one, and the lift adds the rest
+    const turn = principalAxes(Object.values(tight));
+    const turned = (p) => {
+        const [x, y, z] = turn.map((a) => a.x * p.x + a.y * p.y + a.z * p.z);
+        return { x, y, z };
+    };
+    const flatById = new Map();
     for (const n of nodes)
         if (at[n.id]) {
-            const p = at[n.id];
-            const [x, y, z] = turn.map((a) => a.x * p.x + a.y * p.y + a.z * p.z);
-            n.position = { x, y, z };
+            n.position = turned(at[n.id]);
+            flatById.set(n.id, { position: turned(tight[n.id]) });
         }
     bendOut(byId, BEND, 10);
-    steps.flat = flatPlaces(steps, flat);
+    bendOut(flatById, BEND, 10);
+    // in 3D, the route's first corner eased (MANILA): its airport drawn toward the middle of the two
+    // either side, so the flight meets it head on and turns after it gently (the flat tree keeps it)
+    pullIn(byId, MANILA, 0.3);
+    steps.flat = flatPlaces(
+        steps.map((s) => ({ ...s, node: { ...s.node, position: flatById.get(s.node.id).position } })),
+        flat,
+    );
     // the sample cleared and the first airport added back: removing all but one of the sample's
     // 3,214 airports instead leaves every later addNodes and addEdges call taking 1-5 s
     // (tmp/demo-video/intros/growth/defects.md)
@@ -200,6 +222,25 @@ export async function plan(h, preload, flat) {
 const BEND = ["MNL", "SFO", "PHL", "JFK"];
 
 /**
+ * The flight's first corner, [before, middle, after]: in the force drawing the route turns about 90
+ * degrees at its middle airport (MNL), too sharp to fly past it at speed without whipping the look.
+ */
+const MANILA = ["SYD", "MNL", "SFO"];
+
+/**
+ * A corner of the route eased: its middle airport moved toward the middle of the two either side,
+ * to `keep` of its distance from it (in place).
+ * @param byId - the airport records, by id (their `position` read and the middle's replaced)
+ * @param ids - [before, middle, after]
+ * @param keep - the share of its distance from their middle it keeps
+ */
+export function pullIn(byId, ids, keep) {
+    const [a, m, b] = ids.map((id) => byId.get(id).position);
+    const mid = mul(add(a, b), 0.5);
+    byId.get(ids[1]).position = add(mid, mul(sub(m, mid), keep));
+}
+
+/**
  * A bend of the route opened out: its middle airport moved to halfway between the bend's start and
  * end, `out` beyond the line joining them on the side away from the airport before (in place), so
  * the flight meets the start, the middle and the end one at a time and turns in an even arc.
@@ -213,6 +254,41 @@ export function bendOut(byId, ids, out) {
     const w = unit(sub(pd, pb));
     const perp = unit(sub(u, mul(w, dot(u, w))));
     byId.get(ids[2]).position = add(mul(add(pb, pd), 0.5), mul(perp, out));
+}
+
+/**
+ * The mean of points.
+ * @param qs - the points
+ * @returns their mean
+ */
+const mean = (qs) =>
+    mul(
+        qs.reduce((s, q) => add(s, q), { x: 0, y: 0, z: 0 }),
+        1 / qs.length,
+    );
+
+/**
+ * A drawing's communities drawn apart, tightly (the flat drawing's starting point): each group's
+ * middle pushed out from the drawing's by `apart`, its airports drawn in toward it by `tight`,
+ * then the whole centered on the origin and scaled to `span` across.
+ * @param ps - [id, position, group]
+ * @param span - the width it is scaled to
+ * @param apart - how far each group's middle moves out, against where it was
+ * @param tight - how close each airport comes to its group's middle, against where it was
+ * @returns each airport's new position, by id
+ */
+function lobes(ps, span, apart, tight) {
+    const c = mean(ps.map(([, p]) => p));
+    const mids = new Map();
+    for (const g of new Set(ps.map(([, , x]) => x)))
+        mids.set(g, mean(ps.filter(([, , x]) => x === g).map(([, p]) => p)));
+    const moved = ps.map(([id, p, g]) => {
+        const m = mids.get(g);
+        return [id, add(add(c, mul(sub(m, c), apart)), mul(sub(p, m), tight))];
+    });
+    const c2 = mean(moved.map(([, p]) => p));
+    const r = Math.max(...moved.map(([, p]) => len(sub(p, c2))));
+    return Object.fromEntries(moved.map(([id, p]) => [id, mul(sub(p, c2), span / 2 / r)]));
 }
 
 /**
@@ -246,32 +322,83 @@ export function principalAxes(ps) {
 }
 
 /**
- * A drawing's communities drawn apart: each group's middle pushed out from the drawing's by
- * `apart`, its airports drawn in toward it by `tight`, then the whole centered on the origin and
- * scaled to `span` across.
+ * Lobes' middles pushed apart (in place) until every two have `gap` between the spheres round them,
+ * the smaller lobe moving more.
+ * @param groups - [{ mid, radius, n }]
+ * @param gap - the empty space between two
+ */
+function pushApart(groups, gap) {
+    // one pair: whether it had to move
+    const part = (a, b) => {
+        const d = sub(b.mid, a.mid);
+        const l = len(d);
+        const need = a.radius + b.radius + gap;
+        if (l >= need) return false;
+        const u = l > 1e-9 ? mul(d, 1 / l) : { x: 1, y: 0, z: 0 };
+        a.mid = sub(a.mid, mul(u, ((need - l) * b.n) / (a.n + b.n)));
+        b.mid = add(b.mid, mul(u, ((need - l) * a.n) / (a.n + b.n)));
+        return true;
+    };
+    for (let round = 0; round < 400; round++) {
+        let moved = false;
+        for (let i = 0; i < groups.length; i++)
+            for (let j = i + 1; j < groups.length; j++) moved = part(groups[i], groups[j]) || moved;
+        if (!moved) return;
+    }
+}
+
+/**
+ * A drawing's communities drawn as separate lobes: the drawing scaled to `span` across, then each
+ * community kept in its own shape round its middle but opened out until no two of its airports
+ * are nearer than `least` (spreadOut), and the communities' middles pushed apart (each kept in the
+ * direction it lay from the drawing's middle) until every two lobes have `gap` of empty space
+ * between them (between the spheres round their farthest airports; the smaller lobe moves more);
+ * the whole centered on the origin. Not scaled down after, so the spacing holds.
  * @param ps - [id, position, group]
- * @param span - the width it is scaled to
- * @param [apart] - how far each group's middle moves out, against where it was
- * @param [tight] - how close each airport comes to its group's middle, against where it was
+ * @param span - the width the drawing is scaled to first
+ * @param least - the least distance between two airports of a lobe
+ * @param gap - the empty space between two lobes
  * @returns each airport's new position, by id
  */
-export function lobes(ps, span, apart = 1.45, tight = 0.6) {
-    const mean = (qs) =>
-        mul(
-            qs.reduce((s, q) => add(s, q), { x: 0, y: 0, z: 0 }),
-            1 / qs.length,
-        );
+export function groupsApart(ps, span, least, gap) {
     const c = mean(ps.map(([, p]) => p));
-    const mids = new Map();
-    for (const g of new Set(ps.map(([, , x]) => x)))
-        mids.set(g, mean(ps.filter(([, , x]) => x === g).map(([, p]) => p)));
-    const moved = ps.map(([id, p, g]) => {
-        const m = mids.get(g);
-        return [id, add(add(c, mul(sub(m, c), apart)), mul(sub(p, m), tight))];
+    const r = Math.max(...ps.map(([, p]) => len(sub(p, c)))) || 1;
+    const groups = [...new Set(ps.map(([, , g]) => g))].map((g) => {
+        const own = ps.filter(([, , x]) => x === g).map(([id, p]) => [id, mul(sub(p, c), span / 2 / r)]);
+        const mid = mean(own.map(([, p]) => p));
+        const local = spreadOut(Object.fromEntries(own.map(([id, p]) => [id, sub(p, mid)])), least);
+        const radius = Math.max(0, ...Object.values(local).map((q) => len(q)));
+        return { mid, local, radius, n: own.length };
     });
-    const c2 = mean(moved.map(([, p]) => p));
-    const r = Math.max(...moved.map(([, p]) => len(sub(p, c2))));
-    return Object.fromEntries(moved.map(([id, p]) => [id, mul(sub(p, c2), span / 2 / r)]));
+    pushApart(groups, gap);
+    const out = groups.flatMap(({ mid, local }) => Object.entries(local).map(([id, q]) => [id, add(mid, q)]));
+    const c2 = mean(out.map(([, p]) => p));
+    return Object.fromEntries(out.map(([id, p]) => [id, sub(p, c2)]));
+}
+
+/**
+ * Points pushed apart until no two are nearer than `least` (each pair too near moved apart along
+ * the line between them, half each, `rounds` times over): clumps open up, while points already
+ * farther apart, such as separate lobes, stay where they are.
+ * @param at - the points, by id
+ * @param least - the least distance
+ * @param [rounds] - how many passes
+ * @returns the moved points, by id
+ */
+export function spreadOut(at, least, rounds = 60) {
+    const ids = Object.keys(at);
+    const ps = ids.map((id) => ({ ...at[id] }));
+    for (let r = 0; r < rounds; r++)
+        for (let i = 0; i < ps.length; i++)
+            for (let j = i + 1; j < ps.length; j++) {
+                const d = sub(ps[j], ps[i]);
+                const l = len(d);
+                if (l >= least) continue;
+                const push = mul(l > 1e-9 ? mul(d, 1 / l) : { x: 1, y: 0, z: 0 }, (least - l) / 2);
+                ps[i] = sub(ps[i], push);
+                ps[j] = add(ps[j], push);
+            }
+    return Object.fromEntries(ids.map((id, i) => [id, ps[i]]));
 }
 
 /**
@@ -469,12 +596,30 @@ function gauss(xs, w, vec = true) {
 }
 
 /**
- * A value given once or per airport: the m-th of a list (its last past its end), or the value.
- * @param x - a value or a list
- * @param m - the airport's index
- * @returns its value
+ * A curve (curve) with its corners rounded: sampled a unit apart, each sample moved to the
+ * Gaussian mean of its neighbors `sigma` units wide, the width tapering to nothing toward the ends,
+ * so the ends stay put and the last straight stays straight.
+ * @param c - the curve
+ * @param sigma - the width (units)
+ * @returns the rounded curve, as curve
  */
-const each = (x, m) => (Array.isArray(x) ? x[Math.min(m, x.length - 1)] : x);
+function rounded(c, sigma) {
+    const n = Math.max(2, Math.ceil(c.length));
+    const xs = Array.from({ length: n + 1 }, (_, i) => c.at((i * c.length) / n));
+    const out = xs.map((x, i) => {
+        const w = sigma * Math.min(smooth(i / (3 * sigma)), smooth((n - i) / (3 * sigma)));
+        if (w < 0.3) return x;
+        const k = Math.ceil(3 * w);
+        let [sum, tot] = [{ x: 0, y: 0, z: 0 }, 0];
+        for (let j = Math.max(0, i - k); j <= Math.min(n, i + k); j++) {
+            const a = Math.exp(-(((j - i) / w) ** 2) / 2);
+            sum = add(sum, mul(xs[j], a));
+            tot += a;
+        }
+        return mul(sum, 1 / tot);
+    });
+    return curve(out, 1);
+}
 
 /**
  * `cl` beside a point of a route going `T`, at angle `a` round it from above.
@@ -493,277 +638,254 @@ function beside(p, T, a, cl) {
 }
 
 /**
- * The flight path's points before the last airport (flightPoses): from `from` round over the top
- * to the `out` side (when `out` is given), the run-in's start `lead` out from the first airport,
- * and a point beside each airport but the last.
+ * The camera's curve for flightPoses: from the run-in `lead` back along the first leg, a point
+ * beside each airport but the last (`clear` of it, at `side` round the way the route comes in) and
+ * `over` on past it before the turn, and beside the middle of each leg but the last (each leg seen
+ * along its own way, so the curve keeps off the route's straight lines), then straight in on the last
+ * along `dir` to `close` from it; its corners rounded `round` wide, so the look never whips round a
+ * bend (the ends kept where they are). The rounding moves the curve nearer some airports and
+ * farther from others, so each airport's offset is scaled until the camera passes it `clear` away
+ * (a few rounds settle it).
  * @param pts - the route's airports
- * @param o - as flightPoses'
- * @param o.from - where the camera starts
- * @param o.out - the side the run-in comes from
- * @param o.lead - how far out the run-in starts
- * @param o.sides - the side each airport is passed on
- * @param o.clear - how far from each airport
- * @returns `cam`, the points, and `k0`, the index of the run-in's start among them
+ * @param o - the curve
+ * @param o.away - the way back along the first leg (unit)
+ * @param o.dir - the way the close-up is seen from (unit, from the last airport)
+ * @param o.lead - how far back the run-in is
+ * @param o.clear - how far beside each airport it passes
+ * @param o.side - which side (the angle round the way the route goes)
+ * @param o.over - how far on past each airport it carries before turning
+ * @param o.round - how widely its corners are rounded
+ * @param o.close - the close-up's distance
+ * @returns `c0`, the curve through the points, and `c`, it rounded (both as curve)
  */
-function passPoints(pts, { from, out, lead, sides, clear }) {
-    const toFrom = from ? unit(sub(from, pts[0])) : null;
-    const back = out ? unit(out) : (toFrom ?? unit(sub(pts[0], pts[1])));
-    const cam = [];
-    if (out && from) {
-        const r = (len(sub(from, pts[0])) + lead) / 2;
-        cam.push(from, add(pts[0], mul(unit(add(add(toFrom, back), { x: 0, y: 0.8, z: 0 })), r)));
-    }
-    const k0 = cam.length;
-    const line = [add(pts[0], mul(back, lead)), ...pts];
-    for (let i = 0; i + 1 < line.length; i++) {
-        const m = Math.max(0, i - 1);
-        const T = unit(sub(line[i + 1], line[Math.max(0, i - 1)]));
-        cam.push(beside(line[i], T, each(sides, m), each(clear, m)));
-    }
-    return { cam, k0 };
-}
-
-/**
- * The side the flight's close-up sees the last airport from: as the last leg comes in (from behind
- * and above), turned toward `u` until it is within `cone` of it (so the close-up on the globe, seen
- * from the same side, looks down on the earth and never from under it).
- * @param pts - the route's airports
- * @param u - the close-up's normal (unit)
- * @param close - the close-up's distance
- * @param cl - how far beside the last leg the camera comes in
- * @param cone - how far (rad) the side may lean from `u`
- * @returns `dir`, the side, and `side`, its part across `u`
- */
-function closeSide(pts, u, close, cl, cone) {
-    const Y = { x: 0, y: 1, z: 0 };
+function besideCurve(pts, { away, dir, lead, clear, side, over, round, close }) {
     const last = pts.at(-1);
-    const T1 = unit(sub(last, pts.at(-2)));
-    const natural = unit(sub(beside(sub(last, mul(T1, 3 * close)), T1, Math.PI / 3, cl), last));
-    const lean = dot(natural, u);
-    let side = unit(sub(natural, mul(u, lean)));
-    if (!Number.isFinite(side.x)) side = unit(cross(u, Math.abs(u.y) < 0.9 ? Y : { x: 1, y: 0, z: 0 }));
-    const dir = lean >= Math.cos(cone) ? natural : unit(add(mul(u, Math.cos(cone)), mul(side, Math.sin(cone))));
-    return { dir, side };
-}
-
-/**
- * What the flight's camera looks at, at arc length s along its path: the airport it is coming to,
- * eased on to the next one from `before` that airport is passed to `after` (never starting before
- * the last hand-off ends).
- * @param pts - the route's airports
- * @param passAt - the arc length where the path passes each airport but the last
- * @param handoff - [before, after] per airport
- * @returns s -> the point looked at
- */
-function lookAlong(pts, passAt, handoff) {
-    return (s) => {
-        let a0 = -Infinity;
-        for (let m = 0; m + 1 < pts.length; m++) {
-            const [before, after] = handoff[Math.min(m, handoff.length - 1)];
-            const a = Math.max(a0, passAt[m] - before);
-            const b = Math.max(a + 1, passAt[m] + after);
-            if (s < a) return pts[m];
-            if (s < b) return add(pts[m], mul(sub(pts[m + 1], pts[m]), smooth((s - a) / (b - a))));
-            a0 = b;
+    const path = (cl) => {
+        const cam = [beside(add(pts[0], mul(away, lead)), mul(away, -1), side, cl[0])];
+        for (let i = 0; i + 1 < pts.length; i++) {
+            const tin = unit(sub(pts[i], pts[Math.max(0, i - 1)]));
+            cam.push(beside(pts[i], i === 0 ? unit(sub(pts[1], pts[0])) : tin, side, cl[i]));
+            if (i > 0) cam.push(beside(add(pts[i], mul(tin, over)), tin, side, cl[i]));
+            if (i + 2 < pts.length) {
+                const mid = mul(add(add(pts[i], mul(tin, i > 0 ? over : 0)), pts[i + 1]), 0.5);
+                cam.push(beside(mid, unit(sub(pts[i + 1], mid)), side, (cl[i] + cl[i + 1]) / 2));
+            }
         }
-        return pts.at(-1);
+        cam.push(add(last, mul(dir, 6 * close)), add(last, mul(dir, close)));
+        const c0 = curve(cam);
+        return { c0, c: rounded(c0, round) };
     };
+    let cl = pts.map(() => clear);
+    let built = path(cl);
+    for (let k = 0; k < 6; k++) {
+        const ss = Array.from({ length: Math.ceil(built.c.length) }, (_, i) => built.c.at(i));
+        const near = pts.slice(0, -1).map((q) => Math.min(...ss.map((p) => len(sub(p, q)))));
+        cl = cl.map((x, i) =>
+            i < near.length ? Math.min(4 * clear, Math.max(0.25 * clear, (x * clear) / near[i])) : x,
+        );
+        built = path(cl);
+    }
+    return built;
 }
 
 /**
- * How much slower than its top speed the flight goes at arc length s (flightPoses' `dip`, `dipWidth`,
- * `pace`, `paceExp`).
- * @param pts - the route's airports
- * @param c - the flight's curve
- * @param passAt - the arc length where it passes each airport but the last
- * @param o - flightPoses' options
- * @param o.dip - how much slower at most (0-1)
- * @param o.dipWidth - over how much of the path round each airport it slows (without `pace`)
- * @param o.pace - the distance from the nearest route airport at which it goes at full speed
- * @param o.paceExp - the power of that distance it goes at
- * @returns s -> the share of the top speed
+ * How far along a line each camera position is level with: the nearest point of it, searched a
+ * little way on from the last (so it never goes back); the first `skip` positions (far off, in the
+ * swoop) are held at its start.
+ * @param ps - the camera's positions
+ * @param line - the line's point at a length along it
+ * @param length - its length
+ * @param skip - how many positions to hold at its start
+ * @returns the lengths along it
  */
-function slowing(pts, c, passAt, { dip, dipWidth, pace, paceExp }) {
-    if (!pace) return (s) => 1 - dip * Math.max(0, ...passAt.map((k) => Math.exp(-(((s - k) / dipWidth) ** 2) / 2)));
-    return (s) => {
-        const p = c.at(s);
-        const d = Math.min(...pts.map((q) => len(sub(p, q))));
-        return Math.min(1, Math.max(1 - dip, (d / pace) ** paceExp));
-    };
+function levelAlong(ps, line, length, skip) {
+    const us = [];
+    let u = 0;
+    for (const [i, p] of ps.entries()) {
+        let best = u;
+        if (i >= skip)
+            for (let x = u; x <= Math.min(length, u + 20); x += 0.25)
+                if (len(sub(line(x), p)) < len(sub(line(best), p))) best = x;
+        u = best;
+        us.push(u);
+    }
+    return us;
 }
 
 /**
  * The flight along a route, as camera poses (playPoses): an airplane's view. The camera leaves
- * `from`, swings round to `out` of the first airport (its open side, so no other airport stands
- * between them) and runs in along a smooth curve that passes beside each airport of the route
- * (never through one: `clear` from it, on its `sides`), looking at the airport it is coming to --
- * so each in turn sits up front in the middle of the frame, growing as the camera nears it --
- * until `handoff[0]` before passing it, when the look eases on to the next over `handoff[0] +
- * handoff[1]` of the path (the airport slides out past the side of the frame as the next comes
- * up), banking a little into the turns; it gathers speed, slows at each airport, swings round to
- * above the last airport and comes in along `normal` -- the way the close-up on the globe sees it,
- * so the two close-ups match -- slowing into an extreme close-up (`close` from it), creeping closer
- * through `hold`, aimed `aim` below it (so it sits that much above the canvas's middle, in the
- * middle of a crop).
+ * `from`, moving at `fromV` (the orbit's own motion, so it carries straight on) and looking at
+ * `look`, and swoops in along one cubic (Hermite) curve to a run-in `lead` behind the first airport,
+ * arriving along the route at the flight's starting speed; then it flies one smooth curve that runs
+ * `clear` beside each airport of the route, on the same side of it (`side`, an angle round the way
+ * the route goes), so it rides beside the route's line and never through an airport; past the last
+ * but one it comes in on the last airport from `dir` (nearly straight back along the last leg) to
+ * `close` from it. It looks along the route: at the point of the route's own line `ahead` beyond
+ * the point of it the camera is level with (and past the last airport, on along the line the camera
+ * comes in on), so the line runs away ahead into the distance, each airport comes up along it and
+ * sweeps out to the side large as the camera passes, and the close-up looks straight at the last
+ * airport with no turn to find it. Through the swoop its look eases from `look` onto the route.
+ *
+ * The speed: from the run-in it only builds (smoothstep), from `v0` of the top speed to the top as
+ * it passes the last airport but one; then it only slows (smoothstep), arriving at `vEnd` (`creep`
+ * of `close` a second) at the close-up; it holds the close-up `hold` more, creeping on at `vEnd`.
+ * The close-up is aimed `aim` below the airport (so it sits that much above the canvas's middle, in
+ * the middle of a crop), eased in as it comes in. It banks a little into the turns, level by the
+ * close-up.
  * @param pts - the route's airports, in order
  * @param o - the flight
- * @param o.ms - how long the flight takes, to the close-up (take ms)
- * @param o.normal - the direction the close-up looks from (from the last airport to the camera)
- * @param [o.from] - where the camera is when the flight starts (default behind the first airport)
- * @param [o.out] - the side the run-in comes to the first airport from (default toward `from`)
- * @param [o.cone] - how far (rad) the close-up's side may lean from `normal`
- * @param [o.lead] - how far before the first airport the run-in starts
- * @param [o.clear] - how far from each airport the camera passes: a number, or one per airport
- * @param [o.sides] - which side of each airport it passes, an angle round the way it is going
- *     (0 above, PI/2 to the right): a number, or one per airport
- * @param [o.handoff] - [before, after]: along the path, how long before passing an airport the
- *     look starts to move on to the next, and how long after it gets there; or one such pair per
- *     airport
- * @param [o.close] - the close-up's distance from the last airport
- * @param [o.hold] - the close-up held after it (take ms), creeping in by `creep` of `close`
- * @param [o.creep] - how much closer the hold creeps
+ * @param o.ms - how long the flight takes, from the run-in to the close-up (take ms)
+ * @param o.close - the close-up's distance from the last airport
+ * @param [o.approachMs] - how long the swoop from `from` to the run-in takes (take ms)
+ * @param [o.from] - where the camera is when the flight starts (default: it starts at the run-in)
+ * @param [o.fromV] - how it moves there (units a second of take; default still)
+ * @param [o.look] - what it looks at there (default along the route)
+ * @param [o.lead] - how far behind the first airport the run-in starts
+ * @param [o.clear] - how far beside each airport the camera passes
+ * @param [o.side] - which side: the angle round the way the route goes (0 above, PI/2 to the right)
+ * @param [o.ahead] - how far along the route ahead the camera looks
+ * @param [o.round] - how widely the camera's curve's corners are rounded (the smoothing's width, units)
+ * @param [o.lineRound] - as much for the route's line it looks along
+ * @param [o.over] - how far on past each airport but the first and last the camera and its look
+ *     carry straight on before they turn onto the next leg (so it meets each airport head on and
+ *     turns after it, in open space)
+ * @param [o.hold] - the close-up held after it (take ms)
+ * @param [o.v0] - the speed at the run-in, against the top speed
+ * @param [o.creep] - the speed at the close-up, in `close`s a second of take
  * @param [o.aim] - how far the close-up aims below the airport, in half-heights of the view
- * @param [o.v0] - the starting speed, against the top speed
- * @param [o.land] - how far into the flight (0-1 of its time) it stops gathering speed and starts
- *     slowing into the close-up
- * @param [o.dip] - how much the camera slows at each airport (0-1)
- * @param [o.dipWidth] - over how much of the path round each airport it slows
- * @param [o.pace] - instead of slowing round each airport by `dipWidth`: its speed is scaled by
- *     (distance to the nearest route airport / pace) ** paceExp, never under 1 - dip, so an
- *     airport grows on screen at an even rate (paceExp 1) or lingers once it is large (above 1),
- *     and the cruise between airports is quick
- * @param [o.paceExp] - see `pace`
  * @param [o.bank] - roll per rad/s of turn
  * @param [o.maxRoll] - the most roll (radians)
  * @param [o.sigma] - how long the look is smoothed over (s of take)
- * @param [o.maxTurn] - the fastest the look turns (rad a second of take)
- * @param [o.turnShare] - when above 0, the speed is capped wherever the path bends so it turns at
- *     most this share of `maxTurn` (the look can keep up, and no bend is a whip pan)
- * @param [o.bendSpan] - how far either side of a point its bend is measured over
- * @param [o.tau] - when above 0, near a route airport (but the last) the speed is at most its
- *     distance / tau (s of take): it grows on screen at a steady rate however fast the cruise is
- * @param [o.swingOut] - how far out (in `close`s) the swing round to the close-up's side passes
- *     the last airport
  * @param [o.hz] - poses a second
  * @returns `poses`, the camera's position `p`, its target `t` and its roll `r`, `hz` a second;
- *     `vEnd`, the creep's speed (units a second of take); and `dir`, the side the close-up is
- *     seen from (from the last airport toward the camera)
+ *     `runMs`, when it reaches the run-in (take ms: `approachMs`); `vEnd`, its speed at the
+ *     close-up (units a second of take); and `dir`, the side the close-up is seen from (from the
+ *     last airport toward the camera)
  */
 export function flightPoses(pts, o) {
-    const { from = null, normal, cone = 0.6, lead = 32, clear = 5.5, sides = Math.PI / 3, handoff = [2, 2] } = o;
-    const { close = 4.6, hold = 0, creep = 0.1, aim = 0, dipWidth = 8, pace = 0, paceExp = 1 } = o;
-    const { v0 = 0.3, dip = 0.5, bank = 0.5, maxRoll = 0.17, sigma = 0.7, maxTurn = 0.4, hz = 60, land = 0.6 } = o;
-    const { turnShare = 0, bendSpan = 1.5, swingOut = 5, tau = 0 } = o;
+    const { from = null, fromV = { x: 0, y: 0, z: 0 }, look = null, lead = 30, clear = 8, side = 0.6 } = o;
+    const { ahead = 60, over = 30, round = 20, lineRound = 30, hold = 0, v0 = 0.6, creep = 0.2, aim = 0, close } = o;
+    const { bank = 0.5, maxRoll = 0.17, sigma = 1.5, hz = 60 } = o;
     const last = pts.at(-1);
-    const u = unit(normal);
-    const n = pts.length;
     const Y = { x: 0, y: 1, z: 0 };
-    const { cam, k0 } = passPoints(pts, { from, out: o.out, lead, sides, clear });
-    const { dir, side } = closeSide(pts, u, close, each(clear, n - 1), cone);
-    // the approach: round to it, then in along it
-    let swing = add(dir, unit(sub(cam.at(-1), last)));
-    if (len(swing) < 0.3) swing = side;
-    cam.push(
-        add(last, mul(unit(swing), close * swingOut)),
-        add(last, mul(dir, close * 2.2)),
-        add(last, mul(dir, close)),
-    );
-    const c = curve(cam);
-    // where along the path the camera passes each airport but the last
-    const passAt = pts.slice(0, -1).map((_, m) => c.knots[k0 + 1 + m]);
-    const coming = lookAlong(pts, passAt, Array.isArray(handoff[0]) ? handoff : pts.map(() => handoff));
-    // the speed: from v0 of the top speed, rising to the top `land` of the way, then slowing to
-    // the creep; slower near each airport (dip, or pace)
+    // the run-in straight back along the route's first leg, and the side the last is seen from:
+    // nearly straight back along the last leg, so the look comes onto it with little turn
+    const away = unit(sub(pts[0], pts[1]));
+    const T1 = unit(sub(last, pts.at(-2)));
+    const dir = unit(sub(beside(sub(last, mul(T1, 9 * close)), T1, side, clear), last));
+    const { c0, c } = besideCurve(pts, { away, dir, lead, clear, side, over, round, close });
     const sEnd = c.length;
+    const sArr = (c0.knots.at(-3) * c.length) / c0.length;
+    // the speed: smoothly from v0 to the top over the build (to the last airport but one), then
+    // smoothly down to vEnd over the arrival (each a smoothstep, so each stretch takes its length
+    // over the mean of its two speeds); the top speed found so the two take `ms`
+    const vEnd = creep * close;
     const T = o.ms / 1000;
-    const H = hold / 1000;
-    const vEnd = H > 0 ? (creep * close) / H : 0;
-    const dt = 1 / hz;
-    const near = slowing(pts, c, passAt, { dip, dipWidth, pace, paceExp });
-    const speed = (vmax, x) => {
-        const rise = smooth(x / land);
-        const fall = smooth((x - land) / (1 - land));
-        return (vmax * v0 + vmax * (1 - v0) * rise) * (1 - fall) + vEnd * fall;
-    };
-    const steps = Math.round(T * hz);
-    // how sharply the path bends at s (rad per unit, its tangent's turn over `bendSpan` either
-    // side), on a grid; the speed is capped by it so the path itself never turns the camera faster
-    // than `turnShare` of the look's `maxTurn`: every bend takes its time, none is a whip
-    const grid = 0.5;
-    const bends = Array.from({ length: Math.ceil(sEnd / grid) + 1 }, (_, j) => {
-        const s = j * grid;
-        const [a, m, b] = [c.at(s - bendSpan), c.at(s), c.at(s + bendSpan)];
-        const [t1, t2] = [unit(sub(m, a)), unit(sub(b, m))];
-        return Math.acos(Math.min(1, Math.max(-1, dot(t1, t2)))) / bendSpan;
-    });
-    const bendAt = (s) => bends[Math.min(bends.length - 1, Math.max(0, Math.round(s / grid)))];
-    const turnCap = turnShare * maxTurn;
-    // with `tau`: the distance to the nearest route airport but the last, on the same grid
-    const nearest = bends.map((_, j) => Math.min(...pts.slice(0, -1).map((q) => len(sub(c.at(j * grid), q)))));
-    const travel = (vmax, out) => {
-        let s = 0;
-        for (let k = 0; k <= steps; k++) {
-            out?.push(s);
-            const j = Math.min(bends.length - 1, Math.max(0, Math.round(s / grid)));
-            let v = speed(vmax, (k * dt) / T) * near(s);
-            if (turnShare) v = Math.min(v, turnCap / Math.max(1e-6, bendAt(s)));
-            if (tau) v = Math.min(v, nearest[j] / tau);
-            s += v * dt;
-        }
-        return s;
-    };
-    let [lo, hi] = [0.01, 1000];
-    for (let k = 0; k < 50; k++) {
+    const took = (v) => (2 * sArr) / ((1 + v0) * v) + (2 * (sEnd - sArr)) / (v + vEnd);
+    let [lo, hi] = [1e-3, 1e5];
+    for (let k = 0; k < 100; k++) {
         const m = (lo + hi) / 2;
-        if (travel(m) < sEnd) lo = m;
+        if (took(m) > T) lo = m;
         else hi = m;
     }
+    const vmax = hi;
+    const tb = (2 * sArr) / ((1 + v0) * vmax);
+    const ta = (2 * (sEnd - sArr)) / (vmax + vEnd);
+    // the integral of a + (b - a) smoothstep(t / d), from 0 to t
+    const ramp = (t, d, a, b) => {
+        const x = Math.min(1, t / d);
+        return d * (a * x + (b - a) * (x * x * x - (x * x * x * x) / 2));
+    };
+    const at = (t) => (t <= tb ? ramp(t, tb, v0 * vmax, vmax) : Math.min(sEnd, sArr + ramp(t - tb, ta, vmax, vEnd)));
     const arc = [];
-    travel(lo, arc);
-    const ps = arc.map((s) => c.at(s));
-    const raw = arc.map((s) => coming(s));
-    for (let k = 1; k <= Math.round(H * hz); k++) {
-        ps.push(add(last, mul(dir, close - vEnd * k * dt)));
-        raw.push(last);
+    const steps = Math.round(T * hz);
+    for (let k = 0; k <= steps; k++) arc.push(at(k / hz));
+    const nh = Math.round((hold / 1000) * hz);
+    for (let k = 1; k <= nh; k++) arc.push(sEnd + (vEnd * k) / hz);
+    // positions (past the curve's end, on in along -dir)
+    const on = (s) => (s <= sEnd ? c.at(s) : sub(c.at(sEnd), mul(dir, s - sEnd)));
+    let ps = arc.map((s) => on(s));
+    // the swoop: a cubic from `from` at fromV to the run-in at the starting speed along the curve
+    const na = from ? Math.round(((o.approachMs ?? 0) / 1000) * hz) : 0;
+    if (na > 0) {
+        const D = na / hz;
+        const [P1, V1] = [c.at(0), mul(unit(sub(c.at(1), c.at(0))), v0 * vmax)];
+        const swoop = Array.from({ length: na }, (_, k) => {
+            const x = k / na;
+            const [x2, x3] = [x * x, x * x * x];
+            return add(
+                add(mul(from, 2 * x3 - 3 * x2 + 1), mul(fromV, D * (x3 - 2 * x2 + x))),
+                add(mul(P1, -2 * x3 + 3 * x2), mul(V1, D * (x3 - x2))),
+            );
+        });
+        ps = [...swoop, ...ps];
     }
-    // the look: toward the smoothed airport ahead, turning at most `maxTurn` a second (it eases into
-    // a turn rather than whipping round; the close-up's look is reached in the slow approach)
-    // over the approach the look comes round to the last airport
-    const settle = (i, far, over) => (i < arc.length ? smooth((arc[i] - (sEnd - far * close)) / (over * close)) : 1);
-    const ts = gauss(raw, sigma * hz).map((q, i) => add(mul(q, 1 - settle(i, 10, 8)), mul(last, settle(i, 10, 8))));
-    const cap = maxTurn / hz;
-    const fwd = [];
-    for (const [i, p] of ps.entries()) {
-        const want = unit(sub(ts[i], p));
-        const was = fwd[i - 1] ?? want;
-        const a = Math.acos(Math.min(1, Math.max(-1, dot(was, want))));
-        // turned toward the wanted look by at most cap (spherical interpolation)
-        // a little quicker in the slow approach, so the look is settled before the close-up holds
-        const c = cap * (1 + 0.5 * settle(i, 4, 3));
-        const f = a <= c ? want : unit(add(mul(was, Math.sin(a - c)), mul(want, Math.sin(c))));
-        fwd.push(f);
-        ts[i] = add(p, mul(f, len(sub(ts[i], p))));
+    // the route's own line, from the run-in's point on it, and on past the last airport along the
+    // line the camera comes in on; the camera's place along it (the nearest point, never going
+    // back; the run-in's through the swoop), and the look `ahead` of that
+    const lineCtrl = [add(pts[0], mul(away, lead)), pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+        lineCtrl.push(pts[i]);
+        if (i + 1 < pts.length) lineCtrl.push(add(pts[i], mul(unit(sub(pts[i], pts[i - 1])), over)));
     }
-    // the close-up aimed `aim` below the airport (along the screen's up, as revealPoses' `aim`),
-    // eased in over the approach
-    const below = unit(sub(Y, mul(dir, dir.y)));
-    for (const [i, p] of ps.entries())
-        ts[i] = sub(ts[i], mul(below, aim * len(sub(p, last)) * Math.tan(0.4) * settle(i, 6, 5)));
+    const r0 = rounded(curve(lineCtrl), lineRound);
+    const line = (u) => (u <= r0.length ? r0.at(u) : sub(last, mul(dir, u - r0.length)));
+    const us = levelAlong(ps, line, r0.length, na);
+    const raw = ps.map((_, i) => {
+        const go = line(us[i] + ahead);
+        const w = na > 0 ? smooth(i / na) : 1;
+        return add(mul(look ?? go, 1 - w), mul(go, w));
+    });
+    // the place along the arc of each pose (the swoop before the run-in)
+    const where = ps.map((_, i) => (i < na ? -1 : arc[i - na]));
+    // smoothed, then aimed `aim` below (along the screen's up), eased in over the arrival
+    const ts = gauss(raw, sigma * hz).map((t, i) => {
+        const f = unit(sub(t, ps[i]));
+        const up = unit(sub(Y, mul(f, f.y)));
+        const w = smooth((where[i] - sArr) / (sEnd - sArr));
+        return sub(t, mul(up, aim * len(sub(t, ps[i])) * Math.tan(0.4) * w));
+    });
     // bank into the turn: roll from how fast the look swings sideways, smoothed, none at the end
+    const fwd = ps.map((p, i) => unit(sub(ts[i], p)));
     const turn = fwd.map((f, i) => {
         const [a, b] = [fwd[Math.max(0, i - 1)], fwd[Math.min(fwd.length - 1, i + 1)]];
         return (dot(sub(b, a), unit(cross(f, Y))) * hz) / 2;
     });
     const roll = gauss(turn, sigma * hz, false).map((w, i) => {
-        const fade = i < arc.length ? smooth((sEnd - arc[i]) / (close * 6)) : 0;
+        const fade = where[i] < 0 ? smooth(i / na) : smooth((sEnd - where[i]) / (close * 6));
         return Math.max(-maxRoll, Math.min(maxRoll, -bank * w)) * fade;
     });
     return {
         poses: ps.map((p, i) => ({ p: r3(p), t: r3(ts[i]), r: +roll[i].toFixed(4) })),
         hz,
+        runMs: (na * 1000) / hz,
         vEnd,
         dir,
     };
+}
+
+/**
+ * Poses moved from round one point to round another, turned so that looking from `a.dir` at
+ * `a.at` becomes looking from `b.dir` at `b.at`, with the screen's up (the world's up, across the
+ * view) kept up: the same picture of the point, the same move round it.
+ * @param poses - [{ p, t, r }]
+ * @param a - { at, dir }: the point they move round now, and the side they see it from
+ * @param b - { at, dir }: where to move them
+ * @returns the moved poses
+ */
+export function carry(poses, a, b) {
+    const Y = { x: 0, y: 1, z: 0 };
+    const frame = (d) => {
+        const z = unit(d);
+        const x = unit(cross(Y, z));
+        return [x, cross(z, x), z];
+    };
+    const [fa, fb] = [frame(a.dir), frame(b.dir)];
+    const move = (q) => {
+        const v = sub(q, a.at);
+        return fa.reduce((s, e, k) => add(s, mul(fb[k], dot(v, e))), b.at);
+    };
+    return poses.map((q) => ({ p: r3(move(q.p)), t: r3(move(q.t)), r: q.r }));
 }
 
 /**
@@ -823,115 +945,6 @@ export function stretch(poses, hz, a, b, f) {
 }
 
 /**
- * Re-time camera poses so nothing on the route moves too fast on screen: a speed governor. Where
- * a route airport in the frame slides across it faster than `maxSlide`, the route line of the
- * airport in the middle of the frame turns faster than `maxSpin`, or the look turns faster than
- * `maxLook`, that stretch plays slower, so much that it no longer does (at most `maxSlow` times);
- * where no route airport in the frame is `lull` of its height or larger, it plays `fast` times as
- * long (under 1: quicker), unless that would turn the look faster than `maxLook`. The factor is
- * smoothed over `sigma`, so the camera eases into and out of each change of speed. The path and
- * the look are unchanged: only when the camera is where.
- * @param poses - [{ p, t, r }] at `hz`
- * @param hz - poses a second
- * @param pts - the route's airports
- * @param o - the governor
- * @param [o.upto] - govern only the poses before this (ms); the rest play as they are
- * @param [o.play] - how many times faster the cut plays the poses (the limits are in its seconds)
- * @param [o.maxSlide] - the fastest an airport slides, in half-widths of the frame a second
- * @param [o.maxSpin] - the fastest the middle airport's route line turns on screen, rad a second
- * @param [o.maxLook] - the fastest the look turns, rad a second
- * @param [o.lull] - the least size (of the frame's height) an airport counts as a subject at
- * @param [o.fast] - how much shorter a stretch with no subject plays (under 1)
- * @param [o.maxSlow] - the most a stretch is slowed
- * @param [o.sigma] - how long the speed changes over (s of the cut)
- * @param [o.view] - the frame: `tanY` (tangent of half the view's height), `aspect`, `yc` and `hh`
- *     (the crop's middle and half-height, against the view's half-height), `d` (an airport's size)
- * @returns `poses`, at `hz`, and `at(ms)`: where a time of the old poses is in the new
- */
-export function govern(poses, hz, pts, o = {}) {
-    const { upto = Infinity, play = 1, maxSlide = 0.7, maxSpin = 2, lull = 0.25, fast = 1, maxSlow = 3 } = o;
-    const { sigma = 0.15, view = {}, maxLook = Infinity } = o;
-    const { tanY = Math.tan(0.4), aspect = 1.356, yc = 0.0955, hh = 0.7628, d = 2.99 } = view;
-    const Y = { x: 0, y: 1, z: 0 };
-    const N = Math.min(poses.length - 1, Math.round((upto * hz) / 1000));
-    const frame = ({ p, t }) => {
-        const F = unit(sub(t, p));
-        const R = unit(cross(F, Y));
-        const U = cross(R, F);
-        const at = (q) => {
-            const v = sub(q, p);
-            const z = dot(v, F);
-            if (z <= 0.3) return null;
-            const x = {
-                X: dot(v, R) / z / tanY / aspect,
-                Y: (dot(v, U) / z / tanY - yc) / hh,
-                s: d / z / tanY / (2 * hh),
-            };
-            return Math.abs(x.X) < 1.05 && Math.abs(x.Y) < 1.05 ? x : null;
-        };
-        // each airport, and the point 3 units along its route line to the next
-        return pts.map((q, k) => ({
-            q: at(q),
-            on: k + 1 < pts.length ? at(add(q, mul(unit(sub(pts[k + 1], q)), 3))) : null,
-        }));
-    };
-    const fs = poses.slice(0, N + 1).map((q) => frame(q));
-    const dtOut = 1 / (hz * play);
-    const look = (i) => unit(sub(poses[i].t, poses[i].p));
-    const need = fs.map((a, i) => {
-        const turn = Math.acos(Math.min(1, dot(look(i), look(Math.min(N, i + 1))))) / dtOut / maxLook;
-        if (!a.some(({ q }) => q && q.s >= lull)) return Math.min(maxSlow, Math.max(fast, turn));
-        const b = fs[Math.min(N, i + 1)];
-        let f = Math.max(1, turn);
-        a.forEach(({ q, on }, k) => {
-            const r = b[k].q;
-            if (!q || !r || q.s < 0.8 * lull) return;
-            f = Math.max(f, Math.hypot(r.X - q.X, ((r.Y - q.Y) * hh) / aspect) / dtOut / maxSlide);
-            // the line turning round an airport near the middle
-            if (on && b[k].on && Math.abs(q.X) < 0.6 && Math.abs(q.Y) < 0.6) {
-                const ang = (u, w) => Math.atan2((w.Y - u.Y) * hh, (w.X - u.X) * aspect);
-                let da = Math.abs(ang(r, b[k].on) - ang(q, on));
-                if (da > Math.PI) da = 2 * Math.PI - da;
-                f = Math.max(f, da / dtOut / maxSpin);
-            }
-        });
-        return Math.min(maxSlow, f);
-    });
-    // a running max (so a peak is not smoothed away) then smoothed, both over sigma
-    const w = Math.max(1, Math.round(sigma * hz * play));
-    const held = need.map((_, i) => Math.max(...need.slice(Math.max(0, i - w), i + w + 1)));
-    const factor = gauss(held, w, false);
-    const lerp = (u, v, k) => ({ x: u.x + (v.x - u.x) * k, y: u.y + (v.y - u.y) * k, z: u.z + (v.z - u.z) * k });
-    const pose = (x) => {
-        const j = Math.min(poses.length - 1, Math.floor(x));
-        const [u, v] = [poses[j], poses[Math.min(j + 1, poses.length - 1)]];
-        const k = x - j;
-        return { p: lerp(u.p, v.p, k), t: lerp(u.t, v.t, k), r: u.r + (v.r - u.r) * k };
-    };
-    const out = [];
-    const taus = [];
-    let tau = 0;
-    while (tau <= poses.length - 1 + 1e-9) {
-        out.push(pose(tau));
-        taus.push(tau);
-        tau += tau < N ? 1 / factor[Math.min(N, Math.floor(tau))] : 1;
-    }
-    // the last pose, where the steps step over it
-    if (taus.at(-1) < poses.length - 1 - 1e-9) {
-        out.push(pose(poses.length - 1));
-        taus.push(poses.length - 1);
-    }
-    const at = (ms) => {
-        const x = (ms * hz) / 1000;
-        const i = taus.findIndex((t) => t >= x);
-        if (i < 0) return ((out.length - 1) * 1000) / hz;
-        if (i === 0) return 0;
-        return ((i - 1 + (x - taus[i - 1]) / (taus[i] - taus[i - 1])) * 1000) / hz;
-    };
-    return { poses: out, at };
-}
-
-/**
  * The reveal, as camera poses (playPoses): an extreme close-up on a point of the globe, straight
  * down on it (as the flight's close-up), still creeping in at `creepV`; then one long pull back,
  * eased in briefly and out long (a sine of a power of the time, in the log of the distance, so it
@@ -947,6 +960,7 @@ export function govern(poses, hz, pts, o = {}) {
  * @param o.pull - how long the pull back takes (take ms)
  * @param [o.from] - the side the close-up is seen from (default straight down)
  * @param [o.creepV] - the close-up's creep in (units a second of take)
+ * @param [o.creepFade] - over what share of the pull the creep fades out
  * @param [o.hold] - how long the close-up only creeps first (take ms)
  * @param [o.turn] - how long it turns on after (take ms)
  * @param [o.far] - how far out it ends, in globe radii
@@ -959,7 +973,8 @@ export function govern(poses, hz, pts, o = {}) {
  * @returns `poses` and `hz`, as flightPoses
  */
 export function revealPoses(spot, toward, o) {
-    const { close, pull, creepV = 0, hold = 0, turn = 0, far = 4.6, spin = 0.02, drop = 0, aim = 0, hz = 60 } = o;
+    const { close, pull, creepV = 0, creepFade = 0.08, hold = 0, turn = 0, far = 4.6, spin = 0.02 } = o;
+    const { drop = 0, aim = 0, hz = 60 } = o;
     const r = len(spot);
     const u = unit(o.from ?? spot);
     const m = unit(add(unit(spot), unit(toward)));
@@ -980,8 +995,10 @@ export function revealPoses(spot, toward, o) {
     const dt = 1 / hz;
     for (let t = 0; t <= (hold + pull + turn) / 1000 + 1e-9; t += dt) {
         const k = (t - hold / 1000) / (pull / 1000);
-        const radius = (close - crept) * (R / close) ** ease(k);
-        crept += creepV * (1 - smooth(k / 0.08)) * dt;
+        // the creep's ground given back as the pull goes out, so the pull ends `far` out, centered
+        const e = ease(k);
+        const radius = (close - crept * (1 - e)) * (R / close) ** e;
+        crept += creepV * (1 - smooth(k / creepFade)) * dt;
         // the target slides to the globe's middle with the distance, so the camera only ever recedes
         const target = mul(spot, 1 - Math.max(0, (radius - close) / (R - close)));
         const q = soft((k - 0.2) / 0.8);

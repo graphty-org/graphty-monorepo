@@ -1,7 +1,7 @@
 {
     "name": "intro-growth",
     "title": "Growth (new)",
-    "note": "One continuous shot: an untangled 2D tree of airports grows, lifts into 3D in two moves, lights its communities, flies the Sydney-to-New York route with each airport up front in turn (the flight plays at one speed, 3.1x, the speed its offline tuning assumes, but for the route line's fade before the close-up: the take plays that stretch 3 times slower so its restyles cost no visible frames, and the cut 9.3x; likewise the pull back's first 6 s of output, while the light comes back, 2 times slower in the take), holds New York for about 2 s while the earth fades in behind it, and pulls back to the whole globe centered between the logo and the tagline (the title card's `gap`). Music is a PLACEHOLDER (audio/trailer.wav, its build lengthened to the crescendo by ~/intros/growth/make-music.sh, which also sets its loudness curve to the cut's marks): the owner has not chosen a track. To swap it, set music.file, and move the logo onto the new track's final hit by shifting Part B's `to` and the title's `over.at` by the same amount (both after mark turn, so the dissolve into the title shows the same frames on both sides).",
+    "note": "One continuous shot: an untangled 2D tree of airports grows, lifts into 3D in two moves, lights its communities as separate lobes, then, as the world darkens, the camera leaves its orbit carrying its own motion on and swoops in behind Sydney (the take plays the hush 2 times slower and that swoop 9.6/3.1 times slower, and the cut 9.6x, so the restyles there cost no visible frames and the camera's speed carries on unchanged into the flight), flies the Sydney-to-New York route beside it like an airplane, looking along the route's line ahead as each airport comes up and sweeps by large, its speed building until it eases into New York (the flight plays at 3.1x, but for the route line's fade in its last 0.9 s: the take plays that stretch 3 times slower so its restyles cost no visible frames, and the cut 9.3x; likewise the pull back's first 6 s of output, while the light comes back, 2 times slower in the take), holds New York briefly while the other airports shrink away and the earth fades in behind it (New York an opaque amber pearl, already at its place and size on the globe, about twice the size of the other airports), and pulls back to the whole globe, evenly lit, centered between the logo and the tagline (the title card's `gap`). Music is a PLACEHOLDER (audio/trailer.wav, its build lengthened to the crescendo by ~/intros/growth/make-music.sh, which also sets its loudness curve to the cut's marks): the owner has not chosen a track. To swap it, set music.file, and move the logo onto the new track's final hit by shifting Part B's `to` and the title's `over.at` by the same amount (both after mark turn, so the dissolve into the title shows the same frames on both sides).",
     "top": true,
     "crossfadeMs": 1500,
     "music": {
@@ -31,11 +31,11 @@
                         [["grow3d", 4.5], 3.8],
                         [["grow3d", 12], 4.0],
                         [["communities", 0], 4.4],
-                        [["hush", 0], 4.8],
-                        [["route", 0], 4.8],
+                        [["hush", 0], 9.6],
+                        [["route", 0], 9.6],
                         [["flight", 0], 3.1],
-                        [["close", -18.6], 9.3],
-                        [["close", -1.5], 3.2]
+                        [["close", -6.75], 9.3],
+                        [["close", -0.45], 3.2]
                     ]
                 },
                 {
@@ -44,7 +44,7 @@
                     "zoom": false,
                     "caption": "",
                     "at": ["onglobe", 0],
-                    "to": ["turn", 4.18],
+                    "to": ["turn", 6.48],
                     "ramp": [
                         [["onglobe", 0], 3.2],
                         [["pull", 3], 3.6],
@@ -63,7 +63,7 @@
                     "card": "title",
                     "over": {
                         "clip": "growth-world",
-                        "at": ["turn", 2.68]
+                        "at": ["turn", 4.98]
                     },
                     "zoom": false,
                     "lines": ["See what your connected data is hiding"],

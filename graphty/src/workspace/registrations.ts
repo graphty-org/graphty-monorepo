@@ -21,6 +21,7 @@ import { registration as project } from "./project/commands";
 import { registration as replace } from "./replace/commands";
 import { registration as server } from "./server/commands";
 import { registration as settings } from "./settings/commands";
+import { registration as sourceSteps } from "./source-steps/commands";
 import { registration as start } from "./start/commands";
 import { registration as style } from "./style/commands";
 import { registration as table } from "./table/commands";
@@ -40,6 +41,7 @@ export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
     layout,
     graphPlace,
     dataPlace,
+    sourceSteps,
     viewsPlace,
     inspector,
     style,

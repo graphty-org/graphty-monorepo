@@ -175,8 +175,9 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
             name: "restore",
             summary: "",
             fields: { name },
-            effect: "exempt",
-            reaches: [{ op: "view.camera" }],
+            // Brings back what the view keeps beside the camera (filters, layers...), one step.
+            effect: "write",
+            reaches: [{ door: "SessionViews.open" }],
             run: async ({ tx }, args) => {
                 const saved = text(args.name);
                 if (!tx.views.has(saved)) {
@@ -187,7 +188,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
                     });
                 }
 
-                await coded(() => tx.execute({ op: "view.camera", preset: saved, animate: true }));
+                await coded(() => tx.views.open(saved, { animate: true }));
                 return { ...ok(undefined, { name: saved }), effects: viewEffects };
             },
         },

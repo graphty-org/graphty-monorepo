@@ -12,11 +12,15 @@ import "@graphty/graphty-element";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { forgetAutosave } from "../../../test/reload";
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore, type Opener, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// A second file replaces or joins only with sources and steps off: on, it is staged.
+withoutFeatures(["source-steps"]);
 
 /** Where a tab keeps its place across a reload (store.ts). */
 const PLACE_ITEM = "app.graphty.workspace.place";

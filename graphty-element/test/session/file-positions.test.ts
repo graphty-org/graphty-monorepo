@@ -9,6 +9,7 @@ import { assert, describe, it, vi } from "vitest";
 
 import { DataConfig } from "../../src/config/DataConfig";
 import { exportSession } from "../../src/data/export";
+import { fileStylesOn } from "../helpers/file-styles-on";
 import { makeSession } from "./helpers";
 
 const SCALE = 2;
@@ -122,6 +123,26 @@ describe("a file loaded and saved is drawn the same way when loaded again", () =
 
             assert.deepEqual([...second.at.values()], [...first.at.values()], saved);
             assert.isTrue(second.session.layout.id === "fixed");
+            first.session.dispose();
+            second.session.dispose();
+        });
+    }
+});
+
+describe("an export writes the file's own coordinates when the fixed layout spread them", () => {
+    fileStylesOn();
+
+    for (const styles of [false, true]) {
+        it(`divides the drawing's spread out${styles ? ", with styles" : ""}`, async () => {
+            const first = await loaded("dot", DOT);
+            // The session holds the drawing as stored; a drawing spread 3 times holds three times that.
+            await first.session.positions.set(
+                [...first.at].map(([id, [x, y, z]]) => ({ id, x: 3 * x, y: 3 * y, z: 3 * z })),
+            );
+
+            const saved = await exportSession(first.session, "dot", { styles }, { positionFactor: () => 3 }).text();
+            const second = await loaded("dot", saved);
+            assert.deepEqual([...second.at.values()], [...first.at.values()], saved);
             first.session.dispose();
             second.session.dispose();
         });

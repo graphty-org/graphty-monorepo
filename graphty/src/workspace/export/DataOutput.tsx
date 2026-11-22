@@ -2,7 +2,7 @@ import { EntityChip, MenuCheckItem, ModalFooter, PopoutManager } from "@graphty/
 import type { ExportLoss } from "@graphty/graphty-element";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import { type GraphSession, isGraphtyError, projectFileName } from "@graphty/graphty-element/session";
-import { Alert, Badge, Button, Group, Input, Menu, Select, Stack, Text } from "@mantine/core";
+import { Alert, Badge, Box, Button, Group, Input, Menu, Select, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { allowlisted, count } from "../../lib/analytics";
@@ -378,6 +378,36 @@ function ScopeChips({
 }
 
 /**
+ * What the previewed file loses: a warning for what changes the data, a quiet line for what the
+ * format never holds (the element's `expected` losses, such as positions in CSV).
+ * @param props - Component props
+ * @param props.formatName - the format's name.
+ * @param props.warnings - the rows that change the data.
+ * @param props.notes - the rows the format never holds.
+ * @returns the warning and the line, each when it has rows.
+ */
+function PreviewLosses({
+    formatName,
+    warnings,
+    notes,
+}: Readonly<{ formatName: string; warnings: readonly LossRow[]; notes: readonly LossRow[] }>): React.JSX.Element {
+    return (
+        <>
+            {warnings.length > 0 ? (
+                <Alert color="yellow" role="note">
+                    <LossSummary lead={`Lost in ${formatName}`} rows={warnings} />
+                </Alert>
+            ) : null}
+            {notes.length > 0 ? (
+                <Box component="output" c="dimmed" display="block">
+                    <LossSummary lead={`Not in ${formatName}`} rows={notes} />
+                </Box>
+            ) : null}
+        </>
+    );
+}
+
+/**
  * Why the file was not written.
  * @param props - Component props
  * @param props.failure - the refusals' rows, or a label.
@@ -428,7 +458,13 @@ export function DataOutput({
 }: Readonly<DataOutputProps>): React.JSX.Element {
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
-    const [preview, setPreview] = useState<{ lines: string; notes: readonly LossRow[] } | null>(null);
+    const [preview, setPreview] = useState<{
+        lines: string;
+        /** What the format holds differently from the graph: shown as a warning. */
+        warnings: readonly LossRow[];
+        /** What the format never holds (the element's `expected` losses): shown as a quiet note. */
+        notes: readonly LossRow[];
+    } | null>(null);
     const [failure, setFailure] = useState<Failure | null>(null);
     const [busy, setBusy] = useState(false);
     /** The style losses of the export the reader asked to save, until they save anyway or choose again. */
@@ -475,7 +511,11 @@ export function DataOutput({
                 ({ losses } = result);
                 const lines = binary ? `${formatName}: no preview` : await previewOf(result);
                 if (live) {
-                    setPreview({ lines, notes: lossRows(result.losses) });
+                    setPreview({
+                        lines,
+                        warnings: lossRows(result.losses.filter((loss) => !loss.expected)),
+                        notes: lossRows(result.losses.filter((loss) => loss.expected)),
+                    });
                     setFailure(null);
                 }
             })
@@ -657,10 +697,8 @@ export function DataOutput({
                         </Group>
                     </Alert>
                 ) : null}
-                {failure === null && styleLosses === null && preview !== null && preview.notes.length > 0 ? (
-                    <Alert color="yellow" role="note">
-                        <LossSummary lead={`Lost in ${formatName}`} rows={preview.notes} />
-                    </Alert>
+                {failure === null && styleLosses === null && preview !== null ? (
+                    <PreviewLosses formatName={formatName} warnings={preview.warnings} notes={preview.notes} />
                 ) : null}
                 <pre
                     className="ws-export-text"

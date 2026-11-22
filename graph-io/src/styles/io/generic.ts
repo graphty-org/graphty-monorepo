@@ -99,6 +99,8 @@ const ENUM_KINDS: ReadonlySet<string> = new Set([
 interface StyleTruth {
     readonly dialect: StyleDialect | null;
     readonly tool: StyleTool | null;
+    /** Whether the import was given program settings other than its defaults (see `FileStyles`). */
+    readonly settingsGiven?: boolean;
     readonly units: "px" | "relative";
     readonly graph: GraphStyle;
     readonly node: ReaderOutput;
@@ -186,6 +188,7 @@ export function readFileStyles(
             format: importer.format,
             dialect: canonical.dialect,
             tool: canonical.tool,
+            settingsGiven: canonical.settingsGiven,
             units: canonical.units,
             graph: canonical.graph,
             node: canonical.node,
@@ -382,6 +385,7 @@ function canonicalOf(
         return {
             dialect: got.dialect ?? null,
             tool: got.tool ?? null,
+            settingsGiven: got.settingsGiven === true,
             units: got.units ?? "px",
             graph: got.graph ?? {},
             node: got.node ?? { values: {} },

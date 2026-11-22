@@ -41,10 +41,10 @@ const OUR_ENV = Object.fromEntries(
 // A checkout with the gate's tools in it: a source file, an ignored dist/ and tmp/, an installed lockfile.
 function repo() {
     const dir = join(TMP, `repo-${++made}`);
-    mkdirSync(join(dir, "tools"), { recursive: true });
+    mkdirSync(join(dir, "tools/lib"), { recursive: true });
     mkdirSync(join(dir, ".husky"));
     mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
-    for (const f of ["prepush-inputs.mjs", "push-base.mjs", "wait-log.mjs"])
+    for (const f of ["prepush-inputs.mjs", "push-base.mjs", "wait-log.mjs", "lib/git.mjs"])
         copyFileSync(join(TOOLS, f), join(dir, "tools", f));
     writeFileSync(join(dir, ".husky/pre-push"), "hook\n");
     writeFileSync(join(dir, ".gitignore"), "node_modules/\ndist/\ntmp/\n");

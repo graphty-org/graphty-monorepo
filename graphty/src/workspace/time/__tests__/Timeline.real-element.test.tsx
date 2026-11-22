@@ -274,7 +274,12 @@ describe("the timeline on the real element", () => {
         await waitFor(() => {
             assert.isAtLeast(waits(), before + 2);
         });
-        await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        // The sample is about 26 weeks, so on a slow machine the play can reach the end of the data
+        // before a click on Pause lands, and the button reads Play again. Stop it whichever way it
+        // stands: pausing an ended play does nothing. The Pause button has its own test above.
+        act(() => {
+            session.time.pause();
+        });
         listening.mockRestore();
     });
 
@@ -884,8 +889,8 @@ describe("the Overview and the import of time", () => {
         const to = from + span * 0.1;
         await act(async () => {
             await session.time.window({ from, to, step: "week" });
-            // Window edits recorded within a second of each other merge into one step; an undo
-            // and a redo end that, so the drag below is counted on its own however fast it runs.
+            // Consecutive window edits merge into one step; an undo and a redo end that, so the
+            // drag below is counted on its own.
             await session.undo();
             await session.redo();
         });

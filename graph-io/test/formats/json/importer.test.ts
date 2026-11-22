@@ -975,6 +975,7 @@ describe("cytoscape", () => {
         expect(parent?.isSet(2)).toBe(false);
         expect(cell(s, "nodes", "selected", 0)).toBe(true);
         expect(cell(s, "nodes", "locked", 1)).toBe(false);
+        expect(s.nodes.byRole("fixed")?.meta.name).toBe("locked");
         expect(cell(s, "nodes", "custom#element", 1)).toBe(5);
         expect(cell(s, "nodes", "position#data", 1)).toBe("dataPos");
         expect(cell(s, "nodes", "weight", 1)).toBe(4);

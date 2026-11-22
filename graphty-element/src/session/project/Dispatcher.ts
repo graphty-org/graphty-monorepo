@@ -100,6 +100,8 @@ interface CommandServices {
     sets?: SetService;
     notes?: NoteService;
     camera?: CameraService;
+    /** The element's legend switch, which a saved view keeps and brings back; absent with no element. */
+    legend?: { shown(): boolean; show(on: boolean): void };
     /** A renderer's: the size of the canvas it draws on, in CSS px, or null before it has one. */
     viewport?: () => { readonly width: number; readonly height: number } | null;
     /** The renderer's layout engine and scene: what `layout.set` and `view.dimension` build. */
@@ -114,6 +116,8 @@ interface CommandServices {
     batched?: () => boolean;
     /** Whether the file styles experiment is on; absent reads on, as a store with no session has no switch. */
     fileStyles?: () => boolean;
+    /** Whether the source-steps experiment is on; absent reads on, as a store with no session has no switch. */
+    sourceSteps?: () => boolean;
     /**
      * The text to copy into the project for a shader id a write names that the project does not
      * hold: a catalog entry's canonical text, the problem when its body has not loaded, or
@@ -135,6 +139,11 @@ interface CommandServices {
     progress?: (change: ProgressChange) => void;
     /** The command that brings the computed columns up to date now, or null when nothing changes. */
     derive?: () => DataDeriveCommand | null;
+    /**
+     * Why a command, or an undo, redo or restore (`"history"`), is refused now, or null: a draft
+     * of the sources and steps holds the data while it is open.
+     */
+    refuse?: (command: CommandLike | "history") => Error | null;
 }
 
 /** What the queue hands a queued command when its slot comes up. */
@@ -355,6 +364,12 @@ export interface TransactionOptions {
      */
     readonly moves?: boolean;
     /**
+     * Work nobody is to see as pending (a source draft's After, drawn while it is shown): never
+     * listed in `pending`, never what undo, `cancel` or a restore cancels, and never canceled
+     * with work it shares a key with. Only its own abort, or a clear, ends it.
+     */
+    readonly unlisted?: boolean;
+    /**
      * A step this transaction continues: its patch merges into that step while the step is the
      * newest applied one, and otherwise records as its own step with `provenance.after` set to it,
      * as a deferred member does.
@@ -434,6 +449,8 @@ export interface ExecutedCommand {
     readonly trigger?: JournalTrigger;
     /** The caller's own key for the work it belongs to. */
     readonly callerKey?: string;
+    /** The step its change was recorded in; absent when it recorded none. */
+    readonly step?: string;
 }
 
 /** One slot a queued command holds on the queue. */
@@ -601,7 +618,7 @@ interface DispatcherOptions {
     readonly definitions: readonly CommandDefinition<CommandLike>[];
     /** The baseline; an empty project when absent. */
     readonly state?: ProjectState;
-    /** The clock of the coalescing window. */
+    /** The clock of how long a command executed. */
     readonly now?: () => number;
     /** Where changes are published; replaceable later through `events`. */
     readonly events?: DispatcherEvents;
@@ -698,6 +715,8 @@ interface Group {
     readonly callerKey: string | undefined;
     /** Its before-arrangement, once a member that needs one has started; see `History.open`. */
     arrangement: OpenArrangement | null;
+    /** Not listed as pending; see `TransactionOptions.unlisted`. */
+    readonly unlisted: boolean;
     /** The graph epoch when it took its before-arrangement. */
     epoch: number;
 }
@@ -929,7 +948,7 @@ export class Dispatcher {
     /** Node coordinates at rest: captures, the `arrangement` and `pins` hooks, rest points. */
     readonly arrangement: Arrangement;
     private readonly store: ProjectStore;
-    /** The clock of the coalescing window, and of how long a command executed. */
+    /** The clock of how long a command executed. */
     private readonly clock: () => number;
     private readonly definitions = new Map<string, CommandDefinition<CommandLike>>();
     private readonly scheduler: Scheduler;
@@ -1046,7 +1065,6 @@ export class Dispatcher {
                 this.collect(patch);
             },
             merge: mergePatches,
-            now: options.now,
             onChange: (reason) => {
                 this.note(reason);
             },
@@ -1076,7 +1094,7 @@ export class Dispatcher {
         if (this.pendingCache?.key !== this.changes) {
             this.pendingCache = {
                 key: this.changes,
-                value: Object.freeze(this.ordered().map((group) => this.view(group))),
+                value: Object.freeze(this.listed().map((group) => this.view(group))),
             };
         }
 
@@ -1145,6 +1163,21 @@ export class Dispatcher {
      */
     get idle(): boolean {
         return this.open.size === 0;
+    }
+
+    /**
+     * Whether a transaction is open: its writes are in the state but in no step yet, so the
+     * state is ahead of every done step.
+     * @returns True while one is.
+     */
+    get transacting(): boolean {
+        for (const group of this.open) {
+            if (group.tx !== null && !group.done) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1264,6 +1297,7 @@ export class Dispatcher {
                 setup: options.setup === true,
                 compound: options.compound === true,
                 starts: options.starts === true,
+                unlisted: options.unlisted === true,
                 trigger: options.trigger,
                 callerKey: options.callerKey,
             },
@@ -1488,7 +1522,7 @@ export class Dispatcher {
      * @returns Every item canceled; empty when the id is not pending.
      */
     cancel(id: string): readonly PendingStep[] {
-        const group = [...this.open].find((open) => open.id === id);
+        const group = this.listed().find((open) => open.id === id);
         return group === undefined ? Object.freeze([]) : this.cancelAll(this.cascade([group]), "cancel");
     }
 
@@ -1554,6 +1588,10 @@ export class Dispatcher {
 
         let outcome: HistoryOutcome;
         try {
+            const refusal = this.services.refuse?.("history") ?? null;
+            if (refusal !== null) {
+                throw refusal;
+            }
             outcome = act();
         } catch (error) {
             return Promise.reject(error);
@@ -1634,7 +1672,7 @@ export class Dispatcher {
         const cancelled: PendingStep[] = [];
         if (id === null) {
             // A load that starts the history is not canceled, as undo does not cancel it.
-            const pending = this.ordered().filter((group) => group.starts === null);
+            const pending = this.listed().filter((group) => group.starts === null);
             cancelled.push(...this.cancelAll(this.cascade(pending), "undo"));
         }
 
@@ -1946,6 +1984,10 @@ export class Dispatcher {
         origin: DeferredOrigin | null = null,
     ): unknown {
         const { state, definition, concrete } = this.resolve(command);
+        const refusal = this.services.refuse?.(concrete) ?? null;
+        if (refusal !== null) {
+            throw refusal;
+        }
 
         if (definition.undo.kind === "exempt") {
             return (definition as ExemptDefinition<CommandLike>).execute(concrete, { state, services: this.services });
@@ -2402,9 +2444,7 @@ export class Dispatcher {
         const { group } = job;
         group.jobs.delete(job);
         group.ops.push(job.command.op);
-        if (group.tx === null && !job.inline) {
-            this.seal(group);
-        }
+        const step = group.tx === null && !job.inline ? this.seal(group) : null;
 
         this.graphWriteEnded(job);
 
@@ -2420,6 +2460,7 @@ export class Dispatcher {
                 durationMs: this.clock() - job.startedAt,
                 ...(job.trigger === undefined ? {} : { trigger: job.trigger }),
                 ...(job.callerKey === undefined ? {} : { callerKey: job.callerKey }),
+                ...(step === null ? {} : { step }),
             };
             // A transaction member is published when the transaction records, and never when it
             // rolls back: what it did is undone then, so it did not happen.
@@ -2521,7 +2562,7 @@ export class Dispatcher {
         // was told to (`after`): its runs join that step, not one of their own beside it.
         const stepId = recorded ?? group.after;
         for (const done of group.executed.splice(0)) {
-            this.events.executed?.(done);
+            this.events.executed?.(recorded === null ? done : { ...done, step: recorded });
         }
         for (const job of runs) {
             const deferred = this.group(
@@ -2792,7 +2833,11 @@ export class Dispatcher {
             // has moved the lane without dispatching anything.
             let ops: ArrangementOp[] = [];
             if (open !== null) {
-                ops = [{ capture: open.before }];
+                // For a source draft's After, then the rows steps recorded meanwhile placed: a
+                // reader's moves are theirs, not After's. Any other group puts back its before only.
+                ops = group.unlisted
+                    ? [{ capture: open.before }, ...this.history.since(open)]
+                    : [{ capture: open.before }];
             } else if (patch.rows !== null) {
                 ops = [{ patch: patch.rows, forward: false }];
             }
@@ -3036,6 +3081,7 @@ export class Dispatcher {
             const inWay = this.holdingAny(meta.oplog).filter(
                 (group) =>
                     group.starts === null &&
+                    !group.unlisted &&
                     [...group.holds].some(
                         ([key, at]) =>
                             meta.oplog.some((touched) => overlaps(key, touched)) ||
@@ -3054,7 +3100,7 @@ export class Dispatcher {
         }
 
         // A load that starts the history is never canceled by undo or redo.
-        const newer = this.ordered().filter(
+        const newer = this.listed().filter(
             (group) =>
                 group.starts === null && (group.seq > since || (direction === "undo" && group.after === target?.id)),
         );
@@ -3112,7 +3158,7 @@ export class Dispatcher {
     private cascade(roots: readonly Group[]): readonly Group[] {
         const out = new Set(roots);
         const keysOf = (group: Group): SliceKey[] => [...group.keys, ...group.holds.keys()];
-        for (const group of this.ordered()) {
+        for (const group of this.listed()) {
             if (out.has(group)) {
                 continue;
             }
@@ -3230,6 +3276,7 @@ export class Dispatcher {
      * @param flags.compound - A batch's transaction.
      * @param flags.starts - It is the load that starts the history.
      * @param flags.startsAt - For work a start load deferred, that load's `Group.starts`.
+     * @param flags.unlisted - Not listed as pending.
      * @param flags.trigger - Why the session ran its members, when it was not a direct call.
      * @param flags.callerKey - The caller's own key for its members.
      * @returns The group.
@@ -3246,6 +3293,7 @@ export class Dispatcher {
             compound = false,
             starts = false,
             startsAt = null,
+            unlisted = false,
             trigger,
             callerKey,
         }: {
@@ -3253,6 +3301,7 @@ export class Dispatcher {
             readonly compound?: boolean;
             readonly starts?: boolean;
             readonly startsAt?: number | null;
+            readonly unlisted?: boolean;
             readonly trigger?: JournalTrigger;
             readonly callerKey?: string;
         } = {},
@@ -3283,6 +3332,7 @@ export class Dispatcher {
             callerKey,
             arrangement: null,
             epoch: 0,
+            unlisted,
         };
     }
 
@@ -3422,6 +3472,14 @@ export class Dispatcher {
      */
     private ordered(): Group[] {
         return [...this.open].sort((a, b) => a.seq - b.seq);
+    }
+
+    /**
+     * The pending groups the history lists, cancels and undoes, in dispatch order.
+     * @returns The groups.
+     */
+    private listed(): Group[] {
+        return this.ordered().filter((group) => !group.unlisted);
     }
 
     /**

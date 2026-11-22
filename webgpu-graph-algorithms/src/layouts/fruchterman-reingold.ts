@@ -23,7 +23,7 @@
  * (`upTo` stops after the last stage recorded at or before its position; K4 is never recorded).
  */
 
-import { type GraphSnapshot, type NodeMask } from "@graphty/graph-format";
+import { type GraphSnapshot } from "@graphty/graph-format";
 
 import {
     FA2_FLAG_ADAPTIVE,
@@ -35,7 +35,6 @@ import {
     TRACE_RECORD_BYTES,
 } from "../constants.js";
 import { type GpuContext } from "../context.js";
-import { WebGpuGraphError } from "../errors.js";
 import { type UniformValues } from "../kernel/struct-block.js";
 import { type WgslModuleSpec } from "../kernel/wgsl.js";
 import { FA2_STATE, FA2_TRACE, kernelSpec } from "../kernels.js";
@@ -68,11 +67,14 @@ import {
 import { resolveLayoutTuning, writeGridFrame } from "./forceatlas2.js";
 import {
     assertMaxInFlightUnchanged,
+    assertNoFixedPatch,
     compileAttraction,
     invalid,
     type Overrides,
+    pickFixed,
     pickNumber,
     pickSharedForceOptions,
+    resolveFixed,
     scalar,
     subset,
 } from "./model-common.js";
@@ -161,10 +163,7 @@ export function resolveFruchtermanReingoldOptions(
     const o: FruchtermanReingoldOptions = options ?? {};
     const base = previous ?? DEFAULT_RESOLVED;
     assertMaxInFlightUnchanged(o, previous);
-    const fixed: unknown = o.fixed === undefined ? base.fixed : o.fixed;
-    if (fixed !== null && typeof fixed !== "string" && !(fixed instanceof Uint32Array)) {
-        throw invalid("fixed", fixed, "a NodeMask (Uint32Array), the name of a bool node column, or null");
-    }
+    const fixed = pickFixed(o.fixed, base.fixed);
     const cooling = pickCooling(o.cooling, base.cooling);
     // under adaptive cooling `iterations` is only a cap: a fresh record without one gets the adaptive budget, not the schedule's 50
     const iterationsFallback =
@@ -181,48 +180,10 @@ export function resolveFruchtermanReingoldOptions(
             "an integer >= 0",
         ),
         cooling,
-        fixed: fixed as NodeMask | string | null,
+        fixed,
         ...pickSharedForceOptions(o, base),
     };
     return Object.freeze(resolved);
-}
-
-/**
- * The fixed mask of a load (the rule of `layout/src/simulation/fruchterman-reingold.ts:576-606` minus its
- * "previous pins" clause, which ForceSimulation.load() implements by keeping the words on a same-size reload): a
- * string names a bool node column (E_INVALID_ARGUMENT when absent or not bool); a mask is copied; null takes the
- * role-"fixed" bool column when present, else null (leave the words as they are).
- * @param s - the snapshot being loaded
- * @param spec - the resolved `fixed` option
- * @returns the mask words to apply at load, or null
- */
-function resolveFixed(s: GraphSnapshot, spec: NodeMask | string | null): NodeMask | null {
-    const words = Math.ceil(s.nodeCount / 32);
-    if (typeof spec === "string") {
-        const column = s.nodes.get(spec);
-        if (column === null) {
-            throw invalid(
-                "fixed",
-                spec,
-                `the name of a bool node column (the snapshot holds no node column "${spec}")`,
-            );
-        }
-        if (column.dtype !== "bool") {
-            throw invalid("fixed", spec, `the name of a bool node column ("${spec}" is ${column.dtype})`);
-        }
-        return new Uint32Array(column.data.subarray(0, words));
-    }
-    if (spec !== null) {
-        if (spec.length < words) {
-            throw invalid("fixed", spec.length, `a mask of at least ${words} words for ${s.nodeCount} nodes`);
-        }
-        return new Uint32Array(spec.subarray(0, words));
-    }
-    const byRole = s.nodes.byRole("fixed");
-    if (byRole !== null && byRole.dtype === "bool") {
-        return new Uint32Array(byRole.data.subarray(0, words));
-    }
-    return null;
 }
 
 // ============================================================ the model
@@ -474,14 +435,7 @@ function resolvePatch(
     patch: Partial<FruchtermanReingoldOptions>,
     current: FruchtermanReingoldOptions,
 ): FruchtermanReingoldOptions {
-    if ("fixed" in patch) {
-        throw new WebGpuGraphError("E_INVALID_ARGUMENT", "setParams({ fixed }) is not a live option", {
-            argument: "fixed",
-            value: patch.fixed,
-            expected: "absent",
-            hint: "use setFixed(mask); fixed is applied at load()",
-        });
-    }
+    assertNoFixedPatch(patch);
     return resolveFruchtermanReingoldOptions(patch, resolveFruchtermanReingoldOptions(current));
 }
 

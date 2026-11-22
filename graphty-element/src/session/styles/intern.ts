@@ -273,6 +273,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.haloOpacity": "content",
     "edge.width": "mesh",
     "edge.minScreenWidth": "mesh",
+    // Places the line's piece in its pulled batch's draw order (PulledLineBatch.acquire).
+    "edge.drawOrder": "mesh",
     "edge.fadeStart": "mesh",
     "edge.fadeEnd": "mesh",
     "edge.fadeOpacity": "mesh",
@@ -360,6 +362,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.gradientColors": "mesh",
     "edge.gradientStops": "mesh",
     "edge.gradientKind": "mesh",
+    "edge.strandColors": "mesh",
+    "edge.strandSpacing": "mesh",
 
     // Drawn beside the mesh, and per element by nature: the halo is an overlay instance, the band
     // its own line batch, each rebuilt by the paint that carries it.
@@ -558,6 +562,10 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.xlabelOffsetX": "content",
     "node.xlabelOffsetY": "content",
     "node.xlabelTextAlign": "content",
+    "node.xlabelColor": "content",
+    "node.xlabelFont": "content",
+    "node.xlabelWeight": "content",
+    "node.xlabelItalic": "content",
     "edge.xlabel": "content",
     "edge.xlabelStyle": "content",
     "edge.xlabelLocation": "content",

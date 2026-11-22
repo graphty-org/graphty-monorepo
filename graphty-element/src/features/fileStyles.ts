@@ -69,6 +69,7 @@ export const FILE_STYLE_CHANNELS: ReadonlySet<string> = new Set([
     "edge.dashArray",
     "edge.dashGap",
     "edge.dashLength",
+    "edge.drawOrder",
     "edge.fanned",
     "edge.fanSpacing",
     "edge.gradientColors",
@@ -313,11 +314,15 @@ export const FILE_STYLE_CHANNELS: ReadonlySet<string> = new Set([
     "node.underlayShape",
     "node.width",
     "node.xlabel",
+    "node.xlabelColor",
+    "node.xlabelFont",
+    "node.xlabelItalic",
     "node.xlabelLocation",
     "node.xlabelOffsetX",
     "node.xlabelOffsetY",
     "node.xlabelStyle",
     "node.xlabelTextAlign",
+    "node.xlabelWeight",
     "node.zIndex",
 ]);
 

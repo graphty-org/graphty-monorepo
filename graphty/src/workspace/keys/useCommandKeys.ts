@@ -10,9 +10,10 @@ import { useEffect } from "react";
 
 import { detail } from "../../lib/analytics";
 import { switchedOff } from "../commands/registry";
-import { historyNotice } from "../frame/historyWords";
+import { historyNotice, undoOrRedo } from "../frame/historyWords";
 import { selectionClearedWords } from "../inspector/words";
 import { errorWords } from "../project/words";
+import { askIfDraftOpen } from "../source-steps/preview";
 import type { WorkspaceStore } from "../state/store";
 import type { WorkspaceValue } from "../state/WorkspaceContext";
 import {
@@ -158,6 +159,10 @@ function sayKeymapAction(session: GraphSession, store: WorkspaceStore): (report:
         detail("command_run", { command });
         const say = historyNotice(session, undo, store);
         report.done.then(say, (error: unknown) => {
+            // A source card's draft holds the history: ask Commit / Discard / Cancel, as the buttons do.
+            if (askIfDraftOpen(store, error, () => undoOrRedo(session, undo, store))) {
+                return;
+            }
             const code = isGraphtyError(error) && isGraphtyErrorCode(error.code) ? error.code : undefined;
             detail("command_failed", { command, code });
             store.set({ notice: { message: errorWords(`${undo ? "Undo" : "Redo"} failed`, error) } });

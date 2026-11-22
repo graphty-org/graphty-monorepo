@@ -461,6 +461,7 @@ describe("view codec: writing", () => {
             namespace: "card_testing",
             as: "links",
             algorithm: "degree",
+            params: { direction: "total" },
             scope: "graph",
         });
     });
@@ -716,5 +717,92 @@ describe("view codec: opening", () => {
         const body = (section: JsonObject): JsonObject =>
             Object.fromEntries(Object.entries(section).filter(([key]) => !header.includes(key)));
         assert.strictEqual(JSON.stringify(body(await save(opened))), JSON.stringify(body(example)));
+    });
+});
+
+describe("view codec: saved views keep every part", () => {
+    /**
+     * A session with a following view and a fixed view keeping every part beside its camera.
+     * @returns The session.
+     */
+    async function viewsSession(): Promise<GraphSession> {
+        const session = await sessionWithData();
+        await session.positions.set([
+            { id: "a", x: 1, y: 2, z: 3 },
+            { id: "b", x: 4, y: 5, z: 6 },
+        ]);
+        await session.hidden.add(["e"]);
+        await session.styles.add({
+            name: "Suspects",
+            selector: { match: "ids", nodes: ["a"] },
+            set: { "node.color": "#c62828" },
+        });
+        await session.views.save([
+            { name: "Above", follows: "topView", key: "1" },
+            {
+                name: "Kept",
+                camera: { position: { x: 0, y: 4, z: 18 }, target: { x: 0, y: 0, z: 0 } },
+                key: "2",
+                include: ["filters", "layers", "hidden", "positions", "legend"],
+                legend: true,
+            },
+        ]);
+        return session;
+    }
+
+    /**
+     * A saved view with its positions as text, so a NaN compares equal to itself.
+     * @param session - The session.
+     * @param name - The view's name.
+     * @returns The view.
+     */
+    const viewOf = (session: GraphSession, name: string): unknown => {
+        const view = session.views.get(name);
+        // The version 1 reader adds the camera's mode, which says nothing of what the view keeps.
+        const { mode: _mode, ...camera } = view?.camera ?? {};
+        return { ...view, camera, positions: JSON.stringify(view?.positions) };
+    };
+
+    it("writes and reads follows, key, filters, layers, hidden, positions and the legend in version 2", async () => {
+        const source = await viewsSession();
+        const section = await save(source);
+        assert.deepEqual(invalid(section), []);
+        const [above, kept] = section.views as JsonObject[];
+        assert.deepEqual(above, { name: "Above", follows: "topView", key: "1" });
+        assert.deepEqual(kept.hidden, [{ space: SPACE, key: "e" }]);
+        const positions = kept.positions as { order: unknown[]; xyz: unknown[] };
+        assert.deepEqual(positions.order.slice(0, 2), [
+            { space: SPACE, key: "a" },
+            { space: SPACE, key: "b" },
+        ]);
+        assert.deepEqual(positions.xyz.slice(0, 6), [1, 2, 3, 4, 5, 6]);
+        assert.isTrue(kept.legend);
+
+        const opened = await sessionWithData();
+        assert.deepEqual(await open(opened, section), []);
+        for (const name of ["Above", "Kept"]) {
+            assert.deepEqual(viewOf(opened, name), viewOf(source, name));
+        }
+
+        assert.deepEqual(await save(opened), section);
+    });
+
+    it("keeps every part through a version 1 project file", async () => {
+        const source = await viewsSession();
+        const target = createGraphSession();
+        await target.project.open((await source.project.save()).text);
+        for (const name of ["Above", "Kept"]) {
+            assert.deepEqual(viewOf(target, name), viewOf(source, name));
+        }
+    });
+
+    it("opens a version 2 file whose views hold only a name and a camera", async () => {
+        const opened = await sessionWithData();
+        const camera = { dimension: 2, controller: "2d", zoom: 2 };
+        assert.deepEqual(
+            await open(opened, { kind: "graphty-view", version: 1, views: [{ name: "Old", camera }] }),
+            [],
+        );
+        assert.deepEqual(opened.views.get("Old"), { camera: { zoom: 2 } });
     });
 });

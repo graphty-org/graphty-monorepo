@@ -73,6 +73,7 @@ import {
 import { GraphtyError } from "../errors";
 import { featureOff } from "../features/resolve";
 import type { PendingWorkProgress } from "../managers/OperationQueueManager";
+import { SOURCE_VALUE } from "../session/commands/data";
 import { dispatcherOf, scopeResolverOfSession } from "../session/GraphSession";
 import { rowsOf } from "../session/notes/countIndex";
 import { resolveEdgeWeight } from "../session/project/ingest";
@@ -82,7 +83,9 @@ import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
 import type { EdgeRecord, GraphSession, GroupTableOptions, NodeRecord } from "../session/types";
 import { wholeGraph } from "../session/working/graphs";
+import { EXPECTED_EXPORT_LOSS_CODES } from "./exportLossCodes";
 import { writtenPositions } from "./filePositions";
+import { sourceMetaExtra } from "./graph-io-import";
 
 export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 
@@ -207,7 +210,19 @@ export type ExportLossCode =
  * `code` is an {@link ExportLossCode} for a built-in writer; a writer registered with
  * `registerFormatWriter` reports its own codes.
  */
-export type ExportLoss = CodedFact<ExportLossCode | (string & {})>; // the open-union idiom; keeps the known codes in autocomplete while accepting a registered writer's
+export interface ExportLoss extends CodedFact<ExportLossCode | (string & {})> {
+    // the open-union idiom; keeps the known codes in autocomplete while accepting a registered writer's
+    /**
+     * True when the loss is the format's normal behavior: a kind of information the format (or
+     * the table chosen) has no place for at all, so every graph that holds it loses it there, such
+     * as positions in CSV, styles in a format that writes none, or graph attributes. The nodes,
+     * edges, ids and values the file does hold are written as they are. False when the export
+     * changes or drops part of the data itself (ids rewritten, parallel edges or columns dropped,
+     * values that read back differently), refuses the graph (an `E_` code), or the code is a
+     * registered writer's own.
+     */
+    readonly expected: boolean;
+}
 
 /** What `exportGraph` returns. */
 export interface ExportResult {
@@ -246,6 +261,11 @@ interface ExportViewState {
      * @returns Its color and width, or undefined when nothing is drawn.
      */
     edgeStyle?(row: number): { readonly color: Rgba | null; readonly width: number | undefined } | undefined;
+    /**
+     * What the drawing multiplies positions by on top of positionScale: the fixed layout's spread.
+     * @returns The factor; 1 when absent.
+     */
+    readonly positionFactor?: () => number;
 }
 
 type AnyExporter = GraphExporter<Record<string, unknown> & CommonExportOptions>;
@@ -541,17 +561,19 @@ function writtenRows(rows: readonly number[]): Map<number, number> {
  * Write each placed node's coordinates into the position column, spelled as the format's writer
  * expects (see `writtenPositions`). A node no layout has placed yet has no coordinates, not the
  * origin. The session holds scene units; a file holds file units, which a load multiplies by
- * positionScale, so divide here.
+ * positionScale and the drawing may spread by `factor`, so divide here.
  * @param builder - The export's builder, its node rows already added.
  * @param session - The session.
  * @param nodeRows - The session row of each node row written.
  * @param format - The format written.
+ * @param factor - What the drawing multiplied positions by on top of positionScale.
  */
 function writePositions(
     builder: GraphBuilder,
     session: GraphSession,
     nodeRows: readonly number[],
     format: string | undefined,
+    factor = 1,
 ): void {
     const { positions } = session;
     if (positions.placedCount === 0) {
@@ -559,7 +581,7 @@ function writePositions(
     }
 
     const count = nodeRows.length;
-    const scale = session.config.data.knownFields.positionScale;
+    const scale = session.config.data.knownFields.positionScale * factor;
     const coords = new Float64Array(3 * count).fill(Number.NaN);
     const at = { x: 0, y: 0, z: 0 };
     for (let row = 0; row < count; row++) {
@@ -601,6 +623,12 @@ export function buildExportSnapshot(
         addMissingNodes: true,
         weightDtype: "f64",
     });
+    // What the loaded file's reader recorded under `meta.extra` (DOT's `strict` and HTML labels), so
+    // the writer of that format writes it again (issue #7600).
+    const extra = sourceMetaExtra(dispatcherOf(session).state.graph.values.get(SOURCE_VALUE));
+    if (extra !== undefined) {
+        builder.setMeta({ extra });
+    }
 
     const allNodes = session.data.nodes({ scope: "graph" });
     const allEdges = session.data.edges({ scope: "graph" });
@@ -635,7 +663,7 @@ export function buildExportSnapshot(
         });
     }
 
-    writePositions(builder, session, rows.nodes, options.format);
+    writePositions(builder, session, rows.nodes, options.format, view.positionFactor?.());
     writeNodeStyles(builder, rows.nodes, view);
     writeEdgeStyles(builder, rows.edges, view);
 
@@ -1197,7 +1225,9 @@ export function exportSession(
     let styles: StylesToWrite | null = null;
     try {
         // With styles, the style writer is the only path: the drawn color, size and width columns are left out.
-        built = buildExportSnapshot(session, writer.build.styles === true ? {} : view, build);
+        // The drawing's spread still comes out of the positions.
+        const looks = writer.build.styles === true ? { positionFactor: view.positionFactor } : view;
+        built = buildExportSnapshot(session, looks, build);
         if (writer.build.styles === true) {
             styles = sessionStyles(session, built.snapshot, writer.exporter, rows);
         }
@@ -1354,6 +1384,7 @@ function lossOf(note: ElementLossNote): ExportLoss {
     const columns = note.columns ?? (note.column === null ? [] : [note.column]);
     return Object.freeze({
         code: note.code,
+        expected: EXPECTED_EXPORT_LOSS_CODES.has(note.code),
         params: Object.freeze({
             columns: Object.freeze([...columns]),
             count: note.count,

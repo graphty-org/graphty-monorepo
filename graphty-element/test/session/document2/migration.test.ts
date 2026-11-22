@@ -582,6 +582,114 @@ describe("a version 1 document of one kind, migrated", () => {
     });
 });
 
+describe("version 1 weight, time and location settings", () => {
+    it("become the migrated source's roles where its rows carry the column, unreported", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", year: 1990, until: 2000, lat: 1, lon: 2 },
+            { id: "b", year: 1995, until: 2001, lat: 3, lon: 4 },
+        ]);
+        await session.data.addEdges([{ source: "a", target: "b", cost: 3 }]);
+        const v1 = JSON.parse((await session.project.save()).text) as JsonObject;
+        const state = (v1.members as JsonObject[]).find((each) => each.kind === "graphty-session") as JsonObject;
+        ((state.config as JsonObject).data as JsonObject).knownFields = {
+            nodeTimePath: "year",
+            nodeTimeUnit: "year",
+            nodeTimeEndPath: "until",
+            nodeLatitudePath: "lat",
+            nodeLongitudePath: "lon",
+            edgeWeightPath: "cost",
+            edgeWeightMeaning: "distance",
+            edgeTimePath: "missing",
+        };
+        const problems: DocumentProblem[] = [];
+        const migrated = migrateDocument1(v1, problems);
+        assert.isDefined(migrated);
+        const { data } = migrated.sections as Record<string, JsonObject>;
+        const source = (data.sources as JsonObject[]).find((each) => each.kind !== "reader") as JsonObject;
+        const mapping = source.mapping as JsonObject;
+        assert.deepInclude(mapping.nodes as JsonObject, {
+            time: "year",
+            timeUnit: "year",
+            timeEnd: "until",
+            latitude: "lat",
+            longitude: "lon",
+        });
+        assert.deepInclude(mapping.edges as JsonObject, { weight: "cost", weightMeaning: "distance" });
+        assert.notProperty(mapping.edges as JsonObject, "time", "no column, no role");
+        const leftOut = problems.map((problem) => String(problem.params.pointer));
+        assert.include(leftOut, "/config/data/knownFields/edgeTimePath");
+        assert.notInclude(leftOut, "/config/data/knownFields/nodeTimePath");
+        assert.notInclude(leftOut, "/config/data/knownFields/edgeWeightMeaning");
+        session.dispose();
+    });
+});
+
+describe("the x, y and z position roles in a version 2 file", () => {
+    const POINTS = "id,px,py,pz\na,1,2,3\nb,10,0,0\n";
+
+    /**
+     * A version 2 save of the points, with the position roles when asked.
+     * @param roles - Whether to give px, py and pz the x, y and z roles.
+     * @returns The saved text and the node mapping of its source.
+     */
+    async function savedPoints(roles: boolean): Promise<{ text: string; nodes: JsonObject }> {
+        const session = createGraphSession(ON);
+        const draft = await session.data.prepare({ type: "csv", config: { data: POINTS }, name: "points.csv" });
+        await draft.load({ mapping: { rowsAre: "nodes", key: "id" } });
+        if (roles) {
+            await session.data.setRole({ kind: "node", name: "px" }, "x");
+            await session.data.setRole({ kind: "node", name: "py" }, "y");
+            await session.data.setRole({ kind: "node", name: "pz" }, "z");
+        }
+        const { text } = await session.project.save({ format: 2 });
+        session.dispose();
+        const { data } = (JSON.parse(text) as JsonObject).sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(data), []);
+        const source = (data.sources as JsonObject[]).find((each) => each.kind !== "reader") as JsonObject;
+        return { text, nodes: (source.mapping as JsonObject).nodes as JsonObject };
+    }
+
+    /**
+     * Open a version 2 file, keeping its recipe unapplied as every open does.
+     * @param text - The file.
+     * @returns The session and the problems other than the recipe kept unapplied.
+     */
+    async function reopen(text: string): Promise<{ opened: GraphSession; problems: unknown[] }> {
+        const opened = createGraphSession(ON);
+        const report = await opened.project.open(text);
+        return { opened, problems: report.problems.filter((each) => each.code !== "W_RECIPE_NOT_APPLIED") };
+    }
+
+    it("are written as the source's roles, and reopen placing the nodes there", async () => {
+        const { text, nodes } = await savedPoints(true);
+        assert.deepInclude(nodes, { x: "px", y: "py", z: "pz" });
+
+        const { opened, problems } = await reopen(text);
+        assert.deepEqual(problems, []);
+        const known = opened.config.data.knownFields as Record<string, unknown>;
+        assert.deepInclude(known, { nodeXPath: "px", nodeYPath: "py", nodeZPath: "pz" });
+        const out = { x: 0, y: 0, z: 0 };
+        opened.positions.read(opened.data.snapshot().ids.indexOf("a"), out);
+        assert.deepStrictEqual([out.x, out.y, out.z], [1, 2, 3]);
+        opened.dispose();
+    });
+
+    it("are absent from a file without them, which opens with none set", async () => {
+        const { text, nodes } = await savedPoints(false);
+        for (const role of ["x", "y", "z"]) {
+            assert.notProperty(nodes, role);
+        }
+        const { opened, problems } = await reopen(text);
+        assert.deepEqual(problems, []);
+        const known = opened.config.data.knownFields as Record<string, unknown>;
+        for (const field of ["nodeXPath", "nodeYPath", "nodeZPath"]) {
+            assert.notOk(known[field], field);
+        }
+        opened.dispose();
+    });
+});
+
 describe("a timed version 1 file saved before what lies outside the window had a state", () => {
     it("draws what lies outside as the playback said, through layers selecting the state", async () => {
         const session = createGraphSession({ features: ["save-files-v2"] });

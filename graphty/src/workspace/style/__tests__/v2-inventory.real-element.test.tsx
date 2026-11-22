@@ -338,6 +338,7 @@ describe("Style panel v2's style inventory", () => {
                 .filter((channel) => !covered(channel) && OWNER_REMOVED_CHANNELS[channel] === undefined),
         );
         assertGaps(missing, KNOWN_CHANNEL_GAPS, "KNOWN_CHANNEL_GAPS");
+        assert.lengthOf(KNOWN_CHANNEL_GAPS, 0, "the gap list stays empty: a gap needs a control");
     });
 
     it("1. every graph-wide style setting has a line in Graph settings", async () => {
@@ -368,6 +369,7 @@ describe("Style panel v2's style inventory", () => {
             LABEL_STYLE_FIELDS.filter((field) => !fieldCovered(side, style, field)).map((field) => `${style}.${field}`),
         );
         assertGaps(missing, KNOWN_LABEL_FIELD_GAPS, "KNOWN_LABEL_FIELD_GAPS");
+        assert.lengthOf(KNOWN_LABEL_FIELD_GAPS, 0, "the gap list stays empty: a gap needs a control");
     });
 
     it("3. every option of every enum channel and enum label field is offered", () => {
@@ -562,5 +564,6 @@ vec4 shade(NodeInput n) {
             (channel) => !covered(channel) && OWNER_REMOVED_FILE_STYLES[channel] === undefined,
         );
         assertGaps(missing, KNOWN_FILE_STYLE_GAPS, "KNOWN_FILE_STYLE_GAPS");
+        assert.lengthOf(KNOWN_FILE_STYLE_GAPS, 0, "the gap list stays empty: a gap needs a control");
     });
 });

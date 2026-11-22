@@ -373,6 +373,14 @@ export interface RepaintEngine extends ElementPaint {
      */
     encoding(entry: CompiledLayer): readonly PreparedBinding[];
     /**
+     * A number that moves whenever what {@link RepaintEngine.encoding} answers for some layer
+     * changes: a pass prepared a layer it had not prepared before, or prepared it again. A reader
+     * that keeps an answer read from `encoding` keys it on this, because a pass that first paints
+     * a kind (the first edges arriving) moves nothing else a reader can see.
+     * @returns The revision.
+     */
+    encodingRevision(): number;
+    /**
      * Forget every prepared binding.
      *
      * A binding's domain, its percentile clamp and its category list are properties of the COLUMN
@@ -1334,6 +1342,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * layer it describes, and a layer dropped from the stack takes its record with it.
      */
     const lastPreparedFrom = new WeakMap<CompiledLayer, PreparedLayer>();
+    /** Moves whenever {@link lastPreparedFrom} changes; see {@link RepaintEngine.encodingRevision}. */
+    let preparedRevision = 0;
 
     /**
      * Which elements each layer was applied to, one byte per element.
@@ -1662,7 +1672,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             // Written on the cache hit as well as the miss, so the record stays in step with the
             // cache without anybody having to reason about which paths clear which. One map
             // write per layer per pass, against a read that has to be right every time.
-            lastPreparedFrom.set(entry, cached);
+            if (lastPreparedFrom.get(entry) !== cached) {
+                lastPreparedFrom.set(entry, cached);
+                preparedRevision++;
+            }
 
             return cached;
         }
@@ -1670,6 +1683,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const built = buildPreparedLayer(entry);
         prepared.set(entry, built);
         lastPreparedFrom.set(entry, built);
+        preparedRevision++;
 
         return built;
     };
@@ -2656,6 +2670,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             // Built per call rather than kept, because the pass holds the channel and the reader
             // wants the binding, and a legend is read once a picture rather than once an element.
             return layer.channels.map((channel) => channel.binding);
+        },
+
+        encodingRevision(): number {
+            return preparedRevision;
         },
 
         invalidate(): void {

@@ -184,6 +184,7 @@ const BUILT_IN_LAYOUT_ENGINES: readonly string[] = Object.freeze([
     "circular",
     "d3",
     "fixed",
+    "geographic",
     "forceatlas2",
     "graphviz-circo",
     "graphviz-dot",
@@ -1009,6 +1010,26 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Whether a {@link LayoutEngine.publishColumn} that may place a row for the first time leaves this
+     * row as the lane holds it, judged without writing a publish the lane owes.
+     * @param lane - The lane.
+     * @param row - The row, inside the lane's live count.
+     * @param x - The x the publish carries for it.
+     * @param y - The y.
+     * @param z - The z.
+     * @returns True when the publish would not write the row.
+     * @internal
+     */
+    protected publishLeavesRow(lane: ElementPositions, row: number, x: number, y: number, z: number): boolean {
+        if (!isPublishable(row, x, y, z)) {
+            return true;
+        }
+
+        const placed = isStorableCoordinate(lane.unsettledView()[POSITION_COMPONENTS * row]);
+        return placed && this.keptInPlace(row, placed, lane.isPinned(row), this.holdsAny) !== null;
+    }
+
+    /**
      * Whether a publish leaves a row where it is: one the working graph hides keeps its place
      * undrawn, and a pinned or held row keeps its place drawn.
      * @param row - The row.
@@ -1147,10 +1168,12 @@ export abstract class LayoutEngine {
      * @param out.x - receives the scene-unit x
      * @param out.y - receives the scene-unit y
      * @param out.z - receives the scene-unit z
+     * @param lane - The element's array the row is in, adopted as a `Node`'s is when no array is
+     *     attached: an engine handed only rows has met no `Node` to adopt it from.
      * @returns true when the row is placed
      */
-    protected readRowPosition(row: number, out: { x: number; y: number; z: number }): boolean {
-        const positions = this.writablePositions;
+    protected readRowPosition(row: number, out: { x: number; y: number; z: number }, lane?: ElementPositions): boolean {
+        const positions = lane === undefined ? this.writablePositions : this.positionsFor(lane);
         if (!positions.isPlaced(row)) {
             return false;
         }
@@ -2466,6 +2489,22 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         } else {
             this.#keep = loading ? null : this.#keptWhilePaused(change, grown);
         }
+
+        if (this.rearrangesAfter(change.next, change.previous)) {
+            this.#keep = null;
+        }
+    }
+
+    /**
+     * Whether this freeze re-runs the whole arrangement even when it only added, because what the
+     * engine drew the existing nodes from has changed with it. None of the shipped engines but the
+     * fixed layout says so, whose spread is read from the edges (#9257).
+     * @param _next - the graph as frozen now
+     * @param _previous - the graph as frozen before, or null on the first freeze
+     * @returns true to keep no node where it is
+     */
+    protected rearrangesAfter(_next: GraphSnapshot, _previous: GraphSnapshot | null): boolean {
+        return false;
     }
 
     /**

@@ -216,14 +216,15 @@ await element.session.styles.add({
 A path that starts `graphty.` reads a value the element itself provides, not a column of your
 data:
 
-| Path                                        | Value                                                                                                                     |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `graphty.notes.count`                       | How many notes name a node or an edge; no value when none do                                                              |
-| `graphty.notes.latest`                      | The text of the newest of those notes                                                                                     |
-| `graphty.notes.latestTime`                  | The `time` of the newest of those notes                                                                                   |
-| `graphty.degree`                            | How many edges a node has, as the graph stands now; no value on an edge                                                   |
-| `graphty.inDegree`, `graphty.outDegree`     | How many edges reach a node, and how many leave it                                                                        |
-| `graphty.style.<format>.<node\|edge>.<key>` | A value a load with `styles: "file"` wrote for the element; see [Styles from Files](./file-styles#values-the-load-writes) |
+| Path                                        | Value                                                                                                                                   |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `graphty.notes.count`                       | How many notes name a node or an edge; no value when none do                                                                            |
+| `graphty.notes.latest`                      | The text of the newest of those notes                                                                                                   |
+| `graphty.notes.latestTime`                  | The `time` of the newest of those notes                                                                                                 |
+| `graphty.degree`                            | How many edges a node has, as the graph stands now; no value on an edge                                                                 |
+| `graphty.inDegree`, `graphty.outDegree`     | How many edges reach a node, and how many leave it                                                                                      |
+| `graphty.members`                           | How many nodes a group holds directly; no value on a node that holds none. See [Groups](./data-sources#groups-nodes-inside-other-nodes) |
+| `graphty.style.<format>.<node\|edge>.<key>` | A value a load with `styles: "file"` wrote for the element; see [Styles from Files](./file-styles#values-the-load-writes)               |
 
 They work in a layer's `selector` and in a binding's `by`. A label or tooltip bound to one is drawn
 as literal text: a note reading `<bold>x</bold>` shows the tags, never bold text. See

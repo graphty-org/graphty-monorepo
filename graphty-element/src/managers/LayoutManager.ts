@@ -56,6 +56,7 @@ import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
+import type { RowExtent as TableExtent } from "../render/RowTable";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
 import type { LayoutMotion } from "../session/types";
@@ -483,8 +484,17 @@ interface BuildOptions {
     readonly explicitScope?: boolean;
     /** Whether this build changes the layout, so the graph's `layoutTransition` moves the nodes. */
     readonly transition?: boolean;
-    /** A simulation starts from the seed, not from the element's arrangement: see `restart`. */
+    /**
+     * A seeded simulation starts from the seed, not from the element's arrangement: see `restart`,
+     * and every build a consumer asks for (issue #9292).
+     */
     readonly fromSeed?: boolean;
+    /**
+     * A switch of the same layout from 3D to 2D: a force engine starts from the arrangement it
+     * replaces, flattened onto the plane, with no pre-steps, so the first frame draws every node where
+     * it was (issue #9279).
+     */
+    readonly flatten?: boolean;
 }
 
 /**
@@ -1531,12 +1541,17 @@ export class LayoutManager implements Manager {
             // `onSnapshotReplaced` -- where an unrecorded driver would look like a decision that
             // had changed and start this rebuild over again.
             this.runningDriver = driver;
+            this.holdBeforeInit(engine, members);
             await engine.init();
             if (!how.live()) {
                 throw cancelledBuild();
             }
 
             this.addLateArrivals(engine, nodeArray, edgeArray, edgeRows);
+
+            // A 2D/3D switch starts a force engine from where its nodes are drawn, not from the
+            // seed's jumble around the origin, which the camera then framed as giant nodes (#9279).
+            this.flattenOnSwitch(engine, how);
 
             // AFTER init(), and before any step runs. See `replayPins`.
             this.replayPins(engine, nodeArray);
@@ -1747,10 +1762,8 @@ export class LayoutManager implements Manager {
             column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
             weightMeaning: this.weightMeaningFor(type),
             rowData: (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row),
-            rowHalfExtents: (row) => {
-                const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
-                return extent !== undefined && extent.scale > 0 ? extent.half : null;
-            },
+            rowHalfExtents: (row) => this.measuredRow(row)?.half ?? null,
+            rowBorderReach: (row) => this.measuredRow(row)?.border ?? 0,
             positionScale: () => this.graphContext?.getStyles().config.data.knownFields.positionScale,
             knownFields: () => this.graphContext?.getStyles().config.data.knownFields,
             rankSets: () => this.dataManager.rankSets,
@@ -1802,25 +1815,36 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * A row as the row table measured it, under renderPath "batched" only: the "objects" path reads its `Node`s.
+     * @param row - The row; INVALID_INDEX for none.
+     * @returns Its extent; null off "batched", for no row, or before the row is measured.
+     */
+    private measuredRow(row: number): TableExtent | null {
+        if (row === INVALID_INDEX || this.dataManager.renderLimits?.batched() !== true) {
+            return null;
+        }
+
+        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
+        return extent === undefined || extent.scale <= 0 ? null : extent;
+    }
+
+    /**
      * How far a row drawn with no `Node` reaches, as the row table measured it, for `nodeGap`: what its `Node` would
      * answer for `layoutRadius` and `drawnHalfExtents`.
      * @param row - The row; INVALID_INDEX for none.
      * @returns The reach; null off renderPath "batched", for no row, or before the row is measured.
      */
     private rowExtent(row: number): RowExtent | null {
-        if (row === INVALID_INDEX || this.dataManager.renderLimits?.batched() !== true) {
+        const extent = this.measuredRow(row);
+        if (extent === null) {
             return null;
         }
 
-        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
-        if (extent === undefined || extent.scale <= 0) {
-            return null;
-        }
-
-        const { half } = extent;
+        // `layoutRadius` counts the border, so a row reaches as far whether or not it has its `Node`.
+        const { half, border } = extent;
         return extent.round === null
-            ? { radius: Math.max(half.x, half.y, half.z), half }
-            : { radius: extent.round, half: null };
+            ? { radius: Math.max(half.x, half.y, half.z) + border, half }
+            : { radius: extent.round + border, half: null };
     }
 
     /**
@@ -2064,7 +2088,14 @@ export class LayoutManager implements Manager {
             const batched = this.dataManager.renderLimits?.batched() ?? false;
             const nothingToStep = batched ? this.dataManager.nodes.size === 0 : nodeArray.length === 0;
             if (nothingToStep || this.sizesToCome(engine)) {
+                // Owed even on a switch to 2D: an empty graph has no arrangement to keep.
                 this.preStepsOwed = true;
+            } else if (this.flattens(engine, how)) {
+                // The arrangement it starts from is already laid out: stepping it before the first
+                // frame would move every node away from where the reader just saw it. Nor does the
+                // first frame step it: that frame draws the flattened arrangement as it is.
+                this.preStepsOwed = false;
+                this.#holdOneFrame = true;
             } else if (!(await this.spendPreSteps(engine, how.live))) {
                 throw cancelledBuild();
             }
@@ -2092,6 +2123,32 @@ export class LayoutManager implements Manager {
 
             // Request zoom to fit when layout changes
             this.eventManager.emitLayoutInitialized(type, true);
+        }
+    }
+
+    /**
+     * Whether this build starts its engine from the element's arrangement: a 2D/3D switch of a
+     * force engine that would otherwise place its bodies from the seed. A static layout computes
+     * its own answer for the new dimension, and a {@link SimulationLayoutEngine} adopts the array.
+     * @param engine - The engine being built.
+     * @param how - How it is built.
+     * @returns True to load the arrangement and skip the pre-steps.
+     */
+    private flattens(engine: LayoutEngine, how: BuildOptions): boolean {
+        return how.flatten === true && (engine instanceof NGraphEngine || engine instanceof D3GraphEngine);
+    }
+
+    /**
+     * On a 2D/3D switch, start a force engine from the arrangement it replaces, on the plane in 2D.
+     * See {@link LayoutManager.flattens}.
+     * @param engine - The engine being built, initialized.
+     * @param how - How it is built.
+     */
+    private flattenOnSwitch(engine: LayoutEngine, how: BuildOptions): void {
+        // The engine drops the Z itself (a 2D engine holds its bodies on the plane), so its first
+        // publish flattens every row, and `putOnPlane` builds no `Node` for a row to drop one.
+        if (this.flattens(engine, how)) {
+            engine.loadArrangement();
         }
     }
 
@@ -2228,6 +2285,7 @@ export class LayoutManager implements Manager {
                 live: () => true,
                 explicitScope: scope !== undefined && this.carriedScope !== undefined,
                 transition: this.engine !== undefined,
+                fromSeed: true,
             });
         } catch (error) {
             this.carriedScope = previous;
@@ -2377,9 +2435,13 @@ export class LayoutManager implements Manager {
                 restoring,
                 live,
                 explicitScope: options.explicitScope === true,
+                // Only the dimension changed, to 2D: `sameLayout` fell through because the engine
+                // redraws. Not to 3D, where a force engine started flat has no force out of the plane.
+                flatten: sameLayout && !restoring && dimension === 2,
                 // A first layout, a restore and a 2D/3D switch place the nodes in one frame.
                 transition:
                     !restoring && built !== null && this.layoutEngine !== undefined && !sameArrangement(built, choice),
+                fromSeed: !restoring,
             });
         } catch (error) {
             this.carriedScope = previous;
@@ -2644,6 +2706,20 @@ export class LayoutManager implements Manager {
         }
 
         return [mask, rows];
+    }
+
+    /**
+     * Hand a new engine its hold before `init()` as well as after it, so a simulation starting from its seed
+     * keeps the held rows where they are (see `SimulationLayoutEngine.load`). `members` is recorded first: the
+     * freeze inside `init()` rebuilds the mask from it.
+     * @param engine - The engine about to be initialized.
+     * @param members - The members it lays out, or null when unscoped.
+     */
+    private holdBeforeInit(engine: LayoutEngine, members: ReadonlySet<NodeIdType> | null): void {
+        this.members = members;
+        if (members !== null) {
+            engine.setHoldMask(...this.holdMaskOf(members));
+        }
     }
 
     /**
@@ -3359,6 +3435,21 @@ export class LayoutManager implements Manager {
      */
     reducedMotion = false;
 
+    /** Set by a 2D/3D switch that flattened the arrangement, so the next frame draws it unstepped. */
+    #holdOneFrame = false;
+
+    /**
+     * Whether this frame takes no layout steps, which is once after a 2D/3D switch flattened the
+     * arrangement: that frame draws every node where it was (issue #9279). Asked once per frame.
+     * @returns True for the one frame held.
+     * @internal
+     */
+    takeFrameHold(): boolean {
+        const held = this.#holdOneFrame;
+        this.#holdOneFrame = false;
+        return held;
+    }
+
     /** Steps taken unseen under reduced motion since the last publish; see `MAX_UNSEEN_STEPS`. */
     #unseenSteps = 0;
 
@@ -3558,7 +3649,6 @@ export class LayoutManager implements Manager {
 
             this.eventManager.emit("layout-updated", {
                 nodeCount: nodes.length,
-                type: "incremental",
             });
 
             return Promise.resolve();
@@ -3590,7 +3680,6 @@ export class LayoutManager implements Manager {
         // Emit event that layout was updated
         this.eventManager.emit("layout-updated", {
             nodeCount: nodes.length,
-            type: "incremental",
         });
 
         return Promise.resolve();

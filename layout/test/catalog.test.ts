@@ -48,9 +48,14 @@ const graph = (directed: boolean, weighted: boolean): GraphSnapshot =>
         nodeCount: N,
         directed,
         ...(weighted ? { weights } : {}),
+        // longitude and latitude for the geographic layout, which needs a column holding them
+        nodeColumns: {
+            geo: { data: Float64Array.from({ length: 2 * N }, (_, k) => (k * 13) % 80), decl: { components: 2 } },
+        },
     });
 
 const REQUIRED_OPTIONS: Readonly<Record<string, unknown>> = {
+    position: "geo",
     subsets: [Array.from({ length: N / 2 }, (_, i) => i), Array.from({ length: N / 2 }, (_, i) => i + N / 2)],
 };
 

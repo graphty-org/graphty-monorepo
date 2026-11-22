@@ -1042,6 +1042,7 @@ export const EdgeStyle: z.ZodObject<{
         dashArray: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         colorFrom: z.ZodOptional<z.ZodEnum<{
+            none: "none";
             source: "source";
             target: "target";
         }>>;
@@ -1887,25 +1888,16 @@ export type LayerSource = {
 
 // @public
 export interface LayerSpec {
-    // (undocumented)
     enabled?: boolean;
-    // (undocumented)
     encode?: Encoding;
-    // (undocumented)
     kind?: LayerKind;
-    // (undocumented)
     name: string;
     row?: LayerId;
-    // (undocumented)
     selector: Selector;
-    // (undocumented)
     set?: StaticStyle;
-    // (undocumented)
     source?: LayerSource;
-    // (undocumented)
     target?: "node" | "edge";
     unmatched?: readonly LayerUnmatchedGroup[];
-    // (undocumented)
     userData?: Record<string, unknown>;
 }
 
@@ -3335,13 +3327,9 @@ export type ResultShape = (typeof RESULT_SHAPES)[number];
 
 // @public
 export interface Rgba {
-    // (undocumented)
     a: number;
-    // (undocumented)
     b: number;
-    // (undocumented)
     g: number;
-    // (undocumented)
     r: number;
 }
 
@@ -3748,6 +3736,14 @@ export type ScopeInput = Exclude<Scope, {
     define: unknown;
 }> | {
     define: SetDefinitionInput;
+}
+/**
+* Under the `source-steps` experiment: the nodes whose one type (`graphty.type`) is listed and
+* the edges between them. Read back as its canonical `{ where }` on `graphty.type`.
+* Experimental: may change or be removed in a minor release.
+*/
+| {
+    types: readonly string[];
 };
 
 // @public
@@ -3835,6 +3831,21 @@ export type Selector = {
     reach?: "node" | "neighbors";
     invert?: boolean;
     orSelected?: boolean;
+}
+/**
+* The elements of some types, under the `source-steps` experiment: those whose one type
+* (the readable path `graphty.type`) is listed, such as the accounts of a graph of accounts and
+* merchants. Refused with `E_FEATURE_OFF` while the experiment is off.
+*
+* ```ts
+* session.styles.add({ name: "Accounts", target: "node",
+*     selector: { match: "type", types: ["account"] }, set: { "node.color": "#4c6ef5" } });
+* ```
+* Experimental: may change or be removed in a minor release.
+*/
+| {
+    match: "type";
+    types: readonly string[];
 };
 
 // @public
@@ -3950,7 +3961,6 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 // @public
 export interface StyleDocument {
     labelLooks?: readonly LabelLookDescriptor[];
-    // (undocumented)
     layers: readonly LayerSpec[];
     palettes?: readonly PaletteDescriptor[];
     problems?: readonly ShaderProblem[];
@@ -3959,17 +3969,13 @@ export interface StyleDocument {
         readonly text: ShaderText;
     }[];
     tree?: readonly StyleDocumentRow[];
-    // (undocumented)
     version: 1;
 }
 
 // @public
 export interface ThemeDescriptor {
-    // (undocumented)
     document: StyleDocument;
-    // (undocumented)
     name: string;
-    // (undocumented)
     plainName: string;
 }
 

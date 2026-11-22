@@ -111,9 +111,10 @@
                 only with Share usage data).
             </p>
             <p>
-                There are two levels. Until you choose <b>Share usage data</b>, or after No thanks, a few anonymous
-                counts are sent. Everything else is sent only after you choose Share usage data, and stops when you turn
-                it off; while it is on, the same counts are sent with your shared usage data instead, under its id.
+                There are two levels. Until you choose <b>Share usage data</b>, or after No thanks, anonymous counts of
+                what you do, once per page, listed below, are sent. Everything else is sent only after you choose Share
+                usage data, and stops when you turn it off; while it is on, the same counts are sent with your shared
+                usage data instead, under its id.
             </p>
 
             <h2 id="always">Anonymous counts, while Share usage data is off</h2>
@@ -139,9 +140,10 @@
                                 <code>utm_source</code>, <code>utm_medium</code> and <code>utm_campaign</code> values
                                 when they are on a short fixed list (such as <code>hn</code>, <code>reddit</code>,
                                 <code>github</code>, <code>newsletter</code>); any other value is sent as
-                                <code>other</code>, and every other part of the address is dropped. The referring site's
-                                origin only (for example <code>https://news.ycombinator.com</code>). Your language and
-                                screen size are not sent.
+                                <code>other</code>, and every other part of the address is dropped, except that
+                                <code>?internal=1</code> is sent as <code>internal</code>. The referring site's origin
+                                only (for example <code>https://news.ycombinator.com</code>). Your language and screen
+                                size are not sent.
                             </td>
                         </tr>
                         <tr>
@@ -161,7 +163,11 @@
                         </tr>
                         <tr>
                             <td><code>sample_loaded</code></td>
-                            <td><code>sample</code>: the id of a built-in sample, or <code>other</code>.</td>
+                            <td>
+                                <code>sample</code>: the id of a built-in sample, or <code>other</code>.
+                                <code>size</code>: the graph's size as a range (<code>1-100</code>, <code>101-1k</code>,
+                                <code>1k-10k</code> or <code>10k+</code> nodes).
+                            </td>
                         </tr>
                         <tr>
                             <td><code>own_file_opened</code></td>
@@ -169,7 +175,9 @@
                                 <code>format</code>: the file format's id (such as <code>graphml</code> or
                                 <code>csv</code>, <code>graphty</code> for a project file), or <code>other</code>.
                                 <code>via</code>: <code>file</code>, <code>url</code>, <code>server</code> or
-                                <code>join</code>. Never the file's name, its address or its contents.
+                                <code>join</code>. <code>size</code>: the graph's size as a range (<code>1-100</code>,
+                                <code>101-1k</code>, <code>1k-10k</code> or <code>10k+</code> nodes). Never the file's
+                                name, its address or its contents.
                             </td>
                         </tr>
                         <tr>
@@ -196,9 +204,99 @@
                                 <code>download</code>, or <code>clipboard</code> for an image copied.
                             </td>
                         </tr>
+                        <tr>
+                            <td><code>style_changed</code></td>
+                            <td>
+                                <code>op</code>: which kind of style edit you made (<code>style.encode</code>,
+                                <code>style.patch</code>, <code>style.template</code> or <code>shader.set</code>).
+                                <code>action</code>: for a layer edit, which action it was (such as <code>add</code>,
+                                <code>update</code>, <code>hideRow</code> or <code>renameRow</code>), or
+                                <code>other</code>. <code>suggested</code>: whether it applied an analysis's suggested
+                                style. <code>by</code>: <code>assistant</code> when the assistant made it. Never the
+                                layer's name, its rule or its colors.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>assistant_used</code></td>
+                            <td>
+                                That you used the assistant. <code>provider</code>: which AI provider it used
+                                (<code>openai</code>, <code>anthropic</code>, <code>google</code>, the in-browser model
+                                <code>webllm</code>, or <code>other</code>). <code>voice</code>: whether you typed or
+                                spoke. <code>step</code>: whether this was a <code>message</code>, an
+                                <code>approval</code> or an <code>answer</code>. <code>outcome</code>: how it ended, as
+                                a fixed result code such as <code>AI_COMPLETED</code> or <code>AI_KEY_REJECTED</code>.
+                                <code>changed</code>: which kinds of change it made, as fixed codes such as
+                                <code>AI_EFFECT_STYLE</code>, or <code>none</code>. This shows which company's AI you
+                                use and whether its key was missing or refused, never the key itself. Never what you
+                                wrote or said, the reply or the model.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>view_mode</code></td>
+                            <td>
+                                <code>mode</code>: that you switched to <code>2d</code> or <code>3d</code>.
+                                <code>by</code>: <code>assistant</code> when the assistant did it.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>xr_entered</code></td>
+                            <td>
+                                That you tried to enter VR or AR. <code>mode</code>: <code>vr</code> or <code>ar</code>.
+                                <code>outcome</code>: <code>entered</code> or <code>failed</code>. <code>code</code>: on
+                                a failure, the error code.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>camera_used</code></td>
+                            <td>
+                                That you moved the camera. <code>kind</code>: how, as <code>orbit</code>,
+                                <code>pan</code> or <code>zoom</code>.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>camera_saved</code></td>
+                            <td>
+                                That you saved a view, or updated or duplicated one. Never its name or the camera
+                                position.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>project_saved</code></td>
+                            <td>
+                                That you saved a project. <code>kind</code>: <code>browser</code> (kept in this browser)
+                                or <code>file</code> (downloaded). <code>as</code>: <code>new</code> or saved
+                                <code>again</code>. Never its name.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>project_reopened</code></td>
+                            <td>
+                                That you reopened a project. <code>from</code>: a <code>recent</code> file, a project
+                                kept in this <code>browser</code>, or work <code>kept</code> from an earlier visit.
+                                Never its name.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>load_failed</code></td>
+                            <td>
+                                That a graph could not be opened. <code>code</code>: the error code. <code>task</code>:
+                                whether it failed while reading (<code>load</code>) or preparing (<code>prepare</code>)
+                                it. Never the file or its name.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>timeline_played</code></td>
+                            <td>That you pressed play on the timeline. Nothing else.</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
+            <p>
+                Every event can also carry <code>internal</code>. It is set only when the page address has
+                <code>?internal=1</code>, which also keeps a note in this browser (<code>graphty.internal</code>) until
+                <code>?internal=0</code> removes it. The people who build graphty use it to mark their own testing, so
+                it can be left out of the numbers. The address itself is cleaned straight away.
+            </p>
             <p>
                 Each count also carries: that it is an anonymous count, the site's name, the channel and the days bucket
                 above, whether it is the first of its kind on this page, the page's path (never its query string), the
@@ -252,15 +350,16 @@
                     clicks, but where you click on the graph area goes into the click heatmap, as a position only.
                 </li>
                 <li>
-                    <b>What you do, by id only:</b> <code>command_run</code> and <code>command_failed</code> (the
-                    command's id and, when it failed, the error code); <code>graph_action</code> (the kind of change,
-                    such as a style, a filter or a note, never its contents or the note's text);
-                    <code>canvas_selected</code> (node, edge, both or none; how many, as <code>1</code>,
-                    <code>2-10</code> or <code>11+</code>; and whether by click, box or keys);
-                    <code>camera_used</code> (orbit, pan or zoom); <code>nodes_dragged</code>;
-                    <code>source_expanded</code> (expanded or failed); <code>panel_opened</code> (the panel's id);
-                    <code>project_reopened</code>; <code>load_failed</code> (the error code and whether it failed
-                    reading or preparing).
+                    <b>What you do, by id only:</b> <code>command_run</code> and
+                    <code>command_failed</code> (<code>command</code>: the command's id and, when it failed,
+                    <code>code</code>: the error code); <code>graph_action</code> (the kind of change, such as a filter
+                    or a note, never its contents or the note's text);
+                    <code>canvas_selected</code> (<code>target</code>: node, edge, both or none; <code>count</code>: how
+                    many, as <code>1</code>, <code>2-10</code> or <code>11+</code>; and <code>via</code>: whether by
+                    click, box or keys); <code>nodes_dragged</code>; <code>source_expanded</code> (expanded or failed);
+                    <code>panel_opened</code> (<code>panel</code>: the panel's id). Style edits, switching between 2D
+                    and 3D, entering VR or AR and saving a view are sent as the counts above, every time rather than
+                    once per page.
                 </li>
                 <li><b>Page speed</b> (Web Vitals timings), and when you leave the page.</li>
                 <li>

@@ -265,6 +265,8 @@ export type GraphtyErrorCode =
      * A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
      * incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
      * `details.column` and `details.rule` name them. The caller picks another rule for that column.
+     * Under the source-steps experiment a step's merge refuses the same way, and `details.step`
+     * also names the step.
      */
     | "E_CLASH_RULE_TYPE"
     /**
@@ -310,6 +312,13 @@ export type GraphtyErrorCode =
      * the file, or re-imports naming the true format.
      */
     | "E_PARSE_FAILED"
+    /**
+     * A workbook source's `sheet` option names no sheet of the workbook. `details` are
+     * `{ sheet, available }`: the name asked for, and every sheet's name in tab order. The file
+     * itself was read fine. The caller loads again naming one of the available sheets, or leaves
+     * `sheet` out to read the first.
+     */
+    | "E_SHEET_NOT_FOUND"
     /**
      * A graphty project or document file (one `session.project.save` writes) was handed to a data
      * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
@@ -811,6 +820,61 @@ export type GraphtyErrorCode =
      */
     | "E_NOT_SETTLED"
     /**
+     * A load or a stage names an id space the element reserves (`graph:...`). `details.space` is
+     * the space. The caller names another space. Experimental: the source-steps experiment.
+     */
+    | "E_SPACE_RESERVED"
+    /**
+     * A key names nodes in more than one id space, so it names no one node. `details.key` is the
+     * key, `details.spaces` the spaces holding it. The caller names the space, or the
+     * `<space>:<key>` NodeId. Experimental: the source-steps experiment.
+     */
+    | "E_AMBIGUOUS_ID"
+    /**
+     * Make an edge would add a staged source in the id space of the nodes it connects to, so its
+     * nodes would meet them instead of being joined by edges. `details.source` and `details.space`
+     * name them. The caller stages the source in another space. Experimental: the source-steps
+     * experiment.
+     */
+    | "E_JOIN_SPACE_SAME"
+    /**
+     * A merge or Make an edge reads node rows the source does not hold. `details.source` is the
+     * source. Experimental: the source-steps experiment.
+     */
+    | "E_STEP_NEEDS_NODES"
+    /**
+     * An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
+     * `details.column` is the column. Experimental: the source-steps experiment.
+     */
+    | "E_EDIT_ROLE_COLUMN"
+    /**
+     * A role setter that names no source could mean several built sources: each carries the
+     * column and can carry the role. `details.sources` lists them; the caller names one with the
+     * setter's `source` option. Experimental: the source-steps experiment.
+     */
+    | "E_ROLE_TARGET_AMBIGUOUS"
+    /**
+     * A draft of the sources and steps is open (`session.data.draft()`), so a data write, an undo
+     * or a redo would change what its commit replaces. `details.draft` names the draft. The caller
+     * commits or discards it first. Experimental: the source-steps experiment.
+     */
+    | "E_DRAFT_OPEN"
+    /**
+     * A draft's commit was refused because the committed sources and steps changed after the
+     * draft opened: a data write already on its way when it opened landed first, and the commit
+     * would have undone it. `details.draft` names the draft, which stays open. The caller discards
+     * it and opens a new one. Experimental: the source-steps experiment.
+     */
+    | "E_DRAFT_STALE"
+    /**
+     * A draft opened with `askOverlap` holds a key-overlap question nobody answered: a source it
+     * added meets nodes another source's node rows built (`W_SPACE_OVERLAP`). `details.space` and
+     * `details.source` name the space and the source. The caller answers it with
+     * `draft.answerOverlap(source, "merge" | "separate")` and commits again. Experimental: the
+     * source-steps experiment.
+     */
+    | "E_OVERLAP_UNANSWERED"
+    /**
      * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
      * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
      * an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
@@ -835,6 +899,83 @@ export type GraphtyWarningCode =
     | "W_UNKNOWN_KIND"
     /** No longer reported: a project open computes each saved run again over the data it holds, so no saved result can disagree with it. */
     | "W_DATA_DIFFERS"
+    /**
+     * A source's keys meet nodes already in the id space it would join (`params.space`,
+     * `params.count` of `params.of` keys; `params.other` names the other source for an untyped
+     * one). Kept in the source's own space unless the load asked `overlap: "merge"`. In a draft's
+     * preview `questions`, an open question a draft opened with `askOverlap` waits on:
+     * `params.source` is the source asked about and `params.sources` the sources whose node rows
+     * built the nodes it meets. Experimental: the source-steps experiment.
+     */
+    | "W_SPACE_OVERLAP"
+    /**
+     * A step went with a removed source (`params.step`, `params.reason` `"source-removed"`,
+     * `params.source`). Experimental: the source-steps experiment.
+     */
+    | "W_STEP_REMOVED"
+    /**
+     * Values from different sources differ in one column of one step (`params.step`,
+     * `params.column`, `params.count` cells, `params.rule` the step's rule for the column,
+     * `params.decided` cells a reader decision settles). Experimental: the source-steps experiment.
+     */
+    | "W_VALUES_DIFFER"
+    /**
+     * A refresh or replace brought a column the source's old rows did not hold (`params.source`,
+     * `params.column`). Experimental: the source-steps experiment.
+     */
+    | "W_COLUMN_UNUSED"
+    /**
+     * The value under a reader edit moved since it was made (`params.edit`, `params.was`,
+     * `params.now`, and `params.picked` for a pick). Experimental: the source-steps experiment.
+     */
+    | "W_EDIT_SOURCE_CHANGED"
+    /**
+     * A note, a pin or a reader edit names an element a rebuild left out (`params.ref`): the
+     * reference is kept and binds again when Undo brings the element back. Experimental: the
+     * source-steps experiment.
+     */
+    | "W_REFERENCE_UNBOUND"
+    /**
+     * Rows of a step name more than one element, so they join nothing (`params.step`,
+     * `params.rows`). Reported by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_FAN_OUT"
+    /**
+     * Rows of a step meet no element (`params.step`, `params.rows`). Reported by a draft's preview.
+     * Experimental: the source-steps experiment.
+     */
+    | "W_UNMATCHED"
+    /**
+     * Nodes of the space a merge folds into that no row reached (`params.step`, `params.nodes`).
+     * Reported by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_UNTOUCHED"
+    /**
+     * A step joins end pairs an earlier edge already joins (`params.step`, `params.pairs`). Reported
+     * by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_PARALLEL_EDGES"
+    /**
+     * A step makes edges whose two ends are one node (`params.step`, `params.count`). Reported by a
+     * draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_SELF_LOOPS"
+    /**
+     * Rows of one repeated key hold different values in a column (`params.step`, `params.column`,
+     * `params.keys`). Reported by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_ROWS_DIFFER"
+    /**
+     * A source's edges name nodes of its own space its node rows lack (`params.step`,
+     * `params.source`, `params.nodes`); a merge leaves them unmerged. Reported by a draft's preview.
+     * Experimental: the source-steps experiment.
+     */
+    | "W_NODE_NAMED_ONLY"
+    /**
+     * Edge ends of a step found no node in a space (`params.step`, `params.space`, `params.ends`).
+     * Reported by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_EDGE_END_MISSING"
     /** A run was still computing when the project was saved, so the file does not hold it. */
     | "W_RUN_PENDING"
     /**
@@ -1038,6 +1179,25 @@ export type GraphtyWarningCode =
      */
     | "W_WEIGHT_MEANING_MISMATCH"
     /**
+     * Under the `source-steps` experiment, a layout that reads edge weights left them unread because
+     * the edges' weights do not share one meaning, or some edges' sources read no weight (design
+     * 8.6): every edge counts the same. Emitted as a `layout-warning` event. `params.sources` lists
+     * the sources of the edges.
+     */
+    | "W_WEIGHT_MEANING_MIXED"
+    /**
+     * Under the `source-steps` experiment, a Source scope on a source's edges named sources that
+     * supplied no edges, so it holds their nodes and the edges between them instead (design 8.6).
+     * Reported in `scope.count(...).issues`. `params.nodes` is how many nodes it holds.
+     */
+    | "W_SCOPE_NO_EDGES"
+    /**
+     * Under the `source-steps` experiment, a filter condition reads a column no element carries, so
+     * it is held off and judges nothing rather than hiding every node (design 8.4). Reported in
+     * `visibility.held`. `params.filter` is the condition's id and `params.column` its column.
+     */
+    | "W_FILTER_HELD"
+    /**
      * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
      * the `graphty-sources` member: query parameters of a URL load's address, or of a network
      * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
@@ -1056,6 +1216,10 @@ export type GraphtyWarningCode =
      * reference back as they were), or a save kept it as a copy. `params.source` is the load's key
      * and `params.reason` is `not-found`, `denied` or `unreadable`. On an open, `params.name` (its
      * name, when it has one) and `params.url` (its address, for a URL load) say which it was.
+     * When the read threw, `params.cause` is what it threw: the error's code (a `GraphtyErrorCode`,
+     * or `unknown` for an error that is not a `GraphtyError`), and `params["cause.<name>"]` each
+     * plain value of its `details` (`cause.status`, `cause.url`, ...; `cause.name`, the error's
+     * name, for `unknown`). Absent when nothing was thrown (`denied`, or a copy that changed).
      */
     | "W_SOURCE_UNAVAILABLE"
     /**
@@ -1071,7 +1235,9 @@ export type GraphtyWarningCode =
     | "W_SOURCE_UNREGISTERED"
     /**
      * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
-     * data applied. `params.graph` names the graph, null for the file's one graph.
+     * data applied. `params.graph` names the graph, null for the file's one graph. Under the
+     * `source-steps` experiment, also when the member's sources and steps build a graph other than
+     * the one the file embeds: the embedded graph applied and the sources and steps were left out.
      */
     | "W_SOURCE_STEPS_IGNORED"
     /**
@@ -1139,6 +1305,16 @@ const CODE_TABLE = {
     E_UNKNOWN_SHADER_PARAM: "E_UNKNOWN_SHADER_PARAM",
     E_UNKNOWN_CAMERA: "E_UNKNOWN_CAMERA",
     E_UNKNOWN_GENERATOR: "E_UNKNOWN_GENERATOR",
+    E_SPACE_RESERVED: "E_SPACE_RESERVED",
+    E_AMBIGUOUS_ID: "E_AMBIGUOUS_ID",
+    E_JOIN_SPACE_SAME: "E_JOIN_SPACE_SAME",
+    E_STEP_NEEDS_NODES: "E_STEP_NEEDS_NODES",
+    E_EDIT_ROLE_COLUMN: "E_EDIT_ROLE_COLUMN",
+    E_CLASH_RULE_TYPE: "E_CLASH_RULE_TYPE",
+    E_ROLE_TARGET_AMBIGUOUS: "E_ROLE_TARGET_AMBIGUOUS",
+    E_DRAFT_OPEN: "E_DRAFT_OPEN",
+    E_DRAFT_STALE: "E_DRAFT_STALE",
+    E_OVERLAP_UNANSWERED: "E_OVERLAP_UNANSWERED",
     E_UNKNOWN_DATASET: "E_UNKNOWN_DATASET",
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
@@ -1153,13 +1329,13 @@ const CODE_TABLE = {
     E_AUTOSAVE_STALLED: "E_AUTOSAVE_STALLED",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",
     E_DUPLICATE_ID: "E_DUPLICATE_ID",
-    E_CLASH_RULE_TYPE: "E_CLASH_RULE_TYPE",
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",
     E_DUPLICATE_PLUGIN: "E_DUPLICATE_PLUGIN",
     E_PROTECTED: "E_PROTECTED",
     E_LOCKED: "E_LOCKED",
     E_FETCH_FAILED: "E_FETCH_FAILED",
     E_PARSE_FAILED: "E_PARSE_FAILED",
+    E_SHEET_NOT_FOUND: "E_SHEET_NOT_FOUND",
     E_PROJECT_FILE_AS_DATA: "E_PROJECT_FILE_AS_DATA",
     E_EDGE_ENDPOINTS_UNRESOLVED: "E_EDGE_ENDPOINTS_UNRESOLVED",
     E_ID_MISSING: "E_ID_MISSING",

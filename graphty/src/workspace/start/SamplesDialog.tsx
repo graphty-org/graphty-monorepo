@@ -16,6 +16,7 @@ import {
     datasetBase,
     type GraphLoad,
     type Incoming,
+    OPENING,
     openNetworkSample,
     openProject,
     openSeparate,
@@ -84,7 +85,7 @@ function bringGraph(ctx: CommandContext, name: string, load: GraphLoad, target: 
         return;
     }
     unlessUnsaved(ctx, () => {
-        openProject(ctx.workspace, name, (session) => load(session, { mode: "replace", history: "start" }));
+        openProject(ctx.workspace, name, (session) => load(session, { mode: "replace", ...OPENING }));
     });
 }
 

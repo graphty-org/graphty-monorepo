@@ -27,16 +27,17 @@ import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesFreeing, texturesLoading } from "../models/TextureCache";
-import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
+import { collectResizedNodes, type Node, type NodeRenderState } from "../Node";
 import { DEFAULT_NODE_SCREEN_REFERENCE, type SizeView, viewSizeScale } from "../render/nodeSizeSpace";
 import type { RowTable } from "../render/RowTable";
 import type { ElementMask } from "../session/scope/index";
 import type { EdgeAgeFade } from "../session/time/ageFade";
 import type { GraphFraming } from "../session/types";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { inXR } from "../xr/inXR";
 import { mapCorners } from "./BasemapManager";
-import { type DataManager, dataManagerInternals, disposeReleased } from "./DataManager";
+import { type DataManager, dataManagerInternals, releaseRebuiltMeshes } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
@@ -154,6 +155,8 @@ export interface ColumnFraming {
     readonly rows: Iterable<number>;
     readonly table: RowTable;
     readonly root: TransformNode | null;
+    /** Where a row's box is centered about its place, unscaled; the place itself when not given. */
+    readonly boxCenterOf?: (row: number) => Readonly<{ x: number; y: number; z: number }> | undefined;
 }
 
 /**
@@ -197,7 +200,7 @@ function* columnBoxes(
     columns: ColumnFraming,
     extent: GraphFraming["extent"],
 ): Iterable<{ min: Vector3; max: Vector3 }> {
-    const { rows, table, root } = columns;
+    const { rows, table, root, boxCenterOf } = columns;
     const world = root?.computeWorldMatrix(true);
     const scale = root?.absoluteScaling;
     for (const row of rows) {
@@ -206,14 +209,21 @@ function* columnBoxes(
         }
 
         const local = columnCenter(table, row);
-        const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
         if (extent === "centers") {
+            const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
             yield { min: center, max: center.clone() };
             continue;
         }
 
-        // A batched row is never turned and carries no border, so its box is its half extents.
-        const { half } = table.extentOf(row);
+        // A batched row is never turned and carries no border, so its box is its half extents about its source's box
+        // center, which a shape not centered on its origin holds off its place.
+        const { half, scale: drawn } = table.extentOf(row);
+        const off = boxCenterOf?.(row);
+        if (off !== undefined) {
+            local.addInPlaceFromFloats(off.x * drawn, off.y * drawn, off.z * drawn);
+        }
+
+        const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
         const size = new Vector3(half.x, half.y, half.z);
         if (scale !== undefined) {
             size.multiplyInPlace(scale);
@@ -530,7 +540,7 @@ const EDGE_PAINT_BATCH = 1024;
  * edges painted in fixed batches took about 390 frames and 12 s to show one view switch. With this
  * floor a frame there paints for about 60 ms, still a short task, and the switch takes 32 frames.
  */
-const REPAINT_FRAMES = 32;
+export const REPAINT_FRAMES = 32;
 
 /** What an unbound renderer reads: no selection, no filter, nothing hidden. */
 const EMPTY_MASKS: ViewMasks = Object.freeze({});
@@ -830,7 +840,8 @@ export class UpdateManager implements Manager {
 
         const painted: [Node, NodePaint][] = [];
         for (const node of nodes) {
-            const paint = node.isDisposed() ? null : painter.nodePaint(node.index);
+            // Mid-pass, queued for the frame after it (`StylePainter.settledNodePaint`).
+            const paint = node.isDisposed() ? null : painter.settledNodePaint(node.index);
             if (paint !== null) {
                 painted.push([node, paint]);
             }
@@ -1768,7 +1779,7 @@ export class UpdateManager implements Manager {
      * @returns The count, or 0 while no label is decluttered.
      */
     private labelPasses(): number {
-        const declutter: unknown = this.graphContext.getScene().metadata?.labelDeclutter;
+        const declutter: unknown = (this.graphContext.getScene().metadata as GraphSceneMetadata | null)?.labelDeclutter;
         return declutter instanceof LabelDeclutter ? declutter.passes : 0;
     }
 
@@ -1885,7 +1896,8 @@ export class UpdateManager implements Manager {
             this.dataManager.drawnBundle(edge).members;
         if (members.length > 1) {
             for (const member of members) {
-                if (member !== edge) {
+                // A row stored with no `Edge` draws straight from its rows, and is never placed.
+                if (member !== edge && typeof member !== "number") {
                     this.edgesToPlace.push(member);
                 }
             }
@@ -2127,14 +2139,17 @@ export class UpdateManager implements Manager {
         const taken = painter.takeNodes(size);
         this.notePaintedRows(taken);
 
-        for (const index of taken) {
-            const node = rows.get(index) ?? this.unbuiltPainted(painter, index);
-            const paint = node === undefined ? null : painter.nodePaint(index);
+        // A row built here is painted at once; its rebuilt mesh goes with the batch's (#9184).
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const index of taken) {
+                const node = rows.get(index) ?? this.unbuiltPainted(painter, index);
+                const paint = node === undefined ? null : painter.nodePaint(index);
 
-            if (node !== undefined && paint !== null) {
-                painted.push([node, paint]);
+                if (node !== undefined && paint !== null) {
+                    painted.push([node, paint]);
+                }
             }
-        }
+        });
 
         return { painted, taken: taken.length };
     }
@@ -2187,7 +2202,7 @@ export class UpdateManager implements Manager {
         if (plain !== null && batches?.paintRow(index, plain) === true) {
             table?.hide(index, filtered());
             if (plain.labelled === true) {
-                // label sampling may pick it, and then builds it a `Node` for the label (`buildPlainRow`)
+                // label sampling may pick it, and then builds it a `Node` for the label (`buildPlainRows`)
                 LabelDeclutter.notePlainLabel(this.graphContext.getScene(), this.graphContext);
             }
 
@@ -2249,15 +2264,19 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Build the `Node` of a row held plain that label sampling picked, so its label is drawn: its own
-     * paint is queued for the next frame.
-     * ponytail: the `Node` stays when a later pass drops its label, so the objects grow by the rows that
+     * Build the `Node`s of the rows held plain that label sampling picked, so their labels are drawn:
+     * their own paint is queued for the next frame, and painted together.
+     * ponytail: a `Node` stays when a later pass drops its label, so the objects grow by the rows that
      * ever won a cell; turn it back into a plain row if zooming about builds too many.
-     * @param id - The row's node id.
+     * @param ids - The rows' node ids.
      * @internal
      */
-    buildPlainRow(id: NodeIdType): void {
-        dataManagerInternals.buildRow(this.dataManager, id);
+    buildPlainRows(ids: readonly NodeIdType[]): void {
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const id of ids) {
+                dataManagerInternals.buildRow(this.dataManager, id);
+            }
+        });
     }
 
     /**
@@ -2297,13 +2316,15 @@ export class UpdateManager implements Manager {
      * @returns The batch size.
      */
     private nodeBatchSize(budgetMs: number, nodes: number): number {
-        if (minimumWorkPerFrame()) {
-            return MINIMUM_PAINT_BATCH;
-        }
-
-        // An unbounded frame (no budget given) takes everything at once.
+        // An unbounded frame (no budget given) takes everything at once, in the minimum-work mode too: a layout that
+        // reads the sizes asks for the whole repaint (`drawArrivedPaint`), and under "batched" a row no batch has
+        // painted has no size to read.
         if (budgetMs === Number.POSITIVE_INFINITY) {
             return budgetMs;
+        }
+
+        if (minimumWorkPerFrame()) {
+            return MINIMUM_PAINT_BATCH;
         }
 
         return Math.max(NODE_PAINT_BATCH, Math.ceil(nodes / REPAINT_FRAMES), Math.floor(this.nodePaintRate * budgetMs));
@@ -2577,12 +2598,7 @@ export class UpdateManager implements Manager {
      *     rebuilt mesh has to be stretched over its members again).
      */
     private paintNodes(painted: readonly [Node, NodePaint][]): { resized: ReadonlySet<Node>; rebuilt: boolean } {
-        const rebuilt = painted.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
-        disposeReleased(rebuilt, [], () => {
-            for (const node of rebuilt) {
-                releaseNodeMesh(node);
-            }
-        });
+        const rebuilt = releaseRebuiltMeshes(painted);
         const resized = collectResizedNodes(() => {
             for (const [node, paint] of painted) {
                 const own = node.togglesOwnMeshes();
@@ -3511,6 +3527,7 @@ export class UpdateManager implements Manager {
         const framing = this.willZoomToFit();
 
         // Update nodes and edges
+        this.readsAhead();
         this.updateNodes(published);
         this.updateEdges();
         this.frameTransition();
@@ -3568,6 +3585,11 @@ export class UpdateManager implements Manager {
             this.layoutManager.layoutEngine?.spacesBySize === true &&
             (painter?.isPainting === true || painter?.hasPendingNodes === true)
         ) {
+            return;
+        }
+
+        // The frame after a 2D/3D switch flattened the arrangement draws it as it is.
+        if (this.layoutManager.takeFrameHold()) {
             return;
         }
 
@@ -3734,7 +3756,7 @@ export class UpdateManager implements Manager {
             const dx = at.x - was.x;
             const dy = at.y - was.y;
             const dz = at.z - was.z;
-            largest = Math.max(largest, Math.sqrt(dx * dx + dy * dy + dz * dz));
+            largest = Math.max(largest, Math.hypot(dx, dy, dz));
         }
 
         return largest;
@@ -3968,7 +3990,7 @@ export class UpdateManager implements Manager {
         }
 
         const scene = this.graphContext.getScene();
-        const flat = scene.metadata?.twoD === true;
+        const flat = (scene.metadata as GraphSceneMetadata | null)?.twoD === true;
         const pad = this.framing?.extent === "centers" ? 0 : table.widestHalf;
         const root = scene.getTransformNodeByName("graph-root");
         const world = root?.computeWorldMatrix(true);
@@ -3999,6 +4021,7 @@ export class UpdateManager implements Manager {
             rows: batches.columnRowIndices(),
             table,
             root: this.graphContext.getScene().getTransformNodeByName("graph-root"),
+            boxCenterOf: (row) => batches.columnRowOf(row)?.drawnBoxCenter,
         };
     }
 
@@ -4031,12 +4054,14 @@ export class UpdateManager implements Manager {
             }
         }
 
-        for (const row of faint) {
-            const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
-            if (id !== undefined) {
-                dataManagerInternals.buildRow(this.dataManager, id);
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const row of faint) {
+                const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
+                if (id !== undefined) {
+                    dataManagerInternals.buildRow(this.dataManager, id);
+                }
             }
-        }
+        });
     }
 
     /**
@@ -4176,10 +4201,12 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        this.updateEdgesOf(walk === false ? [] : walk);
-        // An edge several things queued this frame is placed once.
-        UpdateManager.placeEdges(new Set(this.edgesToPlace));
-        this.placedEdgesAtRows();
+        // Each edge is visited once per pass, not once per list that names it: an edge several things queued this
+        // frame, or one the table's moved rows reach again, is placed once (issues #9164, #9529).
+        const visited = new Set<Edge>();
+        this.updateEdgesOf(walk === false ? [] : walk, visited);
+        UpdateManager.placeEdges(this.edgesToPlace, visited);
+        this.placedEdgesAtRows(visited);
         this.unbuiltRowsMoved = false;
         this.edgesToPlace = [];
     }
@@ -4187,13 +4214,26 @@ export class UpdateManager implements Manager {
     /**
      * Place some edges, leaving out each line the shader draws from its rows ({@link Edge.followsRows}).
      * @param edges - The edges.
+     * @param visited - Edges this pass already placed, skipped and added to; undefined to place every one.
      */
-    private static placeEdges(edges: Iterable<Edge>): void {
+    private static placeEdges(edges: Iterable<Edge>, visited?: Set<Edge>): void {
         for (const edge of edges) {
-            if (!edge.followsRows) {
-                edge.update();
-            }
+            UpdateManager.placeOnce(edge, visited);
         }
+    }
+
+    /**
+     * Place one edge, unless its line follows its rows or this pass already placed it.
+     * @param edge - The edge.
+     * @param visited - Edges this pass already placed, or undefined.
+     */
+    private static placeOnce(edge: Edge, visited: Set<Edge> | undefined): void {
+        if (edge.followsRows || visited?.has(edge) === true) {
+            return;
+        }
+
+        visited?.add(edge);
+        edge.update();
     }
 
     /**
@@ -4230,8 +4270,9 @@ export class UpdateManager implements Manager {
      * rows in its shader.
      * ponytail: every placed edge on each table move; a list of the rows the lane moved, if a running layout over
      * a million rows with no Node and many placed edges needs the frame back.
+     * @param visited - Edges this pass already placed, skipped.
      */
-    private placedEdgesAtRows(): void {
+    private placedEdgesAtRows(visited?: Set<Edge>): void {
         if (!this.unbuiltRowsMoved) {
             return;
         }
@@ -4243,7 +4284,7 @@ export class UpdateManager implements Manager {
             for (const row of rows) {
                 const id = row === INVALID_INDEX ? undefined : this.dataManager.nodeIdAtRow(row);
                 if (id !== undefined) {
-                    UpdateManager.placeEdges(dataManagerInternals.builtEdgesAt(this.dataManager, id));
+                    UpdateManager.placeEdges(dataManagerInternals.builtEdgesAt(this.dataManager, id), visited);
                 }
             }
 
@@ -4251,7 +4292,21 @@ export class UpdateManager implements Manager {
         }
 
         for (const edge of this.placedEdges()) {
-            edge.update();
+            if (visited?.has(edge) !== true) {
+                edge.update();
+            }
+        }
+    }
+
+    /**
+     * Under "batched", tell the row table how many rows this frame reads one at a time: each built `Node` its own,
+     * each placed edge both its ends'. When that is more than a GPU landing the lane owes answers by row (every
+     * edge arrowed builds every node), the landing is written before the first read, not after a quarter of them.
+     */
+    private readsAhead(): void {
+        const table = this.graphContext.getRowTable?.() ?? null;
+        if (table !== null && this.dataManager.renderLimits?.batched() === true) {
+            table.willRead(dataManagerInternals.nodesLive(this.dataManager) + 2 * this.placedEdges().length);
         }
     }
 
@@ -4358,15 +4413,16 @@ export class UpdateManager implements Manager {
 
     /**
      * Update the edges at some nodes. An edge between two of them is visited twice; the second
-     * visit finds it placed.
+     * visit finds it placed, unless `visited` is given, which skips it.
      * @param nodes - The nodes.
+     * @param visited - Edges this pass already placed, skipped and added to; undefined to place every one.
      */
-    private updateEdgesOf(nodes: readonly Node[]): void {
+    private updateEdgesOf(nodes: readonly Node[], visited?: Set<Edge>): void {
         for (const node of nodes) {
             for (const id of this.dataManager.incidentEdgeIds(node)) {
                 const edge = this.dataManager.edges.get(id);
-                if (edge !== undefined && !edge.followsRows) {
-                    edge.update();
+                if (edge !== undefined) {
+                    UpdateManager.placeOnce(edge, visited);
                 }
             }
         }
@@ -5425,7 +5481,7 @@ export class UpdateManager implements Manager {
     private frameBox(box: FramingBox, frame: LocationMapFrame | null): FramingBox {
         const scene = this.graphContext.getScene();
         const fits = screenFitFrames.callbacksOf(scene);
-        const declutter: unknown = scene.metadata?.labelDeclutter;
+        const declutter: unknown = (scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
         let current = box;
         // ponytail: a placement that flips with the camera runs a label pass per round, up to the cap;
         // a lower cap for placement alone if a large graph ever oscillates.

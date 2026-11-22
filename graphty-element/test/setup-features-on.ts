@@ -8,7 +8,10 @@ import { beforeAll, beforeEach } from "vitest";
 
 async function switchOn(): Promise<void> {
     const { setDefaultFeatures } = await import("../src/features/resolve");
-    setDefaultFeatures(["all"]);
+    // `all` leaves source-steps off (features/resolve.ts); GRAPHTY_SOURCE_STEPS_ON=1 adds it, to run
+    // today's load and join tests with the new build on.
+    const steps = globalThis.process?.env.GRAPHTY_SOURCE_STEPS_ON === "1";
+    setDefaultFeatures(steps ? ["all", "source-steps"] : ["all"]);
 }
 
 beforeAll(switchOn);

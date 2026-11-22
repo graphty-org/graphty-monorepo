@@ -258,9 +258,9 @@ const LineStyle = z.strictObject({
     /**
      * Draw the line in the color the style layers painted one of its nodes: "source" its source node's, "target" its
      * target node's, in place of `color`. Kept current: a later layer that recolors the node recolors the line. An end
-     * node no layer colored leaves the line its own `color`. Unset, the line is drawn in `color`.
+     * node no layer colored leaves the line its own `color`. "none", or unset, draws the line in `color`.
      */
-    colorFrom: z.enum(["source", "target"]).optional(),
+    colorFrom: z.enum(["source", "target", "none"]).optional(),
     opacity: z.number().min(0).max(1).optional(),
     /**
      * Fade the line with its length on screen, in CSS pixels (cosmos.gl's

@@ -360,6 +360,33 @@ export function nodeRebuildsFor(node: Node, paint: NodePaint): boolean {
     return rebuildsFor(node, paint);
 }
 
+/** Tells a node its geometry changed; see {@link nodeResizedFrom}. */
+let resizeNode: (node: Node) => void;
+
+/**
+ * Tell the layout and a node's edges that it is drawn at another size or shape than its row was
+ * drawn at before the node was built. A row a batch drew is built straight from the paint it is
+ * about to take when that paint does not keep the batch's source (a restyle that borders it), so
+ * painting the new `Node` changes nothing and {@link Node.applySessionPaint} sees no resize; this
+ * tells them what that paint would have.
+ * @param node - The new node.
+ * @param before - The style the batch drew its row with.
+ * @param after - The style it is built with.
+ */
+export function nodeResizedFrom(node: Node, before: NodeStyleConfig, after: NodeStyleConfig): void {
+    const fitsLabel =
+        after.shape?.labelFit !== undefined ||
+        after.shape?.labelTable !== undefined ||
+        after.shape?.imageAspect === true;
+    if (
+        !isEqual(before.shape, after.shape) ||
+        !isEqual(before.border, after.border) ||
+        (fitsLabel && !isEqual(before.label, after.label))
+    ) {
+        resizeNode(node);
+    }
+}
+
 /**
  * Dispose what a node's rebuild replaces -- its mesh and the label parented to it -- ahead of the
  * rebuild. The drag handler is kept: it lives as long as the node, reads `node.mesh` whenever it
@@ -522,6 +549,9 @@ export class Node implements ModelUser {
             node.shaderDrawing?.dataChanged(node);
         };
         ownAnchor = (node) => node.#anchor;
+        resizeNode = (node) => {
+            node.geometryChanged();
+        };
         nodeInternals.drawn = (node) => ({
             border: node.border,
             outerBorder: node.outerBorder,
@@ -590,6 +620,11 @@ export class Node implements ModelUser {
      * will keep only this once its mesh goes (design/rendering/row-renderer.md, stage 11).
      */
     #anchor!: TransformNode;
+    /**
+     * Whether the constructor has built the mesh: before then it measures a label it fits the shape
+     * to, which has nothing to hang from yet ({@link Node.labelTarget}).
+     */
+    readonly #constructed: boolean = false;
     /** Whether a consumer has read {@link Node.mesh}: the node then keeps drawing with its own mesh. */
     #meshHeld = false;
     /** Whether this node's model carries a silhouette mark (src/models/NodeOutlineLayers.ts). */
@@ -598,6 +633,12 @@ export class Node implements ModelUser {
     #playing: TemplateAnimation | null = null;
     /** The view's scale on this node (`node.sizeSpace`), a shrink left out. */
     #wholeScale = 1;
+    /**
+     * A model's mesh and the scale it was built at: its size (`NodeMesh.createModelInstance`),
+     * which a view's scale multiplies rather than replaces. A shape's mesh is built at its size,
+     * so it has none (issue #9304).
+     */
+    #modelBuilt: { readonly mesh: AbstractMesh; readonly scale: Vector3 } | null = null;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
     #actions: ActionManager | null = null;
 
@@ -1016,6 +1057,7 @@ export class Node implements ModelUser {
 
         const fit = this.fitToLabel(paint.meshKey, o);
         const built = this.build(fit.meshKey, fit.style);
+        this.#constructed = true;
 
         // Parent to graph-root for XR gesture support
         // This allows gestures to transform the entire graph by manipulating the root
@@ -1171,7 +1213,17 @@ export class Node implements ModelUser {
      * @returns The reach.
      */
     private get sceneBorderReach(): number {
-        return typeof this.borderBuilt?.scale === "number" ? 0 : this.borderReach;
+        return this.screenBorder ? 0 : this.borderReach;
+    }
+
+    /**
+     * Whether this node's border is drawn in screen pixels (`border.screenWidth`), so {@link Node.borderReach} changes
+     * with the zoom and {@link Node.layoutRadius} leaves it out.
+     * @returns True for a screen-pixel border.
+     * @internal
+     */
+    get screenBorder(): boolean {
+        return typeof this.borderBuilt?.scale === "number";
     }
 
     /**
@@ -2216,7 +2268,17 @@ export class Node implements ModelUser {
      */
     get drawnScale(): number {
         const scale = this.batchTable?.extentOf(this.row).scale;
-        return scale === undefined ? this.#anchor.scaling.x : exactOf(scale, this.#anchor.scaling.x);
+        const own = this.#anchor.scaling.x / (this.builtScale()?.x ?? 1);
+        return scale === undefined ? own : exactOf(scale, own);
+    }
+
+    /**
+     * The scale the node's mesh was built at, when it is a model's.
+     * @returns The scale, or null for a mesh built at its size.
+     */
+    private builtScale(): Vector3 | null {
+        const built = this.#modelBuilt;
+        return built !== null && built.mesh === this.#anchor ? built.scale : null;
     }
 
     /**
@@ -2255,7 +2317,13 @@ export class Node implements ModelUser {
      * @param whole - Its scale when it is not shrunk.
      */
     private drawScaled(scale: number, whole: number): void {
-        this.#anchor.scaling.setAll(scale);
+        const built = this.builtScale();
+        if (built === null) {
+            this.#anchor.scaling.setAll(scale);
+        } else {
+            built.scaleToRef(scale, this.#anchor.scaling);
+        }
+
         this.measureRow();
         if (this.#wholeScale !== whole) {
             this.#wholeScale = whole;
@@ -2458,11 +2526,13 @@ export class Node implements ModelUser {
      * at the same moment: a session's paint exists from the instant it is bound, and the field is
      * filled by the first frame that drains the dirty set. A rebuild in between -- a 2D/3D switch
      * immediately after a load -- would otherwise find nothing and draw nothing.
+     * A node never painted, rebuilt while a pass is painting, is drawn with the defaults and queued
+     * for the frame after the pass (`StylePainter.settledNodePaint`).
      * @returns The session's paint when one is bound, and the element's own defaults otherwise.
      */
     private currentPaint(): NodePaint {
         const painter = this.context.getStylePainter?.();
-        const painted = painter?.owns === true ? (this.sessionPaint ?? painter.nodePaint(this.index)) : null;
+        const painted = painter?.owns === true ? (this.sessionPaint ?? painter.settledNodePaint(this.index)) : null;
 
         return painted ?? bootstrapNodePaint();
     }
@@ -2999,7 +3069,9 @@ export class Node implements ModelUser {
         const model = this.modelFor(o);
         if (model !== null) {
             this.setDrawn(model, null);
-            return NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
+            const mesh = NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
+            this.#modelBuilt = { mesh, scale: mesh.scaling.clone() };
+            return mesh;
         }
 
         const image = this.imageFor(o);
@@ -4797,9 +4869,13 @@ export class Node implements ModelUser {
      * The mesh a label hangs from: the node's own, or for a row a batch draws, its anchor made a
      * geometry-free mesh ({@link Node.boxAnchor}), so the row stays batched. The batch is told
      * first: a paint that keeps its mesh labels the node before it re-sorts it.
-     * @returns The mesh, or undefined for a removed node with no mesh.
+     * @returns The mesh, or undefined for a removed node with no mesh, or one still being built.
      */
     private labelTarget(): AbstractMesh | undefined {
+        if (!this.#constructed) {
+            return undefined;
+        }
+
         if (this.#mesh === null && !this.disposed) {
             this.context.getNodeBatches?.()?.sync(this);
         }

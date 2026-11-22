@@ -6,7 +6,6 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { flushSync } from "react-dom";
 
 import { bootSignal } from "../bootSignal";
-import { appFeatureOn } from "../features";
 import { APP_CALLER_KEY } from "../lib/analytics";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
@@ -34,6 +33,7 @@ import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
 import {
     createWorkspaceStore,
+    keepLayout,
     keepPlace,
     keptBlank,
     keptEntry,
@@ -174,14 +174,11 @@ export function Workspace({
                   }),
             ...(author === "" || session.config.author === author ? {} : { author }),
         };
-        // With usage analytics on, the starting choices are one step marked as the app's own, so
-        // they are not counted as the reader's; off, they are written as before.
+        // The starting choices are one step marked as the app's own, so they are not counted as the reader's.
         const writeDefaults = (): Promise<unknown> =>
-            appFeatureOn("usage-analytics")
-                ? session.transaction("Starting settings", (tx) => tx.config.set(patch), {
-                      callerKey: APP_CALLER_KEY,
-                  })
-                : session.config.set(patch);
+            session.transaction("Starting settings", (tx) => tx.config.set(patch), {
+                callerKey: APP_CALLER_KEY,
+            });
         const defaults = starting.then(() =>
             project?.id === startProjectId || Object.keys(patch).length === 0 ? undefined : writeDefaults(),
         );
@@ -307,8 +304,19 @@ export function Workspace({
             live = false;
         };
     }, [store, checking]);
-    // The reader's place is kept for a reload of this tab while autosave keeps the work.
-    useEffect(() => (store.get().autosave ? keepPlace(store) : undefined), [store]);
+    // The reader's place is kept for a reload of this tab while autosave keeps the work, and the
+    // panel sizes, table dock and legend switch for the next visit.
+    useEffect(() => {
+        if (!store.get().autosave) {
+            return undefined;
+        }
+        const stops = [keepPlace(store), keepLayout(store)];
+        return () => {
+            stops.forEach((stop) => {
+                stop();
+            });
+        };
+    }, [store]);
     // The entry the project's work is written to, so a reload can tell work never written.
     useEffect(() => {
         const host = element.element;
@@ -456,7 +464,7 @@ export function Workspace({
             {/* One corner for the usage data question (on whatever page a first visit lands, until it
                 is answered) and a short survey, only while usage data is shared (usage-analytics.md
                 section 4.4): stacked, so neither covers or hides the other. Where the page sends PostHog
-                nothing (the usage-analytics experiment off, or a site with no PostHog ids), the
+                nothing (a site with no PostHog ids, or off the site's own host), the
                 question alone, with no survey, in a plain wrapper that draws nothing: the card keeps
                 its place in the tree when site.json switches PostHog on, so it is not remounted and
                 keeps its answer line and focus. */}

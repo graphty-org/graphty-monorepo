@@ -112,12 +112,44 @@ describe("session.catalog.optionsFor", () => {
 
         const result = await harness.session.runs.start("louvain", {}, { style: false });
 
-        assert.deepStrictEqual(await groupBy(), ["team", `results.${result.runId}.group`]);
+        assert.deepStrictEqual(await groupBy(), [`results.${result.runId}.group`, "team"]);
         const choices = (await harness.session.catalog.optionsFor("shell")).find(
             (option) => option.name === "groupBy",
         )?.values;
-        assert.isUndefined(choices?.[0]?.runField, "an attribute names no run");
-        assert.deepStrictEqual(choices?.[1]?.runField, { runId: result.runId, field: "group" });
+        assert.deepStrictEqual(choices?.[0]?.runField, { runId: result.runId, field: "group" });
+        assert.isUndefined(choices?.[1]?.runField, "an attribute names no run");
+        harness.session.dispose();
+    });
+
+    it("lists the best grouping first: the newest run, then attributes with the fewest distinct values", async () => {
+        const harness = makeSession({ runs: { execute: twoGroups } });
+        harness.add(
+            ["a", "b", "c", "d", "e", "f", "g"].map((id, i) => ({
+                id,
+                name: i === 0 ? "b" : id,
+                team: i < 2 ? "red" : "blue",
+                region: ["n", "s", "e", "w"][i % 4],
+                kind: "protein",
+            })),
+            [{ src: "a", dst: "b" }],
+        );
+        const groupBy = async (): Promise<readonly string[] | undefined> =>
+            (await harness.session.catalog.optionsFor("shell"))
+                .find((option) => option.name === "groupBy")
+                ?.values?.map((choice) => choice.value);
+
+        const before = await groupBy();
+        assert.deepStrictEqual(before?.slice(0, 2), ["team", "region"], "two groups before four");
+        assert.strictEqual(before?.at(-1), "kind", "one value for every node groups nothing");
+
+        const first = await harness.session.runs.start("louvain", {}, { style: false });
+        const second = await harness.session.runs.start("louvain", { resolution: 2 }, { style: false });
+        const after = await groupBy();
+        assert.deepStrictEqual(after?.slice(0, 3), [
+            `results.${second.runId}.group`,
+            `results.${first.runId}.group`,
+            "team",
+        ]);
         harness.session.dispose();
     });
 

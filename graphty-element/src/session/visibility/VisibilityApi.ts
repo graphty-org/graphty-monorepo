@@ -96,6 +96,7 @@ import {
 import { sealedSet } from "../sealed";
 import { type DependencySources, visibilityCycle } from "../sets/dependencies";
 import type { SetWatch } from "../sets/notify";
+import type { CodedFact } from "../shared";
 import type { HistoryCause } from "../types";
 import {
     assertConditions,
@@ -105,6 +106,7 @@ import {
     conditionsOfSteps,
     selectRule,
     selectsOverGraph,
+    type SourceScopedRule,
     stepsOf,
     wellFormed,
 } from "./conditions";
@@ -114,6 +116,7 @@ import {
     type CompiledVisibility,
     compileVisibility,
     type FilterSources,
+    heldColumn,
     type RuleTree,
     runPass,
     type ScopeLeaf,
@@ -647,6 +650,15 @@ export interface VisibilityApi {
      * @beta
      */
     readonly notDrawn: readonly HiddenNotDrawn[];
+    /**
+     * Under the source-steps experiment: the keep and exclude conditions that are on but held off,
+     * each as `W_FILTER_HELD { filter, column }` with the condition's id and the column it reads.
+     * A condition is held when no element carries any column it reads (a condition with `source`:
+     * when that source gave no element one), so it judges nothing and never hides every node.
+     * Empty while the experiment is off.
+     * @experimental source-steps
+     */
+    readonly held: readonly CodedFact<"W_FILTER_HELD">[];
 }
 
 /**
@@ -1805,6 +1817,15 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     type ElementBytes = { readonly node: Uint8Array; readonly edge: Uint8Array };
     let ghostCache: { readonly key: readonly unknown[]; readonly bytes: ElementBytes } | null = null;
     let outsideCache: { readonly key: readonly unknown[]; readonly bytes: ElementBytes } | null = null;
+    /** What {@link ghostsNow} answered this turn and under what, or null in a new turn. */
+    let ghostTurn: {
+        readonly state: unknown;
+        readonly graph: GraphSnapshot;
+        readonly held: string | null;
+        readonly heldAll: boolean;
+        readonly working: boolean;
+        readonly bytes: ElementBytes | null;
+    } | null = null;
     /** What {@link outsideCache} was last answered under this turn, or null in a new turn. */
     let outsideStamp: readonly unknown[] | null = null;
 
@@ -1874,6 +1895,39 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns The bytes, or null.
      */
     const ghostsNow = (): ElementBytes | null => {
+        // A repaint asks once per element: within one turn, with the state, the graph, the held
+        // condition and the working graph unmoved, the answer is the one just given (#7966: the
+        // inputs below, compared per element, cost about 150 ms of a drag at 50,000 nodes).
+        // ponytail: per turn, as `outsideNow`, since a set a filter names can move with no command.
+        const turn = ghostTurn;
+        if (
+            turn !== null &&
+            turn.state === dispatcher.state &&
+            turn.graph === sources.snapshot() &&
+            turn.held === held &&
+            turn.heldAll === heldAll &&
+            turn.working === workingOn()
+        ) {
+            return turn.bytes;
+        }
+
+        if (ghostTurn === null) {
+            queueMicrotask(() => {
+                ghostTurn = null;
+            });
+        }
+
+        const bytes = ghostBytes();
+        ghostTurn = { state: dispatcher.state, graph: sources.snapshot(), held, heldAll, working: workingOn(), bytes };
+        return bytes;
+    };
+
+    /**
+     * {@link ghostsNow}, its inputs compared.
+     * @returns The bytes, or null.
+     */
+    const ghostBytes = (): ElementBytes | null => {
+        slideCounters.ghostChecks++;
         if (drawnRuleNow() === ruleNow()) {
             return null;
         }
@@ -3360,6 +3414,29 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         get notDrawn(): readonly HiddenNotDrawn[] {
             return notDrawnNow();
+        },
+
+        get held(): readonly CodedFact<"W_FILTER_HELD">[] {
+            if (sources.sourceSteps?.() !== true) {
+                return [];
+            }
+            const graph = sources.snapshot();
+            const read = passSources(graph);
+            const held: CodedFact<"W_FILTER_HELD">[] = [];
+            for (const condition of dispatcher.state.visibility.conditions) {
+                if (!condition.on || condition.effect === "select") {
+                    continue;
+                }
+                const scoped: SourceScopedRule | undefined =
+                    condition.source === undefined
+                        ? undefined
+                        : { kind: "all", of: [condition.rule], withinSources: [condition.source], outside: true };
+                const column = heldColumn(graph, scoped ?? condition.rule, read);
+                if (column !== null) {
+                    held.push({ code: "W_FILTER_HELD", params: { filter: condition.id, column } });
+                }
+            }
+            return held;
         },
 
         workingGraphChanged(): void {

@@ -25,7 +25,11 @@ import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { createSampleElement, importSample, sampleData } from "../fidelity/load-sample";
 
 const SAMPLE = "../graph-io/test/corpus/styles/json/fidelity/gephi-worldcup.json.gz";
-const GENERATED = { nodes: 3000, edges: 12_000 };
+// Large on purpose: 3,000 labeled nodes are more than ten of the label texture sweep's 256-a-frame steps. The sweep
+// once took frames in proportion to the labels, each drawing the whole graph, so this case took 130 seconds per path
+// on the software renderer CI uses and was cut to 750 nodes (issue #9217); now the sweep takes the same frames at any
+// size and the case settles in about the time its frames take to draw (issue #9364).
+const GENERATED = { nodes: 3000, edges: 12000 };
 
 afterEach(() => {
     document.body.replaceChildren();

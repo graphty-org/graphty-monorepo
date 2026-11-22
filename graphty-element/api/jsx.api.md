@@ -88,7 +88,6 @@ import { z } from 'zod';
 export interface GraphtyElementJSXProps {
     "acceleration-min-nodes"?: string;
     "accessible-node-list"?: boolean;
-    // (undocumented)
     "aria-label"?: string;
     "auto-frame"?: boolean;
     "auto-rotate"?: string;
@@ -162,57 +161,31 @@ export interface GraphtyElementJSXProps {
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
     "ongraph-settled"?: (event: CustomEvent<EventOfType<"graph-settled">>) => void;
     "ongraph-started"?: (event: CustomEvent<EventOfType<"graph-started">>) => void;
-    // (undocumented)
     "ongraphty-autosave-at-risk"?: (event: GraphtyElementEventMap["graphty-autosave-at-risk"]) => void;
-    // (undocumented)
     "ongraphty-autosave-available"?: (event: GraphtyElementEventMap["graphty-autosave-available"]) => void;
-    // (undocumented)
     "ongraphty-autosave-restored"?: (event: GraphtyElementEventMap["graphty-autosave-restored"]) => void;
-    // (undocumented)
     "ongraphty-autosave-status"?: (event: GraphtyElementEventMap["graphty-autosave-status"]) => void;
-    // (undocumented)
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
-    // (undocumented)
     "ongraphty-features"?: (event: GraphtyElementEventMap["graphty-features"]) => void;
-    // (undocumented)
     "ongraphty-history-change"?: (event: GraphtyElementEventMap["graphty-history-change"]) => void;
-    // (undocumented)
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;
-    // (undocumented)
     "ongraphty-model-change"?: (event: GraphtyElementEventMap["graphty-model-change"]) => void;
-    // (undocumented)
     "ongraphty-node-click"?: (event: GraphtyElementEventMap["graphty-node-click"]) => void;
-    // (undocumented)
     "ongraphty-node-drag-end"?: (event: GraphtyElementEventMap["graphty-node-drag-end"]) => void;
-    // (undocumented)
     "ongraphty-node-drag-start"?: (event: GraphtyElementEventMap["graphty-node-drag-start"]) => void;
-    // (undocumented)
     "ongraphty-node-hover"?: (event: GraphtyElementEventMap["graphty-node-hover"]) => void;
-    // (undocumented)
     "ongraphty-note-change"?: (event: GraphtyElementEventMap["graphty-note-change"]) => void;
-    // (undocumented)
     "ongraphty-progress-change"?: (event: GraphtyElementEventMap["graphty-progress-change"]) => void;
-    // (undocumented)
     "ongraphty-project-status"?: (event: GraphtyElementEventMap["graphty-project-status"]) => void;
-    // (undocumented)
     "ongraphty-run-change"?: (event: GraphtyElementEventMap["graphty-run-change"]) => void;
-    // (undocumented)
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
-    // (undocumented)
     "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
-    // (undocumented)
     "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
-    // (undocumented)
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
-    // (undocumented)
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
-    // (undocumented)
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
-    // (undocumented)
     "ongraphty-source-loaded"?: (event: GraphtyElementEventMap["graphty-source-loaded"]) => void;
-    // (undocumented)
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
-    // (undocumented)
     "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;
     "oninput-enabled-changed"?: (event: CustomEvent<EventOfType<"input-enabled-changed">>) => void;
     "oninput:key-down"?: (event: CustomEvent<EventOfType<"input:key-down">>) => void;
@@ -230,6 +203,7 @@ export interface GraphtyElementJSXProps {
     "onlayout-changed"?: (event: CustomEvent<EventOfType<"layout-changed">>) => void;
     "onlayout-initialized"?: (event: CustomEvent<EventOfType<"layout-initialized">>) => void;
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
+    "onlayout-updated"?: (event: CustomEvent<EventOfType<"layout-updated">>) => void;
     "onlayout-warning"?: (event: CustomEvent<EventOfType<"layout-warning">>) => void;
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;

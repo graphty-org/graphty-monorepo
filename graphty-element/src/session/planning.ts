@@ -33,6 +33,7 @@ import type {
 } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
 import { GraphtyError } from "../errors/GraphtyError";
+import { forceAtlas2MaxIterFor } from "../layout/forceAtlas2Iterations";
 import { bestRole, cachedGazetteer, type Gazetteer, GAZETTEER_URL } from "../layout/locationMap/gazetteer";
 import {
     chosenLocation,
@@ -55,6 +56,7 @@ import type { PositionsCommand } from "./commands/positions";
 import type { SetCommand } from "./commands/sets";
 import type { ShaderCommand } from "./commands/shaders";
 import type { SourceExpandOpCommand } from "./commands/source-expand";
+import type { DataStepsSetCommand } from "./commands/source-steps";
 import type { StyleCommand } from "./commands/style";
 import type { TourCommand } from "./commands/tour";
 import type { ViewCommand } from "./commands/view";
@@ -138,6 +140,7 @@ export type SessionCommand =
     | DataDeriveCommand
     | DataIssuesCommand
     | SourceExpandOpCommand
+    | DataStepsSetCommand
     | StyleCommand
     | ShaderCommand
     | AssetCommand
@@ -341,7 +344,7 @@ export interface PlanningContext {
     /** What a filter-steps list would leave visible, step by step. */
     readonly previewSteps?: (steps: readonly FilterStep[]) => StepCounts;
     /** The weight the graph was loaded with, for the weight a run would read. */
-    readonly loadedWeight?: () => LoadedWeightFact | null;
+    readonly loadedWeight?: (scope?: Scope) => LoadedWeightFact | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -665,7 +668,7 @@ function weighedCaveats(
         const reading = resolveRunWeight(
             descriptor?.weightMeaning ?? null,
             askedWeight(command.params?.weight, descriptor?.options),
-            context.loadedWeight?.() ?? null,
+            context.loadedWeight?.(command.scope ?? context.defaultScope) ?? null,
         );
         return {
             caveats: Object.freeze({
@@ -1198,7 +1201,9 @@ function layoutEstimateNow(
     const { nodeCount: n, edgeCount: e } = context.statistics();
     const rates = context.calibration?.()?.rates ?? DEFAULT_COST_RATES;
     const declared = Number(options.maxIter ?? options.iterations);
-    const iterations = Number.isFinite(declared) && declared > 0 ? declared : ASSUMED_ITERATION_BOUND;
+    // ForceAtlas2 with no cap of its own runs for one scaled to the graph.
+    const bound = engine === "forceatlas2" ? forceAtlas2MaxIterFor(n) : ASSUMED_ITERATION_BOUND;
+    const iterations = Number.isFinite(declared) && declared > 0 ? declared : bound;
     // ponytail: rates borrowed from the algorithm model; time a layout run and fit its own when the
     // seconds start gating anything finer than "fast or slow".
     const seconds = {

@@ -146,6 +146,39 @@ describe("letting the builder go after a load", () => {
         assert.deepStrictEqual(release(store), { released: false, revivals: 1 });
     });
 
+    it("lets it go after a merged second source, but rebuilds a few times, not once per page, over many loads", () => {
+        // One load after another, as data.more() pages or merged sources arrive: each page adds
+        // new ids, then the session goes idle and may let the builder go.
+        const page = (store: GraphStore, first: number): void => {
+            store.openLoad();
+            const { builder } = store;
+            for (let id = first; id < first + 20; id++) {
+                const row = builder.addNode(id);
+                builder.setNodeValue(store.seedColumn, row, [id, -id, 0]);
+            }
+            for (let at = 0; at < 60; at++) {
+                const row = builder.addEdge(first + (at % 20), first + ((at * 3 + 1) % 20), 1);
+                store.stampEdgeId(row, store.nextEdgeId());
+            }
+            store.account();
+            store.closeLoad();
+            store.getSnapshot();
+            store.releaseIdle();
+        };
+        const store = storeWith(true);
+        page(store, 0);
+        page(store, 1000);
+        assert.deepStrictEqual(release(store), { released: true, revivals: 1 }, "two sources hold one copy");
+        for (let at = 2; at < 20; at++) {
+            page(store, at * 1000);
+        }
+        // Rebuilds copy at most the rows loaded plus one graph, so the graph doubles between them:
+        // 5 rebuilds over 20 pages, where one per page would be 19.
+        assert.deepStrictEqual(release(store), { released: false, revivals: 5 });
+        assert.strictEqual(store.getSnapshot().nodeCount, 400);
+        assert.strictEqual(store.getSnapshot().edgeCount, 1200);
+    });
+
     it("keeps the builder when the option is off (the objects path)", () => {
         const store = storeWith(false);
         load(store, 20, 40);

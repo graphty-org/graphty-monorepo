@@ -84,14 +84,17 @@ class NeighbourCount extends DeclaredAlgorithm {
      */
     override compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
         const counts = new Map<string, number>();
+        const { graph } = context.input("declared");
 
-        for (const node of this.graph.getNodes()) {
-            counts.set(String(node.id), 0);
+        for (let row = 0; row < graph.nodeCount; row++) {
+            counts.set(String(graph.ids.idOf(row)), 0);
         }
 
-        for (const edge of this.graph.getDataManager().edges.values()) {
-            counts.set(String(edge.srcId), (counts.get(String(edge.srcId)) ?? 0) + 1);
-            counts.set(String(edge.dstId), (counts.get(String(edge.dstId)) ?? 0) + 1);
+        for (let row = 0; row < graph.edgeCount; row++) {
+            for (const end of [graph.edgeSource(row), graph.edgeTarget(row)]) {
+                const id = String(graph.ids.idOf(end));
+                counts.set(id, (counts.get(id) ?? 0) + 1);
+            }
         }
 
         context.report({ completed: counts.size, total: counts.size });

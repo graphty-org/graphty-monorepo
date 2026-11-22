@@ -28,10 +28,12 @@ import {
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { git as runGit } from "./lib/git.mjs";
+
 const GIT_TIMEOUT_MS = 120_000; // a merge that waits on a pinentry prompt with no terminal is killed, then aborted
 
 const git = (root, args, timeout = GIT_TIMEOUT_MS) =>
-    execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout }).trim();
+    runGit(args, { cwd: root, stdio: ["ignore", "pipe", "pipe"], timeout });
 
 // The merge runs in a new session with no controlling terminal, so the Commitizen prepare-commit-msg hook (it opens
 // /dev/tty when it can) and a pinentry prompt fail at once instead of waiting.

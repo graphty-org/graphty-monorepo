@@ -856,7 +856,9 @@ export class RowTable {
         // A freeze that only renumbered or appended rows, with no coordinate written since the last
         // pack, draws every row where it was: the rows follow the remap and an appended row is new,
         // not moved. Counted as a move, it made the next frame place every edge again (issue #9164).
-        const kept = lane.changes === this.laneChanges && this.twoD === ((this.scene.metadata as GraphSceneMetadata | null)?.twoD === true);
+        const kept =
+            lane.changes === this.laneChanges &&
+            this.twoD === ((this.scene.metadata as GraphSceneMetadata | null)?.twoD === true);
         if (!kept) {
             this.moves++;
             this.unplacedMoves++;

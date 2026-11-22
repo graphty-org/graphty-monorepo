@@ -1635,7 +1635,10 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return active;
         }
 
-        const step = ownerStep();
+        // Inside a transaction the masks about to be written belong to a step not recorded yet:
+        // owned by none until it is (the `derived` listener below), and the step they replace
+        // keeps its copy.
+        const step = dispatcher.transacting ? null : ownerStep();
         if (shown !== null && shown.step !== null && shown.step !== step) {
             keepCopy({ ...shown, step: shown.step });
         }
@@ -2167,6 +2170,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const previousDerived = dispatcher.events.derived;
     dispatcher.events.derived = (change) => {
         previousDerived?.(change);
+        // Masks written inside a transaction belong to its step once it is recorded.
+        if (shown?.step === null && !dispatcher.transacting && sameTag(shown, wantedTag())) {
+            shown = { ...shown, step: ownerStep() };
+        }
+
         if (change.slices.includes("visibility") && quiet !== true) {
             sources.onChange?.({ ...resultOf(), filterKind: lastKind, cause: change.cause });
         }

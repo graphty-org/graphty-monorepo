@@ -69,6 +69,11 @@ async function openPeople(): Promise<{ session: GraphSession; store: WorkspaceSt
         throw new Error("the element never came up");
     }
     await session.data.import({ type: "json", name: "people.json", config: { data: PEOPLE } });
+    // The load's own section holds its Filters once the Data place has drawn it: the "+" found
+    // before then is the no-load one, gone at the next render.
+    await waitFor(() => {
+        assert.isNotNull(document.querySelector(".dp-source-sections [data-filters-plus]"), "the load's Filters");
+    });
     return { session, store };
 }
 

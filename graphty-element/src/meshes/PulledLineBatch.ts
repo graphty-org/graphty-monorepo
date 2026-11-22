@@ -40,7 +40,8 @@ import { CURVE_STRIDE, curveShape, type CurveSpan } from "./pulledCurve";
  * of its own, handed out and freed exactly as the object path's line batch hands out its slots, so the pieces draw
  * in the object path's order; the SLOT TABLE (`edgeSlots`, a name a slot) says which entry and which of its 16
  * pieces a slot draws. The shader works out piece j's place along the cut path from the two rows' places and the span
- * (`meshes/pulledCurve.ts`); a piece past its own curve's draws nothing. An entry per 16 pieces and four bytes a
+ * (`meshes/pulledCurve.ts`); a piece past its own curve's draws nothing. A curve batch draws the join template indexed,
+ * an instance a slot, as the object path's batch draws it: 14 vertex shader runs a piece, not 30 (#9486). An entry per 16 pieces and four bytes a
  * piece, not four texels, keep a million long curves (64 pieces each) to 4096 x 4096 tables (#9160).
  *
  * A curve batch also keeps a ROUTE TABLE (`edgeRoutes`) for lines through bends (`line.bends`): an edge's
@@ -375,7 +376,7 @@ export class PulledLineBatch {
         mesh: Mesh,
         private readonly scene: Scene,
         private readonly rowPositions: () => BaseTexture,
-        curve = false,
+        private readonly curve = false,
         private readonly template: { readonly indices: readonly number[]; readonly vertices: number } = JOIN_TEMPLATE,
         switches = false,
         private readonly rowShapes: PulledRowShapes | null = null,
@@ -387,7 +388,8 @@ export class PulledLineBatch {
         mesh.isPickable = false;
         mesh.doNotSyncBoundingInfo = true;
         mesh.alwaysSelectAsActiveMesh = true;
-        mesh.isUnIndexed = true;
+        // a curve batch draws the template indexed, an instance a slot (`setCount`)
+        mesh.isUnIndexed = !curve;
         const first = this.shape(TABLE_WIDTH);
         this.tableWidth = first.width;
         this.rows = this.emptyTable(first.texels / texels);
@@ -1216,8 +1218,17 @@ export class PulledLineBatch {
         this.setCount();
     }
 
-    /** Draw only the pieces handed out, a vertex a corner. */
+    /**
+     * Draw only the pieces handed out: a straight batch a vertex a corner, unindexed; a curve batch an instance a slot,
+     * the join template indexed, so the vertex stage runs each of its vertices once, not each of its corners (#9486).
+     * With no slot handed out it draws one instance, slot 0, which names nothing and draws nothing.
+     */
     private setCount(): void {
+        if (this.curve) {
+            this.mesh.forcedInstanceCount = this.highWater;
+            return;
+        }
+
         const [subMesh] = this.mesh.subMeshes;
         subMesh.verticesStart = 0;
         const corners = this.lean ? LEAN_TEMPLATE.indices.length : this.template.indices.length;

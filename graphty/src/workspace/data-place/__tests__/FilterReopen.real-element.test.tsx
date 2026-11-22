@@ -40,6 +40,11 @@ async function openData(): Promise<{ session: GraphSession; store: WorkspaceStor
         throw new Error("the element never came up");
     }
     await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
+    // The load's own section holds its Filters once the Data place has drawn it: the "+" found
+    // before then is the no-load one, gone at the next render.
+    await waitFor(() => {
+        assert.isNotNull(document.querySelector(".dp-source-sections [data-filters-plus]"), "the load's Filters");
+    });
     return { session, store };
 }
 

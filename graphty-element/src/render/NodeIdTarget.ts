@@ -47,6 +47,14 @@ export const MIN_RADIUS_PX = 1.5;
  */
 export const HOVER_RADIUS_PX = 0.71;
 
+/**
+ * The most meshes that are not batched rows (labels, nodes drawn as objects, models) the target
+ * draws. Each is a draw call of its own, and a pixel on one is answered by the mesh pick anyway, so
+ * past this many the target draws nothing and every read leaves the answer to the mesh pick: a
+ * pointer move then costs what it costs on the objects path, not a redraw of every such mesh.
+ */
+export const MAX_OBJECT_MESHES = 64;
+
 /** The texel a non-batch mesh writes; rows go up to one less. */
 const OBJECT_TEXEL = 0xffffff;
 
@@ -58,9 +66,10 @@ uniform highp sampler2D rowPosition;
 #endif
 #include<instancesDeclaration>
 uniform mat4 viewProjection;
-#ifdef ROW_PULL
 uniform vec2 idPixels;
 uniform float shapeRadius;
+#ifndef ROW_PULL
+uniform vec3 shapeCenter;
 #endif
 varying float vId;
 #ifdef ROW_PULL
@@ -113,7 +122,22 @@ void main(void) {
     gl_Position = grV;
 #else
     vId = 0.0;
-    gl_Position = viewProjection * worldPos;
+    vec4 obV = viewProjection * worldPos;
+    // A mesh under MIN_RADIUS_PX in radius (a node drawn by a mesh of its own, off its batch) is drawn
+    // that large too, at its own depth: a pointer on it reads it, and the mesh pick then answers, where a
+    // row drawn larger behind it would take a pixel center the mesh itself misses (#9518).
+    vec3 obCenter = (finalWorld * vec4(shapeCenter, 1.0)).xyz;
+    vec4 obC = viewProjection * vec4(obCenter, 1.0);
+    vec4 obX = viewProjection * vec4(obCenter + mat3(finalWorld)[0], 1.0);
+    vec4 obY = viewProjection * vec4(obCenter + mat3(finalWorld)[1], 1.0);
+    if (obC.w > 0.0 && obX.w > 0.0 && obY.w > 0.0 && obV.w > 0.0) {
+        vec2 obNdc = obC.xy / obC.w;
+        float obRadius = 0.5 * shapeRadius * max(length((obX.xy / obX.w - obNdc) * idPixels), length((obY.xy / obY.w - obNdc) * idPixels));
+        if (obRadius > 0.0 && obRadius < MIN_RADIUS_PX) {
+            obV.xy = (obNdc + (obV.xy / obV.w - obNdc) * (MIN_RADIUS_PX / obRadius)) * obV.w;
+        }
+    }
+    gl_Position = obV;
 #endif
 }
 `;
@@ -221,6 +245,8 @@ export class NodeIdTarget {
     private readonly unscaledRowMaterial: ShaderMaterial;
     private readonly objectMaterial: ShaderMaterial;
     private readonly list: AbstractMesh[] = [];
+    /** More than {@link MAX_OBJECT_MESHES} non-row meshes are on screen: reads leave the answer to the mesh pick. */
+    private crowded = false;
     /** Whether the target is a float target whose rows also carry where they were drawn (WebGPU). */
     private readonly float: boolean;
     private readonly pixels = new Vector2();
@@ -258,19 +284,17 @@ export class NodeIdTarget {
         );
         this.target.clearColor = new Color4(0, 0, 0, 0);
         this.target.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
-        const floatDefines = this.float ? ["#define ID_FLOAT"] : [];
-        const rowDefines = [
-            "#define ROW_PULL",
+        const shared = [
+            ...(this.float ? ["#define ID_FLOAT"] : []),
             `#define MIN_RADIUS_PX ${MIN_RADIUS_PX.toFixed(2)}`,
-            `#define HOVER_RADIUS_PX ${HOVER_RADIUS_PX.toFixed(2)}`,
-            ...floatDefines,
         ];
+        const rowDefines = ["#define ROW_PULL", `#define HOVER_RADIUS_PX ${HOVER_RADIUS_PX.toFixed(2)}`, ...shared];
         this.rowMaterial = this.material("graphty-node-id-rows", rowDefines);
         this.unscaledRowMaterial = this.material("graphty-node-id-unscaled-rows", [
             ...rowDefines,
             "#define ROW_UNSCALED",
         ]);
-        this.objectMaterial = this.material("graphty-node-id-objects", floatDefines);
+        this.objectMaterial = this.material("graphty-node-id-objects", shared);
         // What the scene chose to draw at its last evaluation: the batches and every visible mesh.
         // A hidden proxy is not among them, so the list is as long as what is on screen. Kept
         // here, because between frames the scene's own list is not.
@@ -284,6 +308,9 @@ export class NodeIdTarget {
                 const { width, height } = this.target.getSize();
                 for (const material of [this.rowMaterial, this.unscaledRowMaterial]) {
                     material.setTexture("rowPosition", this.host.positionTexture());
+                }
+
+                for (const material of [this.rowMaterial, this.unscaledRowMaterial, this.objectMaterial]) {
                     material.setVector2("idPixels", this.pixels.set(width, height));
                 }
             }),
@@ -297,11 +324,16 @@ export class NodeIdTarget {
                 this.settle();
             }),
         );
-        // Each batch's own size, which its source mesh was built at.
-        for (const material of [this.rowMaterial, this.unscaledRowMaterial]) {
+        // Each mesh's own size, which a batch's source mesh was built at, and the center of a mesh drawn
+        // as itself, in its own space.
+        for (const material of [this.rowMaterial, this.unscaledRowMaterial, this.objectMaterial]) {
             material.onBindObservable.add((mesh) => {
-                const { extendSize } = mesh.getRawBoundingInfo().boundingBox;
-                mesh.subMeshes[0]?.effect?.setFloat("shapeRadius", Math.max(extendSize.x, extendSize.y, extendSize.z));
+                const { extendSize, center } = mesh.getRawBoundingInfo().boundingBox;
+                const effect = mesh.subMeshes[0]?.effect;
+                effect?.setFloat("shapeRadius", Math.max(extendSize.x, extendSize.y, extendSize.z));
+                if (material === this.objectMaterial) {
+                    effect?.setVector3("shapeCenter", center);
+                }
             });
         }
         this.target.onDrawn = () => {
@@ -323,7 +355,8 @@ export class NodeIdTarget {
      * @param x - X in CSS pixels.
      * @param y - Y in CSS pixels.
      * @returns The row, {@link ID_NONE} or {@link ID_OBJECT}, now or once read; null when the
-     * target cannot answer yet, so the caller picks.
+     * target cannot answer yet, or more than {@link MAX_OBJECT_MESHES} meshes that are not rows
+     * are on screen, so the caller picks.
      */
     read(x: number, y: number): number | Promise<number> | null {
         const pick = this.pick(x, y);
@@ -342,7 +375,7 @@ export class NodeIdTarget {
      * @returns The answer, now or once read; null when the target cannot answer yet.
      */
     pick(x: number, y: number): IdPick | Promise<IdPick> | null {
-        if (this.disposed) {
+        if (this.disposed || this.crowded) {
             return null;
         }
 
@@ -405,7 +438,9 @@ export class NodeIdTarget {
             { vertexSource: VERTEX, fragmentSource: FRAGMENT, spectorName: name },
             {
                 attributes: rows ? ["position", "graphtyRow"] : ["position"],
-                uniforms: rows ? ["world", "viewProjection", "idPixels", "shapeRadius"] : ["world", "viewProjection"],
+                uniforms: rows
+                    ? ["world", "viewProjection", "idPixels", "shapeRadius"]
+                    : ["world", "viewProjection", "idPixels", "shapeRadius", "shapeCenter"],
                 samplers: rows ? ["rowPosition"] : [],
                 defines,
             },
@@ -442,24 +477,32 @@ export class NodeIdTarget {
         // holds while the list is the same. A changed list, or a freeze evaluating outside a
         // frame, makes it stale.
         let kept = 0;
+        let objects = 0;
         let same = true;
+        let crowded = false;
         for (let i = 0; i < length; i++) {
             const mesh = drawn[i];
             if (isRowBatch(mesh)) {
                 NodeIdTarget.assign(mesh, target.renderPassId, this.rowMaterialFor(mesh));
-            } else if (mesh.isPickable) {
+            } else if (!mesh.isPickable) {
+                continue;
+            } else if (++objects > MAX_OBJECT_MESHES) {
+                // Too many meshes of their own: draw none, and let reads go to the mesh pick.
+                crowded = true;
+                kept = 0;
+                break;
+            } else {
                 const owner = mesh.isAnInstance ? (mesh as InstancedMesh).sourceMesh : mesh;
                 NodeIdTarget.assign(owner, target.renderPassId, this.objectMaterial);
-            } else {
-                continue;
             }
 
             same &&= list[kept] === mesh;
             list[kept++] = mesh;
         }
 
-        if (!same || kept !== list.length) {
+        if (!same || kept !== list.length || crowded !== this.crowded) {
             list.length = kept;
+            this.crowded = crowded;
             this.drawnIn = -1;
         }
     }

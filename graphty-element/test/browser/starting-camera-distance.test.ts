@@ -19,6 +19,9 @@ const EDGES = [
     { src: "c", dst: "d" },
 ];
 
+/** World units the 2D camera shows either side of its center at a zoom of 1 (camera/builtins.ts). */
+const HALF_WIDTH_AT_ZOOM_ONE = 5;
+
 /** The orbit camera's vertical field of view (Babylon's default for a UniversalCamera). */
 const ORBIT_FOV = 0.8;
 
@@ -101,5 +104,46 @@ describe("startingCameraDistance", () => {
         // measure that survives the element sizing itself after the camera was placed.
         assert.ok(camera.orthoRight !== null && camera.orthoLeft !== null);
         assert.approximately(camera.orthoRight - camera.orthoLeft, 2 * 45 * Math.tan(ORBIT_FOV / 2), 1e-6);
+    });
+
+    it("reads and writes a 2D zoom against the same half width however the view got there", async () => {
+        const element = await mount({ "starting-camera-distance": "45", "view-mode": "2d" });
+        const { graph } = element;
+
+        /** The drawn half width must be the fixed half width over the zoom the graph reports. */
+        function assertZoomMatchesDrawnSize(how: string): void {
+            const camera = graph.scene.activeCamera;
+            assert.ok(camera, "a camera is active");
+            assert.ok(camera.orthoRight !== null && camera.orthoLeft !== null, "the camera is orthographic");
+            const halfWidth = (camera.orthoRight - camera.orthoLeft) / 2;
+            const { zoom } = graph.getCameraState();
+            assert.isDefined(zoom, how);
+            assert.approximately(zoom * halfWidth, HALF_WIDTH_AT_ZOOM_ONE, 1e-6, how);
+        }
+
+        // The starting distance rebased the 2D camera; its zoom still reads against 5 units.
+        assertZoomMatchesDrawnSize("after the starting distance");
+
+        await graph.setCameraState({ zoom: 2 });
+        assertZoomMatchesDrawnSize("after a programmatic zoom");
+        assert.approximately(graph.getCameraState().zoom ?? 0, 2, 1e-6);
+
+        graph.zoomToFit();
+        await element.waitForStableFrame();
+        assertZoomMatchesDrawnSize("after a fit");
+
+        // A new starting distance rebases the 2D camera again.
+        element.startingCameraDistance = 70;
+        assertZoomMatchesDrawnSize("after a rebase");
+
+        // A saved zoom restored after the rebase draws the same size it was saved at.
+        await graph.setCameraState({ zoom: 2 });
+        assertZoomMatchesDrawnSize("after restoring a zoom");
+        assert.approximately(graph.getCameraState().zoom ?? 0, 2, 1e-6);
+
+        await graph.setCameraState({ zoom: 0.5 }, { animate: true, duration: 50 });
+        await element.waitForStableFrame();
+        assertZoomMatchesDrawnSize("after an animated zoom");
+        assert.approximately(graph.getCameraState().zoom ?? 0, 0.5, 1e-6);
     });
 });

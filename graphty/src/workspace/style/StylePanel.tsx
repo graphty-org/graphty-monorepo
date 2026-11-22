@@ -479,11 +479,13 @@ export function RowStyle({
     const elsewhere = (side: Target): Elsewhere => ({
         ...(adding?.side === side ? { adding: adding.path } : {}),
         onElsewhere: (field) => {
+            // The card is asked for before the kind is turned on, so the picker the turn draws
+            // opens with it (#9537).
+            setAdding({ side: field.on, path: field.path });
             void (async () => {
                 if (!styled(field.on)) {
                     await turn(field.on, true);
                 }
-                setAdding({ side: field.on, path: field.path });
                 setTab(field.on);
             })();
         },

@@ -57,6 +57,11 @@ function firstUnmet<Condition extends ChannelCondition | LabelFieldCondition>(
             return value !== undefined;
         }
 
+        // A value that is not one value (a binding, or layers that paint different ones) may hold any of them.
+        if (value !== undefined && value !== null && typeof value === "object") {
+            return false;
+        }
+
         const text = asText(value ?? fallback(condition));
         return text === undefined || !condition.values.includes(text);
     });
@@ -98,7 +103,9 @@ export function drawnDefault(channel: Channel, read: (other: Channel) => unknown
  * Whether a channel changes the picture: every condition of its `drawnWhen` holds.
  * @param channel - The channel.
  * @param read - What another channel holds where this one is set: the row's own value, else what
- *   the layers beneath give. Undefined when nothing sets it; it then counts as its default.
+ *   the layers beneath give. Undefined when nothing sets it; it then counts as its default. An object (a data binding, or
+ *   any value standing for values that differ from element to element) counts as set, and as meeting any
+ *   values condition, since some elements may hold the value it asks for.
  * @param dimension - The view, `session.layout.dimension`.
  * @returns `{ drawn: true }`, or `{ drawn: false, unmet }` naming the first condition that fails.
  * @since 3.62.0

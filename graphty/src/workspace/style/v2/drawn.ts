@@ -72,12 +72,21 @@ export function valueDimOf(ctx: RowContext, descriptor: ChannelDescriptor, value
 }
 
 /**
- * What the row holds for a channel: its own line's value, else what the layers beneath give.
+ * What the row holds for a channel: its own line's value or binding, else what the layers beneath give (an object
+ * where they paint different values).
  * @param ctx - the row.
  * @returns the reader, undefined where nothing sets the channel.
  */
 export function rowReader(ctx: RowContext): (other: Channel) => unknown {
-    return (other) => lineIn(ctx, other)?.value ?? ctx.beneath(other).value;
+    return (other) => {
+        const line = lineIn(ctx, other);
+        if (line?.binding !== undefined) {
+            // Varies by data: set, and some elements may hold any value (channelDrawn reads an object so).
+            return line.binding;
+        }
+        const beneath = ctx.beneath(other);
+        return line?.value ?? (beneath.mixed === true ? beneath : beneath.value);
+    };
 }
 
 /**

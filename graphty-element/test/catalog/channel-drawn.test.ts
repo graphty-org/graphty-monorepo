@@ -59,6 +59,35 @@ describe("channelDrawn", () => {
         );
     });
 
+    it("fits a node to its label only when it has a label, and holds its picture only when it has one", () => {
+        const fit = { "node.labelFit": "inside" };
+        assert.deepStrictEqual(channelDrawn("node.labelFit", reading({}), "2d"), {
+            drawn: false,
+            unmet: { channel: "node.label", set: true },
+        });
+        assert.isTrue(channelDrawn("node.labelFit", reading({ "node.label": "A" }), "3d").drawn);
+        assert.isFalse(channelDrawn("node.labelFitQuantum", reading(fit), "2d").drawn);
+        assert.isTrue(channelDrawn("node.labelFitQuantum", reading({ ...fit, "node.label": "A" }), "2d").drawn);
+        assert.deepStrictEqual(channelDrawn("node.labelFitImage", reading({ ...fit, "node.label": "A" }), "2d"), {
+            drawn: false,
+            unmet: { channel: "node.image", set: true },
+        });
+    });
+
+    it("reads a value that varies by element as set, and as meeting any values condition", () => {
+        const bound = { attribute: "name" };
+        assert.isTrue(channelDrawn("node.labelFit", reading({ "node.label": bound }), "2d").drawn);
+        // edge.animationSpeed needs a solid, straight line: a style bound to data may draw some solid lines
+        assert.isTrue(channelDrawn("edge.animationSpeed", reading({ "edge.style": bound }), "2d").drawn);
+    });
+
+    it("draws an open cap's outline width only on an open cap", () => {
+        assert.isFalse(channelDrawn("edge.arrowHeadOutlineWidth", reading({ "edge.arrowHead": "normal" }), "2d").drawn);
+        assert.isTrue(
+            channelDrawn("edge.arrowHeadOutlineWidth", reading({ "edge.arrowHead": "open-normal" }), "2d").drawn,
+        );
+    });
+
     it("reads an unset channel as its default", () => {
         // edge.style defaults to solid and edge.curvature to false: a plain edge animates.
         assert.deepStrictEqual(channelDrawn("edge.animationSpeed", reading({}), "3d"), { drawn: true });

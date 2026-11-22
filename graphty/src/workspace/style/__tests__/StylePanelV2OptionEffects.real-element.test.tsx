@@ -164,6 +164,38 @@ describe("Style panel v2: options that would change nothing", () => {
         await userEvent.keyboard("{Escape}");
     });
 
+    it("Fit to label is dimmed on nodes with no label, and offered once the label varies by data", async () => {
+        const { session, id } = await openProject();
+        // A Size row, whose settings hold Fit to label.
+        await session.styles.update(id, { set: { "node.color": "#E8590C", "node.size": 2 } });
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        const fitItem = async (): Promise<string | null> => {
+            const pop = await openSettings(sectionOf(tab, "node-shape"), "size", "Node size settings");
+            await userEvent.click(within(pop).getByRole("button", { name: "Add to node size settings" }));
+            const item = await screen.findByRole("menuitem", { name: "Fit to label" });
+            const title = item.getAttribute("title");
+            await userEvent.keyboard("{Escape}");
+            await userEvent.keyboard("{Escape}");
+            return title;
+        };
+        assert.match((await fitItem()) ?? "", /^Only when .*Label.* is set$/i, "no label, nothing to fit");
+
+        // A label bound to the node id, picked from the Text "+" as a reader does.
+        const text = sectionOf(tab, "node-text");
+        const plus = text.querySelector<HTMLElement>("[data-plus]");
+        assert.isNotNull(plus);
+        await userEvent.click(plus);
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Label" }));
+        const list = await screen.findByRole("group", { name: "Node label" });
+        await userEvent.click(await within(list).findByRole("option", { name: /^Node id(,|$)/ }));
+        await waitFor(() => {
+            assert.isNotNull(text.querySelector('[data-thing="label"]'));
+        });
+        await userEvent.keyboard("{Escape}");
+        assert.isNull(await fitItem(), "a label bound to data is a label to fit");
+    });
+
     it("a border's Waves is dimmed until the border is a zigzag or a sinewave", async () => {
         const { session, nodes } = await openGraph();
         const waves = async (): Promise<string | null> => {

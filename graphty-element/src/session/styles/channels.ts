@@ -5628,6 +5628,18 @@ const FLAT_SHAPES: readonly string[] = NODE_SHAPE_VALUES.filter((shape) => isFla
 /** The node shapes whose corners `node.cornerRadius` rounds. */
 const ROUND_CORNER_SHAPES: readonly string[] = NODE_SHAPE_VALUES.filter((shape) => isRoundCornerShape(shape));
 
+/**
+ * The caps an outline width (`edge.arrow*OutlineWidth`) frames: FilledArrowRenderer.OPEN_OUTLINES's types, which this
+ * Node-safe module cannot import; test/meshes/open-outline-caps.test.ts keeps the two the same.
+ */
+export const OPEN_OUTLINE_CAPS: readonly string[] = [
+    "open-normal",
+    "open-diamond",
+    "open-dot",
+    "open-inverted",
+    "open-box",
+];
+
 /** The line patterns drawn as separate elements a count caps: every one but solid, zigzag and sinewave. */
 const COUNTED_PATTERNS: readonly string[] = EdgeLineTypes.options.filter(
     (style) => style !== "solid" && style !== "zigzag" && style !== "sinewave",
@@ -5638,6 +5650,8 @@ const ONLY_3D: ChannelCondition = { dimension: "3d" };
 const CURVED: ChannelCondition = { channel: "edge.curvature", values: ["true"] };
 const FLAT_SHAPE: ChannelCondition = { channel: "node.shape", values: FLAT_SHAPES };
 const LABEL_FIT: ChannelCondition = { channel: "node.labelFit", set: true };
+/** A label to fit a node round: the fit grows the node to hold its words, so a node with none keeps its size. */
+const LABELED: ChannelCondition = { channel: "node.label", set: true };
 const MODEL: ChannelCondition = { channel: "node.model", set: true };
 const BLENDED: ChannelCondition = { channel: "edge.blending", values: ["true"] };
 const IMAGE_AT_OWN_SIZE: ChannelCondition = { channel: "node.imageFit", values: ["none"] };
@@ -5733,12 +5747,14 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     ["node.borderWaveAmplitude", [{ channel: "node.borderStyle", values: ["zigzag", "sinewave"] }]],
     ["node.borderWavePeriod", [{ channel: "node.borderStyle", values: ["zigzag", "sinewave"] }]],
     // "Without `node.labelFit` it changes nothing."
-    ["node.labelPaddingX", [LABEL_FIT]],
-    ["node.labelPaddingY", [LABEL_FIT]],
-    ["node.labelFitSquare", [LABEL_FIT]],
-    ["node.labelFitQuantum", [LABEL_FIT]],
-    ["node.labelFitImage", [LABEL_FIT]],
-    ["node.labelFitImagePadding", [LABEL_FIT, { channel: "node.labelFitImage", set: true }]],
+    ["node.labelFit", [LABELED]],
+    ["node.labelPaddingX", [LABELED, LABEL_FIT]],
+    ["node.labelPaddingY", [LABELED, LABEL_FIT]],
+    ["node.labelFitSquare", [LABELED, LABEL_FIT]],
+    ["node.labelFitQuantum", [LABELED, LABEL_FIT]],
+    // "also holds its picture (`node.image`)"
+    ["node.labelFitImage", [LABELED, LABEL_FIT, IMAGE_SET]],
+    ["node.labelFitImagePadding", [LABELED, LABEL_FIT, IMAGE_SET, { channel: "node.labelFitImage", set: true }]],
     // A model's settings, only on a node drawn as a model.
     ...(
         [
@@ -5753,6 +5769,11 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
             "node.modelCenter",
         ] as const
     ).map((channel): [Channel, readonly ChannelCondition[]] => [channel, [MODEL]]),
+    // "Only open caps draw it."
+    ...(["Head", "Tail", "MiddleHead", "MiddleTail"] as const).map((end): [Channel, readonly ChannelCondition[]] => [
+        `edge.arrow${end}OutlineWidth`,
+        [{ channel: `edge.arrow${end}`, values: OPEN_OUTLINE_CAPS }],
+    ]),
     // "A cap of another type ignores it."
     ["edge.arrowHeadImage", [{ channel: "edge.arrowHead", values: ["image"] }]],
     ["edge.arrowTailImage", [{ channel: "edge.arrowTail", values: ["image"] }]],

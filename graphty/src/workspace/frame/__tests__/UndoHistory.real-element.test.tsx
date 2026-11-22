@@ -11,6 +11,7 @@ import "@graphty/graphty-element";
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { emptyPoint } from "../../../test/empty-point";
 import { openBy, openSampleFromStart } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor } from "../../../test/test-utils";
@@ -141,20 +142,24 @@ describe("Undo from the reader's keys", () => {
     it("disables the canvas menu's Clear selection with nothing selected", async () => {
         answerUsageData("declined");
         const { session } = await openSampleFromStart("Les Miserables");
-        const surface = document.querySelector<HTMLElement>(".ws-canvas-surface");
-        assert.isNotNull(surface);
-        const rightClickCorner = async (): Promise<HTMLElement> => {
-            await userEvent.click(surface, { button: "right", position: { x: 4, y: 4 } });
+        const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        );
+        assert.isNotNull(element);
+        await element.waitForSettled();
+        await element.waitForStableFrame();
+        const rightClickEmpty = async (): Promise<HTMLElement> => {
+            await userEvent.click(element, { button: "right", position: await emptyPoint(element) });
             await screen.findByRole("menu");
             return screen.getByRole("menuitem", { name: /^Clear selection/ });
         };
         assert.equal(session.selection.size, 0);
-        const empty = await rightClickCorner();
+        const empty = await rightClickEmpty();
         assert.isTrue(empty.hasAttribute("disabled") || empty.getAttribute("aria-disabled") === "true");
         await userEvent.keyboard("{Escape}");
 
         await session.selection.apply({ nodes: [session.data.nodes()[0].id] });
-        const held = await rightClickCorner();
+        const held = await rightClickEmpty();
         assert.isFalse(held.hasAttribute("disabled") || held.getAttribute("aria-disabled") === "true");
     });
 });

@@ -5623,7 +5623,16 @@ const BLENDED: ChannelCondition = { channel: "edge.blending", values: ["true"] }
 const IMAGE_AT_OWN_SIZE: ChannelCondition = { channel: "node.imageFit", values: ["none"] };
 /** A picture placed on the node (`node.image`): `node.texture` wraps its picture over the surface and reads none of these. */
 const IMAGE_SET: ChannelCondition = { channel: "node.image", set: true };
-const SUPPORT: readonly ChannelCondition[] = [CURVED, { channel: "edge.supportModel", set: true }];
+/**
+ * A route the style stores (`edge.bends`, `edge.sourcePort`, `edge.targetPort`) is drawn through its own points and
+ * wins over a support point, a fan and a circle (Edge.placeLine lays a stored route before `bundleRoute`).
+ */
+const NO_STORED_ROUTE: readonly ChannelCondition[] = [
+    { channel: "edge.bends", unset: true },
+    { channel: "edge.sourcePort", unset: true },
+    { channel: "edge.targetPort", unset: true },
+];
+const SUPPORT: readonly ChannelCondition[] = [CURVED, { channel: "edge.supportModel", set: true }, ...NO_STORED_ROUTE];
 const NO_SUPPORT: ChannelCondition = { channel: "edge.supportModel", unset: true };
 const SHAPE_LINES: readonly ChannelCondition[] = [FLAT_SHAPE, { channel: "node.shapeLines", set: true }];
 
@@ -5650,21 +5659,22 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
         ],
     ],
     // "A straight edge ignores it."
-    ["edge.supportModel", [CURVED]],
+    ["edge.supportModel", [CURVED, ...NO_STORED_ROUTE]],
     ["edge.supportSpringLength", SUPPORT],
     ["edge.supportSpringConstant", SUPPORT],
     ["edge.supportRepulsion", SUPPORT],
     ["edge.supportCentralGravity", SUPPORT],
-    ["edge.supportUnit", SUPPORT],
+    // "unit" scale only: a "drawing" scale finds its own unit and reads the support unit at most as a fallback
+    ["edge.supportUnit", [...SUPPORT, { channel: "edge.supportScale", values: ["unit"] }]],
     ["edge.supportScale", SUPPORT],
     // "How far an `edge.route` "bundled" edge is drawn toward its bundle."
     ["edge.bundleStrength", [BUNDLED]],
     ["edge.bundleIterations", [BUNDLED]],
     // "A support point wins over a fan and a circle" (Edge.ts): a force-curved edge bows to its support point.
-    ["edge.arcRadius", [CURVED, NO_SUPPORT]],
+    ["edge.arcRadius", [CURVED, NO_SUPPORT, ...NO_STORED_ROUTE]],
     ["edge.bendCurve", [CURVED]],
-    ["edge.fanned", [CURVED, NO_SUPPORT]],
-    ["edge.fanSpacing", [CURVED, NO_SUPPORT]],
+    ["edge.fanned", [CURVED, NO_SUPPORT, ...NO_STORED_ROUTE]],
+    ["edge.fanSpacing", [CURVED, NO_SUPPORT, ...NO_STORED_ROUTE]],
     // "It applies to a patterned line only."
     ["edge.patternCount", [{ channel: "edge.style", values: COUNTED_PATTERNS }]],
     // "Drawn on solid lines."

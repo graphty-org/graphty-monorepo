@@ -7416,7 +7416,7 @@ export interface StylesApi {
     counts(id: LayerId, options?: {
         readonly scope?: "graph" | "visible";
     }): StyleCounts;
-    defaultValue(channel: Channel, edge?: EdgeId): ChannelValue | undefined;
+    defaultValue(channel: Channel, edge?: EdgeId, read?: (other: Channel) => unknown): ChannelValue | undefined;
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     drawnCount(id: LayerId): number;
     drawnValues(channel: Channel): readonly DrawnValue[];

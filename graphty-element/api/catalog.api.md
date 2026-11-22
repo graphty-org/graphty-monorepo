@@ -819,6 +819,9 @@ export { detectModelFormat }
 export type DrawingMode = "2d" | "3d";
 
 // @public
+export function drawnDefault(channel: Channel, read: (other: Channel) => unknown): ChannelValue | undefined;
+
+// @public
 export type DrawnResult<Condition> = {
     readonly drawn: true;
 } | {

@@ -5,7 +5,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { channelDrawn, combineDrawn, labelFieldDrawn } from "../../src/catalog/drawnWhen";
+import { channelDrawn, combineDrawn, drawnDefault, labelFieldDrawn } from "../../src/catalog/drawnWhen";
 import { formatShaderText, parseShaderText } from "../../src/catalog/shaderText";
 import { NODE_SHAPE_DESCRIPTORS } from "../../src/catalog/shapes";
 import type { Channel, LabelStyle } from "../../src/catalog/types";
@@ -30,6 +30,33 @@ describe("channelDrawn", () => {
                 channel,
             );
         }
+    });
+
+    it("draws force curves, a circle and a fan only without a stored route: its ports and bends win over all three", () => {
+        const bowed = { "edge.curvature": true, "edge.supportModel": "barnesHut" };
+        for (const port of ["edge.sourcePort", "edge.targetPort", "edge.bends"] as const) {
+            for (const channel of ["edge.supportModel", "edge.supportSpringLength", "edge.supportScale"] as const) {
+                assert.deepStrictEqual(
+                    channelDrawn(channel, reading({ ...bowed, [port]: "1,0" }), "3d"),
+                    { drawn: false, unmet: { channel: port, unset: true } },
+                    `${channel} with ${port}`,
+                );
+            }
+            assert.isFalse(
+                channelDrawn("edge.arcRadius", reading({ "edge.curvature": true, [port]: "1,0" }), "2d").drawn,
+            );
+        }
+    });
+
+    it("reads an unset support scale as Unit once a unit is set, and draws the unit only at that scale", () => {
+        assert.strictEqual(drawnDefault("edge.supportScale", reading({})), "drawing");
+        assert.strictEqual(drawnDefault("edge.supportScale", reading({ "edge.supportUnit": 2 })), "unit");
+        const bowed = { "edge.curvature": true, "edge.supportModel": "barnesHut", "edge.supportUnit": 2 };
+        assert.isTrue(channelDrawn("edge.supportUnit", reading(bowed), "3d").drawn);
+        assert.deepStrictEqual(
+            channelDrawn("edge.supportUnit", reading({ ...bowed, "edge.supportScale": "drawing" }), "2d"),
+            { drawn: false, unmet: { channel: "edge.supportScale", values: ["unit"] } },
+        );
     });
 
     it("reads an unset channel as its default", () => {

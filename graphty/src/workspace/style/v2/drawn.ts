@@ -54,6 +54,15 @@ function unmetWords(unmet: ChannelCondition | LabelFieldCondition, name: string)
 }
 
 /**
+ * What the row holds for a channel: its own line's value, else what the layers beneath give.
+ * @param ctx - the row.
+ * @returns the reader, undefined where nothing sets the channel.
+ */
+export function rowReader(ctx: RowContext): (other: Channel) => unknown {
+    return (other) => lineIn(ctx, other)?.value ?? ctx.beneath(other).value;
+}
+
+/**
  * Why a channel draws nothing with what the row holds now in the view shown now, or undefined when it draws.
  * @param ctx - the row.
  * @param channel - the channel.
@@ -63,7 +72,7 @@ export function dimOf(ctx: RowContext, channel: Channel): string | undefined {
     if (channelDescriptor(channel) === undefined) {
         return undefined;
     }
-    const read = (other: Channel): unknown => lineIn(ctx, other)?.value ?? ctx.beneath(other).value;
+    const read = rowReader(ctx);
     const found = channelDrawn(channel, read, viewOf(ctx.session));
     if (found.drawn) {
         return undefined;

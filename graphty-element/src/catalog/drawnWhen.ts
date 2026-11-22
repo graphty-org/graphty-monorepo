@@ -8,7 +8,7 @@
 
 import { CHANNEL_DESCRIPTORS, type ChannelCondition } from "../session/styles/channels";
 import { LABEL_STYLE_DESCRIPTORS, type LabelFieldCondition } from "./label-style";
-import type { Channel, CombineMode, LabelStyle } from "./types";
+import type { Channel, ChannelValue, CombineMode, LabelStyle } from "./types";
 
 /**
  * Whether a channel or a field is drawn, and when it is not, the first condition that does not hold.
@@ -63,6 +63,38 @@ function firstUnmet<Condition extends ChannelCondition | LabelFieldCondition>(
 }
 
 /**
+ * The channels whose unset value depends on another channel the same edge or node holds: the value drawn while that
+ * other channel is set. An edge's support scale is "unit" when only its support unit is set (Edge.supportEdge).
+ */
+const DEFAULT_WHEN_SET: ReadonlyMap<Channel, { readonly when: Channel; readonly value: ChannelValue }> = new Map([
+    ["edge.supportScale", { when: "edge.supportUnit", value: "unit" }],
+] satisfies [Channel, { when: Channel; value: ChannelValue }][]);
+
+/**
+ * What a channel left unset draws as, given what else is set: its catalog default, except where that depends on
+ * another channel (an edge's support scale is "unit" once its support unit is set, else "drawing").
+ * @param channel - The channel.
+ * @param read - What another channel holds where this one is unset: the row's own value, else what the layers
+ *   beneath give; undefined when nothing sets it.
+ * @returns The value drawn, or undefined for a channel with no default.
+ * @since 3.65.0
+ * @example
+ * ```ts
+ * import { drawnDefault } from "@graphty/graphty-element/catalog";
+ *
+ * drawnDefault("edge.supportScale", () => undefined); // "drawing"
+ * drawnDefault("edge.supportScale", (other) => (other === "edge.supportUnit" ? 2 : undefined)); // "unit"
+ * ```
+ */
+export function drawnDefault(channel: Channel, read: (other: Channel) => unknown): ChannelValue | undefined {
+    const depends = DEFAULT_WHEN_SET.get(channel);
+    if (depends !== undefined && read(depends.when) !== undefined) {
+        return depends.value;
+    }
+    return CHANNEL_DESCRIPTORS[channel].default;
+}
+
+/**
  * Whether a channel changes the picture: every condition of its `drawnWhen` holds.
  * @param channel - The channel.
  * @param read - What another channel holds where this one is set: the row's own value, else what
@@ -86,7 +118,7 @@ export function channelDrawn(
         CHANNEL_DESCRIPTORS[channel].drawnWhen,
         dimension,
         (condition) => ("channel" in condition ? read(condition.channel) : undefined),
-        (condition) => ("channel" in condition ? CHANNEL_DESCRIPTORS[condition.channel].default : undefined),
+        (condition) => ("channel" in condition ? drawnDefault(condition.channel, read) : undefined),
     );
     return unmet === undefined ? { drawn: true } : { drawn: false, unmet };
 }

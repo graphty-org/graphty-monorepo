@@ -80,6 +80,7 @@
 
 import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
 
+import { drawnDefault } from "../../catalog/drawnWhen";
 import { styleFamily, type StyleFamilyDescriptor, type StyleFamilyId } from "../../catalog/families";
 import { type LabelEntry, MAIN_LABEL_ID } from "../../catalog/label-style";
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
@@ -956,11 +957,18 @@ export interface StylesApi {
      * session.styles.defaultValue("edge.arrowHead"); // "none" on an undirected graph
      * session.styles.defaultValue("edge.arrowHead", "e1"); // "none" when edge e1 is undirected
      * ```
+     * Given `read`, what the same row holds for other channels, a default that depends on one of them is answered
+     * for it (`drawnDefault`): an edge's support scale is "unit" once its support unit is set.
+     *
+     * ```ts
+     * session.styles.defaultValue("edge.supportScale", undefined, (c) => (c === "edge.supportUnit" ? 2 : undefined)); // "unit"
+     * ```
      * @param channel - The channel.
      * @param edge - An edge to answer for, where the edge's own direction decides the value.
+     * @param read - What another channel holds where this one is unset, undefined when nothing sets it.
      * @returns The value, or undefined for a channel with neither a default nor an off value.
      */
-    defaultValue(channel: Channel, edge?: EdgeId): ChannelValue | undefined;
+    defaultValue(channel: Channel, edge?: EdgeId, read?: (other: Channel) => unknown): ChannelValue | undefined;
     /**
      * Paint the elements a run chose with fixed channel values, as ordinary layers: what an
      * algorithm's suggested style for a route, a chosen set of nodes or a chosen set of edges is.
@@ -5827,7 +5835,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return api.update(layer, switchedPatch(held, descriptor, to, start), { ...options, keepEmpty: true });
         },
 
-        defaultValue(channel: Channel, edge?: EdgeId): ChannelValue | undefined {
+        defaultValue(channel: Channel, edge?: EdgeId, read?: (other: Channel) => unknown): ChannelValue | undefined {
             // The painter draws a head no layer chose only on a directed edge (StylePainter).
             if (channel === "edge.arrowHead") {
                 const row = edge === undefined ? undefined : explainSources.edgeIndex(edge);
@@ -5841,7 +5849,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
             const descriptor = channelDescriptor(channel);
             // A channel with no default draws its off value, if it has one (an unset text background).
-            return descriptor?.default ?? descriptor?.off;
+            const fallback = descriptor?.default ?? descriptor?.off;
+            return read === undefined || descriptor === undefined
+                ? fallback
+                : (drawnDefault(channel, read) ?? fallback);
         },
 
         highlight(spec: HighlightSpec, options: RunOptions = {}): Run<readonly Layer[]> {

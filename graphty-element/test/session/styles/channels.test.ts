@@ -1366,8 +1366,12 @@ describe("ChannelDescriptor.drawnWhen", () => {
             { channel: "edge.style", values: ["solid"] },
             { channel: "edge.curvature", values: ["false"] },
         ]);
+        // a stored route (bends, ports) is drawn through its own points and wins over the support point
         assert.deepStrictEqual(CHANNEL_DESCRIPTORS["edge.supportModel"].drawnWhen, [
             { channel: "edge.curvature", values: ["true"] },
+            { channel: "edge.bends", unset: true },
+            { channel: "edge.sourcePort", unset: true },
+            { channel: "edge.targetPort", unset: true },
         ]);
         for (const kind of ["underlay", "overlay"] as const) {
             const [view, condition] = CHANNEL_DESCRIPTORS[`node.${kind}CornerRadius`].drawnWhen ?? [];

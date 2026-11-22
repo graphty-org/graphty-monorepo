@@ -15,7 +15,8 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { openGraph, openProject, openStyle, picture, pixelsApart, sectionOf, switchView } from "./v2Harness";
+import { showKind } from "./kindTab";
+import { openGraph, openProject, openStyle, picture, pixelsApart, sectionOf, switchView, written } from "./v2Harness";
 
 /**
  * Waits for a thing's row in a section and opens its settings pop-over.
@@ -122,6 +123,45 @@ describe("Style panel v2: options that would change nothing", () => {
         assert.isUndefined(lineDim(again, "combine:node.raisedBorderWidth"), "drawn in 2D");
         await userEvent.keyboard("{Escape}");
         assert.isNull(screen.queryByRole("menu"));
+    });
+
+    it("force curves with only a unit set show the Unit scale drawn, and dim the unit once Drawing is picked", async () => {
+        const { session, edges } = await openGraph();
+        await session.styles.update(edges, {
+            set: {
+                "edge.color": "#E8590C",
+                "edge.curvature": true,
+                "edge.supportModel": "barnesHut",
+                "edge.supportUnit": 2,
+            },
+        });
+        await session.styles.settled();
+        await openStyle("Links");
+        await showKind("edge");
+        const tab = await screen.findByTestId("style-tab");
+        await userEvent.click(await within(tab).findByRole("button", { name: /^Edge force curves settings/ }));
+        const pop = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+            assert.isNotNull(found);
+            return found;
+        });
+        // graphty-element draws a unit scale once a unit is set and the scale is not (drawnDefault).
+        const scale = within(pop).getByRole("radiogroup", { name: "Edge support scale" });
+        const unit = within(scale).getByRole<HTMLInputElement>("radio", { name: "Unit" });
+        assert.isTrue(unit.checked, "Unit, what is drawn, is the scale shown");
+        assert.isUndefined(lineDim(pop, "edge.supportUnit"), "the unit draws");
+
+        const drawing = within(scale).getByRole<HTMLInputElement>("radio", { name: "Drawing" });
+        await userEvent.click(drawing.labels?.[0] ?? drawing);
+        await waitFor(() => {
+            assert.strictEqual(written(session, edges, "edge.supportScale"), "drawing");
+        });
+        await waitFor(() => {
+            const open = document.querySelector<HTMLElement>("[data-thing-popover]");
+            assert.isNotNull(open);
+            assert.match(lineDim(open, "edge.supportUnit") ?? "", /^Only when .+ is Unit$/);
+        });
+        await userEvent.keyboard("{Escape}");
     });
 
     for (const view of ["2D", "3D"] as const) {

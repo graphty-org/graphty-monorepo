@@ -24,7 +24,7 @@ import { Field, FieldLine, type RowContext, VarySlot, type VaryTarget } from "..
 import { lineIn, needsFor, writeIn } from "../row";
 import { ValueField } from "../ValueField";
 import { channelWord, failureWords, fieldName, FONTS, isPercent, scrubLetter, takesBinding } from "../words";
-import { dimOf, viewOf } from "./drawn";
+import { dimOf, rowReader, viewOf } from "./drawn";
 import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
 import { moveUnit, ruleOf, unsetIn } from "./lineWrites";
@@ -285,7 +285,7 @@ function segmentsControl(args: ControlArgs): React.ReactNode {
     const shown =
         value ??
         ctx.beneath(descriptor.channel).value ??
-        ctx.session.styles.defaultValue(descriptor.channel) ??
+        ctx.session.styles.defaultValue(descriptor.channel, undefined, rowReader(ctx)) ??
         descriptor.default;
     const view = viewOf(ctx.session);
     // A value graphty-element draws only in the other view (`valueViews`: a node size's Pivot in 2D) is dimmed.

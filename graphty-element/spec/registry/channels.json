@@ -1722,6 +1722,15 @@
             "experimental": "file-styles"
         },
         {
+            "channel": "edge.drawOrder",
+            "target": "edge",
+            "accepts": "number",
+            "min": 0,
+            "max": 100,
+            "step": 0.1,
+            "experimental": "file-styles"
+        },
+        {
             "channel": "edge.opacity",
             "target": "edge",
             "accepts": "number",

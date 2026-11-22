@@ -134,6 +134,55 @@ describe("Style panel v2's list things", () => {
         assert.isAbove(first, second * 1.5, "the first stripe is the wider");
     });
 
+    // E495: the first side typed made the Frame line appear in the sidebar row too, and focus, between the side it
+    // left and the next, was handed to that sidebar copy; the pop-over's other sides were then out of reach.
+    it("a Frame side typed and tabbed past leaves focus on the next side in the pop-over", async () => {
+        const { session, nodes } = await openGraph();
+        const tab = await openStyle("Key people");
+        const fill = sectionOf(tab, "node-fill");
+        await userEvent.click(within(fill).getByRole("button", { name: /^Add to node fill/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Stripes" }));
+        await waitFor(() => {
+            assert.isDefined(written(session, nodes, "node.stripeColors"));
+        });
+        await userEvent.keyboard("{Escape}");
+        const row = await waitFor(() => {
+            const found = fill.querySelector<HTMLElement>('[data-thing="stripes"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(within(row).getByRole("button", { name: /^Node stripes settings/ }));
+        const pop = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(within(pop).getByRole("button", { name: "Add to node stripes settings" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Frame" }));
+        await userEvent.click(await within(pop).findByRole("textbox", { name: "Frame top" }));
+        await userEvent.keyboard("0.2{Tab}");
+        await waitFor(() => {
+            assert.strictEqual(written(session, nodes, "node.stripeFrame"), "0.2 0 0 0");
+            assert.isNotNull(fill.querySelector('[data-line="node.stripeFrame"]'), "the sidebar row shows the frame");
+        });
+        // The element's change has drawn: focus is still where the Tab put it.
+        await session.styles.settled();
+        await waitFor(() => {
+            const right = document.querySelector('[data-thing-popover] input[aria-label="Frame right"]');
+            assert.isNotNull(right, "the pop-over is still open");
+            const active = document.activeElement;
+            assert.strictEqual(
+                active,
+                right,
+                `focus is on ${active?.getAttribute("aria-label") ?? active?.tagName ?? "nothing"}, in the pop-over: ${String(active?.closest("[data-thing-popover]") !== null)}`,
+            );
+        });
+        await userEvent.keyboard("0.3{Tab}");
+        await waitFor(() => {
+            assert.strictEqual(written(session, nodes, "node.stripeFrame"), "0.2 0.3 0 0", "the next side writes");
+        });
+    });
+
     it("Chart starts drawn: its values and colors change the picture", async () => {
         const { session, element, nodes } = await openGraph();
         const tab = await openStyle("Key people");

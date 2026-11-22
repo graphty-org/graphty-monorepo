@@ -189,15 +189,25 @@ export function useFocusLine<T extends HTMLElement>(session: GraphSession, panel
         // Focus fell to the page, or stays in the tab outside every line (on a "+" an Undo did not take away).
         // A control in a line keeps it: the lines read last can be stale (a row "+" added redraws only its
         // section), so a reader's first keystroke in a new row's Size would otherwise hand focus to its source.
-        const active = document.activeElement;
-        const free =
-            active === null ||
-            active === document.body ||
-            (node.contains(active) && active.closest("[data-line]") === null);
+        const free = (): boolean => {
+            const active = document.activeElement;
+            return (
+                active === null ||
+                active === document.body ||
+                (node.contains(active) && active.closest("[data-line]") === null)
+            );
+        };
         // Another session's ask is not this tab's to answer.
         const asked = pending?.session.deref() === session ? pending : null;
-        if (asked === null && free && was?.session.deref() === session && was.panel === panel) {
-            controlForChange(node, was.lines, now)?.focus();
+        if (asked === null && was?.session.deref() === session && was.panel === panel) {
+            // Judged once the event that drew this render is over: a value a Tab commits on blur draws while focus is
+            // between the field it left and the one it goes to, on the page for that moment, and taking focus then
+            // pulled it out of a settings pop-over onto the sidebar's copy of the line (E495, a Frame side).
+            requestAnimationFrame(() => {
+                if (free()) {
+                    controlForChange(node, was.lines, now)?.focus();
+                }
+            });
         }
         if (asked === null) {
             return;

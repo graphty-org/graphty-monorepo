@@ -880,7 +880,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
     deviceEnvelope = true;
     /** The simulation's array was written by the element since the last landing, so a device measure no longer holds. */
     #adoptedSinceLanding = false;
-    /** Bumped by every write the element makes into the simulation's array: an adoption or a placed node. */
+    /**
+     * Bumped by every change to the simulation's array that `#landed` does not count: an adoption, a placed node, a
+     * pre-step batch awaited by `stepAsync`.
+     */
     #simWrites = 0;
     /** The last fit's envelope and what it was measured over, so an accelerated fit with nothing new reuses it. */
     #lastFit: {
@@ -1355,6 +1358,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
         try {
             await this.#simulation.step(iterations);
         } finally {
+            // The batch rewrote the simulation's array without the frame loop's landing count seeing it.
+            this.#simWrites += 1;
             this.#syncWork();
         }
     }

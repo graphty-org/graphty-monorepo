@@ -214,6 +214,20 @@ describe("the layout filling the row table from a separate device", () => {
         }
 
         assert.isAbove(engine.envelopeRowsWalked, start, "the landings were walked");
+
+        // A pre-step batch rewrites the rows outside the frame loop's landings, so the next fit measures again. With
+        // the frames stopped, only a batch already in flight can land during it: such a try proves nothing, so again.
+        graph.engine.stopRenderLoop();
+        for (;;) {
+            engine.publishPositions();
+            const before = { walked: engine.envelopeRowsWalked, landings: engine.landedBatches };
+            await engine.stepAsync(1);
+            if (engine.landedBatches === before.landings) {
+                engine.publishPositions();
+                assert.isAbove(engine.envelopeRowsWalked, before.walked, "the fit after a pre-step reused a stale one");
+                break;
+            }
+        }
     });
 
     it("draws every landing of a running layout on demand (issue #8801)", async () => {

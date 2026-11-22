@@ -63,8 +63,8 @@ function painted(session: GraphSession, channel: string, field?: string, side: "
 }
 
 /**
- * Asserts every line reading a column draws `GLYPHS.link` (lucide's link-2) in its glyph slot, the glyph every
- * bound value carries (design 2.4, E674), and never the detach glyph.
+ * Asserts every line reading a column draws the existing Stop varying (detach) glyph, `GLYPHS.unlink` (lucide's
+ * unlink-2), and never the bind button's `GLYPHS.link` (E355: the by-data control keeps its look).
  * @param root - where the lines are.
  * @param column - the column the bound lines read.
  * @param count - how many lines read it.
@@ -79,8 +79,8 @@ function assertBoundLinks(root: HTMLElement, column: string, count: number): voi
     ].filter((each) => each !== null);
     assert.lengthOf(rows, count, `${String(count)} lines read ${column}`);
     for (const row of rows) {
-        assert.isNotNull(row.querySelector("svg.lucide-link-2"), `${row.dataset.line ?? ""} draws the link glyph`);
-        assert.isNull(row.querySelector("svg.lucide-unlink-2"), `${row.dataset.line ?? ""} draws no detach glyph`);
+        assert.isNotNull(row.querySelector("svg.lucide-unlink-2"), `${row.dataset.line ?? ""} draws the detach glyph`);
+        assert.isNull(row.querySelector("svg.lucide-link-2"), `${row.dataset.line ?? ""} draws no bind glyph`);
     }
 }
 
@@ -151,6 +151,44 @@ describe("Style panel v2's by-data links", () => {
         });
         assert.isAbove(pixelsApart(before, await picture(element)), 0, "the labels drew at their new sizes");
         assertBoundLinks(screen.getByTestId("style-tab"), "Degree", 2);
+    });
+
+    it("a row whose main value is bound reads the column, and its Stop varying is on Main's first line in the pop-over", async () => {
+        const { session, nodes } = await openGraph();
+        await session.runs.start("degree");
+        const tab = await openStyle("Key people");
+        await userEvent.click(within(tab).getByRole("button", { name: "Node fill settings" }));
+        const pop = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+            assert.isNotNull(found);
+            return found;
+        });
+        await bindToDegree(pop, "Node color by attribute");
+        await waitFor(() => {
+            const bound = session.styles.get(nodes)?.encode?.["node.color"];
+            assert.isTrue(bound !== undefined && "by" in bound, "the fill color is bound");
+        });
+        // The row reads the column, with no glyph of its own (design 2.4, E551).
+        const row = await waitFor(() => {
+            const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
+            assert.isNotNull(found);
+            assert.isNotNull(within(found).queryByText("Degree"), "the row reads its column");
+            return found;
+        });
+        assert.isNull(row.querySelector("svg.lucide-link-2, svg.lucide-unlink-2"), "the row draws no by-data glyph");
+        assert.isNull(within(row).queryByRole("button", { name: /^Stop varying/ }), "the row has no Stop varying");
+        // Main's first line in the pop-over holds the Stop varying, in the existing detach glyph.
+        const first = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-thing-popover] .ws-row[data-line]");
+            assert.equal(found?.dataset.line, "node.color");
+            return found as HTMLElement;
+        });
+        assertBoundLinks(first, "Degree", 1);
+        await userEvent.click(within(first).getByRole("button", { name: /^Stop varying .* by data$/ }));
+        await waitFor(() => {
+            const bound = session.styles.get(nodes)?.encode?.["node.color"];
+            assert.isFalse(bound !== undefined && "by" in bound, "Stop varying takes the binding off");
+        });
     });
 
     for (const kind of TEXT_KINDS) {
@@ -309,7 +347,7 @@ describe("Style panel v2's by-data links", () => {
         const boundAt = (): string | undefined =>
             (session.styles.get(nodes)?.encode as Record<string, { by?: string } | undefined> | undefined)?.[address]
                 ?.by;
-        // Its link glyph stops it varying, back to one value.
+        // Its detach glyph stops it varying, back to one value.
         await userEvent.click(within(row).getByRole("button", { name: /^Stop varying .* by data$/ }));
         await waitFor(() => {
             assert.isUndefined(boundAt(), "Stop varying takes the binding off");

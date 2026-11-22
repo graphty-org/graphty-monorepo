@@ -1043,8 +1043,8 @@ function TextValue({
 
 /**
  * A bound value's Stop varying, where its vary glyph sat (Figma's detach on a variable field). It is the one
- * way back to a single value, so its words say what it does. Style panel v2 draws it as `GLYPHS.link`, the
- * glyph every bound value carries (design 2.4, E674); the first panel keeps the detach glyph.
+ * way back to a single value, so its words say what it does. Both panels draw the existing detach glyph
+ * (`GLYPHS.unlink`, E355: keep the by-data control as it is); `GLYPHS.link` is the bind button's.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.descriptor - the bound property
@@ -1068,7 +1068,6 @@ export function StopVarying({
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     const stop = `Stop varying ${name.toLowerCase()} by data`;
-    const Glyph = ctx.namesOnly === true ? GLYPHS.link : GLYPHS.unlink;
     return (
         <Tooltip label={stop}>
             <ActionIcon
@@ -1084,7 +1083,7 @@ export function StopVarying({
                     });
                 }}
             >
-                <Glyph size={14} aria-hidden />
+                <GLYPHS.unlink size={14} aria-hidden />
             </ActionIcon>
         </Tooltip>
     );

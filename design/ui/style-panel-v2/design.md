@@ -129,9 +129,10 @@ Row: `[<> name] [main] [-] [...]`.
   have been "..."").
 - **Off**: a thing switched off on this layer (2.6) draws its main control as a read-only field reading "Off",
   which opens the popover. Nothing is dimmed for it.
-- **Bound**: a main value bound to data draws as the field with the column name as its value and `GLYPHS.link`
-  in its glyph slot (its Stop varying button, the one way back to a single value); no pill, no summary line. Clicking it opens `BindingPopover`. Pressing "=" in a field opens
-  the value picker (a key, not a button).
+- **Bound**: a main value bound to data draws on the row as the field with the column name as its value, with no
+  glyph of its own; no pill, no summary line. Its Stop varying button (the existing detach glyph, `GLYPHS.unlink`,
+  E355) and its link live on Main's first line in the popover (2.6). Pressing "=" in a field opens the value
+  picker (a key, not a button).
 - **Hover**: hovering a row does nothing on the graph (E181), and there is no setting for it.
 
 ### 2.5 Lines under a row
@@ -163,8 +164,9 @@ opened from it are plain `Popout`s (SettingsPopout refuses nesting).
   **Combine** (R8f Replace / Multiply / Add, today's `COMBINE_WORDS` in `words.ts`) on number lines only.
 - **Main** sub-group: always shown, with its lines empty until written. Its first line is the row's main value
   (Color, Visible, Shading ...), then the row's common lines (Width, Strength, Size, Color ...), then the
-  thing's own Main lines. The main value binds from its line's by-data link like any other line; bound, the line
-  shows the column name with `GLYPHS.link` and opens `BindingPopover`.
+  thing's own Main lines. The main value binds from its line's by-data link (`GLYPHS.link`) like any other line;
+  bound, the line shows the column name and draws the existing Stop varying (detach) glyph, `GLYPHS.unlink`, in
+  that slot (E355: the by-data control keeps its look).
 - **Other sub-groups**: a `PlusList` at group level (an always-open `ControlGroup` legend with "-", which unsets
   every line in it) over at most 10 lines. A sub-group shows when it holds a set line or the reader adds it from
   "+". Adding a switchable sub-group (Callout) writes its on field (`pointer`); it has no "On" line. Label shadow
@@ -417,7 +419,7 @@ required, not permitted. One exception: an icon set may end in a single "Auto" w
 **Common lines** (E674). No row or line carries a toggle, an icon or a widget the other lines lack: a boolean
 that modifies another line (italic, keep ratio, separate sides) is its own R7 line. Three glyphs are allowed,
 each on every line of its kind: the Switch to glyph on every family and kind row (E100, E105), `GLYPHS.link`
-on every bound value, and the scrub letter on every number field (2.2). Nothing else.
+on every line that can bind and `GLYPHS.unlink` (Stop varying) in its place once bound, and the scrub letter on every number field (2.2). Nothing else.
 
 | #    | When                                                                                    | Control                                                                                                                                                     |
 | ---- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |

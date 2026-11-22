@@ -5723,6 +5723,8 @@ export class LayoutManager implements Manager {
     placeGroups(): void;
     // @internal
     get preStepsInFlight(): boolean;
+    // @internal
+    publishOrReport(): boolean;
     reducedMotion: boolean;
     // @internal
     releaseDetachedScope(): void;

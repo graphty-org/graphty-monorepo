@@ -2689,7 +2689,7 @@ export class Graphty extends LitElement {
         const queueTurn = (): Promise<void> =>
             operationQueueOf(this.#graph).queueOperationAsync("data-add", (context) => {
                 if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
+                    throw new Error("Operation canceled");
                 }
             });
         // An edit, not a load: inside a transaction it dispatches at once.
@@ -4752,8 +4752,8 @@ export class Graphty extends LitElement {
      *
      * // Cancel after 2 seconds
      * setTimeout(() => {
-     *   const wasCancelled = el.cancelAnimationCapture();
-     *   console.log('Cancelled:', wasCancelled);
+     *   const wasCanceled = el.cancelAnimationCapture();
+     *   console.log('Canceled:', wasCanceled);
      * }, 2000);
      *
      * // Handle the cancellation
@@ -4761,7 +4761,7 @@ export class Graphty extends LitElement {
      *   await capturePromise;
      * } catch (error) {
      *   if (isGraphtyError(error) && error.code === 'E_CANCELED') {
-     *     console.log('Capture was cancelled by user');
+     *     console.log('Capture was canceled by user');
      *   }
      * }
      * ```
@@ -4808,7 +4808,7 @@ export class Graphty extends LitElement {
      * camera is. Every stop is checked before the camera moves. Auto-rotate and following the
      * selection wait while a tour plays.
      *
-     * It always resolves, with how it ended: `"finished"`; `"cancelled"` by `signal` or
+     * It always resolves, with how it ended: `"finished"`; `"canceled"` by `signal` or
      * `cancelCameraAnimation()`; `"interrupted"` by the reader's drag, pinch, wheel, camera key or
      * press on the canvas (the camera stays where the reader left it); `"replaced"` by another
      * tour, a recording, `setCameraState`, `applyCameraView` or a screenshot with a `camera`; or
@@ -4819,7 +4819,7 @@ export class Graphty extends LitElement {
      * @param options.easing - The easing of each flight; wins over the tour's own. Default `"easeInOut"`.
      * @param options.restoreCamera - Put the camera back where it was when the tour finishes.
      *     Default false.
-     * @param options.signal - Ends the tour as `"cancelled"` when it aborts.
+     * @param options.signal - Ends the tour as `"canceled"` when it aborts.
      * @returns How the tour ended.
      * @throws A `GraphtyError` with the problem `planTour` reports: `E_BAD_COMMAND`
      *     `{ missing, available }` for an unknown tour name or `{ reason: "no-stops" }`,
@@ -6917,7 +6917,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELLED" }`).
+     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELED" }`).
      * @since 4.0.0
      */
     stopAiSpeech(): void {
@@ -6926,7 +6926,7 @@ export class Graphty extends LitElement {
 
     /**
      * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
-     * `AI_CANCELLED`, and the next press opens another, with the conversation as saved. Does
+     * `AI_CANCELED`, and the next press opens another, with the conversation as saved. Does
      * nothing when none is open.
      * @since 4.0.0
      */

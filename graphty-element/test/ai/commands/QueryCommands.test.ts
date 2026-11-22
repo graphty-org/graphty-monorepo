@@ -8,15 +8,15 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { findNodes, getSchema, queryGraph } from "../../../src/ai/commands/QueryCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockGraphContext } from "../../helpers/mock-graph-context";
-import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
+import { createCommandGraph } from "../../helpers/session-graph";
+import { createMockContext } from "../../helpers/test-graph";
 
 describe("QueryCommands", () => {
     let graph: Graph;
     let context: CommandContext;
 
-    beforeEach(() => {
-        graph = createMockTestGraph({ nodes: 25, edges: 40 });
+    beforeEach(async () => {
+        graph = await createCommandGraph({ nodeCount: 25, edgeCount: 40 });
         context = createMockContext(graph);
     });
 
@@ -85,7 +85,7 @@ describe("QueryCommands", () => {
         }
 
         it("caps an unlimited query at the default and reports the total", async () => {
-            const big = createMockTestGraph({ nodes: 1000, edges: 0 });
+            const big = await createCommandGraph({ nodeCount: 1000, edgeCount: 0 });
             const result = await findNodes.execute(big, { selector: "" }, createMockContext(big));
             assert.strictEqual(result.success, true);
 
@@ -100,7 +100,7 @@ describe("QueryCommands", () => {
         });
 
         it("reports the total when a limit is passed", async () => {
-            const big = createMockTestGraph({ nodes: 1000, edges: 0 });
+            const big = await createCommandGraph({ nodeCount: 1000, edgeCount: 0 });
             const result = await findNodes.execute(big, { selector: "*", limit: 10 }, createMockContext(big));
             const data = result.data as FindNodesData;
             assert.strictEqual(data.returned, 10);
@@ -109,7 +109,7 @@ describe("QueryCommands", () => {
         });
 
         it("is not truncated when every match fits", async () => {
-            const small = createMockTestGraph({ nodes: 5, edges: 0 });
+            const small = await createCommandGraph({ nodeCount: 5, edgeCount: 0 });
             const result = await findNodes.execute(small, { selector: "" }, createMockContext(small));
             const data = result.data as FindNodesData;
             assert.strictEqual(data.total, 5);
@@ -128,8 +128,8 @@ describe("QueryCommands", () => {
          * weight and no type.
          * @returns The graph.
          */
-        function typedGraph(): Graph {
-            return createMockGraphContext({
+        function typedGraph(): Promise<Graph> {
+            return createCommandGraph({
                 nodeCount: 6,
                 edgeCount: 4,
                 nodeData: (i) => ({ type: i % 2 === 0 ? "person" : "place", score: i }),
@@ -138,35 +138,35 @@ describe("QueryCommands", () => {
         }
 
         it("lists the node types", async () => {
-            const result = await getSchema.execute(typedGraph(), { query: "nodeTypes" }, context);
+            const result = await getSchema.execute(await typedGraph(), { query: "nodeTypes" }, context);
             assert.strictEqual(result.success, true);
             assert.deepStrictEqual(result.data, { nodeTypes: ["person", "place"] });
             assert.strictEqual(result.message, "Found 2 node types: person, place");
         });
 
         it("says there are no edge types when edges carry none", async () => {
-            const result = await getSchema.execute(typedGraph(), { query: "edgeTypes" }, context);
+            const result = await getSchema.execute(await typedGraph(), { query: "edgeTypes" }, context);
             assert.strictEqual(result.success, true);
             assert.deepStrictEqual(result.data, { edgeTypes: [] });
             assert.include(result.message, "No distinct edge types found");
         });
 
         it("describes each node property as a line", async () => {
-            const result = await getSchema.execute(typedGraph(), { query: "nodeProperties" }, context);
+            const result = await getSchema.execute(await typedGraph(), { query: "nodeProperties" }, context);
             assert.strictEqual(result.success, true);
             assert.match(result.message, /^Node properties:\n- /);
             assert.match(result.message, /- score: (number|integer)/);
         });
 
         it("describes each edge property as a line", async () => {
-            const result = await getSchema.execute(typedGraph(), { query: "edgeProperties" }, context);
+            const result = await getSchema.execute(await typedGraph(), { query: "edgeProperties" }, context);
             assert.strictEqual(result.success, true);
             assert.match(result.message, /^Edge properties:\n- /);
             assert.match(result.message, /- weight: (number|integer)/);
         });
 
         it("summarizes the whole schema", async () => {
-            const result = await getSchema.execute(typedGraph(), { query: "all" }, context);
+            const result = await getSchema.execute(await typedGraph(), { query: "all" }, context);
             assert.strictEqual(result.success, true);
             assert.match(
                 result.message,
@@ -182,7 +182,7 @@ describe("QueryCommands", () => {
         });
 
         it("refuses an unknown query", async () => {
-            const result = await getSchema.execute(typedGraph(), { query: "nope" }, context);
+            const result = await getSchema.execute(await typedGraph(), { query: "nope" }, context);
             assert.strictEqual(result.success, false);
             assert.strictEqual(result.message, "Unknown schema query type: nope");
         });

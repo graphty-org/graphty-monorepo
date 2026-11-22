@@ -586,14 +586,14 @@ describe("the stack moves at once, and the picture follows it", () => {
         assert.lengthOf(harness.changes, told, "a failed pass is not told as a painted change");
     });
 
-    it("resolves with the edit applied when it is cancelled after the call", async () => {
+    it("resolves with the edit applied when it is canceled after the call", async () => {
         const harness = makeStyles();
         let release = (): void => undefined;
         harness.gate = new Promise<void>((resolve) => {
             release = resolve;
         });
 
-        const run = harness.styles.add(layerSpec("Cancelled"));
+        const run = harness.styles.add(layerSpec("Canceled"));
 
         await flush();
         run.cancel("a newer edit replaced this one");
@@ -601,8 +601,8 @@ describe("the stack moves at once, and the picture follows it", () => {
 
         const layer = await run;
 
-        assert.strictEqual(layer.name, "Cancelled");
-        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Cancelled"]);
+        assert.strictEqual(layer.name, "Canceled");
+        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Canceled"]);
     });
 
     it("writes nothing when its signal is already aborted", async () => {

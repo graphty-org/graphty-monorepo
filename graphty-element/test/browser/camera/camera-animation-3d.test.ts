@@ -165,7 +165,7 @@ test("an interrupted animation stops moving the camera", async () => {
         fromSecond,
         1,
         `The camera ended at (${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}), ` +
-            "not where the animation that replaced the cancelled one left it",
+            "not where the animation that replaced the canceled one left it",
     );
 });
 

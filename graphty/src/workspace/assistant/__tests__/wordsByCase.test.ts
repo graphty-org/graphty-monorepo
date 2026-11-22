@@ -146,13 +146,13 @@ describe("endWords cases", () => {
     });
 
     it("says whether a stopped run took changes back", () => {
-        assert.deepStrictEqual(endWords("AI_CANCELLED", { steps: 2 }, "google", false), {
+        assert.deepStrictEqual(endWords("AI_CANCELED", { steps: 2 }, "google", false), {
             line: "Stopped. Changes taken back.",
             stopped: "Changes taken back.",
             action: "again",
             failed: false,
         });
-        assert.deepStrictEqual(endWords("AI_CANCELLED", {}, "google", false), {
+        assert.deepStrictEqual(endWords("AI_CANCELED", {}, "google", false), {
             line: "Stopped.",
             stopped: "",
             action: "again",

@@ -81,7 +81,7 @@ export class TieStrength extends DeclaredAlgorithm<TieStrengthOptions> {
         const edges: ResultElementValues<string>[] = [];
 
         // Chunks of 1024, a progress report at the start of each and the frame handed back between
-        // them; a cancelled run stops at the next chunk.
+        // them; a canceled run stops at the next chunk.
         await forEachChunked(context, "Measuring ties", rows, (row) => {
             const weaker = Math.min(nodeStrength[src[row]], nodeStrength[dst[row]]);
 

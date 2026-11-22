@@ -191,13 +191,13 @@ describe("a plugin algorithm without a descriptor is one step", () => {
 
         const running = graph.runAlgorithm(LEGACY_NAMESPACE, "calls-doors");
         await session.data.updateNodes([{ id: "n1", values: { weight: 5 } }]);
-        const cancelled = await Promise.resolve(running).then(
+        const canceled = await Promise.resolve(running).then(
             () => false,
             (error: unknown) => (error as { name?: string }).name === "AbortError",
         );
         await operationQueueOf(graph).waitForCompletion();
 
-        assert.isTrue(cancelled, "the run was cancelled");
+        assert.isTrue(canceled, "the run was canceled");
         assert.isUndefined(graph.getNode("from-plugin"), "and wrote nothing");
         assert.lengthOf(session.history.steps, 1);
         await session.undo();

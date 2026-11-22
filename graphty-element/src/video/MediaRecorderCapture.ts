@@ -8,17 +8,17 @@ import { type AnimationOptions, type AnimationResult, calculateDropRate } from "
 
 /**
  * The error a canceled recording rejects with: a `GraphtyError` with the code `E_CANCELED`, so a
- * caller switches on `code` as for every other failure; its `name` stays `"AnimationCancelledError"`.
+ * caller switches on `code` as for every other failure; its `name` is `"AnimationCanceledError"`.
  */
-export class AnimationCancelledError extends GraphtyError {
-    /** Always `"AnimationCancelledError"`. */
-    override readonly name: string = "AnimationCancelledError";
+export class AnimationCanceledError extends GraphtyError {
+    /** Always `"AnimationCanceledError"`. */
+    override readonly name: string = "AnimationCanceledError";
 
     /**
-     * Creates a new AnimationCancelledError
+     * Creates a new AnimationCanceledError
      */
     constructor() {
-        super({ code: "E_CANCELED", message: "Animation capture cancelled", source: "view" });
+        super({ code: "E_CANCELED", message: "Animation capture canceled", source: "view" });
     }
 }
 
@@ -35,15 +35,6 @@ export interface RecordingControl {
      */
     lengthMs?: number;
 }
-
-/**
- * The American spelling of {@link AnimationCancelledError}: the same class, so `instanceof` works
- * with either name. The error's `name` stays `"AnimationCancelledError"`.
- * @alias AnimationCancelledError
- */
-export const AnimationCanceledError = AnimationCancelledError;
-/** The American spelling of {@link AnimationCancelledError}. */
-export type AnimationCanceledError = AnimationCancelledError;
 
 /**
  * Calls `onFrame` after every frame the graph draws, until the returned function is called.
@@ -66,25 +57,25 @@ export type FrameSource = (onFrame: () => void) => () => void;
  * - The duration timeout completing
  *
  * The flow ensures:
- * 1. `isCancelled` flag is set BEFORE calling `recorder.stop()`
- * 2. The `onstop` handler checks `isCancelled` before resolving
+ * 1. `isCanceled` flag is set BEFORE calling `recorder.stop()`
+ * 2. The `onstop` handler checks `isCanceled` before resolving
  * 3. The reject callback is called synchronously after stopping
  * 4. References are cleared after rejection to prevent double-handling
  *
  * This guarantees that a canceled capture will always reject with
- * AnimationCancelledError, never accidentally resolve with partial data.
+ * AnimationCanceledError, never accidentally resolve with partial data.
  */
 export class MediaRecorderCapture {
     /** The active MediaRecorder instance, null when not recording */
     private activeRecorder: MediaRecorder | null = null;
     /** Flag to track cancellation state - set BEFORE stopping recorder */
-    private isCancelled = false;
+    private isCanceled = false;
     /** Set by stop(): the recording ends before its duration and keeps what it has */
     private stoppedEarly = false;
     /** Stored reject callback for cancellation - cleared after use */
     private cancelReject: ((error: Error) => void) | null = null;
     /** A failure that came before the recorder existed: the recording starts failed. */
-    private pendingFailure: "cancelled" | RecordingFailure | null = null;
+    private pendingFailure: "canceled" | RecordingFailure | null = null;
     /** Set once the recording has settled: a failure after it fails nothing. */
     private settled = false;
 
@@ -204,11 +195,11 @@ export class MediaRecorderCapture {
         // Failed or canceled while the caller was still getting ready (placing stop 0).
         const failed = this.pendingFailure;
         if (failed !== null) {
-            throw failed === "cancelled" ? new AnimationCancelledError() : recordingFailure(failed);
+            throw failed === "canceled" ? new AnimationCanceledError() : recordingFailure(failed);
         }
 
         // Reset cancellation state for new capture
-        this.isCancelled = false;
+        this.isCanceled = false;
         this.stoppedEarly = false;
         this.cancelReject = null;
 
@@ -261,10 +252,10 @@ export class MediaRecorderCapture {
             this.cancelReject = reject;
 
             // Check if already canceled before starting
-            if (this.isCancelled) {
+            if (this.isCanceled) {
                 this.activeRecorder = null;
                 this.cancelReject = null;
-                reject(new AnimationCancelledError());
+                reject(new AnimationCanceledError());
                 return;
             }
 
@@ -323,7 +314,7 @@ export class MediaRecorderCapture {
 
                 progressInterval = setInterval(() => {
                     // Stop progress tracking if canceled
-                    if (this.isCancelled) {
+                    if (this.isCanceled) {
                         clearInterval(progressInterval);
                         return;
                     }
@@ -340,7 +331,7 @@ export class MediaRecorderCapture {
                 durationTimer = setTimeout(() => {
                     clearInterval(progressInterval);
                     // Only stop if not already canceled
-                    if (!this.isCancelled && recorder.state !== "inactive") {
+                    if (!this.isCanceled && recorder.state !== "inactive") {
                         recorder.stop();
                         onProgress?.(100);
                     }
@@ -360,7 +351,7 @@ export class MediaRecorderCapture {
                 this.cancelReject = null;
 
                 // If canceled, don't resolve - the rejection has already happened
-                if (this.isCancelled) {
+                if (this.isCanceled) {
                     return;
                 }
 
@@ -409,12 +400,12 @@ export class MediaRecorderCapture {
             };
 
             const startTimer = setTimeout(() => {
-                if (started || this.isCancelled) {
+                if (started || this.isCanceled) {
                     return;
                 }
 
                 // Rejected before stop(), so the onstop that follows finds the promise settled.
-                this.isCancelled = true;
+                this.isCanceled = true;
                 finish();
                 reject(
                     captureError(
@@ -436,20 +427,20 @@ export class MediaRecorderCapture {
     }
 
     /**
-     * Fail an ongoing capture: it rejects with `E_CANCELED` (an `AnimationCancelledError`) or with
+     * Fail an ongoing capture: it rejects with `E_CANCELED` (an `AnimationCanceledError`) or with
      * `E_CAPTURE_FAILED` `{ media: "video", reason }`, and never resolves with what it recorded.
      *
      * The flow is ordered to avoid race conditions:
-     * 1. Set `isCancelled` first, so the `onstop` that follows does not resolve
+     * 1. Set `isCanceled` first, so the `onstop` that follows does not resolve
      * 2. Stop the recorder (may trigger onstop asynchronously)
      * 3. Reject synchronously, before onstop can run
      * 4. Clear state, so nothing handles it twice
-     * @param reason - `"cancelled"`, or why the recording failed.
+     * @param reason - `"canceled"`, or why the recording failed.
      * Before the recorder exists, the failure is kept and the recording rejects with it when it
      * starts.
      * @returns True if a capture was failed, false if none was in progress.
      */
-    fail(reason: "cancelled" | RecordingFailure): boolean {
+    fail(reason: "canceled" | RecordingFailure): boolean {
         const recorder = this.activeRecorder;
         if (!recorder) {
             if (this.settled || this.pendingFailure !== null) {
@@ -459,7 +450,7 @@ export class MediaRecorderCapture {
             return true;
         }
 
-        this.isCancelled = true;
+        this.isCanceled = true;
         this.activeRecorder = null;
         // Kept, so a later call finds the recording already failed before its finally has run.
         this.pendingFailure = reason;
@@ -469,7 +460,7 @@ export class MediaRecorderCapture {
 
         const reject = this.cancelReject;
         this.cancelReject = null;
-        reject?.(reason === "cancelled" ? new AnimationCancelledError() : recordingFailure(reason));
+        reject?.(reason === "canceled" ? new AnimationCanceledError() : recordingFailure(reason));
         return true;
     }
 
@@ -478,7 +469,7 @@ export class MediaRecorderCapture {
      * @returns true if a capture was canceled, false if no capture was in progress
      */
     cancel(): boolean {
-        return this.fail("cancelled");
+        return this.fail("canceled");
     }
 
     /**
@@ -488,7 +479,7 @@ export class MediaRecorderCapture {
      * @returns true if a capture was stopped, false if no capture was in progress
      */
     stop(): boolean {
-        if (!this.activeRecorder || this.isCancelled || this.activeRecorder.state === "inactive") {
+        if (!this.activeRecorder || this.isCanceled || this.activeRecorder.state === "inactive") {
             return false;
         }
         this.stoppedEarly = true;

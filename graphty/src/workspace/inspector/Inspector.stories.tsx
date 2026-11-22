@@ -294,7 +294,7 @@ async function heldSession(execute: (context: RunExecutionContext) => Promise<Ru
 }
 
 /** Runs until it is canceled. */
-const untilCancelled = (context: RunExecutionContext): Promise<RunOutcome> =>
+const untilCanceled = (context: RunExecutionContext): Promise<RunOutcome> =>
     new Promise((_resolve, reject) => {
         context.signal.addEventListener("abort", () => {
             reject(new Error("canceled"));
@@ -321,7 +321,7 @@ function InspectorOn({ session, store }: { session: GraphSession; store: Workspa
 export const RunRowRunning: Story = {
     loaders: [
         async () => {
-            const session = await heldSession(untilCancelled);
+            const session = await heldSession(untilCanceled);
             const run = session.runs.start("pagerank");
             run.then(undefined, () => undefined);
             return {
@@ -339,7 +339,7 @@ export const RunRowRunning: Story = {
 export const RunRowQueued: Story = {
     loaders: [
         async () => {
-            const session = await heldSession(untilCancelled);
+            const session = await heldSession(untilCanceled);
             session.runs.start("pagerank").then(undefined, () => undefined);
             const run = session.runs.start("degree");
             run.then(undefined, () => undefined);

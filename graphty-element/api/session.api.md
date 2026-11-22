@@ -869,14 +869,14 @@ export interface CostBasis {
 }
 
 // @public
-export type CostConfidence = "measured" | "calibrated" | "modelled" | "unknown";
+export type CostConfidence = "measured" | "calibrated" | "modeled" | "unknown";
 
 // @public
 export interface CostEstimate {
     readonly available: boolean;
     readonly basisFacts: CostBasis;
     readonly blocksFrame: boolean;
-    readonly cancellable: boolean;
+    readonly cancelable: boolean;
     readonly confidence: CostConfidence;
     readonly costClass: CostClass;
     readonly refusal?: CodedFact<EstimateRefusalCode>;
@@ -2736,7 +2736,7 @@ export type GraphtyErrorCode =
 /**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
-* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+* an `AnimationCanceledError`, a `GraphtyError` with this code. Added in 3.58.0.
 */
 | "E_CANCELED" | "E_INTERNAL";
 
@@ -3370,7 +3370,7 @@ export type HistoryOutcome = {
     readonly kind: "undone" | "redone" | "restored";
     readonly steps: readonly HistoryStep[];
 } | {
-    readonly kind: "cancelled";
+    readonly kind: "canceled";
     readonly pending: readonly PendingStep[];
 } | {
     readonly kind: "nothing";
@@ -4898,7 +4898,7 @@ export interface ProgressChange {
         readonly details: Readonly<Record<string, unknown>>;
     };
     readonly fraction: number | null;
-    readonly outcome?: "succeeded" | "failed" | "cancelled";
+    readonly outcome?: "succeeded" | "failed" | "canceled";
     readonly phase: "progress" | "end";
     readonly run?: RunId;
     readonly source?: {
@@ -5948,7 +5948,7 @@ export function ruleValuePath(rule: RuleTree): Path | undefined;
 export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly algorithm: AlgorithmKey;
     cancel(reason?: string): void;
-    readonly cancellable: boolean;
+    readonly cancelable: boolean;
     readonly caveats: Caveats;
     readonly determinate: boolean;
     readonly distinguishedBy: RunDistinction | null;

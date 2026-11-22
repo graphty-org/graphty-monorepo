@@ -7626,9 +7626,9 @@ export type HistoryOutcome =
           readonly steps: readonly HistoryStep[];
       }
     | {
-          /** Pending work was cancelled. */
-          readonly kind: "cancelled";
-          /** The pending work cancelled. */
+          /** Pending work was canceled. */
+          readonly kind: "canceled";
+          /** The pending work canceled. */
           readonly pending: readonly PendingStep[];
       }
     | {
@@ -8805,7 +8805,7 @@ export interface GraphSession {
     setAccelerator(accelerator: GraphAccelerator | null): void;
     /**
      * Measure how fast this machine runs the element's work, once per page, so that later
-     * estimates report `confidence: "calibrated"` instead of `"modelled"`.
+     * estimates report `confidence: "calibrated"` instead of `"modeled"`.
      *
      * The probe takes about a quarter of a second and hands the thread back between its pieces.
      * Every session on the page shares one measurement: a second call, from this session or

@@ -32,7 +32,7 @@ const fake = vi.hoisted(() => {
         wait: (_tools, signal) =>
             new Promise((_resolve, reject) => {
                 signal.addEventListener("abort", () => {
-                    reject(new Error("program-cancelled"));
+                    reject(new Error("program-canceled"));
                 });
                 state.started();
             }),
@@ -60,7 +60,7 @@ vi.mock("../../../src/ai/engine/tanstack/program", () => ({
             const value = await fake.programs[source](bindings, signal);
             return { code: "AI_COMPLETED", params: {}, value, logs: [] };
         } catch {
-            const cause = signal.aborted ? "program-cancelled" : "program-threw";
+            const cause = signal.aborted ? "program-canceled" : "program-threw";
             return { code: "AI_TOOL_FAILED", params: { tool: "run_code", cause }, logs: [] };
         }
     },
@@ -181,7 +181,7 @@ describe("run_code", () => {
         assert.deepStrictEqual(read.data.logs, ["log"]);
     });
 
-    it("aborts a running program when the message is cancelled", async () => {
+    it("aborts a running program when the message is canceled", async () => {
         const harness = await assistant({ inPageCode: true });
         scriptProgram(harness, "wait");
         fake.state.started = (): void => {
@@ -191,6 +191,6 @@ describe("run_code", () => {
         const result = await harness.controller.execute("run something long");
 
         assert.isTrue(fake.state.signal?.aborted, "the program's signal fired");
-        assert.strictEqual(result.code, "AI_CANCELLED");
+        assert.strictEqual(result.code, "AI_CANCELED");
     });
 });

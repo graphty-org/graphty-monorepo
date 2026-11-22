@@ -185,7 +185,7 @@ test("operation queue allows sequential animations", async () => {
 
     // The canceled first animation reported no state; only the second one did
     const toFirst = positions.filter((p) => Math.abs(p.x - 50) < 1 && Math.abs(p.y) < 1);
-    assert.deepEqual(toFirst, [], "no camera state toward the cancelled first target");
+    assert.deepEqual(toFirst, [], "no camera state toward the canceled first target");
     assert.deepEqual(positions, [{ x: 0, y: 50, z: 0 }], "only the second animation reported its state");
 });
 

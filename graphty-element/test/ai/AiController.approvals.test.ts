@@ -286,7 +286,7 @@ describe("a waiting request ends only on an event", () => {
         assert.notExists(session.data.node("f"));
     });
 
-    it("a cancel ends it with AI_CANCELLED", async () => {
+    it("a cancel ends it with AI_CANCELED", async () => {
         const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { approvals: "writes" });
         const { events } = await assistant.say("add f", [ADD_F]);
@@ -295,7 +295,7 @@ describe("a waiting request ends only on an event", () => {
 
         assistant.controller.cancel();
 
-        assert.deepInclude(ended(assistant.events.slice(start))[0], { id, code: "AI_CANCELLED" });
+        assert.deepInclude(ended(assistant.events.slice(start))[0], { id, code: "AI_CANCELED" });
         assert.isUndefined(assistant.controller.getStatus().pending);
         const late = await assistant.controller.resolveAiApproval(id, { approve: true });
         assert.strictEqual(late.code, "AI_APPROVAL_STALE");

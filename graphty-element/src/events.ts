@@ -84,7 +84,6 @@ export type GraphEvent =
     | RenderLostEvent
     | RenderRestoredEvent
     | OperationCanceledEvent
-    | OperationCancelledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
     | InputBookkeepingEvent
@@ -352,10 +351,8 @@ export interface GraphGenericEvent {
         // null when the layout cannot say) and an optional `message`, as the layout reported them.
         | "layout-progress"
         | "operation-obsoleted"
-        // A video capture was stopped before it finished. `animation-cancelled` is the same event
-        // under its British name, emitted right after it and removed in the next major.
+        // A video capture was stopped before it finished.
         | "animation-canceled"
-        | "animation-cancelled"
         | "screenshot-enhancing"
         | "screenshot-ready"
         // Emitted when auto-framing has finished moving the camera around the whole graph. It
@@ -701,24 +698,6 @@ export interface OperationCanceledEvent {
      * this one operation was canceled. Write the reader-facing words from this code.
      */
     code: "queue-cleared" | "canceled";
-}
-
-/**
- * The British spelling of `operation-canceled`: emitted right after it for every
- * aborted operation, with `"cancelled"` where that one says `"canceled"`.
- * @deprecated Listen for `operation-canceled` ({@link OperationCanceledEvent}). Removed in the
- * next major.
- */
-export interface OperationCancelledEvent {
-    /** The event's name. */
-    type: "operation-cancelled";
-    /** The operation's id, as `operation-start` carried it. */
-    id: string;
-    /**
-     * Why it was aborted: `"queue-cleared"` when the whole queue was cleared, `"cancelled"` when
-     * this one operation was canceled. Write the reader-facing words from this code.
-     */
-    code: "queue-cleared" | "cancelled";
 }
 
 /** Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns. */
@@ -1194,8 +1173,6 @@ export type AiEvent =
     | AiCommandCompleteEvent
     | AiCommandErrorEvent
     | AiCommandCanceledEvent
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- the British alias is still emitted until the next major
-    | AiCommandCancelledEvent
     | AiStreamChunkEvent
     | AiStreamToolCallEvent
     | AiStreamToolResultEvent
@@ -1262,19 +1239,6 @@ export interface AiCommandErrorEvent {
 export interface AiCommandCanceledEvent {
     /** The event's name. */
     type: "ai-command-canceled";
-    /** The command's text. */
-    input: string;
-    /** Whether the reader canceled it or it ran out of time. */
-    reason: "user" | "timeout";
-}
-
-/**
- * The British spelling of `ai-command-canceled`, emitted right after it with the same fields.
- * @deprecated Listen for `ai-command-canceled`. Removed in the next major.
- */
-interface AiCommandCancelledEvent {
-    /** The event's name. */
-    type: "ai-command-cancelled";
     /** The command's text. */
     input: string;
     /** Whether the reader canceled it or it ran out of time. */
@@ -1510,7 +1474,7 @@ export interface AiCapabilityUnavailableEvent {
 /**
  * Something the assistant waited on the reader for ended: an approval was answered, superseded
  * by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`),
- * canceled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
+ * canceled (`AI_CANCELED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
  */
 export interface AiPendingResolvedEvent {
     /** The event's name. */
@@ -1521,7 +1485,7 @@ export interface AiPendingResolvedEvent {
     kind: "approval" | "question" | (string & {}); // the open-union idiom
     /**
      * How it ended: `AI_COMPLETED` (approved), `AI_APPROVAL_DENIED`, `AI_APPROVAL_STALE`,
-     * `AI_CANCELLED` or `AI_UNDONE`.
+     * `AI_CANCELED` or `AI_UNDONE`.
      */
     code: AiResultCode;
     /**
@@ -1623,7 +1587,7 @@ export interface AiVoiceEndEvent {
     /** Whether the reader stopped it, it ran out of time, or it failed. */
     reason: "user" | "timeout" | "error";
     /**
-     * How a press of `aiTalk` ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`,
+     * How a press of `aiTalk` ended: `AI_COMPLETED`, `AI_CANCELED`, `AI_VOICE_UNAVAILABLE`,
      * `AI_NOT_ENABLED`, `AI_FAILED` (the voice code would not load) or a provider's failure code
      * from transcription (`AI_PROVIDER_ERROR`, `AI_KEY_REJECTED`, ...). Absent for `startVoiceInput`.
      */
@@ -1664,7 +1628,7 @@ export interface AiSpeechEndEvent {
     /** The event's name. */
     type: "ai-speech-end";
     /**
-     * Why: `AI_COMPLETED` (it finished), `AI_CANCELLED` (talk or `stopAiSpeech()` cut it off),
+     * Why: `AI_COMPLETED` (it finished), `AI_CANCELED` (talk or `stopAiSpeech()` cut it off),
      * `AI_VOICE_UNAVAILABLE` or a provider's failure code.
      */
     code: AiResultCode;

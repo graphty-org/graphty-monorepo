@@ -371,7 +371,7 @@ export async function holdPinch(
     fromGap: number,
     toGap: number,
     steps = 8,
-): Promise<(cancelled?: boolean) => Promise<void>> {
+): Promise<(canceled?: boolean) => Promise<void>> {
     const fingers = (gap: number): Record<string, number>[] =>
         [-1, 1].map((side, id) => {
             const at = toPage(element, { x: center.x + (side * gap) / 2, y: center.y });
@@ -387,8 +387,8 @@ export async function holdPinch(
         await nextFrame();
     }
 
-    return async (cancelled = false) => {
-        await send()("Input.dispatchTouchEvent", { type: cancelled ? "touchCancel" : "touchEnd", touchPoints: [] });
+    return async (canceled = false) => {
+        await send()("Input.dispatchTouchEvent", { type: canceled ? "touchCancel" : "touchEnd", touchPoints: [] });
     };
 }
 

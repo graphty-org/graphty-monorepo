@@ -351,7 +351,7 @@ describe("declared algorithm results", () => {
                 assert.isTrue(context.reports.every((report) => typeof report.phase === "string"));
             });
 
-            it(`${testCase.name} stops when the run is cancelled`, async () => {
+            it(`${testCase.name} stops when the run is canceled`, async () => {
                 const controller = new AbortController();
                 controller.abort();
 
@@ -362,7 +362,7 @@ describe("declared algorithm results", () => {
                     thrown = error;
                 }
 
-                assert.instanceOf(thrown, Error, `${testCase.name} ran to completion after being cancelled`);
+                assert.instanceOf(thrown, Error, `${testCase.name} ran to completion after being canceled`);
                 assert.strictEqual(thrown.name, "AbortError");
             });
         }

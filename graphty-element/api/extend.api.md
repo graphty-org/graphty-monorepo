@@ -2025,7 +2025,7 @@ export type GraphtyErrorCode =
 /**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
-* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+* an `AnimationCanceledError`, a `GraphtyError` with this code. Added in 3.58.0.
 */
 | "E_CANCELED" | "E_INTERNAL";
 

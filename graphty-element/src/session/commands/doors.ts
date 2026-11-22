@@ -2385,7 +2385,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             status: READ,
             progress: READ,
             determinate: READ,
-            cancellable: READ,
+            cancelable: READ,
             queuePosition: READ,
             startedAt: READ,
             durationMs: READ,

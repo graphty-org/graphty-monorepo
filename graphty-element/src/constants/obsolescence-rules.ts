@@ -83,7 +83,7 @@ export const OBSOLESCENCE_RULES: Partial<Record<OperationCategory, ObsolescenceR
         skipRunning: false, // Allow interrupting running camera animations
     },
 
-    // A VIEW-MODE SWITCH IS CANCELLED BY NOTHING BUT A LATER VIEW-MODE SWITCH, which is why it is
+    // A VIEW-MODE SWITCH IS CANCELED BY NOTHING BUT A LATER VIEW-MODE SWITCH, which is why it is
     // not a `camera-update`. Where the viewer stands is a question about the positions in front of
     // them, so a new layout rightly cancels a pending zoom-to-fit; which of the four views is
     // being drawn is not. Arriving data, a new layout engine and a restyle all leave it correct.

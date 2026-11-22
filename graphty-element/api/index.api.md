@@ -335,13 +335,7 @@ export const AlgorithmOnLoad: z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
 export type AlgorithmOnLoad = z.infer<typeof AlgorithmOnLoad>;
 
 // @public
-export const AnimationCanceledError: typeof AnimationCancelledError;
-
-// @public
-export type AnimationCanceledError = AnimationCancelledError;
-
-// @public
-export class AnimationCancelledError extends GraphtyError {
+export class AnimationCanceledError extends GraphtyError {
     constructor();
     readonly name: string;
 }
@@ -3748,7 +3742,7 @@ export interface GraphErrorEvent {
 }
 
 // @public
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public
 export type GraphEventType = GraphEvent["type"];
@@ -3757,7 +3751,7 @@ export type GraphEventType = GraphEvent["type"];
 export interface GraphGenericEvent {
     // (undocumented)
     [key: string]: unknown;
-    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-canceled" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
+    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-canceled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
 }
 
 // @public
@@ -5119,7 +5113,7 @@ export type GraphtyErrorCode =
 /**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
-* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+* an `AnimationCanceledError`, a `GraphtyError` with this code. Added in 3.58.0.
 */
 | "E_CANCELED" | "E_INTERNAL";
 
@@ -7973,13 +7967,6 @@ export interface OperationCanceledEvent {
     type: "operation-canceled";
 }
 
-// @public @deprecated
-export interface OperationCancelledEvent {
-    code: "queue-cleared" | "cancelled";
-    id: string;
-    type: "operation-cancelled";
-}
-
 // @public
 export type OperationCategory = "style-init" | "style-apply" | "style-edit" | "data-add" | "data-remove" | "data-update" | "layout-set" | "layout-update" | "algorithm-run" | "camera-update" | "view-mode" | "render-update";
 
@@ -8166,7 +8153,7 @@ export interface ProgressChange {
         readonly details: Readonly<Record<string, unknown>>;
     };
     readonly fraction: number | null;
-    readonly outcome?: "succeeded" | "failed" | "cancelled";
+    readonly outcome?: "succeeded" | "failed" | "canceled";
     readonly phase: "progress" | "end";
     readonly run?: RunId;
     readonly source?: {
@@ -9511,7 +9498,7 @@ export interface TourEndedEvent {
 }
 
 // @public
-export type TourEndReason = "finished" | "cancelled" | "interrupted" | "replaced" | "mode-changed";
+export type TourEndReason = "finished" | "canceled" | "interrupted" | "replaced" | "mode-changed";
 
 // @public
 export type TourInput = string | Tour | readonly (ViewWaypoint | CameraWaypoint | TourPause)[];

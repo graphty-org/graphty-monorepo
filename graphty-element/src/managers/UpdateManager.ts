@@ -3769,6 +3769,9 @@ export class UpdateManager implements Manager {
      *     the edges, whose endpoints are where they were, are left as they are drawn.
      */
     redrawArrangement(moved = true): void {
+        // Every node, not the rows the lane logged: a redraw puts back meshes that moved without a lane write (a
+        // switch to 2D flattens them in place) or were rebuilt, which no logged row names.
+        this.nodesFollowed = -1;
         this.updateNodes();
         if (moved) {
             this.updateEdges();

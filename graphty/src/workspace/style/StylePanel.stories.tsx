@@ -7,8 +7,8 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { loadSiteConfig, resetSiteConfig } from "../../siteConfig";
 import { freshStore } from "../../stories/freshStore";
-import { keepFeaturesOff } from "../../test/featuresOff";
 import { paintSettled } from "../../stories/paintSettled";
+import { keepFeaturesOff } from "../../test/featuresOff";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { sampleTile } from "../../test/sample-tile";
 import { siteFeatures } from "../../test/siteFeatures";

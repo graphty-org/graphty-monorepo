@@ -21,7 +21,7 @@ import type { Encoding, Layer } from "@graphty/graphty-element/session";
 
 import type { RowContext } from "../PropertyRow";
 import { type DataBinding, type Line, lineIn, lineOf, writeLine } from "../row";
-import { lookOf, PLAIN_LOOK } from "./kindGroups";
+import { lookOf } from "./kindGroups";
 import { TEXT_THINGS } from "./labelRubric";
 
 /**
@@ -30,7 +30,7 @@ import { TEXT_THINGS } from "./labelRubric";
  * @returns `node.labels` or `edge.labels`.
  */
 export function listChannel(side: "node" | "edge"): Channel {
-    return TEXT_THINGS[side].label?.list ?? `${side}.labels`;
+    return TEXT_THINGS[side].label.list ?? `${side}.labels`;
 }
 
 /**
@@ -54,7 +54,7 @@ function layersBeneath(ctx: RowContext): readonly Layer[] {
         return [];
     }
     const side = ctx.session.styles.list().filter((layer) => layer.target === ctx.side);
-    const lowest = ctx.layers[0];
+    const lowest = ctx.layers.at(0);
     const at = lowest === undefined ? -1 : side.findIndex((layer) => layer.id === lowest.id);
     return at < 0 ? side : side.slice(0, at);
 }
@@ -69,7 +69,7 @@ function drawnBeneath(ctx: RowContext): ReadonlyMap<string, LabelEntry> {
     if (ctx.many !== undefined) {
         return new Map();
     }
-    const lowest = ctx.layers[0];
+    const lowest = ctx.layers.at(0);
     const below = ctx.session.styles.list().some((layer) => layer.id === lowest?.id) ? lowest?.id : undefined;
     return new Map(ctx.session.styles.labelsBeneath(ctx.side, below).map((entry) => [entry.id, entry]));
 }
@@ -93,8 +93,8 @@ export function beneathEntry(ctx: RowContext, id: string): LabelEntry | undefine
  */
 export function entryLook(ctx: RowContext, id: string): LabelLookId {
     const named = entryOf(ctx, id)?.style?.look ?? beneathEntry(ctx, id)?.style?.look;
-    const main = TEXT_THINGS[ctx.side].label?.style;
-    return LABEL_LOOKS.find((each) => each.id === named)?.id ?? (main === undefined ? PLAIN_LOOK : lookOf(ctx, main));
+    const main = TEXT_THINGS[ctx.side].label.style;
+    return LABEL_LOOKS.find((each) => each.id === named)?.id ?? lookOf(ctx, main);
 }
 
 /**
@@ -193,7 +193,7 @@ export interface EntryChange {
  * @returns the id, or undefined when no layer on the stack draws this kind (so no label is drawn to add to).
  */
 export function freshEntryId(ctx: RowContext, waiting: readonly string[]): string | undefined {
-    const layer = ctx.layers[0] ?? ctx.session.styles.list().find((each) => each.target === ctx.side);
+    const layer = ctx.layers.at(0) ?? ctx.session.styles.list().find((each) => each.target === ctx.side);
     return layer === undefined ? undefined : ctx.session.styles.newLabelId(layer.id, waiting);
 }
 

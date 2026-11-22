@@ -247,7 +247,7 @@ export function holdsAny(values: StyleFamilyValues | undefined): values is Style
  * @returns the writes.
  */
 function startOf(ctx: RowContext, to: MemberChoice, leaving: Readonly<Record<string, unknown>>): StaticStyle {
-    const [main] = to.owns;
+    const main = to.owns.at(0);
     if (main === undefined) {
         return {};
     }
@@ -293,8 +293,8 @@ export async function switchMember(
     const layer = layerOf(ctx, family);
     if (layer === undefined) {
         // A row with no layer yet: its first line makes one.
-        const [main] = to.owns;
-        const start = picked ?? startOf(ctx, to, {})[main ?? ""];
+        const main = to.owns.at(0);
+        const start = picked ?? (main === undefined ? undefined : startOf(ctx, to, {})[main]);
         if (main !== undefined && start !== undefined) {
             await writeIn(ctx, main, { value: start }, needsFor(ctx, main, start));
         }
@@ -312,12 +312,12 @@ export async function switchMember(
     } else if (to.shader !== undefined) {
         // The shader picked for the shapes' place (a preset of it, or the member's own).
         start = { uses: [{ shader: picked ?? to.shader }] };
-    } else if (picked !== undefined && to.owns[0] !== undefined) {
+    } else if (picked !== undefined && to.owns.at(0) !== undefined) {
         start = { set: { [to.owns[0]]: picked } };
     } else {
         // A kind's start, with what graphty-element says it needs to draw (design 5.1).
         const set = startOf(ctx, to, left.set);
-        const [main] = to.owns;
+        const main = to.owns.at(0);
         start = { set: main === undefined ? set : { ...needsFor(ctx, main, set[main]), ...set } };
     }
     await ctx.session.transaction(`switching ${family.plainName.toLowerCase()} to ${to.name.toLowerCase()}`, (tx) =>

@@ -164,7 +164,8 @@ describe("Style panel v2's collapsed kinds", () => {
         it(`${collapse.name}: one row per kind, Kind moves a row and Undo takes it back, '+' adds a free kind`, async () => {
             const { session, nodes, edges } = await openGraph();
             const layer = collapse.side === "node" ? nodes : edges;
-            await session.styles.update(layer, { set: Object.assign({}, ...collapse.kinds.map((kind) => kind.set)) });
+            const set = collapse.kinds.reduce<Record<string, unknown>>((all, kind) => ({ ...all, ...kind.set }), {});
+            await session.styles.update(layer, { set });
             await session.styles.settled();
             const tab = await openStyle(collapse.side === "node" ? "Key people" : "Links");
             await showKind(collapse.side);

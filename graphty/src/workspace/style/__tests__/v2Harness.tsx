@@ -148,7 +148,7 @@ export async function openGraph(): Promise<{
  */
 export async function picture(element: HTMLElementTagNameMap["graphty-element"]): Promise<ImageData> {
     await element.waitForStableFrame();
-    const shot = await element.captureScreenshot({ destination: { blob: true }, format: "png" });
+    const shot = await element.captureScreenshot({ format: "png" });
     const bitmap = await createImageBitmap(shot.blob);
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const context = canvas.getContext("2d");

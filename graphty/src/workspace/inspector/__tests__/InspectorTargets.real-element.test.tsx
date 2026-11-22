@@ -137,7 +137,7 @@ async function settledElement(): Promise<HTMLElementTagNameMap["graphty-element"
 }
 
 /**
- * A point on the canvas that is no node, no edge and no outline, as the element would pick it.
+ * A point on the canvas that is no node and no edge, as the element would pick it.
  * @param element - the element.
  * @returns the point, in the element's own pixels.
  */
@@ -150,43 +150,11 @@ async function emptyPoint(element: HTMLElementTagNameMap["graphty-element"]): Pr
             { x: width / 2, y: height - 12 },
             { x: 12, y: height / 2 },
         ]) {
-            if (element.elementAt(point) === null && element.groupOutlineAt(point) === null) {
+            if (element.elementAt(point) === null) {
                 return point;
             }
         }
         throw new Error("no empty point on the canvas");
-    });
-}
-
-/**
- * A point on a layer's group outline, around a node and off every node and edge.
- * @param element - the element.
- * @param layer - the layer that draws the outline.
- * @param node - the node it goes around.
- * @returns the point.
- */
-async function outlinePoint(
-    element: HTMLElementTagNameMap["graphty-element"],
-    layer: string,
-    node: string,
-): Promise<{ x: number; y: number }> {
-    return waitFor(() => {
-        const at = element.nodeScreenPosition(node);
-        assert.isTrue(at?.visible, `${node} is drawn on screen`);
-        const radius = at?.radius ?? 0;
-        for (let step = 1.3; step < 6; step += 0.3) {
-            for (let turn = 0; turn < 32; turn++) {
-                const angle = (turn / 32) * 2 * Math.PI;
-                const point = {
-                    x: (at?.x ?? 0) + Math.cos(angle) * radius * step,
-                    y: (at?.y ?? 0) + Math.sin(angle) * radius * step,
-                };
-                if (element.groupOutlineAt(point)?.layer === layer) {
-                    return point;
-                }
-            }
-        }
-        throw new Error("no point of the outline is clear of nodes and edges");
     });
 }
 
@@ -384,13 +352,6 @@ describe("what the inspector opens, on the real element", () => {
 
     it("while the selection workspace is open a canvas click never moves the inspector; it follows the selection on Done", async () => {
         const { session, store } = await openRings();
-        // n11 sits on the outer ring: a hull around it alone has room clear of nodes and edges.
-        const outlined = await session.styles.add({
-            name: "Outlined",
-            target: "node",
-            selector: { match: "ids", nodes: ["n11"] },
-            set: { "node.shaders": [{ shader: "metaball-hull" }] },
-        });
         await session.styles.add({
             name: "Framed",
             target: "node",
@@ -412,16 +373,9 @@ describe("what the inspector opens, on the real element", () => {
             assert.notStrictEqual(found?.style.visibility, "hidden", "and placed");
             return found;
         });
-        // Styled draws the layers' own look in the preview, the outline among it; Card colors would
-        // paint the rule's groups instead.
+        // Styled draws the layers' own look in the preview; Card colors would paint the rule's groups instead.
         await userEvent.click(within(ws).getByText("Styled"));
         const element = await settledElement();
-        await waitFor(() => {
-            assert.isDefined(element.drawnShaders().groupOutlines.find((each) => each.layer === outlined.id));
-        });
-
-        // The outline's layer is not opened: that would unmount the editor and close the workspace.
-        await userEvent.click(element, { position: await outlinePoint(element, outlined.id, "n11") });
         // A click on a node selects it in the preview, and the inspector stays on the editor.
         let node: { x: number; y: number } | undefined;
         await waitFor(() => {

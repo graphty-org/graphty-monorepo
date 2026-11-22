@@ -25,7 +25,7 @@ import { openGraph, openStyle, picture, pixelsApart, sectionOf, written } from "
  * @returns its pixels.
  */
 async function now(element: HTMLElementTagNameMap["graphty-element"]): Promise<ImageData> {
-    const shot = await element.captureScreenshot({ destination: { blob: true }, format: "png" });
+    const shot = await element.captureScreenshot({ format: "png" });
     const bitmap = await createImageBitmap(shot.blob);
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const context = canvas.getContext("2d");

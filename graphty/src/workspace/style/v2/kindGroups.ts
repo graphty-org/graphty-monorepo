@@ -637,7 +637,7 @@ function readSlot(values: Readonly<Record<string, unknown>>, refs: readonly Slot
  * @param value - the value.
  */
 function writeSlot(values: Record<string, unknown>, refs: readonly SlotRef[] | undefined, value: unknown): void {
-    const [ref] = refs ?? [];
+    const ref = refs?.at(0);
     if (ref === undefined || value === undefined) {
         return;
     }

@@ -10,8 +10,8 @@ import ReactDOM from "react-dom/client";
 
 import { App } from "./App.tsx";
 import { loadGraphtyElement } from "./elementLoader";
-import { pinErudaTopRight } from "./lib/eruda";
 import { bootQuery, startAnalyticsAtBoot } from "./lib/analytics";
+import { pinErudaTopRight } from "./lib/eruda";
 import { loadSiteConfig } from "./siteConfig";
 import { theme } from "./theme";
 import { loadFrame } from "./workspace/frameLoader";

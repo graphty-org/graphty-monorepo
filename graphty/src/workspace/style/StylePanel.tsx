@@ -567,26 +567,26 @@ export function RowStyle({
  */
 const SideSections = React.memo(
     function SideSections({ ctx }: Readonly<{ ctx: RowContext; signature: string | null }>): React.JSX.Element {
-        return (
-            <RenderCount id={`style-sections-${ctx.side}`}>
-                {/* Style panel v2 (with file styles) draws its own sections; file styles alone, by part of the drawing. */}
-                {stylePanelV2On(ctx.session) ? (
-                    <StylePanelV2 ctx={ctx} />
-                ) : fileStylesOn(ctx.session) ? (
-                    <PartsPanel ctx={ctx} />
-                ) : (
-                    <section className="ws-style-group" data-group={ctx.side}>
-                        {sectionsFor(ctx.side, { cosmograph: cosmographOn(ctx.session) }).map((spec) =>
-                            spec.id === "text" ? (
-                                <LabelSection key={spec.id} ctx={ctx} />
-                            ) : (
-                                <Section key={spec.id} ctx={ctx} spec={spec} />
-                            ),
-                        )}
-                    </section>
-                )}
-            </RenderCount>
-        );
+        // Style panel v2 (with file styles) draws its own sections; file styles alone, by part of the drawing.
+        let sections: React.JSX.Element;
+        if (stylePanelV2On(ctx.session)) {
+            sections = <StylePanelV2 ctx={ctx} />;
+        } else if (fileStylesOn(ctx.session)) {
+            sections = <PartsPanel ctx={ctx} />;
+        } else {
+            sections = (
+                <section className="ws-style-group" data-group={ctx.side}>
+                    {sectionsFor(ctx.side, { cosmograph: cosmographOn(ctx.session) }).map((spec) =>
+                        spec.id === "text" ? (
+                            <LabelSection key={spec.id} ctx={ctx} />
+                        ) : (
+                            <Section key={spec.id} ctx={ctx} spec={spec} />
+                        ),
+                    )}
+                </section>
+            );
+        }
+        return <RenderCount id={`style-sections-${ctx.side}`}>{sections}</RenderCount>;
     },
     (before, after) => before.signature !== null && before.signature === after.signature,
 );

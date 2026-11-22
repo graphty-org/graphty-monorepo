@@ -245,7 +245,7 @@ interface ControlArgs {
 function unitControl(args: ControlArgs): React.ReactNode {
     const { ctx, line, descriptor, label, fail } = args;
     const units = (line.unit ?? []).map(([, c]) => c);
-    const [off, on] = units;
+    const [off, on] = [units.at(0), units.at(1)];
     if (line.rule === "R7" && off !== undefined && on !== undefined) {
         return (
             <Checkbox
@@ -568,7 +568,7 @@ function SidesLines({
                 descriptor={number}
                 label={`${line.name ?? channelWord(descriptor.channel)} ${side.toLowerCase()}`}
                 percent={false}
-                value={sides[at] === undefined || !Number.isFinite(now) ? undefined : now}
+                value={sides.at(at) === undefined || !Number.isFinite(now) ? undefined : now}
                 onWrite={(next) => {
                     const typed = next === undefined ? "" : String(next);
                     const all = SIDES.map((_, i) => (i === at ? typed : (sides[i] ?? "")));
@@ -731,7 +731,7 @@ export function ByDataLink({
     const bindable = targets.filter(
         ({ descriptor }) => takesBinding(descriptor) || (descriptor.renderable && descriptor.accepts === "boolean"),
     );
-    const [first] = bindable;
+    const first = bindable.at(0);
     if (first === undefined) {
         return null;
     }
@@ -1017,9 +1017,11 @@ function ChoiceLine({ ctx, line, row }: RubricLineProps): React.JSX.Element | nu
             data={choices.map((choice) => ({ value: choice.name, label: choice.name }))}
             value={now?.name ?? null}
             onChange={(next) => {
-                const [first, ...rest] = Object.entries(
-                    choices.find((choice) => choice.name === next)?.writes ?? {},
-                ) as [Channel, ChannelValue][];
+                const writes = Object.entries(choices.find((choice) => choice.name === next)?.writes ?? {}) as [
+                    Channel,
+                    ChannelValue,
+                ][];
+                const [first, rest] = [writes.at(0), writes.slice(1)];
                 if (first !== undefined) {
                     writeIn(ctx, first[0], { value: first[1] }, Object.fromEntries(rest), true).catch(fail);
                 }

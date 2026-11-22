@@ -326,12 +326,12 @@ function labelRowsOf(
     ].filter((id, at, all) => all.indexOf(id) === at);
     const mainShown = ids.length === 0 || waiting.includes(thing.id) || own.some((channel) => setOn(ctx, channel));
     const main = mainShown ? kindRowsOf(ctx, thing, own, waiting) : [];
-    const words = TEXT_THINGS[ctx.side].label?.words;
+    const { words } = TEXT_THINGS[ctx.side].label;
     return [
         ...main,
         ...ids.map((id) => ({
             thing,
-            channels: words === undefined ? [] : [words],
+            channels: [words],
             entry: { id, n: entryNumber(ctx, ids, id) },
         })),
     ];
@@ -471,7 +471,7 @@ function ThingSection({
                 }
                 if (!shown.some((each) => each.thing === thing)) {
                     // A thing that draws nothing in this view (a 3D-only one in 2D) is dimmed, still pickable.
-                    const main = thing.start ?? thing.main[0];
+                    const main = thing.start ?? thing.main.at(0);
                     return [
                         {
                             key: thing.id,
@@ -543,8 +543,8 @@ function ThingSection({
     };
     // The first label in a look: its look is written, and its row waits for its source as Label's does.
     const addsLook = (look: LabelLookId | undefined): boolean => {
-        const style = TEXT_THINGS[ctx.side].label?.style;
-        if (look === undefined || style === undefined) {
+        const { style } = TEXT_THINGS[ctx.side].label;
+        if (look === undefined) {
             return false;
         }
         setWaiting((now) => (now.includes("label") ? now : [...now, "label"]));
@@ -579,7 +579,7 @@ function ThingSection({
         }
         const first = firstItem(ctx, id, main.channel);
         // A list thing opens on its list, and an Image on its picker (design 5.1).
-        if (first !== undefined || id === "image" || (ctx.side === "node" && LISTS[id] !== undefined)) {
+        if (first !== undefined || id === "image" || (ctx.side === "node" && Object.hasOwn(LISTS, id))) {
             setOpening(id);
         }
         const start = first?.[main.channel] ?? (main.accepts === "text" ? undefined : startForOrNone(ctx, main));
@@ -702,10 +702,9 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
     const ctx: RowContext = { ...row, pickers: "listbox", listSections: sectionsOf, namesOnly: true, withNeeds: true };
     // The owner removed Order and groups from the panel (E420, E422): its part draws no section and Find a
     // setting finds none of its settings. graphty-element still draws them from an imported file.
-    const parts = partsFor(
-        ctx.side,
-        experimentChannelsOff({ cosmograph: cosmographOn(ctx.session) }),
-    ).filter((part) => part.id !== "order");
+    const parts = partsFor(ctx.side, experimentChannelsOff({ cosmograph: cosmographOn(ctx.session) })).filter(
+        (part) => part.id !== "order",
+    );
     const sections = SECTIONS[ctx.side].flatMap((section) => {
         const part = parts.find((each) => each.id === section.part);
         return part === undefined ? [] : [{ part, section }];

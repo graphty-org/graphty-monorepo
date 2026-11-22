@@ -49,7 +49,8 @@ export async function unsetIn(
     const { many, session } = ctx;
     const shape = thing?.shape === true;
     if (many !== undefined && !shape) {
-        const [first, ...more] = channels.filter((channel) => many.count(channel) > 0);
+        const counted = channels.filter((channel) => many.count(channel) > 0);
+        const [first, more] = [counted.at(0), counted.slice(1)];
         return first === undefined ? undefined : many.clear(first, ...more);
     }
     const layers = ctx.layers.filter((each) => !each.locked);
@@ -61,7 +62,7 @@ export async function unsetIn(
     const label =
         thing === undefined
             ? `removing ${channelWord(held[0] ?? channels[0]).toLowerCase()}`
-            : `removing ${thing.name.toLowerCase()} from ${(layers[0] === undefined ? undefined : layerWord(session, layers[0].id)) ?? "the default"}`;
+            : `removing ${thing.name.toLowerCase()} from ${(layers.length === 0 ? undefined : layerWord(session, layers[0].id)) ?? "the default"}`;
     return session.transaction(label, async (tx) => {
         for (const { id } of layers) {
             const own = tx.styles.get(id);

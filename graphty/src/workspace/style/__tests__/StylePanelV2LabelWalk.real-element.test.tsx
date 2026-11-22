@@ -51,6 +51,10 @@ const WORDS = "Alpha beta gamma delta \nepsilon 12345 ";
 const SHORT_WORDS = "aa bb cc dd ee ff gg hh ii jj kk";
 const WRAP_SWEEP = Array.from({ length: 96 }, (_, i) => 0.5 + i * 0.1);
 const BACKGROUND = { background: "#ffee00" };
+/** A small solid picture for the label image fields. */
+const LABEL_PICTURE = `data:image/svg+xml;utf8,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#0000ff"/></svg>',
+)}`;
 
 /** Every field's case, after graphty-element's test/helpers/label-fields.ts, in this panel's terms. */
 const CASES: Readonly<Record<LabelField, WalkCase>> = {
@@ -85,6 +89,12 @@ const CASES: Readonly<Record<LabelField, WalkCase>> = {
     lineBox: { value: "glyphs", base: BACKGROUND },
     borderAlign: { value: "center", base: { borderWidth: 6 } },
     backgroundShape: { value: "circle", base: BACKGROUND },
+    borderStyle: { value: "double", base: { borderWidth: 8 } },
+    image: { value: LABEL_PICTURE },
+    imageWidth: { value: 3, base: { image: LABEL_PICTURE } },
+    imageHeight: { value: 3, base: { image: LABEL_PICTURE } },
+    imageOffsetX: { value: 2, base: { image: LABEL_PICTURE } },
+    imageOffsetY: { value: 2, base: { image: LABEL_PICTURE } },
     minScreenSize: { value: 200 },
     // labels wide enough to overlap their neighbors
     declutter: { value: "size", base: { size: 40 } },

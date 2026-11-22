@@ -447,7 +447,7 @@ function controlOf(args: LineControlArgs, rule: string): React.ReactNode {
 }
 
 /** The rule a field's kind gives a line that names none. */
-const RULE_OF_KIND: Readonly<Record<string, string>> = {
+const RULE_OF_KIND: Readonly<Partial<Record<string, string>>> = {
     color: "R1",
     number: "R5",
     boolean: "R7",

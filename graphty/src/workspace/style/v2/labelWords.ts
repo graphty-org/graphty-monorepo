@@ -78,9 +78,6 @@ export function sharedWhere(ctx: RowContext, kind: TextThing, entry: string | un
  */
 export function labelWords(ctx: RowContext, entry: string): string {
     const kind = TEXT_THINGS[ctx.side].label;
-    if (kind === undefined) {
-        return "";
-    }
     const source = sourceText(ctx, entryWords(ctx, entry) ?? lineIn(ctx, kind.words));
     const also = sharedWhere(ctx, kind, entry);
     return also === "" || source === "" ? source : `${source}, ${also}`;

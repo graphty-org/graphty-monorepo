@@ -203,27 +203,6 @@ describe("the Style tab's property rows, side paths", () => {
         assert.strictEqual(session.styles.get(layer.id)?.set?.["node.size"], 2);
     });
 
-    it("removing Outline takes its width with it", async () => {
-        const session = await openMiserables();
-        const layer = await addLayer(session, {
-            name: "Outlined",
-            target: "node",
-            set: { "node.outline": "#D55E00", "node.outlineWidth": 3 },
-        });
-        const tab = await openStyle("Outlined");
-        await row(tab, "node.outlineWidth");
-
-        await userEvent.click(
-            within(await row(tab, "node.outline")).getByRole("button", { name: "Remove node outline" }),
-        );
-        await waitFor(() => {
-            const set = session.styles.get(layer.id)?.set ?? {};
-            assert.isUndefined(set["node.outline"]);
-            assert.isUndefined(set["node.outlineWidth"], "its width went with it");
-        });
-        await gone(tab, "node.outlineWidth");
-    });
-
     it("a lift the 3D view cannot draw says so on its minus, and takes a typed value", async () => {
         const session = await openMiserables();
         const layer = await addLayer(session, { name: "Lifted", target: "edge", set: { "edge.lift": 2 } });

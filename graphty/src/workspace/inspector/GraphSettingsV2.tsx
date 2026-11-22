@@ -62,7 +62,7 @@ const LABEL_TEXT_WORDS: Readonly<Record<(typeof LABEL_TEXT_VALUES)[number], stri
 const LABEL_TEXT_OPTIONS = LABEL_TEXT_VALUES.map((value) => ({ value, name: LABEL_TEXT_WORDS[value] }));
 
 /** What an unnamed line's minus removes. */
-const REMOVE_WORDS: Readonly<Record<string, string>> = {
+const REMOVE_WORDS: Readonly<Partial<Record<string, string>>> = {
     "framing.extent": "Framing",
     highlightColor: "Highlight color",
     minMarkSize: "Smallest mark",

@@ -817,7 +817,7 @@ export function isPictured(options: readonly OptionName[]): boolean {
 export function segmentOptions(
     line: Pick<LineSpec, "unit"> & { readonly channel: string },
     values: readonly string[],
-    table: Readonly<Record<string, Readonly<Record<string, OptionName>> | undefined>> = OPTION_NAMES,
+    table: Readonly<Record<string, Readonly<Partial<Record<string, OptionName>>> | undefined>> = OPTION_NAMES,
 ): readonly (OptionName & { readonly value: string })[] | undefined {
     if (line.unit !== undefined) {
         return line.unit.map(([name, channel]) => ({ value: channel, name }));

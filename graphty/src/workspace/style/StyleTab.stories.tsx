@@ -5,8 +5,8 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
-import { keepFeaturesOff } from "../../test/featuresOff";
 import { paintSettled } from "../../stories/paintSettled";
+import { keepFeaturesOff } from "../../test/featuresOff";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { fileStylesOn } from "../features";
 import type { WorkspaceStore } from "../state/store";

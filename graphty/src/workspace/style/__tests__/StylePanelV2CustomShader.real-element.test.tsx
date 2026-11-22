@@ -109,8 +109,9 @@ describe("Style panel v2's custom shader parameters", () => {
             await userEvent.keyboard("{Control>}a{/Control}0.3{Enter}");
         }
         await waitFor(() => {
-            const uses = session.styles.get(nodes)?.set?.["node.shaders"];
-            const use = Array.isArray(uses) ? uses.find((each) => each.shader === "user/marble") : undefined;
+            const uses = session.styles.get(nodes)?.set?.["node.shaders"] as
+                readonly { readonly shader: string; readonly params?: Readonly<Record<string, unknown>> }[] | undefined;
+            const use = uses?.find((each) => each.shader === "user/marble");
             assert.equal(use?.params?.thickness, 0.3, "typing writes the custom shader's parameter");
         });
     });

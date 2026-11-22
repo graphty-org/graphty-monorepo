@@ -207,11 +207,11 @@ export function firstItemWords(list: ItemList, value: unknown): string {
     const { channel } = list;
     switch (list.kind) {
         case "polylines": {
-            const [first] = readChannelItems(channel as "node.shapeLines", value);
+            const first = readChannelItems(channel as "node.shapeLines", value).at(0);
             return first === undefined ? "" : writeChannelItems("node.shapeLines", [first]);
         }
         case "points": {
-            const [first] = readChannelItems(channel as "node.shapePoints", value);
+            const first = readChannelItems(channel as "node.shapePoints", value).at(0);
             return first === undefined ? "" : writeChannelItems("node.shapePoints", [first]);
         }
         case "texts":

@@ -48,4 +48,35 @@ describe("pinErudaTopRight", () => {
 
         expect(eruda.position()).toEqual({ x: window.innerWidth - 50, y: 0 });
     });
+
+    // iPad Safari fires `orientationchange` when the reader switches apps, and eruda then puts the button
+    // back at its default, bottom-right, unconditionally. Moving it there the way that reset does, it must
+    // come back to the top right.
+    it("brings the button back top-right after eruda resets it to its corner", async () => {
+        eruda.init();
+        pinErudaTopRight(eruda);
+        const root = document.getElementById("eruda")?.shadowRoot;
+        const entry = root?.querySelector<HTMLElement>(".eruda-entry-btn");
+        if (root === null || root === undefined || entry === null || entry === undefined) {
+            throw new Error("eruda drew no entry button");
+        }
+        // The reset moves it to the corner, and the pin moves it back: two style changes.
+        const movedTwice = new Promise<void>((resolve) => {
+            let moves = 0;
+            const watch = new MutationObserver(() => {
+                moves += 1;
+                if (moves === 2) {
+                    watch.disconnect();
+                    resolve();
+                }
+            });
+            watch.observe(root, { attributes: true, attributeFilter: ["style"], subtree: true });
+        });
+
+        const corner = entry.offsetWidth + 10;
+        eruda.position({ x: window.innerWidth - corner, y: window.innerHeight - corner });
+        await movedTwice;
+
+        expect(eruda.position()).toEqual({ x: window.innerWidth - 50, y: 0 });
+    });
 });

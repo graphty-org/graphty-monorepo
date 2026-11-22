@@ -8,7 +8,7 @@
 
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
-import { AnimationCancelledError, isGraphtyError } from "../../../index";
+import { AnimationCanceledError, isGraphtyError } from "../../../index";
 import type { CameraState } from "../../../src/camera/types";
 import type { TourProgressEvent } from "../../../src/events";
 import type { Graph } from "../../../src/Graph.js";
@@ -224,7 +224,7 @@ describe("recording a tour", () => {
         });
     });
 
-    test("an abort cancels the recording with E_CANCELED, an AnimationCancelledError", async () => {
+    test("an abort cancels the recording with E_CANCELED, an AnimationCanceledError", async () => {
         const controller = new AbortController();
         const holding = reaches(graph, 0, "hold");
         const recording = graph.captureAnimation({ tour: [{ view: "a", hold: FOREVER }], signal: controller.signal });
@@ -234,11 +234,11 @@ describe("recording a tour", () => {
             () => undefined,
             (caught: unknown) => caught,
         );
-        assert.instanceOf(error, AnimationCancelledError);
+        assert.instanceOf(error, AnimationCanceledError);
         assert.isTrue(isGraphtyError(error));
         assert.strictEqual(isGraphtyError(error) ? error.code : undefined, "E_CANCELED");
-        assert.strictEqual(error instanceof Error ? error.name : undefined, "AnimationCancelledError");
-        assert.isFalse(standsAt(graph, POSE_A), "a cancelled recording puts the camera back");
+        assert.strictEqual(error instanceof Error ? error.name : undefined, "AnimationCanceledError");
+        assert.isFalse(standsAt(graph, POSE_A), "a canceled recording puts the camera back");
     });
 
     test("an abort or a tour ending while stop 0 is placed, before the recorder exists, still ends the recording", async () => {
@@ -264,18 +264,18 @@ describe("recording a tour", () => {
     test("cancelCameraAnimation cancels a recording and leaves the element's framing as before the tour", async () => {
         const placed = graph.isCameraPlaced();
         const framing = graph.getUpdateManager().isZoomToFitEnabled();
-        let cancelled = 0;
-        const off = graph.on("animation-cancelled", () => {
-            cancelled++;
+        let canceled = 0;
+        const off = graph.on("animation-canceled", () => {
+            canceled++;
         });
         const holding = reaches(graph, 0, "hold");
         const recording = refusalOf(graph.captureAnimation({ tour: [{ view: "a", hold: FOREVER }] }));
         await holding;
         graph.cancelCameraAnimation();
-        assert.isFalse(graph.cancelAnimationCapture(), "the recording is already cancelled");
+        assert.isFalse(graph.cancelAnimationCapture(), "the recording is already canceled");
         assert.strictEqual((await recording)?.code, "E_CANCELED");
         off();
-        assert.strictEqual(cancelled, 1, "the cancel is announced once, as a cancelAnimationCapture() is");
+        assert.strictEqual(canceled, 1, "the cancel is announced once, as a cancelAnimationCapture() is");
         assert.isFalse(standsAt(graph, POSE_A), "the camera is put back");
         assert.strictEqual(graph.isCameraPlaced(), placed, "putting the camera back is not a placement");
         assert.strictEqual(graph.getUpdateManager().isZoomToFitEnabled(), framing, "the framing is as before");

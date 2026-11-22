@@ -275,7 +275,7 @@ describe("what the random sequences found, each pinned on its own", () => {
         assert.lengthOf(session.history.pending, 1, "the add waits for its turn");
 
         const outcome = await session.undo();
-        assert.strictEqual(outcome.kind, "cancelled");
+        assert.strictEqual(outcome.kind, "canceled");
         for (const turn of turns) {
             await turn.release();
         }
@@ -285,7 +285,7 @@ describe("what the random sequences found, each pinned on its own", () => {
                 () => false,
                 () => true,
             ),
-            "the add was cancelled",
+            "the add was canceled",
         );
         assert.notInclude(session.snapshot().ids.toArray(), "late");
         assert.lengthOf(session.history.steps, 0, "and recorded nothing");

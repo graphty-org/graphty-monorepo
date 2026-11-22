@@ -117,7 +117,7 @@ describe("event order", () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
         log.length = 0;
         const outcome = await dispatcher.undo();
-        assert.strictEqual(outcome.kind, "cancelled");
+        assert.strictEqual(outcome.kind, "canceled");
         await load;
         assert.deepEqual(log, [
             "project:rollback:config",
@@ -158,7 +158,7 @@ describe("event order", () => {
         assert.deepEqual(await dispatcher.restoreTo(null), { kind: "nothing" });
     });
 
-    it("clears the history, cancelling pending work, with reason clear", async () => {
+    it("clears the history, canceling pending work, with reason clear", async () => {
         const { dispatcher } = setup();
         await dispatcher.dispatch({ op: "fake.styles", name: "a" });
         const run = dispatcher.dispatch({ op: "fake.run", id: "r1" }).catch((error: unknown) => error);

@@ -2,7 +2,7 @@ import PQueue from "p-queue";
 import toposort from "toposort";
 
 import { OBSOLESCENCE_RULES } from "../constants/obsolescence-rules";
-import type { OperationCanceledEvent, OperationCancelledEvent } from "../events";
+import type { OperationCanceledEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { OperationMetadata, OperationProgress } from "../types/operations";
 import type { EventManager } from "./EventManager";
@@ -723,15 +723,15 @@ export class OperationQueueManager implements Manager {
                 this.triggerPostExecutionOperations(operation);
             }
         } catch (error) {
-            // WAS THIS OPERATION CANCELLED, or did it fail? The question is answered by the
+            // WAS THIS OPERATION CANCELED, or did it fail? The question is answered by the
             // operation's own signal, not by the shape of the throw: a body that checks
             // `context.signal.aborted` and gives up throws whatever it likes, and a `fetch` deep
             // inside a body that ran to completion can raise an `AbortError` of its own that has
             // nothing to do with this queue. A canceled operation resolves and is not reported;
             // anything else is the caller's error and the graph's.
-            const cancelled = operation.abortController?.signal.aborted === true;
+            const canceled = operation.abortController?.signal.aborted === true;
 
-            if (cancelled) {
+            if (canceled) {
                 this.settleResolved(operation);
             } else {
                 this.settleRejected(operation, error);
@@ -739,7 +739,7 @@ export class OperationQueueManager implements Manager {
 
             // The name of the error does not decide this either: an `AbortError` the body raised
             // itself, with the operation's signal untouched, is a failure like any other.
-            if (!cancelled) {
+            if (!canceled) {
                 this.handleOperationError(operation, error);
             }
         } finally {
@@ -751,7 +751,7 @@ export class OperationQueueManager implements Manager {
     /**
      * Answer whoever is awaiting this operation, and make sure nothing answers them twice.
      *
-     * A CANCELLED OPERATION RESOLVES. The element cancels an operation when a newer instruction
+     * A CANCELED OPERATION RESOLVES. The element cancels an operation when a newer instruction
      * makes it redundant -- that is what the table in `src/constants/obsolescence-rules.ts` is --
      * so the work not happening is the element's own decision about the caller's own later
      * request, not a failure the caller has to handle. The graph's constructor depends on exactly
@@ -997,7 +997,7 @@ export class OperationQueueManager implements Manager {
 
     /**
      * Tell listeners an operation was aborted: `operation-canceled`, then the same event under its
-     * deprecated British name `operation-cancelled` (code `"cancelled"`), sent until the next major.
+     * deprecated British name `operation-canceled` (code `"canceled"`), sent until the next major.
      * @param id - The operation's id.
      * @param code - Why it was aborted.
      */
@@ -1007,11 +1007,6 @@ export class OperationQueueManager implements Manager {
             id,
             code,
         } satisfies OperationCanceledEvent);
-        this.eventManager.emit("operation-cancelled", {
-            type: "operation-cancelled",
-            id,
-            code: code === "canceled" ? "cancelled" : code,
-        } satisfies OperationCancelledEvent);
     }
 
     /**
@@ -1150,17 +1145,17 @@ export class OperationQueueManager implements Manager {
      * @returns Number of operations canceled
      */
     cancelByCategory(category: OperationCategory): number {
-        let cancelledCount = 0;
+        let canceledCount = 0;
 
         // Running ones too: only looking at the pending ones left a running camera animation going
         // after the camera was placed elsewhere, and it then moved the camera off that placement.
         for (const operation of this.liveOf(new Set([category]), false)) {
             if (this.cancelOperation(operation.id)) {
-                cancelledCount++;
+                canceledCount++;
             }
         }
 
-        return cancelledCount;
+        return canceledCount;
     }
 
     /**

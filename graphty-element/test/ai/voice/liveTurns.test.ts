@@ -80,7 +80,7 @@ class LiveHarness {
             readerContext: (pointing) => liveFacts(this.controller)?.readerContext(pointing) ?? "",
             close: () => {
                 this.closes++;
-                engine.closed("AI_CANCELLED", {});
+                engine.closed("AI_CANCELED", {});
                 this.connection.close();
             },
             answered: (result) => this.answered.push(result),
@@ -352,7 +352,7 @@ describe("one conversation across typing and talking", () => {
     });
 });
 
-describe("a message cancelled or undone ends the connection, and nothing it still sends runs", () => {
+describe("a message canceled or undone ends the connection, and nothing it still sends runs", () => {
     it("Stop after the first batch: the batch is taken back, the next response runs no tool, and the connection closes", async () => {
         const live = await harness();
         await live.sayAndRun("make n3 red, then n2", paint("c1", "n3"));
@@ -365,12 +365,12 @@ describe("a message cancelled or undone ends the connection, and nothing it stil
         await live.messages(1);
         await live.drained();
 
-        assert.strictEqual(live.answered[0].code, "AI_CANCELLED");
+        assert.strictEqual(live.answered[0].code, "AI_CANCELED");
         assert.lengthOf(live.answered, 1, "no message ran the later response");
         assert.strictEqual(live.closes, 1, "the connection closed");
         assert.deepStrictEqual(redNodes(live.session, NODES), []);
         assert.lengthOf(live.saved().reader, 1);
-        assert.lengthOf(live.connection.sentResults, 1, "no cancelled results asked for another response");
+        assert.lengthOf(live.connection.sentResults, 1, "no canceled results asked for another response");
     });
 
     it("an undo of the message's step while it runs: the same", async () => {

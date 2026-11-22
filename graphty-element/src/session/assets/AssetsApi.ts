@@ -115,7 +115,7 @@ export interface AddAssetOptions {
      * Hears how far the files have been read: changes with `task: "asset"`, `unit: "bytes"` and
      * `asset.stage` (`"downloading"`, `"reading"` or `"unpacking"`), then one `phase: "end"` change
      * with its `outcome` (`"succeeded"` when the record is accepted, `"failed"` with the first
-     * problem's code otherwise, `"cancelled"` when the signal stopped it).
+     * problem's code otherwise, `"canceled"` when the signal stopped it).
      */
     readonly onProgress?: (change: ProgressChange) => void;
     /**
@@ -721,7 +721,7 @@ function progressEnd(outcome: unknown, source: ProgressChange["source"]): Progre
     const failed = settled && record.state !== "accepted";
     let ended: ProgressChange["outcome"] = "succeeded";
     if (!settled) {
-        ended = "cancelled";
+        ended = "canceled";
     } else if (failed) {
         ended = "failed";
     }

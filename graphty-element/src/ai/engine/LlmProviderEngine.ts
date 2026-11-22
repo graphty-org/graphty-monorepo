@@ -35,7 +35,7 @@ export function providerFailure(
 ): TurnError {
     const cause = toSafeError(error, secrets);
     if (signal.aborted) {
-        return { type: "error", code: "AI_CANCELLED", params: {}, cause };
+        return { type: "error", code: "AI_CANCELED", params: {}, cause };
     }
 
     if (cause.name === API_KEY_MISSING_ERROR) {

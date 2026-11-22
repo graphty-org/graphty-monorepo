@@ -172,6 +172,23 @@ export async function click(
 }
 
 /**
+ * A left click whose hand shook: press at one point, move with the button held to another, and
+ * release there. All events are sent together, as `click` sends its press and release, so the
+ * press never reads as a long press however busy the page is; the protocol delivers them in order.
+ * @param element - The element the points are on.
+ * @param point - Where the press is.
+ * @param shaken - Where the release is.
+ */
+export async function shakyClick(element: Element, point: Point, shaken: Point): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 0);
+    await Promise.all([
+        mouseEvent("mousePressed", element, point, 1),
+        mouseEvent("mouseMoved", element, shaken, 1),
+        mouseEvent("mouseReleased", element, shaken, 0),
+    ]);
+}
+
+/**
  * Press and release the right button at one point, as a context-menu click does.
  * @param element - The element the point is on.
  * @param point - Where.
@@ -371,7 +388,7 @@ export async function holdPinch(
     fromGap: number,
     toGap: number,
     steps = 8,
-): Promise<(cancelled?: boolean) => Promise<void>> {
+): Promise<(canceled?: boolean) => Promise<void>> {
     const fingers = (gap: number): Record<string, number>[] =>
         [-1, 1].map((side, id) => {
             const at = toPage(element, { x: center.x + (side * gap) / 2, y: center.y });
@@ -387,8 +404,8 @@ export async function holdPinch(
         await nextFrame();
     }
 
-    return async (cancelled = false) => {
-        await send()("Input.dispatchTouchEvent", { type: cancelled ? "touchCancel" : "touchEnd", touchPoints: [] });
+    return async (canceled = false) => {
+        await send()("Input.dispatchTouchEvent", { type: canceled ? "touchCancel" : "touchEnd", touchPoints: [] });
     };
 }
 

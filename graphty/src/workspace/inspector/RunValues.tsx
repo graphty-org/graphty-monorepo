@@ -75,7 +75,7 @@ export function RunStateBar({
     let buttons: React.ReactNode;
     if (run.status === "queued" || run.status === "running") {
         words = run.status === "queued" ? queuedWords(run.queuePosition) : "Running";
-        buttons = run.cancellable && (
+        buttons = run.cancelable && (
             <Button
                 size="compact-xs"
                 variant="default"

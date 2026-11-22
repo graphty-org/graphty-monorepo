@@ -37,9 +37,20 @@ export interface AlgorithmData {
      * @param id - The node id.
      * @returns The node, or undefined.
      */
-    getNode(id: NodeId): { readonly data: Readonly<Record<string, unknown>> } | undefined;
+    getNode(id: NodeId):
+        | {
+              /** The node's data record, as it was loaded. */
+              readonly data: Readonly<Record<string, unknown>>;
+          }
+        | undefined;
     /** What the last load read, of which an algorithm reads only the weight column. */
-    readonly lastImport: { readonly weights: { readonly attribute: string | null } } | null;
+    readonly lastImport: {
+        /** How the last load read edge weights. */
+        readonly weights: {
+            /** The edge attribute the weights were read from, or null when the load read no weight. */
+            readonly attribute: string | null;
+        };
+    } | null;
 }
 
 /** The known fields an algorithm reads from the data configuration. */
@@ -66,7 +77,16 @@ export interface AlgorithmHost {
      */
     getSession(): GraphSession;
     /** The data configuration's known fields, when the host carries a configuration. */
-    readonly styles?: { readonly config: { readonly data: { readonly knownFields: AlgorithmKnownFields } } };
+    readonly styles?: {
+        /** The host's configuration. */
+        readonly config: {
+            /** The configuration's data section. */
+            readonly data: {
+                /** The known fields: which data paths hold a node's label and an edge's weight meaning. */
+                readonly knownFields: AlgorithmKnownFields;
+            };
+        };
+    };
 }
 
 const hosts = new WeakMap<GraphSession, AlgorithmHost>();

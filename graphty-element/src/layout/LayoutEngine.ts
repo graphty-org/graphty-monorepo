@@ -413,18 +413,42 @@ export const layoutEngineInternals = {} as {
  * @returns True for an engine that lays edge routes.
  */
 export function laysEdgeRoutes(engine: LayoutEngine | undefined): boolean {
-    if ((engine as { config?: { edgeRoutes?: unknown } } | undefined)?.config?.edgeRoutes === "graphviz") {
+    if (engine === undefined) {
+        return false;
+    }
+
+    if ((engine as unknown as { config?: { edgeRoutes?: unknown } }).config?.edgeRoutes === "graphviz") {
         return true;
     }
 
-    const type = (engine?.constructor as { type?: unknown } | undefined)?.type;
+    // Read for every pulled edge in a frame's walk, so answered once per engine class.
+    const { constructor: cls } = engine;
+    let lays = routeLayingClasses.get(cls);
+    if (lays === undefined) {
+        lays = classLaysEdgeRoutes(engine);
+        routeLayingClasses.set(cls, lays);
+    }
+
+    return lays;
+}
+
+/** {@link laysEdgeRoutes}'s answer per engine class. */
+const routeLayingClasses = new WeakMap<object, boolean>();
+
+/**
+ * Whether an engine's class lays edge routes: a Graphviz engine, or one with its own `getEdgePosition` (a third
+ * party's), which may put an edge's ends anywhere, so its edges are asked of it rather than pulled between their
+ * nodes' rows.
+ * @param engine - The engine.
+ * @returns True when it does.
+ */
+function classLaysEdgeRoutes(engine: LayoutEngine): boolean {
+    const { type } = engine.constructor as { type?: unknown };
     if (typeof type === "string" && type.startsWith("graphviz-")) {
         return true;
     }
 
-    // An engine with its own `getEdgePosition` (a third party's) may put an edge's ends anywhere, so its edges are
-    // asked of it rather than pulled between their nodes' rows.
-    const owner = engine === undefined ? null : edgePositionOwner(engine);
+    const owner = edgePositionOwner(engine);
     return owner !== null && !edgesFollowingNodes.has(owner);
 }
 

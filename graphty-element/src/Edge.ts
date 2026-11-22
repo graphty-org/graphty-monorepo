@@ -3437,11 +3437,17 @@ export class Edge {
     /**
      * Move a pulled line between the straight and the curve batch, as it is placed, when the route the layout picks
      * for it has changed ({@link Edge.routeOf}): the layout's map came or went, or changed surface, which keys no
-     * mesh, so no restyle would. The placement then writes the route's shape ({@link Edge.pullCurve}).
+     * mesh, so no restyle would. The placement then writes the route's shape ({@link Edge.pullCurve}). A layout that
+     * now lays the edge's route itself (`laysEdgeRoutes`) takes it out of the batch, to be placed where it says.
      */
     private followRoute(): void {
         const style = this.drawnStyle;
-        if (this.pulled !== null && style !== null && this.pulled.curve !== this.pullsCurve(style)) {
+        if (
+            this.pulled !== null &&
+            style !== null &&
+            (this.pulled.curve !== this.pullsCurve(style) ||
+                laysEdgeRoutes(this.context.getLayoutManager().layoutEngine))
+        ) {
             this.updateStyle();
         }
     }
@@ -3822,14 +3828,22 @@ export class Edge {
     /**
      * Whether this edge's line is a straight pulled one, which the shader draws from its nodes' rows wherever they
      * are, so the frame's walk has nothing to place for it: only a renumbering freeze changes it
-     * ({@link Edge.followRenumberedRows}). A pulled curve writes its span at each placement, and a line the
-     * layout's map would arc is moved to the curve batch by its next placement, so neither follows rows alone.
+     * ({@link Edge.followRenumberedRows}). A pulled curve writes its span at each placement, a line the
+     * layout's map would arc is moved to the curve batch by its next placement, and a line under a layout that lays
+     * edge routes itself leaves its batch at its next placement, so none of them follows rows alone.
      * @returns True when the walk may leave this edge alone.
      * @internal
      */
     get followsRows(): boolean {
         // a halo (a selected edge's band) is a placed slot, so the walk places it
-        return this.pulled !== null && !this.pulled.curve && this.route === "straight" && this.haloBatch === null;
+        return (
+            this.pulled !== null &&
+            !this.pulled.curve &&
+            this.route === "straight" &&
+            this.haloBatch === null &&
+            // a layout that lays the route itself takes the line out of its batch at the next placement
+            !laysEdgeRoutes(this.context.getLayoutManager().layoutEngine)
+        );
     }
 
     /**

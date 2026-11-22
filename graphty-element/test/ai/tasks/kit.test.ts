@@ -89,6 +89,8 @@ describe("isColorNamed", () => {
     it("grades the other words the tasks ask for", () => {
         assert.isTrue(isColorNamed("#dc2626", "red"));
         assert.isTrue(isColorNamed("crimson", "red"));
+        // The Set1 red a model picked for "red" (#9510), resolved as the element reports it.
+        assert.isTrue(isColorNamed({ r: 228, g: 26, b: 28, a: 1, hex: "#e41a1c" }, "red"));
         assert.isFalse(isColorNamed("#ffa500", "red"));
         assert.isTrue(isColorNamed("#f97316", "orange"));
         assert.isTrue(isColorNamed("gold", "gold"));

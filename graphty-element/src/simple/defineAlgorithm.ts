@@ -13,6 +13,7 @@
  * id mapping, the output, unmeasured values, caveats and the cost model.
  */
 
+import type { AlgorithmHost } from "../algorithms/host";
 import { communityFields, edgeMetricFields, nodeMetricFields } from "../algorithms/metrics/fields";
 import { DeclaredAlgorithm } from "../algorithms/results/DeclaredAlgorithm";
 import { communityFieldSpecs, metricFieldSpecs } from "../algorithms/results/fields";
@@ -26,10 +27,10 @@ import {
 import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { AlgorithmDescriptor, OptionDescriptor, ResultShape, SuggestedName } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors";
-import type { Graph } from "../Graph";
 import type { ResultElementValues } from "../session/results";
 import { caveat, type CaveatCode } from "../session/runs/caveatFacts";
 import type { CodedFact } from "../session/shared";
+import type { GraphSession } from "../session/types";
 import { quoteEach } from "../utils/quote-each";
 import {
     badDefinition,
@@ -66,7 +67,10 @@ interface CheckedAlgorithm {
 }
 
 /** A class `defineAlgorithm` generates: a concrete `DeclaredAlgorithm` the element constructs. */
-type GeneratedClass = (new (graph: Graph, options?: Record<string, unknown>) => DeclaredAlgorithm) & {
+type GeneratedClass = (new (
+    graph: AlgorithmHost | GraphSession,
+    options?: Record<string, unknown>,
+) => DeclaredAlgorithm) & {
     readonly type: string;
 };
 

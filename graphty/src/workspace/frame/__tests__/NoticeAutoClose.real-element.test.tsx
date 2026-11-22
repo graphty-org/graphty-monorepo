@@ -1,7 +1,7 @@
 /**
  * A confirmation with nothing to act on ("Selection cleared") goes on its own after a few
  * seconds on the REAL graphty-element, even after an earlier notice was closed from its x under
- * the pointer.
+ * the pointer, which the new notice comes up under; moving the pointer onto a notice still holds it.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -50,6 +50,11 @@ describe("a notice's own timer", () => {
         await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
         assert.isNull(store.get().notice, "the x took the first notice down");
 
+        let entered = false;
+        const onEnter = (event: Event): void => {
+            entered ||= event.target instanceof Element && event.target.classList.contains("ws-notice-slot");
+        };
+        document.addEventListener("pointerenter", onEnter, true);
         await session.selection.apply({ nodes: ["n0"] });
         vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
         await userEvent.keyboard("{Escape}");
@@ -58,13 +63,46 @@ describe("a notice's own timer", () => {
             assert.match(store.get().notice?.message ?? "", /^Selection cleared/);
         });
         assert.isNotEmpty(screen.getAllByText(/^Selection cleared/));
+        // The notice came up under the pointer the x left behind. Chromium sends it pointerenter at
+        // a later frame with no pointermove: wait for that enter, so the timer is checked after it,
+        // as on a busy machine, and not before it.
+        await vi.waitFor(() => {
+            assert.isTrue(entered, "the browser sent pointerenter to the notice under the pointer");
+        });
+        // React renders what that enter changed before the clock moves.
+        await act(async () => {
+            await Promise.resolve();
+        });
 
         act(() => {
             vi.advanceTimersByTime(NOTICE_MS);
         });
         assert.isNull(store.get().notice, "the confirmation went on its own");
         assert.isEmpty(screen.queryAllByTestId("toast"));
+        document.removeEventListener("pointerenter", onEnter, true);
         // Whatever the element queued on the fake clock runs before the real clock comes back.
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+    });
+
+    it("holds a notice while the reader moves the pointer onto it", async () => {
+        const { store } = await openWorkspace();
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        act(() => {
+            store.set({ notice: { message: "Saved Untitled" } });
+        });
+        await userEvent.hover(screen.getByTestId("toast"));
+        act(() => {
+            vi.advanceTimersByTime(NOTICE_MS * 2);
+        });
+        assert.isNotNull(store.get().notice, "the pointer on it holds the notice");
+
+        await userEvent.hover(document.body, { position: { x: 5, y: 5 } });
+        act(() => {
+            vi.advanceTimersByTime(NOTICE_MS);
+        });
+        assert.isNull(store.get().notice, "the notice went once the pointer left it");
         act(() => {
             vi.runOnlyPendingTimers();
         });

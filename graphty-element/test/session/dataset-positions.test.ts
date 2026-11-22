@@ -2,7 +2,9 @@
  * A sample dataset whose nodes carry a saved drawing opens in it (issue #9281): loaded with
  * `layout: "placed"`, a dataset graph-samples gives a cartesian position column (BioPlex 3.0,
  * WikiPathways WP615) is drawn on the fixed layout at its saved coordinates, y up, and a dataset
- * whose positions are geographic (openflights) is not placed as a drawing.
+ * whose positions are geographic (openflights) is not placed as a drawing. A dataset whose own
+ * position column says which way its y grows (issue #2004) is drawn y up either way: a y-down
+ * drawing is turned over, so the fixed layout never shows it upside down.
  */
 
 import { fromEdgeArrays } from "@graphty/graph-format";
@@ -27,6 +29,55 @@ function datasetBytes(columns: readonly [string, string]): Uint8Array {
             [columns[1]]: Float64Array.from(ids, (id) => SAVED[id][1]),
         },
     }).toBytes();
+}
+
+/**
+ * The bytes of the same dataset carrying its own cartesian position column, whose y grows as `yAxis` says.
+ * @param yAxis - which way the column's y grows
+ * @returns the dataset file
+ */
+function drawnBytes(yAxis: "up" | "down"): Uint8Array {
+    const ids = Object.keys(SAVED);
+    const data = Float64Array.from(
+        ids.flatMap((id) => [SAVED[id][0], yAxis === "up" ? SAVED[id][1] : -SAVED[id][1], 0]),
+    );
+    return fromEdgeArrays({
+        directed: true,
+        nodeCount: ids.length,
+        src: Uint32Array.of(0, 0),
+        dst: Uint32Array.of(1, 2),
+        ids,
+    })
+        .withColumns({
+            position: {
+                data,
+                decl: {
+                    dtype: "f64",
+                    components: 3,
+                    role: "position",
+                    coordinates: { kind: "cartesian", dims: 2, units: "file", yAxis },
+                },
+            },
+        })
+        .toBytes();
+}
+
+/**
+ * Asserts the session drew the saved drawing on the fixed layout, y up: b right of a, c above a.
+ * @param session - the session
+ */
+async function assertDrawnYUp(session: GraphSession): Promise<void> {
+    assert.strictEqual(session.layout.id, "fixed", "every node placed: the saved drawing is kept");
+    await vi.waitFor(() => {
+        const [ax, ay] = at(session, "a");
+        const [bx, by] = at(session, "b");
+        const [cx, cy] = at(session, "c");
+        const unit = (bx - ax) / SAVED.b[0];
+        assert.isAbove(unit, 0, "b right of a");
+        assert.closeTo(by - ay, 0, 1e-6, "b level with a");
+        assert.closeTo(cx - ax, 0, 1e-6, "c above a");
+        assert.closeTo(cy - ay, SAVED.c[1] * unit, 1e-6, "c twice as far as b, y up");
+    });
 }
 
 /**
@@ -63,17 +114,20 @@ describe("a dataset's saved drawing", () => {
             await vi.waitFor(() => {
                 assert.lengthOf(session.history.pending, 0);
             });
-            assert.strictEqual(session.layout.id, "fixed", "every node placed: the saved drawing is kept");
+            await assertDrawnYUp(session);
+            session.dispose();
+        });
+    }
+
+    for (const yAxis of ["up", "down"] as const) {
+        it(`draws a dataset's own y-${yAxis} position column y up on the fixed layout`, async () => {
+            serve(drawnBytes(yAxis));
+            const session = createGraphSession();
+            await session.data.loadDataset("bioplex3-hct116", { baseUrl: "https://datasets.test/", layout: "placed" });
             await vi.waitFor(() => {
-                const [ax, ay] = at(session, "a");
-                const [bx, by] = at(session, "b");
-                const [cx, cy] = at(session, "c");
-                const unit = (bx - ax) / SAVED.b[0];
-                assert.isAbove(unit, 0, "b right of a");
-                assert.closeTo(by - ay, 0, 1e-6, "b level with a");
-                assert.closeTo(cx - ax, 0, 1e-6, "c above a");
-                assert.closeTo(cy - ay, SAVED.c[1] * unit, 1e-6, "c twice as far as b, y up");
+                assert.lengthOf(session.history.pending, 0);
             });
+            await assertDrawnYUp(session);
             session.dispose();
         });
     }

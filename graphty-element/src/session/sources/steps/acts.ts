@@ -8,10 +8,30 @@
 
 import type { GraphtyErrorCode } from "../../../errors/codes";
 import { GraphtyError } from "../../../errors/GraphtyError";
-import { copyKey, isStaged, mintPart, nodeSpace, ownSpace } from "./build";
-import { addSource, buildOf, type Copies, declared, type SourceSteps, type StepsSource } from "./project";
+import { copyKey, isStaged, mintPart, nodeSpace, ownSpace, stepSources, tableRows } from "./build";
+import {
+    addSource,
+    buildOf,
+    checkSpace,
+    type Copies,
+    copyMap,
+    declared,
+    type SourceSteps,
+    type StepsSource,
+    withSourceRules,
+} from "./project";
 import { checkClashRule, conflicts, isOutcome, pickEdit, type Rename, renameColumn } from "./provenance";
-import type { ClashRule, EdgesStep, ElementRef, MergeStep, NodeValuesStep, RowFilter, Step, TableName } from "./types";
+import type {
+    ClashRule,
+    EdgesStep,
+    ElementRef,
+    Mapping,
+    MergeStep,
+    NodeValuesStep,
+    RowFilter,
+    Step,
+    TableName,
+} from "./types";
 
 /** A column of one source. */
 interface FieldRef {
@@ -49,6 +69,7 @@ interface ConnectAct {
     readonly direction?: "into-from" | "from-into";
     readonly edgeType?: string;
     readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
 }
 
 /** Extract (4.3): one column of an edge source becomes nodes, joined to one end by new edges. */
@@ -84,9 +105,29 @@ export type StepsAct =
           readonly source: string;
       }
     | { readonly act: "remove-step"; readonly index: number }
+    /** Move one step to another place in the build order (an edited act keeps its step's place). */
+    | { readonly act: "move-step"; readonly index: number; readonly to: number }
     /** Turn one step off (kept and listed, not built) or back on (7.13). */
     | { readonly act: "set-step-off"; readonly index: number; readonly off: boolean }
-    | { readonly act: "add-staged"; readonly source: string; readonly overlap?: "separate" | "merge" };
+    | { readonly act: "add-staged"; readonly source: string; readonly overlap?: "separate" | "merge" }
+    /** Change a staged source's mapping, space or type (5.1): Rows are, Key, Space, Type, the edge ends. */
+    | { readonly act: "set-mapping"; readonly source: string; readonly patch: MappingPatch };
+
+/** What `setMapping` may change on a source. */
+export interface MappingPatch {
+    /** What its rows are: node rows, edge rows, or both; only for a source that read one table. */
+    readonly rows?: "nodes" | "edges" | "both";
+    /** The id space its node keys live in; naming one means a later Add never asks the overlap question. */
+    readonly space?: string;
+    /** Its node type, written as its whole-source rule; `null` gives it none. */
+    readonly type?: string | null;
+    /** Roles of its node rows, merged into its node mapping. */
+    readonly nodes?: Partial<NonNullable<Mapping["nodes"]>>;
+    /** Roles of its edge rows, merged into its edge mapping. */
+    readonly edges?: Partial<NonNullable<Mapping["edges"]>>;
+    /** The node types of its edge ends, written as end rules; `null` takes one off. */
+    readonly endTypes?: { readonly source?: string | null; readonly target?: string | null };
+}
 
 /**
  * A refusal.
@@ -403,6 +444,10 @@ export function checkClash(
  */
 function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps {
     const s1 = o.into.source;
+    const mirror = mirrored(prior, copies, o);
+    if (mirror !== null) {
+        return connect(prior, copies, mirror);
+    }
     const value =
         s1 !== undefined && isStaged(prior, s1) ? addSource(prior, sourceOf(prior, s1), copies, undefined) : prior;
     let s2 = nodeSource(value, copies, o.from.source);
@@ -441,7 +486,7 @@ function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps
         },
         unmatchedRows: "leave-out",
         columns: [],
-        ...defined({ ignoreCase: o.ignoreCase }),
+        ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces }),
         ...(n1.isKey || n1.keyCol === undefined
             ? {}
             : {
@@ -452,6 +497,34 @@ function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps
     };
     next = { ...next, steps: [...next.steps, step] };
     return withRule(next, "edge", o.edgeType, { source: s2.id, part: mint.part });
+}
+
+/**
+ * Make an edge from a column of source 1 that is not its key to source 2's key, read the other way
+ * round: one edge per source 1 row, to the node 2 its column names. Read from source 2's rows, a
+ * value several source 1 rows share would name several nodes and make no edge (fan-out, 3.5).
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param o - The choices.
+ * @returns The same act with its fields swapped, or null when it reads as it is.
+ */
+function mirrored(value: SourceSteps, copies: Copies, o: ConnectAct): ConnectAct | null {
+    const s1 = o.into.source;
+    const field1 = o.into.field;
+    if (s1 === undefined || field1 === undefined) {
+        return null;
+    }
+    const one = sourceOf(value, s1).mapping.nodes?.key;
+    const two = nodeSource(value, copies, o.from.source).mapping.nodes?.key;
+    if (one === undefined || field1 === one || o.from.field !== two) {
+        return null;
+    }
+    return {
+        ...o,
+        from: { source: s1, field: field1 },
+        into: { source: o.from.source },
+        direction: (o.direction ?? "into-from") === "into-from" ? "from-into" : "into-from",
+    };
 }
 
 /**
@@ -550,6 +623,41 @@ function removeStep(value: SourceSteps, index: number): SourceSteps {
 }
 
 /**
+ * Move one step to another place in the build order: the steps between shift by one. Refused when
+ * a step would read a source before the step that adds it.
+ * @param value - The value.
+ * @param index - The step's place.
+ * @param to - Its new place.
+ * @returns The next value.
+ */
+function moveStep(value: SourceSteps, index: number, to: number): SourceSteps {
+    const step = value.steps[index] as Step | undefined;
+    if (step === undefined) {
+        throw refused("E_BAD_COMMAND", `No step at ${String(index)}.`, { reason: "no-step", index });
+    }
+    if (!Number.isInteger(to) || to < 0 || to >= value.steps.length) {
+        throw refused("E_BAD_COMMAND", `No place ${String(to)} to move a step to.`, { reason: "no-step", index: to });
+    }
+    const steps = value.steps.filter((_, i) => i !== index);
+    steps.splice(to, 0, step);
+    const next: SourceSteps = { ...value, steps };
+    const adds = new Set(steps.flatMap((s) => (s.op === "join.add" ? [s.source] : [])));
+    const added = new Set<string>();
+    for (const s of steps) {
+        if (s.op === "join.add") {
+            added.add(s.source);
+        } else if (stepSources(s, next).some((id) => adds.has(id) && !added.has(id))) {
+            throw refused("E_BAD_COMMAND", `Step ${String(index)} cannot come before the source it reads.`, {
+                reason: "order",
+                index,
+                to,
+            });
+        }
+    }
+    return next;
+}
+
+/**
  * Turn one step off or back on (7.13): an off step is kept, listed and saved but not built; on, it
  * builds again, and a source whose only steps were off is built with it.
  * @param value - The value.
@@ -632,7 +740,198 @@ export function applyAct(value: SourceSteps, act: StepsAct, copies: Copies): Sou
         }
         case "set-step-off":
             return setStepOff(value, act.index, act.off);
+        case "move-step":
+            return moveStep(value, act.index, act.to);
+        case "set-mapping":
+            if (!isStaged(value, sourceOf(value, act.source).id)) {
+                throw refused("E_BAD_COMMAND", `Source ${act.source} is not staged.`, {
+                    reason: "not-staged",
+                    source: act.source,
+                });
+            }
+            return mapped(value, act.source, act.patch, copies);
         default:
             return removeStep(value, act.index);
     }
+}
+
+/** The roles of a mapping patch that name a column of the rows. */
+const COLUMN_ROLES: ReadonlySet<string> = new Set([
+    "key",
+    "source",
+    "target",
+    "edgeId",
+    "weight",
+    "time",
+    "timeEnd",
+    "latitude",
+    "longitude",
+    "coordinates",
+    "country",
+    "region",
+    "city",
+]);
+
+/**
+ * The copy a change of what a source's rows are makes (5.1): the one table it read, held as node
+ * rows, edge rows or both.
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param id - The source.
+ * @param patch - The change.
+ * @returns The copy to hold under the source's copy key, or undefined when its rows stay as they are.
+ * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source, or `E_BAD_COMMAND` (reason
+ *   `many-tables`) for a source that read more than one table.
+ */
+export function rowsCopies(value: SourceSteps, copies: Copies, id: string, patch: MappingPatch): Copies | undefined {
+    if (patch.rows === undefined) {
+        return undefined;
+    }
+    const src = sourceOf(value, id);
+    if (src.tables.length > 1) {
+        throw refused("E_BAD_COMMAND", `Source ${id} read more than one table.`, { reason: "many-tables", source: id });
+    }
+    const key = copyKey(src);
+    const rows = copies[key]?.nodes ?? copies[key]?.edges ?? [];
+    return {
+        [key]: {
+            ...(patch.rows === "edges" ? {} : { nodes: rows }),
+            ...(patch.rows === "nodes" ? {} : { edges: rows }),
+        },
+    };
+}
+
+/**
+ * Refuse a column a table's rows do not hold.
+ * @param src - The source, mapped as it will be.
+ * @param copies - The rows as read.
+ * @param table - The table.
+ * @param roles - The roles the patch names for it.
+ * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` `{ source, column, table }`.
+ */
+function checkColumns(src: StepsSource, copies: Copies, table: TableName, roles: object | undefined): void {
+    const rows = tableRows(src, copyMap(copies), table) ?? [];
+    for (const [role, column] of Object.entries(roles ?? {})) {
+        if (COLUMN_ROLES.has(role) && typeof column === "string" && !rows.some((row) => column in row)) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_ATTRIBUTE",
+                message: `Source ${src.id} holds no column ${JSON.stringify(column)} in its ${table}.`,
+                source: "data",
+                details: { source: src.id, column, table },
+            });
+        }
+    }
+}
+
+/**
+ * A source's mapping with a patch laid over it: the tables `rows` names, each with its roles.
+ * @param src - The source.
+ * @param patch - The change.
+ * @returns The mapping.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `no-nodes`, `no-edges` or `no-ends`).
+ */
+function patchedMapping(src: StepsSource, patch: MappingPatch): Mapping {
+    const { id } = src;
+    const { nodes, edges } = src.mapping;
+    const wantNodes = patch.rows === undefined ? nodes !== undefined : patch.rows !== "edges";
+    const wantEdges = patch.rows === undefined ? edges !== undefined : patch.rows !== "nodes";
+    if (!wantNodes && (patch.nodes !== undefined || patch.space !== undefined)) {
+        throw refused("E_BAD_COMMAND", `Source ${id} holds no node rows.`, { reason: "no-nodes", source: id });
+    }
+    if (!wantEdges && (patch.edges !== undefined || patch.endTypes !== undefined)) {
+        throw refused("E_BAD_COMMAND", `Source ${id} holds no edge rows.`, { reason: "no-edges", source: id });
+    }
+    const edgeMap = wantEdges ? { ...edges, ...patch.edges } : undefined;
+    if (edgeMap !== undefined && (edgeMap.source === undefined || edgeMap.target === undefined)) {
+        throw refused("E_BAD_COMMAND", `Source ${id} names no column for an edge end.`, {
+            reason: "no-ends",
+            source: id,
+        });
+    }
+    const space = patch.space === undefined ? {} : { space: patch.space };
+    return {
+        ...(wantNodes ? { nodes: { ...nodes, ...patch.nodes, ...space } } : {}),
+        ...(edgeMap === undefined ? {} : { edges: edgeMap as NonNullable<Mapping["edges"]> }),
+    };
+}
+
+/**
+ * A mapping whose node space follows a type picked while no space was: unpicked, the node space is
+ * the type's proposal, as staging with a type makes it (5.1, 5.5); no type, the source's own.
+ * @param src - The source.
+ * @param patch - The change.
+ * @param mapping - The mapping with the patch laid over it.
+ * @returns The mapping.
+ */
+function proposedSpace(src: StepsSource, patch: MappingPatch, mapping: Mapping): Mapping {
+    const proposes = patch.type !== undefined && patch.space === undefined && src.spacePicked !== true;
+    if (!proposes || mapping.nodes === undefined) {
+        return mapping;
+    }
+    const { space: _was, ...nodes } = mapping.nodes;
+    return { ...mapping, nodes: patch.type === null ? nodes : { ...nodes, space: patch.type } };
+}
+
+/**
+ * A source's mapping, space or type changed (5.1, 5.6), or what its rows are. A type writes the
+ * source's whole-source and end rules again at once (9.1).
+ * @param value - The value.
+ * @param id - The source's id.
+ * @param patch - The change.
+ * @param copies - The rows as read, holding the tables `rows` names (see `rowsCopies`).
+ * @returns The next value.
+ * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source, `E_SPACE_RESERVED` for a
+ *   `graph:` space, `E_UNKNOWN_ATTRIBUTE` for a column the rows do not hold, or `E_BAD_COMMAND` for
+ *   roles of a table the source does not hold (reason `no-nodes` or `no-edges`) or edge rows with no
+ *   column for an end (reason `no-ends`).
+ */
+export function mapped(value: SourceSteps, id: string, patch: MappingPatch, copies: Copies): SourceSteps {
+    const src = sourceOf(value, id);
+    checkSpace(patch.space);
+    checkSpace(patch.type ?? undefined);
+    const mapping = proposedSpace(src, patch, patchedMapping(src, patch));
+    const wantNodes = mapping.nodes !== undefined;
+    const wantEdges = mapping.edges !== undefined;
+    const { endTypes: _held, ...rest } = src;
+    const endTypes = patch.endTypes === undefined ? src.endTypes : endTypesOf(src.endTypes, patch.endTypes);
+    const next: StepsSource = {
+        ...rest,
+        mapping,
+        ...(wantEdges && endTypes !== undefined ? { endTypes } : {}),
+        ...(patch.rows === undefined
+            ? {}
+            : { tableRows: [...(wantNodes ? ["nodes" as const] : []), ...(wantEdges ? ["edges" as const] : [])] }),
+        ...(patch.space === undefined ? {} : { spacePicked: true }),
+        ...(patch.type === undefined ? {} : { stagedType: patch.type }),
+    };
+    checkColumns(next, copies, "nodes", patch.nodes);
+    checkColumns(next, copies, "edges", patch.edges);
+    let { types } = value;
+    if (patch.type !== undefined || patch.endTypes !== undefined || patch.rows !== undefined) {
+        const own = (rule: (typeof types)[number]["rules"][number]): boolean =>
+            rule.source === id &&
+            (Object.keys(rule).length === 1 || (rule.end !== undefined && rule.part === undefined));
+        types = withSourceRules(
+            types.map((t) => (t.kind === "node" ? { ...t, rules: t.rules.filter((r) => !own(r)) } : t)),
+            next,
+        );
+    }
+    return { ...value, sources: { ...value.sources, [id]: next }, types };
+}
+
+/**
+ * A source's end types with a change laid over them.
+ * @param held - The end types now.
+ * @param patch - The change; `null` takes an end's type off.
+ * @returns The end types.
+ */
+function endTypesOf(
+    held: StepsSource["endTypes"],
+    patch: NonNullable<MappingPatch["endTypes"]>,
+): NonNullable<StepsSource["endTypes"]> {
+    const pick = (end: "source" | "target"): string | undefined =>
+        patch[end] === undefined ? held?.[end] : (patch[end] ?? undefined);
+    const source = pick("source");
+    const target = pick("target");
+    return { ...(source === undefined ? {} : { source }), ...(target === undefined ? {} : { target }) };
 }

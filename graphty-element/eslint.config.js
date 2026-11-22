@@ -199,7 +199,6 @@ export default tseslint.config(
                                 "LayoutImplementation",
                                 "OptionDescriptor",
                                 "ExportResult",
-                                "OperationCancelledEvent",
                                 "CostEstimate",
                                 "RunRecord",
                                 "ScopeApi",

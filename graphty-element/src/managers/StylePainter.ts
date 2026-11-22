@@ -175,7 +175,7 @@ export function isPlainPaint(paint: { readonly meshKey: string }): boolean {
 }
 
 /** The line keys a plain line keeps. */
-const PLAIN_LINE_KEYS: ReadonlySet<string> = new Set(["width", "color", "opacity", "minScreenWidth"]);
+const PLAIN_LINE_KEYS: ReadonlySet<string> = new Set(["width", "color", "opacity", "minScreenWidth", "drawOrder"]);
 
 /**
  * The paint an edge past `limits.objectEdges` is drawn with: its line's width, color and opacity
@@ -848,11 +848,11 @@ function keyedByFloor<T extends NodePaint | EdgePaint>(paint: T, resolved: Resol
 const COARSE = new WeakSet<ResolvedStyle>();
 
 /**
- * A node's resolved style drawn at low detail on a large graph (`Limits.largeGraphThreshold`):
+ * A node's resolved style drawn at low detail on a large graph (`Limits.fullDetailTriangleBudget`):
  * a node no layer gives a `node.meshDetail` is drawn `"low"`. A layer that sets one, `"full"`
  * included, keeps it, which is how a consumer keeps full detail on a large graph.
  * @param resolved - Everything the stack painted the node, after {@link floored}.
- * @param large - Whether the graph holds more nodes than the threshold.
+ * @param large - Whether the graph's nodes at full detail would pass the triangle budget.
  * @returns The style to paint from.
  */
 function coarsened(resolved: ResolvedStyle, large: boolean): ResolvedStyle {
@@ -1368,8 +1368,8 @@ export class StylePainter {
      *     `minMarkSize`), asked as often; absent, every mark is drawn as painted.
      * @param modelDefaults - A model's own settings, by what `node.model` names; asked once per
      *     node painted with a model.
-     * @param largeGraph - Whether the graph holds more nodes than `Limits.largeGraphThreshold`, so
-     *     a node no layer gives a detail is drawn at low detail ({@link coarsened}); asked once per
+     * @param largeGraph - Whether the graph's nodes at full detail would pass
+     *     `Limits.fullDetailTriangleBudget`, so a node no layer gives a detail is drawn at low detail ({@link coarsened}); asked once per
      *     node painted, so it must be cheap.
      * @param dark - Whether the color scheme is dark, so a label no layer colored is drawn light;
      *     asked as often as the minimums.

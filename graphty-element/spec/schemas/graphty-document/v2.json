@@ -306,11 +306,24 @@
                             "$ref": "#/properties/sections/properties/results"
                         }
                     },
-                    "additionalProperties": false,
-                    "description": "A later graph's own sections, each as the top-level section of that key holds it: data, view, notes and results only."
+                    "additionalProperties": {
+                        "type": "object",
+                        "required": ["kind", "version"],
+                        "properties": {
+                            "kind": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "version": {
+                                "type": "integer",
+                                "minimum": 1
+                            }
+                        }
+                    },
+                    "description": "A later graph's own sections, each as the top-level section of that key holds it: data, view, notes and results. Open: an unknown key is skipped, reported and written back."
                 }
             },
-            "additionalProperties": false
+            "description": "A graph of a file holding several. Open: a reader keeps a member it does not know and writes it back."
         }
     }
 }

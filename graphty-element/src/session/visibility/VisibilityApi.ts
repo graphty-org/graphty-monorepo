@@ -69,11 +69,11 @@ import type { VisibilityState } from "../project/state";
 import {
     type Caveats,
     deriveRunId,
-    ENGINE_VERSIONS,
     type EngineVersions,
     ManagedRun,
     type ResolvedScope,
     type Run,
+    RUN_ENGINE,
     type RunBody,
     type RunDefinition,
     type RunExecutionContext,
@@ -1227,7 +1227,7 @@ function kindOf(
  * @returns The visibility model, including the masks the scope resolver reads.
  */
 export function createVisibilityApi(sources: VisibilitySources): SessionVisibilityApi {
-    const engine = sources.engine ?? ENGINE_VERSIONS;
+    const engine = sources.engine ?? RUN_ENGINE;
     const dispatcher = sources.dispatcher ?? new Dispatcher({ definitions: VISIBILITY_DEFINITIONS });
     const { history } = dispatcher;
 

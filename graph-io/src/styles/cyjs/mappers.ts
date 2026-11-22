@@ -592,6 +592,8 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     // an angle, or autorotate along the line, which the routes work out (`autorotateLabels`)
     ["source-text-rotation", { property: "_sourceRotation", type: "text" }],
     ["target-text-rotation", { property: "_targetRotation", type: "text" }],
+    // which of two crossing edges is on top, combined with the element order into `drawOrder` (`combineDrawOrder`)
+    ["z-index", { property: "_zIndex", type: "text" }],
     ...LABEL,
 ]);
 

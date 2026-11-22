@@ -518,7 +518,7 @@ describe("the arrangement under undo and redo", () => {
         assert.notDeepEqual(lane(session), before, "the layout moved the lane under the load");
 
         const outcome = await session.undo();
-        assert.strictEqual(outcome.kind, "cancelled");
+        assert.strictEqual(outcome.kind, "canceled");
         assert.deepEqual(lane(session), before, "every node where it was before the load");
         assert.strictEqual(session.history.steps[0].bytes, bytes, "the step below took no capture");
         assert.isFalse(layout.running, "the rollback left the layout at rest");

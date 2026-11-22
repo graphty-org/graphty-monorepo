@@ -72,7 +72,6 @@
         "./src/algorithms/index.ts",
         "./src/data/index.ts",
         "./src/layout/index.ts",
-        "./src/ai/keys/withEncryptStorage.ts",
         "./src/managers/babylonEngineExtensions.ts",
         "./index.ts",
         "./src/graphty-element.ts",
@@ -165,6 +164,7 @@
         "typecheck:strict-consumer": "node ../tools/require-built.mjs tsconfig.strict-consumer.json tsconfig.no-jsx-opt-in.json && node scripts/typecheck-strict-consumer.mjs tsconfig.strict-consumer.json tsconfig.no-jsx-opt-in.json",
         "lint:fix": "eslint --fix",
         "api:report": "node ../tools/api-report.mjs .",
+        "spec:registry": "UPDATE_SPEC_REGISTRY=1 vitest run --project=default test/spec/registry.test.ts",
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace graphty-element",
         "dev": "vite --force --mode development --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "dev:xr": "node examples/xr/xr-demo-server.js",
@@ -214,7 +214,6 @@
         "ajv": "^8.20.0",
         "ajv-formats": "^3.0.1",
         "axe-core": "^4.13.0",
-        "encrypt-storage": "^2.16.6",
         "esbuild": "^0.28.2",
         "eslint": "^9.39.5",
         "eslint-plugin-jsdoc": "^50.8.0",
@@ -246,7 +245,6 @@
         "@hpcc-js/wasm-graphviz": ">=1.29.0",
         "@mlc-ai/web-llm": ">=0.2.0",
         "@types/react": "*",
-        "encrypt-storage": "^2.14.7",
         "lit": "^3.0.0",
         "neo4j-driver": "^5.0.0"
     },
@@ -264,9 +262,6 @@
             "optional": true
         },
         "@types/react": {
-            "optional": true
-        },
-        "encrypt-storage": {
             "optional": true
         },
         "neo4j-driver": {

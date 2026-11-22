@@ -58,8 +58,9 @@ const GRAPH_ID = /^graph_[0-9A-HJKMNP-TV-Z]{26}$/;
 
 /**
  * The later graphs of a file holding several (spec 2.2 rule 4): an ordered list of two or more
- * `{ id, name, sections? }` with distinct ids, the first naming the top-level graph and holding no
- * `sections`, each later one holding only graph sections.
+ * objects, each with a graph id and a string `name`, the ids distinct, the first naming the
+ * top-level graph and holding no `sections`, each later one holding a `sections` object. An entry
+ * is open: a member this reader does not know is kept, as the whole list is written back as read.
  * @param graphs - The wrapper's `graphs` member.
  * @returns Each later graph's id and sections, or undefined when the member is not that.
  */
@@ -77,10 +78,7 @@ function laterGraphs(graphs: unknown): { readonly id: string; readonly sections:
             GRAPH_ID.test(entry.id) &&
             !ids.has(entry.id) &&
             typeof entry.name === "string" &&
-            Object.keys(entry).every((member) => ["id", "name", "sections"].includes(member)) &&
-            (at === 0
-                ? entry.sections === undefined
-                : isJsonObject(entry.sections) && Object.keys(entry.sections).every((key) => GRAPH_SECTIONS.has(key)));
+            (at === 0 ? entry.sections === undefined : isJsonObject(entry.sections));
         if (!fits) {
             return undefined;
         }
@@ -300,6 +298,39 @@ export function token(name: string): string {
     return name.replaceAll("~", "~0").replaceAll("/", "~1");
 }
 
+/** An extension name: a reverse-domain name, or the reserved `graphty` (common schema `extensions`). */
+const EXTENSION_NAME = /^([a-z0-9]+(-[a-z0-9]+)*)(\.[a-z0-9]+(-[a-z0-9]+)*)+$|^graphty$/;
+
+/**
+ * Whether a value is a well-formed `extensions` member (spec 3, 10): an object keyed by
+ * reverse-domain names. Its values are never read.
+ * @param value - The member.
+ * @returns True when well formed.
+ */
+export function isExtensions(value: unknown): boolean {
+    return isJsonObject(value) && Object.keys(value).every((name) => EXTENSION_NAME.test(name));
+}
+
+/**
+ * A closed object's `ignorable` member (spec 10, "Must-understand members"): the names of the
+ * members a reader that does not know them may ignore.
+ * @param value - The member.
+ * @returns The names; empty when absent; undefined when malformed (not a list of distinct
+ *     non-empty strings), which counts as an unknown must-understand member.
+ */
+export function ignorableOf(value: unknown): ReadonlySet<string> | undefined {
+    if (value === undefined) {
+        return new Set();
+    }
+
+    if (!Array.isArray(value) || !value.every((name) => typeof name === "string" && name !== "")) {
+        return undefined;
+    }
+
+    const names = new Set<string>(value as string[]);
+    return names.size === value.length ? names : undefined;
+}
+
 /**
  * The refusal of a malformed document.
  * @param details - What was wrong.
@@ -446,18 +477,24 @@ const versionOf = (section: unknown): number | null =>
     isJsonObject(section) && typeof section.version === "number" ? section.version : null;
 
 /**
- * What a reader that opens only the first graph reports for each later graph's sections: kept.
+ * What a reader that opens only the first graph reports for each later graph's sections: a graph
+ * section kept, and a key this reader does not know skipped (`W_UNKNOWN_KIND`); both are written
+ * back as read (spec 2.2 rule 4).
  * @param later - The later graphs.
- * @returns One `W_SECTION_KEPT` per section, naming its graph.
+ * @returns One problem per section, naming its graph.
  */
 function keptGraphSections(
     later: readonly { readonly id: string; readonly sections: JsonObject }[],
 ): DocumentProblem[] {
     return later.flatMap(({ id, sections }) =>
-        Object.entries(sections).map(([key, each]) => ({
-            code: "W_SECTION_KEPT" as const,
-            params: { section: key, version: versionOf(each), reason: "graphs", graph: id },
-        })),
+        Object.entries(sections).map(([key, each]): DocumentProblem =>
+            GRAPH_SECTIONS.has(key)
+                ? {
+                      code: "W_SECTION_KEPT",
+                      params: { section: key, version: versionOf(each), reason: "graphs", graph: id },
+                  }
+                : { code: "W_UNKNOWN_KIND", params: { section: key, graph: id } },
+        ),
     );
 }
 

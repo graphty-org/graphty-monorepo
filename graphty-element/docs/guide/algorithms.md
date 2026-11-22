@@ -207,7 +207,7 @@ a listed run of its own, with the id `<algorithm>_<option>_<value>` (`louvain_re
 so its full result is `session.runs.get(row.runId)` and a later sweep over the same values answers
 from it. Options the sweep does not vary go in `params`; `scope`, `seed`, `label`, `signal` and
 `onProgress` are as `batch()` takes them. Nothing is painted unless `style` asks for it, and one
-undo takes the whole sweep away. A cancelled sweep keeps the values that finished, and their rows
+undo takes the whole sweep away. A canceled sweep keeps the values that finished, and their rows
 say so.
 
 #### How much the seed matters

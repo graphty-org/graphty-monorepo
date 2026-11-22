@@ -196,6 +196,8 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     }): AcceleratedAlgorithmRun;
     // @deprecated
     protected algorithmGraph(mode: AlgorithmGraphMode): Graph_2;
+    // @internal
+    protected forgetReachedAccelerator(): void;
     static get(g: AlgorithmHost | GraphSession, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
     static getClass(namespace: string, type: string): (AlgorithmClass & AlgorithmStatics) | null;
     // @deprecated
@@ -224,6 +226,8 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     // @internal
     static parallelEdges?: SimplifyPolicy;
     publishResult(_context: RunControls, runId: string, _fields?: readonly FieldDescriptor[]): Promise<RunResult | undefined>;
+    // @internal
+    reachedAccelerator: GraphAccelerator | null;
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
     // (undocumented)
@@ -287,6 +291,7 @@ export interface AlgorithmDescriptor {
     description: string;
     descriptionId?: string;
     fields: readonly FieldDescriptor[];
+    formerKeys?: readonly LegacyAlgorithmKey[];
     key: AlgorithmKey;
     // @beta
     keywords?: readonly string[];
@@ -524,6 +529,7 @@ export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iter
 
 // @public
 export interface Caveats {
+    readonly accelerator?: ComputeBackend;
     readonly componentScope?: "all" | "largest";
     readonly converged?: boolean;
     readonly direction: RunDirection;
@@ -1098,6 +1104,10 @@ export interface GraphAccelerator {
         reason: string;
     }>;
     readonly name: string;
+    readonly package?: {
+        readonly name: string;
+        readonly version: string;
+    };
     readonly precision?: AccelerationPrecision;
     verify?(): Promise<void>;
 }
@@ -2003,7 +2013,7 @@ export type GraphtyErrorCode =
 /**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
-* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+* an `AnimationCanceledError`, a `GraphtyError` with this code. Added in 3.58.0.
 */
 | "E_CANCELED" | "E_INTERNAL";
 
@@ -2321,6 +2331,8 @@ export abstract class LayoutEngine {
     updatePositions(_nodes: readonly Node_2[]): void;
     // @internal
     wakeForClusters(): boolean;
+    // @internal
+    wakeForLift(): boolean;
     // @internal
     wakeForResize(): boolean;
     // @internal
@@ -2691,6 +2703,7 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     // @deprecated
     description?: string;
     descriptionId?: string;
+    formerNames?: readonly string[];
     group?: string;
     internal?: boolean;
     max?: number | string | OptionBound;

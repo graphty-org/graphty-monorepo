@@ -114,7 +114,7 @@ describe("the engine's live member", () => {
         assert.isTrue(connection.closed);
     });
 
-    it("fails with the scripted code, and with AI_CANCELLED once aborted", async () => {
+    it("fails with the scripted code, and with AI_CANCELED once aborted", async () => {
         const engine = new FakeEngine();
         engine.scriptLive({ code: "AI_KEY_REJECTED", params: { provider: "fake", status: 401 } });
         const failed = await engine.openLive?.({ instructions: "", tools: [] }, new AbortController().signal);
@@ -122,8 +122,8 @@ describe("the engine's live member", () => {
 
         const abort = new AbortController();
         abort.abort();
-        const cancelled = await engine.openLive?.({ instructions: "", tools: [] }, abort.signal);
-        assert.strictEqual(cancelled?.code, "AI_CANCELLED");
+        const canceled = await engine.openLive?.({ instructions: "", tools: [] }, abort.signal);
+        assert.strictEqual(canceled?.code, "AI_CANCELED");
         assert.lengthOf(engine.liveConnections, 0);
     });
 });

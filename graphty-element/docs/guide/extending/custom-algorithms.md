@@ -398,7 +398,7 @@ export class TieStrength extends DeclaredAlgorithm<TieStrengthOptions> {
         const edges: ResultElementValues<string>[] = [];
 
         // Chunks of 1024, a progress report at the start of each and the frame handed back between
-        // them; a cancelled run stops at the next chunk.
+        // them; a canceled run stops at the next chunk.
         await forEachChunked(context, "Measuring ties", rows, (row) => {
             const weaker = Math.min(nodeStrength[src[row]], nodeStrength[dst[row]]);
 
@@ -482,7 +482,7 @@ when you do not. The units are those of the class: elements for `instant` and `i
 every iteration), source-edge pairs for `heavy`, operations for `cubic`. Once the device has been
 calibrated the estimate reports `"calibrated"`, like a built-in's. The older
 `static cost = (n, m) => seconds` still works, but those seconds cannot be scaled to the device,
-so its estimate always reports `"modelled"`; `costUnits` wins when a class declares both.
+so its estimate always reports `"modeled"`; `costUnits` wins when a class declares both.
 
 `costUnits` is also handed the run's option values, the declared defaults filled in, so an option
 that multiplies the work is priced: `(n, m, options) => (n + m) * Number(options.maxIterations)`.

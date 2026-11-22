@@ -162,7 +162,7 @@ describe("an assistant message under undo", () => {
         assert.strictEqual(session.layout.engine, "circular", "the first tool has written");
 
         const outcome = await session.undo();
-        assert.strictEqual(outcome.kind, "cancelled", "undo ended the open message");
+        assert.strictEqual(outcome.kind, "canceled", "undo ended the open message");
         assert.isTrue(running?.abortSignal.aborted, "the running tool saw its abort signal fire");
 
         release();

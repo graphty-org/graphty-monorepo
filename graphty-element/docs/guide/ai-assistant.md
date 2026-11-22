@@ -178,7 +178,7 @@ if (first.code === "AI_CONFIRMATION_NEEDED") {
   Without `"browser"` history, a reload ends every request.
 - **A request ends on an event, never on a timer.** It ends on the reader's decision; on a new
   message, `retryLastAiCommand()` included (`AI_APPROVAL_STALE` with `reason: "superseded"`); on
-  `cancelAiCommand()` (`AI_CANCELLED`); or when the message's step is undone (`AI_UNDONE`). Each
+  `cancelAiCommand()` (`AI_CANCELED`); or when the message's step is undone (`AI_UNDONE`). Each
   emits `ai-pending-resolved { id, kind: "approval", code, params }`: remove what you drew for it.
 - **A changed graph makes a request stale.** If the graph changed after the request was made,
   approving it runs nothing and resolves `AI_APPROVAL_STALE` with `reason: "graph-changed"` and
@@ -311,7 +311,7 @@ if (first.code === "AI_QUESTION_ASKED") {
   An id no open question has resolves `AI_APPROVAL_STALE` with `reason: "expired"`.
 - **A question ends on an event, never on a timer**, as an approval does: on the answer; on a new
   message or `retryLastAiCommand()` (`AI_APPROVAL_STALE`, `reason: "superseded"`); on
-  `cancelAiCommand()` (`AI_CANCELLED`); when the message's step is undone (`AI_UNDONE`); or when the
+  `cancelAiCommand()` (`AI_CANCELED`); when the message's step is undone (`AI_UNDONE`); or when the
   conversation is replaced or cleared (`AI_APPROVAL_STALE`, `reason: "superseded"`). When the
   assistant itself goes (`disableAiControl`, or a new `enableAiControl`) it ends with `reason:
 "disposed"` and stays saved for the next assistant on that conversation. Each emits
@@ -405,7 +405,7 @@ instructions or graph facts the element sends the model.
   and `"text"` otherwise.
 - **`outcome`** (`{ code, params }`) is set on the assistant entry of a message that failed or
   was taken back, instead of an answer: the code `aiCommand` resolved with (`AI_PROVIDER_ERROR`,
-  `AI_CANCELLED`, ...). Word it as you word that result.
+  `AI_CANCELED`, ...). Word it as you word that result.
 - **Roles may be added in a minor release.** Give a `switch (message.role)` a `default` branch
   that skips a role it does not know.
 
@@ -939,7 +939,7 @@ console.log(result.llmText); // the model's answer, from the program's value
 - **Limits:** 5 seconds, 64 tool calls, 4,000 characters of console output and 16 MB of memory per
   program. A program past one ends `AI_TOOL_FAILED` with `cause` `"program-timeout"`,
   `"program-call-limit"` or `"program-memory"`; one that throws, `"program-threw"`; one stopped
-  by `cancelAiCommand()`, `"program-cancelled"`. The model reads what the program returned and
+  by `cancelAiCommand()`, `"program-canceled"`. The model reads what the program returned and
   logged, or how it failed, as a tool result.
 - In the conversation it is a call with `command: "run_code"` and `arguments: { code }`.
 - **Where it cannot run:** in `@graphty/graphty-element/bundle`, which leaves the sandbox out, and
@@ -1116,10 +1116,10 @@ while the wrist orb is pinched.
 | `ai-voice-start`          | `{ mode?, code?, params? }`          | the microphone opened and listening began. With `voice.mode` set, `mode` says how this press reaches the model, `"live"` or `"turns"`; a press asked to be live that runs turn by turn carries `code` and `params` saying why (`AI_VOICE_UNAVAILABLE` `{ path, reason }`, or the code the connection failed to open with) |
 | `ai-voice-transcript`     | `{ transcript, isFinal, pointing? }` | what has been heard so far; the last one has `isFinal: true`, and under `review` also `pointing`                                                                                                                                                                                                                          |
 | `ai-voice-level`          | `{ level }`                          | how loud the microphone is, 0 to 1, at most once per animation frame while talk is held: draw a meter from it                                                                                                                                                                                                             |
-| `ai-voice-end`            | `{ reason, code, params }`           | the press ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`, `AI_NOT_ENABLED` when the assistant has no `voice`, `AI_FAILED` when the voice code would not load, or the provider's code when its transcription failed (`AI_PROVIDER_ERROR`, `AI_KEY_REJECTED`, ...)                                           |
+| `ai-voice-end`            | `{ reason, code, params }`           | the press ended: `AI_COMPLETED`, `AI_CANCELED`, `AI_VOICE_UNAVAILABLE`, `AI_NOT_ENABLED` when the assistant has no `voice`, `AI_FAILED` when the voice code would not load, or the provider's code when its transcription failed (`AI_PROVIDER_ERROR`, `AI_KEY_REJECTED`, ...)                                            |
 | `ai-voice-support-change` | `{ support }`                        | what `getAiVoiceSupport()` would return changed: redraw the talk button from `support`                                                                                                                                                                                                                                    |
 | `ai-speech-start`         | `{}`                                 | an answer started being spoken                                                                                                                                                                                                                                                                                            |
-| `ai-speech-end`           | `{ code, params }`                   | it stopped: `AI_COMPLETED`, `AI_CANCELLED` (talk or `stopAiSpeech()` cut it off), `AI_VOICE_UNAVAILABLE`, or a provider's code                                                                                                                                                                                            |
+| `ai-speech-end`           | `{ code, params }`                   | it stopped: `AI_COMPLETED`, `AI_CANCELED` (talk or `stopAiSpeech()` cut it off), `AI_VOICE_UNAVAILABLE`, or a provider's code                                                                                                                                                                                             |
 
 ```typescript
 element.addEventListener("ai-voice-level", (e) => {

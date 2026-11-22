@@ -200,7 +200,7 @@ describe("when a finished run paints", () => {
         );
     });
 
-    it("paints nothing for a run that failed or was cancelled", () => {
+    it("paints nothing for a run that failed or was canceled", () => {
         const harness = record();
 
         for (const status of ["failed", "canceled", "running", "queued"] as RunStatus[]) {

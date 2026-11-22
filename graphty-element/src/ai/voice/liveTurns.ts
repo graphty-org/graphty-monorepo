@@ -164,7 +164,7 @@ export interface LiveWords {
 const HAND_OFF: ReadonlySet<string> = new Set(["AI_CONFIRMATION_NEEDED", "AI_QUESTION_ASKED"]);
 
 /** The codes of a message whose changes were taken back: what the model remembers did not happen. */
-const TAKEN_BACK: ReadonlySet<string> = new Set(["AI_CANCELLED", "AI_UNDONE", "AI_ROLLBACK_PARTIAL"]);
+const TAKEN_BACK: ReadonlySet<string> = new Set(["AI_CANCELED", "AI_UNDONE", "AI_ROLLBACK_PARTIAL"]);
 
 /**
  * A tool result the live engine writes itself.

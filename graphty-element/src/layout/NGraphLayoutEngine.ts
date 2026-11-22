@@ -647,6 +647,15 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
+     * Step again from where the bodies are: the layout manager lifted them toward 3D.
+     * @returns True: the simulation was woken.
+     */
+    override wakeForLift(): boolean {
+        this.unsettle();
+        return true;
+    }
+
+    /**
      * Read `clusterBy` again and start the simulation when the communities changed.
      * @returns True when the simulation was woken.
      */

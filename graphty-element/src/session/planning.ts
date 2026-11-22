@@ -508,7 +508,7 @@ function unavailableEstimate(descriptor: AlgorithmDescriptor | undefined, { refu
         confidence: "unknown",
         costClass: descriptor?.costClass ?? "unbounded",
         blocksFrame: false,
-        cancellable: false,
+        cancelable: false,
         available: false,
         refusal,
         basisFacts: bareBasis("cost.refused"),
@@ -1216,11 +1216,11 @@ function layoutEstimateNow(
 
     return Object.freeze({
         seconds,
-        confidence: "modelled",
+        confidence: "modeled",
         costClass,
         // A live layout steps once a frame; a batch one computes in one go.
         blocksFrame: kind === "batch" && seconds > 1 / 60,
-        cancellable: true,
+        cancelable: true,
         available: true,
         basisFacts: Object.freeze({
             nodes: n,
@@ -1250,7 +1250,7 @@ function unavailableLayout(costClass: CostClass, { reason, refusal }: EstimateRe
         confidence: "unknown",
         costClass,
         blocksFrame: false,
-        cancellable: false,
+        cancelable: false,
         available: false,
         refusal,
         basisFacts: bareBasis("cost.refused"),

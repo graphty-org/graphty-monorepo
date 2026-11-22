@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 
+import { engineOptionsOf } from "../../../catalog/layouts";
 import { englishDescription } from "../../../catalog/options";
 import type { TransactionScope } from "../../../session/types";
 import { compactSchema, toolJsonSchema } from "../../engine/jsonSchema";
@@ -15,7 +16,7 @@ import { CATALOG_KINDS, type CatalogKind, type IndexEntry, type SearchIndex, sug
 import { toJson } from "../shape";
 import { type ActionSpec, type CatalogView, type JsonObject, type ToolDefinition, ToolRefusal } from "../types";
 import { ok } from "./common";
-import { engineOptionsOf, enginesOf } from "./layout";
+import { enginesOf } from "./layout";
 import { SETTING_GROUPS, settingSchema } from "./project";
 
 /** The most entries one `describe` call takes. */

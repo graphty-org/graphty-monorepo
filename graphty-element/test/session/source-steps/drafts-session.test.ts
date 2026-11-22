@@ -97,7 +97,7 @@ describe("source-steps drafts: the session around a draft", () => {
             [["data.steps-set", "set"]],
         );
         assert.strictEqual(session.data.node("A-2")?.holder, "Bob", "overwrite: accounts.csv's holder");
-        assert.strictEqual(session.data.sources().find((s) => s.name === "m.csv")?.state, "staged");
+        assert.strictEqual(session.data.sources({ staged: true }).find((s) => s.name === "m.csv")?.state, "staged");
         session.dispose();
     });
 
@@ -232,6 +232,22 @@ describe("source-steps drafts: the session around a draft", () => {
         session.dispose();
     });
 
+    it("opening a data file keeps the draft, and staging it is refused with E_DRAFT_OPEN", async () => {
+        const { session } = await phase2();
+        const d = session.data.draft();
+        const opened = await session.project.open(new File(["merchant_id,city\nM-1,Oslo"], "m.csv"));
+        assert.isTrue(d.open, "a data file replaces no project");
+        assert.strictEqual(session.data.currentDraft(), d);
+        opened.draft?.dispose();
+        await refused(
+            () => session.data.stage({ type: "csv", config: { data: "merchant_id,city\nM-1,Oslo" }, name: "m.csv" }),
+            "E_DRAFT_OPEN",
+        );
+        assert.isTrue(d.open, "the refusal leaves the draft as it was");
+        d.dispose();
+        session.dispose();
+    });
+
     it("a note, a style and a run made while a draft is open survive its commit", async () => {
         const session = sessionWithRuns(["source-steps"]);
         await session.data.import(
@@ -327,7 +343,7 @@ describe("source-steps drafts: the session around a draft", () => {
         assert.lengthOf(session.history.steps, history + 1);
         await session.undo();
         assert.isUndefined(session.data.node("b1"), "undo takes more.csv back");
-        assert.isUndefined(session.data.sources().find((s) => s.name === "more.csv"));
+        assert.isUndefined(session.data.sources({ staged: true }).find((s) => s.name === "more.csv"));
         session.dispose();
     });
 
@@ -359,7 +375,7 @@ describe("source-steps drafts: the session around a draft", () => {
         const commit = d.commit();
         await refused(() => load, "E_DRAFT_OPEN");
         await commit;
-        assert.isUndefined(session.data.sources().find((s) => s.name === "late.csv"));
+        assert.isUndefined(session.data.sources({ staged: true }).find((s) => s.name === "late.csv"));
         assert.isDefined(
             session.data.steps().find((s) => s.op === "join.merge"),
             "the commit applied",
@@ -378,13 +394,13 @@ describe("source-steps drafts: the session around a draft", () => {
         const peopleCsv = { type: "csv", config: { data: "badge,name\nb1,Ann\nb2,Bo" }, name: "people.csv" } as const;
         // The example, as the SourceDraft doc comment gives it.
         await session.data.import(entriesCsv, { key: "entry", type: "entry" });
-        const [entries] = session.data.sources();
+        const [entries] = session.data.sources({ staged: true });
         const draft = session.data.draft();
         const people = await draft.stage(peopleCsv, { key: "badge", type: "person" });
         draft.connect({ from: { source: entries.key, field: "badge" }, into: { source: people } });
         await draft.commit(); // one undo step
         assert.lengthOf(session.data.edges(), 2);
-        assert.strictEqual(session.data.sources().find((s) => s.key === people)?.state, "built");
+        assert.strictEqual(session.data.sources({ staged: true }).find((s) => s.key === people)?.state, "built");
         session.dispose();
     });
 

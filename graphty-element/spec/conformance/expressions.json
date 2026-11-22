@@ -1,0 +1,399 @@
+{
+    "description": "Conformance cases for graphty expressions (README 4.8.2). A case with matches gives one element's values by raw path; the expression matches it exactly when matches is true. A case with refused: true is an expression every reader refuses.",
+    "cases": [
+        {
+            "note": "Two strings order by code point, so an ISO time orders against a date.",
+            "where": "data.time >= '2026-11-09'",
+            "on": "edges",
+            "values": {
+                "data.time": "2026-11-09T10:00:00Z"
+            },
+            "matches": true
+        },
+        {
+            "where": "data.time >= '2026-11-09'",
+            "on": "edges",
+            "values": {
+                "data.time": "2026-11-08T23:59:59Z"
+            },
+            "matches": false
+        },
+        {
+            "where": "data.name < 'b'",
+            "on": "nodes",
+            "values": {
+                "data.name": "a"
+            },
+            "matches": true
+        },
+        {
+            "where": "data.a < data.b",
+            "on": "nodes",
+            "values": {
+                "data.a": "apple",
+                "data.b": "banana"
+            },
+            "matches": true
+        },
+        {
+            "note": "Code point order, not UTF-16 code unit order: U+1F600 is above U+FFFF.",
+            "where": "data.a > `\"\\uffff\"`",
+            "on": "nodes",
+            "values": {
+                "data.a": "\ud83d\ude00"
+            },
+            "matches": true
+        },
+        {
+            "note": "A number and a string do not order: null, which is false.",
+            "where": "data.n > '5'",
+            "on": "nodes",
+            "values": {
+                "data.n": 6
+            },
+            "matches": false
+        },
+        {
+            "where": "data.s < `5`",
+            "on": "nodes",
+            "values": {
+                "data.s": "4"
+            },
+            "matches": false
+        },
+        {
+            "where": "data.s >= `5`",
+            "on": "nodes",
+            "values": {
+                "data.s": "9"
+            },
+            "matches": false
+        },
+        {
+            "note": "A missing value reads null.",
+            "where": "data.a == null",
+            "on": "nodes",
+            "values": {},
+            "matches": true
+        },
+        {
+            "where": "data.a > `0`",
+            "on": "nodes",
+            "values": {},
+            "matches": false
+        },
+        {
+            "where": "data.a != null",
+            "on": "nodes",
+            "values": {
+                "data.a": 0
+            },
+            "matches": true
+        },
+        {
+            "note": "0 is true.",
+            "where": "data.a",
+            "on": "nodes",
+            "values": {
+                "data.a": 0
+            },
+            "matches": true
+        },
+        {
+            "where": "data.a",
+            "on": "nodes",
+            "values": {
+                "data.a": ""
+            },
+            "matches": false
+        },
+        {
+            "where": "data.a",
+            "on": "nodes",
+            "values": {
+                "data.a": []
+            },
+            "matches": false
+        },
+        {
+            "where": "data.a",
+            "on": "nodes",
+            "values": {
+                "data.a": {}
+            },
+            "matches": false
+        },
+        {
+            "where": "data.a",
+            "on": "nodes",
+            "values": {
+                "data.a": "no"
+            },
+            "matches": true
+        },
+        {
+            "note": "No coercion.",
+            "where": "data.a == `1`",
+            "on": "nodes",
+            "values": {
+                "data.a": "1"
+            },
+            "matches": false
+        },
+        {
+            "where": "data.a == '1'",
+            "on": "nodes",
+            "values": {
+                "data.a": "1"
+            },
+            "matches": true
+        },
+        {
+            "note": "Deep equality.",
+            "where": "data.a == `[1, 2]`",
+            "on": "nodes",
+            "values": {
+                "data.a": [1, 2]
+            },
+            "matches": true
+        },
+        {
+            "where": "data.a == `[1, 2]`",
+            "on": "nodes",
+            "values": {
+                "data.a": [2, 1]
+            },
+            "matches": false
+        },
+        {
+            "where": "data.a == `{\"x\": 1}`",
+            "on": "nodes",
+            "values": {
+                "data.a": {
+                    "x": 1
+                }
+            },
+            "matches": true
+        },
+        {
+            "note": "Dividing by zero is null.",
+            "where": "data.a / `0` == null",
+            "on": "nodes",
+            "values": {
+                "data.a": 3
+            },
+            "matches": true
+        },
+        {
+            "where": "data.a / `0` > `1`",
+            "on": "nodes",
+            "values": {
+                "data.a": 3
+            },
+            "matches": false
+        },
+        {
+            "note": "Arithmetic takes numbers only.",
+            "where": "data.a + `1` > `3`",
+            "on": "nodes",
+            "values": {
+                "data.a": "3"
+            },
+            "matches": false
+        },
+        {
+            "where": "data.a + data.b == `5`",
+            "on": "nodes",
+            "values": {
+                "data.a": 2,
+                "data.b": 3
+            },
+            "matches": true
+        },
+        {
+            "note": "* binds tighter than +.",
+            "where": "data.a + `1` * `2` == `5`",
+            "on": "nodes",
+            "values": {
+                "data.a": 3
+            },
+            "matches": true
+        },
+        {
+            "where": "(data.a + `1`) * `2` == `8`",
+            "on": "nodes",
+            "values": {
+                "data.a": 3
+            },
+            "matches": true
+        },
+        {
+            "where": "data.a - `1` == `2`",
+            "on": "nodes",
+            "values": {
+                "data.a": 3
+            },
+            "matches": true
+        },
+        {
+            "where": "-data.a == `-3`",
+            "on": "nodes",
+            "values": {
+                "data.a": 3
+            },
+            "matches": true
+        },
+        {
+            "note": "&& binds tighter than ||.",
+            "where": "data.a || data.b && data.c",
+            "on": "nodes",
+            "values": {
+                "data.a": false,
+                "data.b": true,
+                "data.c": false
+            },
+            "matches": false
+        },
+        {
+            "where": "data.a || data.b && data.c",
+            "on": "nodes",
+            "values": {
+                "data.a": true,
+                "data.b": true,
+                "data.c": false
+            },
+            "matches": true
+        },
+        {
+            "where": "data.a > `1` && data.a < `5`",
+            "on": "nodes",
+            "values": {
+                "data.a": 3
+            },
+            "matches": true
+        },
+        {
+            "where": "!(data.flag)",
+            "on": "nodes",
+            "values": {
+                "data.flag": false
+            },
+            "matches": true
+        },
+        {
+            "where": "!(data.flag)",
+            "on": "nodes",
+            "values": {
+                "data.flag": true
+            },
+            "matches": false
+        },
+        {
+            "where": "!(data.flag)",
+            "on": "nodes",
+            "values": {},
+            "matches": true
+        },
+        {
+            "note": "A bare true is the value true.",
+            "where": "data.flag == true",
+            "on": "nodes",
+            "values": {
+                "data.flag": true
+            },
+            "matches": true
+        },
+        {
+            "where": "data.flag == false",
+            "on": "nodes",
+            "values": {},
+            "matches": false
+        },
+        {
+            "note": "A quoted name reads the raw path data.amount (usd).",
+            "where": "data.\"amount (usd)\" > `100`",
+            "on": "nodes",
+            "values": {
+                "data.amount (usd)": 150
+            },
+            "matches": true
+        },
+        {
+            "note": "A quoted run name reads the raw path results.min-cut.value.",
+            "where": "results.\"min-cut\".value == `1`",
+            "on": "nodes",
+            "values": {
+                "results.min-cut.value": 1
+            },
+            "matches": true
+        },
+        {
+            "where": "data.weight >= `2`",
+            "on": "edges",
+            "values": {
+                "data.weight": 3
+            },
+            "matches": true
+        },
+        {
+            "note": "A bare number goes between backticks.",
+            "where": "data.a > 5",
+            "refused": true
+        },
+        {
+            "note": "Index expressions are refused.",
+            "where": "data.a[0]",
+            "refused": true
+        },
+        {
+            "note": "Function calls are refused.",
+            "where": "length(data.a)",
+            "refused": true
+        },
+        {
+            "note": "A single | is refused.",
+            "where": "data.a | b",
+            "refused": true
+        },
+        {
+            "note": "! before a path of more than one name: write !(data.a.b).",
+            "where": "!data.a.b",
+            "refused": true
+        },
+        {
+            "note": "- between two names with no spaces: quote the name.",
+            "where": "results.min-cut.x",
+            "refused": true
+        },
+        {
+            "note": "A whole expression in quotes is a string and reads no path.",
+            "where": "'data.a == 1'",
+            "refused": true
+        },
+        {
+            "note": "A quoted name may not contain a dot.",
+            "where": "data.\"a.b\" == `1`",
+            "refused": true
+        },
+        {
+            "note": "An expression that reads no path.",
+            "where": "`1` == `1`",
+            "refused": true
+        },
+        {
+            "note": "The wildcard is refused.",
+            "where": "data.*",
+            "refused": true
+        },
+        {
+            "note": "Comparisons do not chain.",
+            "where": "data.a < `1` < `2`",
+            "refused": true
+        },
+        {
+            "note": "An operand is missing.",
+            "where": "data.a && ",
+            "refused": true
+        }
+    ]
+}

@@ -3735,7 +3735,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.986,
+            "edge.route": 0.993,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -3801,7 +3801,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.986,
+            "edge.route": 0.993,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -4100,7 +4100,7 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.988,
+            "edge.arrow": 0.998,
             "edge.arrowShape": 0.997,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -4123,7 +4123,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
+            "raster.arrowhead": 0.94,
             "raster.canvas": 0.97,
             "raster.edge": 0.91,
             "raster.label": 0.9,
@@ -4171,7 +4171,7 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.988,
+            "edge.arrow": 0.998,
             "edge.arrowShape": 0.997,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -6937,7 +6937,7 @@
             "background": 1,
             "raster.arrowhead": 0.91,
             "raster.canvas": 0.97,
-            "raster.edge": 0.93,
+            "raster.edge": 0.94,
             "raster.label": 0.94,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.9,
@@ -7040,7 +7040,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.986,
+            "edge.route": 0.993,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -7106,7 +7106,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.986,
+            "edge.route": 0.993,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -7477,7 +7477,7 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.998,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -7548,7 +7548,7 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.998,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -11204,7 +11204,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.986,
+            "edge.route": 0.993,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -11270,7 +11270,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.986,
+            "edge.route": 0.993,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -16089,7 +16089,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.94,
             "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.93
+            "raster.nodeOutline": 0.94
         },
         "dot-specimen-labels-p2@matched": {
             "node.present": 1,
@@ -16163,8 +16163,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.94,
-            "raster.nodeBody": 0.95,
+            "raster.label": 0.95,
+            "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.94
         },
         "dot-specimen-labels-p3@matched": {
@@ -27151,8 +27151,8 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeBody": 0.99,
+            "raster.nodeOutline": 0.95,
             "raster.canvas": 0.99,
             "stray.extra": 1
         },
@@ -27726,8 +27726,8 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.988,
-            "edge.route": 0.949,
-            "edge.curve": 0.975,
+            "edge.route": 0.975,
+            "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -27735,8 +27735,8 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.983,
-            "edge.arrowShape": 0.98,
+            "edge.arrow": 0.987,
+            "edge.arrowShape": 0.99,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 0.99,
@@ -27802,8 +27802,8 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.988,
-            "edge.route": 0.949,
-            "edge.curve": 0.975,
+            "edge.route": 0.975,
+            "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -27811,8 +27811,8 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.983,
-            "edge.arrowShape": 0.98,
+            "edge.arrow": 0.987,
+            "edge.arrowShape": 0.99,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 0.99,
@@ -28897,7 +28897,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.903,
+            "edge.present": 1,
             "edge.extra": 0.989,
             "edge.route": 1,
             "edge.curve": 1,
@@ -28969,7 +28969,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.903,
+            "edge.present": 1,
             "edge.extra": 0.989,
             "edge.route": 1,
             "edge.curve": 1,
@@ -30326,7 +30326,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.91,
+            "raster.label": 0.92,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.96,
             "stray.extra": 1
@@ -32041,11 +32041,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.97,
+            "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.95,
+            "raster.edge": 0.97,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1,
             "edge.dashPeriod": 1
@@ -32088,11 +32088,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.97,
+            "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.93,
-            "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.96,
+            "raster.edge": 0.97,
+            "raster.nodeBody": 0.99,
+            "raster.nodeOutline": 0.97,
             "edge.wiggle": 1,
             "edge.dashPeriod": 1
         },
@@ -32175,11 +32175,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.97,
+            "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.97,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1,
             "edge.dashPeriod": 1
@@ -32318,12 +32318,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.97,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.98,
             "raster.label": 0.88,
-            "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "pajek-specimen-edge-labels-p2": {
@@ -32364,12 +32364,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.97,
             "raster.canvas": 0.99,
-            "raster.edge": 0.95,
+            "raster.edge": 0.99,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "pajek-specimen-edge-labels-p2@matched": {
@@ -32504,11 +32504,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.94,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
-            "raster.edge": 0.96,
+            "raster.edge": 0.99,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1,
             "edge.dashPeriod": 1
@@ -32551,11 +32551,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.94,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.97,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
@@ -32637,11 +32637,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.92,
+            "raster.arrowhead": 0.94,
             "raster.canvas": 0.99,
-            "raster.edge": 0.97,
+            "raster.edge": 0.99,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1,
             "edge.dashPeriod": 1
@@ -32725,11 +32725,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.94,
+            "raster.arrowhead": 0.97,
             "raster.canvas": 0.99,
-            "raster.edge": 0.95,
+            "raster.edge": 0.98,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
@@ -32811,11 +32811,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.96,
+            "raster.arrowhead": 0.97,
             "raster.canvas": 0.99,
-            "raster.edge": 0.97,
+            "raster.edge": 0.98,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
@@ -32976,7 +32976,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.89,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-labels-p2@matched": {
             "node.present": 1,
@@ -33116,7 +33116,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.87,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-mappings-bypass-p2": {
             "node.present": 1,
@@ -33141,7 +33141,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.87,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-mappings-bypass-p2@matched": {
             "node.present": 1,
@@ -33187,7 +33187,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.87,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-mappings-bypass-p3@matched": {
             "node.present": 1,
@@ -33254,7 +33254,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.86,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-node-fills-borders-p2": {
             "node.present": 1,
@@ -33279,7 +33279,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.85,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-node-fills-borders-p2@matched": {
             "node.present": 1,
@@ -33325,7 +33325,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "pajek-specimen-node-fills-borders-p3@matched": {
             "node.present": 1,
@@ -33392,7 +33392,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.87,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-node-shapes-p2": {
             "node.present": 1,
@@ -33484,7 +33484,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.85,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "pajek-specimen-node-sizes-opacity-p2": {
             "node.present": 1,
@@ -33509,7 +33509,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.85,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.95
         },
         "pajek-specimen-node-sizes-opacity-p2@matched": {
             "node.present": 1,
@@ -38945,7 +38945,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.986,
+            "edge.route": 0.993,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -39011,7 +39011,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.986,
+            "edge.route": 0.993,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -39968,7 +39968,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.95,
             "raster.canvas": 0.99,
             "stray.extra": 1
@@ -56193,29 +56193,41 @@
                 "date": "2026-11-01"
             }
         },
-        "cx-syn-mappings": {
-            "label.alongLine": {
-                "floor": 1,
-                "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
+        "cx2-signor-aml": {
+            "edge.arrowShape": {
+                "floor": 0.997,
+                "to": 0.996,
+                "reason": "heads hidden in both drawings are no longer judged, so the recorded failures weigh more (#8191)",
+                "date": "2026-11-22"
+            },
+            "edge.arrowLength": {
+                "floor": 0.997,
+                "to": 0.996,
+                "reason": "heads hidden in both drawings are no longer judged, so the recorded failures weigh more (#8191)",
+                "date": "2026-11-22"
+            },
+            "edge.arrowToSpacing": {
+                "floor": 0.997,
+                "to": 0.996,
+                "reason": "heads hidden in both drawings are no longer judged, so the recorded failures weigh more (#8191)",
+                "date": "2026-11-22"
             }
         },
-        "cx-syn-mappings@matched": {
-            "label.alongLine": {
-                "floor": 1,
-                "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
+        "cx2-signor-aml@matched": {
+            "edge.arrowShape": {
+                "floor": 0.997,
+                "to": 0.996,
+                "reason": "heads hidden in both drawings are no longer judged, so the recorded failures weigh more (#8191)",
+                "date": "2026-11-22"
+            },
+            "edge.arrowLength": {
+                "floor": 0.997,
+                "to": 0.996,
+                "reason": "heads hidden in both drawings are no longer judged, so the recorded failures weigh more (#8191)",
+                "date": "2026-11-22"
             }
         },
         "cx2-syn-mappings": {
-            "label.alongLine": {
-                "floor": 1,
-                "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
             "stray.present": {
                 "floor": 0.5,
                 "to": 0,
@@ -56224,33 +56236,11 @@
             }
         },
         "cx2-syn-mappings@matched": {
-            "label.alongLine": {
-                "floor": 1,
-                "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
             "stray.present": {
                 "floor": 0.5,
                 "to": 0,
                 "reason": "2026-11-15: comparator (#8191): the hollow circle head of 189->192, an edge Cytoscape desktop draws as its two heads only, was counted as a stray graphty drew; read as the edge's target head now, it leaves one stray, the yellow box already listed",
                 "date": "2026-11-16"
-            }
-        },
-        "cys-syn-mappings": {
-            "label.alongLine": {
-                "floor": 1,
-                "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-syn-mappings@matched": {
-            "label.alongLine": {
-                "floor": 1,
-                "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
             }
         },
         "dot-synth-nodes": {
@@ -56353,18 +56343,6 @@
                 "to": 0.95,
                 "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
                 "date": "2026-11-19"
-            },
-            "label.offset": {
-                "floor": 0.988,
-                "to": 0.963,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
-            },
-            "label.anchor": {
-                "floor": 1,
-                "to": 0.988,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
             }
         },
         "gml-synthetic-coverage@matched": {
@@ -56377,18 +56355,6 @@
             "edge.arrowWidth": {
                 "floor": 0.98,
                 "to": 0.95,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
-            },
-            "label.offset": {
-                "floor": 0.988,
-                "to": 0.963,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
-            },
-            "label.anchor": {
-                "floor": 1,
-                "to": 0.988,
                 "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
                 "date": "2026-11-19"
             }
@@ -56475,22 +56441,6 @@
                 "to": 0.997,
                 "reason": "pajek-1crn v1 sits at the half-pixel cover boundary once graphty draws Pajek samples on Pajek's own 500 x 500 canvas: covered on the oracle's side, shown on graphty's, though neither drawing shows a pixel of it (#9149)",
                 "date": "2026-11-20"
-            }
-        },
-        "xgmml-syn-mappings": {
-            "label.alongLine": {
-                "floor": 1,
-                "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-syn-mappings@matched": {
-            "label.alongLine": {
-                "floor": 1,
-                "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
             }
         },
         "yed-live-graphml-specimen-labels-p5": {

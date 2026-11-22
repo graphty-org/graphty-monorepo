@@ -47,13 +47,13 @@ async function gatedRunSession(): Promise<{
         runs: {
             execute: async (context: RunExecutionContext): Promise<RunOutcome> => {
                 start.settle();
-                const cancelled = new Promise<never>((_, reject) => {
+                const canceled = new Promise<never>((_, reject) => {
                     context.signal.addEventListener("abort", () => {
                         aborted = true;
                         reject(context.signal.reason as Error);
                     });
                 });
-                await Promise.race([release.promise, cancelled]);
+                await Promise.race([release.promise, canceled]);
                 const snapshot = holder.session!.data.snapshot();
                 return {
                     result: createRunResult({
@@ -343,14 +343,14 @@ describe("a running algorithm leaves the reader in charge", () => {
         assert.isDefined(session.data.node("zz"));
     });
 
-    it("cancels the run when the message is cancelled", async () => {
+    it("cancels the run when the message is canceled", async () => {
         const { session, started, aborted } = await gatedRunSession();
         const assistant = new ScriptedAssistant(session);
         const message = assistant.say("pagerank", [{ tool: "run_algorithm", args: { name: "pagerank" } }]);
         await started;
         assistant.controller.cancel();
         const { result } = await message;
-        assert.strictEqual(result.code, "AI_CANCELLED");
+        assert.strictEqual(result.code, "AI_CANCELED");
         assert.isTrue(aborted(), "the run's own signal fired");
     });
 });

@@ -254,6 +254,8 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     }): AcceleratedAlgorithmRun;
     // @deprecated
     protected algorithmGraph(mode: AlgorithmGraphMode): Graph_2;
+    // @internal
+    protected forgetReachedAccelerator(): void;
     static get(g: AlgorithmHost | GraphSession, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
     static getClass(namespace: string, type: string): (AlgorithmClass & AlgorithmStatics) | null;
     // @deprecated
@@ -282,6 +284,8 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     // @internal
     static parallelEdges?: SimplifyPolicy;
     publishResult(_context: RunControls, runId: string, _fields?: readonly FieldDescriptor[]): Promise<RunResult | undefined>;
+    // @internal
+    reachedAccelerator: GraphAccelerator | null;
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
     // (undocumented)
@@ -316,7 +320,7 @@ export class AlgorithmManager implements Manager {
     runLegacy(command: AlgoLegacyCommand, ctx: UndoableContext): Promise<void>;
 }
 
-// @public (undocumented)
+// @public
 export const AlgorithmOnLoad: z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
     algorithm: z.ZodString;
     params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
@@ -327,17 +331,11 @@ export const AlgorithmOnLoad: z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
     as: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>]>;
 
-// @public (undocumented)
+// @public
 export type AlgorithmOnLoad = z.infer<typeof AlgorithmOnLoad>;
 
 // @public
-export const AnimationCanceledError: typeof AnimationCancelledError;
-
-// @public
-export type AnimationCanceledError = AnimationCancelledError;
-
-// @public
-export class AnimationCancelledError extends GraphtyError {
+export class AnimationCanceledError extends GraphtyError {
     constructor();
     readonly name: string;
 }
@@ -1068,7 +1066,7 @@ export interface DocumentBindFacts {
 }
 
 // @beta
-export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_OPTION_NOT_SAVED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_ENGINE_CHANGED" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED" | "W_LAYOUT_ENGINE_UNAVAILABLE" | "W_LAYOUT_OPTION_NOT_APPLIED" | "W_NAME_UPGRADED";
 
 // @beta
 export interface DocumentHeldFacts {
@@ -2055,6 +2053,7 @@ export const EdgeStyle: z.ZodObject<{
         animationSpeed: z.ZodOptional<z.ZodNumber>;
         width: z.ZodOptional<z.ZodNumber>;
         minScreenWidth: z.ZodOptional<z.ZodNumber>;
+        drawOrder: z.ZodOptional<z.ZodNumber>;
         patternCount: z.ZodOptional<z.ZodNumber>;
         waveAmplitude: z.ZodOptional<z.ZodNumber>;
         wavePeriod: z.ZodOptional<z.ZodNumber>;
@@ -3377,6 +3376,10 @@ export interface GraphAccelerator {
         reason: string;
     }>;
     readonly name: string;
+    readonly package?: {
+        readonly name: string;
+        readonly version: string;
+    };
     readonly precision?: AccelerationPrecision;
     verify?(): Promise<void>;
 }
@@ -3487,7 +3490,7 @@ export interface GraphErrorEvent {
 }
 
 // @public
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public
 export type GraphEventType = GraphEvent["type"];
@@ -3496,7 +3499,7 @@ export type GraphEventType = GraphEvent["type"];
 export interface GraphGenericEvent {
     // (undocumented)
     [key: string]: unknown;
-    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-canceled" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
+    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-canceled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
 }
 
 // @public
@@ -4862,7 +4865,7 @@ export type GraphtyErrorCode =
 /**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
-* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+* an `AnimationCanceledError`, a `GraphtyError` with this code. Added in 3.58.0.
 */
 | "E_CANCELED" | "E_INTERNAL";
 
@@ -5664,6 +5667,8 @@ export abstract class LayoutEngine {
     // @internal
     wakeForClusters(): boolean;
     // @internal
+    wakeForLift(): boolean;
+    // @internal
     wakeForResize(): boolean;
     // @internal
     protected get workingGraph(): WorkingView | null;
@@ -5773,6 +5778,7 @@ export const LIGHTING_VALUES: readonly ["studio", "headlight", "matte", "flat"];
 // @public
 export interface Limits {
     edgesDrawn: number;
+    fullDetailTriangleBudget: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
     objectEdges: number;
@@ -7715,13 +7721,6 @@ export interface OperationCanceledEvent {
     type: "operation-canceled";
 }
 
-// @public @deprecated
-export interface OperationCancelledEvent {
-    code: "queue-cleared" | "cancelled";
-    id: string;
-    type: "operation-cancelled";
-}
-
 // @public
 export type OperationCategory = "style-init" | "style-apply" | "style-edit" | "data-add" | "data-remove" | "data-update" | "layout-set" | "layout-update" | "algorithm-run" | "camera-update" | "view-mode" | "render-update";
 
@@ -7908,7 +7907,7 @@ export interface ProgressChange {
         readonly details: Readonly<Record<string, unknown>>;
     };
     readonly fraction: number | null;
-    readonly outcome?: "succeeded" | "failed" | "cancelled";
+    readonly outcome?: "succeeded" | "failed" | "canceled";
     readonly phase: "progress" | "end";
     readonly run?: RunId;
     readonly source?: {
@@ -8906,7 +8905,7 @@ export { SourceDescriptor }
 export { SourceEdgeRecord }
 
 // @beta
-export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind";
+export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind" | "options";
 
 export { sourceEndpoint }
 
@@ -9102,7 +9101,7 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
 export type SourceStorage = "embedded" | "referenced";
 
 // @beta
-export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind";
+export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind" | "copy-form" | "options" | "ledger";
 
 export { SourceValidators }
 
@@ -9254,7 +9253,7 @@ export interface TourEndedEvent {
 }
 
 // @public
-export type TourEndReason = "finished" | "cancelled" | "interrupted" | "replaced" | "mode-changed";
+export type TourEndReason = "finished" | "canceled" | "interrupted" | "replaced" | "mode-changed";
 
 // @public
 export type TourInput = string | Tour | readonly (ViewWaypoint | CameraWaypoint | TourPause)[];

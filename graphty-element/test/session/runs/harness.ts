@@ -13,7 +13,9 @@ import {
 } from "../../../src/session/runs";
 
 /** The versions a test run reports, so a record has something to carry. */
-export const ENGINE: EngineVersions = Object.freeze({ element: "2.0.0-test", algorithms: "1.4.0", layout: "1.3.0" });
+export const ENGINE: EngineVersions = Object.freeze({
+    packages: { "@graphty/graphty-element": "2.0.0-test", "@graphty/algorithms": "1.4.0" },
+});
 
 /** The caveats a test run starts from. */
 export const CAVEATS: Caveats = Object.freeze({

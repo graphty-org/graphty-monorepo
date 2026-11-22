@@ -1,7 +1,7 @@
 /**
  * @file The timeline's playback paths the rest of test/session/time leaves alone: smooth frames
  * that move nothing, a cumulative glide, a glide reaching the end, reduced motion, a play started
- * twice, a play whose window is cleared, and a re-run that fails under `results: "rerun"`. Frames
+ * twice, a play paused by its own `time:play` listener, a play whose window is cleared, and a re-run that fails under `results: "rerun"`. Frames
  * come from a stubbed `requestAnimationFrame` the test calls itself, and stepped plays from fake
  * timers, so no test waits on the wall clock. Also the one catalog branch of `defineLayout` that
  * needs no rendered graph: an "ordering" option.
@@ -183,6 +183,25 @@ describe("session.time: choosing smooth or stepped motion", () => {
     });
 });
 
+describe("session.time: a stepped play paused as it starts", () => {
+    it("takes no step when a time:play listener pauses it", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        const session = await daily();
+        let steps = 0;
+        session.on("time:step", () => steps++);
+        const off = session.on("time:play", () => {
+            off();
+            session.time.pause();
+        });
+        session.time.play({ motion: "steps", interval: 100 });
+        const before = steps;
+        await vi.advanceTimersByTimeAsync(500);
+        assert.strictEqual(steps, before);
+        assert.isFalse(session.time.playing);
+        session.dispose();
+    });
+});
+
 describe("session.time: a stepped play whose window goes", () => {
     it("pauses at the next step when the window was cleared", async () => {
         vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -322,13 +341,49 @@ describe("session.time: a re-run that fails under results: rerun", () => {
         session.dispose();
     });
 
-    it("says a failure that is no GraphtyError is an internal one", async () => {
+    it("says a plain error the run wrapped is an internal one", async () => {
         const { session, id } = await failingRerun(new TypeError("not a function"));
         const failed = next(session, "time:rerun-failed");
         await session.time.stepBy(1);
         const detail = (await failed) as { run: string; error: { code: string } };
         assert.strictEqual(detail.run, id);
         assert.strictEqual(detail.error.code, "E_INTERNAL");
+        session.dispose();
+    });
+
+    it("says nothing about a re-run canceled while it runs", async () => {
+        let count = 0;
+        let started!: () => void;
+        const begun = new Promise<void>((resolve) => (started = resolve));
+        const session = createGraphSession({
+            runs: {
+                execute: async (context) => {
+                    count++;
+                    if (count > 1) {
+                        started();
+                        return new Promise<RunOutcome>(() => undefined);
+                    }
+
+                    await Promise.resolve();
+                    return outcome(context);
+                },
+            },
+        });
+        await session.data.import({ type: "csv", config: { data: CSV } });
+        await session.time.setField({ edges: { start: "sent" } });
+        await session.time.setSettings({ results: "rerun" });
+        await session.time.window({ from: T0, to: T0 + DAY, step: "day" });
+        const run = session.runs.start("degree", undefined, { style: false });
+        await run;
+        const failures: unknown[] = [];
+        session.on("time:rerun-failed", (detail) => failures.push(detail));
+        // A step waits for the re-runs it started, so the cancel has been handled once it settles.
+        const stepped = session.time.stepBy(1);
+        await begun;
+        run.cancel();
+        await stepped;
+        assert.strictEqual(run.status, "canceled");
+        assert.deepEqual(failures, []);
         session.dispose();
     });
 });

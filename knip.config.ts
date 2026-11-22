@@ -336,7 +336,7 @@ const config: KnipConfig = {
             ignoreDependencies: [
                 // Peer dependencies (provided by consumer)
                 "@mlc-ai/web-llm",
-                // The optional peers: the GPU package, the gazetteer, Graphviz and the key store. Each is an optional
+                // The optional peers: the GPU package, the gazetteer and Graphviz. Each is an optional
                 // peer and an exact devDependency, imported from src so the element works without it
                 // and lights up with it. `lint:knip:prod` runs --strict, which reads only peers and
                 // dependencies, and would report them as unlisted; the default run resolves them as
@@ -345,7 +345,6 @@ const config: KnipConfig = {
                     ? [
                           "@graphty/webgpu-graph-algorithms",
                           "@graphty/gazetteer",
-                          "encrypt-storage",
                           "@hpcc-js/wasm-graphviz",
                           // the types of React, for the types-only ./jsx entry (dist/jsx.d.ts imports
                           // "react"), which --production follows into the build

@@ -8,6 +8,9 @@
  * plane, and a settled drawing, with next to no force out of the plane, kept that sliver of depth
  * and settled in its first frame. Now the 3D layout starts where the 2D drawing left every node and
  * the drawing rises into depth over the frames after the switch while the simulation runs.
+ *
+ * Both force engines (ngraph and d3) on both render paths (a node object per node, and batched
+ * rows with no node object), and one seed twice gives one 3D drawing (issue #9475).
  */
 
 import { afterEach, assert, describe, test } from "vitest";
@@ -73,25 +76,46 @@ async function settle(element: Graphty): Promise<void> {
     await element.waitForStableFrame();
 }
 
-describe("switching a 2D force drawing to 3D", () => {
-    test("starts the 3D layout from the 2D drawing and lifts it into depth over the frames after", async () => {
-        const host = document.createElement("div");
-        host.style.width = "600px";
-        host.style.height = "400px";
-        document.body.append(host);
-        hosts.push(host);
+/** The force engines and render paths a lift is checked on; d3 has no seed and runs the same every time. */
+const CASES = [
+    { layout: "ngraph", config: { seed: 7 }, path: "objects" },
+    { layout: "ngraph", config: { seed: 7 }, path: "batched" },
+    { layout: "d3", config: {}, path: "objects" },
+    { layout: "d3", config: {}, path: "batched" },
+] as const;
 
-        const element = new Graphty();
-        element.style.width = "100%";
-        element.style.height = "100%";
-        element.style.display = "block";
-        element.viewMode = "2d";
-        element.layout = "ngraph";
-        element.layoutConfig = { seed: 7 };
-        element.nodeData = NODES;
-        element.edgeData = EDGES;
-        host.append(element);
-        await settle(element);
+type Case = (typeof CASES)[number];
+
+/**
+ * Draw the graph in 2D with the case's layout and render path, settled.
+ * @param c - The case.
+ * @returns The element.
+ */
+async function drawFlat(c: Case): Promise<Graphty> {
+    const host = document.createElement("div");
+    host.style.width = "600px";
+    host.style.height = "400px";
+    document.body.append(host);
+    hosts.push(host);
+
+    const element = new Graphty();
+    element.style.width = "100%";
+    element.style.height = "100%";
+    element.style.display = "block";
+    element.renderPath = c.path;
+    element.viewMode = "2d";
+    element.layout = c.layout;
+    element.layoutConfig = { ...c.config };
+    element.nodeData = NODES;
+    element.edgeData = EDGES;
+    host.append(element);
+    await settle(element);
+    return element;
+}
+
+describe.each(CASES)("switching a 2D $layout drawing to 3D on the $path path", (c) => {
+    test("starts the 3D layout from the 2D drawing and lifts it into depth over the frames after", async () => {
+        const element = await drawFlat(c);
 
         const flat = positions(element);
         const width = Math.max(span(flat, 0), span(flat, 1));
@@ -130,5 +154,24 @@ describe("switching a 2D force drawing to 3D", () => {
         assert.isAtLeast(rises, 10, `the depth grew over many frames, not at once: ${depths.join(", ")}`);
         assert.isAtLeast(depth, width * 0.3, `the settled 3D drawing has real depth (width ${String(width)})`);
         assert.isAtMost(depths[0], width * 0.1, "the first frame after the switch is still near the plane");
+    });
+
+    test("lifts the same drawing to the same 3D drawing every time", async () => {
+        const drawn: [number, number, number][][] = [];
+        for (let run = 0; run < 2; run++) {
+            const element = await drawFlat(c);
+            await element.setViewMode("3d");
+            await settle(element);
+            drawn.push(positions(element));
+        }
+
+        const [first, second] = drawn;
+        const width = Math.max(span(first, 0), span(first, 1), span(first, 2));
+        assert.isAtLeast(span(first, 2), width * 0.3, "the lifted drawing has real depth");
+        for (const [row, at] of first.entries()) {
+            for (const axis of [0, 1, 2] as const) {
+                assert.closeTo(second[row][axis], at[axis], width * 1e-6, `row ${String(row)} axis ${String(axis)}`);
+            }
+        }
     });
 });

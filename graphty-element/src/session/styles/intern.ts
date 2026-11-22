@@ -273,6 +273,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.haloOpacity": "content",
     "edge.width": "mesh",
     "edge.minScreenWidth": "mesh",
+    // Places the line's piece in its pulled batch's draw order (PulledLineBatch.acquire).
+    "edge.drawOrder": "mesh",
     "edge.fadeStart": "mesh",
     "edge.fadeEnd": "mesh",
     "edge.fadeOpacity": "mesh",

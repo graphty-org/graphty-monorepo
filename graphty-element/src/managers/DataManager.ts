@@ -2932,6 +2932,7 @@ export class DataManager implements Manager {
         if (this.layoutEngine) {
             layoutEngineInternals.addNode(this.layoutEngine, n);
         }
+        this.graphContext.getUpdateManager?.().placeBuiltNode(n);
 
         // after the engine has it: drawing reads its place from the engine
         if (rowPaint !== null) {

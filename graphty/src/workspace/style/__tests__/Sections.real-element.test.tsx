@@ -327,6 +327,44 @@ describe("the Style tab's sections", () => {
         assert.isAbove(store.get().announced, again, "this Undo is announced too");
     });
 
+    it("keeps focus on a control in a line that stays when an Undo brings another line back", async () => {
+        const { session } = await openScene();
+        await openStyle("Key people");
+        // The layer's set color in Fill: the line the reader works in, which the Undo leaves where it is.
+        const fill = section("node", "fill");
+        const kept = await waitFor(() => {
+            const found = fill.querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        // Size in Shape, set and then removed: the line the Undo brings back.
+        const shape = section("node", "shape");
+        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await waitFor(() => {
+            assert.isTrue(shape.querySelector('.ws-row[data-line="node.size"]')?.contains(document.activeElement));
+        });
+        await userEvent.keyboard("3{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(written(session, "Key people", "node.size"), 3);
+        });
+        const size = shape.querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
+        assert.isNotNull(size);
+        await userEvent.click(within(size).getByRole("button", { name: "Remove node size" }));
+        await waitFor(() => {
+            assert.isUndefined(written(session, "Key people", "node.size"));
+        });
+        const minus = await within(kept).findByRole("button", { name: "Remove node color" });
+        minus.focus();
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.strictEqual(written(session, "Key people", "node.size"), 3, "Undo brings Size back");
+            assert.isNotNull(shape.querySelector('.ws-row[data-line="node.size"]'));
+        });
+        assert.isTrue(minus.isConnected, "the color line stays");
+        assert.strictEqual(document.activeElement, minus, "focus stays where the reader is working");
+    });
+
     it("says arrowheads are not available on an undirected graph, with '+' disabled and a set one removable", async () => {
         const { session } = await openScene();
         await openStyle("Everything");

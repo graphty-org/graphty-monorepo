@@ -167,9 +167,9 @@ export function focusSectionNext(session: GraphSession, from: Element, channel: 
  * can be drawn once by the tab that asked and again by the tab that replaces it (a selection's
  * first line makes its layer and the tab remounts on that row), so a tab that goes away with focus
  * still on the line it handed it to asks again, and the next tab hands it to its own copy of the line.
- * A line that comes or goes with nobody asking (an Undo or Redo) while focus is in the tab or has
- * fallen to the page takes focus itself: a line that came back, in its field; a line taken away, at
- * its section's "+".
+ * A line that comes or goes with nobody asking (an Undo or Redo) while focus has fallen to the page,
+ * or is in the tab but on no line's control (a "+"), takes focus itself: a line that came back, in its
+ * field; a line taken away, at its section's "+". Focus on a control in a line that stays keeps it.
  * @param session - the element's session the row belongs to.
  * @param panel - which row the tab shows, so a change of row is never read as lines coming or going.
  * @returns the ref for the element that holds the lines.

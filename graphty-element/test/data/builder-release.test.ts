@@ -294,3 +294,28 @@ describe("letting the builder go after a load", () => {
         assert.strictEqual(store.getSnapshot().edgeCount, 20);
     });
 });
+
+describe("the edges at a node while the builder is let go", () => {
+    for (const directed of [true, false]) {
+        it(`are the held builder's, from the snapshot, with no rebuild (${directed ? "directed" : "undirected"})`, () => {
+            const held = storeWith(false, () => directed);
+            const released = storeWith(true, () => directed);
+            for (const store of [held, released]) {
+                load(store, 30, 90);
+                store.getSnapshot();
+                store.releaseIdle();
+            }
+
+            assert.isTrue(release(released).released);
+            for (let id = 0; id < 30; id++) {
+                assert.deepStrictEqual(
+                    [...released.incidentEdgeIds([id])].sort((a, b) => a - b),
+                    [...held.incidentEdgeIds([id])].sort((a, b) => a - b),
+                    `the edges at node ${String(id)}`,
+                );
+            }
+
+            assert.deepStrictEqual(release(released), { released: true, revivals: 0 }, "no rebuild for the reads");
+        });
+    }
+});

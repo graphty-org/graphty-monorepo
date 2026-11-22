@@ -2157,6 +2157,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pinOnDrag: INPUT,
             size: RENDER,
             shapeType: RENDER,
+            // Whether a style hides the node: read by the pulled edges at its ends.
+            hiddenByStyle: READ,
             update: RENDER,
             setMeshPosition: RENDER,
             updateStyle: RENDER,
@@ -2286,6 +2288,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnCenter: READ,
             drawnCentre: READ,
             drawnCaps: READ,
+            drawnHeadPosition: READ,
+            // Draws a pulled edge again when a style hid or showed one of its ends.
+            redrawPulledOffEnds: RENDER,
             arrowHeadStackCaps: READ,
             arrowTailStackCaps: READ,
             drawnGradient: READ,

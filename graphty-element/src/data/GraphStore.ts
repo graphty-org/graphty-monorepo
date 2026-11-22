@@ -116,6 +116,36 @@ export interface BuilderReads {
 }
 
 /**
+ * The logical edges at the given nodes, read from a snapshot's adjacency: out-arcs, and in-arcs when directed.
+ * @param snapshot - The snapshot.
+ * @param nodeIds - The nodes; one it does not hold is skipped.
+ * @returns The edge rows, each once.
+ */
+function snapshotEdgeRowsAt(snapshot: GraphSnapshot, nodeIds: readonly NodeId[]): Set<number> {
+    const edges = new Set<number>();
+    const { rowPtr, arcToEdge } = snapshot;
+    const reverse = snapshot.directed ? snapshot.reverse() : null;
+    for (const id of nodeIds) {
+        const row = snapshot.ids.indexOf(id);
+        if (row === INVALID_INDEX) {
+            continue;
+        }
+
+        for (let arc = rowPtr[row]; arc < rowPtr[row + 1]; arc++) {
+            edges.add(arcToEdge[arc]);
+        }
+
+        if (reverse !== null) {
+            for (let arc = reverse.rowPtr[row]; arc < reverse.rowPtr[row + 1]; arc++) {
+                edges.add(arcToEdge[reverse.fwdArc[arc]]);
+            }
+        }
+    }
+
+    return edges;
+}
+
+/**
  * The reads a let-go builder would have answered, from the snapshot frozen from it: the same rows,
  * as a builder holds exactly its last freeze's rows until its next write.
  * @param snapshot - The snapshot.
@@ -2022,7 +2052,10 @@ export class GraphStore {
      */
     incidentEdgeIds(nodeIds: readonly NodeId[]): number[] {
         this.settle();
-        return Array.from(this.edgeRowsOf([], this.nodeRowsOf(nodeIds)), (row) => this.edgeIdAt(row));
+        const rows = this.held === null && this.cache !== null ? snapshotEdgeRowsAt(this.cache, nodeIds) : null;
+        // A let-go builder is answered from the snapshot it was frozen to, as `reads` is: a style pass checking the
+        // edges at the rows it repainted brought the builder back after every load.
+        return Array.from(rows ?? this.edgeRowsOf([], this.nodeRowsOf(nodeIds)), (row) => this.edgeIdAt(row));
     }
 
     /**

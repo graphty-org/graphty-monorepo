@@ -29,13 +29,12 @@ import { KCoreAlgorithm } from "../../src/algorithms/KCoreAlgorithm";
 import { LouvainAlgorithm } from "../../src/algorithms/LouvainAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/results";
 import { isGraphtyError } from "../../src/errors";
-import type { Graph } from "../../src/Graph";
 import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
-import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
 import { byId, referenceSnapshot } from "../helpers/reference-snapshot";
+import { createSessionGraph, type SessionGraph, type SessionGraphOpts } from "../helpers/session-graph";
 
 /** A directed graph with a reciprocal pair, a self-loop, a parallel pair and an isolated node. */
-const MIXED: MockGraphOpts = {
+const MIXED: SessionGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }, { id: "E" }, { id: "F" }, { id: "G" }],
     edges: [
         { srcId: "A", dstId: "B" },
@@ -87,7 +86,7 @@ function copyOf(s: GraphSnapshot, change: "reverse" | "no self-loops"): GraphSna
     return builder.freeze();
 }
 
-const FIXTURES: readonly [string, MockGraphOpts][] = [
+const FIXTURES: readonly [string, SessionGraphOpts][] = [
     ["data4", { dataPath: "./data4.json" }],
     ["mixed", MIXED],
     ["mixed undirected", { ...MIXED, directed: false }],
@@ -101,7 +100,7 @@ const FIXTURES: readonly [string, MockGraphOpts][] = [
  * @returns One entry per node.
  */
 function published(
-    graph: Graph,
+    graph: SessionGraph,
     run: { result?: { node: (id: string | number) => Record<string, unknown> | undefined } },
 ): Map<string | number, Record<string, unknown>> {
     const { result } = run;
@@ -143,7 +142,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
         describe(name, () => {
             it("hits: combined, hub and authority scores within 1e-9", async () => {
                 for (const normalized of [true, false]) {
-                    const graph = await createMockGraph(fixture);
+                    const graph = await createSessionGraph(fixture);
                     const run = new HITSAlgorithm(graph, { normalized });
                     await run.run();
 
@@ -171,7 +170,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
 
             it("katz: scores within 1e-9", async () => {
                 for (const normalized of [true, false]) {
-                    const graph = await createMockGraph(fixture);
+                    const graph = await createSessionGraph(fixture);
                     const run = new KatzCentralityAlgorithm(graph, { normalized, alpha: 0.05 });
                     await run.run();
 
@@ -189,7 +188,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
             });
 
             it("k-core: the core numbers of the graph with its self-loops removed", async () => {
-                const graph = await createMockGraph(fixture);
+                const graph = await createSessionGraph(fixture);
                 const run = new KCoreAlgorithm(graph);
                 await run.run();
 
@@ -213,7 +212,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
             });
 
             it("degree: identical in-, out- and total degree (only the total when undirected)", async () => {
-                const graph = await createMockGraph(fixture);
+                const graph = await createSessionGraph(fixture);
                 const run = new DegreeAlgorithm(graph);
                 await run.run();
 
@@ -244,7 +243,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
             });
 
             it("louvain: groups that score the modularity it reports, near algorithms 2.x's on these fixtures", async () => {
-                const graph = await createMockGraph(fixture);
+                const graph = await createSessionGraph(fixture);
                 const output = await computed(new LouvainAlgorithm(graph));
                 const { nodes } = graph.getDataManager();
 
@@ -291,7 +290,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
             }
             edges.push({ srcId: `${String(clique)}.0`, dstId: `${String((clique + 1) % 1200)}.1` });
         }
-        const graph = await createMockGraph({ nodes, edges, directed: false });
+        const graph = await createSessionGraph({ nodes, edges, directed: false });
         const count = (output: AlgorithmOutput): number => new Set(output.nodes?.map((n) => n.values.group)).size;
         assert.strictEqual(count(await computed(new LouvainAlgorithm(graph))), 150);
         assert.strictEqual(count(await computed(new LouvainAlgorithm(graph, { maxIterations: 1 }))), 1200);
@@ -302,7 +301,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
         // D joins three leaves, each with a self-loop. Counting each self-loop as a neighbor, as
         // algorithms 2.x did, put every leaf at degree 2 and D in the 2-core; without them the
         // leaves have degree 1 and D sits in the 1-core, though D itself has no self-loop.
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: [{ id: "D" }, { id: "S1" }, { id: "S2" }, { id: "S3" }],
             edges: ["S1", "S2", "S3"].flatMap((leaf) => [
                 { srcId: "D", dstId: leaf },
@@ -328,7 +327,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
         // Both implementations are deterministic, and 2.x's answer depended on the order it
         // visited nodes and edges. On the path n1-n2-n3-n0-n4-n5 the port stops at three pairs
         // (modularity 0.26); algorithms 2.x merged it into two triples, n0-n4-n5 and n1-n2-n3 (0.30).
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: ["n0", "n1", "n2", "n3", "n4", "n5"].map((id) => ({ id })),
             edges: [
                 { srcId: "n2", dstId: "n3" },
@@ -350,7 +349,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
     });
 
     it("louvain refuses useOptimized off: only the optimized implementation remains", async () => {
-        const graph = await createMockGraph({ dataPath: "./data4.json" });
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const error = await rejection(() =>
             new LouvainAlgorithm(graph, { useOptimized: false }).compute(detachedRunContext()),
         );
@@ -360,7 +359,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
     });
 
     it("hits and katz report whether they converged, now that the port says", async () => {
-        const graph = await createMockGraph(MIXED);
+        const graph = await createSessionGraph(MIXED);
         const run = new HITSAlgorithm(graph, { maxIterations: 1 });
         await run.run();
 
@@ -372,7 +371,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
 
 describe("the direction and endpoint options", () => {
     it("hits publishes the authority score for mode in and the hub score for mode out", async () => {
-        const graph = await createMockGraph(MIXED);
+        const graph = await createSessionGraph(MIXED);
         for (const [mode, half] of [
             ["in", "authority"],
             ["out", "hub"],
@@ -386,7 +385,7 @@ describe("the direction and endpoint options", () => {
     });
 
     it("katz reads in-paths for mode in and out-paths for mode out, over the declared direction", async () => {
-        const graph = await createMockGraph(MIXED);
+        const graph = await createSessionGraph(MIXED);
         const directed = referenceSnapshot(graph.getDataManager(), "directed");
 
         const inRun = new KatzCentralityAlgorithm(graph, { mode: "in" });
@@ -423,7 +422,7 @@ describe("the direction and endpoint options", () => {
     });
 
     it("katz says undirected for every mode on a graph loaded undirected", async () => {
-        const graph = await createMockGraph({ ...MIXED, directed: false });
+        const graph = await createSessionGraph({ ...MIXED, directed: false });
         for (const mode of ["in", "out", "total"] as const) {
             const run = new KatzCentralityAlgorithm(graph, { mode });
             await run.run();
@@ -453,7 +452,7 @@ describe("the direction and endpoint options", () => {
 
     it("hits, katz and eigenvector refuse endpoints, which none of them has", async () => {
         for (const Run of [HITSAlgorithm, KatzCentralityAlgorithm, EigenvectorCentralityAlgorithm]) {
-            const graph = await createMockGraph(MIXED);
+            const graph = await createSessionGraph(MIXED);
             const error = await rejection(() => new Run(graph, { endpoints: true }).run());
             assert.strictEqual(error.code, "E_OPTION_RANGE");
             assert.deepInclude(error.details, { option: "endpoints", value: true });
@@ -500,7 +499,7 @@ describe("hits and katz on an accelerator", () => {
 
     it("runs both on it, once each, and says the numbers are single precision", async () => {
         const { fake, calls } = counting();
-        const graph = await createMockGraph(MIXED);
+        const graph = await createSessionGraph(MIXED);
         graph.acceleration.setAccelerator(fake);
 
         const hitsRun = new HITSAlgorithm(graph);
@@ -520,7 +519,7 @@ describe("hits and katz on an accelerator", () => {
 
     it("keeps k-core and louvain on the CPU port with the accelerator attached", async () => {
         const { fake, calls } = counting();
-        const graph = await createMockGraph(MIXED);
+        const graph = await createSessionGraph(MIXED);
         graph.acceleration.setAccelerator(fake);
 
         const core = new KCoreAlgorithm(graph);
@@ -542,7 +541,7 @@ describe("hits and katz on an accelerator", () => {
                 louvain: () => (calls.push("louvain"), Promise.reject(new Error("not here"))),
             },
         });
-        const graph = await createMockGraph(MIXED);
+        const graph = await createSessionGraph(MIXED);
         graph.acceleration.setPolicy("required");
         graph.acceleration.setAccelerator(fake);
 
@@ -569,7 +568,7 @@ describe("hits and katz on an accelerator", () => {
                 },
             },
         });
-        const graph = await createMockGraph(MIXED);
+        const graph = await createSessionGraph(MIXED);
         graph.acceleration.setAccelerator(fake);
 
         await new KatzCentralityAlgorithm(graph, { mode: "out" }).run();

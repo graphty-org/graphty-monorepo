@@ -59,6 +59,9 @@ const ENTRY_GLYPHS: Readonly<Record<EntryId, (typeof GLYPHS)[keyof typeof GLYPHS
     country: GLYPHS.location,
     region: GLYPHS.location,
     city: GLYPHS.location,
+    x: GLYPHS.layout,
+    y: GLYPHS.layout,
+    z: GLYPHS.layout,
     edgeId: GLYPHS.key,
     sourceKind: GLYPHS.category,
     targetKind: GLYPHS.category,
@@ -74,6 +77,9 @@ const ENTRY_TYPES: Partial<Readonly<Record<EntryId, ValueType>>> = {
     time: "date",
     latitude: "number",
     longitude: "number",
+    x: "number",
+    y: "number",
+    z: "number",
 };
 
 /**

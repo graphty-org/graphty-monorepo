@@ -64,7 +64,20 @@ describe("kinds of node at load", () => {
     it("lists the roles a column takes in place and the ones it takes only when its rows load", () => {
         assert.sameMembers(
             [...COLUMN_ROLES.node.inPlace],
-            ["label", "weight", "time", "latitude", "longitude", "coordinates", "country", "region", "city"],
+            [
+                "label",
+                "weight",
+                "time",
+                "latitude",
+                "longitude",
+                "coordinates",
+                "country",
+                "region",
+                "city",
+                "x",
+                "y",
+                "z",
+            ],
         );
         assert.sameMembers([...COLUMN_ROLES.node.atLoad], ["key", "kind"]);
         assert.sameMembers([...COLUMN_ROLES.edge.inPlace], ["weight", "time"]);

@@ -186,6 +186,10 @@ const INVENTORY: Record<string, Covered> = {
         count: 1,
         reason: "the legend drawn into a screenshot, never onto the canvas",
     },
+    "src/screenshot/figurePdf.ts": {
+        count: 1,
+        reason: "a picture arrowhead's pixels read for a PDF figure, never onto the canvas",
+    },
     "src/ai/commands/CaptureCommands.ts": {
         count: 1,
         reason: "a capture read back for the AI; it never reaches the canvas",

@@ -1,15 +1,15 @@
 import { assert, describe, it } from "vitest";
 
 import { DegreeAlgorithm } from "../../src/algorithms/DegreeAlgorithm";
-import { createMockGraph, getGraphResult, getMockNode, getNodeResult } from "../helpers/mockGraph";
+import { createSessionGraph, getGraphResult, getNodeResult, getSessionNode } from "../helpers/session-graph";
 
 describe("DegreeAlgorithm", () => {
     it("exists", async () => {
-        new DegreeAlgorithm(await createMockGraph());
+        new DegreeAlgorithm(await createSessionGraph());
     });
 
     it("calculates node degree", async () => {
-        const graph = await createMockGraph({ dataPath: "./data4.json" });
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const da = new DegreeAlgorithm(graph);
 
         await da.run();
@@ -18,7 +18,7 @@ describe("DegreeAlgorithm", () => {
         // So: outDegree=1, inDegree=2, degree=3
         // The highest total in this dataset is 36, and the highest one-direction counts are 10 out
         // and 32 in, which is what each fraction is measured against.
-        const node = getMockNode(graph, "Mlle.Baptistine");
+        const node = getSessionNode(graph, "Mlle.Baptistine");
         assert.isDefined(node, "Node Mlle.Baptistine should exist");
 
         assert.strictEqual(getNodeResult(da, "Mlle.Baptistine", "graphty", "degree", "inDegree"), 2);
@@ -31,7 +31,7 @@ describe("DegreeAlgorithm", () => {
 
     it("correctly calculates in-degree for destination nodes", async () => {
         // Graph: A -> B, A -> C (A has outDegree=2, B/C have inDegree=1)
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
             edges: [
                 { srcId: "A", dstId: "B" },
@@ -55,7 +55,7 @@ describe("DegreeAlgorithm", () => {
     });
 
     it("handles empty graph without NaN", async () => {
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: [{ id: "A" }],
             edges: [],
         });
@@ -78,7 +78,7 @@ describe("DegreeAlgorithm", () => {
 
     it("stores graph-level results", async () => {
         // Graph: A -> B, A -> C (maxOutDegree=2, maxInDegree=1, maxDegree=2)
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
             edges: [
                 { srcId: "A", dstId: "B" },
@@ -96,7 +96,7 @@ describe("DegreeAlgorithm", () => {
     });
 
     it("handles graph with no edges for graph-level results", async () => {
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: [{ id: "A" }, { id: "B" }],
             edges: [],
         });

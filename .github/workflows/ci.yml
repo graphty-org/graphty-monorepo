@@ -1152,13 +1152,16 @@ jobs:
             # lint targets; a local lint never caches). Master's full lint fills it and saves it; a pull request restores the newest one, so ESLint
             # re-lints only the files whose content differs from master's (graphty-element took about 300 s here,
             # beside two other packages on the runner's 4 cores). The key holds what changes a rule's verdict on an
-            # unchanged file -- the lockfile, the ESLint configs and rules, the tsconfigs -- so a change to any of
-            # them lints everything. An unchanged file that a pull request's type change makes fail a type-aware
+            # unchanged file -- the resolved versions of eslint, its plugins and parsers, typescript and globals
+            # (tools/eslint-cache-key.mjs reads them from the lockfile; hashing the whole lockfile made every
+            # dependency bump lint from a cold cache, #9541), the ESLint configs and rules, the tsconfigs -- so a
+            # change to any of them misses the exact key. The prefix restore-key still restores the newest cache on
+            # a miss (ESLint re-checks each restored entry against its own config hash). An unchanged file that a pull request's type change makes fail a type-aware
             # rule is caught by master's and the full run's lint, which never restore the cache. The key's last part
             # is the day, so master saves one cache a day (about 3 MB), not one per commit.
             - name: Key the ESLint caches
               id: eslint-cache
-              run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"; echo "prefix=eslint-v1-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.js', 'tsconfig.base.json', 'tools/eslint-rules/**', 'compact-mantine/eslint/**', 'graphty-element/eslint.config.js', 'graphty-element/eslint-rules/**', 'graphty-element/tsconfig*.json', 'graphty/eslint.config.js', 'graphty/eslint-rules/**', 'graphty/tsconfig*.json') }}-" >> "$GITHUB_OUTPUT"
+              run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"; echo "prefix=eslint-v2-$(node tools/eslint-cache-key.mjs | cut -c1-16)-${{ hashFiles('eslint.config.js', 'graphty-element/test/saved-format/eslint-saved-format.js', 'graphty-element/working-graph-whole-readers.json', 'tsconfig.base.json', 'tools/eslint-rules/**', 'compact-mantine/eslint/**', 'graphty-element/eslint.config.js', 'graphty-element/eslint-rules/**', 'graphty-element/tsconfig*.json', 'graphty/eslint.config.js', 'graphty/eslint-rules/**', 'graphty/tsconfig*.json') }}-" >> "$GITHUB_OUTPUT"
 
             - name: Restore the ESLint caches (PR)
               if: needs.packages.outputs.full == 'false'

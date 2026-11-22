@@ -1202,7 +1202,8 @@ const EDGE_OUTLINE_CAVEAT =
     "or dashed line drawn as separate pieces has none.";
 
 const NODE_IMAGE_CAVEAT =
-    "A picture drawn over the node's face from `node.image`, its URL (a data: URL too). " +
+    "A picture drawn over the node's face from `node.image`, its URL (a data: URL too) or an image asset id " +
+    "of `session.assets`, as `node.texture` takes. " +
     '`node.imageFit` sizes it: "contain" keeps its proportions inside the node, "cover" over the whole ' +
     'node, "fill" stretches it, "none" draws it at `node.imageWidth` x `node.imageHeight` or its own ' +
     "pixels at `node.imagePixelSize` each. `node.imagePositionX` / `-Y` place it across the room left " +

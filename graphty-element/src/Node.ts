@@ -70,6 +70,7 @@ import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from ".
 import { pixelsPerUnit } from "./meshes/screenSize";
 import { drawnAgainstBox, isFlatShape, type Point2, shapeTexts } from "./meshes/shapeOutlines";
 import type { TemplateAnimation } from "./models/animateTemplate";
+import { pictureAddress } from "./models/assetPicture";
 import { loadedChunk } from "./models/loadModel";
 import {
     animationOf,
@@ -1241,11 +1242,26 @@ export class Node implements ModelUser {
         // line from the camera through the node's center, so it is drawn centered on the node however
         // far from the middle of a perspective view the node is.
         const facesCamera = !this.context.is2D() && !isFlatShape(style.shape?.type ?? "");
+        // A placed picture named by an image asset id loads from the asset's bytes, as `node.texture`'s does; while
+        // the asset is on its way the node draws none and is drawn again once it is held.
+        const src = style.image?.src ?? "";
+        const address =
+            src === ""
+                ? src
+                : pictureAddress(this.context.getSession?.(), src, () => {
+                      if (!this.disposed) {
+                          this.updateStyle();
+                      }
+                  });
+        const pictured: DecoratedStyle =
+            address === src
+                ? style
+                : { ...style, image: address === null ? undefined : { ...style.image, src: address } };
         // A raised edge is a flat bevel: the 2D view draws it, the 3D view does not (its drawnWhen says so).
         const { pieces, image, glyph } = createNodeDecorations(
             this.context.getMeshCache(),
             `${meshKey}-${this.context.is2D() ? "2d" : "3d"}`,
-            this.context.is2D() ? style : { ...style, raisedBorder: undefined },
+            this.context.is2D() ? pictured : { ...pictured, raisedBorder: undefined },
             this.size,
             this.#anchor as AbstractMesh,
             this.context.getScene(),

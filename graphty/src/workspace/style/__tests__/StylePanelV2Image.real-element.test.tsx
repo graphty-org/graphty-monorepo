@@ -60,6 +60,32 @@ function dimmed(element: Element): string | null {
 describe("Style panel v2's Image wraps around the shape", () => {
     withFeatures(["file-styles", "style-panel-v2", "node-models"]);
 
+    // E495: "+ Image" writes the chosen picture as an asset id, and graphty-element loaded `node.image` only from a
+    // URL, so the placed picture never drew (E_IMAGE_LOAD) in either view.
+    for (const view of ["2D", "3D"] as const) {
+        it(`a picture chosen for "+ Image" draws on the node in ${view}`, async () => {
+            const { session, element, nodes } = await openGraph();
+            await session.styles.update(nodes, { set: { "node.color": "#E8590C", "node.size": 3 } });
+            await session.styles.settled();
+            await switchView(view);
+            const tab = await openStyle("Key people");
+            const before = await picture(element);
+            const fill = sectionOf(tab, "node-fill");
+            await userEvent.click(within(fill).getByRole("button", { name: /^Add to node fill/ }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Image" }));
+            const dialog = await screen.findByRole("dialog", { name: "Picture" });
+            const file = new File([await (await fetch(colormapUrl)).arrayBuffer()], "colormap.png");
+            await choose(dialog, "Choose picture", [file]);
+            await waitFor(() => {
+                assert.match(String(written(session, nodes, "node.image")), /^asset:/);
+            });
+            await userEvent.keyboard("{Escape}");
+            await waitFor(async () => {
+                assert.isAbove(pixelsApart(before, await picture(element)), 100, "the picture is drawn on the node");
+            });
+        });
+    }
+
     it("Wrap around shape moves the picture from the node's plate to its 3D surface and back", async () => {
         const { session, element, nodes } = await openGraph();
         await session.styles.update(nodes, { set: { "node.color": "#E8590C", "node.shape": "box", "node.size": 3 } });

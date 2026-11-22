@@ -12,6 +12,7 @@ import {
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
 import { createEdgeCounter, edgeCounterOf, edgeIdOf, EdgeIdRows } from "../data/edgeIdentity";
+import { EdgeSetLog } from "../data/edgeSetLog";
 import { GraphStore } from "../data/GraphStore";
 import { GROUPS_VALUE, groupsOf, type NodeGroup, RANK_SETS_VALUE, type RankSet, rankSetsOf } from "../data/groups";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
@@ -71,6 +72,7 @@ import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
+import { RowRenumbering } from "./RowRenumbering";
 import { bootstrapEdgePaint, bootstrapNodePaint, type EdgePaint, type NodePaint } from "./StylePainter";
 
 /** The graph value a plugin algorithm's graph-level results are kept under. */
@@ -441,6 +443,8 @@ export const dataManagerInternals = {} as {
     builtEdges(manager: DataManager): ReadonlyMap<string, Edge>;
     /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
     rowOf(manager: DataManager, id: NodeIdType): number;
+    /** The `Node` built for a row, building none; undefined when the row has none. */
+    builtNodeAtRow(manager: DataManager, row: number): Node | undefined;
     /** The `Node`s built so far, walked without building one for a row that has none. */
     builtNodes(manager: DataManager): IterableIterator<Node>;
     /** The rows stored with no `Node` yet (see `LazyView`), by row number. */
@@ -463,6 +467,8 @@ export const dataManagerInternals = {} as {
     builtNode(manager: DataManager, id: NodeIdType): Node | undefined;
     /** See `DataManager.incidentEdgeIds`, by id, so a row with no `Node` is not given one. */
     incidentEdgeIds(manager: DataManager, id: NodeIdType): EdgeId[];
+    /** The built `Edge`s at a node, building none. */
+    builtEdgesAt(manager: DataManager, id: NodeIdType): Iterable<Edge>;
     /** The id of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
     unbuiltAt(manager: DataManager, index: number): NodeIdType | undefined;
     /** The record of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
@@ -605,6 +611,21 @@ function lazyArray<K, V>(built: V[], ids: readonly K[], make: (id: K) => V | und
             return Reflect.getOwnPropertyDescriptor(t, key);
         },
     });
+}
+
+/** Where each `Edge` stands in its manager's edge map, oldest first; see `DataManager.noteBuilt`. */
+const buildOrder = new WeakMap<Edge, number>();
+
+/**
+ * One key for a pair of node ids, the same either way round.
+ * @param a - One id.
+ * @param b - The other.
+ * @returns The key.
+ */
+function pairKey(a: NodeIdType, b: NodeIdType): string {
+    const x = `${typeof a}:${String(a)}`;
+    const y = `${typeof b}:${String(b)}`;
+    return x < y ? `${x}|${y}` : `${y}|${x}`;
 }
 
 /**
@@ -805,7 +826,13 @@ export class DataManager implements Manager {
         ids: () => [...this.unbuiltEdgeIds.keys()],
         build: (id) => this.buildEdgeRow(this.unbuiltEdgeIds.get(id) ?? INVALID_INDEX),
     });
-    private readonly edgeRows: (Edge | undefined)[] = [];
+    private edgeRows: (Edge | undefined)[] = [];
+
+    /** The built `Edge`s at each node, filed under both ends; see {@link DataManager.dropRenderNodes}. */
+    private readonly builtEdgesAt = new Map<NodeIdType, Set<Edge>>();
+
+    /** The renumberings of the edge rows each `Edge` brings its row forward through; see {@link walkEdgeRemap}. */
+    private readonly edgeRenumbering = new RowRenumbering();
     /** Who else holds rows by index (the session's selection), told after the render objects. */
     private readonly renumberFollowers = new Set<FreezeFollower>();
     /** See `dataManagerInternals.nodesBuilt`. */
@@ -823,6 +850,11 @@ export class DataManager implements Manager {
         dataManagerInternals.builtEdges = (manager) => manager.edgeMap.builtView();
         dataManagerInternals.rowOf = (manager, id) => manager.store.reads.indexOf(id);
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
+        dataManagerInternals.builtNodeAtRow = (manager, row) => {
+            const id = manager.nodeIdAtRow(row);
+            const node = id === undefined ? undefined : manager.nodeMap.builtOf(id);
+            return node?.index === row ? node : undefined;
+        };
         dataManagerInternals.unbuiltRows = (manager) => [...manager.unbuilt.keys()];
         dataManagerInternals.pairIndexSources = (manager) => manager.ingest.pairIndexSources;
         dataManagerInternals.lateNodeVersions = (manager) => manager.lateNodeVersions;
@@ -837,6 +869,7 @@ export class DataManager implements Manager {
         };
         dataManagerInternals.builtNode = (manager, id) => manager.nodeMap.builtOf(id);
         dataManagerInternals.incidentEdgeIds = (manager, id) => manager.incidentEdgeIdsOf(id);
+        dataManagerInternals.builtEdgesAt = (manager, id) => manager.builtEdgesAt.get(id) ?? [];
         dataManagerInternals.unbuiltAt = (manager, index) => manager.unbuilt.get(index)?.id;
         dataManagerInternals.unbuiltRecord = (manager, index) => {
             const row = manager.unbuilt.get(index);
@@ -909,8 +942,12 @@ export class DataManager implements Manager {
             manager.flushReleasing();
         };
         dataManagerInternals.adoptEdge = (manager, edge) => {
+            manager.noteBuilt(edge);
+            // On its row as it is, following the renumberings of the edge rows from now on.
+            placeEdgeRow(edge, edge.index, manager.edgeRenumbering);
             manager.edgeMap.set(edge.id, edge);
-            manager.edgeVersion++;
+            manager.indexBuiltEdge(edge);
+            manager.edgeSetChanged(edge.srcId, edge.dstId);
             if (edge.index !== INVALID_INDEX) {
                 manager.edgeRows[edge.index] = edge;
             }
@@ -944,8 +981,49 @@ export class DataManager implements Manager {
     /** {@link DataManager.edges}: the edge map with no writer. */
     private readonly edgeView = readonlyMapView(this.edgeMap);
 
-    /** Goes up on every edge added or removed, so a cache over the edge set knows it is stale. */
+    /**
+     * Goes up on every edge added or removed, so a cache over the edge set knows it is stale. Most
+     * changes also say which pair of nodes they touched (`edgeSetChangesSince`).
+     */
     edgeVersion = 0;
+
+    /** How many `Edge`s were ever put in the edge map: {@link buildOrder}'s counter. */
+    private builtSerial = 0;
+
+    /**
+     * Note where an `Edge` about to enter the edge map falls in its order: last, or where the edge it
+     * replaces under the same id stood, as a `Map` keeps a key's place.
+     * @param edge - The edge.
+     */
+    private noteBuilt(edge: Edge): void {
+        const prior = this.edgeMap.builtOf(edge.id);
+        buildOrder.set(edge, prior === undefined ? ++this.builtSerial : (buildOrder.get(prior) ?? ++this.builtSerial));
+    }
+
+    /** The pairs each tracked {@link edgeVersion} change touched. */
+    private readonly edgeSetLog = new EdgeSetLog();
+
+    /**
+     * Count one edge between two nodes added or removed, and say which pair it joined.
+     * @param source - One end.
+     * @param target - The other.
+     */
+    private edgeSetChanged(source: NodeIdType, target: NodeIdType): void {
+        const before = this.edgeVersion;
+        this.edgeVersion++;
+        this.edgeSetLog.record(before, this.edgeVersion, [source, target]);
+    }
+
+    /**
+     * The node pairs whose edges came or went since an {@link edgeVersion}: what a cache over the
+     * edge set updates instead of walking every edge.
+     * @param version - The version the caller last followed.
+     * @returns The pairs, repeats included; or null when the caller has to walk the whole set.
+     * @internal
+     */
+    edgeSetChangesSince(version: number): readonly (readonly [NodeIdType, NodeIdType])[] | null {
+        return this.edgeSetLog.since(version, this.edgeVersion);
+    }
     /** Goes up on every node added or removed, so a cache over the node set knows it is stale. */
     nodeVersion = 0;
     /** See `dataManagerInternals.lateNodeVersions`. */
@@ -1817,7 +1895,7 @@ export class DataManager implements Manager {
             placeNodeRow(element, row);
             this.nodeVersion++;
         } else {
-            placeEdgeRow(element, row);
+            placeEdgeRow(element, row, this.edgeRenumbering);
             if (row !== INVALID_INDEX) {
                 this.edgeRows[row] = element;
             }
@@ -1837,7 +1915,9 @@ export class DataManager implements Manager {
         // An edge stored with no `Edge` goes the same way, with nothing to tear down: reading it
         // would build one.
         const removed = this.dropUnbuiltEdgesOf(ids, slice);
-        const edges = [...this.edgeMap.built()];
+        // The built edges of the nodes going, from the index by end: a scan of every built edge was a
+        // walk of a million edges on each redo of a removal (issue #9164).
+        const edges = [...new Set([...ids].flatMap((id) => [...(this.builtEdgesAt.get(id) ?? [])]))];
         disposeReleased(
             // Built ones only: a row removed with no `Node` has none to release, and is not given one.
             [...ids].flatMap((id) => this.nodeMap.builtOf(id) ?? []),
@@ -2009,6 +2089,7 @@ export class DataManager implements Manager {
         this.disposeNodesAndEdges();
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.builtEdgesAt.clear();
         this.nodeVersion++;
         this.edgeVersion++;
         this.nodeCache.clear();
@@ -2294,24 +2375,31 @@ export class DataManager implements Manager {
      * @param remap - the freeze report's edgeRemap: old index -> new index, or INVALID_INDEX
      */
     private walkEdgeRemap(remap: U32): void {
-        const unbuilt = [...this.unbuiltEdges.values()];
-        this.unbuiltEdges.clear();
-        this.unbuiltEdgeIds.clear();
-        for (const stored of unbuilt) {
-            const moved = remap[stored.edgeIndex] ?? INVALID_INDEX;
-            if (moved !== INVALID_INDEX) {
-                this.unbuiltEdges.set(moved, { ...stored, edgeIndex: moved });
-                this.unbuiltEdgeIds.set(stored.edgeId, moved);
-            }
+        // In place, column by column: reading a million stored edges out as objects and setting each again
+        // was most of a removal's cost (issue #9164).
+        this.unbuiltEdges.remap(
+            remap,
+            (edgeId, row) => {
+                this.unbuiltEdgeIds.set(edgeId, row);
+            },
+            (edgeId) => {
+                this.unbuiltEdgeIds.delete(edgeId);
+            },
+        );
+
+        // An order-keeping renumbering -- every removal -- is kept as runs, and each `Edge` brings its
+        // row forward when it is next read: a removal from a million edges places none of them
+        // (issue #9164). Only the row-indexed list is renumbered here, in one pass with no `Edge` read.
+        const renumbering = this.edgeRenumbering;
+        if (renumbering.full) {
+            // Every `Edge` is brought forward once in so many renumberings, so the kept runs stay few.
+            this.restampEdges(null);
         }
 
-        this.edgeRows.length = 0;
-        for (const edge of this.edgeMap.built()) {
-            const moved = remap[edge.index] ?? INVALID_INDEX;
-            placeEdgeRow(edge, moved);
-            if (moved !== INVALID_INDEX) {
-                this.edgeRows[moved] = edge;
-            }
+        if (renumbering.record(remap)) {
+            this.edgeRows = RowRenumbering.remapRows(this.edgeRows, remap);
+        } else {
+            this.restampEdges(remap);
         }
 
         const survivors: PendingEdge[] = [];
@@ -2329,6 +2417,24 @@ export class DataManager implements Manager {
         }
 
         this.pendingEdges = survivors;
+    }
+
+    /**
+     * Place every `Edge` on its row again, through a renumbering that cannot be kept as runs, and
+     * let go of the runs kept: a walk of every edge, once in many renumberings.
+     * @param remap - The renumbering, or null to bring each forward to the rows it has now.
+     */
+    private restampEdges(remap: U32 | null): void {
+        const before = Array.from(this.edgeMap.built(), (edge) => [edge, edge.index] as const);
+        this.edgeRenumbering.restart();
+        this.edgeRows = [];
+        for (const [edge, row] of before) {
+            const moved = remap === null ? row : (remap[row] ?? INVALID_INDEX);
+            placeEdgeRow(edge, moved, this.edgeRenumbering);
+            if (moved !== INVALID_INDEX) {
+                this.edgeRows[moved] = edge;
+            }
+        }
     }
 
     /**
@@ -2521,6 +2627,7 @@ export class DataManager implements Manager {
         // Clear all collections
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.builtEdgesAt.clear();
         // Rows stored under "batched" with no `Node`: the node map counts them, so a disposed graph held them.
         this.unbuilt.clear();
         this.unbuiltIds.clear();
@@ -2638,7 +2745,7 @@ export class DataManager implements Manager {
      */
     private builtUnpainted(key: string, target: "node" | "edge", index: number): void {
         this.unpainted.add(key);
-        this.graphContext?.getStylePainter?.()?.queue(target, index);
+        this.graphContext?.getStylePainter?.()?.queue(target, index, true);
     }
 
     /**
@@ -2658,7 +2765,7 @@ export class DataManager implements Manager {
             this.unpaintedEdgeCount++;
         }
 
-        this.graphContext?.getStylePainter?.()?.queue("edge", index);
+        this.graphContext?.getStylePainter?.()?.queue("edge", index, true);
     }
 
     /**
@@ -3095,10 +3202,41 @@ export class DataManager implements Manager {
      */
     private registerEdge(edge: Edge, edgeIndex: number): void {
         this.builtEdges++;
-        placeEdgeRow(edge, edgeIndex);
+        placeEdgeRow(edge, edgeIndex, this.edgeRenumbering);
         this.edgeRows[edgeIndex] = edge;
+        this.noteBuilt(edge);
         this.edgeMap.set(edge.id, edge);
-        this.edgeVersion++;
+        this.indexBuiltEdge(edge);
+        this.edgeSetChanged(edge.srcId, edge.dstId);
+    }
+
+    /**
+     * File a built `Edge` under each of its ends, once.
+     * @param edge - The edge.
+     */
+    private indexBuiltEdge(edge: Edge): void {
+        for (const end of [edge.srcId, edge.dstId]) {
+            let at = this.builtEdgesAt.get(end);
+            if (at === undefined) {
+                at = new Set();
+                this.builtEdgesAt.set(end, at);
+            }
+
+            at.add(edge);
+        }
+    }
+
+    /**
+     * Take a built `Edge` out of {@link builtEdgesAt}.
+     * @param edge - The edge.
+     */
+    private unindexBuiltEdge(edge: Edge): void {
+        for (const end of [edge.srcId, edge.dstId]) {
+            const at = this.builtEdgesAt.get(end);
+            if (at?.delete(edge) === true && at.size === 0) {
+                this.builtEdgesAt.delete(end);
+            }
+        }
     }
 
     /**
@@ -3254,7 +3392,10 @@ export class DataManager implements Manager {
      */
     private teardownEdge(edge: Edge, edgeIndex: number): void {
         this.edgeMap.delete(edge.id);
-        this.edgeVersion++;
+        this.unindexBuiltEdge(edge);
+        // Its bundle's other members are worked out again from the pair; this one has no answer left.
+        this.bundles?.byEdge.delete(edge);
+        this.edgeSetChanged(edge.srcId, edge.dstId);
         this.edgeRows[edgeIndex] = undefined;
         placeEdgeRow(edge, INVALID_INDEX);
 
@@ -3374,7 +3515,7 @@ export class DataManager implements Manager {
         // ponytail: one hand-over per edge; buffer them as `arrivedRows` does if a profile shows the calls.
         this.layoutEdgeRows?.add([edgeRowOf(stored)]);
         this.storedUnpainted(edgeId, edgeIndex);
-        this.edgeVersion++;
+        this.edgeSetChanged(stored.sourceId, stored.targetId);
     }
 
     /**
@@ -3497,7 +3638,11 @@ export class DataManager implements Manager {
             }
         }
 
-        this.edgeVersion++;
+        if (stored === undefined) {
+            this.edgeVersion++;
+        } else {
+            this.edgeSetChanged(stored.sourceId, stored.targetId);
+        }
     }
 
     /**
@@ -3541,6 +3686,10 @@ export class DataManager implements Manager {
      * @returns Its bundle; a lone edge is a bundle of one.
      */
     drawnBundle(edge: Edge): EdgeBundle {
+        if (this.bundles !== null && this.bundles.version !== this.edgeVersion) {
+            this.followBundles(this.bundles);
+        }
+
         if (this.bundles?.version !== this.edgeVersion) {
             const byEdge = new Map<Edge, EdgeBundle>();
             // By id, not by `Node`: reading an end's `Node` would build one for a row drawn with none.
@@ -3579,6 +3728,136 @@ export class DataManager implements Manager {
         }
 
         return this.bundles.byEdge.get(edge) ?? { rank: 0, count: 1, firstSource: edge.srcId, members: [edge] };
+    }
+
+    /**
+     * Bring {@link drawnBundle}'s answers up to the edge set by working out again only the bundles
+     * of the pairs whose edges came or went since, found in the snapshot: one edit costs its pairs'
+     * edges, not a pass over a million (issue #9164). Leaves them stale when the log cannot say
+     * what changed, for the whole pass.
+     * @param bundles - The answers, worked out at an earlier version.
+     * @param bundles.version - That version.
+     * @param bundles.byEdge - The answers by edge.
+     */
+    private followBundles(bundles: { version: number; byEdge: Map<Edge, EdgeBundle> }): void {
+        const changed = this.edgeSetLog.since(bundles.version, this.edgeVersion);
+        // Never a freeze from inside a frame's edge walk: with a change still to be frozen, the
+        // whole pass works the bundles out from the edge map, as it always has.
+        if (changed === null || this.store.stale) {
+            return;
+        }
+
+        const byRow = this.renderLimits?.batched() === true;
+        for (const { members: joined } of this.membersOfPairs(changed)) {
+            // The bundles as they stood: an edge that left keeps no answer, and one left alone is lone.
+            for (const each of joined) {
+                const stood = typeof each === "number" ? undefined : bundles.byEdge.get(each);
+                (stood?.members ?? []).forEach((member) => typeof member !== "number" && bundles.byEdge.delete(member));
+            }
+
+            if (joined.length > 1) {
+                this.joinBundle(joined, byRow, bundles.byEdge);
+            }
+        }
+
+        // Building a member's `Edge` above moved the version; what it moved is answered.
+        bundles.version = this.edgeVersion;
+    }
+
+    /**
+     * The `Edge`s joining each of some pairs of nodes, in either direction, building none: the edges
+     * an edit between them can move. Each pair once, whichever way round and however often it is
+     * named. Read off the snapshot the graph is drawn from. A caller in the middle of placing edges
+     * passes `freeze: false`, so no freeze (and the renumbering it can announce) lands under it:
+     * while a change is still to be frozen it then answers null, and the caller walks every edge.
+     * @param pairs - The pairs, repeats allowed.
+     * @param freeze - Whether a change still to be frozen may be frozen now, at a frame's boundary.
+     * @returns Each pair's two ends and edges; or null while the snapshot is behind the graph.
+     * @internal
+     */
+    builtEdgesOfPairs(
+        pairs: Iterable<readonly [NodeIdType, NodeIdType]>,
+        freeze: boolean,
+    ): { readonly a: NodeIdType; readonly b: NodeIdType; readonly edges: Edge[] }[] | null {
+        if (!freeze && this.store.stale) {
+            return null;
+        }
+
+        return this.membersOfPairs(pairs).map(({ a, b, members }) => ({
+            a,
+            b,
+            edges: members.filter((each): each is Edge => typeof each !== "number"),
+        }));
+    }
+
+    /**
+     * Each of some pairs of nodes once, whichever way round and however often it is named, with
+     * {@link pairMembers}'s edges between them, off the current snapshot.
+     * @param pairs - The pairs, repeats allowed.
+     * @returns Each pair's two ends and members.
+     */
+    private membersOfPairs(
+        pairs: Iterable<readonly [NodeIdType, NodeIdType]>,
+    ): { readonly a: NodeIdType; readonly b: NodeIdType; readonly members: (Edge | number)[] }[] {
+        const snapshot = this.getSnapshot();
+        const seen = new Set<string>();
+        const found: { readonly a: NodeIdType; readonly b: NodeIdType; readonly members: (Edge | number)[] }[] = [];
+        for (const [a, b] of pairs) {
+            const key = pairKey(a, b);
+            if (!seen.has(key)) {
+                seen.add(key);
+                found.push({ a, b, members: this.pairMembers(snapshot, a, b) });
+            }
+        }
+
+        return found;
+    }
+
+    /**
+     * Every edge joining two nodes, in either direction (a self-loop's when they are one), as
+     * {@link drawnBundle} gathers them: the `Edge` of each that has one, in build order on the
+     * objects path, and the row of each stored with none.
+     * @param snapshot - The current snapshot.
+     * @param a - One node.
+     * @param b - The other.
+     * @returns The members.
+     */
+    private pairMembers(snapshot: GraphSnapshot, a: NodeIdType, b: NodeIdType): (Edge | number)[] {
+        const u = isStorableId(a) ? snapshot.ids.indexOf(a) : INVALID_INDEX;
+        const v = isStorableId(b) ? snapshot.ids.indexOf(b) : INVALID_INDEX;
+        if (u === INVALID_INDEX || v === INVALID_INDEX) {
+            return [];
+        }
+
+        const rows = new Set<number>();
+        for (const [from, to] of u === v
+            ? [[u, v]]
+            : [
+                  [u, v],
+                  [v, u],
+              ]) {
+            const [lo, hi] = snapshot.arcsBetween(from, to);
+            for (let arc = lo; arc < hi; arc++) {
+                rows.add(snapshot.arcToEdge[arc]);
+            }
+        }
+
+        const built: Edge[] = [];
+        const unbuilt: number[] = [];
+        for (const row of rows) {
+            const edge = this.edgeRows[row];
+            if (edge !== undefined) {
+                built.push(edge);
+            } else if (this.unbuiltEdges.edgeIdAt(row) !== undefined) {
+                unbuilt.push(row);
+            }
+        }
+
+        unbuilt.sort((x, y) => x - y);
+
+        // The whole pass meets the built edges in the order the map holds them, the order they were built.
+        built.sort((x, y) => (buildOrder.get(x) ?? 0) - (buildOrder.get(y) ?? 0));
+        return [...built, ...unbuilt];
     }
 
     /**
@@ -3632,6 +3911,11 @@ export class DataManager implements Manager {
             return [];
         }
 
+        // A let-go builder is not brought back for a read: the snapshot holds the same rows.
+        if (this.store.builderRelease.released) {
+            return this.snapshotEdgesBetween(srcNodeId, dstNodeId);
+        }
+
         const { builder } = this.store;
         const u = builder.indexOf(srcNodeId);
         const v = builder.indexOf(dstNodeId);
@@ -3643,6 +3927,38 @@ export class DataManager implements Manager {
         for (const e of builder.findEdges(u, v)) {
             const edge = this.edgeRows[e] ?? this.buildEdgeRow(e);
             if (edge !== undefined && builder.indexOf(edge.srcId) === u) {
+                found.push(edge);
+            }
+        }
+
+        return found;
+    }
+
+    /**
+     * {@link getEdgesBetween} answered from the snapshot, as the builder answers it: the edges from
+     * one node to the other, oldest first.
+     * @param srcNodeId - Source node identifier
+     * @param dstNodeId - Destination node identifier
+     * @returns the edges
+     */
+    private snapshotEdgesBetween(srcNodeId: NodeIdType, dstNodeId: NodeIdType): readonly Edge[] {
+        const snapshot = this.getSnapshot();
+        const u = snapshot.ids.indexOf(srcNodeId);
+        const v = snapshot.ids.indexOf(dstNodeId);
+        if (u === INVALID_INDEX || v === INVALID_INDEX) {
+            return [];
+        }
+
+        const [lo, hi] = snapshot.arcsBetween(u, v);
+        const rows = new Set<number>();
+        for (let arc = lo; arc < hi; arc++) {
+            rows.add(snapshot.arcToEdge[arc]);
+        }
+
+        const found: Edge[] = [];
+        for (const row of [...rows].sort((x, y) => x - y)) {
+            const edge = this.edgeRows[row] ?? this.buildEdgeRow(row);
+            if (edge !== undefined && snapshot.ids.indexOf(edge.srcId) === u) {
                 found.push(edge);
             }
         }

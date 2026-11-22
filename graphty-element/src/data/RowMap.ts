@@ -4,6 +4,8 @@
  * order rows were set.
  */
 
+import { INVALID_INDEX } from "@graphty/graph-format";
+
 /** A map from row to value, held in an array by row. */
 export class RowMap<V> {
     private readonly slots: (V | undefined)[] = [];
@@ -336,6 +338,131 @@ export class RowEdges<I, R> {
                 visit(row, sources[row] as I, targets[row] as I);
             }
         }
+    }
+
+    /**
+     * Move every edge to the row a renumbering gives it, and forget those it drops. Moved in place when
+     * every edge moves the same way (down, as after a removal, or up, as after rows are put back): no
+     * object is made per edge, where reading each out and setting it again made a million.
+     * @param remap - Old row to new; INVALID_INDEX, or a row past its end, drops the edge.
+     * @param moved - Called with each kept edge's counter and its new row.
+     * @param dropped - Called with each dropped edge's counter.
+     */
+    remap(
+        remap: ArrayLike<number>,
+        moved: (edgeId: number, row: number) => void,
+        dropped: (edgeId: number) => void,
+    ): void {
+        const target = (row: number): number => (row < remap.length ? remap[row] : INVALID_INDEX);
+        const way = this.wayMoved(target);
+        // Down walks rows rising and up falling, so no row is written before it is read; both ways at once
+        // reads from a copy.
+        const source = way === null ? this.detach() : this;
+        const { length } = source.edgeIds;
+        for (let at = 0; at < length; at++) {
+            const row = way === "up" ? length - 1 - at : at;
+            const edgeId = source.edgeIds[row];
+            if (edgeId !== undefined) {
+                this.moveRow(source, row, edgeId, target(row), moved, dropped);
+            }
+        }
+
+        let end = this.edgeIds.length;
+        while (end > 0 && this.edgeIds[end - 1] === undefined) {
+            end--;
+        }
+
+        for (const array of [this.edgeIds, this.records, this.sources, this.targets]) {
+            array.length = end;
+        }
+    }
+
+    /**
+     * Which way every kept edge moves.
+     * @param target - Each row's new row.
+     * @returns "down" when none moves up, "up" when none moves down, null when both happen.
+     */
+    private wayMoved(target: (row: number) => number): "down" | "up" | null {
+        const { edgeIds } = this;
+        let down = true;
+        let up = true;
+        for (let row = 0; row < edgeIds.length && (down || up); row++) {
+            const to = edgeIds[row] === undefined ? INVALID_INDEX : target(row);
+            if (to !== INVALID_INDEX) {
+                down &&= to <= row;
+                up &&= to >= row;
+            }
+        }
+
+        if (down) {
+            return "down";
+        }
+
+        return up ? "up" : null;
+    }
+
+    /**
+     * Hand every row to a new map and empty this one.
+     * @returns The new map.
+     */
+    private detach(): RowEdges<I, R> {
+        const copy = new RowEdges<I, R>();
+        // One row at a time: spreading a million rows into `push` overflows the call stack.
+        for (let row = 0; row < this.edgeIds.length; row++) {
+            copy.edgeIds[row] = this.edgeIds[row];
+            copy.records[row] = this.records[row];
+            copy.sources[row] = this.sources[row];
+            copy.targets[row] = this.targets[row];
+        }
+
+        this.clear();
+        return copy;
+    }
+
+    /**
+     * Move one row of a source (this map, or what {@link RowEdges.detach} took from it) to its new row here.
+     * @param source - Where the row is read from.
+     * @param row - The row.
+     * @param edgeId - Its edge's counter.
+     * @param to - Its new row, or INVALID_INDEX.
+     * @param moved - Called when it is kept.
+     * @param dropped - Called when it is dropped.
+     */
+    private moveRow(
+        source: RowEdges<I, R>,
+        row: number,
+        edgeId: number,
+        to: number,
+        moved: (edgeId: number, row: number) => void,
+        dropped: (edgeId: number) => void,
+    ): void {
+        if (source === this && to === row) {
+            moved(edgeId, row);
+            return;
+        }
+
+        const { records, sources, targets } = source;
+        const record = records[row];
+        const sourceId = sources[row];
+        const targetId = targets[row];
+        if (source === this) {
+            this.delete(row);
+        }
+
+        if (to === INVALID_INDEX) {
+            dropped(edgeId);
+            return;
+        }
+
+        if (this.edgeIds[to] === undefined) {
+            this.count++;
+        }
+
+        this.edgeIds[to] = edgeId;
+        this.records[to] = record;
+        this.sources[to] = sourceId;
+        this.targets[to] = targetId;
+        moved(edgeId, to);
     }
 
     private at(row: number, edgeId: number): RowEdge<I, R> {

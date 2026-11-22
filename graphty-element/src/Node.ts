@@ -33,7 +33,6 @@ import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
-import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
@@ -122,6 +121,23 @@ const logger = GraphtyLogger.getLogger(["graphty", "node"]);
  * per node mesh source -- the halo is the node's own geometry -- keyed by the node's cache key.
  */
 export const SELECTION_HALO_MESH = "graphty-selection-halo";
+
+/**
+ * A style less its halo. A built `Node` draws its halo as an overlay of its own, hung from its anchor, whatever
+ * draws its body -- as it does for a selection drawn without the starting rows -- so a halo keeps its body on
+ * the batch. Counted as unbatchable, one selected node put every row of its look back on an instance mesh,
+ * and each such row needed a `Node` built for it (issue #9164).
+ * @param style - The style.
+ * @returns It, without `effect.halo`.
+ */
+function withoutHalo(style: NodeStyleConfig): NodeStyleConfig {
+    if (style.effect?.halo === undefined) {
+        return style;
+    }
+
+    const { halo: _halo, ...effect } = style.effect;
+    return { ...style, effect };
+}
 
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
@@ -1909,7 +1925,21 @@ export class Node implements ModelUser {
         }
 
         this.followedMoves = table.moves;
-        this.#anchor.position.copyFrom(table.centerOf(this.row));
+        const center = table.centerOf(this.row);
+        // A row renumbered by a removal keeps its place: its world matrix is brought up to date only
+        // if something else left it stale, not forced again for each of a hundred thousand nodes
+        // (issue #9164). Stale is asked of the anchor itself: an unforced computeWorldMatrix returns
+        // the cached matrix whenever it already ran in this render id, and before the first frame
+        // every call shares one, so an anchor moved onto its row there kept the template's place.
+        if (this.#anchor.position.equals(center)) {
+            if (!this.#anchor.isSynchronized()) {
+                this.#anchor.computeWorldMatrix(true);
+            }
+
+            return;
+        }
+
+        this.#anchor.position.copyFrom(center);
         // Its world place too, which Babylon would otherwise refresh only at the next frame.
         this.#anchor.computeWorldMatrix(true);
     }
@@ -2126,7 +2156,7 @@ export class Node implements ModelUser {
             !this.drawnAsGroup &&
             this.drawnModel === null &&
             this.shaderPath === null &&
-            batchableOf({ style }, view)
+            batchableOf({ style: withoutHalo(style) }, view)
         );
     }
 
@@ -3331,19 +3361,13 @@ export class Node implements ModelUser {
             return;
         }
 
-        // Built `Edge`s only: an edge stored with no `Edge` keeps no cached ends to invalidate.
-        for (const edge of dataManagerInternals.builtEdges(this.context.getDataManager()).values()) {
-            // By id: reading an end's `Node` would build one for a row drawn with none.
-            if (edge.srcId === this.id || edge.dstId === this.id) {
-                edge.invalidatePositionCache();
-            }
-        }
-
-        // Outside a style pass (a model or picture landing on a frame of its own) nothing else
-        // makes the frame loop visit the edges: it walks them only when a node moved, and this
-        // node did not. Without it the edges kept the ends measured against the placeholder shape
-        // whenever the model landed after the last walk, so one story drew two pictures (#4392).
-        this.context.getUpdateManager?.().forceEdgeWalk();
+        // Its own built edges measure their ends again and are placed: an edge stored with no `Edge` keeps no
+        // cached ends. Outside a style pass (a model or picture landing on a frame of its own) nothing else makes
+        // the frame loop visit them: it places edges only when a node moved, and this node did not. Without it the
+        // edges kept the ends measured against the placeholder shape whenever the model landed after the last walk,
+        // so one story drew two pictures (#4392). Only this node's: a walk of every edge here made putting one node
+        // back on a million-edge graph place every edge (issue #9164).
+        this.context.getUpdateManager?.().placeEdgesOfNode(this);
     }
 
     /**

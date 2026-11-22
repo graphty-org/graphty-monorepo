@@ -2230,6 +2230,8 @@ export abstract class LayoutEngine {
     protected config?: Record<string, unknown>;
     static descriptor?: AuthoredLayoutDescriptor;
     dispose(): void;
+    // @internal
+    get edgeCount(): number;
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
     abstract get edges(): Iterable<Edge>;
     protected get followerGroups(): ReadonlyMap<number, readonly number[]>;

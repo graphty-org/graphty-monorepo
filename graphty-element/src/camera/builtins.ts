@@ -28,7 +28,7 @@
 
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 
-import { isPointBox, measuredOf } from "./bounds";
+import { isPointBox } from "./bounds";
 import { freeArea } from "./insets";
 import { orientationOf } from "./orientation";
 import type { CameraState, CameraViewInput } from "./types";
@@ -99,33 +99,10 @@ function fromCurrentAngle(input: CameraViewInput, fov: number): CameraState | un
     const right = axis(1, 0, 0);
     const up = axis(0, 1, 0);
     const { center } = bounds;
-    const place = (x: number, y: number, z: number): { along: number; x: number; y: number } => {
-        const c = new Vector3(x - center.x, y - center.y, z - center.z);
+    const points = (bounds.points ?? boxCorners(bounds)).map((point) => {
+        const c = new Vector3(point.x - center.x, point.y - center.y, point.z - center.z);
         return { along: Vector3.Dot(c, toViewer), x: Vector3.Dot(c, right), y: Vector3.Dot(c, up) };
-    };
-    // Each drawn box as the cube about its middle that faces the camera, as wide as the box's
-    // widest half: from a turned view the box's own corners stand outside a round node by up to
-    // three quarters of its radius, and framed it short of the canvas.
-    const measured = measuredOf(bounds);
-    const points =
-        measured === undefined
-            ? (bounds.points ?? boxCorners(bounds)).map((point) => place(point.x, point.y, point.z))
-            : [
-                  ...measured.points.map((point) => place(point.x, point.y, point.z)),
-                  ...measured.boxes.flatMap(({ min, max }) => {
-                      const middle = place((min.x + max.x) / 2, (min.y + max.y) / 2, (min.z + max.z) / 2);
-                      const half = Math.max(max.x - min.x, max.y - min.y, max.z - min.z) / 2;
-                      return [-1, 1].flatMap((a) =>
-                          [-1, 1].flatMap((sx) =>
-                              [-1, 1].map((sy) => ({
-                                  along: middle.along + a * half,
-                                  x: middle.x + sx * half,
-                                  y: middle.y + sy * half,
-                              })),
-                          ),
-                      );
-                  }),
-              ];
+    });
     const tanY = Math.tan(fov / 2) / KEPT_ANGLE_PADDING;
     const tanX = aspect > 0 ? tanY * aspect : tanY;
 

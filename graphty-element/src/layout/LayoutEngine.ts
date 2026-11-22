@@ -760,6 +760,17 @@ export abstract class LayoutEngine {
     abstract get isSettled(): boolean;
 
     /**
+     * How many edges {@link LayoutEngine.edges} holds, or -1 when it is not an array: what the frame loop reads to
+     * notice an edge taken up late, without reading the list itself.
+     * @returns The count.
+     * @internal
+     */
+    get edgeCount(): number {
+        const { edges } = this;
+        return Array.isArray(edges) ? edges.length : -1;
+    }
+
+    /**
      * Start the layout again because a node's drawn size changed, when it keeps nodes apart by that size (`nodeGap`):
      * a node that grew after the layout came to rest may now cover another.
      * @returns True when the frame loop has to start stepping this layout again.
@@ -1438,6 +1449,8 @@ export abstract class LayoutEngine {
         let pins = positions.pinnedView(live);
         let written = 0;
         let changed = 0;
+        // The rows that now hold something else, so a frame updates their nodes and no other (issue #9164).
+        const changedRows = new ChangedRows(live);
         const box = this.publishedBox;
         box.fill(Infinity, 0, 3);
         box.fill(-Infinity, 3, 6);
@@ -1475,6 +1488,7 @@ export abstract class LayoutEngine {
                 array[base + 1] !== Math.fround(y) ||
                 array[base + 2] !== Math.fround(z)
             ) {
+                changedRows.note(row);
                 changed++;
             }
 
@@ -1484,7 +1498,7 @@ export abstract class LayoutEngine {
             written++;
         }
 
-        positions.moved(written, changed);
+        positions.moved(written, changed, changedRows.rows ?? undefined);
         this.publishedBoxHolds = box[0] <= box[3];
     }
 
@@ -1837,7 +1851,8 @@ interface LoadedGraph {
 interface SnapshotReplacement {
     readonly previous: GraphSnapshot | null;
     readonly next: GraphSnapshot;
-    readonly report: { readonly nodeRemap: Uint32Array | null };
+    // The edge remap is optional: a caller that leaves it out takes the walk over every edge.
+    readonly report: { readonly nodeRemap: Uint32Array | null; readonly edgeRemap?: Uint32Array | null };
 }
 
 /**
@@ -1929,6 +1944,137 @@ function pairCounts(
 }
 
 /**
+ * {@link existingRows} when nothing was renumbered: every row kept its index and the new ones were
+ * appended, so the old edges are the first rows with their ends unchanged. Only an appended edge can
+ * join two old nodes, and only those are looked at -- not every edge of a million-edge graph.
+ * @param previous - The graph before the freeze.
+ * @param next - The graph after it.
+ * @returns One set bit per existing row, or null when an appended edge joins two of them.
+ */
+function appendedOnly(previous: GraphSnapshot, next: GraphSnapshot): NodeMask | null {
+    for (let e = previous.edgeCount; e < next.edgeCount; e++) {
+        if (next.edgeSource(e) < previous.nodeCount && next.edgeTarget(e) < previous.nodeCount) {
+            return null;
+        }
+    }
+
+    const old = makeMask(next.nodeCount);
+    for (let i = 0; i < previous.nodeCount; i++) {
+        maskSet(old, i, true);
+    }
+
+    return old;
+}
+
+/**
+ * The rows a publish changed, let go of past a sixteenth of the rows, where a frame reads every row
+ * anyway.
+ */
+class ChangedRows {
+    /** The rows, or null once there were too many. */
+    rows: number[] | null = [];
+
+    /** The most rows listed. */
+    private readonly most: number;
+
+    /**
+     * An empty list.
+     * @param live - The rows the lane holds.
+     */
+    constructor(live: number) {
+        this.most = Math.max(4096, live >>> 4);
+    }
+
+    /**
+     * List a row.
+     * @param row - The row.
+     */
+    note(row: number): void {
+        if (this.rows !== null) {
+            this.rows.push(row);
+            this.rows = this.rows.length > this.most ? null : this.rows;
+        }
+    }
+}
+
+/**
+ * Whether the edges between the old nodes are the old edges, read through a freeze's edge remap: every
+ * old edge kept, joining the same two nodes, and every other edge touching a new node. An undo that
+ * puts a node back between others renumbers every row after it, and pairing a million edges up in a
+ * Map took 0.6 s of that undo (issue #9164).
+ * @param previous - the snapshot before
+ * @param next - the snapshot after
+ * @param nodeRemap - old node row to new, or null for the same rows
+ * @param edgeRemap - old edge row to new, or null for the same rows; undefined when not reported
+ * @param old - the new rows of the old nodes
+ * @returns whether they are, or null when the remap does not name every old edge
+ */
+function sameEdgesThroughRemap(
+    previous: GraphSnapshot,
+    next: GraphSnapshot,
+    nodeRemap: Readonly<Uint32Array> | null,
+    edgeRemap: Readonly<Uint32Array> | null | undefined,
+    old: NodeMask,
+): boolean | null {
+    if (
+        edgeRemap === undefined ||
+        (edgeRemap === null ? previous.edgeCount : edgeRemap.length) !== previous.edgeCount
+    ) {
+        return null;
+    }
+
+    const before = previous.edgeList();
+    const after = next.edgeList();
+    const node = (row: number): number => (nodeRemap === null ? row : nodeRemap[row]);
+    const kept = new Uint8Array(next.edgeCount);
+    for (let e = 0; e < previous.edgeCount; e++) {
+        const moved = edgeRemap === null ? e : edgeRemap[e];
+        if (moved === INVALID_INDEX || moved >= next.edgeCount) {
+            return false;
+        }
+
+        const a = node(before.src[e]);
+        const b = node(before.dst[e]);
+        const c = after.src[moved];
+        const d = after.dst[moved];
+        if (!((a === c && b === d) || (a === d && b === c))) {
+            return null;
+        }
+
+        kept[moved] = 1;
+    }
+
+    for (let e = 0; e < next.edgeCount; e++) {
+        if (kept[e] === 0 && maskTest(old, after.src[e]) && maskTest(old, after.dst[e])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * The new rows of the old nodes, as a mask over the new rows.
+ * @param before - the old node count
+ * @param after - the new node count
+ * @param remap - old node row to new, or null for the same rows
+ * @returns the mask, or null when an old node was dropped
+ */
+function oldRowsMask(before: number, after: number, remap: Readonly<Uint32Array> | null): NodeMask | null {
+    const old = makeMask(after);
+    for (let i = 0; i < before; i++) {
+        const row = remap === null ? i : remap[i];
+        if (row === INVALID_INDEX) {
+            return null;
+        }
+
+        maskSet(old, row, true);
+    }
+
+    return old;
+}
+
+/**
  * The rows of `next` that were already nodes of `previous`, when the freeze only ADDED to the graph:
  * no node left, and the edges between two nodes that were already there are exactly the ones that
  * were there before.
@@ -1947,21 +2093,26 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
         return null;
     }
 
-    const old = makeMask(next.nodeCount);
     const remap = report.nodeRemap;
-    for (let i = 0; i < previous.nodeCount; i++) {
-        const row = remap === null ? i : remap[i];
-        if (row === INVALID_INDEX) {
-            return null;
-        }
+    if (remap === null && report.edgeRemap === null && next.edgeCount >= previous.edgeCount) {
+        return appendedOnly(previous, next);
+    }
 
-        maskSet(old, row, true);
+    const old = oldRowsMask(previous.nodeCount, next.nodeCount, remap);
+    if (old === null) {
+        return null;
     }
 
     // The edges between existing nodes must be the SAME edges, not merely as many: a freeze that
-    // swaps one for another rewires the picture as surely as one that adds an edge. Compared as
-    // unordered pairs with their multiplicity, because a static layout reads neither direction nor
-    // edge identity.
+    // swaps one for another rewires the picture as surely as one that adds an edge. Followed through
+    // the freeze's own edge remap when it names every old edge, in typed passes; otherwise compared
+    // as unordered pairs with their multiplicity, because a static layout reads neither direction
+    // nor edge identity.
+    const followed = sameEdgesThroughRemap(previous, next, remap, report.edgeRemap, old);
+    if (followed !== null) {
+        return followed ? old : null;
+    }
+
     const n = next.nodeCount;
     const pair = (a: number, b: number): number => Math.min(a, b) * n + Math.max(a, b);
     const before = pairCounts(previous, remap, pair);
@@ -2641,10 +2792,19 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * the next read and write over what was restored.
      */
     override loadArrangement(): void {
-        this.stale = false;
-        this.#deferred = false;
+        this.keepArrangement();
         super.loadArrangement();
         this.#adoptRows();
+    }
+
+    /**
+     * Keep the arrangement in the array, as {@link StaticLayoutEngine.loadArrangement} does, when this
+     * engine already holds the array as it is.
+     * @internal
+     */
+    keepArrangement(): void {
+        this.stale = false;
+        this.#deferred = false;
     }
 
     /**
@@ -2704,6 +2864,16 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      */
     get edges(): Iterable<Edge> {
         return this._edges;
+    }
+
+    /**
+     * The edges held, less those marked removed: counted with no sweep of the list, which a read of
+     * {@link StaticLayoutEngine.edges} after a removal is (issue #9164).
+     * @returns The count.
+     * @internal
+     */
+    override get edgeCount(): number {
+        return this.#edges.length - this.#goneEdges.size;
     }
 
     /**

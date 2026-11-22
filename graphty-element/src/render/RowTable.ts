@@ -410,6 +410,8 @@ export class RowTable {
     private outlineSides = 0;
     private flags: Uint8Array<ArrayBuffer>;
     private laneChanges = -1;
+    /** The lane's `changes` at a freeze that moved no row ({@link RowTable.replaced}), or -1. */
+    private keptChanges = -1;
     /** How many of the first {@link RowTable.rows} rows are hidden. */
     private hiddenCount = 0;
     /** The widest half extent {@link RowTable.measure} has written since the last clear. */
@@ -997,9 +999,19 @@ export class RowTable {
      */
     replaced(remap: U32 | null, nodes: Iterable<Node>): void {
         const lane = this.lane();
-        this.moves++;
-        this.unplacedMoves++;
-        this.drawnWrites++;
+        // A freeze that only renumbered or appended rows, with no coordinate written since the last
+        // pack, draws every row where it was: the rows follow the remap and an appended row is new,
+        // not moved. Counted as a move, it made the next frame place every edge again (issue #9164).
+        const kept =
+            lane.changes === this.laneChanges &&
+            this.twoD === ((this.scene.metadata as GraphSceneMetadata | null)?.twoD === true);
+        if (!kept) {
+            this.moves++;
+            this.unplacedMoves++;
+            this.drawnWrites++;
+        }
+
+        this.keptChanges = kept ? lane.changes : -1;
         this.ownRowWrites++;
         this.positions.follow(remap, lane.capacity);
         this.extents.follow(remap, lane.capacity);
@@ -1020,6 +1032,19 @@ export class RowTable {
 
         this.rows = lane.count;
         this.laneChanges = -1;
+        this.measureUnknown(nodes, lane);
+        this.hiddenCount = 0;
+        for (let row = 0; row < this.rows; row++) {
+            this.hiddenCount += ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 0 : 1;
+        }
+    }
+
+    /**
+     * Measure and place again each built node whose row the table no longer knows, after a freeze.
+     * @param nodes - The built nodes.
+     * @param lane - The lane the rows are read from.
+     */
+    private measureUnknown(nodes: Iterable<Node>, lane: ElementPositions): void {
         for (const node of nodes) {
             const row = node.index;
             if (row < this.rows && ((this.flags[row] ?? 0) & KNOWN) === 0) {
@@ -1031,11 +1056,6 @@ export class RowTable {
                     this.place(row, x, y, z);
                 }
             }
-        }
-
-        this.hiddenCount = 0;
-        for (let row = 0; row < this.rows; row++) {
-            this.hiddenCount += ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 0 : 1;
         }
     }
 
@@ -1063,16 +1083,7 @@ export class RowTable {
 
         const twoD = (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true;
         if (lane.changes !== this.laneChanges || twoD !== this.twoD) {
-            this.drawnWrites += twoD === this.twoD ? 0 : 1;
-            this.twoD = twoD;
-            this.laneChanges = lane.changes;
-            this.moves++;
-            // a lane change that left every repacked row where it was (a drag's own row, written by place) moves none
-            if (this.repack(lane.view(Math.min(this.rows, lane.count)), this.copiedAt !== lane.changes)) {
-                this.unplacedMoves++;
-            }
-
-            this.copiedAt = -1;
+            this.followLane(lane, twoD);
         }
 
         // Babylon gives a texture back as it was made after a lost context, so every row goes
@@ -1086,6 +1097,30 @@ export class RowTable {
                 this.positionUploads += table === this.positions ? 1 : 0;
             }
         }
+    }
+
+    /**
+     * Repack the rows after the lane changed or the view turned between 2D and 3D, counting what moved.
+     * @param lane - The lane.
+     * @param twoD - Whether the view is 2D now.
+     */
+    private followLane(lane: ElementPositions, twoD: boolean): void {
+        this.drawnWrites += twoD === this.twoD ? 0 : 1;
+        // The repack a freeze asked for moves no row when no coordinate was written since.
+        const kept = this.keptChanges === lane.changes && twoD === this.twoD;
+        this.keptChanges = -1;
+        this.twoD = twoD;
+        this.laneChanges = lane.changes;
+        if (!kept) {
+            this.moves++;
+        }
+
+        // a lane change that left every repacked row where it was (a drag's own row, written by place) moves none
+        if (this.repack(lane.view(Math.min(this.rows, lane.count)), this.copiedAt !== lane.changes) && !kept) {
+            this.unplacedMoves++;
+        }
+
+        this.copiedAt = -1;
     }
 
     /**

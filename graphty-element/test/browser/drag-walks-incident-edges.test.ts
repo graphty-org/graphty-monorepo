@@ -93,10 +93,15 @@ async function mounted(
     return element;
 }
 
-/** One counted call of `Edge.update`: which edge, on which counted frame, called by what. */
+/**
+ * One counted call of `Edge.update`: which edge, on which counted frame and in which update pass, called by what.
+ * A frame and a pass differ: the loop runs a pass on every tick and draws only some of them, so one drawn frame can
+ * follow two passes (a layout step's row move, then the pointer's move).
+ */
 interface Visit {
     edge: string;
     frame: number;
+    pass: number;
     caller: string;
 }
 
@@ -121,15 +126,17 @@ function callerOfUpdate(): string {
 /**
  * Count every `Edge.update` from now on, each with its edge, the frame it was made on and its caller.
  * @param frameOf - The counted frame now.
+ * @param passOf - The update pass now.
  * @returns The visits so far, and a stop that restores `Edge.update`.
  */
-function countVisits(frameOf: () => number): { visits: Visit[]; stop: () => void } {
+function countVisits(frameOf: () => number, passOf: () => number): { visits: Visit[]; stop: () => void } {
     const visits: Visit[] = [];
     const original = Edge.prototype.update;
     const spy = vi.spyOn(Edge.prototype, "update").mockImplementation(function (this: Edge, ...rest) {
         visits.push({
             edge: `${String(this.srcId)}-${String(this.dstId)}`,
             frame: frameOf(),
+            pass: passOf(),
             caller: callerOfUpdate(),
         });
         original.apply(this, rest);
@@ -148,7 +155,9 @@ function countVisits(frameOf: () => number): { visits: Visit[]; stop: () => void
  * @returns The lines.
  */
 function listed(visits: readonly Visit[]): string {
-    return visits.map(({ edge, frame, caller }) => `  frame ${String(frame)} ${edge} from ${caller}`).join("\n");
+    return visits
+        .map(({ edge, frame, pass, caller }) => `  frame ${String(frame)} pass ${String(pass)} ${edge} from ${caller}`)
+        .join("\n");
 }
 
 /**
@@ -193,7 +202,11 @@ async function dragCounted(
         hovered.push(String(event.detail.nodeId));
     };
     element.addEventListener("graphty-node-hover", heard);
-    const counted = countVisits(() => frames);
+    const updates = element.graph.getUpdateManager();
+    const counted = countVisits(
+        () => frames,
+        () => updates.getRenderFrameCount(),
+    );
     const frame = element.graph.scene.onBeforeRenderObservable.add(() => {
         frames++;
     });
@@ -250,7 +263,8 @@ describe("a drag", () => {
 
     // A layout step mid-drag moves the rows of nodes with no `Node` in the same pass as the dragged node: the pass
     // places every placed edge for the rows, and used to place the dragged node's edges a second time for the drag
-    // (issue #9529).
+    // (issue #9529). Keyed by update pass, not by drawn frame: a step's pass is often not drawn, and the pointer's
+    // next move then places the dragged node's edges in a second pass before the same drawn frame (issue #9574).
     it("places each edge once in a pass that moves the dragged node and the rows of others", async () => {
         const step = (element: Graphty): void => {
             const engine = element.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine;
@@ -263,15 +277,15 @@ describe("a drag", () => {
             "edge.arrowHeadGap": 1,
         });
         const atT = (visit: Visit): boolean => visit.edge.startsWith("t-");
-        const both = new Set(visits.filter(atT).map(({ frame }) => frame));
-        const rows = new Set(visits.filter((visit) => !atT(visit)).map(({ frame }) => frame));
+        const both = new Set(visits.filter(atT).map(({ pass }) => pass));
+        const rows = new Set(visits.filter((visit) => !atT(visit)).map(({ pass }) => pass));
         assert.isTrue(
-            [...both].some((frame) => rows.has(frame)),
+            [...both].some((pass) => rows.has(pass)),
             `some pass places the dragged node's edges and the others':\n${listed(visits)}`,
         );
         const seen = new Set<string>();
-        const twice = visits.filter(({ edge, frame }) => {
-            const key = `${String(frame)} ${edge}`;
+        const twice = visits.filter(({ edge, pass }) => {
+            const key = `${String(pass)} ${edge}`;
             const again = seen.has(key);
             seen.add(key);
             return again;

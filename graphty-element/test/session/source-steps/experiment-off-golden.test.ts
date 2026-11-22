@@ -51,7 +51,9 @@ describe("source-steps off: nothing changes", () => {
         assert.notInclude(saved, "join.add");
         assert.notInclude(saved, '"joins"', "no sources and steps in the sources member");
         const digest = createHash("sha256").update(JSON.stringify({ sources, events, saved })).digest("hex");
-        assert.strictEqual(digest, "c2a513501e341417c4cbcafe2c8e03a71346320259fafcc707dc8ddfb682669c");
+        // Re-pinned for issue #6516: the session member now writes startingRows, editableBase and
+        // runPlacement; nothing else in the bytes changed.
+        assert.strictEqual(digest, "5e546f4199d266a5b387b20f61236f067aef4dd48552c6884a06cd934deebacb");
         session.dispose();
     });
 

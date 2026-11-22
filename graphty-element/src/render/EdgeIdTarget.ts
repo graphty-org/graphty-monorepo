@@ -83,6 +83,9 @@ const ROW_ALPHA = 128;
 /** Floats a row takes in the row lines' vertices: two vertices of (node row, id, kind). */
 const ROW_FLOATS = 6;
 
+/** The row lines' vertices grow by one row in this many when a row is past their end. */
+const ROW_HEADROOM = 4;
+
 /** What the target reads of the row lines (`EdgeRowLines`). */
 export type IdRowLines = Pick<EdgeRowLines, "forEachShown" | "takeChanged" | "shownEnds">;
 
@@ -610,8 +613,11 @@ export class EdgeIdTarget {
         lines.forEachShown((row) => {
             rows = Math.max(rows, row + 1);
         });
-        // Room to grow, so a load that paints rows past the end writes all of them a few times, not once a row.
-        const size = rows <= this.rowVertices.length / ROW_FLOATS ? rows : Math.max(1024, rows * 2);
+        // Room to grow, so a load that paints rows past the end writes all of them a few times, not once a row: a
+        // quarter more, which keeps the total written within five times the rows while holding 24 bytes a row less
+        // than doubling did (about 24 MB at a million edges).
+        const size =
+            rows <= this.rowVertices.length / ROW_FLOATS ? rows : Math.max(1024, rows + Math.ceil(rows / ROW_HEADROOM));
         if (size === 0) {
             return;
         }

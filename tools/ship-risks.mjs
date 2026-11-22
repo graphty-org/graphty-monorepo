@@ -10,6 +10,8 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { gitRun } from "./lib/git.mjs";
+
 const REVIEWS = "visual-baselines/reviews/";
 const LAND_SUBJECT = /^land: (\S+)$/;
 // Files whose change on golden can decide whether the cut's stories and screenshots pass.
@@ -21,9 +23,9 @@ const WATCHED = [
 ];
 
 function git(cwd, args, input) {
-    const r = spawnSync("git", args, { cwd, input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
-    if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr.trim()}`);
-    return r.stdout;
+    const r = gitRun(args, { cwd, input });
+    if (r.code !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.err.trim()}`);
+    return r.out;
 }
 
 const lines = (text) => text.split("\n").filter(Boolean);

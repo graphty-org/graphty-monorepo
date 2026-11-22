@@ -9117,13 +9117,9 @@ export interface TimeApi {
 
 // @beta
 export interface TimeBin {
-    // (undocumented)
     readonly edges: number;
-    // (undocumented)
     readonly end: number;
-    // (undocumented)
     readonly nodes: number;
-    // (undocumented)
     readonly start: number;
     readonly step?: TimeStep;
 }
@@ -9155,17 +9151,13 @@ export interface TimeCandidate {
 
 // @beta
 export interface TimeChanges {
-    // (undocumented)
     readonly entered: TimeIds;
-    // (undocumented)
     readonly left: TimeIds;
 }
 
 // @beta
 export interface TimeCountPair {
-    // (undocumented)
     readonly edges: number;
-    // (undocumented)
     readonly nodes: number;
 }
 
@@ -9178,21 +9170,15 @@ export interface TimeCounts {
 
 // @beta
 export interface TimeExtent {
-    // (undocumented)
     readonly edges: TimeCounts;
-    // (undocumented)
     readonly from: number;
-    // (undocumented)
     readonly nodes: TimeCounts;
-    // (undocumented)
     readonly to: number;
 }
 
 // @beta
 export interface TimeField {
-    // (undocumented)
     readonly edges?: TimeSource;
-    // (undocumented)
     readonly nodes?: TimeSource;
 }
 
@@ -9203,11 +9189,8 @@ export interface TimeFieldOptions {
 
 // @beta
 export interface TimeFieldResult {
-    // (undocumented)
     readonly edges?: TimeCounts;
-    // (undocumented)
     readonly field: TimeField | null;
-    // (undocumented)
     readonly nodes?: TimeCounts;
     readonly notices: readonly CodedFact<TimeNoticeCode>[];
 }
@@ -9224,9 +9207,7 @@ export interface TimeFound extends CodedFact<"time.found"> {
 
 // @beta
 export interface TimeIds {
-    // (undocumented)
     readonly edges: readonly EdgeId[];
-    // (undocumented)
     readonly nodes: readonly NodeId[];
 }
 
@@ -9319,14 +9300,10 @@ export interface TimeStepEvent {
     readonly atEnd: boolean;
     readonly atStart: boolean;
     readonly cause: "play" | "step" | "seek" | "window";
-    // (undocumented)
     readonly entered: TimeCountPair;
-    // (undocumented)
     readonly from: number;
     readonly index: number;
-    // (undocumented)
     readonly left: TimeCountPair;
-    // (undocumented)
     readonly to: number;
     readonly untimed: TimeCountPair;
     readonly visible: TimeCountPair;

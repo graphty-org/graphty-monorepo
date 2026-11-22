@@ -79,12 +79,13 @@ async function mounted(size: number, layout: string): Promise<Graphty> {
  * (the press selects and the first move pins the node, and either repaint walks every edge once).
  * @param size - The node count.
  * @param layout - The layout it is arranged by.
- * @returns The edge visits, the frames they were made on, and how far the dragged edge's middle moved.
+ * @returns The edge visits, the frames they were made on, how far the dragged edge's middle moved, and the
+ *     nodes hovered while the pointer held the node.
  */
 async function dragCounted(
     size: number,
     layout: string,
-): Promise<{ visits: number; frames: number; followed: number }> {
+): Promise<{ visits: number; frames: number; followed: number; hovered: string[] }> {
     const element = await mounted(size, layout);
     const position = element.nodeScreenPosition("t");
     assert.isDefined(position, "node t is drawn");
@@ -103,6 +104,13 @@ async function dragCounted(
     assert.isDefined(before, "its line is drawn");
 
     let frames = 0;
+    // A node hovered under the drag is built and its edges placed, on the batched path, and those visits are
+    // not the drag's: the drag holds the hover, so none is (issue #9514).
+    const hovered: string[] = [];
+    const heard = (event: CustomEvent<{ nodeId: unknown }>): void => {
+        hovered.push(String(event.detail.nodeId));
+    };
+    element.addEventListener("graphty-node-hover", heard);
     const update = vi.spyOn(Edge.prototype, "update");
     const frame = element.graph.scene.onBeforeRenderObservable.add(() => {
         frames++;
@@ -116,6 +124,7 @@ async function dragCounted(
         await nextFrame();
     } finally {
         frame.remove();
+        element.removeEventListener("graphty-node-hover", heard);
     }
 
     const visits = update.mock.calls.length;
@@ -125,7 +134,7 @@ async function dragCounted(
     await element.waitForStableFrame();
     const after = edge.drawnLine?.center;
     assert.isDefined(after, "its line is still drawn");
-    return { visits, frames, followed: after.subtract(before).length() };
+    return { visits, frames, followed: after.subtract(before).length(), hovered };
 }
 
 describe("a drag", () => {
@@ -133,7 +142,8 @@ describe("a drag", () => {
         "visits only the dragged node's edges, at any graph size, on %s",
         async (layout) => {
             for (const size of SIZES) {
-                const { visits, frames, followed } = await dragCounted(size, layout);
+                const { visits, frames, followed, hovered } = await dragCounted(size, layout);
+                assert.deepEqual(hovered, [], "no node is hovered while the pointer holds one");
                 const message = `${String(visits)} edge visits on ${String(frames)} frames at ${String(size)} nodes`;
                 assert.isAbove(visits, 0, message);
                 assert.isAtMost(visits, frames * DEGREE, message);

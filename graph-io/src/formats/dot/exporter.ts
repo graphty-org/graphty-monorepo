@@ -36,6 +36,7 @@ import { inferTextDtype } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
 import { respelledPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
@@ -258,57 +259,59 @@ const TEXT_ROLES: ReadonlySet<string> = new Set(["label", "id", "sourcePort", "t
  * The exporter plugin for DOT / Graphviz text.
  * @category Built-in formats
  */
-export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
-    format: DOT_FORMAT,
-    options: Object.freeze(["indent", "name", "strict"]),
-    capabilities: CAPABILITIES,
-    styles: Object.freeze({ capabilities: DOT_STYLE_CAPABILITIES }),
+export const dotExporter: GraphExporter<DotExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: DOT_FORMAT,
+        options: Object.freeze(["indent", "name", "strict"]),
+        capabilities: CAPABILITIES,
+        styles: Object.freeze({ capabilities: DOT_STYLE_CAPABILITIES }),
 
-    /**
-     * Pre-flight: every loss the DOT text would incur, without writing anything; with styles, also the values
-     * written as the nearest ones Graphviz has.
-     * @param snapshot - the snapshot to check
-     * @param options - format-specific and common options
-     * @returns the notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: DotWriteOptions): readonly LossNote[] {
-        const styled = dotStyledExport(snapshot, options?.styles, options?.onMixedDirection);
-        if (styled === null) {
-            return checkPlain(snapshot, options);
-        }
-        return Object.freeze([...checkPlain(styled.snapshot, options), ...styled.notes]);
-    },
+        /**
+         * Pre-flight: every loss the DOT text would incur, without writing anything; with styles, also the values
+         * written as the nearest ones Graphviz has.
+         * @param snapshot - the snapshot to check
+         * @param options - format-specific and common options
+         * @returns the notes, empty when the export is exact
+         */
+        check(snapshot: GraphSnapshot, options?: DotWriteOptions): readonly LossNote[] {
+            const styled = dotStyledExport(snapshot, options?.styles, options?.onMixedDirection);
+            if (styled === null) {
+                return checkPlain(snapshot, options);
+            }
+            return Object.freeze([...checkPlain(styled.snapshot, options), ...styled.notes]);
+        },
 
-    /**
-     * Write the snapshot as UTF-8 chunks.
-     * @param snapshot - the snapshot to write
-     * @param options - format-specific and common options
-     * @returns the encoded chunks
-     */
-    export(snapshot: GraphSnapshot, options?: DotWriteOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(
-            writeDot(
-                dotStyledExport(snapshot, options?.styles, options?.onMixedDirection)?.snapshot ?? snapshot,
-                options,
-            ),
-        );
-    },
+        /**
+         * Write the snapshot as UTF-8 chunks.
+         * @param snapshot - the snapshot to write
+         * @param options - format-specific and common options
+         * @returns the encoded chunks
+         */
+        export(snapshot: GraphSnapshot, options?: DotWriteOptions): AsyncIterable<Uint8Array> {
+            return encodeChunks(
+                writeDot(
+                    dotStyledExport(snapshot, options?.styles, options?.onMixedDirection)?.snapshot ?? snapshot,
+                    options,
+                ),
+            );
+        },
 
-    /**
-     * Write the snapshot as one string.
-     * @param snapshot - the snapshot to write
-     * @param options - format-specific and common options
-     * @returns the whole document
-     */
-    exportToString(snapshot: GraphSnapshot, options?: DotWriteOptions): Promise<string> {
-        return joinText(
-            writeDot(
-                dotStyledExport(snapshot, options?.styles, options?.onMixedDirection)?.snapshot ?? snapshot,
-                options,
-            ),
-        );
-    },
-});
+        /**
+         * Write the snapshot as one string.
+         * @param snapshot - the snapshot to write
+         * @param options - format-specific and common options
+         * @returns the whole document
+         */
+        exportToString(snapshot: GraphSnapshot, options?: DotWriteOptions): Promise<string> {
+            return joinText(
+                writeDot(
+                    dotStyledExport(snapshot, options?.styles, options?.onMixedDirection)?.snapshot ?? snapshot,
+                    options,
+                ),
+            );
+        },
+    }),
+);
 
 /**
  * Every loss the DOT text of a snapshot would incur.

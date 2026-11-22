@@ -188,8 +188,8 @@ await time.seek("end"); // to the last window
 await time.window(null); // clear it
 ```
 
-Each of these is undoable, and the window is saved in the project. Moves made in quick succession
-merge into one undo step, as a drag does; `await time.commit()` always records its own step. `play`
+Each of these is undoable, and the window is saved in the project. Consecutive moves merge into
+one undo step, as a drag does; `await time.commit()` always records its own step. `play`
 records one step for the whole play. It takes `step`, `mode` (`"sliding"`, or `"cumulative"` to grow from the start),
 `interval` (milliseconds per step, default 1000), `loop`, `motion`, `timeZone` and `waitForRender`.
 

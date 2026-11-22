@@ -124,7 +124,9 @@ export class InputController implements GestureEndHooks {
 
             switch (pi.type) {
                 case PointerEventTypes.POINTERDOWN:
-                    isPanning = true;
+                    // Touch is the gesture recognizer's: read here, each finger's move would be
+                    // measured from wherever the other finger last was (issue #9523).
+                    isPanning = e.pointerType !== "touch";
                     this.dragKind = null;
                     lastX = e.clientX;
                     lastY = e.clientY;
@@ -191,7 +193,9 @@ export class InputController implements GestureEndHooks {
     }
 
     private setupTouch(): void {
-        this.hammer = new Hammer.Manager(this.canvas);
+        // Touch events only: the mouse and pen are setupMouse's. A touch event carries every
+        // finger at once, where pointer events would bring each finger's move on its own.
+        this.hammer = new Hammer.Manager(this.canvas, { inputClass: Hammer.TouchInput });
         const pan = new Hammer.Pan({ threshold: 0, pointers: 0 });
         const pinch = new Hammer.Pinch();
         const rotate = new Hammer.Rotate();
@@ -200,25 +204,34 @@ export class InputController implements GestureEndHooks {
         this.hammer.get("pinch").recognizeWith(this.hammer.get("rotate"));
         this.hammer.get("pan").requireFailure(this.hammer.get("pinch"));
 
-        this.hammer.on("panstart pinchstart rotatestart", (ev) => {
-            this.gestureSession = {
-                panX: ev.center.x,
-                panY: ev.center.y,
-                panStartX: this.cam.camera.position.x,
-                panStartY: this.cam.camera.position.y,
-                ortho: {
-                    left: this.cam.camera.orthoLeft ?? 1,
-                    right: this.cam.camera.orthoRight ?? 1,
-                    top: this.cam.camera.orthoTop ?? 1,
-                    bottom: this.cam.camera.orthoBottom ?? 1,
-                },
-                scale: ev.scale || 1,
-                rotation: this.cam.camera.rotation.z,
-                startRotDeg: ev.rotation || 0,
-            };
+        // Hammer's delta, scale and rotation run from the moment the fingers landed, or last
+        // changed in number: the camera at that moment is where the gesture is measured from, so
+        // the result does not depend on which recognizer won or when it started (issue #9523).
+        let fingers = 0;
+        this.hammer.on("hammer.input", (ev) => {
+            if (ev.pointers.length !== fingers || ev.isFirst) {
+                fingers = ev.pointers.length;
+                this.gestureSession = {
+                    panX: ev.deltaX,
+                    panY: ev.deltaY,
+                    panStartX: this.cam.camera.position.x,
+                    panStartY: this.cam.camera.position.y,
+                    ortho: {
+                        left: this.cam.camera.orthoLeft ?? 1,
+                        right: this.cam.camera.orthoRight ?? 1,
+                        top: this.cam.camera.orthoTop ?? 1,
+                        bottom: this.cam.camera.orthoBottom ?? 1,
+                    },
+                    scale: ev.scale || 1,
+                    rotation: this.cam.camera.rotation.z,
+                    startRotDeg: ev.rotation || 0,
+                };
+            }
         });
 
-        this.hammer.on("panmove pinchmove rotatemove", (ev) => {
+        // Not the end: a lifted finger leaves the others listed in another order, which Hammer reads
+        // as a turn.
+        this.hammer.on("panstart panmove pinchstart pinchmove rotatestart rotatemove", (ev) => {
             if (!this.gestureSession) {
                 return;
             }
@@ -234,8 +247,8 @@ export class InputController implements GestureEndHooks {
                 (orthoTop - orthoBottom) /
                 (this.cam.engine.getRenderHeight() * this.cam.engine.getHardwareScalingLevel());
 
-            const dx = ev.center.x - this.gestureSession.panX;
-            const dy = ev.center.y - this.gestureSession.panY;
+            const dx = ev.deltaX - this.gestureSession.panX;
+            const dy = ev.deltaY - this.gestureSession.panY;
 
             this.cam.panFrom(
                 this.gestureSession.panStartX,
@@ -258,14 +271,15 @@ export class InputController implements GestureEndHooks {
             this.cam.camera.orthoBottom = this.gestureSession.ortho.bottom / pinch;
 
             // Hammer's rotation is clockwise on screen, and a larger roll turns the drawing
-            // clockwise: the drawing turns with the fingers.
-            const rotRad = ((ev.rotation - this.gestureSession.startRotDeg) * Math.PI) / 180;
+            // clockwise: the drawing turns with the fingers. Hammer gives the angle unwrapped
+            // (360 when the second finger lands), so the turn is taken the short way round.
+            const turnDeg = ev.rotation - this.gestureSession.startRotDeg;
+            const rotRad = ((((turnDeg % 360) + 540) % 360) - 180) * (Math.PI / 180);
             this.cam.camera.rotation.z = this.gestureSession.rotation + rotRad;
             this.cam.onReaderMove?.();
         });
 
-        this.hammer.on("panend pinchend rotateend", () => {
-            this.gestureSession = null;
+        this.hammer.on("panend pinchend rotateend pancancel pinchcancel rotatecancel", () => {
             this.endDrag();
         });
     }

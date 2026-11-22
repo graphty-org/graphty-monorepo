@@ -98,6 +98,7 @@ import {
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
+import { watchGeographic } from "../../positions/geographic.js";
 import { headBytes, sniffJsonDialectHead } from "../../sniff.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import {
@@ -4866,7 +4867,8 @@ function readGraph(
     options: (JsonImportOptions & CommonImportOptions) | undefined,
 ): void {
     const { root, dialect, text } = doc;
-    const ctx = new ImportContext(sink, report, resolved, json, options?.defaultDirected !== undefined);
+    const geographic = watchGeographic(sink);
+    const ctx = new ImportContext(geographic.sink, report, resolved, json, options?.defaultDirected !== undefined);
     ctx.text = text;
     // the obographs reader refuses missing endpoints itself, so addMissingNodes false holds on any sink
     reportSinkOptions(sink, options, report, dialect === "obographs");
@@ -4876,6 +4878,7 @@ function readGraph(
     ctx.reportDangling();
     ctx.nodes.reportNullOnly();
     ctx.edges.reportNullOnly();
+    geographic.finish();
     throwIfAborted(resolved.signal);
 }
 

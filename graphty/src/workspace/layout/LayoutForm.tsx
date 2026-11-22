@@ -367,8 +367,9 @@ function ShownOnlyRow(): React.JSX.Element {
 /**
  * The form for one layout (the Layout popover's second level, and inline in the graph's
  * inspector): Shape, its key options, the Advanced fold with Seed and Reshuffle, the cost line
- * and Apply. Nothing runs while the reader edits; Apply (or Enter) lays the graph out, as one
+ * and Apply. Nothing runs while the reader edits; Apply (or Enter on it) lays the graph out, as one
  * undoable step of the element's, and a disabled "Applied" says the graph is drawn so already.
+ * Enter in a field applies too but keeps the form open, so several values can be tried in turn.
  * A refusal shows above the button and the form stays.
  * @param props - Component props
  * @param props.session - The element's session
@@ -438,12 +439,14 @@ export function LayoutForm({
         setValues(next);
         setError(null);
     };
-    const apply = (asked: Record<string, unknown>): void => {
+    const apply = (asked: Record<string, unknown>, close = true): void => {
         setError(null);
         session.layout.set(descriptor.id, engine === undefined ? { options: asked } : { engine, options: asked }).then(
             () => {
                 layoutChanged(session, descriptor.id, "applied");
-                onApplied?.();
+                if (close) {
+                    onApplied?.();
+                }
             },
             (failure: unknown) => {
                 layoutChanged(session, descriptor.id, "failed");
@@ -504,8 +507,11 @@ export function LayoutForm({
             onKeyDown={onKeyDown}
             onSubmit={(event) => {
                 event.preventDefault();
+                // A field submits the form on Enter and keeps focus: apply, and leave the form open.
+                const focused = document.activeElement;
+                const fromField = focused instanceof HTMLInputElement && formRef.current?.contains(focused) === true;
                 if (differs && reason === null) {
-                    apply(values);
+                    apply(values, !fromField);
                 }
             }}
         >

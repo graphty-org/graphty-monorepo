@@ -361,6 +361,8 @@ export type {
     GraphSettledEvent,
     GraphStartedEvent,
     GraphtyForwardedEventMap,
+    // The input manager's own bookkeeping events: element-internal, never dispatched on the DOM.
+    InputBookkeepingEvent,
     InputEnabledChangedEvent,
     InputKeyEvent,
     InputPointerEvent,
@@ -369,6 +371,7 @@ export type {
     InputTouchEvent,
     InputWheelEvent,
     LayoutChangedEvent,
+    LayoutUpdatedEvent,
     LayoutWarningEvent,
     NodeAddEvent,
     NodeClickEvent,

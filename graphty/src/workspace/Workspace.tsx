@@ -33,6 +33,7 @@ import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
 import {
     createWorkspaceStore,
+    keepLayout,
     keepPlace,
     keptBlank,
     keptEntry,
@@ -303,8 +304,19 @@ export function Workspace({
             live = false;
         };
     }, [store, checking]);
-    // The reader's place is kept for a reload of this tab while autosave keeps the work.
-    useEffect(() => (store.get().autosave ? keepPlace(store) : undefined), [store]);
+    // The reader's place is kept for a reload of this tab while autosave keeps the work, and the
+    // panel sizes, table dock and legend switch for the next visit.
+    useEffect(() => {
+        if (!store.get().autosave) {
+            return undefined;
+        }
+        const stops = [keepPlace(store), keepLayout(store)];
+        return () => {
+            stops.forEach((stop) => {
+                stop();
+            });
+        };
+    }, [store]);
     // The entry the project's work is written to, so a reload can tell work never written.
     useEffect(() => {
         const host = element.element;

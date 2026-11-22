@@ -46,6 +46,7 @@ import { jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { respelledPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { checkRecordSyntax, type RecordSyntax } from "../csv/records.js";
 import { formatHeaderField } from "./header.js";
@@ -1587,46 +1588,48 @@ function textOf(column: Column, row: number): string {
  * The Neo4j exporter.
  * @category Built-in formats
  */
-export const neo4jExporter: GraphExporter<Neo4jExportOptions> = Object.freeze({
-    format: NEO4J,
-    options: Object.freeze([
-        "arrayDelimiter",
-        "delimiter",
-        "idColumn",
-        "part",
-        "quote",
-        "spreadsheetSafe",
-        "weightColumn",
-    ]),
-    capabilities: NEO4J_CAPABILITIES,
-    /**
-     * Pre-flight: what export() would lose.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the notes
-     */
-    check(snapshot: GraphSnapshot, options?: Neo4jExportOptions & CommonExportOptions): readonly LossNote[] {
-        return Object.freeze([...plan(snapshot, options).notes]);
-    },
-    /**
-     * Write the snapshot as UTF-8 chunks.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: Neo4jExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(plan(snapshot, options).lines());
-    },
-    /**
-     * Write the snapshot as one string.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the document
-     */
-    exportToString(snapshot: GraphSnapshot, options?: Neo4jExportOptions & CommonExportOptions): Promise<string> {
-        return joinText(plan(snapshot, options).lines());
-    },
-});
+export const neo4jExporter: GraphExporter<Neo4jExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: NEO4J,
+        options: Object.freeze([
+            "arrayDelimiter",
+            "delimiter",
+            "idColumn",
+            "part",
+            "quote",
+            "spreadsheetSafe",
+            "weightColumn",
+        ]),
+        capabilities: NEO4J_CAPABILITIES,
+        /**
+         * Pre-flight: what export() would lose.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the notes
+         */
+        check(snapshot: GraphSnapshot, options?: Neo4jExportOptions & CommonExportOptions): readonly LossNote[] {
+            return Object.freeze([...plan(snapshot, options).notes]);
+        },
+        /**
+         * Write the snapshot as UTF-8 chunks.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the chunks
+         */
+        export(snapshot: GraphSnapshot, options?: Neo4jExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
+            return encodeChunks(plan(snapshot, options).lines());
+        },
+        /**
+         * Write the snapshot as one string.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the document
+         */
+        exportToString(snapshot: GraphSnapshot, options?: Neo4jExportOptions & CommonExportOptions): Promise<string> {
+            return joinText(plan(snapshot, options).lines());
+        },
+    }),
+);
 
 /** One line of the export; a header line names the file it starts. */
 interface SectionLine {

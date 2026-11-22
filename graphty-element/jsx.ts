@@ -334,6 +334,9 @@ export interface GraphtyElementJSXProps {
      * this from `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
+    /**
+     * Names the graph for assistive technology: it is copied onto the canvas that takes keyboard focus.
+     */
     "aria-label"?: string;
     /**
      * Adds or removes the node list.
@@ -696,31 +699,109 @@ export interface GraphtyElementJSXProps {
      * Emitted once the render loop has started, after the element finished initializing.
      */
     "ongraph-started"?: (event: CustomEvent<EventOfType<"graph-started">>) => void;
+    /**
+     * Emitted once when the browser may delete this site's storage while unsaved work is only in autosave (`W_AUTOSAVE_ORIGIN_EPHEMERAL`).
+     */
     "ongraphty-autosave-at-risk"?: (event: GraphtyElementEventMap["graphty-autosave-at-risk"]) => void;
+    /**
+     * Emitted when an autosaved project could be restored but was not restored automatically, and why.
+     */
     "ongraphty-autosave-available"?: (event: GraphtyElementEventMap["graphty-autosave-available"]) => void;
+    /**
+     * Emitted when autosave restored the project automatically, with what it brought back.
+     */
     "ongraphty-autosave-restored"?: (event: GraphtyElementEventMap["graphty-autosave-restored"]) => void;
+    /**
+     * Emitted when where autosave stands changes.
+     */
     "ongraphty-autosave-status"?: (event: GraphtyElementEventMap["graphty-autosave-status"]) => void;
+    /**
+     * Emitted when `session.capabilities` changes, such as what acceleration is in use.
+     */
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
+    /**
+     * Emitted once the element has started, with the experiments it switched on and the ids it did not recognize.
+     */
     "ongraphty-features"?: (event: GraphtyElementEventMap["graphty-features"]) => void;
+    /**
+     * Emitted when the undo history changes: what an undo and a redo would now do.
+     */
     "ongraphty-history-change"?: (event: GraphtyElementEventMap["graphty-history-change"]) => void;
+    /**
+     * Emitted when how many node labels are drawn, or hidden and why, changes.
+     */
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;
+    /**
+     * Emitted when a 3D model a style layer names changes state, once per model and state.
+     */
     "ongraphty-model-change"?: (event: GraphtyElementEventMap["graphty-model-change"]) => void;
+    /**
+     * Emitted when a node is clicked, with the node's id.
+     */
     "ongraphty-node-click"?: (event: GraphtyElementEventMap["graphty-node-click"]) => void;
+    /**
+     * Emitted when a dragged node is let go, with the node's id.
+     */
     "ongraphty-node-drag-end"?: (event: GraphtyElementEventMap["graphty-node-drag-end"]) => void;
+    /**
+     * Emitted when a node starts being dragged, with the node's id.
+     */
     "ongraphty-node-drag-start"?: (event: GraphtyElementEventMap["graphty-node-drag-start"]) => void;
+    /**
+     * Emitted when the pointer moves onto a node, with the node's id.
+     */
     "ongraphty-node-hover"?: (event: GraphtyElementEventMap["graphty-node-hover"]) => void;
+    /**
+     * Emitted when a note is created, updated or removed, including by undo, redo and opening a project.
+     */
     "ongraphty-note-change"?: (event: GraphtyElementEventMap["graphty-note-change"]) => void;
+    /**
+     * Emitted while a load, a prepare or a run makes progress, and once when it stops.
+     */
     "ongraphty-progress-change"?: (event: GraphtyElementEventMap["graphty-progress-change"]) => void;
+    /**
+     * Emitted when the project's name or its unsaved-changes flag changes. Nothing is emitted at startup.
+     */
     "ongraphty-project-status"?: (event: GraphtyElementEventMap["graphty-project-status"]) => void;
+    /**
+     * Emitted when an algorithm run starts, progresses, finishes or fails, with the run as it stands now.
+     */
     "ongraphty-run-change"?: (event: GraphtyElementEventMap["graphty-run-change"]) => void;
+    /**
+     * Emitted when the selection changes, with what was added and removed.
+     */
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
+    /**
+     * Emitted when a skybox image could not be loaded (`E_IMAGE_LOAD`, with its `url`).
+     */
     "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
+    /**
+     * Emitted when a new skybox image has loaded.
+     */
     "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
+    /**
+     * Emitted when expanding nodes from their data source failed, with a code and its facts.
+     */
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
+    /**
+     * Emitted when expanding nodes from their data source begins, with the seed node ids.
+     */
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
+    /**
+     * Emitted when expanding nodes from their data source has added their neighbors.
+     */
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
+    /**
+     * Emitted when a load added a data source, or replaced one in place: which source, where it came from and how it was loaded.
+     */
     "ongraphty-source-loaded"?: (event: GraphtyElementEventMap["graphty-source-loaded"]) => void;
+    /**
+     * Emitted when a filter, a time window or the context flag changes what is visible.
+     */
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
+    /**
+     * Emitted for a notice that stops nothing, as a code and its facts.
+     */
     "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;
     /**
      * Emitted when user input on the canvas is switched on or off, by `setInputEnabled`.
@@ -786,6 +867,10 @@ export interface GraphtyElementJSXProps {
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
+    /**
+     * Emitted when the running layout has moved the nodes after nodes were added to the graph.
+     */
+    "onlayout-updated"?: (event: CustomEvent<EventOfType<"layout-updated">>) => void;
     /**
      * Emitted when a layout could not do everything it was asked. The data kept it from placing every node (`W_NO_POSITION`), or it ran without options it does not take (`W_UNKNOWN_OPTION`), or a 2D view replaced its dimension options (`W_DIMENSION_OVERRIDDEN`). It carries a warning code and its parameters, never a sentence.
      */

@@ -28,6 +28,7 @@ import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
 import { neutralPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import type { ExporterStyleInput, ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
@@ -1415,18 +1416,24 @@ function planFor(snapshot: GraphSnapshot, options: (XgmmlExportOptions & CommonE
  * The XGMML exporter.
  * @category Built-in formats
  */
-export const xgmmlExporter: GraphExporter<XgmmlExportOptions> = Object.freeze({
-    format: FORMAT,
-    options: Object.freeze(["cytoscapeEscapes"]),
-    capabilities: CAPABILITIES,
-    styles: Object.freeze({ capabilities: XGMML_STYLE_CAPABILITIES }),
-    check: (snapshot: GraphSnapshot, options?: XgmmlWriteOptions): readonly LossNote[] =>
-        Object.freeze([
-            ...planExport(snapshot, resolveExportOptions(options), resolveEscapes(options)).notes,
-            ...(options?.styles === undefined ? [] : styledGraphicsNotes(options.styles, snapshot)),
-        ]),
-    export: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> =>
-        encodeChunks(write(snapshot, options)),
-    exportToString: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): Promise<string> =>
-        joinText(write(snapshot, options)),
-});
+export const xgmmlExporter: GraphExporter<XgmmlExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: FORMAT,
+        options: Object.freeze(["cytoscapeEscapes"]),
+        capabilities: CAPABILITIES,
+        styles: Object.freeze({ capabilities: XGMML_STYLE_CAPABILITIES }),
+        check: (snapshot: GraphSnapshot, options?: XgmmlWriteOptions): readonly LossNote[] =>
+            Object.freeze([
+                ...planExport(snapshot, resolveExportOptions(options), resolveEscapes(options)).notes,
+                ...(options?.styles === undefined ? [] : styledGraphicsNotes(options.styles, snapshot)),
+            ]),
+        export: (
+            snapshot: GraphSnapshot,
+            options?: XgmmlExportOptions & CommonExportOptions,
+        ): AsyncIterable<Uint8Array> => encodeChunks(write(snapshot, options)),
+        exportToString: (
+            snapshot: GraphSnapshot,
+            options?: XgmmlExportOptions & CommonExportOptions,
+        ): Promise<string> => joinText(write(snapshot, options)),
+    }),
+);

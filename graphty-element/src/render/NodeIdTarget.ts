@@ -58,9 +58,10 @@ uniform highp sampler2D rowPosition;
 #endif
 #include<instancesDeclaration>
 uniform mat4 viewProjection;
-#ifdef ROW_PULL
 uniform vec2 idPixels;
 uniform float shapeRadius;
+#ifndef ROW_PULL
+uniform vec3 shapeCenter;
 #endif
 varying float vId;
 #ifdef ROW_PULL
@@ -113,7 +114,22 @@ void main(void) {
     gl_Position = grV;
 #else
     vId = 0.0;
-    gl_Position = viewProjection * worldPos;
+    vec4 obV = viewProjection * worldPos;
+    // A mesh under MIN_RADIUS_PX in radius (a node drawn by a mesh of its own, off its batch) is drawn
+    // that large too, at its own depth: a pointer on it reads it, and the mesh pick then answers, where a
+    // row drawn larger behind it would take a pixel center the mesh itself misses (#9518).
+    vec3 obCenter = (finalWorld * vec4(shapeCenter, 1.0)).xyz;
+    vec4 obC = viewProjection * vec4(obCenter, 1.0);
+    vec4 obX = viewProjection * vec4(obCenter + mat3(finalWorld)[0], 1.0);
+    vec4 obY = viewProjection * vec4(obCenter + mat3(finalWorld)[1], 1.0);
+    if (obC.w > 0.0 && obX.w > 0.0 && obY.w > 0.0 && obV.w > 0.0) {
+        vec2 obNdc = obC.xy / obC.w;
+        float obRadius = 0.5 * shapeRadius * max(length((obX.xy / obX.w - obNdc) * idPixels), length((obY.xy / obY.w - obNdc) * idPixels));
+        if (obRadius > 0.0 && obRadius < MIN_RADIUS_PX) {
+            obV.xy = (obNdc + (obV.xy / obV.w - obNdc) * (MIN_RADIUS_PX / obRadius)) * obV.w;
+        }
+    }
+    gl_Position = obV;
 #endif
 }
 `;
@@ -258,19 +274,17 @@ export class NodeIdTarget {
         );
         this.target.clearColor = new Color4(0, 0, 0, 0);
         this.target.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
-        const floatDefines = this.float ? ["#define ID_FLOAT"] : [];
-        const rowDefines = [
-            "#define ROW_PULL",
+        const shared = [
+            ...(this.float ? ["#define ID_FLOAT"] : []),
             `#define MIN_RADIUS_PX ${MIN_RADIUS_PX.toFixed(2)}`,
-            `#define HOVER_RADIUS_PX ${HOVER_RADIUS_PX.toFixed(2)}`,
-            ...floatDefines,
         ];
+        const rowDefines = ["#define ROW_PULL", `#define HOVER_RADIUS_PX ${HOVER_RADIUS_PX.toFixed(2)}`, ...shared];
         this.rowMaterial = this.material("graphty-node-id-rows", rowDefines);
         this.unscaledRowMaterial = this.material("graphty-node-id-unscaled-rows", [
             ...rowDefines,
             "#define ROW_UNSCALED",
         ]);
-        this.objectMaterial = this.material("graphty-node-id-objects", floatDefines);
+        this.objectMaterial = this.material("graphty-node-id-objects", shared);
         // What the scene chose to draw at its last evaluation: the batches and every visible mesh.
         // A hidden proxy is not among them, so the list is as long as what is on screen. Kept
         // here, because between frames the scene's own list is not.
@@ -284,6 +298,9 @@ export class NodeIdTarget {
                 const { width, height } = this.target.getSize();
                 for (const material of [this.rowMaterial, this.unscaledRowMaterial]) {
                     material.setTexture("rowPosition", this.host.positionTexture());
+                }
+
+                for (const material of [this.rowMaterial, this.unscaledRowMaterial, this.objectMaterial]) {
                     material.setVector2("idPixels", this.pixels.set(width, height));
                 }
             }),
@@ -297,11 +314,16 @@ export class NodeIdTarget {
                 this.settle();
             }),
         );
-        // Each batch's own size, which its source mesh was built at.
-        for (const material of [this.rowMaterial, this.unscaledRowMaterial]) {
+        // Each mesh's own size, which a batch's source mesh was built at, and the center of a mesh drawn
+        // as itself, in its own space.
+        for (const material of [this.rowMaterial, this.unscaledRowMaterial, this.objectMaterial]) {
             material.onBindObservable.add((mesh) => {
-                const { extendSize } = mesh.getRawBoundingInfo().boundingBox;
-                mesh.subMeshes[0]?.effect?.setFloat("shapeRadius", Math.max(extendSize.x, extendSize.y, extendSize.z));
+                const { extendSize, center } = mesh.getRawBoundingInfo().boundingBox;
+                const effect = mesh.subMeshes[0]?.effect;
+                effect?.setFloat("shapeRadius", Math.max(extendSize.x, extendSize.y, extendSize.z));
+                if (material === this.objectMaterial) {
+                    effect?.setVector3("shapeCenter", center);
+                }
             });
         }
         this.target.onDrawn = () => {
@@ -405,7 +427,9 @@ export class NodeIdTarget {
             { vertexSource: VERTEX, fragmentSource: FRAGMENT, spectorName: name },
             {
                 attributes: rows ? ["position", "graphtyRow"] : ["position"],
-                uniforms: rows ? ["world", "viewProjection", "idPixels", "shapeRadius"] : ["world", "viewProjection"],
+                uniforms: rows
+                    ? ["world", "viewProjection", "idPixels", "shapeRadius"]
+                    : ["world", "viewProjection", "idPixels", "shapeRadius", "shapeCenter"],
                 samplers: rows ? ["rowPosition"] : [],
                 defines,
             },

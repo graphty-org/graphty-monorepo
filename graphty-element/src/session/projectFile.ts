@@ -4138,7 +4138,8 @@ export function projectOf(
                     return committedOnly(() => saveVersion2(options));
                 }
 
-                const referenced = (session.data as Partial<Pick<SessionData, "referenceLoads">>).referenceLoads?.() ?? [];
+                const referenced =
+                    (session.data as Partial<Pick<SessionData, "referenceLoads">>).referenceLoads?.() ?? [];
                 // A load kept as a reference is read once to tell which rows the file can leave out;
                 // with a group collapsed the file holds the expanded graph, so it keeps copies.
                 if (referenced.length === 0 || expandedGraph(session) !== null) {

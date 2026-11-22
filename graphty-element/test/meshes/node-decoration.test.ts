@@ -4,6 +4,7 @@
  */
 import { assert, describe, test } from "vitest";
 
+import { roundedBoxOutline } from "../../src/meshes/labelTable";
 import {
     boxOf,
     chartPieces,
@@ -17,6 +18,7 @@ import {
     shapeLinePieces,
     shapePartPieces,
     stripeBands,
+    tableFillPieces,
 } from "../../src/meshes/nodeDecoration";
 import { earClip, type Point2 } from "../../src/meshes/shapeOutlines";
 
@@ -449,5 +451,30 @@ describe("raisedStrips", () => {
         assert.strictEqual(raisedStrips(raised, 10, 6, 2)[0].box.x1, -3);
         assert.lengthOf(raisedStrips({ ...raised, width: 0 }, 10, 6), 0);
         assert.lengthOf(raisedStrips(undefined, 10, 6), 0);
+    });
+});
+
+describe("a label table's backgrounds", () => {
+    test("blends a gradient from its color at the bottom to its other at the top at 270 degrees (n_html3)", () => {
+        const box = { x0: -1, y0: -1, x1: 1, y1: 1 };
+        const [piece] = tableFillPieces([{ box, color: "#000000", gradient: { to: "#ffffff", angle: 270 } }], 20, 10);
+        const at = (x: number, y: number): number =>
+            piece.vertexRgb?.[piece.outline.findIndex(([px, py]) => px === x && py === y)]?.[0] ?? -1;
+        assert.closeTo(at(-10, -5), 0, 1e-9);
+        assert.closeTo(at(10, -5), 0, 1e-9);
+        assert.closeTo(at(10, 5), 1, 1e-9);
+        assert.closeTo(at(-10, 5), 1, 1e-9);
+    });
+
+    test("fills a rounded background inside its outline, counter-clockwise", () => {
+        // the outline in fractions of the half width and height, y up, laid clockwise on screen
+        const outline = roundedBoxOutline({ x: -1, y: -1, width: 2, height: 2 }, 0.5).map(
+            ([x, y]): [number, number] => [x, -y],
+        );
+        const [piece] = tableFillPieces([{ box: { x0: -1, y0: -1, x1: 1, y1: 1 }, color: "red", outline }], 4, 4);
+        assert.isAbove(area(piece.outline), 0);
+        assert.isBelow(area(piece.outline), 16);
+        assert.isAbove(area(piece.outline), 15);
+        assert.strictEqual(piece.vertexRgb, undefined);
     });
 });

@@ -175,7 +175,7 @@ export function isPlainPaint(paint: { readonly meshKey: string }): boolean {
 }
 
 /** The line keys a plain line keeps. */
-const PLAIN_LINE_KEYS: ReadonlySet<string> = new Set(["width", "color", "opacity", "minScreenWidth"]);
+const PLAIN_LINE_KEYS: ReadonlySet<string> = new Set(["width", "color", "opacity", "minScreenWidth", "drawOrder"]);
 
 /**
  * The paint an edge past `limits.objectEdges` is drawn with: its line's width, color and opacity

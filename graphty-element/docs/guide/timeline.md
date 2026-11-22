@@ -228,7 +228,8 @@ await time.setSettings({ step: "week", mode: "cumulative", results: "rerun", mis
   finished re-run instead of once per step, and is out of date only while it catches up. A run the
   window re-ran (a play, a step, a window drag, or switching to `"rerun"`) publishes `run:changed` with
   `trigger: "time-window"`, so a listener can tell it from a run a caller started, which has no
-  `trigger`.
+  `trigger`. A re-run that fails publishes `time:rerun-failed` with the run and the error's
+  `{ code, params }`; one canceled with `run.cancel()` is not a failure and publishes nothing.
 - `missing`: `"inside"` (the default) keeps elements with no time in every window; `"outside"` hides
   them.
 - `outside`: `"hide"` or `"ghost"`, read from and written to the style layers. See [What lies outside the window](#what-lies-outside-the-window).

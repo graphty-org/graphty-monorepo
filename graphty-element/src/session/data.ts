@@ -226,7 +226,7 @@ import {
 } from "./sources/provenance";
 import { type LoadHow, type NetworkRecord, refusalOf } from "./sources/references";
 import { refreshReport } from "./sources/refreshReport";
-import type { StepsAct } from "./sources/steps/acts";
+import { rowsCopies, type StepsAct } from "./sources/steps/acts";
 import { copyKey, resolveNode } from "./sources/steps/build";
 import {
     compileCommand,
@@ -239,6 +239,7 @@ import {
 import type { DraftMark, DraftMarks } from "./sources/steps/draft";
 import { matchCounts, matchValues } from "./sources/steps/match";
 import { RECORD_PATHS } from "./sources/steps/paths";
+import { spaceProfile, tableHandle } from "./sources/steps/profile";
 import {
     applyEdit,
     buildOf,
@@ -253,6 +254,7 @@ import {
     mintEditId,
     mintSourceId,
     nodeIdsOf,
+    nodeOfId,
     projectBuild,
     type ProjectedGraph,
     refOf,
@@ -374,6 +376,7 @@ import type {
     SourceCellState,
     SourceCellValue,
     SourceCellValues,
+    SourceColumnProfile,
     SourceConflict,
     SourceConflictQuery,
     SourceConnectOptions,
@@ -387,6 +390,7 @@ import type {
     SourceExtractOptions,
     SourceLineage,
     SourceLoaded,
+    SourceMappingPatch,
     SourceMatchCounts,
     SourceMatchOptions,
     SourceMatchPair,
@@ -400,7 +404,9 @@ import type {
     SourceSpaceRow,
     SourceStepResolution,
     SourceStepRow,
+    SourceTable,
     SourceTypeEntry,
+    StageOptions,
     TableMapping,
     TypeChangePreview,
     ValueCounts,
@@ -1327,6 +1333,12 @@ export class SessionData implements SessionDataApi {
         readonly state: IssueState;
         readonly byRecord: Readonly<Record<"node" | "edge", ReadonlyMap<NodeId | EdgeId, readonly IssueId[]>>>;
     } | null = null;
+    /** `sources()` without the staged sources, and the full list it was filtered from. */
+    private inGraphMemo: { readonly all: readonly LoadedSource[]; readonly result: readonly LoadedSource[] } | null =
+        null;
+    /** `staged()`, and the full list it was filtered from. */
+    private stagedMemo: { readonly all: readonly LoadedSource[]; readonly result: readonly LoadedSource[] } | null =
+        null;
     /** `sources()` with its counts, and what they were counted from. */
     private sourcesMemo: {
         readonly stored: readonly LoadedSource[];
@@ -2185,7 +2197,7 @@ export class SessionData implements SessionDataApi {
         const canFetch = sourceDescriptors().find((entry) => entry.id === load.source)?.features.expand === true;
         return Object.freeze({
             loadKey: load.key,
-            source: this.sources().find((each) => each.loadKey === load.key)?.key ?? null,
+            source: this.listed().find((each) => each.loadKey === load.key)?.key ?? null,
             // A node is worth expanding until an expansion found all of it, or the source says
             // every neighbor is already here.
             canExpand: canFetch && facts.expansion !== "complete" && hidden !== 0,
@@ -2331,7 +2343,7 @@ export class SessionData implements SessionDataApi {
      * @returns the settings, or undefined for a source that is not a network load.
      */
     sourceSettings(key: SourceKey): SourceSettings | undefined {
-        const load = this.sources().find((each) => each.key === key)?.loadKey;
+        const load = this.listed().find((each) => each.key === key)?.loadKey;
         const record = this.ledger.loads().find((each) => each.key === load);
         if (record === undefined) {
             return undefined;
@@ -2420,7 +2432,7 @@ export class SessionData implements SessionDataApi {
             ? this.loadFacts
             : new Map([...this.loadFacts].map(([key, { copy: _copy, ...rest }]) => [key, rest]));
         const write = writeSourcesMember({
-            sources: this.sources(),
+            sources: this.listed(),
             loads: this.loads(),
             facts,
             waiting: [...this.pendingLoads],
@@ -2586,13 +2598,13 @@ export class SessionData implements SessionDataApi {
             expansions: this.expansions,
             ceilings: () => writes.ceilings?.overrides,
             loads: () => this.loads(),
-            sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
+            sourceKeyOf: (load) => this.listed().find((each) => each.loadKey === load)?.key,
             ...(this.stepsOn()
                 ? { refreshSteps: (load: string, tables: CopyTables) => this.refreshStepsSource(load, tables) }
                 : {}),
             labelPath: () => this.readConfig().knownFields.nodeLabelPath,
             credentialSlotOf: (load) => {
-                const key = this.sources().find((each) => each.loadKey === load)?.key;
+                const key = this.listed().find((each) => each.loadKey === load)?.key;
                 return key === undefined ? undefined : this.loadFacts.get(key)?.credentialSlot;
             },
             node: (id) => this.node(id),
@@ -3729,12 +3741,7 @@ export class SessionData implements SessionDataApi {
                 ? sources.length - 1
                 : sources.findIndex((each, index) => (each.key ?? `s${String(index + 1)}`) === key);
         if (key !== undefined && at < 0) {
-            throw new GraphtyError({
-                code: "E_SOURCE_UNKNOWN",
-                message: `No load still in the graph has key ${JSON.stringify(key)}.`,
-                source: "data",
-                details: { key, known: this.sources().map((each) => each.key) },
-            });
+            throw this.unknownLoad(key);
         }
 
         const newest = at === sources.length - 1;
@@ -3773,11 +3780,50 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Every load still in the graph, oldest first, as the `graph` slice keeps them.
+     * Every load still in the graph, oldest first. While the source-steps experiment is on, a
+     * staged source is left out unless `staged` asks for it: it is no part of the graph yet.
+     * @param options - `staged: true` lists staged sources too, in their place.
+     * @param options.staged - Whether staged sources are listed.
      * @returns the loads, or an empty list when no import loaded the graph
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    sources(): readonly LoadedSource[] {
+    sources(options?: { readonly staged?: boolean }): readonly LoadedSource[] {
+        this.requireLive("sources");
+        const all = this.listed();
+        if (options?.staged === true || !this.stepsOn()) {
+            return all;
+        }
+
+        if (this.inGraphMemo?.all !== all) {
+            this.inGraphMemo = { all, result: Object.freeze(all.filter((each) => each.state !== "staged")) };
+        }
+
+        return this.inGraphMemo.result;
+    }
+
+    /**
+     * The staged sources, oldest first: held, read by no step, and no part of the graph.
+     * @returns The staged sources; empty while the source-steps experiment is off.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    staged(): readonly LoadedSource[] {
+        this.requireLive("staged");
+        const all = this.listed();
+        if (this.stagedMemo?.all !== all) {
+            this.stagedMemo = {
+                all,
+                result: Object.freeze(this.stepsOn() ? all.filter((each) => each.state === "staged") : []),
+            };
+        }
+
+        return this.stagedMemo.result;
+    }
+
+    /**
+     * Every load the `graph` slice keeps, staged ones included, oldest first.
+     * @returns the loads, or an empty list when no import loaded the graph
+     */
+    private listed(): readonly LoadedSource[] {
         this.requireLive("sources");
         const stored = (this.writes.slice().values.get(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
         const provenance = this.provenance();
@@ -3990,10 +4036,10 @@ export class SessionData implements SessionDataApi {
     /**
      * Hold a source's rows as a staged source: saved and listed, read by no step.
      * @param source - What `import` takes.
-     * @param options - Its key, type, space and edge ends.
+     * @param options - Its key, type, space and edge ends, and how to guess the ones left out.
      * @returns The new source's id.
      */
-    async stage(source: DataSourceInput, options: ImportOptions = {}): Promise<string> {
+    async stage(source: DataSourceInput, options: StageOptions = {}): Promise<string> {
         this.requireSteps("stage");
         const read = await this.readStaged(source, options);
         if (read === null) {
@@ -4008,27 +4054,45 @@ export class SessionData implements SessionDataApi {
      * Read a source as a staged source, dispatching nothing.
      * @param source - What `import` takes.
      * @param options - Its key, type, space and edge ends.
+     * @param options.guess - How the roles it leaves out are guessed.
      * @returns The source and its rows as read, or null when the read held no rows.
      */
     private async readStaged(
         source: DataSourceInput,
-        options: ImportOptions,
+        { guess, ...options }: StageOptions,
     ): Promise<{ source: StepsSource; copies: Copies } | null> {
         checkSpace(options.space);
-        const draft = await this.prepare(source);
-        const digest = await copyDigest(source.config);
+        const draft = await this.prepare(source, guess === undefined ? {} : { guess });
+        const { sha256: digest, size } = await copyFacts(source.config);
+        const delimiter = draft.tables.find((table) => table.delimiter !== undefined)?.delimiter;
+        const facts = {
+            ...(size === undefined ? {} : { size }),
+            at: new Date().toISOString(),
+            ...(delimiter === undefined ? {} : { delimiter: { ...delimiter } }),
+        };
         let read: { source: StepsSource; copies: Copies } | null = null;
+        const choices = withStepsMapping({ ...options, mode: "merge" as const });
+        // One table the guess reads as edges without finding their ends stages as node rows: nothing
+        // names its ends yet, and the staged section's Rows are changes it (5.1).
+        const endless =
+            options.key === undefined &&
+            options.edges === undefined &&
+            draft.tables.length === 1 &&
+            Object.values(draft.missing()).some((roles) => roles.length > 0);
         try {
             await draft.loadVia(
                 (command) => {
                     const load = (command.op === "batch" ? command.steps.at(-1) : command) as DataImportCommand;
                     const compiled = compileImport(withDigest(load, digest), options, this.readConfig().knownFields);
                     if (compiled !== null) {
-                        read = { source: compiled.edit.source, copies: compiled.copies ?? EMPTY_COPIES };
+                        read = {
+                            source: { ...compiled.edit.source, read: facts },
+                            copies: compiled.copies ?? EMPTY_COPIES,
+                        };
                     }
                     return Promise.resolve();
                 },
-                withStepsMapping({ ...options, mode: "merge" }),
+                endless ? { ...choices, mapping: { rowsAre: "nodes" } } : choices,
             );
         } finally {
             draft.dispose();
@@ -4175,6 +4239,57 @@ export class SessionData implements SessionDataApi {
     matchValues(pair: SourceMatchPair, options: SourceMatchValuesOptions = {}): SourceMatchValues {
         this.requireSteps("matchValues");
         return matchValues(this.stepsValue(), this.stepsCopies(), pair, options);
+    }
+
+    /**
+     * One source's rows as read, staged or built, building nothing (design 5.1, 5.2).
+     * @param source - The source.
+     * @returns The table.
+     * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` or `E_FEATURE_OFF`.
+     */
+    sourceTable(source: SourceKey): SourceTable {
+        this.requireSteps("sourceTable");
+        return tableHandle(() => ({ value: this.stepsValue(), copies: this.stepsCopies() }), source);
+    }
+
+    /**
+     * The profile of the keys of the nodes one id space holds.
+     * @param options - The space.
+     * @param options.space - The space.
+     * @returns The profile.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF`.
+     */
+    profile(options: { readonly space: string }): SourceColumnProfile {
+        this.requireSteps("profile");
+        return spaceProfile(this.stepsValue(), this.stepsCopies(), options.space);
+    }
+
+    /**
+     * The refusal for a load key no source still in the graph has.
+     * @param key - The key asked for.
+     * @returns `E_SOURCE_UNKNOWN`, with the keys there are.
+     */
+    private unknownLoad(key: string): GraphtyError {
+        return new GraphtyError({
+            code: "E_SOURCE_UNKNOWN",
+            message: `No load still in the graph has key ${JSON.stringify(key)}.`,
+            source: "data",
+            details: { key, known: this.listed().map((each) => each.key) },
+        });
+    }
+
+    /**
+     * Change what a staged source's rows are for, outside a draft. Like staging, it joins the step
+     * before it.
+     * @param source - The staged source.
+     * @param patch - The change.
+     * @returns Settles once it is recorded.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `not-staged`) or `E_FEATURE_OFF`.
+     */
+    async setMapping(source: SourceKey, patch: SourceMappingPatch): Promise<void> {
+        this.requireSteps("setMapping");
+        const copies = rowsCopies(this.stepsValue(), this.stepsCopies(), source, patch);
+        await this.stepsEdit(() => ({ kind: "act", act: { act: "set-mapping", source, patch } }), copies, true);
     }
 
     /**
@@ -4470,6 +4585,17 @@ export class SessionData implements SessionDataApi {
     ref(key: string, options: { readonly space?: string } = {}): SourceNodeRef | null {
         this.requireLive("ref");
         return refOf(this.stepsBuild().result, key, options.space);
+    }
+
+    /**
+     * The id space and key of a node in the graph, by its id.
+     * @param id - The node's id.
+     * @returns The reference, or null for an id no node holds.
+     */
+    nodeRef(id: NodeId): SourceNodeRef | null {
+        this.requireSteps("nodeRef");
+        const node = nodeOfId(this.stepsBuild().result, id);
+        return node === null ? null : Object.freeze({ space: node.space, key: node.key });
     }
 
     /**
@@ -5006,7 +5132,7 @@ export class SessionData implements SessionDataApi {
         if (this.stepsHold(key)) {
             return this.removeStepsSource(key);
         }
-        const sources = this.sources();
+        const sources = this.listed();
         const entry = sources.find((each) => each.key === key);
         if (entry === undefined) {
             throw new GraphtyError({
@@ -5079,7 +5205,7 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for a source the steps do not hold.
      */
     private async removeStepsSource(key: SourceKey): Promise<RemoveSourceResult> {
-        const entry = this.sources().find((each) => each.key === key);
+        const entry = this.listed().find((each) => each.key === key);
         const value = this.stepsValue();
         if (entry === undefined || value.sources[key] === undefined) {
             throw new GraphtyError({
@@ -5435,7 +5561,7 @@ export class SessionData implements SessionDataApi {
      *   experiment, or one whose steps were set aside on open), so the caller merges it as before.
      */
     private async refreshStepsSource(load: string, tables: CopyTables): Promise<SourceRefreshReport | undefined> {
-        const key = this.sources().find((each) => each.loadKey === load)?.key;
+        const key = this.listed().find((each) => each.loadKey === load)?.key;
         if (key === undefined || this.stepsValue().sources[key] === undefined) {
             return undefined;
         }
@@ -5601,15 +5727,10 @@ export class SessionData implements SessionDataApi {
         this.requireLive("replaceSource");
         const send = this.sender("replace a load", loadStampOf(choices));
         const stored = this.storedSources();
-        const at = this.sources().findIndex((each) => each.key === key);
+        const at = this.listed().findIndex((each) => each.key === key);
         const entry = stored[at] as LoadedSource | undefined;
         if (entry === undefined) {
-            throw new GraphtyError({
-                code: "E_SOURCE_UNKNOWN",
-                message: `No load still in the graph has key ${JSON.stringify(key)}.`,
-                source: "data",
-                details: { key, known: this.sources().map((each) => each.key) },
-            });
+            throw this.unknownLoad(key);
         }
 
         if (source.source !== undefined) {
@@ -5769,7 +5890,7 @@ export class SessionData implements SessionDataApi {
         choices: LoadChoices & SourceLoadOptions,
     ): Promise<ReplaceReport> {
         const send = this.sender("replace a load", loadStampOf(choices));
-        const old = this.sources().find((each) => each.key === key)?.loadKey;
+        const old = this.listed().find((each) => each.key === key)?.loadKey;
         const record = this.ledger.loads().find((each) => each.key === old);
         const mode = record?.options.mode as SourceLoadOptions["mode"] | undefined;
         // The settings were shown redacted (sourceSettings): a key the load was read with stays.
@@ -6053,7 +6174,7 @@ export class SessionData implements SessionDataApi {
         }
 
         return this.afterLoads(async () => {
-            const known = this.sources().map((each) => each.key);
+            const known = this.listed().map((each) => each.key);
             const key = options.source ?? (known.length === 1 ? known[0] : undefined);
             if (key === undefined) {
                 throw new GraphtyError({
@@ -6276,15 +6397,10 @@ export class SessionData implements SessionDataApi {
      */
     private async reloadSourceNow(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
-        const entry = this.sources().find((each) => each.key === key);
+        const entry = this.listed().find((each) => each.key === key);
         const input = this.sourceInput(key);
         if (entry === undefined) {
-            throw new GraphtyError({
-                code: "E_SOURCE_UNKNOWN",
-                message: `No load still in the graph has key ${JSON.stringify(key)}.`,
-                source: "data",
-                details: { key, known: this.sources().map((each) => each.key) },
-            });
+            throw this.unknownLoad(key);
         }
 
         if (input === undefined) {
@@ -6379,7 +6495,7 @@ export class SessionData implements SessionDataApi {
      */
     joins(): readonly JoinRecord[] {
         this.requireLive("joins");
-        return Object.freeze(this.sources().flatMap((each) => (each.join === undefined ? [] : [each.join])));
+        return Object.freeze(this.listed().flatMap((each) => (each.join === undefined ? [] : [each.join])));
     }
 
     /**
@@ -10253,19 +10369,35 @@ async function bytesFacts(config: Readonly<Record<string, unknown>>): Promise<Pa
  * @returns The lower-case hex digest, or undefined.
  */
 async function copyDigest(config: Readonly<Record<string, unknown>> | undefined): Promise<string | undefined> {
+    return (await copyFacts(config)).sha256;
+}
+
+/**
+ * The digest and size of what a source reads, when the session holds its bytes.
+ * @param config - The source's options.
+ * @returns The hex SHA-256 and the size in bytes, each absent when not known.
+ */
+async function copyFacts(
+    config: Readonly<Record<string, unknown>> | undefined,
+): Promise<{ readonly sha256?: string; readonly size?: number }> {
     const { data, file, url } = config ?? {};
     const blob = fileOf(file);
     if (typeof url === "string" && !(data instanceof Uint8Array)) {
-        return peekFetched(url)?.sha256;
+        const fetched = peekFetched(url);
+        return fetched === undefined ? {} : { sha256: await fetched.sha256, size: fetched.size };
     }
     if (blob !== null) {
-        return sha256Hex(new Uint8Array(await blob.slice(0, blob.size).arrayBuffer()));
+        return {
+            sha256: await sha256Hex(new Uint8Array(await blob.slice(0, blob.size).arrayBuffer())),
+            size: blob.size,
+        };
     }
     if (!isSourceData(data)) {
-        return undefined;
+        return {};
     }
     const input = toSourceInput(data);
-    return sha256Hex(typeof input === "string" ? new TextEncoder().encode(input) : input);
+    const bytes = typeof input === "string" ? new TextEncoder().encode(input) : input;
+    return { sha256: await sha256Hex(bytes), size: bytes.byteLength };
 }
 
 /**

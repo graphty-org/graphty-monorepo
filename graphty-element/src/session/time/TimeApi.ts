@@ -2429,6 +2429,11 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 // Marked as the session's own re-run, so `run:changed` says the window did it.
                 await (run instanceof ManagedRun ? run.rerun("time-window") : run.rerun());
             } catch (error) {
+                // A cancel is not a failure (`RunStatus`): the run reports it as "canceled".
+                if (error instanceof Error && error.name === "AbortError") {
+                    return;
+                }
+
                 sources.emit("time:rerun-failed", {
                     run: run.id,
                     error: isGraphtyError(error)

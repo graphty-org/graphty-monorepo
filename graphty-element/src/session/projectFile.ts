@@ -1097,7 +1097,8 @@ export function dataMember(
     }));
     // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
     const source = session.data.source();
-    const sources = session.data.sources();
+    // A staged source is saved with the rest, though no part of the graph yet.
+    const sources = session.data.sources({ staged: true });
     // What each load supplied: nodes by id, edges by their position in `links`, as a run's are.
     const provenance: Record<string, { nodes: NodeId[]; edges: number[] }> = {};
     const entry = (key: string): { nodes: NodeId[]; edges: number[] } => (provenance[key] ??= { nodes: [], edges: [] });
@@ -4167,8 +4168,6 @@ export function projectOf(
             }
         },
         async open(source, options = {}) {
-            // A draft of the sources and steps drafts over the project this replaces.
-            (session.data as Partial<Pick<SessionData, "discardDraft">>).discardDraft?.();
             // Its place in the session's load line is taken now, before the file is read, so a
             // load asked for before the open lands before it, and one asked for after lands after
             // it, whichever read finishes first (issue #3525). The autosave restore opens here too.
@@ -4193,6 +4192,11 @@ export function projectOf(
                 throw error;
             }
             const fileName = options.fileName ?? (source as { name?: unknown }).name;
+            if (doc !== undefined || version2 !== undefined) {
+                // A draft of the sources and steps drafts over the project this replaces. A data
+                // file replaces nothing: its draft stays, and a write the file leads to meets it.
+                (session.data as Partial<Pick<SessionData, "discardDraft">>).discardDraft?.();
+            }
             if (version2 !== undefined) {
                 const { value, problems } = version2;
                 return line.opening(turn, () => openVersion2(value, options, fileName, problems));

@@ -27,7 +27,13 @@ import { type ReactNode, useSyncExternalStore } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { InspectedKind } from "../commands/registry";
-import { MAP_DEPTH_INDEPENDENT_SIZE, readPreference } from "../settings/preferences";
+import {
+    layoutOf,
+    MAP_DEPTH_INDEPENDENT_SIZE,
+    readPreference,
+    readWorkspaceLayout,
+    writeWorkspaceLayout,
+} from "../settings/preferences";
 
 /**
  * How the open project was opened, when opening it again gives the same project: one of the app's
@@ -240,6 +246,8 @@ export interface WorkspaceState {
         readonly source?: DataSourceInput;
         /** One of the app's own samples, for a table added as rows. */
         readonly origin?: "sample";
+        /** The load's `callerKey`, echoed on `source:loaded` whichever way the join screen loads it. */
+        readonly callerKey?: string;
         /** The load holding the same columns as this file: the screen opens on Replace of it. */
         readonly matches?: SourceKey;
     } | null;
@@ -717,6 +725,9 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
     let state: WorkspaceState = {
         ...INITIAL,
         mapDepthIndependentSize: readPreference(MAP_DEPTH_INDEPENDENT_SIZE) === "on",
+        // The application (autosave on) opens as the reader arranged it on the last visit;
+        // stories and tests start from the design's sizes.
+        ...(initial.autosave === true ? readWorkspaceLayout() : {}),
         ...initial,
     };
     const listeners = new Set<() => void>();
@@ -745,6 +756,14 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
             // Another project opening starts with nothing pinned, unless the write puts its kept pins back.
             const otherProject =
                 fields.project !== undefined && fields.project?.id !== state.project?.id && !("reportPins" in fields);
+            // A write that changes nothing tells no one: every panel reading the whole state
+            // would draw again for it (#9423).
+            if (
+                !("announcement" in fields) &&
+                Object.entries(fields).every(([key, value]) => Object.is(state[key as keyof WorkspaceState], value))
+            ) {
+                return;
+            }
             state = {
                 ...state,
                 ...(otherProject ? { reportPins: [] } : {}),
@@ -840,6 +859,24 @@ export function keepPlace(store: WorkspaceStore): () => void {
         }
     };
     return store.subscribe(write);
+}
+
+/**
+ * Keeps the panel widths, the table dock and the legend switch in this browser as they change, so
+ * the next visit opens arranged the same way (Settings' preferences, never the project's work).
+ * @param store - the workspace store.
+ * @returns a function that stops keeping it.
+ */
+export function keepLayout(store: WorkspaceStore): () => void {
+    let last = JSON.stringify(layoutOf(store.get()));
+    return store.subscribe(() => {
+        const layout = layoutOf(store.get());
+        const text = JSON.stringify(layout);
+        if (text !== last) {
+            last = text;
+            writeWorkspaceLayout(layout);
+        }
+    });
 }
 
 /** The name the reader's place is stashed under with graphty-element's autosaved work. */

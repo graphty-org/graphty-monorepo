@@ -3,6 +3,7 @@ import { Color3 } from "@babylonjs/core/Maths/math.color.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { Scene } from "@babylonjs/core/scene.js";
 
+import type { LineMeshMetadata } from "../types/sceneMetadata";
 import { type FilledArrowOptions, FilledArrowRenderer } from "./FilledArrowRenderer";
 import { setUpQuietly } from "./LabelBatch";
 
@@ -57,7 +58,7 @@ export class MaterialHelper {
 
         // Mark as 2D for later identification
         mesh.metadata ??= {};
-        mesh.metadata.is2D = true;
+        (mesh.metadata as LineMeshMetadata).is2D = true;
     }
 
     /**

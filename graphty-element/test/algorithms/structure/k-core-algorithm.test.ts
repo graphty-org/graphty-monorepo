@@ -2,7 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { KCoreAlgorithm } from "../../../src/algorithms/KCoreAlgorithm";
-import { createMockGraph } from "../../helpers/mockGraph";
+import { createSessionGraph } from "../../helpers/session-graph";
 
 /** A triangle a-b-c, a pendant d hanging off a, and an isolated e. */
 const NODES = ["a", "b", "c", "d", "e"].map((id) => ({ id }));
@@ -19,7 +19,7 @@ describe("KCoreAlgorithm", () => {
     });
 
     it("gives every node its core number", async () => {
-        const algo = new KCoreAlgorithm(await createMockGraph({ nodes: NODES, edges: EDGES }));
+        const algo = new KCoreAlgorithm(await createSessionGraph({ nodes: NODES, edges: EDGES }));
         await algo.run();
 
         const core = (id: string): unknown => algo.result?.node(id)?.value;
@@ -33,7 +33,7 @@ describe("KCoreAlgorithm", () => {
     });
 
     it("publishes nothing for an empty graph", async () => {
-        const algo = new KCoreAlgorithm(await createMockGraph());
+        const algo = new KCoreAlgorithm(await createSessionGraph());
         await algo.run();
 
         assert.isUndefined(algo.result);

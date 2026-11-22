@@ -19,6 +19,7 @@ import {
 } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
 import { routeEdgeRows } from "./utils/routeEdges";
+import { endpointIds, endpointOptions, endpointSchema } from "./utils/routeEndpoints";
 
 const SOURCE_DESCRIPTION = "Starting node for the route (uses first node if not set)";
 const TARGET_DESCRIPTION = "Destination node for the route (uses last node if not set)";
@@ -28,14 +29,7 @@ const HEURISTIC_DESCRIPTION =
 const HEURISTICS = ["none", "layout-distance"] as const;
 
 const astarOptionsSchema = defineOptions({
-    source: {
-        schema: z.union([z.string(), z.number()]).nullable().default(null),
-        meta: { label: "Source Node", description: SOURCE_DESCRIPTION },
-    },
-    target: {
-        schema: z.union([z.string(), z.number()]).nullable().default(null),
-        meta: { label: "Target Node", description: TARGET_DESCRIPTION },
-    },
+    ...endpointOptions(SOURCE_DESCRIPTION, TARGET_DESCRIPTION),
     heuristic: {
         schema: z.enum(HEURISTICS).default("none"),
         meta: { label: "Heuristic", description: HEURISTIC_DESCRIPTION },
@@ -99,20 +93,7 @@ export class AStarAlgorithm extends DeclaredAlgorithm<AStarOptions> {
     static readonly zodOptionsSchema: ZodOptionsSchema = astarOptionsSchema;
 
     static readonly optionsSchema: OptionsSchema = {
-        source: {
-            type: "nodeId",
-            default: null,
-            label: "Source Node",
-            description: SOURCE_DESCRIPTION,
-            required: false,
-        },
-        target: {
-            type: "nodeId",
-            default: null,
-            label: "Target Node",
-            description: TARGET_DESCRIPTION,
-            required: false,
-        },
+        ...endpointSchema(SOURCE_DESCRIPTION, TARGET_DESCRIPTION),
         heuristic: {
             type: "select",
             default: "none",
@@ -142,8 +123,7 @@ export class AStarAlgorithm extends DeclaredAlgorithm<AStarOptions> {
         const { snapshot, edgeRemap } = input.derived();
         const { ids } = snapshot;
         const { heuristic } = this.schemaOptions;
-        const source = this.schemaOptions.source ?? ids.idOf(0);
-        const target = this.schemaOptions.target ?? ids.idOf(snapshot.nodeCount - 1);
+        const { source, target } = endpointIds(snapshot, this.schemaOptions);
         const sourceIndex = this.nodeIndex(snapshot, "source", source);
         const targetIndex = this.nodeIndex(snapshot, "target", target);
         const estimate = heuristic === "none" ? () => 0 : layoutDistance(input.graph, snapshot);

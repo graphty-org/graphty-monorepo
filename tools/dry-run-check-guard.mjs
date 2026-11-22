@@ -32,7 +32,6 @@
  * --base defaults to the merge base of HEAD with origin/master. Exit 0: allowed (it prints what it
  * compared); 1: refused (it names each part removed or changed and how to proceed); 2: usage.
  */
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -43,6 +42,7 @@ import { parseArgs } from "node:util";
 import ts from "typescript";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
+import { git as runGit } from "./lib/git.mjs";
 
 export const DIR = "graphty/acceptance/";
 // Where the suite lived before it moved to DIR: a base from before the move is read there.
@@ -101,7 +101,7 @@ const PAGE_ESCAPES = new Set([
 ]);
 
 const git = (args, cwd, env = process.env) =>
-    execFileSync("git", args, { cwd, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    runGit(args, { cwd, env, stdio: ["ignore", "pipe", "pipe"], trim: false });
 
 const parse = (text) => ts.createSourceFile("f.mjs", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
 const isJsDoc = (n) => n.kind >= ts.SyntaxKind.FirstJSDocNode && n.kind <= ts.SyntaxKind.LastJSDocNode;

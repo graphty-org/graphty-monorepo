@@ -2,16 +2,16 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { KatzCentralityAlgorithm } from "../../../src/algorithms/KatzCentralityAlgorithm";
-import { asNumber, createMockGraph, getNodeResult } from "../../helpers/mockGraph";
+import { asNumber, createSessionGraph, getNodeResult } from "../../helpers/session-graph";
 
-const mockGraph = createMockGraph;
+const mockGraph = createSessionGraph;
 
 /**
  * The complete graph on `n` nodes, `n0` to `n{n-1}`.
  * @param n - How many nodes.
  * @returns The graph.
  */
-async function completeGraph(n: number): ReturnType<typeof createMockGraph> {
+async function completeGraph(n: number): ReturnType<typeof createSessionGraph> {
     const ids = Array.from({ length: n }, (_, i) => `n${String(i)}`);
     const edges = ids.flatMap((src, i) => ids.slice(i + 1).map((dst) => ({ srcId: src, dstId: dst })));
     return mockGraph({ nodes: ids.map((id) => ({ id })), edges });

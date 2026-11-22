@@ -509,7 +509,8 @@ export interface NodeStyleValues {
     /** The tooltip text. */
     readonly tooltip: string;
     /**
-     * A second label drawn outside the node, beside it, in the label's font, size and color (Graphviz's `xlabel`).
+     * A second label drawn outside the node, beside it, in the label's font, size and color unless the `xlabel` ones
+     * below say otherwise (Graphviz's `xlabel`).
      * Unset `xlabelOffsetX` and `xlabelOffsetY`, it sits against the node's top left corner, outside it.
      */
     readonly xlabel: string;
@@ -519,6 +520,14 @@ export interface NodeStyleValues {
     readonly xlabelOffsetY: number;
     /** How the lines of `xlabel` line up with one another; unset, as the label's (`labelTextAlign`). */
     readonly xlabelTextAlign: StyleLabelTextAlign;
+    /** The text color of `xlabel`; unset, the label's (`labelColor`). */
+    readonly xlabelColor: StyleColor;
+    /** The font family of `xlabel`, as the file names it; unset, the label's (`labelFont`). */
+    readonly xlabelFont: string;
+    /** The font weight of `xlabel`; unset, the label's (`labelWeight`). */
+    readonly xlabelWeight: StyleLabelWeight;
+    /** Whether `xlabel` is italic; unset, as the label is (`labelItalic`). */
+    readonly xlabelItalic: boolean;
     /** The label's font family, as the file names it. */
     readonly labelFont: string;
     /** The label's font weight. */
@@ -626,6 +635,19 @@ export interface NodeStyleValues {
      * `text-background-shape: circle`). Unset, `rectangle`.
      */
     readonly labelBackgroundShape: string;
+    /**
+     * The URI of a picture drawn in the label beside or behind its words (yEd's label icon), its middle the words'
+     * middle moved by `labelImageOffsetX` and `labelImageOffsetY`. Unset, none.
+     */
+    readonly labelImage: string;
+    /** How wide `labelImage` is drawn, in the units of `labelSize`. Unset, the label's font size. */
+    readonly labelImageWidth: number;
+    /** How tall `labelImage` is drawn, in the units of `labelSize`. Unset, the label's font size. */
+    readonly labelImageHeight: number;
+    /** How far right of the words' middle `labelImage`'s middle is, in the units of `labelSize`. */
+    readonly labelImageOffsetX: number;
+    /** How far below the words' middle `labelImage`'s middle is, in the units of `labelSize`. */
+    readonly labelImageOffsetY: number;
     /**
      * What the label's box is sized to: `words`, a label inside the node too large for it being centered on it;
      * `words-at-side`, a label inside the node staying against the side `labelPosition` names however large it is;
@@ -904,6 +926,15 @@ export interface EdgeStyleValues {
      * middle, or `none` for a line in its `color` (Cytoscape.js `line-fill`).
      */
     readonly gradientKind: string;
+    /**
+     * The colors of the parallel strands the line is drawn as, side by side, `#rrggbb` separated by spaces: the first
+     * on the right of the line's direction from its source to its target, the last on its left, each over the one
+     * before (Graphviz's color list with no fractions, `color="red:green:blue"`). Fewer than two draw the line in its
+     * `color`.
+     */
+    readonly strandColors: string;
+    /** How far apart the strands' middles are, as a multiple of `width`; absent, 1 (strands that touch). */
+    readonly strandSpacing: number;
     /** The line width. */
     readonly width: number;
     /**
@@ -1727,6 +1758,12 @@ export interface FileStyles {
         readonly dialect: StyleDialect | null;
         /** The program whose defaults were applied, or null when the writer is not identified. */
         readonly tool: StyleTool | null;
+        /**
+         * True when the import was given the program's settings (GEXF's `gephiPreview` option) and they differ from
+         * the program's defaults: the rules of `tool` origin then draw what those settings state, not the program's
+         * defaults alone.
+         */
+        readonly settingsGiven?: boolean;
     };
     /** The unit of every length: pixels, or the writing tool's relative size factor. */
     readonly units: {
@@ -1917,6 +1954,8 @@ export type ImporterStyles =
           readonly dialect?: StyleDialect | null;
           /** The program whose defaults apply, or null. */
           readonly tool?: StyleTool | null;
+          /** Whether the import was given program settings that differ from the program's defaults (see `FileStyles`). */
+          readonly settingsGiven?: boolean;
           /** The unit of every length. */
           readonly units?: "px" | "relative";
           /** Node output. */

@@ -13,6 +13,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { AllPathsAlgorithm } from "../../../src/algorithms/AllPathsAlgorithm";
 import { AStarAlgorithm } from "../../../src/algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
 import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
@@ -43,11 +44,10 @@ import { SpectralClusteringAlgorithm } from "../../../src/algorithms/SpectralClu
 import { StronglyConnectedComponentsAlgorithm } from "../../../src/algorithms/StronglyConnectedComponentsAlgorithm";
 import { algorithmByKey } from "../../../src/catalog/algorithms";
 import type { FieldDescriptor, ResultShape } from "../../../src/catalog/types";
-import type { Graph } from "../../../src/Graph";
 import { checkShapeContract, resultPath } from "../../../src/session/results";
 import type { RunProgressReport } from "../../../src/session/runs";
 import type { Caveats } from "../../../src/session/runs/types";
-import { createMockGraph } from "../../helpers/mockGraph";
+import { createSessionGraph, type SessionGraph } from "../../helpers/session-graph";
 
 /**
  * The facts an algorithm's caveats carry, empty when its output states none.
@@ -87,7 +87,7 @@ interface Case {
      * @param graph - The graph to run on.
      * @returns The algorithm.
      */
-    readonly make: (graph: Graph) => DeclaredAlgorithm;
+    readonly make: (graph: SessionGraph) => DeclaredAlgorithm;
 }
 
 const CASES: readonly Case[] = [
@@ -206,6 +206,13 @@ const CASES: readonly Case[] = [
         make: (g) => new AStarAlgorithm(g, { source: "A", target: "F" }),
     },
     {
+        name: "all paths",
+        key: "all-paths",
+        shape: "node-set",
+        method: "all-paths",
+        make: (g) => new AllPathsAlgorithm(g, { source: "A", target: "F" }),
+    },
+    {
         name: "edge betweenness",
         key: "edge-betweenness",
         shape: "edge-metric",
@@ -263,7 +270,7 @@ function recordingContext(signal?: AbortSignal): RecordingContext {
  * @returns What it produced.
  */
 async function runCase(testCase: Case, context: AlgorithmRunContext = detachedRunContext()): Promise<AlgorithmOutput> {
-    const graph = await createMockGraph(FIXTURE);
+    const graph = await createSessionGraph(FIXTURE);
     const output = await testCase.make(graph).compute(context);
 
     assert.isNotNull(output, `${testCase.name} produced no result on a connected graph`);
@@ -409,7 +416,7 @@ describe("declared algorithm results", () => {
 
     describe("what the 1.x entry point leaves behind", () => {
         it("publishes a result, rather than scattering values onto the render objects", async () => {
-            const graph = await createMockGraph(FIXTURE);
+            const graph = await createSessionGraph(FIXTURE);
             const algorithm = new LouvainAlgorithm(graph);
             await algorithm.run();
 
@@ -419,7 +426,7 @@ describe("declared algorithm results", () => {
         });
 
         it("carries the fields the element filled, not only the ones the algorithm returned", async () => {
-            const graph = await createMockGraph(FIXTURE);
+            const graph = await createSessionGraph(FIXTURE);
             const algorithm = new LouvainAlgorithm(graph);
             await algorithm.run();
 

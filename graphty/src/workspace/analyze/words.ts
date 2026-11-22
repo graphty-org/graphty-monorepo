@@ -151,6 +151,12 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "A route between two nodes, optionally steered by where they are drawn.",
         aliases: ["a*", "astar", "route", "path", "how are they connected"],
     },
+    "all-paths": {
+        name: "Every route",
+        answers:
+            "Every route between two nodes that visits no node twice, and how many run through each node and edge.",
+        aliases: ["all paths", "all routes", "simple paths", "alternatives", "redundancy"],
+    },
     "all-pairs-distance": {
         name: "All-pairs distance",
         answers: "How far each node is from all the others.",
@@ -211,6 +217,16 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "What the selected nodes or edges hold together: the nodes cut off if they were removed.",
         aliases: ["simulate removing", "what breaks", "what if", "cut off", "vulnerable", "resilience"],
     },
+    "articulation-points": {
+        name: "Articulation points",
+        answers: "Which nodes would split the graph apart if removed.",
+        aliases: ["cut points", "cut vertex", "single point of failure", "chokepoint"],
+    },
+    bridges: {
+        name: "Bridges",
+        answers: "Which edges would split the graph apart if removed.",
+        aliases: ["cut edges", "single point of failure", "weak link"],
+    },
 };
 
 /**
@@ -251,6 +267,8 @@ export const ALGORITHM_DESCRIPTIONS: Readonly<Partial<Record<string, string>>> =
         "Finds the cheapest route from one node to another, and how far every reachable node is from the source.",
     "algorithm.astar":
         "Finds a route from one node to another, optionally steered by how far apart the nodes are drawn. Without that steering it finds the cheapest route.",
+    "algorithm.all-paths":
+        "Finds every route from one node to another that visits no node twice, up to a longest route and a number of routes, and how many of the routes run through each node and edge.",
     "algorithm.all-pairs-distance":
         "Measures the distance between every pair of nodes, and gives each node the distance to the furthest node it can reach.",
     "algorithm.bfs": "Walks outwards from one node a level at a time, recording how many steps away each node is.",
@@ -272,6 +290,10 @@ export const ALGORITHM_DESCRIPTIONS: Readonly<Partial<Record<string, string>>> =
         "Scores the pairs of nodes that are not yet joined by the neighbors they share, and lists the pairs most likely to be joined next.",
     "algorithm.removal-impact":
         "Works out what removing some nodes or edges would cut off, without removing them: the separate pieces before and after, and the nodes left cut off from the rest of their piece.",
+    "algorithm.articulation-points":
+        "Finds the nodes whose removal would split their piece of the graph into more pieces: the single points of failure.",
+    "algorithm.bridges":
+        "Finds the edges whose removal would split their piece of the graph in two: the links nothing else backs up.",
 };
 
 /**
@@ -445,6 +467,8 @@ const OPTION_WORDS: Readonly<Partial<Record<string, OptionWords>>> = {
     "shortest-path.target": { label: "To" },
     "shortest-path.method": { label: "Method", empty: "Chosen automatically" },
     "shortest-path.direction": { label: "Follow", choices: { out: "Out", in: "In", all: "All" } },
+    // ForceAtlas2's cap left empty is scaled to the graph by the element.
+    "force.maxIter": { label: "Max iterations", empty: "Automatic" },
     // The location map's options; an empty location column is found from the data.
     "location-map.location": { label: "Location", empty: "Automatic" },
     "location-map.latitude": { label: "Latitude", empty: "Automatic" },
@@ -469,7 +493,7 @@ const OPTION_WORDS: Readonly<Partial<Record<string, OptionWords>>> = {
     "location-map.size": { label: "Size" },
     "location-map.mapScale": { label: "Map size" },
     "location-map.flatNodeScale": { label: "Flat map node size" },
-    "location-map.unplaced": { label: "Unplaced", choices: { tray: "Tray", leave: "Leave in place" } },
+    "location-map.unplaced": { label: "Unplaced", choices: { tray: "Tray", leave: "Leave in place", hide: "Hide" } },
     "location-map.overlap": { label: "Same place", choices: { spread: "Spread", stack: "Stack" } },
     "closeness.k": SAMPLE_SIZE,
     "betweenness.k": SAMPLE_SIZE,
@@ -703,7 +727,8 @@ export function pathWords(session: GraphSession, run: Run): { from: string; to: 
 
 /**
  * The status line for a finished path search: "Shortest path added: Ava to Lee, 2 hops" (or
- * "..., minutes 14" by a distance weight), or
+ * "..., minutes 14" by a distance weight), "Shortest path updated, layer style kept: ..." for a
+ * re-run the element drew with its existing layer (the `layers.kept` caveat fact), or
  * "No path from Ava to Lee.".
  * @param session - the element's session.
  * @param run - the run.
@@ -714,9 +739,11 @@ export function pathAnnouncement(session: GraphSession, run: Run): string | null
     if (words === null) {
         return null;
     }
+    const kept = run.caveats.facts.some((fact) => fact.code === "layers.kept");
+    const found = kept ? "Shortest path updated, layer style kept" : "Shortest path added";
     return words.length === null
         ? `No path from ${words.from} to ${words.to}.`
-        : `Shortest path added: ${words.from} to ${words.to}, ${words.length}`;
+        : `${found}: ${words.from} to ${words.to}, ${words.length}`;
 }
 
 /**
@@ -733,6 +760,26 @@ export function topAnnouncement(session: GraphSession, run: Run, name: string): 
         return null;
     }
     return `${name} finished: ${session.data.name(top.id) ?? top.label} ranks first, ${formatNumber(top.value)}`;
+}
+
+/** What a set run that chose nothing means, for the algorithms whose empty set says more than "none". */
+const NOTHING_CHOSEN: Readonly<Record<string, string>> = {
+    "removal-impact": "Removing this affects no other node",
+};
+
+/**
+ * What a finished set run says when it chose nothing, from the element's reading of its result
+ * ("reading.set" with a count of 0): "Removing this affects no other node".
+ * @param run - the run.
+ * @param name - the run's name in words.
+ * @returns the line, or null for a run that is no set or chose something.
+ */
+export function nothingChosenWords(run: Run, name: string): string | null {
+    const fact = run.result?.readingFact();
+    if (fact?.code !== "reading.set" || fact.params.count !== 0) {
+        return null;
+    }
+    return NOTHING_CHOSEN[run.algorithm] ?? `${name}: no ${String(fact.params.element)}s chosen`;
 }
 
 /**

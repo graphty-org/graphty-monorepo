@@ -91,6 +91,31 @@ describe("the Layout popover", () => {
         assert.deepInclude(session.layout.options, { groupBy: `results.${run.runId}.group` });
     });
 
+    it("opens Rings by group grouped by the latest community run, not by a name column", async () => {
+        const session = await openK5();
+        // A name column with one name repeated can group in principle, so it is offered too.
+        await session.data.updateNodes(IDS.map((id) => ({ id, values: { name: id === "b" ? "a" : id } })));
+        const groupBy = async (): Promise<HTMLInputElement> => {
+            await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+            const popover = await screen.findByRole("dialog", { name: "Layout" });
+            await waitFor(() => {
+                const rings = within(popover).getByRole("option", { name: /^Rings by group/ });
+                assert.notStrictEqual(rings.getAttribute("aria-disabled"), "true", rings.textContent);
+            });
+            await userEvent.click(within(popover).getByRole("option", { name: /^Rings by group/ }));
+            return within(popover).getByRole<HTMLInputElement>("combobox", { name: "Group by" });
+        };
+        assert.strictEqual((await groupBy()).value, "name", "the only column that groups");
+        // Escape goes from the form back to the list, then closes the popover.
+        await userEvent.keyboard("{Escape}{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Layout" }));
+        });
+
+        await session.runs.start("louvain", {}, { style: false });
+        assert.strictEqual((await groupBy()).value, "Louvain");
+    });
+
     it("lists every layout, opens a form that runs nothing until Apply, and draws Force flat with Shape 2D", async () => {
         const session = await openK5();
         assert.strictEqual(session.layout.id, "force", "the app starts on the force layout by id");
@@ -197,5 +222,31 @@ describe("the Layout popover", () => {
             assert.strictEqual(session.layout.id, "force");
             assert.strictEqual(session.layout.engine, "forceatlas2");
         });
+    });
+
+    it("applies on Enter in a field and keeps the form open, so several values can be tried in turn", async () => {
+        const session = await openK5();
+        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        await userEvent.click(within(popover).getByRole("option", { name: /^ForceAtlas2/ }));
+        const form = within(popover).getByRole("form", { name: /ForceAtlas2/ });
+        const cap = within(form).getByRole<HTMLInputElement>("textbox", { name: "Max iterations" });
+        assert.strictEqual(cap.value, "", "no cap of the reader's: the element scales one to the graph");
+        assert.strictEqual(cap.placeholder, "Automatic");
+
+        await userEvent.fill(within(form).getByRole("spinbutton", { name: "Gravity" }), "3");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(session.layout.engine, "forceatlas2");
+            assert.deepInclude(session.layout.options, { gravity: 3 });
+        });
+        assert.isTrue(form.isConnected, "the form is still open");
+
+        await userEvent.fill(within(form).getByRole("spinbutton", { name: /^Scaling ratio$/i }), "5");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.deepInclude(session.layout.options, { gravity: 3, scalingRatio: 5 });
+        });
+        assert.isTrue(form.isConnected, "and still open");
     });
 });

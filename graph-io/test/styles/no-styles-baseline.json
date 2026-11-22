@@ -1270,7 +1270,7 @@
         "admin/manual-movies-actors.csv": "import cdeab06eafab6c03 check 4f53cda18c2baa0c export d3573f301f5490be",
         "admin/manual-id-spaces.csv": "import cdeab06eafab6c03 check 4f53cda18c2baa0c export f1f51b1cc6643903",
         "admin/manual-types.csv": "import 28fba9f0ccde2a15 check 4f53cda18c2baa0c export acb0e8535304dace",
-        "admin/manual-point.csv": "import aed4c1d2dfefae16 check 4f53cda18c2baa0c export b98336813ceea582",
+        "admin/manual-point.csv": "import ce2a944de84b774d check 4f53cda18c2baa0c export dfab1d77f4b936b8",
         "admin/manual-datetime.csv": "import f9855b4187baf7bd check 4f53cda18c2baa0c export f531874054605321",
         "admin/manual-vector.csv": "import ef4bc3c1509a183a check 4f53cda18c2baa0c export bdf2ff9be4a0af18",
         "admin/manual-composite-id.csv": "import aa8dcea4cdcad71b check 4f53cda18c2baa0c export 5e967bd2f72f7d2d",

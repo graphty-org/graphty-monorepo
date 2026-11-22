@@ -132,6 +132,7 @@ import { SourceRuntime } from '@graphty/graph-io';
 import { SourceRuntimeReason } from '@graphty/graph-io';
 import { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture.js';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
@@ -245,7 +246,7 @@ export type AiEventType = AiEvent["type"];
 
 // @public
 abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<string, unknown>> {
-    constructor(g: Graph, options?: Partial<TOptions>);
+    constructor(g: AlgorithmHost | GraphSession, options?: Partial<TOptions>);
     protected accelerated(capability: string, mode: AlgorithmGraphMode, options?: {
         accelerable?: boolean;
         sources?: number;
@@ -253,15 +254,14 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     }): AcceleratedAlgorithmRun;
     // @deprecated
     protected algorithmGraph(mode: AlgorithmGraphMode): Graph_2;
-    static get(g: Graph, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
+    static get(g: AlgorithmHost | GraphSession, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
     static getClass(namespace: string, type: string): (AlgorithmClass & AlgorithmStatics) | null;
     // @deprecated
     static getOptionsSchema(): OptionsSchema_2;
     static getRegisteredAlgorithms(namespace?: string): string[];
     static getRegisteredTypes(): string[];
     static getZodOptionsSchema(): OptionsSchema;
-    // (undocumented)
-    protected graph: Graph;
+    protected graph: AlgorithmHost;
     // @deprecated
     static hasOptions(): boolean;
     static hasZodOptions(): boolean;
@@ -285,7 +285,7 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
     // (undocumented)
-    abstract run(g: Graph): Promise<void>;
+    abstract run(g: AlgorithmHost): Promise<void>;
     protected get schemaOptions(): TOptions;
     protected _schemaOptions: TOptions;
     static scopeInput?: ScopeInputDeclaration;
@@ -362,7 +362,7 @@ export interface AnimationOptions {
     downloadFilename?: string;
     duration?: number;
     easing?: EasingName;
-    format?: "webm" | "mp4" | "auto";
+    format?: VideoFormat | "auto";
     fps?: number;
     height?: number;
     motion?: "follow-view" | "authored";
@@ -378,15 +378,13 @@ export interface AnimationProgressEvent {
     type: "animation-progress";
 }
 
-// @public (undocumented)
+// @public
 export interface AnimationResult {
-    // (undocumented)
     blob: Blob;
-    // (undocumented)
     metadata: {
         duration: number;
         fps: number;
-        format: string;
+        format: VideoFormat;
         width: number;
         height: number;
         framesCaptured: number;
@@ -505,7 +503,7 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
-    layout?: "recommended" | "keep";
+    layout?: "recommended" | "placed" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -698,11 +696,9 @@ export interface Capabilities {
 
 // @public
 export interface CapabilityCheck {
-    // (undocumented)
     estimatedMemoryMB: number;
     height?: number;
     reason?: CodedFact<GraphtyErrorCode>;
-    // (undocumented)
     supported: boolean;
     warnings?: CodedFact<ScreenshotWarningCode>[];
     width?: number;
@@ -1063,10 +1059,59 @@ export function defineShader(definition: ShaderDefinition, options?: RegisterOpt
 export { defineSource }
 
 // @beta
-export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_CHANGED" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+export const DOCUMENT_SECTIONS: readonly DocumentSection[];
+
+// @beta
+export interface DocumentBindFacts {
+    readonly file: boolean;
+    readonly open: boolean;
+}
+
+// @beta
+export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+
+// @beta
+export interface DocumentHeldFacts {
+    readonly reads: number | null;
+    readonly reason: DocumentHeldReason;
+    readonly version: number | null;
+}
+
+// @beta
+export type DocumentHeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs" | "add";
 
 // @beta
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
+
+// @beta
+export interface DocumentSectionAbout {
+    readonly authors?: readonly {
+        readonly name: string;
+        readonly uri?: string;
+    }[];
+    readonly created?: string;
+    readonly description?: string;
+    readonly from?: string;
+    readonly license?: string;
+    readonly modified?: string;
+}
+
+// @beta
+export interface DocumentSectionFacts {
+    readonly counts: Readonly<Record<string, number>>;
+    readonly held?: DocumentHeldFacts;
+    readonly name?: string;
+    readonly section: DocumentSection;
+}
+
+// @beta
+export interface DocumentSectionNeed {
+    readonly found?: boolean;
+    readonly kind: "column" | "type" | "source" | "result";
+    readonly name: string;
+    readonly schema?: Readonly<Record<string, unknown>>;
+    readonly table?: "node" | "edge";
+}
 
 // @public
 export interface DrawnShaders {
@@ -1103,6 +1148,8 @@ export class Edge {
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     // @internal
+    batchEndRow(end: "source" | "target"): number;
+    // @internal
     columnEnd(end: "source" | "target"): ColumnRow | undefined;
     get data(): AdHocData;
     dispose(): void;
@@ -1132,10 +1179,14 @@ export class Edge {
         pattern: JoinedPatternKind | null;
     } | null;
     get drawnPattern(): readonly ArrowCap[];
+    // @internal
+    get drawnStrands(): readonly string[];
     // (undocumented)
     readonly dstId: NodeIdType;
     get dstNode(): Node_2;
     set dstNode(node: Node_2);
+    // @internal
+    endDrawnAsGroup(end: "source" | "target"): boolean;
     // @internal
     endRow(end: "source" | "target"): number;
     // @internal
@@ -1260,6 +1311,10 @@ export interface EdgePosition {
     dst: Position;
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
+    laidCurve?: {
+        readonly points: readonly number[];
+        readonly params: readonly number[];
+    };
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
     lineEnds?: {
         readonly source: readonly [along: number, across: number];
@@ -1391,6 +1446,11 @@ export const EdgeStyle: z.ZodObject<{
                 rectangle: "rectangle";
                 circle: "circle";
             }>>;
+            image: z.ZodOptional<z.ZodString>;
+            imageWidth: z.ZodOptional<z.ZodNumber>;
+            imageHeight: z.ZodOptional<z.ZodNumber>;
+            imageOffsetX: z.ZodOptional<z.ZodNumber>;
+            imageOffsetY: z.ZodOptional<z.ZodNumber>;
             minScreenSize: z.ZodOptional<z.ZodNumber>;
             declutter: z.ZodOptional<z.ZodEnum<{
                 size: "size";
@@ -1688,6 +1748,11 @@ export const EdgeStyle: z.ZodObject<{
                 rectangle: "rectangle";
                 circle: "circle";
             }>>;
+            image: z.ZodOptional<z.ZodString>;
+            imageWidth: z.ZodOptional<z.ZodNumber>;
+            imageHeight: z.ZodOptional<z.ZodNumber>;
+            imageOffsetX: z.ZodOptional<z.ZodNumber>;
+            imageOffsetY: z.ZodOptional<z.ZodNumber>;
             minScreenSize: z.ZodOptional<z.ZodNumber>;
             declutter: z.ZodOptional<z.ZodEnum<{
                 size: "size";
@@ -1997,6 +2062,11 @@ export const EdgeStyle: z.ZodObject<{
         dashGap: z.ZodOptional<z.ZodNumber>;
         dashArray: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        colorFrom: z.ZodOptional<z.ZodEnum<{
+            none: "none";
+            source: "source";
+            target: "target";
+        }>>;
         opacity: z.ZodOptional<z.ZodNumber>;
         fade: z.ZodOptional<z.ZodObject<{
             start: z.ZodOptional<z.ZodNumber>;
@@ -2033,6 +2103,10 @@ export const EdgeStyle: z.ZodObject<{
                 linear: "linear";
                 radial: "radial";
             }>>;
+        }, z.core.$strict>>;
+        strands: z.ZodOptional<z.ZodObject<{
+            colors: z.ZodOptional<z.ZodString>;
+            spacing: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>>;
         bezier: z.ZodOptional<z.ZodBoolean>;
         bends: z.ZodOptional<z.ZodString>;
@@ -2139,6 +2213,11 @@ export const EdgeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -2382,6 +2461,11 @@ export const EdgeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -2639,7 +2723,7 @@ export class EventManager implements Manager {
     emitGraphDataLoaded(graph: Graph | GraphContext, chunksLoaded: number, dataSourceType: string, report: ImportReport, loadId?: number): void;
     emitGraphError(graph: Graph | GraphContext | null, error: Error, context: GraphErrorEvent["context"], details?: Record<string, unknown>): void;
     // @deprecated
-    emitGraphEvent(type: string, data: Record<string, unknown>): void;
+    emitGraphEvent(type: EmittableEventType, data: Record<string, unknown>): void;
     emitGraphSettled(graph: Graph): void;
     emitLayoutInitialized(layoutType: string, shouldZoomToFit: boolean): void;
     emitNodeEvent(type: NodeEvent["type"], eventData: object): void;
@@ -2684,6 +2768,7 @@ export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExpor
     readonly scope?: ExportScope;
     readonly columns?: readonly string[];
     readonly groupTable?: ExportGroupTable;
+    readonly onProgress?: (fact: PendingWorkProgress) => void;
 };
 
 // @public
@@ -2692,7 +2777,9 @@ export interface ExportGroupTable extends GroupTableOptions {
 }
 
 // @public
-export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
+export interface ExportLoss extends CodedFact<ExportLossCode | (string & {})> {
+    readonly expected: boolean;
+}
 
 // @public
 export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof CYS_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED" | ExportStyleLossCode;
@@ -2716,7 +2803,7 @@ export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "save-files-v2";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
 
 // @public
 export interface FigureOptions {
@@ -2733,6 +2820,30 @@ export interface FigureResult {
     downloaded: boolean;
     height: number;
     width: number;
+}
+
+// @beta
+export type FileKind = "project" | "recipe" | "style" | "document" | "graph";
+
+// @public
+export interface FileLoadOptions {
+    edgeSource?: string;
+    edgeTarget?: string;
+    format?: string;
+    graphIndex?: number;
+    graphName?: string;
+    layout?: "recommended" | "placed" | "keep";
+    nodeIdPath?: string;
+    replace?: boolean;
+    signal?: AbortSignal;
+    styleOptions?: FileStyleOptions;
+    styles?: "file" | "none";
+}
+
+// @public
+export interface FilesApi {
+    // @beta
+    kindOf(source: ProjectSource): Promise<FileKind>;
 }
 
 // @public
@@ -2962,6 +3073,8 @@ export class Graph implements GraphContext {
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     // (undocumented)
     fetchEdges?: FetchEdgesFn;
+    // @internal
+    fetchNeighborEdges?: FetchNeighborEdgesFn;
     // (undocumented)
     fetchNodes?: FetchNodesFn;
     forgetAiKeys(options?: {
@@ -3074,34 +3187,10 @@ export class Graph implements GraphContext {
     listenerCount(): number;
     // @deprecated
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
-    loadFromFile(file: File, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromFile(file: File, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
-    loadFromUrl(url: string, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromUrl(url: string, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
@@ -3304,6 +3393,7 @@ export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
 }, z.core.$strict>, z.ZodObject<{
     backgroundType: z.ZodLiteral<"skybox">;
     data: z.ZodUnion<[z.ZodURL, z.ZodString]>;
+    projection: z.ZodOptional<z.ZodLiteral<"flat" | "dome">>;
     color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     darkColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     shader: z.ZodOptional<z.ZodObject<{
@@ -3397,7 +3487,7 @@ export interface GraphErrorEvent {
 }
 
 // @public
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public
 export type GraphEventType = GraphEvent["type"];
@@ -3681,37 +3771,13 @@ export class Graphty extends LitElement {
     listenerCount(): number;
     // @deprecated
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
-    loadFromFile(file: File, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromFile(file: File, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
     loadFromSource(source: string, params: Readonly<Record<string, unknown>>, options?: SourceLoadOptions): Promise<{
         key: string;
     }>;
-    loadFromUrl(url: string, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromUrl(url: string, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
@@ -4181,6 +4247,14 @@ export type GraphtyErrorCode =
 */
 | "E_DUPLICATE_ID"
 /**
+* A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
+* incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
+* `details.column` and `details.rule` name them. The caller picks another rule for that column.
+* Under the source-steps experiment a step's merge refuses the same way, and `details.step`
+* also names the step.
+*/
+| "E_CLASH_RULE_TYPE"
+/**
 * Two edges run between the same ordered pair of nodes and `data.knownFields.repeatedEdges`
 * is `"error"`. `details` name both endpoints and the index of the edge already present. The
 * caller sets the policy to `keep`, `first`, `last`, `sum`, `min` or `max`.
@@ -4223,6 +4297,13 @@ export type GraphtyErrorCode =
 * the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
+/**
+* A workbook source's `sheet` option names no sheet of the workbook. `details` are
+* `{ sheet, available }`: the name asked for, and every sheet's name in tab order. The file
+* itself was read fine. The caller loads again naming one of the available sheets, or leaves
+* `sheet` out to read the first.
+*/
+| "E_SHEET_NOT_FOUND"
 /**
 * A graphty project or document file (one `session.project.save` writes) was handed to a data
 * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
@@ -4724,6 +4805,61 @@ export type GraphtyErrorCode =
 */
 | "E_NOT_SETTLED"
 /**
+* A load or a stage names an id space the element reserves (`graph:...`). `details.space` is
+* the space. The caller names another space. Experimental: the source-steps experiment.
+*/
+| "E_SPACE_RESERVED"
+/**
+* A key names nodes in more than one id space, so it names no one node. `details.key` is the
+* key, `details.spaces` the spaces holding it. The caller names the space, or the
+* `<space>:<key>` NodeId. Experimental: the source-steps experiment.
+*/
+| "E_AMBIGUOUS_ID"
+/**
+* Make an edge would add a staged source in the id space of the nodes it connects to, so its
+* nodes would meet them instead of being joined by edges. `details.source` and `details.space`
+* name them. The caller stages the source in another space. Experimental: the source-steps
+* experiment.
+*/
+| "E_JOIN_SPACE_SAME"
+/**
+* A merge or Make an edge reads node rows the source does not hold. `details.source` is the
+* source. Experimental: the source-steps experiment.
+*/
+| "E_STEP_NEEDS_NODES"
+/**
+* An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
+* `details.column` is the column. Experimental: the source-steps experiment.
+*/
+| "E_EDIT_ROLE_COLUMN"
+/**
+* A role setter that names no source could mean several built sources: each carries the
+* column and can carry the role. `details.sources` lists them; the caller names one with the
+* setter's `source` option. Experimental: the source-steps experiment.
+*/
+| "E_ROLE_TARGET_AMBIGUOUS"
+/**
+* A draft of the sources and steps is open (`session.data.draft()`), so a data write, an undo
+* or a redo would change what its commit replaces. `details.draft` names the draft. The caller
+* commits or discards it first. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_OPEN"
+/**
+* A draft's commit was refused because the committed sources and steps changed after the
+* draft opened: a data write already on its way when it opened landed first, and the commit
+* would have undone it. `details.draft` names the draft, which stays open. The caller discards
+* it and opens a new one. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_STALE"
+/**
+* A draft opened with `askOverlap` holds a key-overlap question nobody answered: a source it
+* added meets nodes another source's node rows built (`W_SPACE_OVERLAP`). `details.space` and
+* `details.source` name the space and the source. The caller answers it with
+* `draft.answerOverlap(source, "merge" | "separate")` and commits again. Experimental: the
+* source-steps experiment.
+*/
+| "E_OVERLAP_UNANSWERED"
+/**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
 * an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
@@ -4735,6 +4871,11 @@ export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> =
 
 // @public
 export interface GraphtyErrorDetailsMap {
+    E_CLASH_RULE_TYPE: {
+        readonly column: string;
+        readonly rule: string;
+        readonly step?: number;
+    };
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
@@ -4752,6 +4893,11 @@ export interface GraphtyErrorDetailsMap {
         readonly limit?: number;
         readonly issue?: string;
         readonly element?: string;
+    };
+    E_SHEET_NOT_FOUND: {
+        readonly format?: string;
+        readonly sheet?: string;
+        readonly available?: readonly string[];
     };
     E_TOO_LARGE: {
         readonly limit?: number;
@@ -4863,6 +5009,83 @@ export type GraphtyWarningCode =
 | "W_UNKNOWN_KIND"
 /** No longer reported: a project open computes each saved run again over the data it holds, so no saved result can disagree with it. */
 | "W_DATA_DIFFERS"
+/**
+* A source's keys meet nodes already in the id space it would join (`params.space`,
+* `params.count` of `params.of` keys; `params.other` names the other source for an untyped
+* one). Kept in the source's own space unless the load asked `overlap: "merge"`. In a draft's
+* preview `questions`, an open question a draft opened with `askOverlap` waits on:
+* `params.source` is the source asked about and `params.sources` the sources whose node rows
+* built the nodes it meets. Experimental: the source-steps experiment.
+*/
+| "W_SPACE_OVERLAP"
+/**
+* A step went with a removed source (`params.step`, `params.reason` `"source-removed"`,
+* `params.source`). Experimental: the source-steps experiment.
+*/
+| "W_STEP_REMOVED"
+/**
+* Values from different sources differ in one column of one step (`params.step`,
+* `params.column`, `params.count` cells, `params.rule` the step's rule for the column,
+* `params.decided` cells a reader decision settles). Experimental: the source-steps experiment.
+*/
+| "W_VALUES_DIFFER"
+/**
+* A refresh or replace brought a column the source's old rows did not hold (`params.source`,
+* `params.column`). Experimental: the source-steps experiment.
+*/
+| "W_COLUMN_UNUSED"
+/**
+* The value under a reader edit moved since it was made (`params.edit`, `params.was`,
+* `params.now`, and `params.picked` for a pick). Experimental: the source-steps experiment.
+*/
+| "W_EDIT_SOURCE_CHANGED"
+/**
+* A note, a pin or a reader edit names an element a rebuild left out (`params.ref`): the
+* reference is kept and binds again when Undo brings the element back. Experimental: the
+* source-steps experiment.
+*/
+| "W_REFERENCE_UNBOUND"
+/**
+* Rows of a step name more than one element, so they join nothing (`params.step`,
+* `params.rows`). Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_FAN_OUT"
+/**
+* Rows of a step meet no element (`params.step`, `params.rows`). Reported by a draft's preview.
+* Experimental: the source-steps experiment.
+*/
+| "W_UNMATCHED"
+/**
+* Nodes of the space a merge folds into that no row reached (`params.step`, `params.nodes`).
+* Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_UNTOUCHED"
+/**
+* A step joins end pairs an earlier edge already joins (`params.step`, `params.pairs`). Reported
+* by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_PARALLEL_EDGES"
+/**
+* A step makes edges whose two ends are one node (`params.step`, `params.count`). Reported by a
+* draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_SELF_LOOPS"
+/**
+* Rows of one repeated key hold different values in a column (`params.step`, `params.column`,
+* `params.keys`). Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_ROWS_DIFFER"
+/**
+* A source's edges name nodes of its own space its node rows lack (`params.step`,
+* `params.source`, `params.nodes`); a merge leaves them unmerged. Reported by a draft's preview.
+* Experimental: the source-steps experiment.
+*/
+| "W_NODE_NAMED_ONLY"
+/**
+* Edge ends of a step found no node in a space (`params.step`, `params.space`, `params.ends`).
+* Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_EDGE_END_MISSING"
 /** A run was still computing when the project was saved, so the file does not hold it. */
 | "W_RUN_PENDING"
 /**
@@ -5066,12 +5289,54 @@ export type GraphtyWarningCode =
 */
 | "W_WEIGHT_MEANING_MISMATCH"
 /**
+* Under the `source-steps` experiment, a layout that reads edge weights left them unread because
+* the edges' weights do not share one meaning, or some edges' sources read no weight (design
+* 8.6): every edge counts the same. Emitted as a `layout-warning` event. `params.sources` lists
+* the sources of the edges.
+*/
+| "W_WEIGHT_MEANING_MIXED"
+/**
+* Under the `source-steps` experiment, a Source scope on a source's edges named sources that
+* supplied no edges, so it holds their nodes and the edges between them instead (design 8.6).
+* Reported in `scope.count(...).issues`. `params.nodes` is how many nodes it holds.
+*/
+| "W_SCOPE_NO_EDGES"
+/**
+* Under the `source-steps` experiment, a filter condition reads a column no element carries, so
+* it is held off and judges nothing rather than hiding every node (design 8.4). Reported in
+* `visibility.held`. `params.filter` is the condition's id and `params.column` its column.
+*/
+| "W_FILTER_HELD"
+/**
 * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
 * the `graphty-sources` member: query parameters of a URL load's address, or of a network
 * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
 * names left out. See the project file guide, "What a save leaves out".
 */
 | "W_SOURCE_URL_REDACTED"
+/**
+* A load cannot be saved as a reference: there is nothing to read it from again. It stays a
+* copy. `params.source` is the load's key and `params.reason` why (`file`, `inline`, `join`,
+* `secret-url`, `relative-url`, `no-seed`; OPEN UNION).
+*/
+| "W_SOURCE_NO_PATH"
+/**
+* A load saved as a reference could not be read again: the project opened with its rows held
+* bare in their places (node ids and edge ends, with no values; a save writes them and the
+* reference back as they were), or a save kept it as a copy. `params.source` is the load's key
+* and `params.reason` is `not-found`, `denied` or `unreadable`. On an open, `params.name` (its
+* name, when it has one) and `params.url` (its address, for a URL load) say which it was.
+* When the read threw, `params.cause` is what it threw: the error's code (a `GraphtyErrorCode`,
+* or `unknown` for an error that is not a `GraphtyError`), and `params["cause.<name>"]` each
+* plain value of its `details` (`cause.status`, `cause.url`, ...; `cause.name`, the error's
+* name, for `unknown`). Absent when nothing was thrown (`denied`, or a copy that changed).
+*/
+| "W_SOURCE_UNAVAILABLE"
+/**
+* A load saved as a reference was read again and is no longer what the project was saved
+* with: its rows hold the new values. `params.source` is the load's key.
+*/
+| "W_SOURCE_CHANGED"
 /**
 * A `graphty-sources` entry of an opened project names a network source this release has not
 * registered: its elements are there and the entry is written back, but it is not offered to
@@ -5080,7 +5345,9 @@ export type GraphtyWarningCode =
 | "W_SOURCE_UNREGISTERED"
 /**
 * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
-* data applied. `params.graph` names the graph, null for the file's one graph.
+* data applied. `params.graph` names the graph, null for the file's one graph. Under the
+* `source-steps` experiment, also when the member's sources and steps build a graph other than
+* the one the file embeds: the embedded graph applied and the sources and steps were left out.
 */
 | "W_SOURCE_STEPS_IGNORED"
 /**
@@ -5143,13 +5410,9 @@ export const GREENS_COLORS: readonly ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b"
 
 // @public
 export interface GroupOutlineAtResult {
-    // (undocumented)
     readonly group: string | number | boolean | null;
-    // (undocumented)
     readonly kind: "group-outline";
-    // (undocumented)
     readonly layer: LayerId;
-    // (undocumented)
     readonly shader: string;
 }
 
@@ -5174,6 +5437,12 @@ export { ImageData_2 as ImageData }
 
 // @public
 export const INFERNO_COLORS: readonly ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d"];
+
+// @public
+export interface InputBookkeepingEvent {
+    [key: string]: unknown;
+    type: "input-initialized" | "input-config-updated" | "input-pointer-lock-changed" | "input-recording-started" | "input-recording-stopped" | "input-playback-completed";
+}
 
 // @public
 export interface InputEnabledChangedEvent {
@@ -5201,23 +5470,14 @@ export class InputManager implements Manager {
     getPointerPosition(): Vector2;
     init(): Promise<void>;
     isPointerDown(button?: MouseButton): boolean;
-    // (undocumented)
     readonly onKeyDown: Observable<KeyboardInfo>;
-    // (undocumented)
     readonly onKeyUp: Observable<KeyboardInfo>;
-    // (undocumented)
     readonly onPointerDown: Observable<PointerInfo>;
-    // (undocumented)
     readonly onPointerMove: Observable<PointerInfo>;
-    // (undocumented)
     readonly onPointerUp: Observable<PointerInfo>;
-    // (undocumented)
     readonly onTouchEnd: Observable<number[]>;
-    // (undocumented)
     readonly onTouchMove: Observable<TouchPoint[]>;
-    // (undocumented)
     readonly onTouchStart: Observable<TouchPoint[]>;
-    // (undocumented)
     readonly onWheel: Observable<WheelInfo>;
     // @internal
     rebind(context: ManagerContext): void;
@@ -5358,6 +5618,8 @@ export abstract class LayoutEngine {
     protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     // @internal
     publishedBounds(): Readonly<Float64Array> | null;
+    // @internal
+    protected publishLeavesRow(lane: ElementPositions, row: number, x: number, y: number, z: number): boolean;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal
@@ -5374,7 +5636,7 @@ export abstract class LayoutEngine {
         x: number;
         y: number;
         z: number;
-    }): boolean;
+    }, lane?: ElementPositions): boolean;
     static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T;
     // @internal
     protected releasePublishScratch(): void;
@@ -5475,6 +5737,8 @@ export class LayoutManager implements Manager {
     stepBatch(): void;
     // @internal
     steppedPublishes: number;
+    // @internal
+    takeFrameHold(): boolean;
     updatePositions(nodes: Node_2[]): Promise<void>;
     updateStyles(styles: Styles): void;
     // @internal
@@ -5483,6 +5747,12 @@ export class LayoutManager implements Manager {
 
 // @public
 export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
+
+// @public
+export interface LayoutUpdatedEvent {
+    nodeCount: number;
+    type: "layout-updated";
+}
 
 // @public
 export interface LayoutWarningEvent {
@@ -5560,13 +5830,9 @@ export interface ManagerConfig {
 
 // @public
 export interface ManagerContext {
-    // (undocumented)
     canvas: HTMLCanvasElement;
-    // (undocumented)
     engine: Engine | WebGPUEngine;
-    // (undocumented)
     eventManager: EventManager;
-    // (undocumented)
     scene: Scene;
 }
 
@@ -5677,6 +5943,8 @@ class Node_2 implements ModelUser {
     get borderReach(): number;
     // @internal
     borderReachAlong(dir: Xyz): number;
+    // @internal
+    static closedForm(shape: string | undefined, rotation: number | undefined): boolean;
     get data(): AdHocData<string | number>;
     // @internal
     get decorationPieces(): readonly NodeDecorationPiece[];
@@ -5815,6 +6083,8 @@ class Node_2 implements ModelUser {
     // @internal
     resampleLabel(): void;
     get roundRadius(): number | null;
+    // @internal
+    get screenBorder(): boolean;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
@@ -6575,6 +6845,11 @@ export const NodeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -6818,6 +7093,11 @@ export const NodeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -7061,6 +7341,11 @@ export const NodeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -7438,6 +7723,9 @@ export interface OperationCancelledEvent {
 }
 
 // @public
+export type OperationCategory = "style-init" | "style-apply" | "style-edit" | "data-add" | "data-remove" | "data-update" | "layout-set" | "layout-update" | "algorithm-run" | "camera-update" | "view-mode" | "render-update";
+
+// @public
 export class OperationQueueManager implements Manager {
     constructor(eventManager: EventManager, options?: {
         concurrency?: number;
@@ -7460,12 +7748,12 @@ export class OperationQueueManager implements Manager {
         size: number;
         isPaused: boolean;
     };
-    // (undocumented)
     hasLayoutEngine?: () => boolean;
     get hasWork(): boolean;
     init(): Promise<void>;
     markCategoryCompleted(category: OperationCategory): void;
     pause(): void;
+    pendingWork(): PendingWorkProgress;
     queueOperation(category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, options?: Partial<OperationMetadata>): string;
     queueOperationAsync(category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, options?: Partial<OperationMetadata>): Promise<void>;
     registerTrigger(category: OperationCategory, trigger: (metadata?: OperationMetadata) => {
@@ -7476,6 +7764,7 @@ export class OperationQueueManager implements Manager {
     resume(): void;
     settled(): Promise<void>;
     waitForCompletion(): Promise<void>;
+    watchPendingWork(onProgress: (fact: PendingWorkProgress) => void): () => void;
 }
 
 // @public
@@ -7556,6 +7845,16 @@ export interface PendingSourceLoad {
 }
 
 // @public
+export interface PendingWorkProgress {
+    readonly code: "PENDING_WORK";
+    readonly params: {
+        readonly operations: number;
+        readonly category: OperationCategory | null;
+        readonly percent: number | null;
+    };
+}
+
+// @public
 export type PixelRatio = number | "device";
 
 // @public
@@ -7630,8 +7929,12 @@ export const PROJECT_FILE: Readonly<{
 // @public
 export interface ProjectApi {
     assetChoices(): ProjectAssetChoice[];
+    // @beta
+    describe(options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths" | "handles" | "location">): Promise<ProjectSaveFacts>;
     readonly dirty: boolean;
     readonly id: string;
+    // @beta
+    inspect(source: ProjectSource, options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode" | "columns">): Promise<ProjectFileFacts | undefined>;
     markSaved(saved: SavedProject): void;
     readonly name: string | null;
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
@@ -7650,13 +7953,72 @@ export interface ProjectAssetChoice {
     readonly urlRefused?: CodedFact<"W_MODEL_NOT_KEPT_BY_URL">;
 }
 
+// @beta
+export interface ProjectFileFacts {
+    readonly form: "full" | "section";
+    readonly name: string | null;
+    readonly problems: readonly ProjectProblem[];
+    readonly runs: readonly ProjectFileRun[];
+    readonly sections: readonly ProjectFileSection[];
+    readonly sources: readonly ProjectFileSource[];
+}
+
+// @beta
+export interface ProjectFileHandle {
+    getFile(): Promise<Blob>;
+    readonly name: string;
+    queryPermission?(descriptor: {
+        mode: "read";
+    }): Promise<"granted" | "denied" | "prompt">;
+    requestPermission?(descriptor: {
+        mode: "read";
+    }): Promise<"granted" | "denied" | "prompt">;
+}
+
 // @public
-export function projectFileName(name: string | null | undefined): string;
+export function projectFileName(name: string | null | undefined, options?: {
+    readonly section?: DocumentSection;
+}): string;
+
+// @beta
+export interface ProjectFileRun {
+    readonly algorithm?: string;
+    readonly id: string;
+    readonly name?: string;
+    readonly replayable: boolean;
+    readonly restorable: boolean;
+}
+
+// @beta
+export interface ProjectFileSection extends DocumentSectionFacts {
+    readonly about: DocumentSectionAbout;
+    readonly binding?: SectionBinding;
+    readonly binds?: DocumentBindFacts;
+    readonly needs: readonly DocumentSectionNeed[];
+    readonly version: number | null;
+}
+
+// @beta
+export interface ProjectFileSource {
+    readonly id: string;
+    readonly kind: ProjectSourceKind;
+    readonly name: string;
+    readonly path?: string;
+    readonly storage: SourceStorage;
+    readonly url?: string;
+}
 
 // @public
 export interface ProjectOpenOptions {
     // @beta
+    readonly applyRecipe?: boolean;
+    // @beta
     readonly bindOtherData?: boolean;
+    // @beta
+    readonly columns?: {
+        readonly node?: Readonly<Record<string, string>>;
+        readonly edge?: Readonly<Record<string, string>>;
+    };
     // @beta
     readonly dataMode?: "replace" | "add";
     readonly discard?: boolean;
@@ -7682,6 +8044,8 @@ export interface ProjectOpenOptions {
     // @beta
     readonly rerun?: boolean;
     // @beta
+    readonly runs?: Readonly<Record<string, boolean>>;
+    // @beta
     readonly sections?: readonly DocumentSection[];
     // @beta
     readonly signal?: AbortSignal;
@@ -7700,6 +8064,13 @@ export interface ProjectOpenReport {
 // @public
 export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved">;
 
+// @beta
+export interface ProjectSaveFacts {
+    readonly project: boolean;
+    readonly sections: readonly ProjectSaveSection[];
+    readonly sources: readonly ProjectSourceChoice[];
+}
+
 // @public
 export interface ProjectSaveOptions {
     readonly assets?: Readonly<Record<string, AssetStorage>>;
@@ -7710,12 +8081,18 @@ export interface ProjectSaveOptions {
     readonly form?: "full" | "section";
     // @beta
     readonly format?: 1 | 2;
+    // @beta
+    readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
+    // @beta
+    readonly location?: string;
     readonly markSaved?: boolean;
     // @beta
     readonly paths?: Readonly<Record<string, string>>;
     // @beta
     readonly results?: boolean;
+    // @beta
+    readonly rewriteRecipe?: boolean;
     // @beta
     readonly sections?: readonly DocumentSection[];
 }
@@ -7727,8 +8104,32 @@ export interface ProjectSaveReport {
     readonly written: readonly string[];
 }
 
+// @beta
+export interface ProjectSaveSection extends DocumentSectionFacts {
+    readonly required: boolean;
+    readonly saved: boolean;
+}
+
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
+
+// @beta
+export interface ProjectSourceChoice {
+    readonly edges: number;
+    readonly format?: string;
+    readonly id: string;
+    readonly key?: string;
+    readonly kind: ProjectSourceKind;
+    readonly name: string;
+    readonly nodes: number;
+    readonly operations?: number;
+    readonly referable: boolean;
+    readonly refused?: CodedFact<DocumentCode>;
+    readonly storage: SourceStorage;
+}
+
+// @beta
+export type ProjectSourceKind = "file" | "url" | "network" | "sample" | "derived" | "reader";
 
 // @public
 export interface ProjectStatus {
@@ -7755,12 +8156,18 @@ export interface QueueableManager extends Manager {
     queueOperation?(category: OperationCategory, fn: () => void | Promise<void>): string;
 }
 
-// @public (undocumented)
+// @public
 export interface QueueableOptions {
     description?: string;
     obsoletes?: OperationCategory[];
     respectProgress?: boolean;
     skipQueue?: boolean;
+}
+
+// @beta
+export interface RecipesApi {
+    apply(recipe: ProjectSource): Promise<ProjectOpenReport>;
+    export(): Promise<SavedProject>;
 }
 
 export { RecordBatch }
@@ -7984,6 +8391,11 @@ export const RichTextStyle: z.ZodObject<{
         rectangle: "rectangle";
         circle: "circle";
     }>>;
+    image: z.ZodOptional<z.ZodString>;
+    imageWidth: z.ZodOptional<z.ZodNumber>;
+    imageHeight: z.ZodOptional<z.ZodNumber>;
+    imageOffsetX: z.ZodOptional<z.ZodNumber>;
+    imageOffsetY: z.ZodOptional<z.ZodNumber>;
     minScreenSize: z.ZodOptional<z.ZodNumber>;
     declutter: z.ZodOptional<z.ZodEnum<{
         size: "size";
@@ -8173,7 +8585,7 @@ export interface RowCounts {
     readonly pulledEdges: number;
 }
 
-// @public (undocumented)
+// @public
 export interface RunAlgorithmOptions extends QueueableOptions {
     algorithmOptions?: AlgorithmSpecificOptions;
     applySuggestedStyles?: boolean;
@@ -8195,9 +8607,27 @@ export interface SavedProject {
 // @public
 export interface SavedView {
     readonly camera?: CameraState;
+    readonly filters?: readonly FilterCondition[];
     readonly follows?: string;
+    readonly hidden?: readonly NodeId_2[];
     readonly key?: string;
+    readonly layers?: StyleDocument;
+    readonly legend?: boolean;
+    readonly positions?: {
+        readonly order: readonly NodeId_2[];
+        readonly xyz: readonly number[];
+    };
 }
+
+// @public
+export interface SavedViewInput extends Omit<SavedView, "key"> {
+    readonly include?: readonly SavedViewPart[];
+    readonly key?: string | null;
+    readonly name: string;
+}
+
+// @public
+export type SavedViewPart = "filters" | "layers" | "hidden" | "positions" | "legend";
 
 // @public
 export interface ScreenshotLegendOptions {
@@ -8245,6 +8675,7 @@ export interface ScreenshotOptions {
     height?: number;
     legend?: boolean | "auto" | ScreenshotLegendOptions | readonly ScreenshotLegendSection[];
     multiplier?: number;
+    onProgress?: (fact: PendingWorkProgress) => void;
     preset?: "print" | "web-share" | "thumbnail" | "documentation";
     quality?: number;
     showSelection?: boolean;
@@ -8280,11 +8711,16 @@ export interface ScreenshotResult {
 // @public
 export type ScreenshotWarningCode = "W_LARGE_CAPTURE" | "W_HIGH_MEMORY";
 
+// @beta
+export type SectionBinding = "loads" | "held" | "other-data";
+
 // @public
 export class SelectionManager implements Manager {
     constructor(eventManager: EventManager);
     add(node: Node_2): void;
     bindSelection(selection: SelectionOwner): void;
+    // @internal
+    byInput(via: SelectionVia, fn: () => void): void;
     deselect(): void;
     dispose(): void;
     getSelectedNode(): Node_2 | null;
@@ -8469,6 +8905,9 @@ export { SourceDescriptor }
 
 export { SourceEdgeRecord }
 
+// @beta
+export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind";
+
 export { sourceEndpoint }
 
 export { SourceExample }
@@ -8540,6 +8979,24 @@ export { SourceListing }
 export { SourceListItem }
 
 export { SourceListQuery }
+
+// @public
+export interface SourceLoaded {
+    readonly callerKey?: string;
+    readonly format?: FormatId;
+    readonly kind: LoadedSourceKind;
+    readonly mode: "replace" | "merge";
+    readonly replaced?: "replaceSource" | "reloadSource";
+    readonly sample?: {
+        readonly datasetId: string;
+    } | {
+        readonly generatorId: string;
+    } | {
+        readonly exampleId: string;
+    };
+    readonly source: SourceKey;
+    readonly sourceId?: string;
+}
 
 // @public
 export interface SourceLoadOptions extends LoadChoices {
@@ -8620,6 +9077,7 @@ export interface SourceRead extends SourceInput {
 export interface SourceRefreshReport {
     readonly added: SourceCounts;
     readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
+    readonly issues?: readonly SourceRefreshIssue[];
     readonly removed: SourceCounts;
     readonly updated: SourceCounts;
 }
@@ -8642,6 +9100,9 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
 
 // @beta
 export type SourceStorage = "embedded" | "referenced";
+
+// @beta
+export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind";
 
 export { SourceValidators }
 
@@ -8845,7 +9306,7 @@ export class UpdateManager implements Manager {
     get awaitsLanding(): boolean;
     bindViewMasks(masks: ViewMasks | null): void;
     // @internal
-    buildPlainRow(id: NodeIdType_2): void;
+    buildPlainRows(ids: readonly NodeIdType_2[]): void;
     cameraHeld: boolean;
     // @internal
     columnFraming(): ColumnFraming | undefined;
@@ -8883,6 +9344,8 @@ export class UpdateManager implements Manager {
     markViewSized(node: Node_2, on: boolean): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    // @internal
+    nodeRowSelected(row: number): boolean;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
@@ -8916,6 +9379,12 @@ export class UpdateManager implements Manager {
     whyFrameIsNotStable(): string;
     get zoomToFitCompleted(): boolean;
 }
+
+// @public
+export const VIDEO_FORMATS: readonly VideoFormat[];
+
+// @public
+export type VideoFormat = "webm" | "mp4";
 
 // @public
 export const VIEW_MODE_VALUES: readonly ["2d", "3d", "ar", "vr"];
@@ -8994,6 +9463,7 @@ export interface XRConfig {
     ar: XRModeConfig;
     enabled: boolean;
     input: XRInputConfig;
+    menu?: readonly XRMenuItem[];
     ui: XRUIConfig;
     vr: XRModeConfig;
 }
@@ -9007,6 +9477,18 @@ export interface XRInputConfig {
     handTracking: boolean;
     nearInteraction: boolean;
     zAxisAmplification?: number;
+}
+
+// @public
+export interface XRMenuItem {
+    id: string;
+    label: string;
+}
+
+// @public
+export interface XRMenuSelectEvent {
+    id: string;
+    type: "xr-menu-select";
 }
 
 // @public

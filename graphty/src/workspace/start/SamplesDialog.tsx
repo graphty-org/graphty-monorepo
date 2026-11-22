@@ -16,9 +16,11 @@ import {
     datasetBase,
     type GraphLoad,
     type Incoming,
+    OPENING,
     openNetworkSample,
     openProject,
     openSeparate,
+    sampleKey,
 } from "./open";
 import { SampleCard } from "./SampleCard";
 import {
@@ -83,7 +85,7 @@ function bringGraph(ctx: CommandContext, name: string, load: GraphLoad, target: 
         return;
     }
     unlessUnsaved(ctx, () => {
-        openProject(ctx.workspace, name, (session) => load(session, { mode: "replace", history: "start" }));
+        openProject(ctx.workspace, name, (session) => load(session, { mode: "replace", ...OPENING }));
     });
 }
 
@@ -134,7 +136,11 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
     const open = (target: Target): void => {
         if (source.kind === "sample") {
             const { name, url } = source.sample;
-            bringFile(ctx, { name, source: { config: { url }, name }, origin: "sample" }, target);
+            bringFile(
+                ctx,
+                { name, source: { config: { url }, name }, origin: "sample", callerKey: sampleKey(source.sample) },
+                target,
+            );
         } else if (source.kind === "generator") {
             configure(source.generator, target);
         } else if (isLarge(source.dataset)) {

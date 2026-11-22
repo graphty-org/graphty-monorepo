@@ -817,7 +817,7 @@ export function measureArrow(
     }
     dx /= len;
     dy /= len;
-    [dx, dy] = capAxis(outline, pts, [dx, dy]);
+    [dx, dy] = stubAxis(outline, pts, [dx, dy]) ?? capAxis(outline, pts, [dx, dy]);
     const along = outline.map(([x, y]) => x * dx + y * dy);
     const across = outline.map(([x, y]) => -x * dy + y * dx);
     const at = areaCentroid(outline) ?? [cx(box), cy(box)];
@@ -889,6 +889,42 @@ function shapeAlong(outline: readonly Pt[], pieces: readonly (readonly Pt[])[] |
 
 /** The least distance a line's end direction is read over: past a coordinate's rounding. */
 const END_RUN = 1;
+
+/** How far a point of a cap may lie from its mirror image across an axis for the cap to be symmetric about it, px. */
+const MIRROR_PX = 0.5;
+
+/**
+ * The direction of a line's last step when that step is shorter than END_RUN and turns across the run before it, and the
+ * cap on the end lies behind the end and mirrors itself across the step: yEd clips a line at its node's outline and
+ * aims the head along the line's last leg into the node, so a route run along the node's border and then into it
+ * leaves only a hair of that leg (gml-synthetic-coverage 27->28: along the bottom of v26, then 0.02 px up into it, the
+ * convex head under it pointing up). Read along the run before it, the head is lopsided.
+ * @param outline - the cap's points
+ * @param pts - the line, its end last
+ * @param dir - the line's unit end direction over its run
+ * @returns the step's unit direction, or null where the cap is read along the run
+ */
+function stubAxis(outline: readonly Pt[], pts: readonly Pt[], dir: Pt): Pt | null {
+    const end = pts.at(-1);
+    const from = [...pts].reverse().find((q) => end !== undefined && (q[0] !== end[0] || q[1] !== end[1]));
+    if (end === undefined || from === undefined || outline.length < 3) {
+        return null;
+    }
+    const step = Math.hypot(end[0] - from[0], end[1] - from[1]);
+    const axis: Pt = [(end[0] - from[0]) / step, (end[1] - from[1]) / step];
+    // a turn of under 45 degrees is the run's own direction, read well enough along the run; one of over 135 is a step
+    // back, a rounding of where a curve ends (dot-real-depcruise: 0.0006 px back along a Graphviz spline)
+    if (step >= END_RUN || Math.abs(axis[0] * dir[0] + axis[1] * dir[1]) > Math.SQRT1_2) {
+        return null;
+    }
+    const behind = outline.every(([x, y]) => (x - end[0]) * axis[0] + (y - end[1]) * axis[1] <= ON_LINE_PX);
+    const mirrored = outline.every(([x, y]) => {
+        const off = -(x - end[0]) * axis[1] + (y - end[1]) * axis[0];
+        const [mx, my] = [x + 2 * off * axis[1], y - 2 * off * axis[0]];
+        return outline.some(([u, v]) => Math.hypot(u - mx, v - my) <= MIRROR_PX);
+    });
+    return behind && mirrored ? axis : null;
+}
 
 /**
  * The centroid of a closed outline's area (shoelace), which a point repeated or a side sampled more finely than

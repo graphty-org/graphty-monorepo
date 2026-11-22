@@ -2616,13 +2616,18 @@ export class LayoutManager implements Manager {
 
         // An undo of a value edit writes no coordinate: the engine took the lane when nothing in it has
         // moved since, and handing every node over again was a walk of a 100,000-node graph (issue #9164).
+        // Only a static engine: a simulation's load also stops what it would move on its own, so one that
+        // stepped since its last load (between a source draft's sides) went on moving the nodes.
         const lane = this.dataManager[WRITABLE_LANE];
         const agreed = this.#agreed;
-        if (!wrote && agreed?.engine === engine && agreed.changes === lane.changes && agreed.rows === this.#rowSets) {
-            if (engine instanceof StaticLayoutEngine) {
-                engine.keepArrangement();
-            }
-
+        if (
+            !wrote &&
+            engine instanceof StaticLayoutEngine &&
+            agreed?.engine === engine &&
+            agreed.changes === lane.changes &&
+            agreed.rows === this.#rowSets
+        ) {
+            engine.keepArrangement();
             return false;
         }
 

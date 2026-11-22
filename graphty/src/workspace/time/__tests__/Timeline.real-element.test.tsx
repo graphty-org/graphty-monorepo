@@ -160,8 +160,9 @@ function readout(dock: HTMLElement): string {
     return within(dock).getByTestId("time-readout").textContent ?? "";
 }
 
-// Both blocks: in the project's default 1200 x 900 frame the side panels cover the canvas toolbar's
-// Timeline button, so a test of the second block run alone (-t) never landed its click (#9650).
+// Both blocks: in Vitest's default 414 x 896 frame the side panels leave the canvas no width and cover
+// the canvas toolbar's Timeline button, so a test of the second block run alone (-t) never landed its
+// click (#9650, #9677).
 beforeAll(async () => {
     await page.viewport(1366, 768);
 });

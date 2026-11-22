@@ -73,6 +73,42 @@ export const ENTRANCE_CAP = 64;
 /** How recently something must have happened to a node for a shader it starts carrying to enter. */
 const CAUSE_WINDOW_MS = 400;
 
+/**
+ * When each row stored with no element arrived, oldest first, for the element built for it later.
+ * Only the last {@link CAUSE_WINDOW_MS} of arrivals are kept, since an older one plays nothing.
+ */
+export class RowArrivals<K> {
+    readonly #at = new Map<K, number>();
+
+    /**
+     * A row was stored with no element: remember it arrived now.
+     * @param key - The row's key.
+     */
+    note(key: K): void {
+        const now = performance.now();
+        for (const [old, at] of this.#at) {
+            if (now - at <= CAUSE_WINDOW_MS) {
+                break;
+            }
+
+            this.#at.delete(old);
+        }
+
+        this.#at.delete(key);
+        this.#at.set(key, now);
+    }
+
+    /**
+     * When a row arrived.
+     * @param key - The row's key.
+     * @returns The time by `performance.now()`; -Infinity when it was never noted or arrived too
+     *   long ago to play an entrance.
+     */
+    of(key: K): number {
+        return this.#at.get(key) ?? Number.NEGATIVE_INFINITY;
+    }
+}
+
 /** The stamp of a state that never changed. */
 const NEVER = -1;
 
@@ -662,17 +698,7 @@ export class NodeShaderDrawing {
      * @param id - The node's id.
      */
     rowArrived(id: string | number): void {
-        const now = performance.now();
-        for (const [old, at] of this.rowArrivals) {
-            if (now - at <= CAUSE_WINDOW_MS) {
-                break;
-            }
-
-            this.rowArrivals.delete(old);
-        }
-
-        this.rowArrivals.delete(id);
-        this.rowArrivals.set(id, now);
+        this.rowArrivals.note(id);
     }
 
     /**
@@ -682,11 +708,11 @@ export class NodeShaderDrawing {
      *   existed, or too long ago to play an entrance.
      */
     rowArrivalOf(id: string | number): number {
-        return this.rowArrivals.get(id) ?? Number.NEGATIVE_INFINITY;
+        return this.rowArrivals.of(id);
     }
 
     /** When each node row stored with no `Node` arrived, oldest first; see {@link rowArrived}. */
-    private readonly rowArrivals = new Map<string | number, number>();
+    private readonly rowArrivals = new RowArrivals<string | number>();
 
     /**
      * The graph's outline width (`layoutBehavior.node.outlineWidth`) changed: draw again every

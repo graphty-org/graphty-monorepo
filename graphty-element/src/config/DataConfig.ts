@@ -77,8 +77,8 @@ const GraphKnownFields = z.strictObject({
     /**
      * How the location is read. `"auto"` (or absent, or `null`) reads coordinates first, then place
      * names; `"coords"` only coordinates; `"country"`, `"region"` or `"city"` read
-     * `nodeLocationPath` as place names of that kind (looked up in the optional
-     * `@graphty/gazetteer` package); `"none"` reads no location at all, and finds none by name or
+     * `nodeLocationPath` as place names of that kind (looked up in the location map's place
+     * list); `"none"` reads no location at all, and finds none by name or
      * value.
      */
     nodeLocationRole: z.enum(["auto", "coords", "country", "region", "city", "none"]).or(z.null()).optional(),
@@ -143,8 +143,8 @@ const GraphKnownFields = z.strictObject({
     // `resolveEdgeWeight` in src/session/project/ingest.ts is the one place both probes live; the
     // "value" fallback goes away only once nothing ships a "value" key.
     /**
-     * The key that holds each edge's weight. Default `"weight"`; an edge without that key is read
-     * from `value` instead. `null`: edges carry no weight.
+     * The key that holds each edge's weight. Default `"weight"`. An edge without a number under this
+     * key (or every edge, when it is `null`) is read from `value` instead, and weighs 1 without one.
      */
     edgeWeightPath: z.string().or(z.null()).default("weight"),
     /**

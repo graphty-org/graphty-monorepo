@@ -45,13 +45,13 @@ const KNOWN_BROKEN_LINKS = [];
  * type the public API names. A run below prints the lower number; lower the ceiling to it in the
  * same change, so the debt paid off cannot come back.
  */
-// undocumented: 1711 is the measured 1701 plus a margin of 10, so pull requests merging at the same time
+// undocumented: 1527 is the measured 1517 plus a margin of 10, so pull requests merging at the same time
 // as one that lowers it do not turn master red (#9157). The count includes the two members of EdgeStyle
 // line `colorFrom`'s inline z.enum (#9147), which TypeDoc lists and no doc comment can reach.
 // unexported: 142 is the measured 140 plus a margin of 2. The count includes DataStepsSetCommand, the
 // source-steps experiment's command in SessionCommand, whose edit and copies types stay internal until
 // the experiment graduates.
-const DEBT_CEILING = { undocumented: 1517, unexported: 141, misplacedTags: 16 };
+const DEBT_CEILING = { undocumented: 1527, unexported: 141, misplacedTags: 16 };
 
 /** Warning text that means a documentation link does not resolve to a page. */
 const LINK_PATTERNS = [/Failed to resolve link to /, /links to ".*" which was resolved but is not included/];

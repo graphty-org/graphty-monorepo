@@ -905,7 +905,8 @@ function clearFilters(session: GraphSession, store: WorkspaceStore): void {
  */
 export function FilterChip(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useSessionEvents(session, VISIBILITY_EVENTS);
+    // The filter is not a style layer: a change to the layers alone does not draw the chip again.
+    useSessionEvents(session, VISIBILITY_EVENTS, true);
 
     useEffect(() => {
         if (session === null) {

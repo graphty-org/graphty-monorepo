@@ -111,6 +111,43 @@ export function iterationsPerStepFor(explicit: number | null, stepMultiplier: nu
 }
 
 /**
+ * The most iterations one accelerated batch computes when the host set no `iterationsPerStep`.
+ *
+ * A frame submits ONE batch, so a batch of one iteration ties the layout to the frame rate: the default force layout
+ * of a 20,000-node LFR graph runs about 6,600 iterations before it reports rest, which the device computes in about
+ * 12 seconds, but at the one to three frames a second such a graph draws at that took 44 minutes (issue #9373).
+ * Measured on that graph on an NVIDIA card (test/browser/force-settle-gpu.bench.test.ts): a cap of 64 settled it in
+ * 82 s, 128 in 45 s and 256 in 31 s. 128 keeps one batch of that graph to about a quarter of a second on the device,
+ * so a drag still answers within a frame or two.
+ */
+const ACCELERATED_MAX_ITERATIONS = 128;
+
+/**
+ * Nodes times iterations one accelerated batch may compute when the host set no `iterationsPerStep`, so a batch on a
+ * huge graph stays about as long as one on a 30,000-node graph: 128 iterations to 31,250 nodes, 16 at 250,000, and
+ * never fewer than the size rule above gives.
+ */
+const ACCELERATED_BATCH_NODE_ITERATIONS = 4_000_000;
+
+/**
+ * How many iterations the next accelerated batch computes when the host set no `iterationsPerStep`.
+ *
+ * It RAMPS: each batch computes as many iterations as the simulation has already submitted since it was built
+ * (1, 1, 2, 4, 8, ...), up to the cap, so the first frames still show the layout moving and the rest of the run is
+ * not paced by the frame rate. The count depends only on the iterations submitted, never on a clock, so the same
+ * seed computes the same batches on a fast device and a slow one.
+ * @param base - The count the size rule gives ({@link iterationsPerStepFor}); never fewer.
+ * @param nodeCount - The graph this load is over.
+ * @param submitted - Iterations submitted since the simulation was built.
+ * @returns The iteration count of the next batch.
+ */
+export function acceleratedIterationsFor(base: number, nodeCount: number, submitted: number): number {
+    const byNodes = Math.floor(ACCELERATED_BATCH_NODE_ITERATIONS / Math.max(nodeCount, 1));
+    const cap = Math.max(base, Math.min(ACCELERATED_MAX_ITERATIONS, byNodes));
+    return Math.min(cap, Math.max(base, submitted));
+}
+
+/**
  * Turns a reader's `nodeMass` record into one value per dense row, and leaves every other form to
  * the simulation.
  *
@@ -641,6 +678,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     #builtWith: GraphAccelerator | null = null;
     #accelerated = false;
+    /** Whether the accelerator is a software adapter, on which a batch is not ramped: see `#batchIterations`. */
+    #software = false;
     /**
      * The graph the simulation runs on: the element's snapshot, or while the element hands this
      * engine a working graph, that view's compact snapshot, whose rows are the simulation's.
@@ -844,6 +883,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #paused = false;
     #iterations = 1;
     #iterationsDone = 0;
+    /** Set by {@link SimulationLayoutEngine.dispose}: a batch rejected after it is not reported. */
+    #disposed = false;
     /** ForceAtlas2's iteration cap this simulation was built with; undefined for the other types. */
     #maxIter: number | undefined = undefined;
 
@@ -1208,9 +1249,13 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
-        this.#iterationsDone += this.#iterations;
+        const iterations = this.#batchIterations();
         const arrangement = this.#arrangement;
-        const batch = simulation.step(this.#iterations);
+        const batch = simulation.step(iterations);
+        // A saturated simulation hands back a batch already in flight and computes nothing more.
+        if (batch === undefined || !this.#caught.has(batch)) {
+            this.#iterationsDone += iterations;
+        }
         this.#syncWork();
         if (batch !== undefined && !this.#caught.has(batch)) {
             this.#caught.add(batch);
@@ -1236,6 +1281,30 @@ export class SimulationLayoutEngine extends LayoutEngine {
                 },
             );
         }
+    }
+
+    /**
+     * How many iterations the next frame's batch computes: the load's count, ramped up on a hardware accelerator when
+     * the host did not pin one (see {@link acceleratedIterationsFor}).
+     *
+     * NOT ON A SOFTWARE ADAPTER. The ramp pays off where a batch's round trip costs more than its arithmetic, which is
+     * a real card's case. A software adapter computes on the CPU: a 128-iteration batch of a few thousand nodes takes
+     * it many frames, so the layout lands only every few seconds and every readback queued behind it -- the node under
+     * the pointer, a buffer map -- waits as long. The count still depends on nothing but the adapter's kind and the
+     * iterations submitted, so a seed draws the same on two cards however fast each one is.
+     * @returns The iteration count.
+     */
+    #batchIterations(): number {
+        if (
+            !this.#accelerated ||
+            this.#software ||
+            this.#options.iterationsPerStep !== null ||
+            this.#snapshot === null
+        ) {
+            return this.#iterations;
+        }
+
+        return acceleratedIterationsFor(this.#iterations, this.#snapshot.nodeCount, this.#iterationsDone);
     }
 
     /**
@@ -2244,6 +2313,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * freeze and at shutdown.
      */
     override dispose(): void {
+        this.#disposed = true;
         this.#dataManager[WRITABLE_LANE].forgive(this.#owedPublish);
         this.#detachDrawn();
         this.#simulation?.dispose();
@@ -2535,6 +2605,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // The ATTACHED accelerator, not the one this simulation was handed: see the field.
         this.#builtWith = this.#controller.accelerator;
         this.#accelerated = decision.accelerated;
+        this.#software = decision.accelerated && decision.software;
         this.#precision = decision.accelerated ? decision.precision : CPU_PRECISION;
         this.#failed = false;
         this.#iterationsDone = 0;
@@ -2840,7 +2911,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @param from - The simulation the batch was submitted on.
      */
     #onError(error: unknown, from: LayoutSimulation): void {
-        if (this.#reported === from) {
+        // A batch still in flight when the layout was disposed rejects once the graph's teardown destroys the device
+        // under it ("GpuContext is disposed"): nothing asked for that batch any more, so it is no failure to report.
+        if (this.#disposed || this.#reported === from) {
             return;
         }
 

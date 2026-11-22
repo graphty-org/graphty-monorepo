@@ -433,6 +433,10 @@ const DECLARED = [
     "node.xlabelOffsetX",
     "node.xlabelOffsetY",
     "node.xlabelTextAlign",
+    "node.xlabelColor",
+    "node.xlabelFont",
+    "node.xlabelWeight",
+    "node.xlabelItalic",
     "edge.labelTable",
     "edge.xlabel",
     "edge.xlabelStyle",
@@ -465,8 +469,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and twenty-four node channels and one hundred and eighty-six edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 224);
+    it("splits into two hundred and twenty-eight node channels and one hundred and eighty-six edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 228);
         assert.strictEqual(channelsFor("edge").length, 186);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -714,6 +718,10 @@ describe("what a style editor needs to draw a row", () => {
         "node.xlabelOffsetX",
         "node.xlabelOffsetY",
         "node.xlabelTextAlign",
+        "node.xlabelColor",
+        "node.xlabelFont",
+        "node.xlabelWeight",
+        "node.xlabelItalic",
         // Unset, an edge has no external label, and one that has sits beside its middle or where the layout put it.
         "edge.xlabel",
         "edge.xlabelStyle",
@@ -1088,6 +1096,7 @@ describe("colour channels", () => {
             "edge.arrowTailTextBackground",
             "edge.labelOutline",
             "edge.labelBorder",
+            "node.xlabelColor",
         ];
 
         assert.deepEqual([...COLOR_CHANNELS], fromTheType);

@@ -1,7 +1,7 @@
 {
     "name": "intro-growth",
     "title": "Growth (new)",
-    "note": "Music is a PLACEHOLDER (audio/trailer.wav, its build lengthened to the crescendo by ~/intros/growth/make-music.sh, which also sets its loudness curve to the cut's marks): the owner has not chosen a track. To swap it, set music.file, and move the logo onto the new track's final hit by shifting Part B's `to` and the title's `over.at` by the same amount (both after mark turn, so the dissolve into the title shows the same frames on both sides).",
+    "note": "One continuous shot: an untangled 2D tree of airports grows, lifts into 3D in two moves, lights its communities, flies the Sydney-to-New York route with each airport up front in turn, holds New York for about 2 s while the earth fades in behind it, and pulls back to the whole globe centered between the logo and the tagline (the title card's `gap`). Music is a PLACEHOLDER (audio/trailer.wav, its build lengthened to the crescendo by ~/intros/growth/make-music.sh, which also sets its loudness curve to the cut's marks): the owner has not chosen a track. To swap it, set music.file, and move the logo onto the new track's final hit by shifting Part B's `to` and the title's `over.at` by the same amount (both after mark turn, so the dissolve into the title shows the same frames on both sides).",
     "top": true,
     "crossfadeMs": 1500,
     "music": {
@@ -36,8 +36,8 @@
                         [["flight", 0], 2.8],
                         [["flight", 12], 3.1],
                         [["flight", 22.5], 3.4],
-                        [["close", -4.5], 3.0],
-                        [["close", -1.5], 2.4]
+                        [["close", -4.5], 3.4],
+                        [["close", -1.5], 3.2]
                     ]
                 },
                 {
@@ -46,11 +46,11 @@
                     "zoom": false,
                     "caption": "",
                     "at": ["onglobe", 0],
-                    "to": ["turn", 4.35],
+                    "to": ["turn", 2.04],
                     "ramp": [
-                        [["onglobe", 0], 2.4],
-                        [["pull", 0], 3.0],
-                        [["pull", 3], 3.8],
+                        [["onglobe", 0], 3.2],
+                        [["pull", 3], 3.6],
+                        [["pull", 6], 4.2],
                         [["pull", 8], 4.5],
                         [["pull", 16], 4.8],
                         [["pull", 24], 3.8],
@@ -63,12 +63,13 @@
                     "card": "title",
                     "over": {
                         "clip": "growth-world",
-                        "at": ["turn", 2.85]
+                        "at": ["turn", 0.54]
                     },
                     "zoom": false,
                     "lines": ["See what your connected data is hiding"],
                     "hold": 2.6,
                     "veil": 0.3,
+                    "gap": 500,
                     "strong": true,
                     "sfx": [
                         {

@@ -89,6 +89,8 @@ export const html = {
      * @param data.smash - true for a pure black card (a smash cut to the title on a hit)
      * @param [data.veil] - how dark the frame under it is made, 0-1 (default 0.62)
      * @param [data.strong] - the first line larger, bolder and white, with a shadow (over bright footage)
+     * @param [data.gap] - px: the logo above and the lines below a clear band this tall across the
+     *     middle of the frame (the logo smaller), so a subject centered in the footage shows between them
      * @returns the page
      */
     title: ({
@@ -99,12 +101,22 @@ export const html = {
         veil = 0.62,
         strong = false,
         smash = false,
+        gap = 0,
     }) =>
         page(
             (over ? div("frame", "", `background:rgba(18,23,31,${veil})`) : "") +
                 div(
                     (over ? "card center over" : "card center") + (reveal ? " reveal" : ""),
-                    div("logo", BIG_LOGO) +
+                    div(
+                        "logo",
+                        gap ? LOGO.replace("<svg", '<svg style="height:170px;width:auto"') : BIG_LOGO,
+                        gap ? `position:absolute;left:0;right:0;bottom:${(H + gap) / 2}px` : "",
+                    ) +
+                        (gap
+                            ? '<div style="position:absolute;left:0;right:0;top:' +
+                              (H + gap) / 2 +
+                              'px;display:flex;flex-direction:column;align-items:center;margin-top:-44px">'
+                            : "") +
                         lines
                             .map((l, i) =>
                                 div(
@@ -123,7 +135,8 @@ export const html = {
                             .map((l) =>
                                 div("sub later", esc(l), "font-size:40px;font-weight:500;margin-top:28px;color:#fff"),
                             )
-                            .join(""),
+                            .join("") +
+                        (gap ? "</div>" : ""),
                     smash ? "background:#000" : "",
                 ),
             over,

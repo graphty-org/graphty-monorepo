@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { flightPoses, lobes, principalAxes, revealPoses } from "./growth.js";
+import { flatPlaces, flightPoses, lobes, principalAxes, revealPoses } from "./growth.js";
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const unit = (a) => {
@@ -37,6 +37,34 @@ test("communities are drawn apart, each tighter round its middle, within the spa
     assert.ok(Math.max(...Object.values(at).map((p) => Math.hypot(p.x, p.y, p.z))) <= 45 + 1e-9);
 });
 
+test("the flat drawing puts each airport beside the one it joins, with no route crossing another", () => {
+    // a hub with six spokes, each with two leaves, their 3D places scattered at random (seeded)
+    let seed = 7;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 80 - 40;
+    const steps = [{ node: { id: "h", position: { x: rand(), y: rand(), z: rand() } }, edges: [] }];
+    const add = (id, parent) =>
+        steps.push({
+            node: { id, position: { x: rand(), y: rand(), z: rand() } },
+            edges: [{ source: parent, target: id }],
+        });
+    for (let i = 0; i < 6; i++) add(`s${i}`, "h");
+    for (let i = 0; i < 12; i++) add(`l${i}`, `s${i % 6}`);
+    const at = flatPlaces(steps, steps.length);
+    const edges = steps.flatMap((s) => s.edges);
+    const lengths = edges.map((e) => dist(at[e.source], at[e.target]));
+    const route = lengths.reduce((a, b) => a + b) / lengths.length;
+    for (const l of lengths)
+        assert.ok(l < 1.5 * route && l > 0.5 * route, `a route ${l.toFixed(1)} long, typical ${route.toFixed(1)}`);
+    for (const s of steps) assert.equal(at[s.node.id].z, 0);
+    const side = (p, q, r) => Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x));
+    for (const [i, e] of edges.entries())
+        for (const f of edges.slice(i + 1)) {
+            if (new Set([e.source, e.target, f.source, f.target]).size < 4) continue;
+            const [a, b, c, d] = [at[e.source], at[e.target], at[f.source], at[f.target]];
+            assert.ok(!(side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0), "routes cross");
+        }
+});
+
 test("the flight passes beside every airport, turns gently and arrives along the close-up's normal", () => {
     const pts = [
         { x: 0, y: 0, z: 0 },
@@ -69,6 +97,14 @@ test("the flight passes beside every airport, turns gently and arrives along the
     assert.ok(angle(dir, normal) <= 0.6 + 1e-6);
     assert.ok(Math.abs(dist(end.p, pts[3]) - (4.6 - 3 * vEnd)) < 0.01);
     assert.equal(end.r, 0);
+    // each airport on the way comes up front in turn: near the middle of the frame and growing
+    for (const q of pts.slice(0, -1)) {
+        const front = poses.filter(({ p, t }) => {
+            const f = unit({ x: t.x - p.x, y: t.y - p.y, z: t.z - p.z });
+            return angle(f, unit({ x: q.x - p.x, y: q.y - p.y, z: q.z - p.z })) < 0.15 && dist(p, q) < 4 * o.clear;
+        });
+        assert.ok(front.length > 0.3 * hz, `airport at ${JSON.stringify(q)} is never up front`);
+    }
 });
 
 test("the reveal starts on the flight's close-up, creeping, then pulls back and never goes into the globe", () => {
@@ -83,4 +119,7 @@ test("the reveal starts on the flight's close-up, creeping, then pulls back and 
     assert.ok(dist(poses[30].p, spot) < dist(poses[0].p, spot));
     assert.ok(dist(poses.at(-1).p, spot) > 3 * Math.hypot(spot.x, spot.y, spot.z));
     for (const { p } of poses) assert.ok(Math.hypot(p.x, p.y, p.z) > Math.hypot(spot.x, spot.y, spot.z));
+    // clearly pulling back a twentieth of the way into the pull (over a tenth farther out)
+    const at = poses[Math.round(((1000 + 0.05 * 12000) * 60) / 1000)];
+    assert.ok(dist(at.p, spot) > 1.15 * dist(poses[60].p, spot));
 });

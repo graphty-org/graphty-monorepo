@@ -173,6 +173,21 @@ ${node("a", 2)}${node("b", 0)}${node("c", 1)}${node("d", 1)}
         expect((await load(doc, "json")).values("node", "drawOrder")).toEqual([100, 0, 50]);
     });
 
+    it("stacks Cytoscape.js's edges by z-index, then in element order", async () => {
+        const doc = JSON.stringify({
+            elements: {
+                nodes: [{ data: { id: "a" } }, { data: { id: "b" } }],
+                edges: [
+                    { data: { id: "e1", source: "a", target: "b" } },
+                    { data: { id: "e2", source: "b", target: "a" } },
+                    { data: { id: "e3", source: "a", target: "b" } },
+                ],
+            },
+            style: [{ selector: "#e1", style: { "z-index": 5 } }],
+        });
+        expect((await load(doc, "json")).values("edge", "drawOrder")).toEqual([100, 0, 50]);
+    });
+
     it("places Cytoscape.js's outside labels by their words", async () => {
         const doc = JSON.stringify({
             elements: { nodes: [{ data: { id: "a", label: "A" } }], edges: [] },

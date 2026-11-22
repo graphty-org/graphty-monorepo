@@ -12,10 +12,14 @@ import { browserProjects } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { openSampleFromStart } from "../../../test/open";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
 import { clearRecent, refreshStored, rememberRecent } from "../recent";
+
+// A located data file opens the join screen only with sources and steps off: on, it is staged.
+withoutFeatures(["source-steps"]);
 
 /** A small edge list. */
 const FRIENDS_CSV = "source,target\nann,bob\nbob,cy\n";

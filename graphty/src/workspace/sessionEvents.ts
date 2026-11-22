@@ -139,10 +139,16 @@ export function useSessionEvents(
 
 /**
  * The element's events after which a count over what is shown is read again: visibility, data,
- * and every history step (a filter card that only selects changes no visibility, and its count is
- * read again then).
+ * every history step (a filter card that only selects changes no visibility, and its count is
+ * read again then), and a source draft drawn, changed or flipped Before / After (its graph is
+ * drawn with no history step).
  */
-export const VISIBILITY_EVENTS = ["visibility:changed", "project:changed", "history:changed"] as const;
+export const VISIBILITY_EVENTS = [
+    "visibility:changed",
+    "project:changed",
+    "history:changed",
+    "data:draft-changed",
+] as const;
 
 /** The element's events after which the shader settings read again: a shader's status, the render quality. */
 export const SHADER_EVENTS = ["shader:status", "render:quality"] as const;

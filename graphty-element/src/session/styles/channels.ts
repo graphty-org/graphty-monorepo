@@ -2850,7 +2850,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "Which of two overlapping nodes is drawn on top in a 2D view, from 0 to 100: the higher " +
             "one. Every node with a draw order is drawn in front of the edges, and in front of every " +
             "node with none; a node with none is drawn as it always was. Only nodes at z-index 0 " +
-            "are ordered. A 3D view orders flat shapes the same way and draws solid ones by real depth. Each distinct value is its " +
+            "are ordered, and 3D views draw by real depth and ignore it. Each distinct value is its " +
             "own source mesh, so a few levels keep instancing cheap.",
     },
     "node.borderColor": {

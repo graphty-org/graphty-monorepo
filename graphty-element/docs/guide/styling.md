@@ -491,8 +491,7 @@ every node without one; a node without one is drawn as before. Loading a file wi
 `styles: "file"` sets it as the program that wrote the file stacks its nodes: by Cytoscape's
 stored `z` (XGMML, CX, CX2 and sessions) or Cytoscape.js's `z-index` where the file has one, and
 otherwise by the file's own order, a node later in the file on top. Each distinct value is its own source mesh, so use a few
-levels on a large graph. A 3D view orders flat shapes (a rectangle, an ellipse, any `node.planar` node) the
-same way, so two flat nodes at one depth do not flicker through each other, and draws a solid shape by real depth.
+levels on a large graph. A 3D view draws by real depth and ignores it.
 
 `edge.drawOrder` decides which of two crossing lines is drawn on top: the one with the higher value, from 0 to 100.
 A line without one is drawn over every line with one, and lines without one keep the order they always had, so give

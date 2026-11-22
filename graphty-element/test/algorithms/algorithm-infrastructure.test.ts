@@ -17,6 +17,7 @@
 import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../src/algorithms/Algorithm";
+import { scopeEdges, scopeNodeIds } from "../../src/algorithms/input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -24,7 +25,7 @@ import {
     declaredCaveats,
     setFieldSpecs,
 } from "../../src/algorithms/results";
-import { createMockGraph } from "../helpers/mockGraph";
+import { createSessionGraph } from "../helpers/session-graph";
 
 /** A plugin algorithm that measures every edge. */
 class TestEdgeAlgorithm extends DeclaredAlgorithm {
@@ -32,9 +33,9 @@ class TestEdgeAlgorithm extends DeclaredAlgorithm {
     static type = "test-edge-algo";
 
     // eslint-disable-next-line @typescript-eslint/require-await -- the shape is async for real work
-    async compute(_context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const edges = [...this.graph.getDataManager().edges.values()].map((edge) => ({
-            id: `${String(edge.srcId)}:${String(edge.dstId)}`,
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const edges = scopeEdges(context.input("declared")).map((edge) => ({
+            id: `${String(edge.source)}:${String(edge.target)}`,
             values: { in: true, score: 0.5 },
         }));
 
@@ -73,11 +74,11 @@ class TestCombinedAlgorithm extends DeclaredAlgorithm {
     static type = "test-combined-algo";
 
     // eslint-disable-next-line @typescript-eslint/require-await -- the shape is async for real work
-    async compute(_context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const data = this.graph.getDataManager();
-        const nodes = [...data.nodes.keys()].map((id) => ({ id, values: { in: true, score: 0.75 } }));
-        const edges = [...data.edges.values()].map((edge) => ({
-            id: `${String(edge.srcId)}:${String(edge.dstId)}`,
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const input = context.input("declared");
+        const nodes = scopeNodeIds(input).map((id) => ({ id, values: { in: true, score: 0.75 } }));
+        const edges = scopeEdges(input).map((edge) => ({
+            id: `${String(edge.source)}:${String(edge.target)}`,
             values: { weight: 1.5 },
         }));
 
@@ -89,7 +90,7 @@ class TestCombinedAlgorithm extends DeclaredAlgorithm {
             ],
             nodes,
             edges,
-            graph: { totalNodes: data.nodes.size },
+            graph: { totalNodes: nodes.length },
             caveats: declaredCaveats({ method: "test", direction: "undirected", weight: null }),
         };
     }
@@ -102,7 +103,7 @@ Algorithm.register(TestCombinedAlgorithm);
 describe("Algorithm Infrastructure", () => {
     describe("Edge Result Storage", () => {
         it("publishes a value for every edge", async () => {
-            const graph = await createMockGraph({ dataPath: "./data4.json" });
+            const graph = await createSessionGraph({ dataPath: "./data4.json" });
             const algo = new TestEdgeAlgorithm(graph);
             await algo.run();
 
@@ -118,7 +119,7 @@ describe("Algorithm Infrastructure", () => {
         });
 
         it("measures every edge it looked at", async () => {
-            const graph = await createMockGraph({ dataPath: "./data4.json" });
+            const graph = await createSessionGraph({ dataPath: "./data4.json" });
             const algo = new TestEdgeAlgorithm(graph);
             await algo.run();
 
@@ -130,7 +131,7 @@ describe("Algorithm Infrastructure", () => {
 
     describe("Graph Result Storage", () => {
         it("publishes graph-level values", async () => {
-            const graph = await createMockGraph({ dataPath: "./data4.json" });
+            const graph = await createSessionGraph({ dataPath: "./data4.json" });
             const algo = new TestGraphAlgorithm(graph);
             await algo.run();
 
@@ -141,7 +142,7 @@ describe("Algorithm Infrastructure", () => {
         });
 
         it("names the run the result was published under", async () => {
-            const graph = await createMockGraph({ dataPath: "./data4.json" });
+            const graph = await createSessionGraph({ dataPath: "./data4.json" });
             const algo = new TestGraphAlgorithm(graph);
             await algo.run();
 
@@ -153,7 +154,7 @@ describe("Algorithm Infrastructure", () => {
 
     describe("Combined Results", () => {
         it("publishes node, edge and graph values in one result", async () => {
-            const graph = await createMockGraph({ dataPath: "./data4.json" });
+            const graph = await createSessionGraph({ dataPath: "./data4.json" });
             const algo = new TestCombinedAlgorithm(graph);
             await algo.run();
 
@@ -172,7 +173,7 @@ describe("Algorithm Infrastructure", () => {
 
     describe("Edge Cases", () => {
         it("publishes an empty result for a graph with no edges", async () => {
-            const emptyGraph = await createMockGraph();
+            const emptyGraph = await createSessionGraph();
             const algo = new TestEdgeAlgorithm(emptyGraph);
             await algo.run();
 
@@ -182,7 +183,7 @@ describe("Algorithm Infrastructure", () => {
         });
 
         it("publishes graph-level values even with nothing in the graph", async () => {
-            const emptyGraph = await createMockGraph();
+            const emptyGraph = await createSessionGraph();
             const algo = new TestGraphAlgorithm(emptyGraph);
             await algo.run();
 
@@ -192,7 +193,7 @@ describe("Algorithm Infrastructure", () => {
         });
 
         it("keeps two algorithms' results apart", async () => {
-            const graph = await createMockGraph({ dataPath: "./data4.json" });
+            const graph = await createSessionGraph({ dataPath: "./data4.json" });
 
             const edgeAlgo = new TestEdgeAlgorithm(graph);
             const graphAlgo = new TestGraphAlgorithm(graph);

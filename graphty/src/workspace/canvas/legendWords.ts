@@ -560,7 +560,7 @@ interface KeyNames {
  * is drawn as one line, its chip beside its title: a run's node and edge highlights in one color,
  * or a single row named as its title is (`keySections`).
  */
-interface KeySection {
+export interface KeySection {
     readonly title: string;
     readonly block: LegendBlock;
     readonly entry: string;

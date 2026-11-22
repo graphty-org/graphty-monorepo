@@ -336,4 +336,23 @@ describe("the cards", () => {
         const card = await within(region).findByRole("group", { name: /^name(,|$)/ });
         assert.strictEqual(card.getAttribute("aria-label"), "name", "an unfinished card says no count");
     });
+
+    for (const how of ["Enter", "a click"] as const) {
+        it(`a column only edges carry, chosen with ${how}, goes to the Edge tab with its card`, async () => {
+            const session = await open();
+            const { region } = await openPicker(session);
+            await openList(region);
+            await userEvent.keyboard("shared_ch");
+            const offer = await screen.findByRole("button", { name: "Add shared_chapters on the Edge tab" });
+            await (how === "Enter" ? userEvent.keyboard("{Enter}") : userEvent.click(offer));
+            const tabs = screen.getByRole("tablist", { name: "Style for" });
+            await waitFor(() => {
+                const edge = within(tabs).getByRole("tab", { name: "Edge" });
+                assert.strictEqual(edge.getAttribute("aria-selected"), "true", "the Edge tab is shown");
+                const edges = screen.getByRole("group", { name: "Which edges" });
+                const card = within(edges).getByRole("group", { name: /^shared_chapters(,|$)/ });
+                assert.isTrue(card.contains(document.activeElement), "focus is in the new card");
+            });
+        });
+    }
 });

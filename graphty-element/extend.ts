@@ -329,6 +329,7 @@ export type { Node, NodeIdType } from "./src/Node";
  */
 export type { AlgorithmStatics } from "./src/algorithms/Algorithm";
 export { Algorithm } from "./src/algorithms/Algorithm";
+export type { AlgorithmData, AlgorithmHost } from "./src/algorithms/host";
 export type {
     AlgorithmGraphMode,
     ScopedInput,

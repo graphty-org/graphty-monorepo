@@ -268,6 +268,25 @@ describe("mask copies", () => {
         assert.strictEqual(evaluations.mock.calls.length, 0, "the services step kept its masks when it was undone");
     });
 
+    it("keeps the same copies for a filter set inside a transaction as outside one", async () => {
+        const { session } = clocked();
+        await session.visibility.set(HOSTS);
+        await session.transaction("Services", async (tx) => {
+            await tx.visibility.set(SERVICES);
+        });
+        evaluations.mockClear();
+
+        await session.undo();
+
+        assert.deepEqual(visible(session), ["n0", "n2", "n4"]);
+        assert.strictEqual(evaluations.mock.calls.length, 0, "the hosts step's copy was used");
+
+        await session.redo();
+
+        assert.deepEqual(visible(session), ["n1", "n3", "n5"]);
+        assert.strictEqual(evaluations.mock.calls.length, 0, "the transaction's step kept its masks when undone");
+    });
+
     it("does not use a copy taken before a node attribute changed", async () => {
         const { harness, session } = clocked();
         await session.visibility.set(HOSTS);

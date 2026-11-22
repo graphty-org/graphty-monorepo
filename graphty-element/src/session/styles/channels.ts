@@ -776,6 +776,10 @@ export interface ChannelValues {
     "node.xlabelOffsetX": number;
     "node.xlabelOffsetY": number;
     "node.xlabelTextAlign": LabelTextAlign;
+    "node.xlabelColor": ColorValue;
+    "node.xlabelFont": string;
+    "node.xlabelWeight": LabelWeightValue;
+    "node.xlabelItalic": boolean;
     "edge.labelTable": string;
     "edge.xlabel": string;
     "edge.xlabelStyle": LabelStyle;
@@ -814,6 +818,7 @@ export type ColorChannel =
     | "node.shapeLineHaloColor"
     | "node.labelOutline"
     | "node.labelBorder"
+    | "node.xlabelColor"
     | "edge.color"
     | "edge.bandColor"
     | "edge.arrowHeadColor"
@@ -2098,6 +2103,37 @@ const NODE_LABEL_MIN_NODE_SCREEN_SIZE: ChannelDescriptor = {
         "never hides its label.",
 };
 
+/** The external label's own look channels, each one field of `node.xlabelStyle`. */
+const XLABEL_LOOK = /^node\.xlabel(Color|Font|Weight|Italic)$/;
+type XlabelLookSuffix = "Color" | "Font" | "Weight" | "Italic";
+
+/**
+ * One of the external label's own look channels: a field of its style, unset the label's.
+ * @param suffix - The field's suffix.
+ * @param accepts - What it takes.
+ * @param path - Where it lands in the parsed style's external label block.
+ * @param what - What it sets, for the caveat.
+ * @returns The descriptor.
+ */
+function xlabelLook(
+    suffix: XlabelLookSuffix,
+    accepts: ChannelDescriptor["accepts"],
+    path: string,
+    what: string,
+): ChannelDescriptor {
+    return {
+        channel: `node.xlabel${suffix}` as Channel,
+        target: "node",
+        plainName: `Node External Label ${suffix}`,
+        shortName: `External label ${suffix.toLowerCase()}`,
+        group: "text",
+        accepts,
+        stylePath: `xlabel.${path}`,
+        renderable: true,
+        caveat: `The external label's own ${what}, one field of its style (\`node.xlabelStyle\`). Unset, the label's.`,
+    };
+}
+
 /**
  * Where a label field channel writes: the label style channel it lands in and the field.
  * @param channel - Any channel.
@@ -2114,6 +2150,11 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
 
     if (channel === "node.labelLocation" || channel === "edge.labelLocation") {
         return { into: channel === "node.labelLocation" ? "node.labelStyle" : "edge.labelStyle", field: "location" };
+    }
+
+    const own = XLABEL_LOOK.exec(channel);
+    if (own !== null) {
+        return { into: "node.xlabelStyle", field: LABEL_FIELD_OF_SUFFIX[own[1] as XlabelLookSuffix] };
     }
 
     if (channel === "node.labelTextAlign" || channel === "edge.labelTextAlign") {
@@ -5326,6 +5367,13 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "Lines up the lines of an external label of more than one line with one another: their left edges, " +
             "their middles or their right edges. Unset, as the label's.",
     },
+    "node.xlabelColor": xlabelLook("Color", "color", "textColor", "the color its words are drawn in"),
+    "node.xlabelFont": xlabelLook("Font", "text", "font", "the font family its words are drawn in"),
+    "node.xlabelWeight": {
+        ...xlabelLook("Weight", "enum", "fontWeight", "how heavy its words are drawn"),
+        values: LABEL_WEIGHT_VALUES,
+    },
+    "node.xlabelItalic": xlabelLook("Italic", "boolean", "fontStyle", "whether its words are drawn slanted"),
     "edge.labelTable": {
         channel: "edge.labelTable",
         target: "edge",

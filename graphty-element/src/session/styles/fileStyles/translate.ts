@@ -950,6 +950,7 @@ function channelPlans(
         ["width", [length("edge.width")]],
         // Screen pixels, so never scaled by the file's lengths.
         ["minScreenWidth", [id("edge.minScreenWidth")]],
+        ["drawOrder", [id("edge.drawOrder")]],
         // in the line's own width units, as its width is
         ["outlineWidth", [length("edge.outlineWidth")]],
         ["outlineColor", [id("edge.outlineColor")]],

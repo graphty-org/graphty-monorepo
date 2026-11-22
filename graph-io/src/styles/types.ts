@@ -943,6 +943,10 @@ export interface EdgeStyleValues {
      * line is drawn at its width alone.
      */
     readonly minScreenWidth: number;
+    /**
+     * Where the line is drawn among crossing lines, 0 to 100: a higher one is drawn over a lower one. Unset, no order.
+     */
+    readonly drawOrder: number;
     /** The label's font size. */
     readonly labelSize: number;
     /** The arrow size as a factor: 1 is the writing tool's normal size. With `sourceArrowSize`, the target's alone. */

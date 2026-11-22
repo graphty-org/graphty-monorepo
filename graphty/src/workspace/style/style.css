@@ -511,8 +511,8 @@
 }
 
 /* A style's setting, drawn under the style's row ("Size" under Halo): its name indented under the
-   style's name. */
-.ws-row[data-setting] .ws-field-name {
+   style's name. A label line under its look's switch ("Opacity" under Letter outline) the same way. */
+.ws-row:is([data-setting], [data-under]) .ws-field-name {
     padding-inline-start: 12px;
 }
 

@@ -73,4 +73,21 @@ describe("LABEL_STYLE_DESCRIPTORS", () => {
         assert.deepInclude(maxLines, { accepts: "number", min: 1, integer: true });
         assert.isUndefined(maxLines?.default);
     });
+
+    it("writes the switch beside every setting a switched-off look does not draw", () => {
+        const accepts = new Map(LABEL_STYLE_DESCRIPTORS.map((d) => [d.field, d.accepts]));
+        for (const d of LABEL_STYLE_DESCRIPTORS) {
+            for (const condition of d.drawnWhen ?? []) {
+                if (
+                    "values" in condition &&
+                    accepts.get(condition.field) === "boolean" &&
+                    condition.values.join() === "true"
+                ) {
+                    assert.deepInclude(d.needs ?? [], { field: condition.field, value: true }, d.field);
+                }
+            }
+        }
+        const outlineWidth = LABEL_STYLE_DESCRIPTORS.find((d) => d.field === "outlineWidth");
+        assert.deepEqual(outlineWidth?.needs, [{ field: "outline", value: "#000000" }]);
+    });
 });

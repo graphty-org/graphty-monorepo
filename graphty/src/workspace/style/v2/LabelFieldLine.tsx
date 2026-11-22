@@ -470,24 +470,10 @@ function flatHeld(label: LabelLineContext, line: LabelLineSpec): ChannelDescript
  * @returns The line, or nothing for a field the element does not describe
  */
 export function LabelFieldLine({
-    label: given,
+    label,
     line,
     named: alwaysNamed = false,
 }: Readonly<{ label: LabelLineContext; line: LabelLineSpec; named?: boolean }>): React.JSX.Element | null {
-    const { needs } = line;
-    // A value set on a line whose look is switched off switches it on in the same write (Text shadow's color).
-    const label: LabelLineContext =
-        needs === undefined
-            ? given
-            : {
-                  ...given,
-                  write: (patch, drop) => {
-                      const switchOn =
-                          valueOf(given.style, needs) === undefined &&
-                          Object.values(patch).some((value) => value !== undefined);
-                      given.write(switchOn ? { [needs]: true, ...patch } : patch, drop);
-                  },
-              };
     // R6 sides: split by its Separate sides line, or because the sides already differ.
     const [splitAsked, setSplit] = React.useState(false);
     const flat = flatHeld(label, line);
@@ -515,7 +501,9 @@ export function LabelFieldLine({
     const args: LineControlArgs = { label, line, field, descriptor, name, set, split };
     const control = line.unit === undefined ? controlOf(args, rule) : unitControl(args);
     const { sides } = line;
-    const address = `${label.address ?? label.kind.style}.${line.unit === undefined ? field : "unit"}`;
+    // A Unit line's address names its field: Main's size unit and Background's padding unit are two lines.
+    const own = line.unit === undefined ? field : `${line.field}:unit`;
+    const address = `${label.address ?? label.kind.style}.${own}`;
     // Every line draws its name (E674); a switch's is its checkbox's. A full-width line (R8f, R2) draws its name
     // above its control (style.css).
     const named = rule !== "R7";
@@ -532,6 +520,7 @@ export function LabelFieldLine({
                 write(Object.fromEntries(fields.map((each) => [each, undefined])));
             }}
             dimmed={labelDimOf(label.ctx, label.kind.style, style, field)}
+            under={line.under}
         />
     );
     return sides === undefined ? (

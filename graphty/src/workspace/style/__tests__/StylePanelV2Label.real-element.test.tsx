@@ -142,7 +142,7 @@ describe("Style panel v2's Text section", () => {
         const main = within(pop).getByRole("group", { name: "Main" });
         assert.deepEqual(
             [...main.querySelectorAll(".ws-row[data-line]")].map((line) => line.getAttribute("data-line")),
-            LABEL_RUBRIC.main.map((line) => `node.labelStyle.${line.unit === undefined ? line.field : "unit"}`),
+            LABEL_RUBRIC.main.map((line) => `node.labelStyle.${line.field}${line.unit === undefined ? "" : ":unit"}`),
             "Main holds Show to the size unit, and no second Size or Color",
         );
         await userEvent.keyboard("{Escape}");
@@ -223,6 +223,15 @@ describe("Style panel v2's Text section", () => {
             // Each of its lines is drawn under its legend, named, with its whole name shown (E674, E599).
             assert.isAtLeast(legend.querySelectorAll(".ws-row[data-line]").length, group.lines.length, group.name);
             assertNamedUncut(legend);
+            // A line under its look's switch is indented under it, so "Opacity" under Letter outline reads as its.
+            for (const line of group.lines.filter((each) => each.unit === undefined)) {
+                const name = (await lineOf(legend, `node.labelStyle.${line.field}`)).querySelector(".ws-field-name");
+                if (name === null) {
+                    continue; // a switch: its name is its checkbox's
+                }
+                const indent = Number.parseFloat(getComputedStyle(name).paddingInlineStart);
+                assert.equal(indent > 0, line.under === true, `${line.field} is indented only under its switch`);
+            }
             if (group.name === "Label shadow") {
                 // A Text shadow color set while its switch is off switches the shadow on (no tick first).
                 const color = await lineOf(legend, "node.labelStyle.shadowColor");

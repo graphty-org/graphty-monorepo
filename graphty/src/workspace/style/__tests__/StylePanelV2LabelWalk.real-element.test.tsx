@@ -502,7 +502,7 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                     return true;
                 }
                 if (place.how === "unit") {
-                    const line = await lineIn(root, "node.labelStyle.unit");
+                    const line = await lineIn(root, `node.labelStyle.${place.line.field}:unit`);
                     const unit = place.line.unit?.find(
                         (each) => each.field === field || Object.keys(each.also ?? {}).includes(field),
                     );

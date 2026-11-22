@@ -40,10 +40,10 @@ export interface LabelLineSpec {
      */
     readonly fullName?: string;
     /**
-     * The switch its look needs: setting the line writes it true while it is unset, so a Text shadow color
-     * draws the shadow without its switch ticked first.
+     * Drawn under the switch line above it, its name indented, so a short name ("Opacity" under Letter outline)
+     * reads as that look's whether the switch is on or off.
      */
-    readonly needs?: LabelField;
+    readonly under?: true;
     /** Its rule, where the field's kind does not settle it. */
     readonly rule?: Rule;
     /** The second number of a pair, on the same line. */
@@ -170,8 +170,8 @@ export const LABEL_RUBRIC: LabelRubric = {
                 // The letters' own stroke; the box's is Box stroke (ia-design: no look has two homes).
                 // Its Width and Opacity follow it and read as its, as the shadows' lines follow their switches.
                 { field: "outline", name: "Letter outline" },
-                { field: "outlineWidth", name: "Width", fullName: "Letter outline width" },
-                { field: "outlineOpacity", name: "Opacity", fullName: "Letter outline opacity" },
+                { field: "outlineWidth", name: "Width", fullName: "Letter outline width", under: true },
+                { field: "outlineOpacity", name: "Opacity", fullName: "Letter outline opacity", under: true },
             ],
         },
         {
@@ -198,14 +198,14 @@ export const LABEL_RUBRIC: LabelRubric = {
                 { field: "padding", name: "Unit", fullName: "Padding unit", rule: "R8", unit: PADDING_UNIT },
                 // The lines under the Gradient switch read as its: "Kind" is the gradient's kind.
                 { field: "gradient", name: "Gradient" },
-                { field: "gradientType", name: "Kind", fullName: "Gradient kind", rule: "R8", needs: "gradient" },
-                { field: "gradientColors", name: "Colors", fullName: "Gradient colors", needs: "gradient" },
+                { field: "gradientType", name: "Kind", fullName: "Gradient kind", under: true, rule: "R8" },
+                { field: "gradientColors", name: "Colors", fullName: "Gradient colors", under: true },
                 {
                     field: "gradientDirection",
                     name: "Direction",
                     fullName: "Gradient direction",
+                    under: true,
                     rule: "R8f",
-                    needs: "gradient",
                 },
             ],
         },
@@ -231,26 +231,26 @@ export const LABEL_RUBRIC: LabelRubric = {
             lines: [
                 // Each look's switch leads its lines, which read as its (ia-design: "Text shadow ...", "Box shadow ...").
                 { field: "shadow", name: "Text shadow" },
-                { field: "shadowColor", name: "Color", fullName: "Text shadow color", needs: "shadow" },
-                { field: "shadowBlur", name: "Blur", fullName: "Text shadow blur", needs: "shadow" },
+                { field: "shadowColor", name: "Color", fullName: "Text shadow color", under: true },
+                { field: "shadowBlur", name: "Blur", fullName: "Text shadow blur", under: true },
                 {
                     field: "shadowOffsetX",
                     name: "Offset",
                     fullName: "Text shadow offset",
+                    under: true,
                     pair: "shadowOffsetY",
                     letters: XY,
-                    needs: "shadow",
                 },
                 { field: "panelShadow", name: "Box shadow" },
-                { field: "panelShadowColor", name: "Color", fullName: "Box shadow color", needs: "panelShadow" },
-                { field: "panelShadowBlur", name: "Blur", fullName: "Box shadow blur", needs: "panelShadow" },
+                { field: "panelShadowColor", name: "Color", fullName: "Box shadow color", under: true },
+                { field: "panelShadowBlur", name: "Blur", fullName: "Box shadow blur", under: true },
                 {
                     field: "panelShadowOffsetX",
                     name: "Offset",
                     fullName: "Box shadow offset",
+                    under: true,
                     pair: "panelShadowOffsetY",
                     letters: XY,
-                    needs: "panelShadow",
                 },
             ],
         },

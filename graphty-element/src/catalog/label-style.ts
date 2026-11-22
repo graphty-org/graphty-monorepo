@@ -845,7 +845,8 @@ export interface LabelStyleFieldDescriptor {
      * Other fields of the same label style a style editor writes beside this one, each with its value, so what it
      * sets visibly draws: `textAlign` lines words up inside the label's box, and a one-line label's box is its words,
      * so the alignment moves it only in the band of its target's width that `box: "words-in-target"` gives; an editor
-     * setting the alignment writes that box too. Write a partner only where the style does not set it. Absent on a
+     * setting the alignment writes that box too; a Text shadow color writes `shadow: true`, as a look switched off draws
+     * none of its settings. Write a partner only where the style does not set it. Absent on a
      * field that draws on its own.
      * @since 3.63.0
      */
@@ -903,11 +904,33 @@ const FIELD_DRAWN_ON: Partial<Record<keyof LabelStyle, readonly Channel[]>> = {
 // editor's "+" writes no size over it (owner, 2026-11-20: "the default label text size should be 1").
 const FIELD_START: Partial<Record<keyof LabelStyle, number>> = {};
 
+/**
+ * Each of `fields` needs its look's switch written true.
+ * @param toggle - the switch.
+ * @param fields - the settings it gates.
+ * @returns the needs, keyed by field.
+ */
+function needsOn(
+    toggle: keyof LabelStyle,
+    fields: readonly (keyof LabelStyle)[],
+): Partial<Record<keyof LabelStyle, readonly LabelFieldNeed[]>> {
+    return Object.fromEntries(fields.map((field) => [field, [{ field: toggle, value: true }]]));
+}
+
 /** What each field needs written beside it to draw: see {@link LabelStyleFieldDescriptor.needs}. */
 const FIELD_NEEDS: Partial<Record<keyof LabelStyle, readonly LabelFieldNeed[]>> = {
     // A one-line label's box is its words: only a band wider than them gives the alignment room to move it, and
     // "words-in-target" gives one while its background stays round the words.
     textAlign: [{ field: "box", value: "words-in-target" }],
+    // A look switched off draws none of its settings: setting one switches it on.
+    ...needsOn("gradient", ["gradientType", "gradientColors", "gradientDirection"]),
+    ...needsOn("pointer", ["pointerDirection", "pointerWidth", "pointerHeight", "pointerOffset", "pointerCurve"]),
+    ...needsOn("shadow", ["shadowColor", "shadowBlur", "shadowOffsetX", "shadowOffsetY"]),
+    ...needsOn("panelShadow", ["panelShadowColor", "panelShadowBlur", "panelShadowOffsetX", "panelShadowOffsetY"]),
+    ...needsOn("depthFade", ["depthFadeNear", "depthFadeFar"]),
+    // Writing an outline's color is what switches it on; black, as a border without a color draws.
+    outlineWidth: [{ field: "outline", value: "#000000" }],
+    outlineOpacity: [{ field: "outline", value: "#000000" }],
 };
 
 const isSet = (field: keyof LabelStyle): LabelFieldCondition => ({ field, set: true });

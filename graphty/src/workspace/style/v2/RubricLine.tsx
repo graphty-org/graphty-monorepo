@@ -964,6 +964,7 @@ function frameRule(line: LineSpec, rule: string): string {
  * @param props.removeName - its minus's name; none draws no minus
  * @param props.onRemove - what its minus does
  * @param props.dimmed - why graphty-element draws nothing for it now, for its dimmed look and tooltip
+ * @param props.under - drawn under the switch line above it, its name indented
  * @returns The line
  */
 export function LineFrame({
@@ -976,6 +977,7 @@ export function LineFrame({
     removeName,
     onRemove,
     dimmed,
+    under,
 }: Readonly<{
     line: string;
     name: string | null;
@@ -987,6 +989,8 @@ export function LineFrame({
     onRemove: () => void;
     /** Why graphty-element draws nothing for it now ("2D only"): the line is dimmed, with these words as its tooltip. */
     dimmed?: string;
+    /** Drawn under the switch line above it ("Opacity" under Letter outline): its name is indented. */
+    under?: boolean;
 }>): React.JSX.Element {
     return (
         <div
@@ -995,6 +999,7 @@ export function LineFrame({
             data-set={set ? "" : undefined}
             data-rule={rule}
             data-dimmed={dimmed === undefined ? undefined : ""}
+            data-under={under === true ? "" : undefined}
             title={dimmed}
         >
             <FieldLine name={name} settings={null}>

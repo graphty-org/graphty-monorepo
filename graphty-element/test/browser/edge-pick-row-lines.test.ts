@@ -530,20 +530,24 @@ describe("the work of a plain edge pick on batched", () => {
                     });
                 };
                 const sent = (): number => target.counts.wholeReads + target.counts.wholePending;
-                // Not every pan draws the target again (a frame may skip it), so pan until five pans in a row send no
-                // read, counting the reads sent on the way.
+                // Not every pan draws the target again (a frame may skip it), so pan until twenty pans in a row send no
+                // read. The reads must have run up to the allowance first: a quiet stretch before it is a failure.
                 const first = sent();
                 let stopped = first;
                 let quiet = 0;
-                for (let i = 0; i < 300 && quiet < 5; i++) {
+                for (let i = 0; i < 400 && quiet < 20; i++) {
                     await panned();
                     await wholeBack();
                     quiet = sent() === stopped ? quiet + 1 : 0;
                     stopped = sent();
                 }
-                assert.isAbove(stopped, first, "changed frames are read while elementAt asked lately");
-                assert.isAtMost(stopped - first, 61, "at most 60 reads after the last question");
-                assert.strictEqual(quiet, 5, "then changed frames are read no more");
+                assert.strictEqual(quiet, 20, "changed frames are read no more");
+                assert.isAtLeast(
+                    stopped - first,
+                    55,
+                    "changed frames were read until about 60 after the last question",
+                );
+                assert.isAtMost(stopped - first, 61, "and at most 60 after it");
             },
         );
     }

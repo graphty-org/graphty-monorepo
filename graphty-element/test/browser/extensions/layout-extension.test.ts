@@ -722,8 +722,30 @@ class ScopedRingLayout extends RingLayout {
     }
 }
 
+/**
+ * The ring, reporting every edge's two ends a fixed distance above its nodes: a third party's engine may route an
+ * edge anywhere, and the element must draw it where the engine says, not between the nodes.
+ */
+class LiftedRingLayout extends RingLayout {
+    static type = "test-lifted-ring";
+    static descriptor: AuthoredLayoutDescriptor = {
+        ...RingLayout.descriptor,
+        id: "test-lifted-ring",
+        engine: "test-lifted-ring",
+    };
+
+    override getEdgePosition(e: Edge): EdgePosition {
+        const { src, dst } = super.getEdgePosition(e);
+        return { src: { ...src, y: src.y + LIFT }, dst: { ...dst, y: dst.y + LIFT } };
+    }
+}
+
+/** How far above its nodes `LiftedRingLayout` reports an edge. */
+const LIFT = 4;
+
 LayoutEngine.register(RingLayout);
 LayoutEngine.register(ScopedRingLayout);
+LayoutEngine.register(LiftedRingLayout);
 LayoutEngine.register(GridLayout);
 LayoutEngine.register(RefusingLayout);
 LayoutEngine.register(LateFailureLayout);
@@ -968,17 +990,36 @@ describe("a third party's layout engine", () => {
             }
         });
 
+        it("draws a plain edge where the engine reports its ends, not between its nodes", async () => {
+            // A plain line (no head) is what the batched path draws from its nodes' rows, so this is the case where
+            // asking the engine matters.
+            await graph.getSession().styles.add({
+                name: "plain",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.arrowHead": "none" },
+            });
+            const engine = await useLayout<LiftedRingLayout>("test-lifted-ring");
+            await graph.waitForSettled();
+
+            for (const edge of graph.getDataManager().edges.values()) {
+                const { src, dst } = engine.getEdgePosition(edge);
+                const from = { x: src.x, y: src.y, z: src.z ?? 0 };
+                const to = { x: dst.x, y: dst.y, z: dst.z ?? 0 };
+                assert.isBelow(
+                    distanceFromSegment(edge.drawnCenter, from, to),
+                    1,
+                    `edge ${edge.id} is drawn along the ends the engine gave, ${LIFT} above its nodes`,
+                );
+            }
+
+            assert.strictEqual(graph.getDataManager().edges.size, EDGES.length, "every edge was read");
+        });
+
         it("draws every edge between the two ends the engine reports", async () => {
             const engine = await useLayout<RingLayout>("test-ring");
 
-            if (graph.renderPath !== "batched") {
-                assert.isAbove(engine.edgeReads, 0, "the element asked the engine where the edges are");
-            }
-
-            // On the batched path a straight edge is pulled from its two nodes' rows on the card, so it is drawn
-            // between the places the engine gave its nodes (checked above) and not asked of the engine; only an
-            // engine that lays its own routes keeps its edges placed by the CPU (`laysEdgeRoutes`).
-            assert.isAbove(graph.getDataManager().edges.size, 0, "edges were built to be read");
+            assert.isAbove(engine.edgeReads, 0, "the element asked the engine where the edges are");
 
             for (const edge of graph.getDataManager().edges.values()) {
                 const { src, dst } = engine.getEdgePosition(edge);

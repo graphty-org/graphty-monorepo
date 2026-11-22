@@ -25,7 +25,14 @@ import {
     readBodyCommunities,
     sameCommunities,
 } from "./clusterForce";
-import { EdgePosition, type EdgeRow, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
+import {
+    edgeEndsFollowNodes,
+    EdgePosition,
+    type EdgeRow,
+    heldEdgeProblems,
+    LayoutEngine,
+    Position,
+} from "./LayoutEngine";
 import { nodeGapOption } from "./nodeGapOptions";
 
 /**
@@ -1082,3 +1089,5 @@ export class D3GraphEngine extends LayoutEngine {
         return d3edge;
     }
 }
+
+edgeEndsFollowNodes(D3GraphEngine);

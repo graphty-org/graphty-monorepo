@@ -418,7 +418,43 @@ export function laysEdgeRoutes(engine: LayoutEngine | undefined): boolean {
     }
 
     const type = (engine?.constructor as { type?: unknown } | undefined)?.type;
-    return typeof type === "string" && type.startsWith("graphviz-");
+    if (typeof type === "string" && type.startsWith("graphviz-")) {
+        return true;
+    }
+
+    // An engine with its own `getEdgePosition` (a third party's) may put an edge's ends anywhere, so its edges are
+    // asked of it rather than pulled between their nodes' rows.
+    const owner = engine === undefined ? null : edgePositionOwner(engine);
+    return owner !== null && !edgesFollowingNodes.has(owner);
+}
+
+/** The engine classes whose own `getEdgePosition` reports an edge's ends where its two nodes are drawn. */
+const edgesFollowingNodes = new WeakSet();
+
+/**
+ * The prototype that defines the `getEdgePosition` an engine uses.
+ * @param engine - The engine.
+ * @returns The nearest prototype on its chain with its own `getEdgePosition`.
+ */
+function edgePositionOwner(engine: LayoutEngine): object | null {
+    let proto = Object.getPrototypeOf(engine) as object | null;
+    while (proto !== null && !Object.hasOwn(proto, "getEdgePosition")) {
+        proto = Object.getPrototypeOf(proto) as object | null;
+    }
+
+    return proto;
+}
+
+/**
+ * Marks engine classes whose own `getEdgePosition` reports an edge's ends at its nodes, so an engine using it has
+ * its plain lines pulled from the row table on the batched path (see {@link laysEdgeRoutes}).
+ * @internal
+ * @param classes - The element's own engine classes.
+ */
+export function edgeEndsFollowNodes(...classes: { prototype: object }[]): void {
+    for (const cls of classes) {
+        edgesFollowingNodes.add(cls.prototype);
+    }
 }
 
 /**
@@ -3053,6 +3089,8 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
  * which the element's own one-pass layouts are built on, with pins, cancellation and progress.
  */
 export abstract class SimpleLayoutEngine extends StaticLayoutEngine {}
+
+edgeEndsFollowNodes(StaticLayoutEngine);
 
 /**
  * A dimension option as the index-based layouts take it.

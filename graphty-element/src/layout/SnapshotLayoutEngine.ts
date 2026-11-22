@@ -626,7 +626,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     protected positionScale(): number {
         return (
             this.#host?.positionScale?.() ??
-            this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ??
+            this._nodes.at(0)?.parentGraph.getStyles().config.data.knownFields.positionScale ??
             1
         );
     }

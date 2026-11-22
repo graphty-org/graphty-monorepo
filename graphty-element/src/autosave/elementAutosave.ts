@@ -319,7 +319,7 @@ export function browserEnvironment(): AutosaveEnvironment {
             }
         },
         defaultStore: () => (typeof indexedDB === "undefined" ? undefined : indexedDbAutosaveStore()),
-        ...(globalThis.document === undefined ? {} : { tab: globalThis as unknown as { name: string } }),
+        ...(typeof document === "undefined" ? {} : { tab: globalThis as unknown as { name: string } }),
         navigationType: () => navigationFacts().navigationType,
     };
     return browser;

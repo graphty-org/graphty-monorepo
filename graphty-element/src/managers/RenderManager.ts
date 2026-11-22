@@ -261,7 +261,7 @@ export async function openWebGPUEngine(
     sharesDevice: (adapter: unknown) => boolean | Promise<boolean> = () => false,
     antialias = true,
 ): Promise<RecoveringWebGPUEngine | string> {
-    if (typeof navigator === "undefined" || !("gpu" in navigator) || navigator.gpu === undefined) {
+    if (typeof navigator === "undefined" || !("gpu" in navigator)) {
         return "this browser has no WebGPU (navigator.gpu is undefined)";
     }
 

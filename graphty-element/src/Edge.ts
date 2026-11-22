@@ -814,7 +814,7 @@ export class Edge {
                 return inWorld(edge, curve);
             }
 
-            const slot = edge.lineSlots[0];
+            const slot = edge.lineSlots.at(0);
             if (edge.lineBatch !== null && slot !== undefined) {
                 return inWorld(edge, edge.lineBatch.endsOf(slot));
             }

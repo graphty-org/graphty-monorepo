@@ -6013,7 +6013,7 @@ export class Graph implements GraphContext {
                 this.scene.doNotHandleCursors ||
                 (buttons ?? 0) !== 0 ||
                 canvas.style.cursor === this.scene.hoverCursor ||
-                (this.scene.metadata as GraphSceneMetadata | null)?.xrHelper?.baseExperience?.state === WebXRState.IN_XR
+                (this.scene.metadata as GraphSceneMetadata | null)?.xrHelper?.baseExperience.state === WebXRState.IN_XR
             ) {
                 return;
             }
@@ -8303,7 +8303,7 @@ export class Graph implements GraphContext {
 
             return {
                 drawable: false,
-                failure: { code: error.code, params: (error.details ?? {}) as CodedFact["params"] },
+                failure: { code: error.code, params: error.details as CodedFact["params"] },
             };
         };
         const found = await this.#drawableModel(ref, options.standInMissing === true).catch(failed);
@@ -8566,7 +8566,8 @@ export class Graph implements GraphContext {
         };
         const timed = options.duration !== undefined;
         const easing = options.easing ?? flown.easing ?? "easeInOut";
-        let tourFinished = false;
+        // Set from the flight's callback, so read off an object narrowing cannot pin.
+        const flightDone = { finished: false };
         let flight: Promise<void> | undefined;
         let stopClock = (): void => undefined;
 
@@ -8587,7 +8588,7 @@ export class Graph implements GraphContext {
                         if (handle.ended) {
                             return;
                         }
-                        tourFinished = true;
+                        flightDone.finished = true;
                         // The whole tour is recorded: a press or camera move in a longer
                         // duration's trailing hold ends the hold, never the recording.
                         handle.onEnd = undefined;
@@ -8619,7 +8620,7 @@ export class Graph implements GraphContext {
                 }
             }
             // A recording that ended before its tour (a shorter duration, a failure) cancels it.
-            this.#finishTour(handle, tourFinished ? "finished" : "cancelled");
+            this.#finishTour(handle, flightDone.finished ? "finished" : "cancelled");
             await flight;
         }
     }
@@ -8865,6 +8866,7 @@ export class Graph implements GraphContext {
                 await this.#applyTourCamera(state, 0);
             }
 
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- a press or #endTour sets it while the flight above is awaited; TypeScript keeps the loop-top narrowing across await
             if (tour.ended) {
                 return;
             }

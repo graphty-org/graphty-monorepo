@@ -7,9 +7,9 @@ import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { SimplifyPolicy } from "./input/derivedInputs";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
-import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
+import { readScores } from "./metrics/powerIteration";
 import type { MetricMeasurement, MetricRunContext } from "./metrics/types";
 import type { OptionsSchema } from "./types/OptionSchema";
 
@@ -135,12 +135,7 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
         );
         context.signal.throwIfAborted();
 
-        const nodes: ResultElementValues[] = [];
-        await walkInChunks(nodeIds, context, "reading-scores", (nodeId) => {
-            const row = snapshot.ids.indexOf(nodeId);
-            const score = row === -1 ? undefined : value.scores[row];
-            nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
-        });
+        const nodes: ResultElementValues[] = await readScores(context, nodeIds, snapshot.ids, value.scores);
 
         // A weighted distance is stated by `caveats.weight`; an unweighted one counts edges.
         const facts = [...(weighted ? [] : [caveat("closeness.hop-distances")]), caveat("closeness.reciprocal")];

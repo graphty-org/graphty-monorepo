@@ -4083,7 +4083,7 @@ export class UpdateManager implements Manager {
      * @internal
      */
     nodeRowSelected(row: number): boolean {
-        return this.viewMasks?.selection?.nodes()?.has(row) === true;
+        return this.viewMasks?.selection?.nodes().has(row) === true;
     }
 
     /** Edges a move left with an end on its node's bounding radius, see {@link endsByRadius}. */

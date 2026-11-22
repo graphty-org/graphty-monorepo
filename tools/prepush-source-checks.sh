@@ -269,8 +269,9 @@ else
 
     # Save files carry what they use: a commit that adds a known exception to graphty-element's
     # saved-format checks, removes a self-contained kind or a saved-format test, or changes the shader
-    # library snapshot needs the owner's `Saved-Format-Exception-Approved: <reason>` trailer; removing a
-    # shipped shader hash without revoking it always fails. See tools/check-saved-format-allowlist.mjs.
+    # library snapshot needs the owner's `Saved-Format-Exception-Approved: <reason>` trailer (or
+    # `...: for <sha>: <reason>` on a later commit); removing a shader hash shipped in the base without
+    # revoking it always fails. See tools/check-saved-format-allowlist.mjs.
     run_step "Saved-format exceptions" "node \"$GATE_TOOLS/check-saved-format-allowlist.mjs\""
 
     # Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own

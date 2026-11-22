@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { LISTS, problems, REVOKED, SHIPPED } from "./check-saved-format-allowlist.mjs";
+import { LIBRARY, LISTS, problems, REVOKED, SHIPPED } from "./check-saved-format-allowlist.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 
 // the code under test runs git itself, so the whole process gets the isolated config
@@ -40,6 +40,16 @@ describe("shipped shader hashes", () => {
     it("refuses dropping a shipped hash without revoking it", () => {
         const r = repo();
         r.git("switch", "-q", "-c", "b");
+        r.commit("fix: drop a", { [SHIPPED]: "[]\n" });
+        assert.match(problems({ cwd: r.dir, base: "master" }).join(), /removes the shipped shader hash a/);
+    });
+
+    it("lets a branch drop a hash it added itself, which never shipped", () => {
+        const r = repo();
+        r.git("switch", "-q", "-c", "b");
+        r.commit("feat: add b", { [SHIPPED]: '["a","b"]\n' });
+        r.commit("fix: drop b", { [SHIPPED]: '["a"]\n' });
+        assert.deepEqual(problems({ cwd: r.dir, base: "master" }), []);
         r.commit("fix: drop a", { [SHIPPED]: "[]\n" });
         assert.match(problems({ cwd: r.dir, base: "master" }).join(), /removes the shipped shader hash a/);
     });
@@ -80,6 +90,51 @@ describe("the first lists", () => {
         r.commit("feat: the checks", { [LISTS]: `${one}\n` });
         r.git("switch", "-q", "-c", "b");
         r.commit("fix: another", { [LISTS]: `${two}\n` });
+        assert.match(problems({ cwd: r.dir, base: "master" }).join(), /needs the owner/);
+    });
+});
+
+describe("approval from a later commit", () => {
+    // a branch whose first commit changes the shader-library snapshot, which needs the owner
+    function branch() {
+        const r = repo();
+        r.commit("feat: the checks", { [LISTS]: "{}\n", [LIBRARY]: "[1]\n" });
+        r.git("switch", "-q", "-c", "b");
+        const sha = r.commit("fix: change the library", { [LIBRARY]: "[2]\n" });
+        const approve = (value) =>
+            r.git(
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                "chore: approve",
+                "-m",
+                `Saved-Format-Exception-Approved: ${value}`,
+            );
+        return { ...r, sha, approve };
+    }
+
+    it("needs the owner without one", () => {
+        const r = branch();
+        assert.match(problems({ cwd: r.dir, base: "master" }).join(), /change the library: changes the shader-library/);
+    });
+
+    it("accepts a later commit naming it with a reason", () => {
+        const r = branch();
+        r.approve(`for ${r.sha.slice(0, 10)}: the outlines are gone`);
+        assert.deepEqual(problems({ cwd: r.dir, base: "master" }), []);
+    });
+
+    it("refuses one naming a different commit", () => {
+        const r = branch();
+        const other = r.commit("fix: unrelated", { "x.txt": "x\n" });
+        r.approve(`for ${other.slice(0, 10)}: the outlines are gone`);
+        assert.match(problems({ cwd: r.dir, base: "master" }).join(), /needs the owner/);
+    });
+
+    it("refuses one with no reason", () => {
+        const r = branch();
+        r.approve(`for ${r.sha}`);
         assert.match(problems({ cwd: r.dir, base: "master" }).join(), /needs the owner/);
     });
 });

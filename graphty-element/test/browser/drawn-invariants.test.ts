@@ -402,6 +402,9 @@ describe.each(
         );
         const point = nodePoint(element, "leaf");
         assert.strictEqual(element.elementAt(point)?.id, "leaf", "a click there selects the leaf");
+        // That pick built the leaf's Node, which draws the lone leaf by a mesh of its own, off the batch:
+        // let a frame draw it so, as a pointer resting there would see it (#9518).
+        await settle(element);
         await hover(element, point);
         await settle(element);
         assert.strictEqual(element.session.selection.hovered, "leaf");

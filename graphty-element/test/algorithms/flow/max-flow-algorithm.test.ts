@@ -5,7 +5,7 @@ import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { detachedRunContext } from "../../../src/algorithms/results";
 import { GraphtyError } from "../../../src/errors";
 import type { Caveats } from "../../../src/session/runs/types";
-import { createMockGraph } from "../../helpers/mockGraph";
+import { createSessionGraph } from "../../helpers/session-graph";
 
 /**
  * The facts an algorithm's caveats carry, empty when its output states none.
@@ -61,7 +61,7 @@ describe("MaxFlowAlgorithm", () => {
     describe("Source and sink", () => {
         for (const option of ["source", "sink"] as const) {
             it(`rejects a ${option} that is not in the graph with E_OPTION_RANGE`, async () => {
-                const graph = await createMockGraph(UNDIRECTED);
+                const graph = await createSessionGraph(UNDIRECTED);
                 const algo = new MaxFlowAlgorithm(graph, { source: "A", sink: "B", [option]: "nope" });
 
                 const error = await algo.compute(detachedRunContext()).then(
@@ -77,7 +77,7 @@ describe("MaxFlowAlgorithm", () => {
         }
 
         it("rejects a source and sink that are one node with E_OPTION_RANGE", async () => {
-            const graph = await createMockGraph(UNDIRECTED);
+            const graph = await createSessionGraph(UNDIRECTED);
             const algo = new MaxFlowAlgorithm(graph, { source: "B", sink: "B" });
 
             const error = await algo.compute(detachedRunContext()).then(
@@ -91,7 +91,7 @@ describe("MaxFlowAlgorithm", () => {
         });
 
         it("prefers the node whose id equals the option exactly over one that only prints the same", async () => {
-            const graph = await createMockGraph({
+            const graph = await createSessionGraph({
                 nodes: [{ id: 1 }, { id: "1" }, { id: 2 }],
                 edges: [
                     { srcId: "1", dstId: 2, capacity: 3 },
@@ -105,13 +105,13 @@ describe("MaxFlowAlgorithm", () => {
         });
 
         it("has nothing to measure on a single node with a self-loop", async () => {
-            const graph = await createMockGraph({ nodes: [{ id: "A" }], edges: [{ srcId: "A", dstId: "A" }] });
+            const graph = await createSessionGraph({ nodes: [{ id: "A" }], edges: [{ srcId: "A", dstId: "A" }] });
 
             assert.isNull(await new MaxFlowAlgorithm(graph).compute(detachedRunContext()));
         });
 
         it("says when the ends were chosen automatically and when no flow path exists", async () => {
-            const graph = await createMockGraph(UNDIRECTED);
+            const graph = await createSessionGraph(UNDIRECTED);
             const output = await new MaxFlowAlgorithm(graph).compute(detachedRunContext());
 
             assert.ok(output);
@@ -122,7 +122,7 @@ describe("MaxFlowAlgorithm", () => {
         });
 
         it("adds neither note when both ends are given and flow exists", async () => {
-            const graph = await createMockGraph(UNDIRECTED);
+            const graph = await createSessionGraph(UNDIRECTED);
             const output = await new MaxFlowAlgorithm(graph, { source: "A", sink: "B" }).compute(detachedRunContext());
 
             assert.ok(output);
@@ -135,7 +135,7 @@ describe("MaxFlowAlgorithm", () => {
 
     describe("Capacity", () => {
         it("adds up parallel capacities, a negative one included, before the flow runs", async () => {
-            const graph = await createMockGraph({
+            const graph = await createSessionGraph({
                 nodes: [{ id: "s" }, { id: "t" }],
                 edges: [
                     { srcId: "s", dstId: "t", capacity: 5 },
@@ -152,7 +152,7 @@ describe("MaxFlowAlgorithm", () => {
         });
 
         it("counts a lone negative capacity as none", async () => {
-            const graph = await createMockGraph({
+            const graph = await createSessionGraph({
                 nodes: [{ id: "s" }, { id: "t" }],
                 edges: [{ srcId: "s", dstId: "t", capacity: -3 }],
             });

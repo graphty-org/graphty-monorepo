@@ -223,4 +223,30 @@ describe("the Layout popover", () => {
             assert.strictEqual(session.layout.engine, "forceatlas2");
         });
     });
+
+    it("applies on Enter in a field and keeps the form open, so several values can be tried in turn", async () => {
+        const session = await openK5();
+        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        await userEvent.click(within(popover).getByRole("option", { name: /^ForceAtlas2/ }));
+        const form = within(popover).getByRole("form", { name: /ForceAtlas2/ });
+        const cap = within(form).getByRole<HTMLInputElement>("textbox", { name: "Max iterations" });
+        assert.strictEqual(cap.value, "", "no cap of the reader's: the element scales one to the graph");
+        assert.strictEqual(cap.placeholder, "Automatic");
+
+        await userEvent.fill(within(form).getByRole("spinbutton", { name: "Gravity" }), "3");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(session.layout.engine, "forceatlas2");
+            assert.deepInclude(session.layout.options, { gravity: 3 });
+        });
+        assert.isTrue(form.isConnected, "the form is still open");
+
+        await userEvent.fill(within(form).getByRole("spinbutton", { name: /^Scaling ratio$/i }), "5");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.deepInclude(session.layout.options, { gravity: 3, scalingRatio: 5 });
+        });
+        assert.isTrue(form.isConnected, "and still open");
+    });
 });

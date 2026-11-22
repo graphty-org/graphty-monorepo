@@ -594,6 +594,8 @@ async function graphtyAdapter({
     onDemand,
     dpr,
     labels,
+    labelFirst,
+    arrows,
     sampled,
     glyphs,
     curves,
@@ -638,6 +640,24 @@ async function graphtyAdapter({
             target: "node",
             selector: { match: "everything" },
             encode: { "node.label": { by: "data.id", scale: "passthrough" } },
+        });
+    // spread evenly over the rows, so the labeled rows fall in as many texture lines as they can
+    if (labelFirst > 0)
+        await el.session.styles.add({
+            name: "spread labels",
+            target: "node",
+            selector: {
+                match: "ids",
+                nodes: Array.from({ length: labelFirst }, (_, i) => Math.floor((i * G.n) / labelFirst)),
+            },
+            encode: { "node.label": { by: "data.id", scale: "passthrough" } },
+        });
+    if (arrows)
+        await el.session.styles.add({
+            name: "arrows",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "normal" },
         });
     graph.scene.onAfterRenderObservable.add(() => {
         if (SYNC && gl) finish(gl);
@@ -876,6 +896,11 @@ async function graphtyAdapter({
             // Batches of positions that came back from the device and were published: what moved
             // the picture. Iterations count what was asked for, which rises with nothing landing.
             const landed0 = eng.landedBatchesPublished ?? null;
+            // CPU rows per landing: rows the layout walked, and rows the row table copied from the lane
+            const table = graph.getRowTable?.() ?? null;
+            const walked0 = eng.rowsWalked ?? null;
+            const repacked0 = table?.repackedRows ?? null;
+            const caught0 = table?.owedRowsCaughtUp ?? null;
             stamps.length = 0;
             const t = now();
             while (stamps.length < count + 1 && now() - t < capMs) await raf();
@@ -895,6 +920,9 @@ async function graphtyAdapter({
                 accelerated: eng?.isAccelerated ?? false,
                 iterationsPerSec: it0 === null ? null : +((it1 - it0) / ((now() - t) / 1000)).toFixed(1),
                 landedBatches: landed,
+                rowsWalked: walked0 === null ? null : eng.rowsWalked - walked0,
+                rowsRepacked: repacked0 === null ? null : table.repackedRows - repacked0,
+                rowsCaughtUp: caught0 === null ? null : table.owedRowsCaughtUp - caught0,
                 // A GPU layout whose positions never came back did not move: its frames time a still
                 // scene, so the row is refused rather than reported as a layout frame.
                 refused: eng?.isAccelerated && landed === 0 ? "no layout batch landed" : undefined,

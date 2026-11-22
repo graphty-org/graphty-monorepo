@@ -467,6 +467,8 @@ const OPTION_WORDS: Readonly<Partial<Record<string, OptionWords>>> = {
     "shortest-path.target": { label: "To" },
     "shortest-path.method": { label: "Method", empty: "Chosen automatically" },
     "shortest-path.direction": { label: "Follow", choices: { out: "Out", in: "In", all: "All" } },
+    // ForceAtlas2's cap left empty is scaled to the graph by the element.
+    "force.maxIter": { label: "Max iterations", empty: "Automatic" },
     // The location map's options; an empty location column is found from the data.
     "location-map.location": { label: "Location", empty: "Automatic" },
     "location-map.latitude": { label: "Latitude", empty: "Automatic" },

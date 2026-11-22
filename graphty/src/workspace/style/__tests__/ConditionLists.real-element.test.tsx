@@ -137,6 +137,37 @@ describe("the Add a condition list", () => {
         });
     });
 
+    it("ArrowDown and ArrowUp move the active option, and Enter adds the one they lit", async () => {
+        const session = await open();
+        const { region } = await openPicker(session);
+        const search = await openList(region);
+        const list = await screen.findByRole("listbox", { name: "Attributes" });
+        const options = (): HTMLElement[] =>
+            within(list)
+                .getAllByRole("option")
+                .filter((option) => option.dataset.comboboxDisabled === undefined);
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            assert.strictEqual(search.getAttribute("aria-activedescendant"), options()[0]?.id);
+        });
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            assert.strictEqual(search.getAttribute("aria-activedescendant"), options()[1]?.id);
+        });
+        await userEvent.keyboard("{ArrowUp}");
+        await waitFor(() => {
+            assert.strictEqual(search.getAttribute("aria-activedescendant"), options()[0]?.id);
+        });
+        const name = options()[0]?.getAttribute("aria-label") ?? "";
+        assert.notStrictEqual(name, "");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("listbox"), "the list closed");
+            const card = within(region).getByRole("group", { name: new RegExp(`^${name}(,|$)`) });
+            assert.isTrue(card.contains(document.activeElement), "focus is in the new card");
+        });
+    });
+
     it("Tab leaves the list closed and never lands in it; Shift+Tab lands on Add a condition", async () => {
         const session = await open();
         const { region } = await openPicker(session);

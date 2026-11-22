@@ -174,6 +174,19 @@ class RowTexture {
         return this.first <= this.last;
     }
 
+    /**
+     * The rows the next {@link RowTexture.upload} sends: every row of each whole texture line it sends.
+     * @returns The first row and one past the last, equal when nothing waits to go up.
+     */
+    dirtyRows(): [number, number] {
+        if (this.first > this.last) {
+            return [0, 0];
+        }
+
+        const lineRows = (ROW_TEXTURE_WIDTH * FLOATS_PER_TEXEL) / this.floatsPerRow;
+        return [Math.floor(this.first / lineRows) * lineRows, (Math.floor(this.last / lineRows) + 1) * lineRows];
+    }
+
     touch(first: number, last = first): void {
         this.first = Math.min(this.first, first);
         this.last = Math.max(this.last, last);
@@ -296,6 +309,11 @@ export class RowTable {
      * clear. Unchanged, no row is drawn anywhere new, so a walk of the drawn positions skips the rows.
      */
     moves = 0;
+    /**
+     * {@link moves} less the writes of {@link place}, which moves only the row of a node with a mesh: unchanged, no
+     * row was moved but by its own `Node`, so a row with no `Node` is where it was.
+     */
+    unplacedMoves = 0;
     /** Calls that sent the `rowPosition` texture to the card. */
     positionUploads = 0;
     /** Landings sent to the `rowPosition` texture as the layout's readback brought them, with no row written. */
@@ -308,6 +326,16 @@ export class RowTable {
      */
     drawnMirror: ((row: number, x: number, y: number, z: number, w: number) => void) | null = null;
 
+    /**
+     * Rows brought to a publish the lane owes one at a time, for the texture lines a frame sends while
+     * the rest stay owed (`catchUpLines`): what a few rows drawn from the CPU cost per landing.
+     */
+    owedRowsCaughtUp = 0;
+    /**
+     * Rows told to a layout's ring ({@link RowTable.drawnMirror}): each is sent again over the landings
+     * of the batches in flight when it was told, so a test of what a landing costs waits for them to stop.
+     */
+    rowsTold = 0;
     /** Rows {@link RowTable.flush} copied from the lane: CPU rows a frame touched. */
     repackedRows = 0;
     /**
@@ -505,6 +533,7 @@ export class RowTable {
         this.copiedAt = this.lane().changes;
         // The rows are drawn somewhere new, whether or not the lane follows them this frame.
         this.moves++;
+        this.unplacedMoves++;
         this.copies++;
         return true;
     }
@@ -526,6 +555,7 @@ export class RowTable {
         this.positions.clean();
         this.copiedAt = this.lane().changes;
         this.moves++;
+        this.unplacedMoves++;
         this.landedUploads++;
         this.uploads++;
         this.uploadedBytes += bytes;
@@ -559,8 +589,18 @@ export class RowTable {
      * @returns A new vector.
      */
     centerOf(row: number): Vector3 {
-        // A pinned row is one an owed publish leaves where it is, so a frame that reads it writes no row.
-        if (!this.lane().keeps(row)) {
+        // A pinned row is one an owed publish leaves where it is, and a held or shrunk row one the repack
+        // leaves, so a frame that reads it writes no row. Any other row is read as the owed publish
+        // writes it, one row and not every row: a label or an arrowhead is drawn from the CPU each frame.
+        const lane = this.lane();
+        if (((this.flags[row] ?? 0) & (HELD | SHRUNK)) === 0 && row < this.rows && !lane.keeps(row)) {
+            const at = this.laneRow;
+            if (lane.readOwed(row, at)) {
+                // as `repackRow` copies it: an unplaced row at the origin, and flat in 2D
+                const placed = Number.isFinite(at.x);
+                return new Vector3(placed ? at.x : 0, placed ? at.y : 0, placed && !this.twoD ? at.z : 0);
+            }
+
             this.catchUp();
         }
 
@@ -621,19 +661,45 @@ export class RowTable {
         }
 
         const lane = this.laneRow;
-        this.lane().read(row, lane);
+        const laneRows = this.lane();
+        // A row the owed landing writes is one the card already draws there (the layout copied it in)
+        const onCard = laneRows.owedWrites(row, lane);
+        if (!onCard) {
+            laneRows.read(row, lane);
+        }
+
         const atLane =
             Math.fround(x) === lane.x && Math.fround(y) === lane.y && Math.fround(z) === (this.twoD ? 0 : lane.z);
         const flags = this.flags[row] ?? 0;
-        this.ownRowWrites++;
         this.flags[row] = atLane ? flags & ~HELD : flags | HELD;
+        // A node that follows its lane row each frame (a labeled one) changes nothing a skip walk reads.
+        this.ownRowWrites += this.flags[row] === flags ? 0 : 1;
         this.moves++;
         const base = row * POSITION_FLOATS;
         const { floats } = this.positions;
         const { bounds } = this;
+        // The row as it stood: one put again where it already was (a pinned labeled node, each frame) is unchanged.
+        const unchanged =
+            floats[base] === Math.fround(x) &&
+            floats[base + 1] === Math.fround(y) &&
+            floats[base + 2] === Math.fround(z);
         floats[base] = bounds[base] = x;
         floats[base + 1] = bounds[base + 1] = y;
         floats[base + 2] = bounds[base + 2] = z;
+        // ...so a node put exactly where the card already draws it sends nothing: either where the owed landing
+        // puts it (the layout copied it in), or where it already was and was sent (a row the landing leaves, as a
+        // pinned one). A labeled node costs its own row each frame, and no texture line goes up to be caught up.
+        // Hidden counts as long as it was hidden before (its w is 0 on the card); held and shrunk rows are drawn
+        // from their own writes. A measured row counts: KNOWN says nothing about where the row is drawn.
+        if (
+            atLane &&
+            (onCard ? Math.fround(z) === lane.z : unchanged) &&
+            (flags & (HELD | SHRUNK)) === 0 &&
+            floats[base + 3] === ((flags & HIDDEN) === 0 ? 1 : 0)
+        ) {
+            return;
+        }
+
         if ((flags & (HIDDEN | SHRUNK)) === 0) {
             this.writeW(row, 1);
         } else {
@@ -786,6 +852,7 @@ export class RowTable {
     replaced(remap: U32 | null, nodes: Iterable<Node>): void {
         const lane = this.lane();
         this.moves++;
+        this.unplacedMoves++;
         this.ownRowWrites++;
         this.positions.follow(remap, lane.capacity);
         this.extents.follow(remap, lane.capacity);
@@ -823,6 +890,7 @@ export class RowTable {
     /** Forget every row: the dataset was cleared. */
     cleared(): void {
         this.moves++;
+        this.unplacedMoves++;
         this.ownRowWrites++;
         this.flags.fill(0);
         this.hiddenCount = 0;
@@ -836,7 +904,7 @@ export class RowTable {
         const lane = this.lane();
         // Rows go up in whole texture lines from the CPU copy, so a publish the lane owes is written
         // first, or the line would carry the rest of its rows back to an older landing.
-        if (this.positions.dirty) {
+        if (this.positions.dirty && !this.catchUpLines(lane)) {
             lane.settle();
         }
 
@@ -845,7 +913,11 @@ export class RowTable {
             this.twoD = twoD;
             this.laneChanges = lane.changes;
             this.moves++;
-            this.repack(lane.view(Math.min(this.rows, lane.count)), this.copiedAt !== lane.changes);
+            // a lane change that left every repacked row where it was (a drag's own row, written by place) moves none
+            if (this.repack(lane.view(Math.min(this.rows, lane.count)), this.copiedAt !== lane.changes)) {
+                this.unplacedMoves++;
+            }
+
             this.copiedAt = -1;
         }
 
@@ -859,6 +931,55 @@ export class RowTable {
                 this.uploadedBytes += bytes;
                 this.positionUploads += table === this.positions ? 1 : 0;
             }
+        }
+    }
+
+    /**
+     * Bring only the texture lines about to go up to a publish the lane owes, one row at a time, so a
+     * few touched rows (a labeled node, an arrowed edge's ends) cost their lines and not every row.
+     * @param lane - The lane.
+     * @returns False when the lane owes a publish it cannot read by row: settle it.
+     */
+    private catchUpLines(lane: ElementPositions): boolean {
+        if (!lane.owesRows) {
+            return false;
+        }
+
+        const [first, end] = this.positions.dirtyRows();
+        const last = Math.min(end, this.rows, lane.count);
+        const at = this.laneRow;
+        let moved = false;
+        for (let row = first; row < last; row++) {
+            if (((this.flags[row] ?? 0) & (HELD | SHRUNK)) !== 0) {
+                continue;
+            }
+
+            if (!lane.readOwed(row, at)) {
+                // the publish cannot be read by row now: the caller writes it, and the repack copies every row
+                return false;
+            }
+
+            moved = this.repackRowAt(row, at.x, at.y, at.z) || moved;
+        }
+
+        // the repack after it finds these rows already where the lane put them, so they count here
+        if (moved) {
+            this.unplacedMoves++;
+        }
+
+        this.owedRowsCaughtUp += Math.max(0, last - first);
+        return true;
+    }
+
+    /**
+     * Say this many rows are about to be read one at a time (each built node's, both ends of every placed edge): when a landing
+     * the lane owes would be written partway through them anyway, it is written now, before the first, so no
+     * row is answered one at a time only to be written with the rest.
+     * @param rows - Rows about to be read.
+     */
+    willRead(rows: number): void {
+        if (this.lane().owedReadsSpill(rows)) {
+            this.catchUp();
         }
     }
 
@@ -881,39 +1002,59 @@ export class RowTable {
      * One typed pass from the lane over every row nothing else holds.
      * @param lane - The lane's live rows.
      * @param send - False when a landing already put these rows on the card.
+     * @returns True when a row was drawn somewhere new.
      */
-    private repack(lane: Float32Array, send: boolean): void {
+    private repack(lane: Float32Array, send: boolean): boolean {
         const { flags } = this;
         const rows = lane.length / 3;
         this.repackedRows += rows;
+        let moved = false;
         for (let row = 0; row < rows; row++) {
             if (((flags[row] ?? 0) & (HELD | SHRUNK)) === 0) {
-                this.repackRow(row, lane);
+                moved = this.repackRow(row, lane) || moved;
             }
         }
 
         if (rows > 0 && send) {
             this.positions.touch(0, rows - 1);
         }
+
+        return moved;
     }
 
     /**
      * Copy one row from the lane: flat in 2D, and collapsed when it is unplaced or hidden.
      * @param row - The row.
      * @param lane - The lane's live rows.
+     * @returns True when the row is drawn somewhere new.
      */
-    private repackRow(row: number, lane: Float32Array): void {
+    private repackRow(row: number, lane: Float32Array): boolean {
         const from = row * 3;
+        return this.repackRowAt(row, lane[from] ?? Number.NaN, lane[from + 1] ?? 0, lane[from + 2] ?? 0);
+    }
+
+    /**
+     * {@link RowTable.repackRow} from one row's coordinates.
+     * @param row - The row.
+     * @param x - Its x, NaN when unplaced.
+     * @param y - Its y.
+     * @param z - Its z.
+     * @returns True when the row is drawn somewhere new.
+     */
+    private repackRowAt(row: number, x: number, y: number, z: number): boolean {
         const to = row * POSITION_FLOATS;
         const { floats } = this.positions;
         const { bounds } = this;
-        const x = lane[from] ?? Number.NaN;
         const placed = Number.isFinite(x);
         const w = placed && ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 1 : 0;
-        floats[to] = bounds[to] = placed ? x : 0;
-        floats[to + 1] = bounds[to + 1] = placed ? (lane[from + 1] ?? 0) : 0;
-        floats[to + 2] = bounds[to + 2] = placed && !this.twoD ? (lane[from + 2] ?? 0) : 0;
+        const nx = placed ? x : 0;
+        const ny = placed ? y : 0;
+        const nz = placed && !this.twoD ? z : 0;
         const shownBefore = floats[to + 3];
+        const moved = floats[to] !== nx || floats[to + 1] !== ny || floats[to + 2] !== nz || shownBefore !== w;
+        floats[to] = bounds[to] = nx;
+        floats[to + 1] = bounds[to + 1] = ny;
+        floats[to + 2] = bounds[to + 2] = nz;
         floats[to + 3] = w;
         bounds[to + 3] = (this.extents.floats[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
         // The layout's ring keeps the w it was given, so a row the lane first places (or unplaces)
@@ -922,6 +1063,8 @@ export class RowTable {
             this.positions.touch(row);
             this.mirror(row);
         }
+
+        return moved;
     }
 
     private writeW(row: number, w: number): void {
@@ -935,6 +1078,7 @@ export class RowTable {
     private mirror(row: number): void {
         const tell = this.drawnMirror;
         if (tell !== null) {
+            this.rowsTold++;
             const base = row * POSITION_FLOATS;
             const { floats } = this.positions;
             tell(row, floats[base] ?? 0, floats[base + 1] ?? 0, floats[base + 2] ?? 0, floats[base + 3] ?? 0);

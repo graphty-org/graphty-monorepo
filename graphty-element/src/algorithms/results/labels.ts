@@ -14,12 +14,12 @@
  * party can subclass is the declared base -- so the half that got fixed would decide whether a
  * plugin can name a node. One reader, read by both, is what makes that question not arise.
  *
- * Nothing here reaches Babylon.js, Lit or the DOM: the `Graph` import is type-only and the
- * emitter erases it.
+ * Nothing here reaches Babylon.js, Lit or the DOM: the host import is type-only and the emitter
+ * erases it.
  */
 
 import type { NodeId } from "../../catalog/types";
-import type { Graph } from "../../Graph";
+import type { AlgorithmHost } from "../host";
 
 /**
  * How to read a node's display name, or undefined when the graph has not been told of one.
@@ -31,7 +31,7 @@ import type { Graph } from "../../Graph";
  * @param graph - The graph the run is reading.
  * @returns A label lookup, or undefined when no label attribute is configured.
  */
-export function nodeLabelReader(graph: Graph): ((id: NodeId) => string | undefined) | undefined {
+export function nodeLabelReader(graph: AlgorithmHost): ((id: NodeId) => string | undefined) | undefined {
     const labelPath = graph.styles?.config.data.knownFields.nodeLabelPath ?? null;
 
     if (labelPath === null) {

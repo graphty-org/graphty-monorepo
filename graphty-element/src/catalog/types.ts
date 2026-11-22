@@ -240,6 +240,7 @@ export const KNOWN_LAYOUT_IDS = [
     "fixed",
     "random",
     "location-map",
+    "geographic",
 ] as const;
 
 /** A layout id: a built-in name, or a plugin's. */
@@ -2224,7 +2225,8 @@ export interface FunctionDescriptor {
  * (`"key"`), nodes are named by it (`"label"`), edge weights were read from it (`"weight"`),
  * edge endpoints (`"source"`, `"target"`), times (`"time"`) or the file's own edge ids
  * (`"edgeId"`), or node locations are read from it, one column per kind (`"latitude"`,
- * `"longitude"`, `"coordinates"`, `"country"`, `"region"`, `"city"`).
+ * `"longitude"`, `"coordinates"`, `"country"`, `"region"`, `"city"`), or node positions are read from
+ * it (`"x"`, `"y"`, `"z"`).
  *
  * OPEN UNION: roles may be added in a minor release; handle unknown roles.
  */
@@ -2241,7 +2243,10 @@ export type AttributeRole =
     | "coordinates"
     | "country"
     | "region"
-    | "city";
+    | "city"
+    | "x"
+    | "y"
+    | "z";
 
 /**
  * One thing that reads a column: a style layer whose selector or bindings read it, or a finished

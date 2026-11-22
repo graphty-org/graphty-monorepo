@@ -779,4 +779,39 @@ describe("ForceAtlas2Simulation: option validation (design 7.14)", () => {
             assert.throws(() => new ForceAtlas2Simulation(options), /ForceAtlas2Simulation/, JSON.stringify(options));
         }
     });
+    it("takes the fixed option as a mask, a bool column by name or the role-fixed column", () => {
+        const pins = makeMask(9);
+        maskSet(pins, 2, true);
+        const s = grid(3, 3, {
+            pinned: { data: pins, decl: { dtype: "bool", role: "fixed" } },
+            score: new Float32Array(9),
+        });
+        for (const spec of [pins, "pinned", null, undefined] as const) {
+            const positions = seeded(s, 8);
+            const start = positions.slice();
+            const sim = new ForceAtlas2Simulation({ fixed: spec });
+            sim.load(s, positions);
+            sim.step(5);
+            assert.equal(positions[6], start[6], `fixed ${String(spec)}`);
+            assert.equal(positions[7], start[7], `fixed ${String(spec)}`);
+            assert.notEqual(positions[0], start[0], "a free node moved");
+        }
+        assert.throws(() => new ForceAtlas2Simulation({ fixed: "absent" }).load(s, seeded(s, 8)), {
+            code: "E_UNKNOWN_COLUMN",
+        });
+        assert.throws(() => new ForceAtlas2Simulation({ fixed: "score" }).load(s, seeded(s, 8)), {
+            code: "E_COLUMN_TYPE",
+        });
+        assert.throws(() => new ForceAtlas2Simulation({ fixed: new Uint32Array(0) }).load(s, seeded(s, 8)), {
+            code: "E_BAD_OPTION",
+        });
+        // no role-fixed column and no option: nothing is fixed
+        const plain = grid(3, 3);
+        const positions = seeded(plain, 8);
+        const x = positions[6];
+        const sim = new ForceAtlas2Simulation();
+        sim.load(plain, positions);
+        sim.step(5);
+        assert.notEqual(positions[6], x);
+    });
 });

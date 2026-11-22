@@ -1,4 +1,4 @@
-// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [sampled] [glyphs] [curves] [3d] [no-still] [no-move]
+// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [label-<k>] [arrows] [sampled] [glyphs] [curves] [3d] [no-still] [no-move]
 //     [dim=2d|3d] [style=<name>] [layout=<name>] [edit] [frames=<k>] [allow-objects]
 // lib: cosmos|graphty; mode: default|lean|plain; accel: on|off. Appends one JSON line to BENCH_RESULTS.
 // The flags with "=" and edit and allow-objects are the performance matrix's (perf-matrix.mjs); BENCH_SCENARIO names the
@@ -41,6 +41,10 @@ const skip = flags.includes("skip-layout"),
     // graphty-element loads through session.data.importColumns with the typed arrays cosmos.gl gets,
     // not nodeData/edgeData records (cosmos-gap G8)
     columns = flags.includes("columns"),
+    // label k nodes spread evenly over the graph (label-1, label-1000): what a few labels cost a GPU layout's landings
+    labelFirst = Number(flags.find((f) => /^label-\d+$/.test(f))?.slice(6) ?? 0),
+    // every edge drawn with an arrowhead (the lean mode draws none)
+    arrows = flags.includes("arrows"),
     noStill = flags.includes("no-still"),
     noMove = flags.includes("no-move"),
     // a run whose style is meant to take rows off the batch records them instead of failing
@@ -211,6 +215,8 @@ try {
                 accel,
                 dpr: DPR,
                 labels,
+                labelFirst,
+                arrows,
                 sampled,
                 glyphs,
                 curves,

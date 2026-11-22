@@ -130,7 +130,7 @@ export interface ProgressChange {
      *
      * OPEN UNION: later releases may add outcomes.
      */
-    readonly outcome?: "succeeded" | "failed" | "cancelled";
+    readonly outcome?: "succeeded" | "failed" | "canceled";
     /**
      * Why a load or a prepare failed, on its `phase: "end"` change when `outcome` is `"failed"` and the failure
      * carried a code: the code and the details the rejection carries (for `E_TOO_LARGE`, its

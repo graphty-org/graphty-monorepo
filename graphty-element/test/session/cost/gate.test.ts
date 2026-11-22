@@ -216,7 +216,7 @@ describe("gateRun: above the cap with no approximate method", () => {
         assert.equal(code, "E_CAP_EXCEEDED");
         assert.equal(details.capSeconds, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS);
         assert.isAbove(details.estimateSeconds as number, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS);
-        assert.equal(details.confidence, "modelled");
+        assert.equal(details.confidence, "modeled");
         assert.isObject(details.basisFacts);
         assert.deepEqual(details.graph, { nodes: 70000, edges: 350000 });
         assert.isFalse(details.approximable);

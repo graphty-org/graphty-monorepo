@@ -103,7 +103,7 @@ describe("in-page code sandbox (built chunk)", () => {
         assert.strictEqual(openProgramContexts(), 1, "the sandbox is open while the program waits");
         controller.abort();
         const result = await running;
-        assert.strictEqual(result.params.cause, "program-cancelled");
+        assert.strictEqual(result.params.cause, "program-canceled");
         assert.strictEqual(openProgramContexts(), 0, "the sandbox was disposed");
         assert.strictEqual(later, 0, "nothing ran after the cancel");
     });

@@ -1,5 +1,5 @@
 /**
- * @file The run object: the addressable, watchable, cancellable handle a started computation
+ * @file The run object: the addressable, watchable, cancelable handle a started computation
  * hands back.
  *
  * A run sits in front of the element's existing operation queue rather than beside it. The queue
@@ -727,7 +727,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * Whether the run can still be stopped. Not the same question as whether it has been.
      * @returns True while the run has not settled.
      */
-    get cancellable(): boolean {
+    get cancelable(): boolean {
         return !this.settledFlag && !isTerminalRunStatus(this.statusValue);
     }
 
@@ -979,7 +979,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @param reason - Why, for the message and for the journal.
      */
     cancel(reason?: string): void {
-        if (!this.cancellable) {
+        if (!this.cancelable) {
             return;
         }
 
@@ -1501,7 +1501,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @param signal - The signal that aborted.
      */
     private cancelFromSignal(signal: AbortSignal): void {
-        if (!this.cancellable) {
+        if (!this.cancelable) {
             return;
         }
 

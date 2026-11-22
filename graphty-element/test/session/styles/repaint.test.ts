@@ -909,7 +909,7 @@ describe("what the repaint hands back", () => {
         assert.strictEqual(harness.engine.meshKeyOf("node", 99), 0);
     });
 
-    it("stops when it is cancelled rather than finishing quietly", async () => {
+    it("stops when it is canceled rather than finishing quietly", async () => {
         const harness = makeHarness();
         const controller = new AbortController();
 

@@ -92,7 +92,7 @@ describe("assets.add: the progress it reports", () => {
         assert.strictEqual(end?.error?.code, refused.problems[0]?.code);
     });
 
-    it("ends cancelled, and rejects, when its signal stops the wait", async () => {
+    it("ends canceled, and rejects, when its signal stops the wait", async () => {
         const changes: ProgressChange[] = [];
         const controller = new AbortController();
         const adding = createAssetsApi().add(
@@ -118,7 +118,7 @@ describe("assets.add: the progress it reports", () => {
             total: null,
             fraction: null,
             unit: "bytes",
-            outcome: "cancelled",
+            outcome: "canceled",
         });
     });
 });

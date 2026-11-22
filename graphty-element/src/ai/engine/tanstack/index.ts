@@ -770,7 +770,7 @@ class ChunkReader {
      */
     private finished(usage: Usage | undefined): TurnEvent[] {
         if (this.signal.aborted) {
-            return [failure("The turn was cancelled.", this.response, this.settings, this.signal)];
+            return [failure("The turn was canceled.", this.response, this.settings, this.signal)];
         }
 
         const events = [
@@ -895,7 +895,7 @@ export async function* providerApiTurn(
 
         // The stream ended with neither a finish nor an error: canceled, or dropped.
         if (signal.aborted) {
-            yield failure("The turn was cancelled.", response, settings, signal);
+            yield failure("The turn was canceled.", response, settings, signal);
         }
     } catch (error) {
         yield failure(error instanceof Error ? error.message : String(error), response, settings, signal);

@@ -382,7 +382,7 @@ export function endWords(code: string, params: AiResultParams, provider: string,
             return retry("The assistant could not finish this step.");
         case "AI_TOOL_FAILED":
             return retry(failedStepWords(params.tool, params.cause));
-        case "AI_CANCELLED":
+        case "AI_CANCELED":
             return Number(params.steps) > 0
                 ? {
                       line: "Stopped. Changes taken back.",

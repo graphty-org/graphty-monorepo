@@ -341,7 +341,7 @@ describe("undo while a run is still going", () => {
 
         const outcome = await session.undo();
 
-        assert.strictEqual(outcome.kind, "cancelled");
+        assert.strictEqual(outcome.kind, "canceled");
         assert.strictEqual(run.status, "canceled");
         open();
         await idle(session);
@@ -352,7 +352,7 @@ describe("undo while a run is still going", () => {
         session.dispose();
     });
 
-    it("leaves a style edit made while the run computed alone when the run is cancelled", async () => {
+    it("leaves a style edit made while the run computed alone when the run is canceled", async () => {
         const { session, open } = await gated();
         const run = session.runs.start("betweenness", {}, { as: "bet" });
         await idle(session);
@@ -424,7 +424,7 @@ describe("undo while a run is still going", () => {
         session.dispose();
     });
 
-    it("writes nothing when a cancelled run's work finishes late", async () => {
+    it("writes nothing when a canceled run's work finishes late", async () => {
         const { session, open } = await gated();
         const run = session.runs.start("betweenness", {}, { as: "bet" });
         await idle(session);
@@ -521,7 +521,7 @@ describe("history.clear while a run is pending", () => {
             () => undefined,
             (reason: unknown) => reason,
         );
-        assert.isDefined(error, "the run was cancelled");
+        assert.isDefined(error, "the run was canceled");
         assert.lengthOf(session.history.steps, 0);
         assert.isUndefined(entryOf(session, "bet"));
         session.dispose();

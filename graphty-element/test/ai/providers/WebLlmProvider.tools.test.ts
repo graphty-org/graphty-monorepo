@@ -279,7 +279,7 @@ describe("WebLlmProvider tool capability", () => {
         assert.strictEqual(messages[1].content, '[{"name":"zoomToNodes","arguments":{"nodeIds":["a"]}}]');
     });
 
-    it("cancelling a request interrupts the engine's generation and rejects as aborted", async () => {
+    it("canceling a request interrupts the engine's generation and rejects as aborted", async () => {
         const provider = await providerFor(LLAMA);
         hold = true;
         const controller = new AbortController();

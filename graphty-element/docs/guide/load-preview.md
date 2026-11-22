@@ -447,7 +447,7 @@ Reading a large file takes a while, and so does loading it. Both report on the
 `progress:changed` session event (`graphty-progress-change` on the element): `prepare` with
 `task: "prepare"`, and the load with `task: "load"`. Each sends a first `phase: "progress"`
 change with `completed: 0` before anything is read, then the rows or records read so far in
-`completed`, then `phase: "end"` with an `outcome` of `"succeeded"`, `"failed"` or `"cancelled"`.
+`completed`, then `phase: "end"` with an `outcome` of `"succeeded"`, `"failed"` or `"canceled"`.
 `source.name` names the file.
 
 ```ts

@@ -182,7 +182,7 @@ function causeOf(name: string): ProgramFailureCause {
  * @param source - The program.
  * @param bindings - The host functions it may call.
  * @param limits - How far it may go.
- * @param signal - Aborts it (`program-cancelled`).
+ * @param signal - Aborts it (`program-canceled`).
  * @returns What it did.
  */
 export async function runProgram(
@@ -192,7 +192,7 @@ export async function runProgram(
     signal: AbortSignal,
 ): Promise<ProgramResult> {
     if (signal.aborted) {
-        return failed("program-cancelled", []);
+        return failed("program-canceled", []);
     }
 
     const names = Object.keys(bindings);
@@ -210,11 +210,11 @@ export async function runProgram(
 
     let calls = 0;
     let overLimit = false;
-    const aborted = new Promise<"cancelled">((resolve) => {
+    const aborted = new Promise<"canceled">((resolve) => {
         signal.addEventListener(
             "abort",
             () => {
-                resolve("cancelled");
+                resolve("canceled");
             },
             { once: true },
         );
@@ -232,13 +232,13 @@ export async function runProgram(
                 }
 
                 if (overLimit || signal.aborted) {
-                    throw new Error(overLimit ? "program-call-limit" : "program-cancelled");
+                    throw new Error(overLimit ? "program-call-limit" : "program-canceled");
                 }
 
                 // A cancel settles a pending call at once, so the program unwinds and the sandbox can close.
                 const result = await Promise.race([bindings[name](input), aborted]);
                 if (signal.aborted) {
-                    throw new Error("program-cancelled");
+                    throw new Error("program-canceled");
                 }
 
                 return result;
@@ -261,13 +261,13 @@ export async function runProgram(
             context.execute(`${prelude(names, limits.maxLogChars)}\n{\n${js}\n}`),
             aborted,
         ]);
-        if (outcome === "cancelled") {
-            return failed("program-cancelled", []);
+        if (outcome === "canceled") {
+            return failed("program-canceled", []);
         }
 
         const logs = capLogs(outcome.logs ?? [], limits.maxLogChars);
         if (signal.aborted) {
-            return failed("program-cancelled", logs);
+            return failed("program-canceled", logs);
         }
 
         if (overLimit) {

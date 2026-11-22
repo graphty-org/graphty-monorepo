@@ -212,7 +212,7 @@ describe.each([
 });
 
 describe("helpers and the message", () => {
-    it("a cancel aborts a running helper, and the message resolves AI_CANCELLED", async () => {
+    it("a cancel aborts a running helper, and the message resolves AI_CANCELED", async () => {
         const session = await assistantSession();
         const engine = new FakeEngine();
         const harness = new Harness(
@@ -247,7 +247,7 @@ describe("helpers and the message", () => {
         harness.controller.cancel();
         const result = await running;
 
-        assert.strictEqual(result.code, "AI_CANCELLED");
+        assert.strictEqual(result.code, "AI_CANCELED");
         assert.lengthOf(engine.requests, 2, "nothing after the cancel");
     });
 

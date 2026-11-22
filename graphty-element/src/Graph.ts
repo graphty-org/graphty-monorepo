@@ -92,9 +92,9 @@ const ZOOM_STEP_FACTOR = 1.25;
 const MAP_CLEARANCE = 1e-4;
 
 import { measureBounds } from "./camera/bounds.js";
-import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
 import { cameraRefusal, stateProblem } from "./camera/mode.js";
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "./camera/orbit.js";
 import { orientationOf } from "./camera/orientation.js";
 import type { GraphOverview, OverviewOptions } from "./camera/overview.js";
 import { presetsOf, type SkippedPreset, splitPresetImport } from "./camera/presets.js";
@@ -185,6 +185,7 @@ import {
 import { attachRegionGesture } from "./input/RegionSelectGesture";
 import { FixedLayout } from "./layout/FixedLayoutEngine";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
+import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import {
     type AddEdgesOptions,
     AlgorithmManager,
@@ -1170,11 +1171,10 @@ export class Graph implements GraphContext {
     private readonly drawsOnDemand = (): boolean =>
         this.viewSettings.behavior.rendering?.onDemand ?? onDemandWhenUnset();
     /**
-     * Whether the render loop flushes after each frame's WebGL fence, and keeps one WebGPU frame in
-     * flight: only under renderPath "batched". Its frames are short enough that waiting for the
-     * browser's own flush set their floor, and its million-row frames are long enough on the GPU
-     * that unpaced WebGPU frames queued minutes of work ahead of every readback. Asked each frame,
-     * so a live path change takes effect on the next one.
+     * Whether the render loop flushes after each frame's WebGL fence and rests between layout
+     * landings: only under renderPath "batched", whose frames are short enough that waiting for the
+     * browser's own flush set their floor. (WebGPU frames in flight are bounded on every path.)
+     * Asked each frame, so a live path change takes effect on the next one.
      * @returns True under renderPath "batched".
      */
     readonly #batchedFrames = (): boolean => this.#renderPath === "batched";
@@ -1366,7 +1366,6 @@ export class Graph implements GraphContext {
             drawsOnDemand: this.drawsOnDemand,
             restsBetweenLandings: this.#batchedFrames,
             flushesFrameFence: this.#batchedFrames,
-            pacesWebGpuFrames: this.#batchedFrames,
             antialias: this.#multisampled,
             antialiasAtRest: this.#antialiasAtRest,
             preserveDrawingBuffer: this.preserveDrawingBuffer,
@@ -1673,16 +1672,19 @@ export class Graph implements GraphContext {
                 }
                 return this.getCameraState();
             },
-            move: (command) =>
-                this.setCameraState(
-                    command.preset === undefined
+            move: (command) => {
+                const state =
+                    command.camera === undefined
                         ? {
                               ...(command.position === undefined ? {} : { position: { ...command.position } }),
                               ...(command.target === undefined ? {} : { target: { ...command.target } }),
                           }
-                        : { preset: command.preset },
+                        : { ...command.camera };
+                return this.setCameraState(
+                    command.preset === undefined ? state : { preset: command.preset },
                     command.animate === true ? { animate: true } : undefined,
-                ),
+                );
+            },
             state: () => this.getCameraState(),
         };
 
@@ -1777,6 +1779,10 @@ export class Graph implements GraphContext {
             },
             immersive: (mode) => this.setImmersive(mode),
             followsFilters: () => this.followsShown(workingGraphOfSession(this.session)),
+            accelerator: () => {
+                const engine = this.layoutManager.layoutEngine;
+                return engine instanceof SimulationLayoutEngine ? engine.accelerator : "cpu";
+            },
         };
         lane.register("layout", async (_rendered, target) => {
             const choice = target.layout ?? DEFAULT_LAYOUT;
@@ -2763,7 +2769,6 @@ export class Graph implements GraphContext {
             drawsOnDemand: this.drawsOnDemand,
             restsBetweenLandings: this.#batchedFrames,
             flushesFrameFence: this.#batchedFrames,
-            pacesWebGpuFrames: this.#batchedFrames,
             antialiasAtRest: this.#antialiasAtRest,
         });
         this.engine = this.renderManager.engine;

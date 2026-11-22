@@ -41,6 +41,8 @@ import { forceAtlas2MaxIterFor } from "../layout/forceAtlas2Iterations";
 import type { LocationDesignation } from "../layout/locationMap/source";
 import type { ArrangementEngine } from "./project/arrangement";
 import type { LayoutChoice } from "./project/state";
+import { LAYOUT_ENGINE } from "./runs/engine";
+import type { EngineVersions } from "./runs/types";
 import type { LayoutMotion } from "./types";
 import type { WorkingSnapshot } from "./working/graphs";
 import type { WorkingView } from "./working/view";
@@ -159,6 +161,20 @@ export class LayoutRunner implements ArrangementEngine {
      * @param host - The session's graph, lane, choice and motion.
      */
     constructor(private readonly host: LayoutRunnerHost) {}
+
+    /**
+     * The code that draws the choice in force (spec/README.md 4.5 rule 6): the element and the
+     * layout package on the CPU, and ForceAtlas2 as the method when it stands in for the chosen
+     * engine, so a seed is never taken to reproduce a drawing another engine made.
+     * @returns The engine.
+     */
+    get provenance(): EngineVersions {
+        return {
+            ...LAYOUT_ENGINE,
+            accelerator: "cpu",
+            ...(STAND_INS.has(this.host.choice().engine) ? { method: "forceatlas2" } : {}),
+        };
+    }
 
     /** Start stepping the layout until it comes to rest; a one-shot arrangement is written at once. */
     play(): void {

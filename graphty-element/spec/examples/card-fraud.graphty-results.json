@@ -16,12 +16,18 @@
             "as": "pagerank",
             "algorithm": "pagerank",
             "params": {
-                "dampingFactor": 0.85
+                "dampingFactor": 0.85,
+                "directed": true,
+                "maxIterations": 100,
+                "tolerance": 0.000001,
+                "useDelta": true
             },
             "engine": {
-                "element": "3.40.0",
-                "algorithms": "2.1.2",
-                "layout": "1.10.5"
+                "packages": {
+                    "@graphty/graphty-element": "3.39.0",
+                    "@graphty/algorithms": "3.4.22"
+                },
+                "accelerator": "cpu"
             },
             "seed": null,
             "durationMs": 3,
@@ -42,7 +48,7 @@
                 {
                     "name": "rank",
                     "kind": "node",
-                    "type": "number"
+                    "type": "integer"
                 }
             ],
             "caveats": {
@@ -90,12 +96,17 @@
             "as": "communities",
             "algorithm": "louvain",
             "params": {
-                "resolution": 1
+                "maxIterations": 100,
+                "resolution": 1,
+                "tolerance": 0.000001,
+                "useOptimized": true
             },
             "engine": {
-                "element": "3.40.0",
-                "algorithms": "2.1.2",
-                "layout": "1.10.5"
+                "packages": {
+                    "@graphty/graphty-element": "3.39.0",
+                    "@graphty/algorithms": "3.4.22"
+                },
+                "accelerator": "cpu"
             },
             "seed": 1873,
             "durationMs": 2,
@@ -111,12 +122,12 @@
                 {
                     "name": "group",
                     "kind": "node",
-                    "type": "number"
+                    "type": "integer"
                 },
                 {
                     "name": "groupSize",
                     "kind": "node",
-                    "type": "number"
+                    "type": "integer"
                 }
             ],
             "caveats": {
@@ -158,8 +169,12 @@
             }
         },
         "route": {
-            "algorithm": "dijkstra",
+            "algorithm": "shortest-path",
             "params": {
+                "bidirectional": true,
+                "direction": "all",
+                "invertStrength": false,
+                "method": "dijkstra",
                 "source": {
                     "space": "account",
                     "key": "acct-1002"
@@ -168,12 +183,14 @@
                     "space": "account",
                     "key": "acct-1003"
                 },
-                "direction": "all"
+                "timeOrder": null
             },
             "engine": {
-                "element": "3.40.0",
-                "algorithms": "2.1.2",
-                "layout": "1.10.5"
+                "packages": {
+                    "@graphty/graphty-element": "3.39.0",
+                    "@graphty/algorithms": "3.4.22"
+                },
+                "accelerator": "cpu"
             },
             "seed": null,
             "durationMs": 1,
@@ -223,17 +240,31 @@
     },
     "layout": {
         "id": "force",
-        "algorithm": "ngraph",
         "dimension": 3,
         "options": {
+            "clusterStrength": 1,
+            "nodeGapFront": false,
             "seed": 52211
+        },
+        "drawnBy": {
+            "engine": "ngraph",
+            "options": {
+                "dragCoefficient": 0.9,
+                "gravity": -12,
+                "springCoefficient": 0.8,
+                "springLength": 10,
+                "theta": 0.8,
+                "timeStep": 0.5
+            }
         },
         "seed": 52211,
         "durationMs": 41,
         "engine": {
-            "element": "3.40.0",
-            "algorithms": "2.1.2",
-            "layout": "1.10.5"
+            "packages": {
+                "@graphty/graphty-element": "3.39.0",
+                "@graphty/layout": "2.7.1"
+            },
+            "accelerator": "cpu"
         },
         "bindsTo": {
             "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",

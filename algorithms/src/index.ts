@@ -83,3 +83,6 @@ export {
     type GraphDirection,
     type WeightUse,
 } from "./catalog.js";
+
+// ==================== version
+export { VERSION } from "./version.js";

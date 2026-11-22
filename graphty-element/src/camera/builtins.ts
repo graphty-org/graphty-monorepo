@@ -28,8 +28,9 @@
 
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 
-import { isPointBox } from "./bounds";
+import { isPointBox, measuredOf } from "./bounds";
 import { freeArea } from "./insets";
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "./orbit";
 import { orientationOf } from "./orientation";
 import type { CameraState, CameraViewInput } from "./types";
 
@@ -43,14 +44,6 @@ const DEFAULT_FOV = 0.8;
 
 /** How much room a flat framing leaves around the box: 5 percent. */
 const FLAT_PADDING = 1.05;
-
-/**
- * How many world units the 2D camera shows either side of its center, across, at a zoom of 1.
- *
- * An orthographic `zoom` is relative to this: zoom 2 shows half as much, so it reads half-width
- * over this many units, and a view that wants a half-width of `h` asks for `5 / h`.
- */
-export const FLAT_HALF_WIDTH_AT_ZOOM_ONE = 5;
 
 /** How much room a perspective framing leaves around the box: 10 percent. */
 const PERSPECTIVE_PADDING = 1.1;
@@ -99,10 +92,33 @@ function fromCurrentAngle(input: CameraViewInput, fov: number): CameraState | un
     const right = axis(1, 0, 0);
     const up = axis(0, 1, 0);
     const { center } = bounds;
-    const points = (bounds.points ?? boxCorners(bounds)).map((point) => {
-        const c = new Vector3(point.x - center.x, point.y - center.y, point.z - center.z);
+    const place = (x: number, y: number, z: number): { along: number; x: number; y: number } => {
+        const c = new Vector3(x - center.x, y - center.y, z - center.z);
         return { along: Vector3.Dot(c, toViewer), x: Vector3.Dot(c, right), y: Vector3.Dot(c, up) };
-    });
+    };
+    // Each drawn box as the cube about its middle that faces the camera, as wide as the box's
+    // widest half: from a turned view the box's own corners stand outside a round node by up to
+    // three quarters of its radius, and framed it short of the canvas.
+    const measured = measuredOf(bounds);
+    const points =
+        measured === undefined
+            ? (bounds.points ?? boxCorners(bounds)).map((point) => place(point.x, point.y, point.z))
+            : [
+                  ...measured.points.map((point) => place(point.x, point.y, point.z)),
+                  ...measured.boxes.flatMap(({ min, max }) => {
+                      const middle = place((min.x + max.x) / 2, (min.y + max.y) / 2, (min.z + max.z) / 2);
+                      const half = Math.max(max.x - min.x, max.y - min.y, max.z - min.z) / 2;
+                      return [-1, 1].flatMap((a) =>
+                          [-1, 1].flatMap((sx) =>
+                              [-1, 1].map((sy) => ({
+                                  along: middle.along + a * half,
+                                  x: middle.x + sx * half,
+                                  y: middle.y + sy * half,
+                              })),
+                          ),
+                      );
+                  }),
+              ];
     const tanY = Math.tan(fov / 2) / KEPT_ANGLE_PADDING;
     const tanX = aspect > 0 ? tanY * aspect : tanY;
 
@@ -573,35 +589,4 @@ const BUILT_IN_CAMERA_VIEWS: Readonly<Record<string, (input: CameraViewInput) =>
  */
 export function builtInCameraView(id: string): ((input: CameraViewInput) => CameraState) | undefined {
     return Object.hasOwn(BUILT_IN_CAMERA_VIEWS, id) ? BUILT_IN_CAMERA_VIEWS[id] : undefined;
-}
-
-/**
- * Turn an orbit state given as angles into the position the element's cameras are placed from.
- *
- * `alpha`, `beta` and `radius` follow Babylon's ArcRotate convention: the viewer stands at
- * target + radius * (cos(alpha) sin(beta), cos(beta), sin(alpha) sin(beta)). A state that already
- * carries a position or a pivot rotation, or lacks an angle or a distance (`radius`, or
- * `cameraDistance`), is returned unchanged.
- * @param state - The state a caller or a camera view asked for.
- * @returns The same state, with `position` (and `cameraDistance` from `radius`) filled in.
- */
-export function orbitAnglesToPosition(state: CameraState): CameraState {
-    const { alpha, beta } = state;
-    const radius = state.radius ?? state.cameraDistance;
-    if (alpha === undefined || beta === undefined || radius === undefined || state.position || state.pivotRotation) {
-        return state;
-    }
-
-    const target = state.target ?? { x: 0, y: 0, z: 0 };
-
-    return {
-        ...state,
-        target,
-        position: {
-            x: target.x + radius * Math.cos(alpha) * Math.sin(beta),
-            y: target.y + radius * Math.cos(beta),
-            z: target.z + radius * Math.sin(alpha) * Math.sin(beta),
-        },
-        cameraDistance: state.cameraDistance ?? radius,
-    };
 }

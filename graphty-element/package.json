@@ -165,6 +165,7 @@
         "typecheck:strict-consumer": "node ../tools/require-built.mjs tsconfig.strict-consumer.json tsconfig.no-jsx-opt-in.json && node scripts/typecheck-strict-consumer.mjs tsconfig.strict-consumer.json tsconfig.no-jsx-opt-in.json",
         "lint:fix": "eslint --fix",
         "api:report": "node ../tools/api-report.mjs .",
+        "spec:registry": "UPDATE_SPEC_REGISTRY=1 vitest run --project=default test/spec/registry.test.ts",
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace graphty-element",
         "dev": "vite --force --mode development --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "dev:xr": "node examples/xr/xr-demo-server.js",

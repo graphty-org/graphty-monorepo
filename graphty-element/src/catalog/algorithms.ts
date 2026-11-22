@@ -47,6 +47,7 @@ import type {
     FieldDescriptor,
     FieldInterpretation,
     KnownAlgorithm,
+    LegacyAlgorithmKey,
     OptionDescriptor,
 } from "./types";
 
@@ -54,20 +55,7 @@ import type {
 // The descriptor, plus the 1.10 keys it replaces
 // ---------------------------------------------------------------------------------------------
 
-/**
- * One 1.10 registry key a 2.0 descriptor replaces, with the parameters that reproduce what that
- * key used to do.
- *
- * The parameters are what makes this a migration source of truth rather than a rename list:
- * `scc` does not become `components`, it becomes `components` run with `{ strength: "strong" }`,
- * and a compatibility shim that forgets the second half silently computes the wrong answer.
- */
-export interface LegacyAlgorithmKey {
-    /** The `static type` the class carried in 1.10, without the "graphty:" namespace. */
-    readonly key: string;
-    /** The 2.0 parameters that reproduce the 1.10 behavior. Absent when only the key changed. */
-    readonly params?: Readonly<Record<string, unknown>>;
-}
+export type { LegacyAlgorithmKey } from "./types";
 
 /**
  * A built-in algorithm descriptor: the published descriptor, plus the 1.10 keys that folded
@@ -1311,6 +1299,7 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHOR
     return {
         ...descriptor,
         descriptionId: `algorithm.${descriptor.key}`,
+        formerKeys: descriptor.legacyKeys.filter((legacy) => legacy.key !== descriptor.key),
         options: withDescriptionIds(
             `algorithm.${descriptor.key}`,
             weightMeaning === null ? descriptor.options : [...descriptor.options, weightOption],

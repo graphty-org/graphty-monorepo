@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-    bendOut,
     carry,
     flatPlaces,
     flightPoses,
@@ -23,20 +22,6 @@ const unit = (a) => {
     return { x: a.x / l, y: a.y / l, z: a.z / l };
 };
 const angle = (a, b) => Math.acos(Math.min(1, a.x * b.x + a.y * b.y + a.z * b.z));
-
-test("a bend opened out puts its middle airport halfway, on the outside, apart from both ends", () => {
-    const at = (x, y, z) => ({ position: { x, y, z } });
-    const byId = new Map([
-        ["a", at(-20, 0, 0)],
-        ["b", at(0, 0, 0)],
-        ["c", at(1, 0.5, 0)],
-        ["d", at(0, -10, 0)],
-    ]);
-    bendOut(byId, ["a", "b", "c", "d"], 6);
-    const c = byId.get("c").position;
-    assert.ok(Math.abs(c.y + 5) < 1e-9 && Math.abs(c.x - 6) < 1e-9 && c.z === 0);
-    assert.ok(dist(c, byId.get("b").position) > 7 && dist(c, byId.get("d").position) > 7);
-});
 
 test("the widest spread comes first, the thinnest last", () => {
     const ps = [];
@@ -267,6 +252,10 @@ test("the tree's framing only opens, moves smoothly, and frames each airport bef
         // the middle never moves more than a tenth of the view in a tenth of a second
         assert.ok(Math.hypot(x[k] - x[k - 1], y[k] - y[k - 1]) < 0.1 * half[k], `jumps at ${k}`);
     }
+    // the zoom's speed changes smoothly: never a step out as an airport falls due
+    const speed = half.slice(1).map((h, k) => Math.log(h / half[k]));
+    for (let k = 1; k < speed.length; k++)
+        assert.ok(Math.abs(speed[k] - speed[k - 1]) < 0.01, `the zoom steps at ${k}`);
     for (const a of arrivals)
         for (let k = Math.round(a.t / dt); k < half.length; k++) {
             assert.ok(Math.abs(a.p.x - x[k]) <= half[k], `airport at ${a.t} off the side at ${k}`);

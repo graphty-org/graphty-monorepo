@@ -13,8 +13,11 @@ export { FLIGHTS } from "../ch6/map.js";
 export const AIRPORTS = 140;
 /** The airport the network starts from (Frankfurt, the busiest hub of the sample's top three). */
 export const SEED = "FRA";
-/** The two ends of the path the camera follows: Sydney to New York JFK. */
-export const PATH_ENDS = ["SYD", "JFK"];
+/**
+ * The two ends of the path the camera follows: Chongqing to San Francisco (the network's shortest
+ * path between them runs by Sydney and Manila).
+ */
+export const PATH_ENDS = ["CKG", "SFO"];
 /** The airport the globe turns toward at the end, so Europe's network passes the camera. */
 export const EUROPE = "FRA";
 /** How wide the force layout's drawing is scaled to (scene units) before its communities are drawn apart. */
@@ -206,10 +209,8 @@ export async function plan(h, preload, flat) {
             n.position = turned(at[n.id]);
             flatById.set(n.id, { position: turned(tight[n.id]) });
         }
-    bendOut(byId, BEND, 10);
-    bendOut(flatById, BEND, 10);
-    // in 3D, the route's first corner eased (MANILA): its airport drawn toward the middle of the two
-    // either side, so the flight meets it head on and turns after it gently (the flat tree keeps it)
+    // in 3D, the route's corner at Manila eased (MANILA): its airport drawn toward the middle of the
+    // two either side, so the flight meets it head on and turns after it gently (the flat tree keeps it)
     pullIn(byId, MANILA, 0.3);
     // the airports that join the 3D drawing appear scattered through it, in its open spaces, and
     // glide to their lobes as the communities light (scatter)
@@ -243,14 +244,8 @@ export async function plan(h, preload, flat) {
 }
 
 /**
- * The flight's last bend, [before, start, middle, end]: its middle airport (PHL) lies 4.8 from its
- * start (SFO) in the force drawing, too near for the flight to give each its own beat up front.
- */
-const BEND = ["MNL", "SFO", "PHL", "JFK"];
-
-/**
- * The flight's first corner, [before, middle, after]: in the force drawing the route turns about 90
- * degrees at its middle airport (MNL), too sharp to fly past it at speed without whipping the look.
+ * The flight's corner at Manila, [before, middle, after]: in the force drawing the route turns about
+ * 90 degrees at its middle airport (MNL), too sharp to fly past it at speed without whipping the look.
  */
 const MANILA = ["SYD", "MNL", "SFO"];
 
@@ -265,22 +260,6 @@ export function pullIn(byId, ids, keep) {
     const [a, m, b] = ids.map((id) => byId.get(id).position);
     const mid = mul(add(a, b), 0.5);
     byId.get(ids[1]).position = add(mid, mul(sub(m, mid), keep));
-}
-
-/**
- * A bend of the route opened out: its middle airport moved to halfway between the bend's start and
- * end, `out` beyond the line joining them on the side away from the airport before (in place), so
- * the flight meets the start, the middle and the end one at a time and turns in an even arc.
- * @param byId - the airport records, by id (their `position` read and the middle's replaced)
- * @param ids - [before, start, middle, end]
- * @param out - how far beyond the line
- */
-export function bendOut(byId, ids, out) {
-    const [pa, pb, pd] = [ids[0], ids[1], ids[3]].map((id) => byId.get(id).position);
-    const u = unit(sub(pb, pa));
-    const w = unit(sub(pd, pb));
-    const perp = unit(sub(u, mul(w, dot(u, w))));
-    byId.get(ids[2]).position = add(mul(add(pb, pd), 0.5), mul(perp, out));
 }
 
 /**
@@ -1386,8 +1365,8 @@ export function accelerating(count, first, factor, least, start = 0) {
  * The 2D camera's framing of the growing tree, planned ahead from when each airport arrives and
  * where it lands, as one move: its middle the middle of the box round every airport due within
  * `ahead` of now (a box that only grows), smoothed; its half width the least that holds them all
- * round that middle, never less than before (the view only ever opens), smoothed in log terms (so
- * the move's speed never jumps), and opened on by `drift` a second all the while (the picture never
+ * round that middle, never less than before (the view only ever opens), smoothed in log terms from
+ * a little ahead so it is never short of that (and the move's speed never jumps), and opened on by `drift` a second all the while (the picture never
  * stops, also once the last airport is in). Smoothing is a Gaussian `sigma` wide.
  * @param arrivals - [{ t, p }]: each airport's arrival (ms from the start) and place, in order
  * @param o - the framing
@@ -1404,9 +1383,10 @@ export function treeFraming(arrivals, { fill, least, aspect, ahead, sigma, drift
     const n = Math.ceil((arrivals.at(-1).t + 3 * sigma) / dt) + 1;
     const due = (k) => arrivals.filter((a) => a.t <= k * dt + ahead).map((a) => a.p);
     const span = (qs, key) => [Math.min(...qs.map((q) => q[key])), Math.max(...qs.map((q) => q[key]))];
-    const smooth = (xs) => {
-        const w = Math.ceil((3 * sigma) / dt);
-        return xs.map((_, k) => {
+    // the smoothing's half window, in samples
+    const w = Math.ceil((3 * sigma) / dt);
+    const smooth = (xs) =>
+        xs.map((_, k) => {
             let [sum, z] = [0, 0];
             for (let j = -w; j <= w; j++) {
                 const g = Math.exp(-0.5 * ((j * dt) / sigma) ** 2);
@@ -1415,7 +1395,6 @@ export function treeFraming(arrivals, { fill, least, aspect, ahead, sigma, drift
             }
             return sum / z;
         });
-    };
     const need = (qs, c) =>
         Math.max(least / 2, ...qs.map((q) => Math.max(Math.abs(q.x - c.x), Math.abs(q.y - c.y) * aspect))) / fill;
     const sets = Array.from({ length: n }, (_, k) => due(k));
@@ -1427,8 +1406,13 @@ export function treeFraming(arrivals, { fill, least, aspect, ahead, sigma, drift
     const y = smooth(mids.map((q) => q.y));
     const ever = (xs) => xs.map((_, k) => Math.max(...xs.slice(0, k + 1)));
     const needs = sets.map((qs, k) => need(qs, { x: x[k], y: y[k] }));
-    // smoothed, then held to what each moment needs round the smoothed middle, never closing in
-    const logs = ever(smooth(ever(needs).map((v) => Math.log(v))).map((l, k) => Math.max(l, Math.log(needs[k]))));
+    // what each moment needs round the smoothed middle, never closing in (a step up each time an
+    // airport falls due), read the smoothing's half window early and then smoothed: the smoothing
+    // at a moment then averages only what that moment and the next ones need, so it is never short
+    // of it, and its speed changes smoothly (held to the need instead, the view stepped out in a
+    // frame or two each time an airport fell due, just after the route before it was drawn)
+    const ls = ever(needs.map((v) => Math.log(v)));
+    const logs = smooth(ls.map((_, k) => ls[Math.min(n - 1, k + w)]));
     return { dt, drift, half: logs.map((l, k) => Math.exp(l + (drift * k * dt) / 1000)), x, y };
 }
 

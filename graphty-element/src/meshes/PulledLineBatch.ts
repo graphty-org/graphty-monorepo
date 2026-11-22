@@ -348,7 +348,7 @@ export class PulledLineBatch {
     private endsDirty = false;
 
     /** Each piece's head, for a piece under a pulled head: what its line end is placed by at rest. */
-    private readonly endLooks: (PulledCapLook | undefined)[] = [];
+    private readonly endLooks = new Map<number, PulledCapLook>();
 
     /** What the pieces' ends are placed from at rest; null until a piece has a head or the batch a pattern. */
     private rest: RestSource | null = null;
@@ -356,7 +356,7 @@ export class PulledLineBatch {
     /** A patterned straight batch's pattern (`EdgeMesh.pulledPattern`), whose every piece is placed at rest. */
     private readonly pattern: EdgeLineMeta["pattern"];
 
-    private readonly watch = new RestWatch();
+    private watch = new RestWatch();
 
     /**
      * A curve batch's slot table ({@link PulledLineBatch.setCurve}): each draw slot's entry times `CURVE_STRIDE` plus
@@ -655,7 +655,8 @@ export class PulledLineBatch {
         if (this.slots === null) {
             // a straight piece's spare float is its cap's stand-back (`setCapBack`): the next taker starts with none
             this.rows[piece * this.pieceFloats + 7] = 0;
-            this.endLooks[piece] = undefined;
+            this.endLooks.delete(piece);
+            this.restUnlessUnused();
             this.freeSlot(piece);
             return;
         }
@@ -775,14 +776,40 @@ export class PulledLineBatch {
      */
     setCapBack(piece: number, back: number, look?: PulledCapLook, rest?: RestSource): void {
         this.rows[piece * this.pieceFloats + 7] = back;
-        this.endLooks[piece] = look;
-        this.rest = rest ?? this.rest;
+        if (look === undefined) {
+            this.endLooks.delete(piece);
+        } else {
+            this.endLooks.set(piece, look);
+            this.rest = rest ?? this.rest;
+        }
+
         if (this.rest !== null) {
             this.watch.start(this.rest.rows);
         }
 
         this.touch(piece);
         this.unplace(piece);
+        this.restUnlessUnused();
+    }
+
+    /**
+     * Stop placing ends at rest once no piece has a head and the batch no pattern, and give the placed-ends table back
+     * at its first size: a restyle that takes every arrowhead off keeps nothing per piece for them.
+     */
+    private restUnlessUnused(): void {
+        if (this.rest === null || this.pattern !== undefined || this.endLooks.size > 0) {
+            return;
+        }
+
+        this.rest = null;
+        this.watch = new RestWatch();
+        this.endsDirty = false;
+        if (this.ends.length > TABLE_WIDTH * TEXEL_FLOATS) {
+            this.ends = new Float32Array(TABLE_WIDTH * TEXEL_FLOATS);
+            this.endsWidth = TABLE_WIDTH;
+            this.endsTable?.dispose();
+            this.endsTable = this.buildEnds();
+        }
     }
 
     /**
@@ -996,7 +1023,7 @@ export class PulledLineBatch {
         const at = placedEnds;
         ends.fill(0);
         for (let piece = 0; piece < this.highWater; piece++) {
-            const look = this.endLooks[piece];
+            const look = this.endLooks.get(piece);
             const base = piece * this.pieceFloats;
             const from = this.rows[base] ?? NO_ROW;
             const head = this.rows[base + 1] ?? NO_ROW;

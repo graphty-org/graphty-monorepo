@@ -67,9 +67,25 @@ class LineColumns {
     target = new Int32Array(FIRST_ROWS);
     /** 1 for a row the edge masks hide: its piece draws nothing, and keeps its rows here to be shown again. */
     hidden = new Uint8Array(FIRST_ROWS);
-    /** Each row's head's batch, as its place in `EdgeRowLines.capBatches`, or {@link NO_LINE} for no head. */
-    capBatchOf = new Int32Array(FIRST_ROWS).fill(NO_LINE);
-    capSlot = new Int32Array(FIRST_ROWS);
+    /**
+     * Each row's head's batch, as its place in `EdgeRowLines.capBatches`, or {@link NO_LINE} for no head; empty until a
+     * row has a head ({@link LineColumns.holdHeads}), so lines with no heads keep nothing for them. Read past its end
+     * as no head.
+     */
+    capBatchOf = new Int32Array(0);
+    capSlot = new Int32Array(0);
+
+    /** Size the head columns to the line columns, the first time a row takes a head. */
+    holdHeads(): void {
+        if (this.capBatchOf.length < this.batchOf.length) {
+            const capBatchOf = new Int32Array(this.batchOf.length).fill(NO_LINE);
+            capBatchOf.set(this.capBatchOf);
+            const capSlot = new Int32Array(this.batchOf.length);
+            capSlot.set(this.capSlot);
+            this.capBatchOf = capBatchOf;
+            this.capSlot = capSlot;
+        }
+    }
 
     has(row: number): boolean {
         return (this.batchOf[row] ?? NO_LINE) !== NO_LINE;
@@ -86,10 +102,12 @@ class LineColumns {
             const batchOf = grown(this.batchOf);
             batchOf.fill(NO_LINE, this.batchOf.length);
             this.batchOf = batchOf;
-            const capBatchOf = grown(this.capBatchOf);
-            capBatchOf.fill(NO_LINE, this.capBatchOf.length);
-            this.capBatchOf = capBatchOf;
-            this.capSlot = grown(this.capSlot);
+            if (this.capBatchOf.length > 0) {
+                const capBatchOf = grown(this.capBatchOf);
+                capBatchOf.fill(NO_LINE, this.capBatchOf.length);
+                this.capBatchOf = capBatchOf;
+                this.capSlot = grown(this.capSlot);
+            }
             this.piece = grown(this.piece);
             this.source = grown(this.source);
             this.target = grown(this.target);
@@ -103,7 +121,9 @@ class LineColumns {
         this.source[row] = source;
         this.target[row] = target;
         this.hidden[row] = 0;
-        this.capBatchOf[row] = NO_LINE;
+        if (row < this.capBatchOf.length) {
+            this.capBatchOf[row] = NO_LINE;
+        }
     }
 }
 
@@ -501,7 +521,7 @@ export class EdgeRowLines {
             const edge = moved(edgeRemap, row);
             const source = moved(nodeRemap, lines.source[row]);
             const target = moved(nodeRemap, lines.target[row]);
-            const capBatch = lines.capBatchOf[row];
+            const capBatch = lines.capBatchOf[row] ?? NO_LINE;
             if (edge === INVALID_INDEX || source === INVALID_INDEX || target === INVALID_INDEX) {
                 batch.release(piece);
                 if (capBatch !== NO_LINE) {
@@ -515,8 +535,11 @@ export class EdgeRowLines {
             batch.setRows(piece, source, target);
             this.lines.set(edge, lines.batchOf[row], piece, source, target);
             this.lines.hidden[edge] = hidden ? 1 : 0;
-            this.lines.capBatchOf[edge] = capBatch;
-            this.lines.capSlot[edge] = lines.capSlot[row];
+            if (capBatch !== NO_LINE) {
+                this.lines.holdHeads();
+                this.lines.capBatchOf[edge] = capBatch;
+                this.lines.capSlot[edge] = lines.capSlot[row];
+            }
             this.showHead(edge);
             this.drawn++;
             this.plainDrawn += this.plainBatches.has(lines.batchOf[row]) ? 1 : 0;
@@ -586,6 +609,7 @@ export class EdgeRowLines {
 
         const slot = batch.acquire();
         batch.setPulled(slot, { from: source, head: target }, head.place, head.look, head.colour, head.opacity);
+        this.lines.holdHeads();
         this.lines.capBatchOf[row] = at;
         this.lines.capSlot[row] = slot;
     }

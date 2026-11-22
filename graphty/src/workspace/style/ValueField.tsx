@@ -9,7 +9,7 @@ import { modelName, useModelPicture } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { ValueListbox } from "./parts/ValueListbox";
-import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
+import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, twoWords, valueFieldKind } from "./words";
 
 /**
  * A select's choices, named as graphty-element's catalog names them. A value the layer holds that
@@ -20,7 +20,7 @@ import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_
  * @returns the options.
  */
 function choiceOptions(descriptor: ChannelDescriptor, held?: unknown): { value: string; label: string }[] {
-    const two = TWO_WORDS[descriptor.channel];
+    const two = twoWords(descriptor);
     if (two !== undefined) {
         return two.map(([value, word]) => ({ value: String(value), label: word }));
     }

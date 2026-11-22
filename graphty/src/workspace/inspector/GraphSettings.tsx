@@ -4,6 +4,7 @@ import {
     ControlSection,
     FieldRow,
     FileSource,
+    PanelLabelsProvider,
     TargetTooltip,
 } from "@graphty/compact-mantine";
 import {
@@ -21,6 +22,7 @@ import {
 import { ActionIcon, Box, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
+import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { useLayoutId } from "../frame/useLayoutId";
 import { useSizeBound } from "../frame/useSizeBound";
 import { GLYPHS } from "../glyphs";
@@ -142,48 +144,48 @@ export function GraphSettings(): React.JSX.Element | null {
             {/* One container for both sections' rows, so focus on a row hidden in this view moves
                 on to the next row shown, in Labels when Canvas has none left (2D). */}
             <Box ref={ref} onFocus={onFocus} display="contents">
-                {(shows("lighting") || sameSizeShown) && (
-                    <ControlSection label="Canvas" collapsible={false} headingLevel={3}>
-                        <Stack gap={6}>
-                            {shows("lighting") && (
-                                <div data-setting="lighting">
-                                    <Select
-                                        label="Lighting"
-                                        size="xs"
-                                        allowDeselect={false}
-                                        value={lighting}
-                                        data={LIGHTING_VALUES.map((value) => ({ value, label: LIGHTING_WORDS[value] }))}
-                                        onChange={(picked) => {
-                                            const next = LIGHTING_VALUES.find((value) => value === picked);
-                                            if (next !== undefined) {
-                                                store.set({ lighting: next });
-                                            }
-                                        }}
-                                    />
-                                </div>
-                            )}
-                            {sameSizeShown && (
-                                <div data-setting="node.sizeSpace">
-                                    <Switch
-                                        size="xs"
-                                        label="Same size at any depth"
-                                        // Until the reader sets it, it follows the size binding: say why it
-                                        // turned on, so the change is never a surprise.
-                                        description={
-                                            sameSizeChosen === null && sizeBound
-                                                ? "On while node size follows data"
-                                                : undefined
+                {/* Highlight color applies in every view, so Canvas is always drawn. */}
+                <ControlSection label="Canvas" collapsible={false} headingLevel={3}>
+                    <Stack gap={6}>
+                        {shows("lighting") && (
+                            <div data-setting="lighting">
+                                <Select
+                                    label="Lighting"
+                                    size="xs"
+                                    allowDeselect={false}
+                                    value={lighting}
+                                    data={LIGHTING_VALUES.map((value) => ({ value, label: LIGHTING_WORDS[value] }))}
+                                    onChange={(picked) => {
+                                        const next = LIGHTING_VALUES.find((value) => value === picked);
+                                        if (next !== undefined) {
+                                            store.set({ lighting: next });
                                         }
-                                        checked={sameSize}
-                                        onChange={(event) => {
-                                            store.set({ sameSizeAtAnyDepth: event.currentTarget.checked });
-                                        }}
-                                    />
-                                </div>
-                            )}
-                        </Stack>
-                    </ControlSection>
-                )}
+                                    }}
+                                />
+                            </div>
+                        )}
+                        {sameSizeShown && (
+                            <div data-setting="node.sizeSpace">
+                                <Switch
+                                    size="xs"
+                                    label="Same size at any depth"
+                                    // Until the reader sets it, it follows the size binding: say why it
+                                    // turned on, so the change is never a surprise.
+                                    description={
+                                        sameSizeChosen === null && sizeBound
+                                            ? "On while node size follows data"
+                                            : undefined
+                                    }
+                                    checked={sameSize}
+                                    onChange={(event) => {
+                                        store.set({ sameSizeAtAnyDepth: event.currentTarget.checked });
+                                    }}
+                                />
+                            </div>
+                        )}
+                        <HighlightColor session={session} />
+                    </Stack>
+                </ControlSection>
                 <ControlSection label="Labels" collapsible={false} headingLevel={3}>
                     <Stack gap={6}>
                         <div data-setting="labels.declutter">
@@ -211,6 +213,39 @@ export function GraphSettings(): React.JSX.Element | null {
             </Box>
             <ShaderSection />
         </>
+    );
+}
+
+/**
+ * Highlight color: the color a highlight paints when it names no style of its own (a route, a
+ * chosen set). graphty-element keeps it as a view setting, so it records no undo step, is not
+ * saved, and repaints only highlights painted after it. The app's color is its starting value.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @returns The row
+ */
+function HighlightColor({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
+    const read = (): string | undefined => {
+        const color = session.styles.highlightStyle("node")["node.color"];
+        return typeof color === "string" ? color : undefined;
+    };
+    const [color, setColor] = useState(read);
+    return (
+        <PanelLabelsProvider showLabels>
+            <FieldRow>
+                <CompactColorInput
+                    label="Highlight color"
+                    valueText={colorWord(color ?? APP_HIGHLIGHT_COLOR)}
+                    color={color === APP_HIGHLIGHT_COLOR ? undefined : color}
+                    defaultColor={APP_HIGHLIGHT_COLOR}
+                    showOpacity={false}
+                    onChangeEnd={(next) => {
+                        session.styles.setHighlightColor(next ?? APP_HIGHLIGHT_COLOR);
+                        setColor(read());
+                    }}
+                />
+            </FieldRow>
+        </PanelLabelsProvider>
     );
 }
 

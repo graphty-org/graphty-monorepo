@@ -17,7 +17,7 @@ import { cardLines, cardSummary } from "./cardLines";
 import { CARD_LOOK, isCard } from "./cardLook";
 import { CardContents } from "./LabelCard";
 import { LabelSettings, type VaryField } from "./LabelSettings";
-import { offeredChannel, shownChannel } from "./offered";
+import { fieldChannelOf, offeredChannel, shownChannel } from "./offered";
 import { Field, type RowContext, VarySlot } from "./PropertyRow";
 import {
     type DataChoice,
@@ -36,7 +36,7 @@ import {
 import { AddButton, type AddOption } from "./Section";
 import { focusLineNext, focusSectionNext, headerBottom, lineTarget } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
-import { failureWords, positionWord, TEXT_KINDS, type TextKindSpec } from "./words";
+import { failureWords, positionWord, takesBinding, TEXT_KINDS, textKindChannels, type TextKindSpec } from "./words";
 
 /** The width of the entry's pop-outs: the source list as wide as the panel's rows, the settings wider. */
 const LIST_WIDTH = 248;
@@ -106,15 +106,6 @@ async function removeEntry(
             await removeLine(session, layer, ...held);
         }
     }
-}
-
-/**
- * A text kind's channels, for removing its entry.
- * @param kind - the kind.
- * @returns the channels.
- */
-function channelsOf(kind: TextKindSpec): Channel[] {
-    return [kind.words, kind.style, kind.size, kind.color, kind.background];
 }
 
 /**
@@ -244,8 +235,8 @@ export function LabelSection({
             if (size === undefined) {
                 return;
             }
-            focusLineNext(session, kind.size);
-            write = writeIn(ctx, kind.size, { value: startFor(ctx, size) });
+            focusLineNext(session, size.channel);
+            write = writeIn(ctx, size.channel, { value: startFor(ctx, size) });
         } else {
             const patch: Partial<LabelStyle> =
                 part === "look"
@@ -279,7 +270,7 @@ export function LabelSection({
     const shown = kinds.filter((kind) => hasEntry(kind) || picking === kind.id || typing === kind.id);
     const partial = kinds.filter((kind) => !shown.includes(kind) && partlySet(ctx, kind.words, kind.style));
     // No value is invisible: a text property the row sets that no entry draws gets a line of its own.
-    const drawn = new Set(shown.flatMap(channelsOf));
+    const drawn = new Set(shown.flatMap(textKindChannels));
     const looseLines = loose.flatMap((channel) => {
         const held =
             !drawn.has(channel) && (lineIn(ctx, channel) !== undefined || partlySet(ctx, channel) !== undefined);
@@ -407,7 +398,7 @@ export function LabelSection({
                                     size="sm"
                                     aria-label={`Remove ${noun} from every row`}
                                     onClick={() => {
-                                        Promise.all(channelsOf(kind).map((c) => many.clear(c))).catch(fail);
+                                        Promise.all(textKindChannels(kind).map((c) => many.clear(c))).catch(fail);
                                     }}
                                 >
                                     <GLYPHS.remove size={14} aria-hidden />
@@ -558,24 +549,8 @@ function SourcePicker({
 }
 
 /**
- * The channel a label setting varies through: the text color, background and size vary by a value
- * through their own channels.
- * @param kind - the kind of text.
- * @param key - the setting.
- * @returns its channel, or undefined when it does not vary.
- */
-function varyChannelOf(kind: TextKindSpec, key: keyof LabelStyle): Channel | undefined {
-    if (key === "color") {
-        return kind.color;
-    }
-    if (key === "background") {
-        return kind.background;
-    }
-    return key === "sizePx" ? kind.size : undefined;
-}
-
-/**
- * A label setting's field when it varies through its own channel: the row's field when the row
+ * A label setting's field when it varies through its own channel (graphty-element's `labelField`:
+ * the text color, the background, the size, the letter size, ...): the row's field when the row
  * holds that channel and is not locked, else the slot that starts varying it.
  * @param ctx - the row.
  * @param kind - the kind of text.
@@ -589,15 +564,17 @@ function varyFieldOf(
     key: keyof LabelStyle,
     descriptorOf: (channel: Channel) => ChannelDescriptor | undefined,
 ): VaryField | undefined {
-    const channel = varyChannelOf(kind, key);
+    const channel = fieldChannelOf(ctx.side, kind.words, key);
     const descriptor = channel === undefined ? undefined : descriptorOf(channel);
     if (channel === undefined || descriptor === undefined) {
         return undefined;
     }
     const line = lineIn(ctx, channel);
-    return line !== undefined && !line.layer.locked
-        ? { field: <Field ctx={ctx} descriptor={descriptor} /> }
-        : { slot: <VarySlot ctx={ctx} descriptor={descriptor} /> };
+    if (line !== undefined && !line.layer.locked) {
+        return { field: <Field ctx={ctx} descriptor={descriptor} /> };
+    }
+    // A yes-or-no field varies by nothing: no glyph, and no empty column beside it.
+    return takesBinding(descriptor) ? { slot: <VarySlot ctx={ctx} descriptor={descriptor} /> } : undefined;
 }
 
 /**
@@ -675,7 +652,8 @@ function partsOf(ctx: RowContext, kind: TextKindSpec): AddOption[] {
     if (lineIn(ctx, kind.size) === undefined && descriptorOf(ctx.session, ctx.side, kind.size) !== undefined) {
         parts.push({ key: `${kind.id}:size`, label: "Size" });
     }
-    if (style.location === undefined) {
+    const location = fieldChannelOf(ctx.side, kind.words, "location");
+    if (style.location === undefined && (location === undefined || lineIn(ctx, location) === undefined)) {
         parts.push({ key: `${kind.id}:position`, label: "Position" });
     }
     return parts;
@@ -734,6 +712,8 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
         label: look.id === lookId && edited ? `${look.plainName}, edited` : look.plainName,
     }));
     const sizeDescriptor = descriptorOf(kind.size);
+    // The position varies by a value from its own line, as a setting varies from Label settings.
+    const locationVary = vary("location");
     const where = `${kindWord} ${noun}`;
     const sourcePicker = (trigger: React.ReactElement): React.JSX.Element => (
         <SourcePicker
@@ -823,7 +803,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                             }}
                         />
                     ) : null}
-                    <LabelSettings style={style} onChange={writeStyle} vary={vary} />
+                    <LabelSettings style={style} onChange={writeStyle} vary={vary} target={target} />
                 </SettingsPopout>
                 {locked ? (
                     <span className="ws-slot" />
@@ -836,7 +816,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                             onClick={(event) => {
                                 // The minus goes with the entry: focus moves to the list's "+".
                                 focusSectionNext(session, event.currentTarget, kind.words);
-                                removeEntry(session, layers, channelsOf(kind)).catch(onFail);
+                                removeEntry(session, layers, textKindChannels(kind)).catch(onFail);
                             }}
                         >
                             <GLYPHS.remove size={14} aria-hidden />
@@ -889,36 +869,40 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                 />
             </StyleLine>
             {sizeDescriptor === undefined ? null : <Field ctx={ctx} descriptor={sizeDescriptor} word="Size" />}
-            <StyleLine
-                word="Position"
-                name={`${where} position`}
-                set={style.location !== undefined}
-                onRemove={() => {
-                    writeStyle({ location: undefined });
-                }}
-            >
-                <PanelField
-                    label={`${where} position`}
-                    kind="select"
-                    width="fill"
-                    data={LOCATIONS.map((location) => ({ value: location, label: positionWord(location) }))}
-                    value={style.location ?? null}
-                    onChange={(location) => {
-                        writeStyle({ location: String(location) as LabelStyle["location"] });
+            {locationVary?.field ?? (
+                <StyleLine
+                    word="Position"
+                    name={`${where} position`}
+                    set={style.location !== undefined}
+                    vary={locationVary?.slot}
+                    onRemove={() => {
+                        writeStyle({ location: undefined });
                     }}
-                />
-            </StyleLine>
+                >
+                    <PanelField
+                        label={`${where} position`}
+                        kind="select"
+                        width="fill"
+                        data={LOCATIONS.map((location) => ({ value: location, label: positionWord(location) }))}
+                        value={style.location ?? null}
+                        onChange={(location) => {
+                            writeStyle({ location: String(location) as LabelStyle["location"] });
+                        }}
+                    />
+                </StyleLine>
+            )}
         </Stack>
     );
 }
 
 /**
  * One line of a text entry on the panel's field column, drawn only while the layer sets it: its
- * word in the label column, the control, an empty vary column, and a minus that removes it.
+ * word in the label column, the control, its vary glyph (else an empty column), and a minus that removes it.
  * @param props - Component props
  * @param props.word - the word in the label column
  * @param props.name - the field's accessible name, with its kind ("Node label look")
  * @param props.set - whether the layer sets it
+ * @param props.vary - the glyph that varies it by a value, if it varies
  * @param props.onRemove - removes it, so the layers beneath show through
  * @param props.children - the control
  * @returns The line, or nothing while the layer does not set it
@@ -927,12 +911,14 @@ function StyleLine({
     word,
     name,
     set,
+    vary,
     onRemove,
     children,
 }: Readonly<{
     word: string;
     name: string;
     set: boolean;
+    vary?: React.ReactNode;
     onRemove: () => void;
     children: React.ReactNode;
 }>): React.JSX.Element | null {
@@ -947,7 +933,7 @@ function StyleLine({
                 </span>
             </span>
             <div className="ws-field-control">{children}</div>
-            <span className="ws-slot ws-vary" />
+            {vary ?? <span className="ws-slot ws-vary" />}
             <span className="ws-slot">
                 <Tooltip label={`Remove ${name.toLowerCase()}`}>
                     <ActionIcon

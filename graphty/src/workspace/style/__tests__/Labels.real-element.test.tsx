@@ -447,7 +447,7 @@ describe("label entries on the real element", () => {
         // The groups are headings one level under the pop-out's title.
         assert.deepEqual(
             [...settings.querySelectorAll("h3")].map((h) => h.textContent),
-            ["Type", "Box", "Letters", "Placement", "Motion and distance", "Badge"],
+            ["Type", "Wrap", "Box", "Letters", "Placement", "Visibility", "Motion and distance", "Badge"],
         );
         await choose("Gradient", "On", settings);
         await within(settings).findByRole("group", { name: "Gradient colors" });
@@ -519,6 +519,22 @@ describe("a label entry's size, keys, lists and widths", () => {
             assert.equal(labelStyle(session).sizePx, 14);
             assert.equal(labelStyle(session).sizeMode, "screen");
         });
+    });
+
+    it("Label settings' Box sets the label's picture width and its offset", async () => {
+        const { session } = await openWithGraph();
+        await addNameLabel(session);
+        const settings = await openSettings();
+        for (const [word, typed, key] of [
+            ["Picture width", "24", "imageWidth"],
+            ["Picture right", "3", "imageOffsetX"],
+        ] as const) {
+            await userEvent.tripleClick(within(settings).getByLabelText<HTMLInputElement>(new RegExp(`^${word}(,|$)`)));
+            await userEvent.keyboard(`${typed}{Enter}`);
+            await waitFor(() => {
+                assert.equal(labelStyle(session)[key], Number(typed), key);
+            });
+        }
     });
 
     it("Escape after typing in the settings' Size box keeps the settings open and says the discard", async () => {

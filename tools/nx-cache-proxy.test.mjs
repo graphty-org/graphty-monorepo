@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { createServer } from "node:http";
+import { createServer, request } from "node:http";
 import { after, before, describe, it } from "node:test";
 
 describe("nx-cache-proxy", () => {
@@ -22,6 +22,10 @@ describe("nx-cache-proxy", () => {
             if (hash === "stall-body") {
                 res.writeHead(200).write("part");
                 return stalled.push(res);
+            }
+            if (hash === "reset-body") {
+                res.writeHead(200).write("part");
+                return res.destroy();
             }
             if (req.method === "PUT") {
                 if (req.headers.authorization !== "Bearer w") return res.writeHead(403).end();
@@ -84,5 +88,29 @@ describe("nx-cache-proxy", () => {
         assert.equal((await put("new", "w")).status, 200);
         assert.equal((await put("new", "r")).status, 403);
         assert.equal((await put("stall-headers", "w", stallingUrl)).status, 403);
+    });
+
+    it("answers a GET whose upstream resets mid-body as a miss, on a connection it then closes", async () => {
+        const reset = await get("reset-body");
+        assert.equal(reset.status, 404);
+        assert.equal(reset.headers.get("connection"), "close");
+    });
+
+    it("keeps serving after nx resets a PUT mid-body (#9560)", async () => {
+        const { hostname, port } = new URL(url);
+        // 100-continue: the proxy is reading this PUT's body once it says continue; the reset comes mid-body.
+        const put = request({
+            hostname,
+            port,
+            path: "/v1/cache/half",
+            method: "PUT",
+            headers: { "content-length": 100, expect: "100-continue" },
+        });
+        const closed = new Promise((resolve) => put.on("error", resolve));
+        await once(put, "continue");
+        put.write("half");
+        put.destroy();
+        await closed;
+        assert.equal((await get("hit")).status, 200);
     });
 });

@@ -95,7 +95,7 @@ describe("a glow is drawn around the node, not over it", () => {
             camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight()),
         );
 
-        return { x: p.x, y: engine.getRenderHeight() - p.y };
+        return { x: Math.round(p.x), y: Math.round(engine.getRenderHeight() - p.y) };
     }
 
     /**
@@ -120,9 +120,7 @@ describe("a glow is drawn around the node, not over it", () => {
     }
 
     /**
-     * A node's center, and a point just past its edge along the camera's right: a sixth of the
-     * radius past it, and at least two pixels, so the 3x3 patch read there clears the node's
-     * antialiased edge pixel however small the node is drawn.
+     * A node's center, and a point just past its edge along the camera's right.
      * @param id - The node.
      * @returns The two points, in frame-buffer pixels.
      */
@@ -135,18 +133,8 @@ describe("a glow is drawn around the node, not over it", () => {
         assert.isNotNull(camera);
         const right = camera.getDirection(Vector3.Right()).normalize();
         const center = node.mesh.absolutePosition.clone();
-        const middle = project(center);
-        const edge = project(center.add(right.scale(radius)));
-        const dx = edge.x - middle.x;
-        const dy = edge.y - middle.y;
-        const drawn = Math.hypot(dx, dy);
-        const past = Math.max(drawn * 1.15, drawn + 2) / drawn;
-        const pixel = (p: { x: number; y: number }): { x: number; y: number } => ({
-            x: Math.round(p.x),
-            y: Math.round(p.y),
-        });
 
-        return { center: pixel(middle), ring: pixel({ x: middle.x + dx * past, y: middle.y + dy * past }) };
+        return { center: project(center), ring: project(center.add(right.scale(radius * 1.15))) };
     }
 
     async function glow(set: Record<string, string>): Promise<string> {

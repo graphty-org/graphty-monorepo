@@ -275,7 +275,7 @@ describe("an assistant message's transactions", () => {
         assert.strictEqual(later.provenance.message, first.provenance.message);
     });
 
-    it("takes back every batch when the message is cancelled while the model thinks", async () => {
+    it("takes back every batch when the message is canceled while the model thinks", async () => {
         const thinking = gate();
         const model = scriptedModel([
             call("addNode", { id: "x" }),
@@ -291,14 +291,14 @@ describe("an assistant message's transactions", () => {
         const result = await message;
 
         assert.isFalse(result.success);
-        assert.strictEqual(result.code, "AI_CANCELLED");
+        assert.strictEqual(result.code, "AI_CANCELED");
         assert.deepEqual(result.params, { steps: 1 }, "the two batches were one undo step");
         assert.notExists(session.data.node("x"));
         assert.notExists(session.data.node("y"));
         assert.lengthOf(newSteps(), 0);
     });
 
-    it("says nothing was taken back when a message is cancelled before it changed anything", async () => {
+    it("says nothing was taken back when a message is canceled before it changed anything", async () => {
         const thinking = gate();
         const model = scriptedModel([{ response: { text: "never", toolCalls: [] }, gate: thinking.promise }]);
         const controller = assistant(model);
@@ -308,7 +308,7 @@ describe("an assistant message's transactions", () => {
         controller.cancel();
         const result = await message;
 
-        assert.strictEqual(result.code, "AI_CANCELLED");
+        assert.strictEqual(result.code, "AI_CANCELED");
         assert.deepEqual(result.params, {});
     });
 
@@ -329,7 +329,7 @@ describe("an assistant message's transactions", () => {
         assert.lengthOf(newSteps(), 0);
     });
 
-    it("keeps a person's later edit when the message is cancelled, and the message's step under it", async () => {
+    it("keeps a person's later edit when the message is canceled, and the message's step under it", async () => {
         const thinking = gate();
         const model = scriptedModel([call("addNode", { id: "x" }), call("addNode", { id: "y" }, thinking)]);
         const controller = assistant(model);

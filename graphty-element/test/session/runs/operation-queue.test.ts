@@ -156,12 +156,12 @@ describe("runs over the element's own operation queue", () => {
         await queueManager.waitForCompletion();
         await second;
 
-        assert.deepStrictEqual(ran, [2], "the cancelled run never executed");
+        assert.deepStrictEqual(ran, [2], "the canceled run never executed");
         assert.strictEqual(second.status, "succeeded");
 
         try {
             await first;
-            assert.fail("a cancelled run must not resolve");
+            assert.fail("a canceled run must not resolve");
         } catch (error) {
             assert.strictEqual((error as DOMException).name, "AbortError");
         }

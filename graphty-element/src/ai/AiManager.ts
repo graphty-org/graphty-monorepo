@@ -1111,7 +1111,7 @@ export class AiManager {
         void this.voiceSession?.then(act); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
-    /** Stop speaking an answer (`ai-speech-end` `{ code: "AI_CANCELLED" }`); nothing speaks without `voice`. */
+    /** Stop speaking an answer (`ai-speech-end` `{ code: "AI_CANCELED" }`); nothing speaks without `voice`. */
     stopSpeech(): void {
         this.withVoice((session) => {
             session.stopSpeech();
@@ -1120,7 +1120,7 @@ export class AiManager {
 
     /**
      * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
-     * `AI_CANCELLED`, and the next press opens another. Does nothing when none is open.
+     * `AI_CANCELED`, and the next press opens another. Does nothing when none is open.
      */
     endLive(): void {
         this.withVoice((session) => {

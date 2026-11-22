@@ -268,7 +268,7 @@ describe("tours on a real element", () => {
         const playing = graph.playTour([{ view: "a", hold: FOREVER }], { signal: controller.signal });
         await holding;
         controller.abort();
-        assert.deepStrictEqual(await playing, { reason: "cancelled" });
+        assert.deepStrictEqual(await playing, { reason: "canceled" });
         assert.isFalse(graph.isCameraPlaced(), "the tour's placement went with it");
 
         const framed = new Promise<void>((resolve) => {

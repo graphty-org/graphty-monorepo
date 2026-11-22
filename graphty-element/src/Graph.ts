@@ -2294,7 +2294,7 @@ export class Graph implements GraphContext {
         this.#teardown.abort(new DOMException("The graph was disposed.", "AbortError"));
 
         // A tour's holds and an untimed recording count drawn frames, which stop now: end both.
-        this.#endTour("cancelled");
+        this.#endTour("canceled");
         this.cancelAnimationCapture();
 
         // XR listens on the page's navigator.xr, which outlives this graph: a listener left there
@@ -4192,7 +4192,7 @@ export class Graph implements GraphContext {
                     "data-add",
                     (context) => {
                         if (context.signal.aborted) {
-                            throw new Error("Operation cancelled");
+                            throw new Error("Operation canceled");
                         }
 
                         inTurn();
@@ -4896,7 +4896,7 @@ export class Graph implements GraphContext {
             "camera-update",
             (context) => {
                 if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
+                    throw new Error("Operation canceled");
                 }
 
                 this.camera.activateCamera(mode);
@@ -4937,7 +4937,7 @@ export class Graph implements GraphContext {
             "render-update",
             (context) => {
                 if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
+                    throw new Error("Operation canceled");
                 }
 
                 apply();
@@ -8442,7 +8442,7 @@ export class Graph implements GraphContext {
      *     option }` for a still recording (or the `string[]` tour form) without `duration`, or
      *     `cameraMode: "animated"` without a tour; `{ reason: "no-stops" }` for an empty tour; the
      *     problem `planTour` reports for a tour that cannot be played; `E_UNSUPPORTED`
-     *     `{ reason: "xr", mode }` while immersive; `E_CANCELED` (an `AnimationCancelledError`) when
+     *     `{ reason: "xr", mode }` while immersive; `E_CANCELED` (an `AnimationCanceledError`) when
      *     canceled; `E_CAPTURE_FAILED` `{ media: "video", reason }` when the tab is hidden
      *     (`"hidden"`), the canvas changes size (`"resized"`), or the tour ends early
      *     (`"interrupted"`, `"replaced"`, `"mode-changed"`).
@@ -8470,7 +8470,7 @@ export class Graph implements GraphContext {
         }
         const flown = tourInput === null ? undefined : this.#checkedTour(tourInput);
 
-        const { AnimationCancelledError, MediaRecorderCapture, holdCameraForCapture } =
+        const { AnimationCanceledError, MediaRecorderCapture, holdCameraForCapture } =
             await import("./video/MediaRecorderCapture.js");
 
         // A frame reaches the recorder once the engine has ended it: WebGPU submits the frame's
@@ -8495,7 +8495,7 @@ export class Graph implements GraphContext {
 
         const { signal } = options;
         if (signal?.aborted === true) {
-            throw new AnimationCancelledError();
+            throw new AnimationCanceledError();
         }
 
         // Store reference for cancellation
@@ -8561,9 +8561,8 @@ export class Graph implements GraphContext {
         const handle = this.#beginTour(flown.name, flown.states.length);
         handle.onEnd = (reason) => {
             // A cancel that ends the tour (cancelCameraAnimation) is announced as any other.
-            if (reason !== "finished" && capture.fail(reason) && reason === "cancelled") {
+            if (reason !== "finished" && capture.fail(reason) && reason === "canceled") {
                 this.eventManager.emit("animation-canceled", {});
-                this.eventManager.emit("animation-cancelled", {});
             }
         };
         const timed = options.duration !== undefined;
@@ -8621,7 +8620,7 @@ export class Graph implements GraphContext {
                 }
             }
             // A recording that ended before its tour (a shorter duration, a failure) cancels it.
-            this.#finishTour(handle, tourFinished ? "finished" : "cancelled");
+            this.#finishTour(handle, tourFinished ? "finished" : "canceled");
             await flight;
         }
     }
@@ -8913,7 +8912,7 @@ export class Graph implements GraphContext {
      * flight is a cut held for the flight's time. Auto-rotate and the glide to the selection wait
      * while it plays.
      *
-     * It ends `"finished"` after the last hold, `"cancelled"` on `signal` or
+     * It ends `"finished"` after the last hold, `"canceled"` on `signal` or
      * `cancelCameraAnimation()`, `"interrupted"` when the reader moves the camera or presses the
      * canvas, `"replaced"` when another tour, a recording, `setCameraState`, `applyCameraView`, the
      * `view.camera` op or a screenshot with a `camera` moves the camera, and `"mode-changed"`
@@ -8925,7 +8924,7 @@ export class Graph implements GraphContext {
      * @param options.easing - The easing of each flight; wins over the tour's own. Default `"easeInOut"`.
      * @param options.restoreCamera - Put the camera back where it was when the tour finishes
      *     (only on `"finished"`). Default false.
-     * @param options.signal - Ends the tour as `"cancelled"` when it aborts.
+     * @param options.signal - Ends the tour as `"canceled"` when it aborts.
      * @returns How the tour ended; it resolves however it ends.
      * @throws A `GraphtyError` with the problem `planTour` reports: `E_BAD_COMMAND`
      *     `{ missing, available }` for a tour name nothing is saved under, `{ reason: "no-stops" }`
@@ -8948,13 +8947,13 @@ export class Graph implements GraphContext {
         const flown = this.#checkedTour(tour);
         const { signal } = options ?? {};
         if (signal?.aborted === true) {
-            return { reason: "cancelled" };
+            return { reason: "canceled" };
         }
 
         const before = options?.restoreCamera === true ? this.getCameraState() : undefined;
         const handle = this.#beginTour(flown.name, flown.states.length);
         const onAbort = (): void => {
-            this.#finishTour(handle, "cancelled");
+            this.#finishTour(handle, "canceled");
         };
         signal?.addEventListener("abort", onAbort, { once: true });
         const releaseFrames = animatesEveryFrame(this.scene);
@@ -9022,16 +9021,16 @@ export class Graph implements GraphContext {
      *
      * // Cancel it after 2 seconds
      * setTimeout(() => {
-     *   const wasCancelled = graph.cancelAnimationCapture();
-     *   console.log('Cancelled:', wasCancelled);
+     *   const wasCanceled = graph.cancelAnimationCapture();
+     *   console.log('Canceled:', wasCanceled);
      * }, 2000);
      *
-     * // The promise will reject with E_CANCELED (an AnimationCancelledError)
+     * // The promise will reject with E_CANCELED (an AnimationCanceledError)
      * try {
      *   await capturePromise;
      * } catch (error) {
      *   if (isGraphtyError(error) && error.code === 'E_CANCELED') {
-     *     console.log('Capture was cancelled');
+     *     console.log('Capture was canceled');
      *   }
      * }
      * ```
@@ -9041,15 +9040,13 @@ export class Graph implements GraphContext {
             return false;
         }
 
-        const cancelled = this.activeCapture.cancel();
+        const canceled = this.activeCapture.cancel();
 
-        // `animation-cancelled` is the deprecated British name, still sent until the next major.
-        if (cancelled) {
+        if (canceled) {
             this.eventManager.emit("animation-canceled", {});
-            this.eventManager.emit("animation-cancelled", {});
         }
 
-        return cancelled;
+        return canceled;
     }
 
     /**
@@ -9083,7 +9080,7 @@ export class Graph implements GraphContext {
      */
     cancelCameraAnimation(): boolean {
         const moves = this.operationQueue.cancelByCategory("camera-update");
-        return this.#endTour("cancelled") || moves > 0;
+        return this.#endTour("canceled") || moves > 0;
     }
 
     /**
@@ -9326,7 +9323,7 @@ export class Graph implements GraphContext {
             "camera-update",
             async (context) => {
                 if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
+                    throw new Error("Operation canceled");
                 }
 
                 // Animated transitions
@@ -9344,7 +9341,7 @@ export class Graph implements GraphContext {
                     }
                 } catch (error) {
                     // Check if error is due to cancellation
-                    if (error instanceof Error && error.message === "Operation cancelled") {
+                    if (error instanceof Error && error.message === "Operation canceled") {
                         throw error; // Re-throw cancellation
                     }
 
@@ -11147,7 +11144,7 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELLED" }`).
+     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELED" }`).
      * @since 4.0.0
      */
     stopAiSpeech(): void {
@@ -11156,7 +11153,7 @@ export class Graph implements GraphContext {
 
     /**
      * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
-     * `AI_CANCELLED`, and the next press opens another. Does nothing when none is open.
+     * `AI_CANCELED`, and the next press opens another. Does nothing when none is open.
      * @since 4.0.0
      */
     endAiLive(): void {

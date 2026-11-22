@@ -209,7 +209,7 @@ describe("every renderer door, called while a load is held in line", () => {
                         () => "resolved",
                         (error: unknown) => (error as { code?: string }).code,
                     );
-                    assert.strictEqual(outcome, "E_SUPERSEDED", `the load ahead of ${label} was not cancelled`);
+                    assert.strictEqual(outcome, "E_SUPERSEDED", `the load ahead of ${label} was not canceled`);
                 } else {
                     assert.strictEqual(line.size, before + 1, `${label} took no place in the load line when called`);
                     assert.deepEqual(seen, [], `${label} dispatched under the load still reading`);

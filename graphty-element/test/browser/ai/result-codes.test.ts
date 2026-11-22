@@ -306,13 +306,13 @@ describe("AI command result codes", () => {
         assert.deepEqual(result.params, { provider: "openai" });
     });
 
-    it("AI_CANCELLED when cancelled, AI_UNDONE when undone while it runs", async () => {
-        const cancelling = stallingModel();
-        const controller = assistant(cancelling.provider);
-        const cancelled = controller.execute("add x");
-        await cancelling.asked;
+    it("AI_CANCELED when canceled, AI_UNDONE when undone while it runs", async () => {
+        const canceling = stallingModel();
+        const controller = assistant(canceling.provider);
+        const canceled = controller.execute("add x");
+        await canceling.asked;
         controller.cancel();
-        assert.strictEqual(seen(await cancelled).code, "AI_CANCELLED");
+        assert.strictEqual(seen(await canceled).code, "AI_CANCELED");
 
         const undoing = stallingModel();
         const undone = assistant(undoing.provider).execute("add x");

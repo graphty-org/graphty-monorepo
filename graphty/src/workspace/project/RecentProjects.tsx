@@ -172,7 +172,7 @@ export function RecentProjects({
                 : openRecent(workspace, entry);
         void go.then((outcome) => {
             const now = new Set(missing);
-            if (outcome === "missing" || (outcome === "cancelled" && wasMissing)) {
+            if (outcome === "missing" || (outcome === "canceled" && wasMissing)) {
                 now.add(entry.id);
             } else {
                 now.delete(entry.id);

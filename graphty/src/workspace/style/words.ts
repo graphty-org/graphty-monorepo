@@ -2112,7 +2112,7 @@ export const CUSTOM_MODEL = {
      * @param name - what was loading.
      * @returns the words.
      */
-    cancelled: (name: string): string => `Stopped loading ${name}`,
+    canceled: (name: string): string => `Stopped loading ${name}`,
     /** What a load is doing, by graphty-element's stage. */
     stages: { downloading: "Downloading", reading: "Reading", unpacking: "Unpacking" } as Readonly<
         Record<string, string>

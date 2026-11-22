@@ -201,7 +201,7 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
     /** The cache key of each So far step's own computation by definition and input. */
     const inputKeys = new Map<string, string>();
     /** Step definitions whose own computation the reader canceled: they wait for consent. */
-    const cancelled = new Set<string>();
+    const canceled = new Set<string>();
 
     const measureOf = (step: UnionStep): MeasureLeaf | null => (step.rule.kind === "measure" ? step.rule : null);
     // A measure's test is not part of what it computes: setting or changing it keeps the run.
@@ -430,7 +430,7 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         if (step.computedOn === "so-far" && input !== null) {
             inputKeys.set(`${definition}#${inputKey(input)}`, key);
         }
-        if (cancelled.has(definition) && !consent.has(definition)) {
+        if (canceled.has(definition) && !consent.has(definition)) {
             return { gate: { state: "pending", reason: runNeeded(leaf, params, scope) } };
         }
 
@@ -584,7 +584,7 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         },
         allow(step, within) {
             consent.add(definitionKey(step, within));
-            cancelled.delete(definitionKey(step, within));
+            canceled.delete(definitionKey(step, within));
             sources.moved();
         },
         cancel(step, within) {
@@ -598,7 +598,7 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
             if (localKey !== undefined && entry?.state === "computing") {
                 entry.abort.abort();
                 local.delete(localKey);
-                cancelled.add(key);
+                canceled.add(key);
             }
 
             sources.moved();

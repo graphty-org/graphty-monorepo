@@ -198,7 +198,7 @@ async function assertSuperseded(promise: Promise<unknown>, label: string): Promi
         () => "resolved",
         (error: unknown) => (error as { code?: string }).code ?? String(error),
     );
-    assert.strictEqual(outcome, "E_SUPERSEDED", `${label} was not cancelled`);
+    assert.strictEqual(outcome, "E_SUPERSEDED", `${label} was not canceled`);
 }
 
 /**
@@ -640,7 +640,7 @@ describe("the entry's edges", () => {
         assert.strictEqual(session.data.snapshot().nodeCount, 0);
         await edit;
         assert.deepEqual(await collapsed, { removedNodes: [], removedEdges: 0, kept: [] });
-        assert.strictEqual(session.data.snapshot().nodeCount, 0, "a cancelled edit added its node");
+        assert.strictEqual(session.data.snapshot().nodeCount, 0, "a canceled edit added its node");
         older.read.open();
         await assertSuperseded(older.load, "the load still reading");
         assert.strictEqual(session.data.snapshot().nodeCount, 0);

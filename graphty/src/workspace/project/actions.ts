@@ -983,7 +983,7 @@ export async function openPending(ctx: CommandContext): Promise<void> {
 }
 
 /** What happened when the reader clicked a Recent projects entry. */
-type RecentOutcome = "opened" | "missing" | "cancelled" | "failed";
+type RecentOutcome = "opened" | "missing" | "canceled" | "failed";
 
 /**
  * Runs a Recent projects step, turning a failure other than a cancel (a picker the browser
@@ -1045,13 +1045,13 @@ export function openRecent(ctx: CommandContext, entry: RecentProject): Promise<R
  * where the browser has one.
  * @param ctx - the command context.
  * @param entry - the entry.
- * @returns "cancelled" when the reader closed the picker.
+ * @returns "canceled" when the reader closed the picker.
  */
 export function locateRecent(ctx: CommandContext, entry: RecentProject): Promise<RecentOutcome> {
     return noticeFailure(ctx, entry, async () => {
         const located = await locateFile();
         if (located === undefined) {
-            return "cancelled";
+            return "canceled";
         }
         await openProjectFile(ctx, located.file, {
             ...(located.handle === undefined ? {} : { handle: located.handle }),

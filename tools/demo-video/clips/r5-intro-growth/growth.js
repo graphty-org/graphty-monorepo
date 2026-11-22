@@ -25,6 +25,12 @@ const SPAN_FLAT = 90;
 const APART = 11;
 /** The empty space between two communities in the 3D drawing (scene units). */
 const GAP = 20;
+/**
+ * How near the path's end on the globe (globe units, about 160 km) another airport is drawn on or
+ * under it (plan's `under`): on the end globe such an airport, drawn a size on screen, would grow
+ * round the path's end, a ring round it.
+ */
+const UNDER = 0.65;
 /** The gray of the plain drawing, before color arrives. */
 export const GRAY = { node: "#6a7180", edge: "#566072" };
 
@@ -86,9 +92,11 @@ export function growthOrder(routes) {
  *     path's end and Europe (EUROPE)
  * @param flat - how many airports join while the drawing is flat (their flat places: flatPlaces)
  * @returns the steps: [{ node: <record>, edges: [{ id, source, target }] }], SEED's first; and
- *     `spot` and `europe`, where the globe puts the path's end and EUROPE; each node carries
+ *     `spot` and `europe`, where the globe puts the path's end and EUROPE; `under`, the ids of
+ *     the airports it draws within UNDER of the path's end; each node carries
  *     `position`, its place in the 3D drawing (centered on the origin: groupsApart); `flat`, the
- *     first `flat` airports' places in the flat drawing, by id
+ *     first `flat` airports' places in the flat drawing, by id; `scatter`, where the others
+ *     first appear (scatter), by id
  */
 export async function plan(h, preload, flat) {
     const { nodes, edges } = await onElement(h, (el) => ({
@@ -117,7 +125,7 @@ export async function plan(h, preload, flat) {
     );
     const spots = await onElement(
         h,
-        async (el, [ids, globe]) => {
+        async (el, [ids, globe, near]) => {
             el.autoFrame = false;
             await el.session.config.set({ layoutTransition: undefined });
             await el.setLayout("location-map", globe);
@@ -125,12 +133,23 @@ export async function plan(h, preload, flat) {
             const landed = (q) => q && Math.hypot(q.x, q.y, q.z) > 0.8 * globe.size;
             for (;;) {
                 const qs = read();
-                if (qs.every((q) => landed(q)) && el.session.layout.motion === "settled")
-                    return Object.fromEntries(ids.map((id, i) => [id, qs[i]]));
+                if (qs.every((q) => landed(q)) && el.session.layout.motion === "settled") {
+                    // the other airports the globe draws on the path's end, within `under` of it
+                    const [end] = qs;
+                    const under = el
+                        .getNodes()
+                        .filter((n) => n.id !== ids[0])
+                        .filter((n) => {
+                            const q = n.getPosition();
+                            return Math.hypot(q.x - end.x, q.y - end.y, q.z - end.z) < near;
+                        })
+                        .map((n) => n.id);
+                    return { ...Object.fromEntries(ids.map((id, i) => [id, qs[i]])), under };
+                }
                 await new Promise((r) => globalThis.requestAnimationFrame(r));
             }
         },
-        [[PATH_ENDS[1], EUROPE], GLOBE],
+        [[PATH_ENDS[1], EUROPE], GLOBE, UNDER],
     );
     const spot = spots[PATH_ENDS[1]];
     await preload(spot, spots[EUROPE]);
@@ -192,6 +211,13 @@ export async function plan(h, preload, flat) {
     // in 3D, the route's first corner eased (MANILA): its airport drawn toward the middle of the two
     // either side, so the flight meets it head on and turns after it gently (the flat tree keeps it)
     pullIn(byId, MANILA, 0.3);
+    // the airports that join the 3D drawing appear scattered through it, in its open spaces, and
+    // glide to their lobes as the communities light (scatter)
+    steps.scatter = scatter(
+        Object.fromEntries(steps.map((s) => [s.node.id, s.node.position])),
+        order.slice(flat),
+        1.6 * APART,
+    );
     steps.flat = flatPlaces(
         steps.map((s) => ({ ...s, node: { ...s.node, position: flatById.get(s.node.id).position } })),
         flat,
@@ -212,6 +238,7 @@ export async function plan(h, preload, flat) {
     // the store numbers edges on from the sample's count, cleared or not
     steps.firstEdgeId = edges.length;
     steps.europe = spots[EUROPE];
+    steps.under = spots.under;
     return steps;
 }
 
@@ -399,6 +426,41 @@ export function spreadOut(at, least, rounds = 60) {
                 ps[j] = add(ps[j], push);
             }
     return Object.fromEntries(ids.map((id, i) => [id, ps[i]]));
+}
+
+/**
+ * Where airports first appear before their communities gather them: each at a random place (seeded)
+ * in the ellipsoid that holds the drawing, `least` or more from every other airport's place there
+ * and from those already scattered (or, failing that, as far as it found), so they land in the open
+ * spaces across and round the drawing, not on its lobes.
+ * @param at - every airport's place in the drawing, by id
+ * @param ids - the airports to scatter, in the order they join
+ * @param least - the least distance from any other
+ * @param [seed] - the random seed
+ * @returns each scattered airport's place, by id
+ */
+export function scatter(at, ids, least, seed = 11) {
+    const random = rng(seed);
+    const away = new Set(ids);
+    const taken = Object.entries(at)
+        .filter(([id]) => !away.has(id))
+        .map(([, p]) => p);
+    const half = ["x", "y", "z"].map((k) => Math.max(...Object.values(at).map((p) => Math.abs(p[k]))));
+    const out = {};
+    for (const id of ids) {
+        let best = null;
+        let far = -1;
+        for (let k = 0; k < 400 && far < least; k++) {
+            const u = [0, 1, 2].map(() => 2 * random() - 1);
+            if (u[0] ** 2 + u[1] ** 2 + u[2] ** 2 > 1) continue;
+            const q = { x: u[0] * half[0], y: u[1] * half[1], z: u[2] * half[2] };
+            const d = Math.min(...taken.map((p) => len(sub(p, q))));
+            if (d > far) [best, far] = [q, d];
+        }
+        out[id] = best;
+        taken.push(best);
+    }
+    return out;
 }
 
 /**
@@ -642,7 +704,7 @@ function beside(p, T, a, cl) {
  * beside each airport but the last (`clear` of it, at `side` round the way the route comes in) and
  * `over` on past it before the turn, and beside the middle of each leg but the last (each leg seen
  * along its own way, so the curve keeps off the route's straight lines), then straight in on the last
- * along `dir` to `close` from it; its corners rounded `round` wide, so the look never whips round a
+ * along `dir`, from `run` out to `close` from it; its corners rounded `round` wide, so the look never whips round a
  * bend (the ends kept where they are). The rounding moves the curve nearer some airports and
  * farther from others, so each airport's offset is scaled until the camera passes it `clear` away
  * (a few rounds settle it).
@@ -654,24 +716,27 @@ function beside(p, T, a, cl) {
  * @param o.clear - how far beside each airport it passes
  * @param o.side - which side (the angle round the way the route goes)
  * @param o.over - how far on past each airport it carries before turning
+ * @param o.lastOver - as much past the last airport but one
  * @param o.round - how widely its corners are rounded
  * @param o.close - the close-up's distance
+ * @param o.run - how far out on `dir` the straight run in on the last airport starts
  * @returns `c0`, the curve through the points, and `c`, it rounded (both as curve)
  */
-function besideCurve(pts, { away, dir, lead, clear, side, over, round, close }) {
+function besideCurve(pts, { away, dir, lead, clear, side, over, lastOver, round, close, run }) {
     const last = pts.at(-1);
+    const ov = (i) => (i + 2 === pts.length ? lastOver : over);
     const path = (cl) => {
         const cam = [beside(add(pts[0], mul(away, lead)), mul(away, -1), side, cl[0])];
         for (let i = 0; i + 1 < pts.length; i++) {
             const tin = unit(sub(pts[i], pts[Math.max(0, i - 1)]));
             cam.push(beside(pts[i], i === 0 ? unit(sub(pts[1], pts[0])) : tin, side, cl[i]));
-            if (i > 0) cam.push(beside(add(pts[i], mul(tin, over)), tin, side, cl[i]));
+            if (i > 0 && ov(i) > 0) cam.push(beside(add(pts[i], mul(tin, ov(i))), tin, side, cl[i]));
             if (i + 2 < pts.length) {
-                const mid = mul(add(add(pts[i], mul(tin, i > 0 ? over : 0)), pts[i + 1]), 0.5);
+                const mid = mul(add(add(pts[i], mul(tin, i > 0 ? ov(i) : 0)), pts[i + 1]), 0.5);
                 cam.push(beside(mid, unit(sub(pts[i + 1], mid)), side, (cl[i] + cl[i + 1]) / 2));
             }
         }
-        cam.push(add(last, mul(dir, 6 * close)), add(last, mul(dir, close)));
+        cam.push(add(last, mul(dir, run)), add(last, mul(dir, close)));
         const c0 = curve(cam);
         return { c0, c: rounded(c0, round) };
     };
@@ -727,14 +792,17 @@ function levelAlong(ps, line, length, skip) {
  * airport with no turn to find it. Through the swoop its look eases from `look` onto the route.
  *
  * The speed: from the run-in it only builds (smoothstep), from `v0` of the top speed to the top as
- * it passes the last airport but one; then it only slows (smoothstep), arriving at `vEnd` (`creep`
- * of `close` a second) at the close-up; it holds the close-up `hold` more, creeping on at `vEnd`.
+ * it passes the last airport but one; then it only slows: a smoothstep down to `near` from the
+ * last airport, then eased by the airport's size on screen, which from there grows at a steady
+ * rate (1 / distance rising linearly), arriving at `vEnd` (`creep` of `close` a second) at the
+ * close-up; it holds the close-up `hold` more, creeping on at `vEnd` (the same steady growth).
  * The close-up is aimed `aim` below the airport (so it sits that much above the canvas's middle, in
  * the middle of a crop), eased in as it comes in. It banks a little into the turns, level by the
  * close-up.
  * @param pts - the route's airports, in order
  * @param o - the flight
- * @param o.ms - how long the flight takes, from the run-in to the close-up (take ms)
+ * @param o.ms - how long the build takes, from the run-in to the last airport but one (take ms);
+ *     the arrival takes what its speeds make it (`flyMs`)
  * @param o.close - the close-up's distance from the last airport
  * @param [o.approachMs] - how long the swoop from `from` to the run-in takes (take ms)
  * @param [o.from] - where the camera is when the flight starts (default: it starts at the run-in)
@@ -749,22 +817,28 @@ function levelAlong(ps, line, length, skip) {
  * @param [o.over] - how far on past each airport but the first and last the camera and its look
  *     carry straight on before they turn onto the next leg (so it meets each airport head on and
  *     turns after it, in open space)
+ * @param [o.lastOver] - as much past the last airport but one (default `over`; 0 bends onto the
+ *     last leg right after it)
+ * @param [o.run] - how far out the straight run in on the last airport starts (default 6 `close`)
  * @param [o.hold] - the close-up held after it (take ms)
  * @param [o.v0] - the speed at the run-in, against the top speed
  * @param [o.creep] - the speed at the close-up, in `close`s a second of take
+ * @param [o.near] - how far from the last airport its steady growth on screen starts (default 4 `close`)
  * @param [o.aim] - how far the close-up aims below the airport, in half-heights of the view
  * @param [o.bank] - roll per rad/s of turn
  * @param [o.maxRoll] - the most roll (radians)
  * @param [o.sigma] - how long the look is smoothed over (s of take)
  * @param [o.hz] - poses a second
  * @returns `poses`, the camera's position `p`, its target `t` and its roll `r`, `hz` a second;
- *     `runMs`, when it reaches the run-in (take ms: `approachMs`); `vEnd`, its speed at the
+ *     `runMs`, when it reaches the run-in (take ms: `approachMs`); `flyMs`, how long it takes from
+ *     the run-in to the close-up (take ms); `vEnd`, its speed at the
  *     close-up (units a second of take); and `dir`, the side the close-up is seen from (from the
  *     last airport toward the camera)
  */
 export function flightPoses(pts, o) {
     const { from = null, fromV = { x: 0, y: 0, z: 0 }, look = null, lead = 30, clear = 8, side = 0.6 } = o;
     const { ahead = 60, over = 30, round = 20, lineRound = 30, hold = 0, v0 = 0.6, creep = 0.2, aim = 0, close } = o;
+    const { near = 4 * close, lastOver = over, run = 6 * close } = o;
     const { bank = 0.5, maxRoll = 0.17, sigma = 1.5, hz = 60 } = o;
     const last = pts.at(-1);
     const Y = { x: 0, y: 1, z: 0 };
@@ -773,30 +847,34 @@ export function flightPoses(pts, o) {
     const away = unit(sub(pts[0], pts[1]));
     const T1 = unit(sub(last, pts.at(-2)));
     const dir = unit(sub(beside(sub(last, mul(T1, 9 * close)), T1, side, clear), last));
-    const { c0, c } = besideCurve(pts, { away, dir, lead, clear, side, over, round, close });
+    const { c0, c } = besideCurve(pts, { away, dir, lead, clear, side, over, lastOver, round, close, run });
     const sEnd = c.length;
     const sArr = (c0.knots.at(-3) * c.length) / c0.length;
-    // the speed: smoothly from v0 to the top over the build (to the last airport but one), then
-    // smoothly down to vEnd over the arrival (each a smoothstep, so each stretch takes its length
-    // over the mean of its two speeds); the top speed found so the two take `ms`
+    // the speed: smoothly from v0 to the top over the build (`ms`, to the last airport but one;
+    // a smoothstep, so it takes its length over the mean of its two speeds); then smoothly down
+    // (a smoothstep) to the speed at which the last airport, `near` away, grows on screen at the
+    // rate it will keep; then that steady growth (1 / distance rising at a constant rate: the
+    // speed falls with the distance squared) to `close`, arriving at vEnd
     const vEnd = creep * close;
-    const T = o.ms / 1000;
-    const took = (v) => (2 * sArr) / ((1 + v0) * v) + (2 * (sEnd - sArr)) / (v + vEnd);
-    let [lo, hi] = [1e-3, 1e5];
-    for (let k = 0; k < 100; k++) {
-        const m = (lo + hi) / 2;
-        if (took(m) > T) lo = m;
-        else hi = m;
-    }
-    const vmax = hi;
-    const tb = (2 * sArr) / ((1 + v0) * vmax);
-    const ta = (2 * (sEnd - sArr)) / (vmax + vEnd);
+    const grow = vEnd / close ** 2;
+    const sN = sEnd - (near - close);
+    if (sN <= sArr) throw new Error("flightPoses: `near` reaches back past the last airport but one");
+    const vN = grow * near ** 2;
+    const tb = o.ms / 1000;
+    const vmax = (2 * sArr) / ((1 + v0) * tb);
+    const ta = (2 * (sN - sArr)) / (vmax + vN);
+    const tn = (1 / close - 1 / near) / grow;
+    const T = tb + ta + tn;
     // the integral of a + (b - a) smoothstep(t / d), from 0 to t
     const ramp = (t, d, a, b) => {
         const x = Math.min(1, t / d);
         return d * (a * x + (b - a) * (x * x * x - (x * x * x * x) / 2));
     };
-    const at = (t) => (t <= tb ? ramp(t, tb, v0 * vmax, vmax) : Math.min(sEnd, sArr + ramp(t - tb, ta, vmax, vEnd)));
+    const at = (t) => {
+        if (t <= tb) return ramp(t, tb, v0 * vmax, vmax);
+        if (t <= tb + ta) return sArr + ramp(t - tb, ta, vmax, vN);
+        return Math.min(sEnd, sEnd + close - 1 / (1 / near + grow * (t - tb - ta)));
+    };
     const arc = [];
     const steps = Math.round(T * hz);
     for (let k = 0; k <= steps; k++) arc.push(at(k / hz));
@@ -826,7 +904,8 @@ export function flightPoses(pts, o) {
     const lineCtrl = [add(pts[0], mul(away, lead)), pts[0]];
     for (let i = 1; i < pts.length; i++) {
         lineCtrl.push(pts[i]);
-        if (i + 1 < pts.length) lineCtrl.push(add(pts[i], mul(unit(sub(pts[i], pts[i - 1])), over)));
+        const carryOn = i + 2 === pts.length ? lastOver : over;
+        if (i + 1 < pts.length && carryOn > 0) lineCtrl.push(add(pts[i], mul(unit(sub(pts[i], pts[i - 1])), carryOn)));
     }
     const r0 = rounded(curve(lineCtrl), lineRound);
     const line = (u) => (u <= r0.length ? r0.at(u) : sub(last, mul(dir, u - r0.length)));
@@ -859,6 +938,7 @@ export function flightPoses(pts, o) {
         poses: ps.map((p, i) => ({ p: r3(p), t: r3(ts[i]), r: +roll[i].toFixed(4) })),
         hz,
         runMs: (na * 1000) / hz,
+        flyMs: T * 1000,
         vEnd,
         dir,
     };
@@ -947,8 +1027,9 @@ export function stretch(poses, hz, a, b, f) {
 /**
  * The reveal, as camera poses (playPoses): an extreme close-up on a point of the globe, straight
  * down on it (as the flight's close-up), still creeping in at `creepV`; then one long pull back,
- * eased in briefly and out long (a sine of a power of the time, in the log of the distance, so it
- * is clearly moving within a few percent of its length), along the line from the globe's middle
+ * eased in briefly (over the creep's fade, so the creep turns into it smoothly) and out long (a
+ * sine of a power of the time, in the log of the distance, so it is clearly moving within a few
+ * percent of its length), along the line from the globe's middle
  * (the point stays in the middle of the frame while the camera is near), the creep fading into it,
  * turning as it goes toward the point halfway to `toward`, to `far` globe radii out, the globe
  * moved in the frame by `drop` (down, or up below 0: to sit where a crop or a title wants it); then on,
@@ -995,8 +1076,9 @@ export function revealPoses(spot, toward, o) {
     const dt = 1 / hz;
     for (let t = 0; t <= (hold + pull + turn) / 1000 + 1e-9; t += dt) {
         const k = (t - hold / 1000) / (pull / 1000);
-        // the creep's ground given back as the pull goes out, so the pull ends `far` out, centered
-        const e = ease(k);
+        // the creep's ground given back as the pull goes out, so the pull ends `far` out, centered;
+        // the pull eased in over the creep's fade, so the creep turns into the pull with no jolt
+        const e = ease(k) * smooth(k / creepFade);
         const radius = (close - crept * (1 - e)) * (R / close) ** e;
         crept += creepV * (1 - smooth(k / creepFade)) * dt;
         // the target slides to the globe's middle with the distance, so the camera only ever recedes
@@ -1301,10 +1383,62 @@ export function accelerating(count, first, factor, least, start = 0) {
 }
 
 /**
+ * The 2D camera's framing of the growing tree, planned ahead from when each airport arrives and
+ * where it lands, as one move: its middle the middle of the box round every airport due within
+ * `ahead` of now (a box that only grows), smoothed; its half width the least that holds them all
+ * round that middle, never less than before (the view only ever opens), smoothed in log terms (so
+ * the move's speed never jumps), and opened on by `drift` a second all the while (the picture never
+ * stops, also once the last airport is in). Smoothing is a Gaussian `sigma` wide.
+ * @param arrivals - [{ t, p }]: each airport's arrival (ms from the start) and place, in order
+ * @param o - the framing
+ * @param o.fill - the share of the frame the drawing fills
+ * @param o.least - the least width framed (world units)
+ * @param o.aspect - the frame's width over its height
+ * @param o.ahead - how long before an airport arrives it is framed (ms)
+ * @param o.sigma - how widely the move is smoothed (ms)
+ * @param [o.drift] - how fast the view opens on its own (log of the width a second)
+ * @param [o.dt] - the time between two samples (ms)
+ * @returns `{ dt, drift, half, x, y }`: the view's half width and its middle, a sample every `dt` ms
+ */
+export function treeFraming(arrivals, { fill, least, aspect, ahead, sigma, drift = 0, dt = 100 }) {
+    const n = Math.ceil((arrivals.at(-1).t + 3 * sigma) / dt) + 1;
+    const due = (k) => arrivals.filter((a) => a.t <= k * dt + ahead).map((a) => a.p);
+    const span = (qs, key) => [Math.min(...qs.map((q) => q[key])), Math.max(...qs.map((q) => q[key]))];
+    const smooth = (xs) => {
+        const w = Math.ceil((3 * sigma) / dt);
+        return xs.map((_, k) => {
+            let [sum, z] = [0, 0];
+            for (let j = -w; j <= w; j++) {
+                const g = Math.exp(-0.5 * ((j * dt) / sigma) ** 2);
+                sum += g * xs[Math.min(n - 1, Math.max(0, k + j))];
+                z += g;
+            }
+            return sum / z;
+        });
+    };
+    const need = (qs, c) =>
+        Math.max(least / 2, ...qs.map((q) => Math.max(Math.abs(q.x - c.x), Math.abs(q.y - c.y) * aspect))) / fill;
+    const sets = Array.from({ length: n }, (_, k) => due(k));
+    const mids = sets.map((qs) => ({
+        x: span(qs, "x").reduce((a, b) => a + b) / 2,
+        y: span(qs, "y").reduce((a, b) => a + b) / 2,
+    }));
+    const x = smooth(mids.map((q) => q.x));
+    const y = smooth(mids.map((q) => q.y));
+    const ever = (xs) => xs.map((_, k) => Math.max(...xs.slice(0, k + 1)));
+    const needs = sets.map((qs, k) => need(qs, { x: x[k], y: y[k] }));
+    // smoothed, then held to what each moment needs round the smoothed middle, never closing in
+    const logs = ever(smooth(ever(needs).map((v) => Math.log(v))).map((l, k) => Math.max(l, Math.log(needs[k]))));
+    return { dt, drift, half: logs.map((l, k) => Math.exp(l + (drift * k * dt) / 1000)), x, y };
+}
+
+/**
  * The camera follows the growing drawing, in the page, every frame (setCameraState with skipQueue,
  * as shape.js rig does): it keeps the drawing framed at `fill` of the canvas, easing toward the new
  * framing (time constant `tau` ms), so the view widens smoothly as airports arrive. In 2D it frames
- * the nodes' box (never closer than `least` world units across) and turns by `spin` rad/s; in 3D it
+ * the box round every airport drawn or due soon, a box that only ever grows (never closer than
+ * `least` world units across), so the framing only opens and its middle moves only as the drawing
+ * spreads, eased twice over (its speed never jumps), and turns by `spin` rad/s; in 3D it
  * orbits the middle of the drawing's box at `spin` rad/s about the vertical, `beta` down from it, at the
  * distance that holds 90% of the nodes. Replaces any follow running, carrying on from where it had
  * the camera (its framing and turn speed ease to the new options); `unfollow` stops it.
@@ -1320,9 +1454,10 @@ export function accelerating(count, first, factor, least, start = 0) {
  * @param [o.tilt] - 3D: how fast the camera's angle down eases toward `beta`, against `tau`
  * @param [o.aheadMs] - also frame the airports the growth adds in the next this many ms
  * @param [o.only] - frame only these nodes (ids)
- * @param [o.push] - 2D: the framing tightens by this share a second (a slow push in, never still)
- * @param [o.lean] - 2D: how far the framing's middle leans from what is drawn toward the airports
- *     coming (`aheadMs`): 0 keeps what is drawn in the middle, 1 frames both alike
+ * @param [o.plan] - 2D: play this framing (treeFraming) from now instead, eased in from where the
+ *     camera is over `tau`; after its end it opens on, its `drift` eased to `later` over `rampMs`
+ * @param [o.push] - 2D: the framing tightens by this share a second (a slow push in, never still;
+ *     below 0, a slow pull out), carried on from the follow before
  * @param [o.box] - { top, bottom }: canvas pixels the finished video crops off (the cut's
  *     full-bleed box), so the drawing is framed in what is left; the 3D camera's state then carries
  *     `aim`, the target it really looks at
@@ -1332,17 +1467,7 @@ export const follow = (h, o = {}) =>
     onElement(
         h,
         (el, opt) => {
-            const {
-                fill = 0.7,
-                tau = 900,
-                spin = 0,
-                least = 14,
-                beta = 1.25,
-                share = 0.9,
-                tilt = 0.5,
-                push = 0,
-                lean = 1,
-            } = opt;
+            const { fill = 0.7, tau = 900, spin = 0, least = 14, beta = 1.25, share = 0.9, tilt = 0.5, push = 0 } = opt;
             const { top = 0, bottom = 0 } = opt.box ?? {};
             const shift = (bottom - top) / 2;
             const was = globalThis.__follow;
@@ -1390,6 +1515,7 @@ export const follow = (h, o = {}) =>
                           };
                       })();
             const s = was && "half" in was.state === (cam.mode === "2d") ? was.state : fresh();
+            if (opt.plan) s.start = null;
             // the airports drawn and those due soon, so the view widens before they arrive
             const drawn = () =>
                 el
@@ -1398,21 +1524,21 @@ export const follow = (h, o = {}) =>
                     .map((n) => n.getPosition());
             const coming = () => (opt.aheadMs && globalThis.__growth?.ahead?.(opt.aheadMs)) || [];
             const points = () => [...drawn(), ...coming()];
-            const box = (qs) => {
-                const [xs, ys] = [qs.map((p) => p.x), qs.map((p) => p.y)];
-                return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
-            };
-            // 2D: the middle of what is drawn, moved `lean` of the way toward the middle of it and
-            // what is coming, and the width and height that hold both round it
+            // 2D: the box round all it has framed so far and the points now (it only grows), its
+            // middle, and its width and height
             const framing = (ps) => {
-                const all = box(ps);
-                const seen = drawn();
-                const now = seen.length ? box(seen) : all;
-                const mid = { x: now.x + (all.x - now.x) * lean, y: now.y + (all.y - now.y) * lean };
+                const b = s.ext ?? { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
+                for (const p of ps) {
+                    b.x0 = Math.min(b.x0, p.x);
+                    b.x1 = Math.max(b.x1, p.x);
+                    b.y0 = Math.min(b.y0, p.y);
+                    b.y1 = Math.max(b.y1, p.y);
+                }
+                s.ext = b;
                 return {
-                    mid,
-                    wx: Math.max(least, 2 * Math.max(...ps.map((p) => Math.abs(p.x - mid.x)))),
-                    wy: Math.max(least * 0.5625, 2 * Math.max(...ps.map((p) => Math.abs(p.y - mid.y)))),
+                    mid: { x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 },
+                    wx: Math.max(least, b.x1 - b.x0),
+                    wy: Math.max(least * 0.5625, b.y1 - b.y0),
                 };
             };
             const frame = () => {
@@ -1424,7 +1550,47 @@ export const follow = (h, o = {}) =>
                 s.spin = (s.spin ?? spin) + (spin - (s.spin ?? spin)) * w;
                 const ps = points();
                 if (ps.length) {
-                    if ("half" in s) {
+                    if ("half" in s && opt.plan) {
+                        // the planned framing, eased in from where the camera was
+                        const p = opt.plan;
+                        const u = (now - t0) / p.dt;
+                        const k = Math.min(p.half.length - 1, Math.floor(u));
+                        const j = Math.min(p.half.length - 1, k + 1);
+                        const f = Math.min(1, u - k);
+                        const lerp = (xs) => xs[k] + (xs[j] - xs[k]) * f;
+                        // after the plan, opening on, its speed eased from `drift` to `later` over `rampMs`
+                        const over = Math.max(0, u - (p.half.length - 1)) * p.dt;
+                        const { later = p.drift, rampMs = 1 } = p;
+                        const ramped = Math.min(over, rampMs);
+                        const opened =
+                            p.drift * over +
+                            (later - p.drift) * (ramped ** 2 / (2 * rampMs) + Math.max(0, over - rampMs));
+                        const logHalf =
+                            Math.log(p.half[k]) + (Math.log(p.half[j]) - Math.log(p.half[k])) * f + opened / 1000;
+                        const b = Math.exp(-(now - t0) / tau);
+                        s.start = s.start ?? { half: s.half, x: s.pan.x, y: s.pan.y };
+                        s.half = Math.exp(logHalf + (Math.log(s.start.half) - logHalf) * b);
+                        const { width: cw } = el.getCanvasSize();
+                        const up =
+                            Math.sign(
+                                el.worldToScreen({ x: 0, y: 0, z: 0 }).y - el.worldToScreen({ x: 0, y: 1, z: 0 }).y,
+                            ) || 1;
+                        const aim = lerp(p.y) - (up * shift * 2 * s.half) / cw;
+                        s.pan.x = lerp(p.x) + (s.start.x - lerp(p.x)) * b;
+                        s.pan.y = aim + (s.start.y - aim) * b;
+                        const k2 = el.getCanvasSize().height / cw;
+                        el.setCameraState(
+                            {
+                                orthoLeft: -s.half,
+                                orthoRight: s.half,
+                                orthoTop: s.half * k2,
+                                orthoBottom: -s.half * k2,
+                                pan: s.pan,
+                                rotation: s.rotation,
+                            },
+                            { skipQueue: true },
+                        );
+                    } else if ("half" in s) {
                         const { mid, wx, wy } = framing(ps);
                         // the half width that fits the box, in world units: the frustum is set by its
                         // edges, not by `zoom`, whose reference size the element may change as data
@@ -1433,18 +1599,22 @@ export const follow = (h, o = {}) =>
                         const up = Math.sign(a.y - el.worldToScreen({ x: 0, y: 1, z: 0 }).y) || 1;
                         const { width: cw, height: ch } = el.getCanvasSize();
                         const hb = ch - top - bottom;
-                        const f = fill * Math.exp((push * (now - t0)) / 1000);
+                        // the push, summed over time and carried on from the follow before (so a
+                        // new follow's push changes the framing's speed, never its size)
+                        s.pushed = (s.pushed ?? 0) + (push * dt) / 1000;
+                        const f = fill * Math.exp(s.pushed);
                         const goal = Math.max(wx / (2 * f), (wy * cw) / (2 * f * hb));
-                        // widening linearly (in log terms it lags the pan, and a far arrival pushes
-                        // what is drawn off the frame's edge before the view has opened), narrowing
-                        // in log terms (an even push in)
-                        s.half =
-                            goal > s.half
-                                ? s.half + (goal - s.half) * w
-                                : Math.exp(Math.log(s.half) + (Math.log(goal) - Math.log(s.half)) * w);
+                        // eased twice over (in log terms): toward the goal, and the view toward that,
+                        // so the framing's speed changes smoothly, never in a jump
+                        const ease = (a, b) => Math.exp(Math.log(a) + (Math.log(b) - Math.log(a)) * w);
+                        s.goal = ease(s.goal ?? s.half, goal);
+                        s.half = ease(s.half, s.goal);
                         // the drawing's middle on the middle of the box, `shift` px above the canvas's
-                        const aim = mid.y - (up * shift * 2 * s.half) / cw;
-                        s.pan.x += (mid.x - s.pan.x) * w;
+                        s.mid = s.mid ?? { x: s.pan.x, y: s.pan.y + (up * shift * 2 * s.half) / cw };
+                        s.mid.x += (mid.x - s.mid.x) * w;
+                        s.mid.y += (mid.y - s.mid.y) * w;
+                        const aim = s.mid.y - (up * shift * 2 * s.half) / cw;
+                        s.pan.x += (s.mid.x - s.pan.x) * w;
                         s.pan.y += (aim - s.pan.y) * w;
                         s.rotation += (s.spin * dt) / 1000;
                         const k = ch / cw;

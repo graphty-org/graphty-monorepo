@@ -11,8 +11,10 @@ import {
     principalAxes,
     pullIn,
     revealPoses,
+    scatter,
     spreadOut,
     stretch,
+    treeFraming,
 } from "./growth.js";
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
@@ -86,7 +88,7 @@ test("the flat drawing puts each airport beside the one it joins, with no route 
         }
 });
 
-test("the flight swoops in carrying the orbit's motion, rides beside the route looking along it, builds speed, eases into the close-up", () => {
+test("the flight swoops in carrying the orbit's motion, rides beside the route looking along it, builds speed, eases into the close-up as the last airport grows steadily on screen", () => {
     const pts = [
         { x: 0, y: 0, z: 0 },
         { x: 60, y: 10, z: 0 },
@@ -95,9 +97,13 @@ test("the flight swoops in carrying the orbit's motion, rides beside the route l
     ];
     const from = { x: -150, y: 120, z: -180 };
     const fromV = { x: 30, y: 0, z: -20 };
-    const o = { ms: 24000, approachMs: 9000, hold: 300, close: 2.8, clear: 8, from, fromV, look: pts[2] };
-    const { poses, hz, vEnd, dir, runMs } = flightPoses(pts, o);
-    assert.equal(poses.length, Math.round((9 + 24 + 0.3) * hz) + 1);
+    const o = { ms: 20000, approachMs: 9000, hold: 300, close: 2.8, clear: 8, lastOver: 0, from, fromV, look: pts[2] };
+    const { poses, hz, vEnd, dir, runMs, flyMs } = flightPoses(pts, o);
+    assert.ok(flyMs > 20000);
+    assert.equal(
+        poses.length,
+        Math.round((9000 * hz) / 1000) + Math.round((flyMs * hz) / 1000) + 1 + Math.round(0.3 * hz),
+    );
     assert.equal(runMs, 9000);
     const run = (runMs * hz) / 1000;
     const step = (i) => dist(poses[i + 1].p, poses[i].p);
@@ -134,6 +140,14 @@ test("the flight swoops in carrying the orbit's motion, rides beside the route l
         assert.ok(angle(f(poses[i]), f(poses[i - 1])) * hz < 0.6, `turns fast at pose ${i}`);
         assert.ok(Math.abs(poses[i].r) <= 0.175);
     }
+    // from `near` (4 close) in, the last airport's size on screen (1 / distance) grows at one steady rate
+    // (measured over quarter seconds: the poses are rounded to a thousandth)
+    const g = poses.map(({ p }) => 1 / dist(p, pts[3]));
+    const q = hz / 4;
+    const steady = [];
+    for (let i = q; i < poses.length; i += q) if (1 / g[i - q] < 4 * o.close - 0.5) steady.push(g[i] - g[i - q]);
+    assert.ok(steady.length > 4, "no steady arrival");
+    for (const x of steady) assert.ok(Math.abs(x - steady[0]) < 0.06 * steady[0], "uneven growth on screen");
     // the close-up: looking straight at the last airport from `dir`, creeping in at vEnd, level
     const end = poses.at(-1);
     const back = unit({ x: end.p.x - pts[3].x, y: end.p.y - pts[3].y, z: end.p.z - pts[3].z });
@@ -211,4 +225,51 @@ test("stretch plays a stretch slower and keeps the poses before and after it", (
     assert.ok(Math.abs(out[5].p.x - 3) < 1e-9); // 300 ms into the stretch: 100 ms of the poses
     assert.ok(Math.abs(out[8].p.x - 4) < 1e-9);
     assert.equal(out.at(-1).p.x, 10);
+});
+
+test("scatter puts airports in the drawing's open spaces, apart from the rest, inside its extent", () => {
+    // two tight lobes on the x axis, and five airports to scatter
+    const at = {};
+    for (let i = 0; i < 10; i++) {
+        at[`a${i}`] = { x: -60 + (i % 3), y: (i % 2) * 2, z: 0 };
+        at[`b${i}`] = { x: 60 - (i % 3), y: (i % 2) * 2, z: 0 };
+    }
+    for (let i = 0; i < 5; i++) at[`s${i}`] = { x: 60, y: 0, z: 0 };
+    at.top = { x: 0, y: 40, z: 20 };
+    const ids = ["s0", "s1", "s2", "s3", "s4"];
+    const out = scatter(at, ids, 12);
+    const placed = [];
+    for (const id of ids) {
+        const q = out[id];
+        assert.ok(Math.abs(q.x) <= 62 && Math.abs(q.y) <= 40 && Math.abs(q.z) <= 20, `${id} outside`);
+        for (const [other, p] of Object.entries(at))
+            if (!ids.includes(other)) assert.ok(dist(q, p) >= 12, `${id} on ${other}`);
+        for (const p of placed) assert.ok(dist(q, p) >= 12, `${id} on another scattered one`);
+        placed.push(q);
+    }
+    assert.deepEqual(scatter(at, ids, 12), out);
+});
+
+test("the tree's framing only opens, moves smoothly, and frames each airport before it lands", () => {
+    // a tree growing out in turn to the right, the left, up and far down
+    const arrivals = [
+        { t: 0, p: { x: 0, y: 0 } },
+        { t: 3000, p: { x: 20, y: 2 } },
+        { t: 5000, p: { x: -25, y: 0 } },
+        { t: 6000, p: { x: -10, y: 18 } },
+        { t: 6500, p: { x: 30, y: -10 } },
+        { t: 6800, p: { x: 5, y: -60 } },
+    ];
+    const o = { fill: 0.8, least: 14, aspect: 2.5, ahead: 3000, sigma: 1000, drift: 0.01 };
+    const { dt, half, x, y } = treeFraming(arrivals, o);
+    for (let k = 1; k < half.length; k++) {
+        assert.ok(half[k] >= half[k - 1], `closes in at ${k}`);
+        // the middle never moves more than a tenth of the view in a tenth of a second
+        assert.ok(Math.hypot(x[k] - x[k - 1], y[k] - y[k - 1]) < 0.1 * half[k], `jumps at ${k}`);
+    }
+    for (const a of arrivals)
+        for (let k = Math.round(a.t / dt); k < half.length; k++) {
+            assert.ok(Math.abs(a.p.x - x[k]) <= half[k], `airport at ${a.t} off the side at ${k}`);
+            assert.ok(Math.abs(a.p.y - y[k]) * o.aspect <= half[k], `airport at ${a.t} off the top or bottom at ${k}`);
+        }
 });

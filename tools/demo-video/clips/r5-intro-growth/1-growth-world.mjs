@@ -1,27 +1,31 @@
 // Intro "Growth", the whole intro in one continuous take (shot K times slow, sped up in the cut),
 // one unbroken camera move that builds from stillness to speed and lets the light rise and fall:
 // one dim airport in near darkness, the camera drifting in; a second glides out along its route,
-// then more, slowly at first and faster and faster as the sky and the drawing brighten; the app's
-// indigo and the arrowheads spread through the network in the order it grew; the drawing rises
-// into 3D as glass spreads over it and its glow swells, the camera tilting and circling at once,
-// while airports keep coming, faster; Louvain's communities ignite outward from the middle, each
-// its own lobe, their routes lit with comets, the brightest moment; then the world darkens toward
-// Sydney and the route to New York lights up airport by airport, while the camera leaves its orbit,
-// carrying its motion on, and swoops in behind Sydney, its look coming round onto the route; and it
-// flies the route like an airplane -- riding beside it and looking along its line ahead, faster and
-// faster, each airport coming up along the line and sweeping by large beside it, never through one,
-// turning after each, banking gently -- into a short
-// close-up on New York's airport, the other airports shrinking away, New York at the size it keeps on
-// the globe. The cut dissolves the earth
-// in behind it (tmp/demo-video/intros/growth/shots.md), and the camera pulls back from it,
-// starting within the dissolve, in one long eased move to the whole globe (evenly lit, no night
-// side) centered in the frame, the network's colors and comets coming back outward from New York,
-// the globe turning in the clear band between the logo and its line. While the drawing is flat
-// (the first FLAT airports) each airport lands beside the one it joins (flatPlaces), so the
-// drawing grows as an untangled tree; the lift is two moves: each airport rises to its depth in the
-// 3D drawing and a third of the way across (lift), then the drawing opens to its 3D places (place).
+// then more, slowly at first and faster and faster as the sky and the drawing brighten, the camera
+// opening out in one planned move (treeFraming: it only ever widens, its middle following the
+// tree's smoothly) and still opening as the app's indigo and the arrowheads spread through the
+// network in the order it grew; the drawing rises into 3D as glass spreads over it and its glow
+// swells, the camera tilting and circling at once, while airports keep coming, faster, scattered
+// through the drawing's open spaces (scatter); Louvain's communities ignite outward from the
+// middle, gathering their airports into lobes of their own, their routes lit with comets, the
+// brightest moment; then the world darkens toward Sydney and the route to New York lights up red
+// airport by airport, while the camera leaves its orbit, carrying its motion on, and swoops in
+// behind Sydney, its look coming round onto the route; and it flies the route like an airplane --
+// riding beside it and looking along its line ahead, faster and faster, each airport coming up
+// along the line and sweeping by large beside it, never through one, turning after each, banking
+// gently -- and bends onto New York well before it, New York growing on screen at a steady rate
+// into a short close-up, at its place on the globe (the route's line faded before it). The cut
+// dissolves the earth in behind it (tmp/demo-video/intros/growth/shots.md), and the camera pulls
+// back from it, starting within the dissolve, in one long eased move to the whole globe (evenly
+// lit, no night side) centered in the frame, the network's colors and comets coming back outward
+// from New York, New York easing into one ordinary airport of the globe (its size, its community's
+// color, a marble), the globe turning in the clear band between the logo and its line. While the
+// drawing is flat (the first FLAT airports) each airport lands beside the one it joins
+// (flatPlaces), so the drawing grows as an untangled tree; the lift is two moves: each airport
+// rises to its depth in the 3D drawing and a third of the way across (lift), then the drawing
+// opens to its 3D places (place).
 //
-// Every airport lands where plan put it (the fixed layout), so no addition reflows the drawing;
+// Every airport ends where plan put it (the fixed layout), so no addition reflows the drawing;
 // every change spreads (a layer's selector grown or narrowed over time, values tweened), and the
 // take updates styles at most a few times a second: an update costs the page tens of milliseconds
 // (tmp/demo-video/intros/growth/defects.md), and the take must keep its frame rate.
@@ -48,6 +52,7 @@ import {
     startGrowth,
     stretch,
     sweep,
+    treeFraming,
     unfollow,
 } from "./growth.js";
 
@@ -92,15 +97,30 @@ const BOX = { top: 72, bottom: 169 };
  */
 const RAISE = (BOX.bottom - BOX.top) / 1016;
 /**
- * New York's size, from the route's lighting to the end (SCENE, so on the globe too): about twice
- * the size of the globe's other airports, so it still reads as an airport on the end globe.
+ * The 2D camera as the tree grows (follow's `plan`, treeFraming): the whole tree at `fill` of the
+ * frame (less as the view keeps opening), never framed closer than `least`; the camera eased onto
+ * the plan over `tau` from the drift before it.
+ */
+const TREE = { fill: 0.8, least: 14, tau: S(1200), box: BOX };
+/**
+ * New York's size (SCENE, so on the globe too): from the route's lighting through the close-up and
+ * the first of the pull back, and then, as the globe comes into view, the size the globe's other
+ * airports are drawn at on the end globe, where it is one of them.
  */
 const NY_SIZE = 1.2;
+const NY_END = 0.6;
 /**
  * The close-up on New York: the camera's distance from it as the flight arrives (world units),
- * near enough that it fills most of the frame.
+ * near enough that it fills most of the frame's height (creeping on to about 850 px of the output's
+ * 1,080 before the pull back), with the earth round it.
  */
-const CLOSE = 3.1;
+const CLOSE = 4;
+/**
+ * The speed the flight arrives at, in CLOSEs a second of take: New York grows on screen at the
+ * same steady rate from 4 CLOSE out (flightPoses' `near`), about 1.4 s of output, through the
+ * close-up's creep.
+ */
+const CREEP = 0.18;
 /** The cut's speed through the close-up and the dissolve (cuts/intro-growth.json's ramp there). */
 const END = 3.2;
 /** How long the close-up is held, creeping in, before the dissolve starts (take ms: 0.1 s in the cut). */
@@ -126,16 +146,19 @@ const H = (ms) => S(ms) * HUSH_SLOW;
  */
 const APPROACH = S(3000);
 const APPROACH_SLOW = (4.8 * HUSH_SLOW) / 3.1;
-/** How long the flight takes, from the run-in to the close-up (take ms). */
-const FLY = S(4100);
 /**
- * The stretch of the flight the route's line and the other airports fade over (take ms before the
- * flight's end: from 0.9 s of output before the close-up, as Philadelphia passes, to 0.15 s
- * before), played FADE_SLOW times slower in the take (stretch); cuts/intro-growth.json plays it
- * FADE_SLOW times faster, from mark close minus (FADE length x FADE_SLOW + FADE[1]) of take (6.75 s)
- * to mark close minus FADE[1] (0.45 s).
+ * How long the flight's build takes, from the run-in to Philadelphia, the last airport but one
+ * (take ms); the arrival on New York takes what its speeds make it (flightPoses' `flyMs`).
  */
-const FADE = [S(900), S(150)];
+const FLY = S(3200);
+/**
+ * The stretch of the flight the route's line fades over (take ms before the flight's end: from
+ * 2 s of output before the close-up to 1.1 s before, before the line could streak past the lens),
+ * played FADE_SLOW times slower in the take (stretch); cuts/intro-growth.json plays it FADE_SLOW
+ * times faster, from mark close minus (FADE length x FADE_SLOW + FADE[1]) of take (11.4 s) to mark
+ * close minus FADE[1] (3.3 s).
+ */
+const FADE = [S(2000), S(1100)];
 const FADE_SLOW = 3;
 /** How much longer the take's flight is for that (take ms). */
 const FADE_EXTRA = (FADE[0] - FADE[1]) * (FADE_SLOW - 1);
@@ -157,17 +180,34 @@ const PULL = S(12000);
  */
 const PULL_LIGHT = S(6000);
 const PULL_SLOW = 2;
+/** How long the communities take to gather their scattered airports into their lobes (take ms). */
+const GATHER = S(2200);
 /** The size of the route's airports but New York, large as the flight sweeps past them. */
 const ROUTE_SIZE = 3.2;
 /** The comets on the routes, in their source airports' colors (their speed slowed with the take). */
 const COMETS = { useEdgeColor: true, intensity: 2.6, bloom: 2, tail: 200, spacing: 260, speed: 1.2 / K };
-/** The route's airports: amber glass. */
-const ROUTE_AMBER = "#c98a3a";
+/** The comets' intensity before they light, on the globe: all but nothing, yet drawn. */
+const COMETS_UNLIT = 0.02;
+/** The route's line and its airports: a rich red that reads on the dark sky and on the map. */
+const ROUTE_RED = "#e0262f";
+/** The route's line: its width as the flight flies it, and on the globe. */
+const ROUTE_WIDTH = [8, 4];
 /**
- * New York: amber pearl, opaque, so it looks the same before the earth comes in and after (glass
+ * New York: red pearl, opaque, so it looks the same before the earth comes in and after (glass
  * shows what lies behind it: the dark sky, then the bright map).
  */
-const NY_LOOK = { "node.color": ROUTE_AMBER, "node.shaders": [{ shader: "pearl", params: { tint: 0.8 } }] };
+const NY_LOOK = { "node.color": ROUTE_RED, "node.shaders": [{ shader: "pearl", params: { tint: 0.8 } }] };
+/**
+ * Airports hidden on the globe: opacity 0 and no shader (a shaded node draws at any opacity,
+ * defects.md 21).
+ */
+const HIDDEN = {
+    "node.color": "#232838",
+    "node.opacity": 0,
+    "node.shaders": ["glass", "glass-marble", "lantern"].map((shader) => ({ shader, off: true })),
+};
+/** The globe's airports: still marbles (on the sunlit map any glow reads as a flare, defects.md 14). */
+const MARBLE = [{ shader: "glass-marble", params: { spin: 0 } }];
 /** Drawn at their scene size, even on the globe (the map draws nodes at a size on screen). */
 const SCENE = { "node.sizeSpace": "scene" };
 /** The plain airports' size on the globe (a size on screen there): near New York, and far out. */
@@ -220,6 +260,9 @@ const reveal = (spot, europe, o = {}) =>
  * @returns the channels
  */
 const plainEdges = (color, width) => ({ "edge.color": color, "edge.arrowHead": "none", "edge.width": width });
+
+/** The route's line gone: no shader (its packets draw at any opacity, defects.md 21), opacity 0. */
+const LINE_OFF = { ...plainEdges(ROUTE_RED, 2), "edge.opacity": 0 };
 
 export default {
     id: "growth-world",
@@ -279,15 +322,7 @@ export default {
         const at = (ms) => h.pause(Math.max(0, t0 + ms - Date.now()));
         h.mark("open");
         // ---- one airport in near darkness: it fades up as the camera drifts in and the sky lifts
-        await follow(h, {
-            fill: 0.6,
-            least: 12,
-            tau: S(2500),
-            push: 0.035 / K,
-            aheadMs: S(2500),
-            lean: 0.25,
-            box: BOX,
-        });
+        await follow(h, { fill: 0.6, least: 12, tau: S(2500), push: 0.035 / K, aheadMs: S(2500), box: BOX });
         meanwhile(
             tween(
                 h,
@@ -311,12 +346,29 @@ export default {
             Math.min(S(2600), Math.max(S(400), 0.95 * ((times[i + 1] ?? t + S(400)) - t))),
         );
         flat.firstEdgeId = h.steps.firstEdgeId;
+        // the camera's framing of the growing tree, planned from where and when each airport lands
+        // (treeFraming): one move, only opening out, its middle following the tree's smoothly, each
+        // airport framed 1.2 s before it arrives (the first ones glide out from the airport they
+        // join, so both ends of a route are framed as it is drawn); after the last airport it keeps opening, a little faster, through the arrows
+        // up to the lift, so the picture never stops
+        const canvas = await onElement(h, (el) => el.getCanvasSize());
+        const plan2d = treeFraming(
+            [
+                { t: 0, p: h.steps.flat[h.steps[0].node.id] },
+                ...flat.map((s, i) => ({ t: times[i], p: s.node.position })),
+            ],
+            {
+                fill: TREE.fill,
+                least: TREE.least,
+                aspect: canvas.width / (canvas.height - BOX.top - BOX.bottom),
+                ahead: S(1200),
+                sigma: S(800),
+                drift: 0.012 / K,
+            },
+        );
         h.mark("grow");
         await startGrowth(h, flat, times, { drawMs, layers: 2, tickMs: 60, glide: 8, cool: GRAY.edge });
-        // the camera's drift settles into following the growing drawing, widening well before the
-        // second airport arrives, so both ends of the first route are framed as it is drawn
-        await at(times[0] - S(2600));
-        await follow(h, { fill: 0.6, least: 14, tau: S(600), push: 0.006 / K, aheadMs: S(3000), lean: 0.3, box: BOX });
+        await follow(h, { ...TREE, plan: { ...plan2d, later: 0.05 / K, rampMs: S(1500) } });
         await at(times[2]);
         // the light climbs: the routes lighter and wider from the third, the airports after them
         await onElement(h, (_, c) => globalThis.__growth.cool(c), LIGHT_EDGE);
@@ -334,7 +386,6 @@ export default {
         );
         await sky;
         meanwhile(tween(h, "background", { color: SKY.dusk }, { color: SKY.day }, S(5000), 150));
-        await follow(h, { fill: 0.72, least: 14, tau: S(800), aheadMs: S(2000), lean: 0.5, box: BOX });
         await at(times[14]);
         meanwhile(
             tween(
@@ -392,7 +443,6 @@ export default {
             selector: { match: "ids", nodes: [] },
             set: { "node.shaders": [GLASS] },
         });
-        await unfollow(h);
         // the routes and airports dim before the switch to 3D and come back after it: the 3D view
         // draws the same edge width about half as wide and lights the flat disks as shaded spheres,
         // in the one frame of the switch (defects.md 18), which no style can match on both sides;
@@ -408,6 +458,7 @@ export default {
             const [f, p] = [h.steps.flat[s.node.id], s.node.position];
             return [s.node.id, { x: f.x + (p.x - f.x) / 3, y: f.y + (p.y - f.y) / 3, z: p.z }];
         };
+        await unfollow(h);
         await slowMotion(h, { layoutSeconds: 2.4 * K, transition: "glide" });
         const front = await lift(h, Object.fromEntries(h.steps.slice(0, FLAT).map((s) => deep(s))));
         h.mark("lift");
@@ -453,7 +504,11 @@ export default {
             { ...arrowSet(0.01, 4), "edge.arrowHead": "none" },
         ]);
         await opened;
-        const rest = h.steps.slice(FLAT);
+        // the rest appear scattered through the drawing's open spaces, not on its lobes (plan's
+        // `scatter`): their communities gather them in as they light
+        const rest = h.steps
+            .slice(FLAT)
+            .map((s) => ({ ...s, node: { ...s.node, position: h.steps.scatter[s.node.id] } }));
         // in bursts of three airports, faster and faster, each burst's routes drawn in
         const gaps = accelerating(Math.ceil(rest.length / 3), S(420), 0.9, S(80), 0);
         h.mark("grow3d");
@@ -491,6 +546,11 @@ export default {
             { "node.color": INDIGO.node, "node.shaders": [GLASS] },
         );
         await analyze(h, "louvain", {}, mask, "tol-vibrant");
+        // each community gathers its scattered airports into its own lobe as it lights (the fixed
+        // layout's glide), done well before the hush reads where the airports are
+        await slowMotion(h, { layoutSeconds: GATHER / 1000, transition: "glide" });
+        await place(h, Object.fromEntries(h.steps.map((s) => [s.node.id, s.node.position])));
+        const gathered = h.pause(GATHER);
         const lit = (intensity) => ({
             "node.shaders": [
                 LANTERN(intensity, 0.9),
@@ -532,6 +592,7 @@ export default {
         await tweenShader(h, h.glass, "intensity", 1.9, 1.3, S(2200), { ease: true, stepMs: 400 });
         await bloomSky;
         await h.pause(S(900));
+        await gathered;
         // ---- the hush: the world darkens toward Sydney (the far side first), the comets and the
         // glow going out with it, while the camera leaves its orbit and closes in on the run-in
         // behind Sydney (the flight's approach), its look coming round onto the route; before the
@@ -550,6 +611,15 @@ export default {
             `  growth-world: route at ${JSON.stringify(pts)}, New York on the globe ${JSON.stringify(h.steps.spot)}`,
         );
         const others = all.filter(([id]) => !path.nodes.includes(id));
+        // New York's community color: on the end globe it is one ordinary airport again
+        const nyColor = await onElement(
+            h,
+            (el, id) => {
+                const c = el.getNode(id).drawnInstanceColor;
+                return `#${[c.r, c.g, c.b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+            },
+            PATH_ENDS[1],
+        );
         const dimSet = {
             "node.color": "#232838",
             "node.shaders": [{ ...GLASS, params: { ...GLASS.params, sparkle: 0.5 } }],
@@ -597,6 +667,9 @@ export default {
             ms: FLY,
             hold: HOLD,
             close: CLOSE,
+            creep: CREEP,
+            // straight on past Philadelphia: the camera bends onto New York's approach right after it
+            lastOver: 0,
             aim: RAISE,
         });
         // the globe's close-up looks straight down on New York; the flight's plate plays the same
@@ -609,7 +682,7 @@ export default {
             { at: pts.at(-1), dir: flight.dir },
         );
         const runMs = flight.runMs * APPROACH_SLOW;
-        const flyMs = runMs + FLY;
+        const flyMs = runMs + flight.flyMs;
         const fade = [flyMs - FADE[0], flyMs - FADE[1]];
         const poses = stretch(
             stretch([...flight.poses, ...into], flight.hz, 0, flight.runMs, APPROACH_SLOW),
@@ -629,9 +702,8 @@ export default {
         });
         // ---- the flight: the camera leaves its orbit and closes in on Sydney, then flies the route
         // to New York, gathering speed, looking along it, and comes into the close-up, creeping in;
-        // the other airports and the route's line fade as the camera closes on New York, so only
-        // New York is left to meet the globe and the line never stabs end-on into the lens (that
-        // fade's stretch played slower: its style updates' stalls stay under an output frame,
+        // the route's line fades as the camera closes on New York, so it never stabs into the lens
+        // (that fade's stretch played slower: its style updates' stalls stay under an output frame,
         // defects.md 5)
         const flownAt = Date.now();
         const flown = meanwhile(
@@ -668,7 +740,7 @@ export default {
         );
         await h.pause(H(1200));
         const routeLine = (opacity, width) => ({
-            "edge.color": "#fff4d6",
+            "edge.color": ROUTE_RED,
             "edge.arrowHead": "none",
             "edge.width": width,
             "edge.opacity": opacity,
@@ -681,21 +753,21 @@ export default {
                 name: "Route",
                 target: "edge",
                 selector: { match: "ids", edges: [] },
-                set: routeLine(1, 6),
+                set: routeLine(1, ROUTE_WIDTH[0]),
             }),
             nodes: await addLayer(h, {
                 name: "Route airports",
                 target: "node",
                 selector: { match: "ids", nodes: [] },
-                // amber glass marbles: no shader that blooms (glass, lantern), whose glow fills the
+                // red glass marbles: no shader that blooms (glass, lantern), whose glow fills the
                 // whole frame in the close-up, more so on the sunlit globe (defects.md 14); their
                 // swirl still, so the close-up before the globe and after it show the same marble
                 set: {
-                    "node.color": ROUTE_AMBER,
+                    "node.color": ROUTE_RED,
                     // over the darkened airports' layer, which hides them on the globe
                     "node.opacity": 1,
                     "node.shaders": [
-                        { shader: "glass-marble", params: { spin: 0, glassTint: "#ffe6bd", secondColor: "#fff4e0" } },
+                        { shader: "glass-marble", params: { spin: 0, glassTint: "#ffd2d2", secondColor: "#ffb0b0" } },
                     ],
                 },
             }),
@@ -714,33 +786,22 @@ export default {
                 set: { ...SCENE, ...NY_LOOK, "node.size": SIZE_3D },
             }),
         };
-        // the route's line fades and the other airports, the route's passed ones too, shrink away
-        // over FADE before the close-up (the take plays that stretch FADE_SLOW times slower), each
-        // restyle offset from the others', so only New York is left when the earth comes in (glass
-        // airports faded by node.opacity instead stayed on screen into the dissolve, a ghost over
-        // the globe; shrinking them also avoids a new transparent material at every step)
+        // the route's line fades over FADE before the close-up (the take plays that stretch
+        // FADE_SLOW times slower), then goes (its packets' shader draws at any opacity, defects.md
+        // 21), so it never streaks past the lens as the camera closes on New York; the other
+        // airports stay, to fade with the dissolve
         const faded = meanwhile(
             (async () => {
                 await h.pause(Math.max(0, flownAt + fade[0] - Date.now()));
-                const later = async (ms, run) => {
-                    await h.pause(ms);
-                    await run();
-                };
-                const gone = (FADE[0] - FADE[1]) * FADE_SLOW - 600;
-                await Promise.all([
-                    tween(h, route.edges, routeLine(1, 6), routeLine(0, 2), gone, 450),
-                    later(300, () => tween(h, h.size, { "node.size": SIZE_3D }, { "node.size": 0.01 }, gone, 450)),
-                    later(600, () =>
-                        tween(
-                            h,
-                            route.size,
-                            { ...SCENE, "node.size": ROUTE_SIZE },
-                            { ...SCENE, "node.size": 0.01 },
-                            gone,
-                            450,
-                        ),
-                    ),
-                ]);
+                await tween(
+                    h,
+                    route.edges,
+                    routeLine(1, ROUTE_WIDTH[0]),
+                    routeLine(0, 2),
+                    (FADE[0] - FADE[1]) * FADE_SLOW - 900,
+                    450,
+                );
+                await onElement(h, (el, [id, set]) => el.session.styles.update(id, { set }), [route.edges, LINE_OFF]);
             })(),
         );
         h.mark("route");
@@ -790,16 +851,31 @@ export default {
                 const { styles } = el.session;
                 await styles.update(o.size, { set: { "node.size": o.small } });
                 await styles.remove(o.lens);
-                await styles.update(o.routeSize, { selector: { match: "ids", nodes: [] } });
+                // drawn a size on screen like the rest (left out of the layer, they kept the scene
+                // size it gave them and stood out large on the globe)
+                await styles.update(o.routeSize, { set: { "node.sizeSpace": "screen" } });
                 // the route's other airports left to the darkened layer, hidden with the rest until
                 // the pull back brings them back lit (marbles round New York read as dark balls)
                 await styles.update(o.routeNodes, { selector: { match: "ids", nodes: [o.ny] } });
-                // hidden by opacity: on the map a node has a least size on screen, so 0.01 is no help
-                await styles.update(o.dimNodes, { set: { "node.color": "#232838", "node.opacity": 0 } });
+                // hidden by opacity: on the map a node has a least size on screen, so 0.01 is no help;
+                // their shaders off, as a shaded node draws at any opacity (defects.md 21)
+                await styles.update(o.dimNodes, { set: o.hidden });
+                // the route's line gone until the light comes back (it may still be drawn, if the
+                // flight's fade ended late)
+                await styles.update(o.routeEdges, { set: o.lineOff });
+                // the airports the globe draws on or under New York stay hidden: drawn a size on
+                // screen, they would grow round it into a ring as the camera pulls back
+                await styles.add({
+                    name: "Under New York",
+                    target: "node",
+                    selector: { match: "ids", nodes: o.under },
+                    set: o.hidden,
+                });
                 await styles.update(o.dimEdges, {
                     set: { "edge.color": "#2a3045", "edge.opacity": 0.01, "edge.width": 2, "edge.arrowHead": "none" },
                 });
-                await styles.update(o.glass, { set: o.lit });
+                // every airport but New York (its own layer is above) a marble, the route's too
+                await styles.update(o.glass, { selector: { match: "everything" }, set: o.lit });
             },
             {
                 size: h.size,
@@ -810,8 +886,12 @@ export default {
                 ny: PATH_ENDS[1],
                 dimNodes: dim.nodes,
                 dimEdges: dim.edges,
+                hidden: HIDDEN,
+                routeEdges: route.edges,
+                lineOff: LINE_OFF,
+                under: h.steps.under,
                 glass: h.glass,
-                lit: { "node.shaders": [{ shader: "glass-marble", params: { spin: 0 } }] },
+                lit: { "node.shaders": MARBLE },
             },
         );
         await onElement(h, (el, o) => el.setLayout("location-map", o), GLOBE);
@@ -834,8 +914,9 @@ export default {
         );
         // in the same cut-away, the layers the pull back brings in, painting nothing yet (adding a
         // layer over every route costs the globe a few hundred ms): comets on the busiest airports'
-        // routes, unlit, and every route in its airport's color beneath the dark veil (dim.edges),
-        // so they show as it lifts
+        // routes, all but unlit (lit a little, so the comets' first frames are drawn here: lit from
+        // nothing later, they held the picture over a second in the pull back), and every route in
+        // its airport's color beneath the dark veil (dim.edges), so they show as it lifts
         const comets = await onElement(
             h,
             async (el, set) => {
@@ -852,7 +933,7 @@ export default {
                 });
                 return layer.id;
             },
-            { "edge.shaders": [{ shader: "comet-tracers", params: { ...COMETS, intensity: 0 } }] },
+            { "edge.shaders": [{ shader: "comet-tracers", params: { ...COMETS, intensity: COMETS_UNLIT } }] },
         );
         await onElement(
             h,
@@ -904,9 +985,22 @@ export default {
                     L(800),
                 ),
             ),
-            after(560, () => tween(h, route.edges, routeLine(0, 2), routeLine(0.9, 3), L(S(3000)), L(800))),
+            after(560, () =>
+                tween(h, route.edges, routeLine(0, 2), routeLine(0.9, ROUTE_WIDTH[1]), L(S(3000)), L(800)),
+            ),
+            // New York becomes one ordinary airport of the globe as the globe comes into view, at its
+            // place: its size eased down to the others' on the end globe and its color to its
+            // community's, then their marble in place of its pearl (small by then, so no pop)
+            after(S(1500), async () => {
+                const ny = (color, size) => ({ ...SCENE, ...NY_LOOK, "node.color": color, "node.size": size });
+                await tween(h, route.ny, ny(ROUTE_RED, NY_SIZE), ny(nyColor, NY_END), L(S(3000)), L(700));
+                await onElement(h, (el, [id, set]) => el.session.styles.update(id, { set }), [
+                    route.ny,
+                    { ...ny(nyColor, NY_END), "node.shaders": MARBLE },
+                ]);
+            }),
         ]);
-        await tweenShader(h, comets, "intensity", 0, COMETS.intensity, S(2000), { ease: true, stepMs: 800 });
+        await tweenShader(h, comets, "intensity", COMETS_UNLIT, COMETS.intensity, S(2000), { ease: true, stepMs: 800 });
         await ride;
     },
     holdMs: 300,

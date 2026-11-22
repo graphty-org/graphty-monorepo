@@ -339,6 +339,33 @@ export class RowTable {
      */
     roundWrites = 0;
 
+    /**
+     * Keep a row held off its lane at its float64 place ({@link heldExact}), counting a move of it in
+     * {@link drawnWrites} even below a float32 step: the CPU stands its pieces there at rest.
+     * @param row - The row.
+     * @param x - Its x.
+     * @param y - Its y.
+     * @param z - Its z.
+     */
+    private holdExact(row: number, x: number, y: number, z: number): void {
+        const rows = this.positions.floats.length / POSITION_FLOATS;
+        if (this.heldExact === null || this.heldExact.length < rows * 3) {
+            const grown = new Float64Array(rows * 3);
+            grown.set(this.heldExact ?? []);
+            this.heldExact = grown;
+        }
+
+        const exact = this.heldExact;
+        if (exact[row * 3] !== x || exact[row * 3 + 1] !== y || exact[row * 3 + 2] !== z) {
+            // the place the CPU stands it at rest moved, if by less than a float32 step
+            this.drawnWrites++;
+        }
+
+        exact[row * 3] = x;
+        exact[row * 3 + 1] = y;
+        exact[row * 3 + 2] = z;
+    }
+
     /** Calls that sent the `rowPosition` texture to the card. */
     positionUploads = 0;
     /** Landings sent to the `rowPosition` texture as the layout's readback brought them, with no row written. */
@@ -796,22 +823,7 @@ export class RowTable {
         floats[base + 1] = bounds[base + 1] = y;
         floats[base + 2] = bounds[base + 2] = z;
         if (!atLane) {
-            const rows = floats.length / POSITION_FLOATS;
-            if (this.heldExact === null || this.heldExact.length < rows * 3) {
-                const grown = new Float64Array(rows * 3);
-                grown.set(this.heldExact ?? []);
-                this.heldExact = grown;
-            }
-
-            const exact = this.heldExact;
-            if (exact[row * 3] !== x || exact[row * 3 + 1] !== y || exact[row * 3 + 2] !== z) {
-                // the place the CPU stands it at rest moved, if by less than a float32 step
-                this.drawnWrites++;
-            }
-
-            exact[row * 3] = x;
-            exact[row * 3 + 1] = y;
-            exact[row * 3 + 2] = z;
+            this.holdExact(row, x, y, z);
         }
 
         // ...so a node put exactly where the card already draws it sends nothing: either where the owed landing

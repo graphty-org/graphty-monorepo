@@ -1,14 +1,15 @@
 /**
- * @file The render loop on WebGPU keeps at most three frames in flight under renderPath "batched".
+ * @file The render loop on WebGPU keeps at most three frames in flight, on either render path.
  *
  * Without that, the loop queues a frame every tick however long the GPU takes to draw one, and a
  * backlog of many frames builds on the device queue. Everything that reads from the GPU waits
  * behind it: a buffer map, the node under the pointer, the GPU layout's position readback (so the
  * layout stops moving). SwiftShader draws a test scene far faster than a real card draws a million
  * rows, so the tests that need a backlog add a fixed compute pass to every frame drawn
- * ({@link loadEveryFrame}): unpaced, the device queue then runs many frames behind the page. Under
- * renderPath "batched" the loop skips a tick while three frames' `queue.onSubmittedWorkDone()` are
- * unresolved, the WebGPU twin of the WebGL frame fences; under "objects" it draws as it always has.
+ * ({@link loadEveryFrame}): unpaced, the device queue then runs many frames behind the page. On
+ * both render paths the loop skips a tick while three frames' `queue.onSubmittedWorkDone()` are
+ * unresolved, the WebGPU twin of the WebGL frame fences. Unpaced, the "objects" path fell seconds
+ * behind a real card (issue #9520).
  *
  * Runs only when `GRAPHTY_BROWSER_GPU` names a flag set (see `vitest.config.ts`); CI runs it with
  * `swiftshader-unthrottled`, the frame rate unlimited as on the benchmark's real card, because with
@@ -207,32 +208,42 @@ function answerTwoFramesLate(graph: Graph): () => void {
     };
 }
 
-describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
-    it("draws three frames while the first is unfinished under batched, none past three, and resumes", async () => {
-        const graph = await open("batched");
-        await drawn(graph, 3);
-        const { ticks } = renderManagerOf(graph);
-        const release = holdWorkDone(graph);
-        const held = ticks.drawn;
-        // Twelve of the loop's own ticks, each a chance to draw: unpaced, each draws a frame.
-        // The frame drawn before the hold may still wait on its real answer, so the last held frame
-        // can come late; a cap of ticks ends a loop that never draws it.
-        const start = ticks.drawn + ticks.gpuBehind;
-        const passed = (): number => ticks.drawn + ticks.gpuBehind - start;
-        while ((passed() < 12 || ticks.drawn - held < 3) && passed() < 200) {
-            await nextFrame();
-        }
+/** Both render paths, which share one pacing gate. */
+const PATHS = ["batched", "objects"] as const;
 
-        assert.strictEqual(ticks.drawn - held, 3, "three frames are drawn before their unfinished work holds the loop");
-        release();
-        await drawn(graph, 2);
-    });
+describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
+    it.each(PATHS)(
+        "draws three frames while the first is unfinished under %s, none past three, and resumes",
+        async (path) => {
+            const graph = await open(path);
+            await drawn(graph, 3);
+            const { ticks } = renderManagerOf(graph);
+            const release = holdWorkDone(graph);
+            const held = ticks.drawn;
+            // Twelve of the loop's own ticks, each a chance to draw: unpaced, each draws a frame.
+            // The frame drawn before the hold may still wait on its real answer, so the last held frame
+            // can come late; a cap of ticks ends a loop that never draws it.
+            const start = ticks.drawn + ticks.gpuBehind;
+            const passed = (): number => ticks.drawn + ticks.gpuBehind - start;
+            while ((passed() < 12 || ticks.drawn - held < 3) && passed() < 200) {
+                await nextFrame();
+            }
+
+            assert.strictEqual(
+                ticks.drawn - held,
+                3,
+                "three frames are drawn before their unfinished work holds the loop",
+            );
+            release();
+            await drawn(graph, 2);
+        },
+    );
 
     // A skipped tick draws nothing, so Chromium sends the next one only at its next refresh: with
     // one frame allowed in flight, every batched WebGPU frame waited a whole refresh, about 18 ms,
     // for an answer that came a refresh late (issue #9491). Answers two frames late cost no tick.
-    it("skips no tick under batched while each frame's answer comes two frames late", async () => {
-        const graph = await open("batched");
+    it.each(PATHS)("skips no tick under %s while each frame's answer comes two frames late", async (path) => {
+        const graph = await open(path);
         await drawn(graph, 3);
         const { ticks } = renderManagerOf(graph);
         const restore = answerTwoFramesLate(graph);
@@ -256,8 +267,8 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
         assert.isAtLeast(ticks.drawn - drawnFrom, 20, "the loop drew a frame every tick");
     });
 
-    it("lets an on-demand loop go idle on a still graph under batched", async () => {
-        const graph = await open("batched");
+    it.each(PATHS)("lets an on-demand loop go idle on a still graph under %s", async (path) => {
+        const graph = await open(path);
         await drawn(graph, 3);
         await graph.setRenderSettings({ onDemand: true });
         await graph.waitForStableFrame();
@@ -271,17 +282,6 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
         }
 
         assert.isAtLeast(ticks.rested, restedFrom + 10, "a still on-demand graph stops drawing");
-    });
-
-    it("draws unpaced under objects, as before", async () => {
-        const graph = await open("objects");
-        await drawn(graph, 3);
-        const { ticks } = renderManagerOf(graph);
-        const release = holdWorkDone(graph);
-        const behind = ticks.gpuBehind;
-        await drawn(graph, 10);
-        assert.strictEqual(ticks.gpuBehind, behind, "the objects path never waits on WebGPU work");
-        release();
     });
 
     it("answers a 256-byte map within 4 frames once a still scene has had time to fill the queue", async () => {

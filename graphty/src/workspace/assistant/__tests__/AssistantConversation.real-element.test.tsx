@@ -1235,6 +1235,8 @@ describe("talking to the Assistant", () => {
         await openPanel();
         model.turns = [{ text: "A long answer line.\n".repeat(60), toolCalls: [] }];
         await say("Tell me a lot");
+        // Send also shows before the run starts: the answer in the log says it ran.
+        await within(await chatLog()).findAllByText(/A long answer line/);
         await screen.findByRole("button", { name: "Send" });
         model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
         await say("Please answer");
@@ -1263,6 +1265,8 @@ describe("talking to the Assistant", () => {
         await openPanel();
         model.turns = [{ text: "A long answer line.\n".repeat(60), toolCalls: [] }];
         await say("Tell me a lot");
+        // Send also shows before the run starts: the answer in the log says it ran.
+        await within(await chatLog()).findAllByText(/A long answer line/);
         await screen.findByRole("button", { name: "Send" });
         const log = screen.getByRole("region", { name: "Chat" });
         const before = log.clientHeight;

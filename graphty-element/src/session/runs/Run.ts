@@ -906,7 +906,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             durationMs: this.durationMs,
             partial: this.partial,
             stale: this.stale,
-            engine: this.engine,
+            // The hardware is known only once the work has run; until then, and for work that
+            // never reaches an accelerator, it is the CPU.
+            engine: { ...this.engine, accelerator: this.savedCaveats.accelerator ?? "cpu" },
             fields: this.fields,
             shape: this.shape,
             caveats: this.savedCaveats,

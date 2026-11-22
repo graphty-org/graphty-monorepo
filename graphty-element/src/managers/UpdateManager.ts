@@ -15,7 +15,7 @@ import type { NodeIdType } from "../config/GraphBehavior";
 import { WRITABLE_LANE, writableLane } from "../data/lane";
 import { Edge, pulledEdgesOf, pulledLines } from "../Edge";
 import { drawnCurveInWorld } from "../edgeWorldCurve";
-import { laysEdgeRoutes, StaticLayoutEngine } from "../layout/LayoutEngine";
+import { type LayoutEngine, laysEdgeRoutes, StaticLayoutEngine } from "../layout/LayoutEngine";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
@@ -1922,8 +1922,13 @@ export class UpdateManager implements Manager {
             this.edgePoolsArmed = true;
         }
 
+        // A run that ends in a walk of every edge (below) leaves each fan to it: looking up the fan of each of a hundred
+        // thousand repainted edges cost more than that walk.
+        const walkComing =
+            !painter.edgesFromRowsOnly &&
+            this.edgesPaintedInRun + painter.pendingEdgeCount > this.dataManager.edges.size * MOST_MOVED_SHARE;
         do {
-            painted += this.paintEdgeBatch(painter);
+            painted += this.paintEdgeBatch(painter, walkComing);
         } while (painter.hasPendingEdges && (performance.now() < deadline || painted < least));
 
         this.edgesPaintedInRun += painted;
@@ -2051,9 +2056,10 @@ export class UpdateManager implements Manager {
     /**
      * Paint one batch of pending edges.
      * @param painter - Where the paint is read from.
+     * @param walkComing - Whether the run ends in a walk of every edge, which places each fan.
      * @returns How many edges were painted.
      */
-    private paintEdgeBatch(painter: StylePainter): number {
+    private paintEdgeBatch(painter: StylePainter, walkComing: boolean): number {
         let painted = 0;
 
         for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
@@ -2067,7 +2073,10 @@ export class UpdateManager implements Manager {
                 this.edgesToPlace.push(edge);
                 // Each edge of a fan takes its slot from every member's paint: they are placed again with it,
                 // as the walk that used to end every repaint placed them (issue #9164).
-                this.placeFanOf(edge);
+                if (!walkComing) {
+                    this.placeFanOf(edge);
+                }
+
                 this.paintedSupportPoint ||= this.hasSupportPoint(edge);
                 painted++;
             }
@@ -2397,6 +2406,7 @@ export class UpdateManager implements Manager {
      */
     dataCleared(): void {
         this.viewSized.clear();
+        this.nodesToPlace.clear();
         this.unsized.clear();
         this.reportedPlain.nodes = 0;
         this.reportedPlain.edges = 0;
@@ -3994,14 +4004,39 @@ export class UpdateManager implements Manager {
         // The rows drawn with no Node, which no walk above reaches, move by their rows.
         transitionsOf(this.layoutManager)?.placeRows();
         if (roster === null) {
-            this.nodesFollowed = this.dataManager[WRITABLE_LANE].changes;
+            this.nodesFollowed = writableLane(this.dataManager)?.changes ?? -1;
+            this.engineFollowed = this.layoutManager.layoutEngine;
         }
+
+        // Walked above: every node, or under "batched" every object row.
+        this.nodesToPlace.clear();
 
         this.statsManager.nodeUpdate.endMonitoring();
     }
 
     /** The lane's `changes` every `Node` was last brought up to, or -1; see {@link updateMovedNodes}. */
     private nodesFollowed = -1;
+
+    /**
+     * The engine every `Node` was last brought up to; see {@link updateMovedNodes}. An engine that takes nodes
+     * over (a layout set after the data) places each where its answer has it, and its first publish changes only
+     * the rows whose answer differs from the lane, so the nodes of every other row are walked once for it.
+     */
+    private engineFollowed: LayoutEngine | undefined = undefined;
+
+    /** `Node`s built since the last node walk, which no lane change names; see {@link placeBuiltNode}. */
+    private readonly nodesToPlace = new Set<Node>();
+
+    /**
+     * Put a `Node` just built where the lane has its row, at the next frame that follows the lane. A walk of only
+     * the rows the lane changed never reaches a node built after its row was written, which kept the place its
+     * mesh was made at (a file's unscaled coordinates) for good.
+     * @param node - The node.
+     * @internal
+     */
+    placeBuiltNode(node: Node): void {
+        this.nodesToPlace.add(node);
+    }
 
     /**
      * Update only the nodes whose rows a static layout's re-run moved. Every edit re-runs a static
@@ -4011,7 +4046,7 @@ export class UpdateManager implements Manager {
      */
     private updateMovedNodes(): boolean {
         const engine = this.layoutManager.layoutEngine;
-        if (!(engine instanceof StaticLayoutEngine)) {
+        if (!(engine instanceof StaticLayoutEngine) || engine !== this.engineFollowed) {
             return false;
         }
 
@@ -4032,6 +4067,14 @@ export class UpdateManager implements Manager {
                 dataManagerInternals.builtNodeAtRow(this.dataManager, row)?.update();
             }
         }
+
+        for (const node of this.nodesToPlace) {
+            if (node.index !== INVALID_INDEX) {
+                node.update();
+            }
+        }
+
+        this.nodesToPlace.clear();
 
         // A group follows its members' box, which a moved member moves.
         for (const { group } of this.dataManager.groups) {

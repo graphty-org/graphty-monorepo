@@ -33,6 +33,7 @@ import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
+import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
@@ -307,6 +308,11 @@ function groupRegionPaint(meshKey: string, style: NodeStyleConfig): { meshKey: s
 interface NodeOpts {
     /** Whether dropping the node after a drag pins it in place; defaults to true. */
     pinOnDrag?: boolean;
+    /**
+     * When the node arrived, by `performance.now()`, for a `Node` built for a row stored earlier;
+     * now when absent.
+     */
+    arrivedAt?: number;
 }
 
 /** Writes a node's row; see {@link placeNodeRow}. */
@@ -1075,6 +1081,10 @@ export class Node implements ModelUser {
         this.id = nodeId;
         this.opts = opts;
         this.#record = frozenRecord(data);
+        // A node arriving in a graph already drawing shaders plays the entrances it starts with:
+        // noted before it is drawn, since the first draw decides them (on "batched" it can draw a
+        // shader below), and again at the end for a drawing its own draw made.
+        NodeShaderDrawing.peek(this.context.getScene())?.arrived(this, opts.arrivedAt);
 
         this.meshKey = paint.meshKey;
 
@@ -1119,8 +1129,7 @@ export class Node implements ModelUser {
 
         NodeBehavior.addDefaultBehaviors(this, this.opts);
 
-        // A node arriving in a graph already drawing shaders plays the entrances it starts with.
-        NodeShaderDrawing.peek(this.context.getScene())?.arrived(this);
+        NodeShaderDrawing.peek(this.context.getScene())?.arrived(this, this.opts.arrivedAt);
     }
 
     /**
@@ -3383,7 +3392,12 @@ export class Node implements ModelUser {
         // the frame loop visit them: it places edges only when a node moved, and this node did not. Without it the
         // edges kept the ends measured against the placeholder shape whenever the model landed after the last walk,
         // so one story drew two pictures (#4392). Only this node's: a walk of every edge here made putting one node
-        // back on a million-edge graph place every edge (issue #9164).
+        // back on a million-edge graph place every edge (issue #9164). Measured again here, not only by the update
+        // manager, so a context that has none still draws the ends on the new shape.
+        for (const edge of dataManagerInternals.builtEdgesAt(this.context.getDataManager(), this.id)) {
+            edge.invalidatePositionCache();
+        }
+
         this.context.getUpdateManager?.().placeEdgesOfNode(this);
     }
 

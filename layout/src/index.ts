@@ -71,3 +71,6 @@ export {
     LAYOUTS,
     type LayoutWeightUse,
 } from "./catalog.js";
+
+// ==================== version
+export { VERSION } from "./version.js";

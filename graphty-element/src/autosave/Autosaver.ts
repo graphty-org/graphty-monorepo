@@ -28,7 +28,7 @@ import { dispatcherOf } from "../session/dispatchers";
 import { loadLineOf, type LoadTurn, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
-import { ENGINE_VERSIONS } from "../session/runs";
+import { ELEMENT_VERSION } from "../session/runs";
 import type { CodedFact } from "../session/shared";
 import { openingKeptWork } from "../session/sources/references";
 import type { GraphSession, ProjectSlice } from "../session/types";
@@ -1944,7 +1944,7 @@ export class Autosaver {
             edges: snapshot.edgeCount,
             runs: [...dispatcherOf(session).state.runs.keys()],
             formatVersion: AUTOSAVE_FORMAT_VERSION,
-            elementVersion: ENGINE_VERSIONS.element,
+            elementVersion: ELEMENT_VERSION,
             source: this.#source,
             pageConfig: this.#pageConfig,
             bytes: [...sizes.values()].reduce((sum, size) => sum + size, 0),

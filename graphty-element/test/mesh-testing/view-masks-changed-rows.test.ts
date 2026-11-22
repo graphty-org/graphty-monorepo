@@ -96,6 +96,11 @@ class CountingEdge {
         this.updates += 1;
         this.placed = true;
     }
+
+    /** A selection change places the edge again; nothing is cached here to measure again. */
+    invalidatePositionCache(): void {
+        // Nothing cached.
+    }
 }
 
 /** The renderer over a session, and what it counts. */

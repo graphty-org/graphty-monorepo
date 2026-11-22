@@ -3,16 +3,22 @@
  * compiles, every example validates, every section file equals the matching section of the full
  * file, the schemas refuse the members the design removed, the worked example keeps the rules on
  * keys, build and copy ids and spaces, and the built-ins registry (spec/builtins.md) names exactly
- * what graphty-element's source accepts.
+ * what graphty-element's source accepts. The schemas hold defaults only for members the format
+ * owns, the built-ins never change a name's definition, and the examples write resolved values.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
 
+import type { Dtype } from "@graphty/graph-format";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
+import { algorithmKeyOf, BUILT_IN_ALGORITHMS } from "../../src/catalog/algorithms";
 import { LABEL_LOOKS } from "../../src/catalog/label-looks";
+import { layoutEntry } from "../../src/catalog/layouts";
+import { SCALE_DESCRIPTORS } from "../../src/catalog/scales";
+import { KNOWN_FORMAT_IDS } from "../../src/catalog/types";
 import { EdgeArrowTypes, EdgeLineTypes, EdgeOutlineTypes } from "../../src/config/EdgeStyle";
 import {
     NodeBorderPositions,
@@ -25,6 +31,7 @@ import {
     NodeShapes,
     NodeSizeModes,
 } from "../../src/config/NodeStyle";
+import { PARSE_OPTIONS } from "../../src/session/document2/codecs/parseOptions";
 import { OVERFLOW_PATTERNS, OVERFLOW_SHAPES } from "../../src/session/styles/encoding";
 import { TRANSITION_PRESETS } from "../../src/transitions/presets";
 
@@ -105,6 +112,81 @@ describe("the version 2 schemas", () => {
     });
 });
 
+/**
+ * The current version's schema files: the newest version of each kind, not the older ones the
+ * migration reads.
+ * @returns The paths under spec/schemas/.
+ */
+function currentSchemaFiles(): string[] {
+    const newest = new Map<string, { file: string; version: number }>();
+    for (const file of schemaFiles()) {
+        const [kind, name] = file.split("/");
+        const version = Number(/^v(\d+)\.json$/.exec(name)?.[1]);
+        if ((newest.get(kind)?.version ?? 0) < version) {
+            newest.set(kind, { file, version });
+        }
+    }
+    return [...newest.values()].map((each) => each.file);
+}
+
+/**
+ * Every `default` keyword under a schema value, as `<file>#<pointer>` and its value.
+ * @param value - The schema value.
+ * @param at - Its pointer.
+ * @param found - Collects what is found.
+ */
+function defaultsIn(value: Json, at: string, found: [string, Json][]): void {
+    if (Array.isArray(value)) {
+        value.forEach((entry, index) => defaultsIn(entry, `${at}/${index}`, found));
+        return;
+    }
+
+    if (value === null || typeof value !== "object") {
+        return;
+    }
+
+    for (const [key, entry] of Object.entries(value)) {
+        const pointer = `${at}/${key.replaceAll("~", "~0").replaceAll("/", "~1")}`;
+        // A member named "default" under `properties` is a member, not the keyword.
+        if (key === "default" && !at.endsWith("/properties")) {
+            found.push([pointer, entry]);
+        } else {
+            defaultsIn(entry, pointer, found);
+        }
+    }
+}
+
+describe("defaults in the version 2 schemas", () => {
+    it("hold default keywords only for format-owned members", () => {
+        const found: [string, Json][] = [];
+        for (const file of currentSchemaFiles()) {
+            defaultsIn(readJson(new URL(`schemas/${file}`, SPEC)), file, found);
+        }
+
+        // Spec 9 rule 9: every other default belongs to code the format does not version.
+        assert.deepEqual(
+            new Map(found),
+            new Map<string, Json>([
+                ["common/v2.json/$defs/joinStep/properties/viaEnd/default", "target"],
+                ["common/v2.json/$defs/joinStep/properties/ignoreCase/default", false],
+                ["common/v2.json/$defs/joinStep/properties/ignoreSpaces/default", false],
+                ["common/v2.json/$defs/graphFilter/properties/on/default", "nodes"],
+                ["graphty-data/v2.json/properties/repeatedEdges/default", "keep"],
+                [
+                    "graphty-data/v2.json/properties/sources/items/else/properties/settings/properties/duplicateIds/default",
+                    "first",
+                ],
+                [
+                    "graphty-data/v2.json/properties/sources/items/else/properties/settings/properties/unmatched/default",
+                    "add",
+                ],
+                ["graphty-notes/v2.json/properties/notes/items/properties/mediaType/default", "text/plain"],
+                ["graphty-view/v1.json/properties/runs/items/properties/replayable/default", true],
+            ]),
+        );
+    });
+});
+
 describe("the examples", () => {
     it("name their schema in $schema, derived from their kind and version, and validate by it", () => {
         for (const dir of ["", "minimal/"]) {
@@ -177,13 +259,12 @@ describe("the examples", () => {
         }
     });
 
-    it("key a keyless edge row <copy id>#<row from 0>, and write every space", () => {
+    it("key a keyless edge row <from>|<to>#<n>, and write every space", () => {
         const { data } = sectionsOf(cardFraud());
         const links = (data.graph as JsonObject).links as JsonObject[];
         const nodes = (data.graph as JsonObject).nodes as JsonObject[];
         for (const source of (data.sources as JsonObject[]).filter((each) => each.kind !== "reader")) {
             const id = text(source.id);
-            const copyId = text((source.origin as JsonObject).copy);
             const mapping = source.mapping as Record<string, Record<string, Json>>;
             const tables = source.copy as Record<string, Record<string, Json[]>>;
             if (mapping.nodes !== undefined) {
@@ -199,7 +280,17 @@ describe("the examples", () => {
                 continue;
             }
             const cells = tables.edges[text(mapping.edges.edgeId)];
-            const expected = cells.map((cell, row) => (cell === null || cell === "" ? `${copyId}#${row}` : text(cell)));
+            const [from, to] = [tables.edges[text(mapping.edges.source)], tables.edges[text(mapping.edges.target)]];
+            // A keyless row is keyed by its ends as read, numbered over the keyless rows between them.
+            const counts = new Map<string, number>();
+            const expected = cells.map((cell, row) => {
+                if (cell !== null && cell !== "") {
+                    return text(cell);
+                }
+                const pair = `${text(from[row])}|${text(to[row])}`;
+                counts.set(pair, (counts.get(pair) ?? 0) + 1);
+                return `${pair}#${String(counts.get(pair))}`;
+            });
             const actual = links.filter((link) => link["graphty.load"] === id).map((link) => text(link["graphty.key"]));
             assert.sameMembers(actual, expected, id);
         }
@@ -332,7 +423,38 @@ const MUTATIONS: Mutation[] = [
         },
     },
     {
-        name: "a layout record's versions (engine holds EngineVersions)",
+        name: "a run's engine without packages",
+        section: "results",
+        change: (results) => {
+            const run = Object.values(results.runs as JsonObject)[0] as JsonObject;
+            run.engine = { accelerator: "cpu" };
+        },
+    },
+    {
+        name: "a run's engine with no package",
+        section: "results",
+        change: (results) => {
+            const run = Object.values(results.runs as JsonObject)[0] as JsonObject;
+            run.engine = { packages: {}, accelerator: "cpu" };
+        },
+    },
+    {
+        name: "a layout's engine in the fixed element, algorithms and layout shape",
+        section: "results",
+        change: (results) => {
+            (results.layout as JsonObject).engine = { element: "3.40.0", algorithms: "2.1.2", layout: "1.10.5" };
+        },
+    },
+    {
+        name: "an accelerator in a run's caveats",
+        section: "results",
+        change: (results) => {
+            const run = Object.values(results.runs as JsonObject)[0] as JsonObject;
+            Object.assign(run.caveats as JsonObject, { accelerator: "cpu" });
+        },
+    },
+    {
+        name: "a layout record's versions (engine holds the code that drew it)",
         section: "results",
         change: (results) => Object.assign(results.layout as JsonObject, { versions: {} }),
     },
@@ -359,6 +481,20 @@ const MUTATIONS: Mutation[] = [
         name: "a view layout naming its layout in engine",
         section: "view",
         change: (view) => Object.assign(view.layout as JsonObject, { engine: "ngraph" }),
+    },
+    {
+        name: "a view layout naming its engine in algorithm",
+        section: "view",
+        change: (view) => Object.assign(view.layout as JsonObject, { algorithm: "ngraph" }),
+    },
+    {
+        name: "a recipe layout.set naming its engine in algorithm",
+        section: "recipe",
+        change: (recipe) => {
+            const commands = recipe.commands as JsonObject[];
+            const layout = commands.find((command) => command.op === "layout.set");
+            Object.assign(layout as JsonObject, { algorithm: "ngraph" });
+        },
     },
     {
         name: "a recipe layout.set with an engine",
@@ -453,6 +589,15 @@ describe("readable paths, map bindings and several graphs", () => {
         assert.strictEqual(errorsOf(style), "");
     });
 
+    it("take a view layout and a seeded view run that have not run yet, with no engine", () => {
+        // A writer never writes a version it did not read (4.5 rule 6).
+        const { view } = sectionsOf(cardFraud());
+        delete (view.layout as JsonObject).engine;
+        const seeded = (view.runs as JsonObject[]).find((run) => run.seed !== undefined) as JsonObject;
+        delete seeded.engine;
+        assert.strictEqual(errorsOf(view), "");
+    });
+
     it("write graphs only with two or more, the first naming the top-level graph", () => {
         const two = readJson(new URL("examples/minimal/minimal-graphs.graphty.json", SPEC));
         assert.strictEqual(errorsOf(two), "");
@@ -482,6 +627,55 @@ describe("readable paths, map bindings and several graphs", () => {
             assert.notStrictEqual(errorsOf(copy), "", what);
         }
     });
+
+    it("take a graph entry's unknown member and a later graph's unknown section key", () => {
+        const two = readJson(new URL("examples/minimal/minimal-graphs.graphty.json", SPEC));
+        const graphs = two.graphs as JsonObject[];
+        graphs[1] = {
+            ...graphs[1],
+            color: "teal",
+            sections: { ...(graphs[1].sections as JsonObject), "org.example.timeline": { kind: "x", version: 1 } },
+        };
+        assert.strictEqual(errorsOf(two), "");
+    });
+});
+
+describe("must-understand members of closed objects", () => {
+    /**
+     * The worked example's data section with a change to its first file source.
+     * @param change - What to change on the source.
+     * @returns The errors.
+     */
+    const sourceErrors = (change: (source: JsonObject) => void): string => {
+        const { data } = sectionsOf(cardFraud());
+        change((data.sources as JsonObject[]).find((source) => source.kind === "file") as JsonObject);
+        return errorsOf(data);
+    };
+
+    it("take a member a closed object lists in ignorable, and refuse it unlisted", () => {
+        assert.strictEqual(
+            sourceErrors((source) => Object.assign(source, { future: 1, ignorable: ["future"] })),
+            "",
+        );
+        assert.notStrictEqual(
+            sourceErrors((source) => Object.assign(source, { future: 1 })),
+            "",
+        );
+        assert.notStrictEqual(
+            sourceErrors((source) => Object.assign(source, { extensions: { "Not.Reverse.Domain": 1 } })),
+            "",
+        );
+    });
+
+    it("take narrows: false on a command, known op or not", () => {
+        const { recipe } = sectionsOf(cardFraud());
+        const commands = recipe.commands as JsonObject[];
+        commands[0] = { ...commands[0], narrows: false };
+        commands.push({ op: "org.example.motif-census", as: "motifs", narrows: false });
+        assert.strictEqual(errorsOf(recipe), "");
+        commands[0] = { ...commands[0], narrows: true };
+        assert.notStrictEqual(errorsOf(recipe), "");
+    });
 });
 
 describe("the schemas refuse what the design removed", () => {
@@ -495,13 +689,20 @@ describe("the schemas refuse what the design removed", () => {
     }
 });
 
+/** One row of a registry table: the name and its normative Definition column. */
+interface RegistryRow {
+    readonly name: string;
+    readonly definition: string;
+}
+
 /**
- * The names in each `<!-- registry: <list> -->` table of spec/builtins.md, in order.
+ * The rows of each `<!-- registry: <list> -->` table of spec/builtins.md, in order. The
+ * informative "Drawn today" column is not read.
  * @returns The lists, by name.
  */
-function registryLists(): Map<string, string[]> {
-    const lists = new Map<string, string[]>();
-    let current: string[] | undefined;
+function registryRows(): Map<string, RegistryRow[]> {
+    const lists = new Map<string, RegistryRow[]>();
+    let current: RegistryRow[] | undefined;
     for (const line of readFileSync(new URL("builtins.md", SPEC), "utf8").split("\n")) {
         const marker = /^<!-- registry: ([A-Za-z]+) -->$/.exec(line);
         if (marker !== null) {
@@ -509,15 +710,38 @@ function registryLists(): Map<string, string[]> {
             lists.set(marker[1], current);
             continue;
         }
-        const row = /^\| `([^`]+)` +\|/.exec(line);
+        const row = /^\| `([^`]+)` +\|(.*)\|$/.exec(line);
         if (row !== null) {
-            current?.push(row[1]);
+            current?.push({ name: row[1], definition: row[2].split(" | ")[0].trim() });
         } else if (line.startsWith("#")) {
             current = undefined;
         }
     }
     return lists;
 }
+
+/**
+ * The names in each registry table, in order.
+ * @returns The lists, by name.
+ */
+function registryLists(): Map<string, string[]> {
+    return new Map([...registryRows()].map(([list, rows]) => [list, rows.map((row) => row.name)]));
+}
+
+/** The column dtypes a file may declare: graph-format's, less `list` (builtins.md "Column dtypes"). */
+const FILE_DTYPES = [
+    "f32",
+    "f64",
+    "i32",
+    "u32",
+    "u8",
+    "bool",
+    "dict",
+    "string",
+    "json",
+] as const satisfies readonly Dtype[];
+/** Compiles only while FILE_DTYPES holds every graph-format dtype but `list`. */
+const EVERY_DTYPE: [Exclude<Dtype, "list" | (typeof FILE_DTYPES)[number]>] extends [never] ? true : false = true;
 
 describe("the built-ins registry", () => {
     const CODE: Record<string, readonly string[]> = {
@@ -537,6 +761,10 @@ describe("the built-ins registry", () => {
         nodeModelUpAxes: NodeModelUpAxes.options,
         nodeModelFits: NodeModelFits.options,
         nodeModelCenters: NodeModelCenters.options,
+        formats: KNOWN_FORMAT_IDS.filter((id) => id !== "graphty"),
+        dtypes: FILE_DTYPES,
+        parseOptions: Object.keys(PARSE_OPTIONS),
+        scales: SCALE_DESCRIPTORS.map((scale) => scale.name),
     };
 
     it("lists exactly the names the source accepts, list for list", () => {
@@ -545,5 +773,185 @@ describe("the built-ins registry", () => {
         for (const [list, names] of lists) {
             assert.deepEqual(names, [...CODE[list]], list);
         }
+    });
+
+    it("gives every column dtype in the data and view schemas the same names", () => {
+        assert.isTrue(EVERY_DTYPE);
+        const enums: unknown[] = [];
+        const walk = (value: unknown): void => {
+            if (typeof value !== "object" || value === null) {
+                return;
+            }
+
+            const held = value as Record<string, unknown>;
+            const properties = held.properties as Record<
+                string,
+                { enum?: unknown; additionalProperties?: { enum?: unknown } }
+            >;
+            if (typeof properties === "object" && properties !== null) {
+                if (properties.dtype?.enum !== undefined) {
+                    enums.push(properties.dtype.enum);
+                }
+
+                if (properties.dtypes?.additionalProperties?.enum !== undefined) {
+                    enums.push(properties.dtypes.additionalProperties.enum);
+                }
+            }
+
+            Object.values(held).forEach(walk);
+        };
+        walk(readJson(new URL("schemas/graphty-data/v2.json", SPEC)));
+        walk(readJson(new URL("schemas/graphty-view/v1.json", SPEC)));
+        assert.strictEqual(enums.length, 3);
+        for (const each of enums) {
+            assert.deepEqual(each, [...FILE_DTYPES]);
+        }
+    });
+
+    it("gives each parse option the formats graphty-element reads it for", () => {
+        for (const row of registryRows().get("parseOptions") ?? []) {
+            const { formats } = PARSE_OPTIONS[row.name];
+            const cell = row.definition.replaceAll("`", "");
+            assert.strictEqual(cell, formats === "*" ? "*" : formats.join(", "), row.name);
+        }
+    });
+
+    it("are immutable: every version 2 name keeps its place and its definition", () => {
+        // Spec 9 rule 5: a list only gains names at its end, and a name never changes meaning.
+        const frozen = readJson(new URL("builtins-v2.json", import.meta.url)) as unknown as Record<
+            string,
+            RegistryRow[]
+        >;
+        const lists = registryRows();
+        for (const [list, rows] of Object.entries(frozen)) {
+            const current = lists.get(list);
+            assert.isDefined(current, list);
+            assert.deepEqual(current.slice(0, rows.length), rows, list);
+        }
+    });
+});
+
+/**
+ * The options a declared option list gives a default, by name.
+ * @param options - The options.
+ * @param options.name - An option's name.
+ * @param options.default - Its default.
+ * @returns Their names.
+ */
+const defaulted = (options: readonly { name: string; default?: unknown }[]): string[] =>
+    options.filter((option) => option.default !== undefined).map((option) => option.name);
+
+/**
+ * The options an algorithm declares with a default, a legacy key (`dijkstra`) read as the
+ * algorithm it names.
+ * @param algorithm - The algorithm, as a file names it.
+ * @returns Their names.
+ */
+function algorithmDefaults(algorithm: Json | undefined): string[] {
+    const key = algorithmKeyOf(text(algorithm), BUILT_IN_ALGORITHMS)?.key;
+    const descriptor = BUILT_IN_ALGORITHMS.find((each) => each.key === key);
+    assert.isDefined(descriptor, text(algorithm));
+    return defaulted(descriptor.options);
+}
+
+/**
+ * The options a layout's engine declares with a default that a file writes: all but the one it
+ * derives from the dimension, and those whose default is null (off unless asked).
+ * @param layout - The layout record or command.
+ * @returns Their names.
+ */
+function layoutDefaults(layout: JsonObject): string[] {
+    const entry = layoutEntry(text(layout.id));
+    const drawnBy = (layout.drawnBy ?? {}) as JsonObject;
+    const wanted = drawnBy.engine ?? entry?.descriptor.engine;
+    const engine = entry?.implementations.find((each) => each.engine === wanted);
+    assert.isDefined(engine, text(wanted));
+    return defaulted(engine.options.filter((option) => option.default !== null && option.name !== "dim"));
+}
+
+/**
+ * A layout record's option values, its own and its engine's together (README 5 rule 9).
+ * @param layout - The layout record or command.
+ * @returns The values.
+ */
+const layoutValues = (layout: JsonObject): JsonObject => ({
+    ...((layout.options ?? {}) as JsonObject),
+    ...(((layout.drawnBy ?? {}) as JsonObject).options as JsonObject | undefined),
+});
+
+describe("the examples write resolved values", () => {
+    const files = [
+        ...examples("").map((file) => `examples/${file}`),
+        ...examples("minimal").map((file) => `examples/minimal/${file}`),
+    ];
+    /** Every section an example holds, as a section file or inside a full file. */
+    const sections = files.flatMap((file): JsonObject[] => {
+        const doc = readJson(new URL(file, SPEC));
+        return doc.kind === "graphty-document" ? Object.values(sectionsOf(doc)) : [doc];
+    });
+    const ofKind = (kind: string): JsonObject[] => sections.filter((section) => section.kind === kind);
+
+    it("name every defaulted option in each run and layout", () => {
+        let checked = 0;
+        const check = (where: string, values: Json | undefined, wanted: string[]): void => {
+            const held = Object.keys((values ?? {}) as JsonObject);
+            for (const name of wanted) {
+                assert.include(held, name, where);
+            }
+            checked += 1;
+        };
+        for (const recipe of ofKind("graphty-recipe")) {
+            for (const command of recipe.commands as JsonObject[]) {
+                if (command.op === "algo.run") {
+                    check(`recipe ${text(command.as)}`, command.params, algorithmDefaults(command.algorithm));
+                } else if (command.op === "layout.set") {
+                    check("recipe layout.set", layoutValues(command), layoutDefaults(command));
+                }
+            }
+        }
+        for (const results of ofKind("graphty-results")) {
+            for (const [id, run] of Object.entries((results.runs ?? {}) as Record<string, JsonObject>)) {
+                check(`results ${id}`, run.params, algorithmDefaults(run.algorithm));
+            }
+            if (results.layout !== undefined) {
+                check(
+                    "results layout",
+                    layoutValues(results.layout as JsonObject),
+                    layoutDefaults(results.layout as JsonObject),
+                );
+            }
+        }
+        for (const view of ofKind("graphty-view")) {
+            for (const run of (view.runs ?? []) as JsonObject[]) {
+                check(`view ${text(run.id)}`, run.params, algorithmDefaults(run.algorithm));
+            }
+            if (view.layout !== undefined) {
+                check(
+                    "view layout",
+                    layoutValues(view.layout as JsonObject),
+                    layoutDefaults(view.layout as JsonObject),
+                );
+            }
+        }
+        assert.isAbove(checked, 0);
+    });
+});
+
+describe("rule tree leaves (README 4.8.3)", () => {
+    const validate = ajv.getSchema(`${SCHEMA_URL}common/v2.json#/$defs/reusableRuleTree`);
+    const valid = (tree: JsonObject): boolean => validate?.(tree) === true;
+
+    it("closes each known leaf with its members", () => {
+        assert.isTrue(valid({ kind: "range", attribute: "data.age", min: 18 }));
+        assert.isFalse(valid({ kind: "range" }), "a range names its attribute");
+        assert.isFalse(valid({ kind: "range", attribute: "data.age", bogus: 1 }), "a range is closed");
+        assert.isFalse(valid({ kind: "range", attribute: "age" }), "a path has a root");
+        assert.isTrue(valid({ kind: "text", reads: "id", mode: "exact", text: "a" }));
+        assert.isFalse(valid({ kind: "threshold", path: "data.x", top: 3, above: 1 }), "exactly one cut");
+        assert.isTrue(valid({ kind: "all", of: [{ kind: "degree", min: 2 }, { kind: "isolated" }] }));
+    });
+
+    it("leaves an unknown leaf kind open", () => {
+        assert.isTrue(valid({ kind: "future-leaf", x: 1 }));
     });
 });

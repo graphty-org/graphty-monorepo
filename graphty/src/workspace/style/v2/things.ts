@@ -227,7 +227,7 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                     {
                         id: "line",
                         name: "Line",
-                        items: ["line", "gradient"],
+                        items: ["line", "gradient", "strands"],
                         main: ["edge.color", "edge.gradientColors"],
                         unnamed: true,
                     },

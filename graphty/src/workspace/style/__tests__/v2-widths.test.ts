@@ -260,6 +260,7 @@ describe("Style panel v2's label rubric", () => {
                     "borderColor",
                     "borderOpacity",
                     "borderAlign",
+                    "borderStyle",
                     "lineBox",
                     "marginTop",
                     "marginRight",
@@ -286,7 +287,23 @@ describe("Style panel v2's label rubric", () => {
                 "Callout",
                 ["pointer", "pointerDirection", "pointerWidth", "pointerHeight", "pointerOffset", "pointerCurve"],
             ],
-            ["Badge", ["badge", "icon", "iconPosition", "progress", "maxNumber", "overflowSuffix", "smartOverflow"]],
+            [
+                "Badge",
+                [
+                    "badge",
+                    "icon",
+                    "iconPosition",
+                    "image",
+                    "imageWidth",
+                    "imageHeight",
+                    "imageOffsetX",
+                    "imageOffsetY",
+                    "progress",
+                    "maxNumber",
+                    "overflowSuffix",
+                    "smartOverflow",
+                ],
+            ],
             [
                 "Behavior",
                 [

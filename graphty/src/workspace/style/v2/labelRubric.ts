@@ -128,6 +128,9 @@ const PADDING_UNIT: readonly LabelUnit[] = [
 /** An X | Y pair. */
 const XY = ["X", "Y"] as const;
 
+/** A width | height pair. */
+const WH = ["W", "H"] as const;
+
 /** Every label's rubric (design 7.3). */
 export const LABEL_RUBRIC: LabelRubric = {
     common: [
@@ -217,6 +220,7 @@ export const LABEL_RUBRIC: LabelRubric = {
                 { field: "borderColor", name: "Color", fullName: "Box stroke color" },
                 { field: "borderOpacity", name: "Opacity", fullName: "Box stroke opacity" },
                 { field: "borderAlign", name: "Align", fullName: "Box stroke align", rule: "R8" },
+                { field: "borderStyle", name: "Style", fullName: "Box stroke style", rule: "R8" },
                 { field: "lineBox", name: "Line box", rule: "R8f" },
                 // Margin is the space outside the stroke, so it sits with it.
                 {
@@ -277,6 +281,10 @@ export const LABEL_RUBRIC: LabelRubric = {
                 { field: "badge", name: "Badge", rule: "R9" },
                 { field: "icon", name: "Icon", fullName: "Icon beside text", rule: "R14" },
                 { field: "iconPosition", name: "Icon side", rule: "R8" },
+                // A picture in the label beside or behind its words (yEd's label icon), its size and where it sits.
+                { field: "image", name: "Image", fullName: "Label image", rule: "R14" },
+                { field: "imageWidth", name: "Image size", pair: "imageHeight", letters: WH },
+                { field: "imageOffsetX", name: "Image offset", pair: "imageOffsetY", letters: XY },
                 { field: "progress", name: "Progress" },
                 { field: "maxNumber", name: "Max number" },
                 { field: "overflowSuffix", name: "Suffix", rule: "R14" },
@@ -341,6 +349,7 @@ export const LABEL_OPTION_NAMES: Readonly<Partial<Record<LabelField, Readonly<Re
     gapOf: { box: { name: "Box" }, words: { name: "Words" } },
     declutter: { degree: { name: "Degree" }, size: { name: "Size" } },
     backgroundShape: { rectangle: { name: "Box" }, circle: { name: "Circle" } },
+    borderStyle: { solid: { name: "Solid" }, double: { name: "Double" } },
     gradientType: { linear: { name: "Linear" }, radial: { name: "Radial" } },
     gradientDirection: { vertical: { name: "Down" }, horizontal: { name: "Across" }, diagonal: { name: "Diagonal" } },
     weight: { normal: { name: "Regular" }, bold: { name: "Bold" } },

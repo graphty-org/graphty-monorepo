@@ -14,15 +14,19 @@ interface PictureAssets {
     ready(ref: string): Promise<unknown>;
 }
 
-/** Each session's object URLs by asset id, and the ids already waited for once. */
-const held = new WeakMap<object, { urls: Map<string, string>; asked: Set<string> }>();
+/**
+ * Each session's object URLs by asset id, and per id waited for, the nodes still waiting to draw again (null once
+ * the wait settled).
+ */
+const held = new WeakMap<object, { urls: Map<string, string>; asked: Map<string, Set<() => void> | null> }>();
 
 /**
  * The address to load `node.image` from.
  * ponytail: an object URL lives as long as its session; revoke on asset removal if many pictures are swapped.
  * @param session - The element's session, or anything without assets.
  * @param src - What `node.image` names.
- * @param onReady - Called once when an asset that was not held yet is ready, so the node draws again.
+ * @param onReady - Called once when an asset that was not held yet is ready, so the node draws again; every node that
+ *   asks while the asset is on its way is called.
  * @returns The object URL of an accepted image asset; `src` itself for a URL, or for an asset that is not an
  *   accepted image once it was waited for (it then fails to load and is reported as any picture is); null while an
  *   asset is still on its way.
@@ -35,7 +39,7 @@ export function pictureAddress(session: unknown, src: string, onReady: () => voi
 
     let mine = held.get(assets);
     if (mine === undefined) {
-        mine = { urls: new Map(), asked: new Set() };
+        mine = { urls: new Map(), asked: new Map() };
         held.set(assets, mine);
     }
 
@@ -55,11 +59,29 @@ export function pictureAddress(session: unknown, src: string, onReady: () => voi
         }
     }
 
-    if (mine.asked.has(src) || assets.ready === undefined) {
+    if (assets.ready === undefined) {
         return src;
     }
 
-    mine.asked.add(src);
-    assets.ready(src).then(onReady, onReady);
+    const waiting = mine.asked.get(src);
+    if (waiting === null) {
+        return src;
+    }
+
+    if (waiting !== undefined) {
+        waiting.add(onReady);
+        return null;
+    }
+
+    const { asked } = mine;
+    const all = new Set([onReady]);
+    asked.set(src, all);
+    const settle = (): void => {
+        asked.set(src, null);
+        for (const each of all) {
+            each();
+        }
+    };
+    assets.ready(src).then(settle, settle);
     return null;
 }

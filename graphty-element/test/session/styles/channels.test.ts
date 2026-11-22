@@ -1271,10 +1271,20 @@ describe("ChannelDescriptor.drawnWhen", () => {
 
     it("names channels that exist, by values they take", () => {
         for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
-            for (const condition of descriptor.drawnWhen ?? []) {
+            const all = (descriptor.drawnWhen ?? []).flatMap((condition) =>
+                "anyOf" in condition ? condition.anyOf.flat() : [condition],
+            );
+            for (const condition of all) {
                 if ("dimension" in condition) {
                     assert.include(["2d", "3d"], condition.dimension, descriptor.channel);
                     continue;
+                }
+                if ("arranged" in condition) {
+                    assert.include(["2d", "3d"], condition.arranged, descriptor.channel);
+                    continue;
+                }
+                if ("anyOf" in condition) {
+                    assert.fail(`${descriptor.channel}: an anyOf nested in an anyOf`);
                 }
 
                 assert.isDefined(CHANNEL_DESCRIPTORS[condition.channel], `${descriptor.channel}: ${condition.channel}`);
@@ -1339,7 +1349,6 @@ describe("ChannelDescriptor.drawnWhen", () => {
         "edge.nodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
         "edge.sourceNodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
         "edge.targetNodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
-        "edge.arcHeight": "a straight route ignores it, but an unset route may be raised by the layout",
     };
 
     it("covers every caveat that says a channel is ignored somewhere", () => {

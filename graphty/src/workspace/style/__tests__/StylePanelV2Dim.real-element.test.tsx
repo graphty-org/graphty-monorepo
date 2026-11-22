@@ -42,20 +42,29 @@ async function lineOf(root: ParentNode, channel: string): Promise<HTMLElement> {
 describe("Style panel v2 dims what draws nothing in this view", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("Lift draws only in 3D: it is dimmed in 2D, never removed", async () => {
-        await openGraph();
+    it("Lift draws only out of a flat layout in 3D: it is dimmed in 2D and over a 3D layout, never removed", async () => {
+        const { session } = await openGraph();
         await switchView("3D");
         await openStyle("Links");
         await showKind("edge");
         const line = sectionOf(await screen.findByTestId("style-tab"), "edge-line");
-        await userEvent.click(within(line).getByRole("button", { name: "Edge line settings" }));
-        const pop = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
-            assert.isNotNull(found);
-            return found;
-        });
-        const lift = await lineOf(pop, "edge.lift");
-        assert.isNull(dimmed(lift), "in 3D Lift is not dimmed");
+        const openLine = async (): Promise<HTMLElement> => {
+            await userEvent.click(within(line).getByRole("button", { name: "Edge line settings" }));
+            return waitFor(() => {
+                const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+                assert.isNotNull(found);
+                return found;
+            });
+        };
+        assert.strictEqual(session.layout.arrangedDimension, "3d");
+        const over3d = await lineOf(await openLine(), "edge.lift");
+        assert.equal(dimmed(over3d), "Only for a flat layout", "a 3D layout has no plane to lift out of");
+        await userEvent.keyboard("{Escape}");
+        // A flat layout drawn in the 3D view.
+        await session.layout.set("fixed", { options: { dim: 2 } });
+        assert.strictEqual(session.layout.arrangedDimension, "2d");
+        const lift = await lineOf(await openLine(), "edge.lift");
+        assert.isNull(dimmed(lift), "over a flat layout in 3D Lift is not dimmed");
         await userEvent.keyboard("{Escape}");
         await switchView("2D");
         await userEvent.click(within(line).getByRole("button", { name: "Edge line settings" }));

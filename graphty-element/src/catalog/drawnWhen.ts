@@ -32,20 +32,32 @@ function asText(value: unknown): string | undefined {
 /**
  * The first condition that does not hold.
  * @param conditions - The conditions.
- * @param dimension - The view.
+ * @param view - The view, and the layout when known.
  * @param read - What a condition's subject holds, undefined when unset.
  * @param fallback - What an unset subject counts as.
  * @returns The condition, or undefined when every one holds.
  */
 function firstUnmet<Condition extends ChannelCondition | LabelFieldCondition>(
     conditions: readonly Condition[] | undefined,
-    dimension: "2d" | "3d",
+    view: DrawnView,
     read: (condition: Condition) => unknown,
     fallback: (condition: Condition) => unknown,
 ): Condition | undefined {
+    const { dimension, arrangedDimension } = typeof view === "string" ? { dimension: view } : view;
     return conditions?.find((condition) => {
         if ("dimension" in condition) {
             return condition.dimension !== dimension;
+        }
+
+        // Unknown, the layout may place nodes either way.
+        if ("arranged" in condition) {
+            return arrangedDimension !== undefined && condition.arranged !== arrangedDimension;
+        }
+
+        if ("anyOf" in condition) {
+            return !condition.anyOf.some(
+                (all) => firstUnmet(all as readonly Condition[], view, read, fallback) === undefined,
+            );
         }
 
         const value = read(condition);
@@ -53,18 +65,47 @@ function firstUnmet<Condition extends ChannelCondition | LabelFieldCondition>(
             return value === undefined;
         }
 
-        if ("unset" in condition) {
-            return value !== undefined;
-        }
-
-        // A value that is not one value (a binding, or layers that paint different ones) may hold any of them.
+        // A value that is not one value (a binding, or layers that paint different ones) may hold any of them, and
+        // some elements may hold none: it meets a values condition and an unset one.
         if (value !== undefined && value !== null && typeof value === "object") {
             return false;
+        }
+
+        if ("unset" in condition) {
+            return value !== undefined;
         }
 
         const text = asText(value ?? fallback(condition));
         return text === undefined || !condition.values.includes(text);
     });
+}
+
+/**
+ * The view a channel is drawn in: `"2d"` or `"3d"`, or `session.layout` itself, which also says how many dimensions
+ * the layout places nodes in (`edge.lift` rises only out of a flat layout) and which layout draws (a location map
+ * raises an unset `edge.route` in 3D).
+ * @since 3.66.0
+ */
+export type DrawnView =
+    "2d" | "3d" | { readonly dimension: "2d" | "3d"; readonly arrangedDimension?: "2d" | "3d"; readonly id?: string };
+
+/**
+ * What a channel left unset draws as where the view decides it: an edge's route on a location map in the 3D view is
+ * raised (Edge.routeOf: an arc over its flat map, a great circle round its globe), and with a dimension alone the
+ * layout is unknown and may raise it.
+ * @param channel - The channel.
+ * @param view - The view.
+ * @returns The value, or undefined where the view does not decide it.
+ */
+function viewDefault(channel: Channel, view: DrawnView): ChannelValue | undefined {
+    if (channel !== "edge.route") {
+        return undefined;
+    }
+    // A dimension alone does not say which layout draws: it may be one that raises the route.
+    if (typeof view === "string") {
+        return "arc";
+    }
+    return view.id === "location-map" && view.dimension === "3d" ? "arc" : undefined;
 }
 
 /**
@@ -105,8 +146,9 @@ export function drawnDefault(channel: Channel, read: (other: Channel) => unknown
  * @param read - What another channel holds where this one is set: the row's own value, else what
  *   the layers beneath give. Undefined when nothing sets it; it then counts as its default. An object (a data binding, or
  *   any value standing for values that differ from element to element) counts as set, and as meeting any
- *   values condition, since some elements may hold the value it asks for.
- * @param dimension - The view, `session.layout.dimension`.
+ *   values condition and any unset one, since some elements may hold the value it asks for and some none.
+ * @param dimension - The view: `session.layout.dimension`, or `session.layout` itself so the conditions on the
+ *   layout (`arranged`, a location map's raised routes) are read too; with a dimension alone they count as met.
  * @returns `{ drawn: true }`, or `{ drawn: false, unmet }` naming the first condition that fails.
  * @since 3.62.0
  * @example
@@ -119,13 +161,16 @@ export function drawnDefault(channel: Channel, read: (other: Channel) => unknown
 export function channelDrawn(
     channel: Channel,
     read: (other: Channel) => unknown,
-    dimension: "2d" | "3d",
+    dimension: DrawnView,
 ): DrawnResult<ChannelCondition> {
     const unmet = firstUnmet<ChannelCondition>(
         CHANNEL_DESCRIPTORS[channel].drawnWhen,
         dimension,
         (condition) => ("channel" in condition ? read(condition.channel) : undefined),
-        (condition) => ("channel" in condition ? drawnDefault(condition.channel, read) : undefined),
+        (condition) =>
+            "channel" in condition
+                ? (viewDefault(condition.channel, dimension) ?? drawnDefault(condition.channel, read))
+                : undefined,
     );
     return unmet === undefined ? { drawn: true } : { drawn: false, unmet };
 }

@@ -1093,14 +1093,18 @@ export interface ChannelNeed {
  * One thing that must hold for a channel to change the picture (see
  * {@link ChannelDescriptor.drawnWhen}): another channel holds one of `values` (a boolean is written
  * `"true"` or `"false"`, a number as its digits; an unset channel counts as its default), another
- * channel is `set` to anything, another channel is `unset`, or the view is `dimension`.
+ * channel is `set` to anything, another channel is `unset`, the view is `dimension`, the layout places
+ * nodes in `arranged` dimensions (`session.layout.arrangedDimension`), or every condition of at least one
+ * list of `anyOf` holds.
  * @since 3.62.0
  */
 export type ChannelCondition =
     | { readonly channel: Channel; readonly values: readonly string[] }
     | { readonly channel: Channel; readonly set: true }
     | { readonly channel: Channel; readonly unset: true }
-    | { readonly dimension: "2d" | "3d" };
+    | { readonly dimension: "2d" | "3d" }
+    | { readonly arranged: "2d" | "3d" }
+    | { readonly anyOf: readonly (readonly ChannelCondition[])[] };
 
 /**
  * A caveat a channel carries, as a code. No channel carries one now: `"outline.sharedWidth"`
@@ -5650,8 +5654,20 @@ const ONLY_3D: ChannelCondition = { dimension: "3d" };
 const CURVED: ChannelCondition = { channel: "edge.curvature", values: ["true"] };
 const FLAT_SHAPE: ChannelCondition = { channel: "node.shape", values: FLAT_SHAPES };
 const LABEL_FIT: ChannelCondition = { channel: "node.labelFit", set: true };
-/** A label to fit a node round: the fit grows the node to hold its words, so a node with none keeps its size. */
-const LABELED: ChannelCondition = { channel: "node.label", set: true };
+/**
+ * Something to fit a node round (Node.fitToLabel): its label's words, its label table, or the picture it is asked to
+ * hold (`node.labelFitImage`); a node with none of them keeps its size.
+ */
+const FITS: ChannelCondition = {
+    anyOf: [
+        [{ channel: "node.label", set: true }],
+        [{ channel: "node.labelTable", set: true }],
+        [
+            { channel: "node.image", set: true },
+            { channel: "node.labelFitImage", set: true },
+        ],
+    ],
+};
 const MODEL: ChannelCondition = { channel: "node.model", set: true };
 const BLENDED: ChannelCondition = { channel: "edge.blending", values: ["true"] };
 const IMAGE_AT_OWN_SIZE: ChannelCondition = { channel: "node.imageFit", values: ["none"] };
@@ -5685,7 +5701,7 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     // The 2D view looks straight down on the layout, so a node's depth is never seen there.
     ["node.depth", [ONLY_3D]],
     // "Drawn only for a flat layout in the 3D view."
-    ["edge.lift", [ONLY_3D]],
+    ["edge.lift", [ONLY_3D, { arranged: "2d" }]],
     // "An edge animates only where it is a straight solid line."
     [
         "edge.animationSpeed",
@@ -5706,6 +5722,8 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     // "How far an `edge.route` "bundled" edge is drawn toward its bundle."
     ["edge.bundleStrength", [BUNDLED]],
     ["edge.bundleIterations", [BUNDLED]],
+    // "A straight route ignores it": a raised route only; unset, the layout picks it (a location map in 3D).
+    ["edge.arcHeight", [{ channel: "edge.route", values: ["arc", "great-circle"] }]],
     // "A support point wins over a fan and a circle" (Edge.ts): a force-curved edge bows to its support point.
     ["edge.arcRadius", [CURVED, NO_SUPPORT, ...NO_STORED_ROUTE]],
     ["edge.bendCurve", [CURVED]],
@@ -5749,14 +5767,14 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     ["node.borderWaveAmplitude", [{ channel: "node.borderStyle", values: ["zigzag", "sinewave"] }]],
     ["node.borderWavePeriod", [{ channel: "node.borderStyle", values: ["zigzag", "sinewave"] }]],
     // "Without `node.labelFit` it changes nothing."
-    ["node.labelFit", [LABELED]],
-    ["node.labelPaddingX", [LABELED, LABEL_FIT]],
-    ["node.labelPaddingY", [LABELED, LABEL_FIT]],
-    ["node.labelFitSquare", [LABELED, LABEL_FIT]],
-    ["node.labelFitQuantum", [LABELED, LABEL_FIT]],
-    // "also holds its picture (`node.image`)"
-    ["node.labelFitImage", [LABELED, LABEL_FIT, IMAGE_SET]],
-    ["node.labelFitImagePadding", [LABELED, LABEL_FIT, IMAGE_SET, { channel: "node.labelFitImage", set: true }]],
+    ["node.labelFit", [FITS]],
+    ["node.labelPaddingX", [FITS, LABEL_FIT]],
+    ["node.labelPaddingY", [FITS, LABEL_FIT]],
+    ["node.labelFitSquare", [FITS, LABEL_FIT]],
+    ["node.labelFitQuantum", [FITS, LABEL_FIT]],
+    // "also holds its picture (`node.image`)": a picture is fitted round with no label at all (labelFit.ts heldBox).
+    ["node.labelFitImage", [LABEL_FIT, IMAGE_SET]],
+    ["node.labelFitImagePadding", [LABEL_FIT, IMAGE_SET, { channel: "node.labelFitImage", set: true }]],
     // A model's settings, only on a node drawn as a model.
     ...(
         [
@@ -5806,8 +5824,6 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
         [
             "node.imageFallback",
             "node.imageFit",
-            "node.imagePositionX",
-            "node.imagePositionY",
             "node.imageOffsetX",
             "node.imageOffsetY",
             "node.imageRepeat",
@@ -5817,6 +5833,10 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
             "node.imageAspect",
         ] as const
     ).map((channel): [Channel, readonly ChannelCondition[]] => [channel, [IMAGE_SET]]),
+    // A position places the picture across the room the node leaves it: a stretched ("fill") picture leaves none.
+    // Within the other fits the room is the picture's own proportions against the node's, which no channel holds.
+    ["node.imagePositionX", [IMAGE_SET, { channel: "node.imageFit", values: ["contain", "cover", "none"] }]],
+    ["node.imagePositionY", [IMAGE_SET, { channel: "node.imageFit", values: ["contain", "cover", "none"] }]],
     // A chart's line width only on a line chart; its border and background settings only with a color.
     ["node.chartLineWidth", [{ channel: "node.chartKind", values: ["line"] }]],
     ["node.chartBorderWidth", [{ channel: "node.chartBorderColor", set: true }]],
@@ -5923,8 +5943,9 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
     ["edge.dashGap", [{ channel: "edge.style", value: "dash" }]],
     ["edge.waveAmplitude", [{ channel: "edge.style", value: "sinewave" }]],
     ["edge.wavePeriod", [{ channel: "edge.style", value: "sinewave" }]],
-    ["edge.fadeStart", [{ channel: "edge.fadeEnd", value: 400 }]],
-    ["edge.fadeOpacity", [{ channel: "edge.fadeEnd", value: 400 }]],
+    // Short enough that an ordinary graph's longer lines reach it and fade all the way.
+    ["edge.fadeStart", [{ channel: "edge.fadeEnd", value: 150 }]],
+    ["edge.fadeOpacity", [{ channel: "edge.fadeEnd", value: 150 }]],
     ["edge.animationSpeed", [{ channel: "edge.style", value: "solid" }]],
     ["edge.supportModel", [{ channel: "edge.curvature", value: true }]],
     ...(

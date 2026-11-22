@@ -59,19 +59,70 @@ describe("channelDrawn", () => {
         );
     });
 
-    it("fits a node to its label only when it has a label, and holds its picture only when it has one", () => {
+    it("fits a node round its label, its label table or the picture it holds, and holds a picture with no label", () => {
         const fit = { "node.labelFit": "inside" };
-        assert.deepStrictEqual(channelDrawn("node.labelFit", reading({}), "2d"), {
-            drawn: false,
-            unmet: { channel: "node.label", set: true },
-        });
+        const unmet = channelDrawn("node.labelFit", reading({}), "2d");
+        assert.isFalse(unmet.drawn);
+        assert.property(unmet.drawn ? {} : unmet.unmet, "anyOf");
         assert.isTrue(channelDrawn("node.labelFit", reading({ "node.label": "A" }), "3d").drawn);
+        // A label table with no label is laid out and fitted on its own (Node.fitToLabel).
+        assert.isTrue(channelDrawn("node.labelFit", reading({ "node.labelTable": "{}" }), "2d").drawn);
+        assert.isTrue(channelDrawn("node.labelFitQuantum", reading({ ...fit, "node.labelTable": "{}" }), "2d").drawn);
+        // A picture held with no label: the node is fitted round the picture (labelFit.ts heldBox).
+        const held = { ...fit, "node.image": "a.png", "node.labelFitImage": true };
+        assert.isTrue(channelDrawn("node.labelFit", reading(held), "2d").drawn);
+        assert.isTrue(channelDrawn("node.labelFitImage", reading(held), "2d").drawn);
+        assert.isTrue(channelDrawn("node.labelFitImagePadding", reading(held), "3d").drawn);
+        assert.isTrue(channelDrawn("node.labelPaddingX", reading(held), "3d").drawn);
+        // A picture alone, not asked to be held, is nothing to fit round.
+        assert.isFalse(channelDrawn("node.labelFit", reading({ "node.image": "a.png" }), "2d").drawn);
         assert.isFalse(channelDrawn("node.labelFitQuantum", reading(fit), "2d").drawn);
         assert.isTrue(channelDrawn("node.labelFitQuantum", reading({ ...fit, "node.label": "A" }), "2d").drawn);
         assert.deepStrictEqual(channelDrawn("node.labelFitImage", reading({ ...fit, "node.label": "A" }), "2d"), {
             drawn: false,
             unmet: { channel: "node.image", set: true },
         });
+    });
+
+    it("draws force curves for a mixed port beneath: the edges with no stored route draw them", () => {
+        const mixed = { mixed: true };
+        const bowed = { "edge.curvature": true, "edge.supportModel": "barnesHut" };
+        for (const port of ["edge.sourcePort", "edge.targetPort", "edge.bends"] as const) {
+            assert.isTrue(
+                channelDrawn("edge.supportSpringLength", reading({ ...bowed, [port]: mixed }), "3d").drawn,
+                port,
+            );
+            assert.isTrue(channelDrawn("edge.fanned", reading({ "edge.curvature": true, [port]: mixed }), "2d").drawn);
+        }
+    });
+
+    it("lifts an edge only out of a flat layout in 3D, read from the layout", () => {
+        assert.isTrue(channelDrawn("edge.lift", reading({}), "3d").drawn, "a dimension alone leaves the layout open");
+        assert.isTrue(channelDrawn("edge.lift", reading({}), { dimension: "3d", arrangedDimension: "2d" }).drawn);
+        assert.deepStrictEqual(channelDrawn("edge.lift", reading({}), { dimension: "3d", arrangedDimension: "3d" }), {
+            drawn: false,
+            unmet: { arranged: "2d" },
+        });
+        assert.isFalse(channelDrawn("edge.lift", reading({}), { dimension: "2d", arrangedDimension: "2d" }).drawn);
+    });
+
+    it("raises an arc only on a raised route: the style's, or a location map's in 3D", () => {
+        const force = { dimension: "2d", arrangedDimension: "2d", id: "force" } as const;
+        assert.deepStrictEqual(channelDrawn("edge.arcHeight", reading({}), force), {
+            drawn: false,
+            unmet: { channel: "edge.route", values: ["arc", "great-circle"] },
+        });
+        assert.isTrue(channelDrawn("edge.arcHeight", reading({ "edge.route": "arc" }), "2d").drawn);
+        assert.isTrue(channelDrawn("edge.arcHeight", reading({ "edge.route": "great-circle" }), "3d").drawn);
+        assert.isFalse(channelDrawn("edge.arcHeight", reading({ "edge.route": "bundled" }), "3d").drawn);
+        assert.isTrue(
+            channelDrawn("edge.arcHeight", reading({}), "3d").drawn,
+            "a dimension alone: the layout may raise it",
+        );
+        const map = { dimension: "3d", arrangedDimension: "2d", id: "location-map" } as const;
+        assert.isTrue(channelDrawn("edge.arcHeight", reading({}), map).drawn, "the map raises an unset route in 3D");
+        assert.isFalse(channelDrawn("edge.arcHeight", reading({}), { ...map, dimension: "2d" }).drawn);
+        assert.isFalse(channelDrawn("edge.arcHeight", reading({ "edge.route": "straight" }), map).drawn);
     });
 
     it("reads a value that varies by element as set, and as meeting any values condition", () => {
@@ -126,6 +177,10 @@ describe("channelDrawn", () => {
             );
         }
         assert.isTrue(channelDrawn("node.imageOpacity", reading({ "node.image": "asset:a" }), "2d").drawn);
+        // A stretched picture fills the node and leaves no room to place it in.
+        const stretched = { "node.image": "asset:a", "node.imageFit": "fill" };
+        assert.isFalse(channelDrawn("node.imagePositionX", reading(stretched), "2d").drawn);
+        assert.isTrue(channelDrawn("node.imagePositionY", reading({ "node.image": "asset:a" }), "2d").drawn);
     });
 
     it("holds a channel to its view", () => {

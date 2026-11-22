@@ -634,6 +634,10 @@ export type ChannelCondition = {
     readonly unset: true;
 } | {
     readonly dimension: "2d" | "3d";
+} | {
+    readonly arranged: "2d" | "3d";
+} | {
+    readonly anyOf: readonly (readonly ChannelCondition[])[];
 };
 
 // @public
@@ -687,7 +691,7 @@ export interface ChannelDescriptor {
 export function channelDescriptor(channel: string): ChannelDescriptor | undefined;
 
 // @public
-export function channelDrawn(channel: Channel, read: (other: Channel) => unknown, dimension: "2d" | "3d"): DrawnResult<ChannelCondition>;
+export function channelDrawn(channel: Channel, read: (other: Channel) => unknown, dimension: DrawnView): DrawnResult<ChannelCondition>;
 
 // @public
 export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
@@ -832,6 +836,13 @@ export type DrawnResult<Condition> = {
 } | {
     readonly drawn: false;
     readonly unmet: Condition;
+};
+
+// @public
+export type DrawnView = "2d" | "3d" | {
+    readonly dimension: "2d" | "3d";
+    readonly arrangedDimension?: "2d" | "3d";
+    readonly id?: string;
 };
 
 // @public

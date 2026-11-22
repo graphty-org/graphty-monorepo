@@ -43,6 +43,15 @@ function unmetWords(unmet: ChannelCondition | LabelFieldCondition, name: string)
     if ("dimension" in unmet) {
         return unmet.dimension === "2d" ? "2D only" : "3D only";
     }
+    if ("arranged" in unmet) {
+        return unmet.arranged === "2d" ? "Only for a flat layout" : "Only for a 3D layout";
+    }
+    if ("anyOf" in unmet) {
+        const names = unmet.anyOf
+            .flatMap((all) => all.slice(0, 1))
+            .map((one) => ("channel" in one ? channelWord(one.channel) : ""));
+        return `Only when ${[names.slice(0, -1).join(", "), names.at(-1)].filter(Boolean).join(" or ")} is set`;
+    }
     if ("set" in unmet) {
         return `Only when ${name} is set`;
     }
@@ -100,7 +109,8 @@ export function dimOf(ctx: RowContext, channel: Channel): string | undefined {
         return undefined;
     }
     const read = rowReader(ctx);
-    const found = channelDrawn(channel, read, viewOf(ctx.session));
+    // The layout itself, so a lift out of a 3D layout's plane and a location map's raised routes are read too.
+    const found = channelDrawn(channel, read, ctx.session.layout);
     if (found.drawn) {
         return undefined;
     }

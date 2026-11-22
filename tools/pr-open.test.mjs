@@ -238,7 +238,10 @@ describe("pr-open.sh", () => {
     });
 
     it("writes Refs for its own issue known failures still cite, and refuses a commit closing one (#8888)", () => {
-        const known = JSON.stringify({ reasons: [{ reason: "drift in scene x, tracked by #1005", added: {} }] });
+        const known = JSON.stringify({
+            known: { x: { p: ["a"] } },
+            reasons: [{ reason: "drift in scene x, tracked by #1005", added: { x: { p: ["a"] } } }],
+        });
         branch("fix/1005-scene", { "graphty-element/test/fidelity/oracle-known-failures.json": known });
         let r = run();
         assert.equal(r.code, 0, r.out);

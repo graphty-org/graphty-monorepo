@@ -372,8 +372,12 @@ describe("prIntegrity", () => {
 });
 
 describe("known failures (#8888)", () => {
+    const listed = { s: { p: ["a"] } };
     const known = (...issues) =>
-        JSON.stringify({ reasons: issues.map((n) => ({ reason: `scene drift tracked by #${n}`, added: {} })) });
+        JSON.stringify({
+            known: listed,
+            reasons: issues.map((n) => ({ reason: `scene drift tracked by #${n}`, added: listed })),
+        });
 
     it("closedIssues reads GitHub's closing keywords and forms, not Refs", () => {
         assert.deepEqual(
@@ -412,6 +416,23 @@ describe("known failures (#8888)", () => {
         });
         const { problems } = prIntegrity(r.dir, pr(r, { body: "Refs #7\nFixes #9\n\n## Proof\n\nok\n" }));
         assert.deepEqual(problems, []);
+    });
+
+    it("counts a reason's issues only while one of its elements is still listed, as fidelity:issues does (#8198)", () => {
+        const r = repo();
+        r.git("checkout", "-q", "-b", "fix/9-x");
+        r.commit("fix(tools): one scene\n\nRefs #7", {
+            "graphty-element/test/fidelity/oracle-known-failures.json": JSON.stringify({
+                known: { s: { p: ["b"] } },
+                reasons: [
+                    { reason: "gone, tracked by #7", added: { s: { p: ["a"] }, t: { p: ["b"] } } },
+                    { reason: "still listed, tracked by #8", added: { s: { p: ["a", "b"] } } },
+                ],
+            }),
+        });
+        const { problems } = prIntegrity(r.dir, pr(r, { body: "Fixes #7\nFixes #8\n\n## Proof\n\nok\n" }));
+        assert.equal(problems.length, 1, problems.join("\n"));
+        assert.match(problems[0], /closes #8,/u);
     });
 });
 

@@ -6834,10 +6834,10 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
         // pnpm (and check-links.sh) that logs its call and passes.
         const dir = mkdtempSync(join(tmpdir(), "prepush-source-checks-"));
         try {
-            mkdirSync(join(dir, "tools"));
+            mkdirSync(join(dir, "tools/lib"), { recursive: true });
             mkdirSync(join(dir, "bin"));
             mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs"]) {
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs", "lib/git.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$*" >> ${dir}/calls\n`, { mode: 0o755 });
@@ -6925,7 +6925,8 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             ]) {
                 mkdirSync(d, { recursive: true });
             }
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs"]) {
+            mkdirSync(join(gate, "tools/lib"), { recursive: true });
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs", "lib/git.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(gate, "tools", f));
             }
             writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });

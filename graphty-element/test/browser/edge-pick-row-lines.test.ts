@@ -659,3 +659,31 @@ describe("picking a curved edge, and a line while the layout moves it", () => {
         );
     }
 });
+
+// The edge ID target keeps a CPU copy of its row lines' vertices, 24 bytes a row. It made room for twice the rows a
+// load had painted, about 24 MB of heap more than it needed at a million edges.
+describe("the edge ID target's row line vertices on batched", () => {
+    it("hold at most a quarter more rows than the graph has edges", async () => {
+        const count = 4000;
+        const element = await plainEdges("batched", "2d", "webgl");
+        await element.session.data.addNodes(
+            Array.from({ length: count }, (_, i) => ({
+                id: `r${String(i)}`,
+                position: { x: i % 60, y: i / 60, z: 0 },
+            })),
+        );
+        await element.session.data.addEdges(
+            Array.from({ length: count }, (_, i) => ({ src: `r${String(i)}`, dst: `r${String((i + 1) % count)}` })),
+        );
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        await hover(element, { x: 250, y: 200 });
+        await element.waitForStableFrame();
+        const target = element.graph.getEdgeIdTarget() as unknown as { rowVertices: Float32Array } | null;
+        assert.isNotNull(target);
+        const rows = (target?.rowVertices.length ?? 0) / 6;
+        const edges = count + 2;
+        assert.isAtLeast(rows, edges, "a row for every edge");
+        assert.isAtMost(rows, Math.max(1024, edges + Math.ceil(edges / 4)), "and at most a quarter more");
+    });
+});

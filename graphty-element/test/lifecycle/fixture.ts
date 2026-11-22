@@ -592,7 +592,7 @@ export interface LifecycleFixture {
 }
 
 /**
- * Start the fixture server for a test file, and after each test close the browsers it tracked, remove
+ * Start the fixture server for a test file, and after each test close the browsers it tracked, then remove
  * their profiles and drop its pending waits (with LIFECYCLE_DEBUG=1, print the whole log first).
  * @param options - As {@link startFixture}.
  * @param options.bundles - More builds by name.
@@ -615,8 +615,15 @@ export function useLifecycleFixture(options: { bundles?: Record<string, string> 
         }
 
         fx.dropWaits();
-        for (const { close, dir } of open.splice(0)) {
+        const tracked = open.splice(0);
+        for (const { close } of tracked) {
             await close().catch(() => undefined);
+        }
+
+        // A test that relaunches a profile tracks it once per browser: it is removed only after every
+        // browser on it has closed, or removing it after the first (killed) one races the relaunched
+        // browser, still running and writing into it (ENOTEMPTY, issue #9025).
+        for (const dir of new Set(tracked.map((entry) => entry.dir))) {
             // A browser's helpers may still be writing as it exits.
             rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
         }

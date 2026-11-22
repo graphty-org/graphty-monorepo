@@ -6,7 +6,7 @@
  * group, drawn as a node (yed-graphml-specimen-groups group-closed), had its band read as nothing. A head drawn over
  * part of a label that has a tighter box of its own is no box behind it (cx2-syn-mappings 423: the square head of
  * 408->423 was its background, the real one a stray), and words graphty draws as a text of their own are no label of
- * the unlabelled box they lie in (cx2-wp1449-tlr's "Peptidoglycan(G+)" over group box 136935). A tilted strip thinner
+ * the unlabeled box they lie in (cx2-wp1449-tlr's "Peptidoglycan(G+)" over group box 136935). A tilted strip thinner
  * than the words are tall, drawn before them, is no box behind them (xgmml-syn-mappings: the T-bar head of
  * 1269915->1269931 across edge 1269937->1269927's "e0").
  */

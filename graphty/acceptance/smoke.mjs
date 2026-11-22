@@ -3,23 +3,26 @@
  * The built app's smoke check: the landing page loads, its graph draws, one sample opens and draws,
  * and nothing went wrong on the way. CI runs it on every build of the app (the Lint job), because a
  * build once threw "nn is not a function" on its landing page and every test passed (#9616, #9633).
- * No GPU is needed: a software renderer draws the graph.
+ * No GPU is needed: a software renderer draws the graph. Nothing is read from the network: the page
+ * gets a site.json that points its datasets at graph-samples' own build (graph-samples/dist), served
+ * here, so the check needs neither graphty.app nor its copy of the data.
  *
  *   node graphty/acceptance/smoke.mjs --dist graphty/dist
  *
- * Fails (exit 1) on any uncaught page error, console error, crash, or same-origin request that
- * failed or answered 400 or more, and prints each. Exit 2 when there is no build at --dist. Every
- * wait waits on its condition; only the repository's one hang guard (tools/test-wait-guard.mjs)
- * ends a wait that never comes.
+ * Fails (exit 1) on any uncaught page error, console error, crash, request off this server, or
+ * request that failed or answered 400 or more, and prints each. Exit 2 when there is no build at
+ * --dist. Every wait waits on its condition; only the repository's one hang guard
+ * (tools/test-wait-guard.mjs) ends a wait that never comes.
  */
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { chromium } from "playwright";
+import { preview } from "vite";
 
 import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
-import { serve } from "./run.mjs";
 
 const { values: args } = parseArgs({ options: { dist: { type: "string", default: "graphty/dist" } } });
 const dist = resolve(args.dist);
@@ -27,12 +30,25 @@ if (!existsSync(join(dist, "index.html"))) {
     console.error(`no built app at ${dist}: run pnpm exec nx run graphty:build first`);
     process.exit(2);
 }
+// graph-samples' built datasets, the files graphty.app serves at /data/graph-samples/v1/ (graphty/vite.sample-data.ts)
+const DATASETS = resolve(dirname(fileURLToPath(import.meta.url)), "../../graph-samples/dist/data/v1");
 
-const http = await serve(dist);
-const origin = `http://127.0.0.1:${http.address().port}`;
+const server = await preview({
+    root: dirname(dist),
+    configFile: false,
+    logLevel: "warn",
+    build: { outDir: dist },
+    preview: { host: "127.0.0.1", port: 0 },
+});
+const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 page.setDefaultTimeout(WAIT_GUARD_MS);
+// What each site's deploy adds (graphty/src/siteConfig.ts): here only where the datasets are.
+await page.route(`${origin}/site.json`, (r) => r.fulfill({ json: { datasets: `${origin}/data/graph-samples/v1/` } }));
+await page.route(`${origin}/data/graph-samples/v1/*`, (r) =>
+    r.fulfill({ path: join(DATASETS, new URL(r.request().url()).pathname.split("/").pop()) }),
+);
 
 const problems = [];
 // The first problem ends the run at once, rather than leaving it to wait for a graph that never draws.
@@ -45,20 +61,13 @@ const report = (line) => {
     fail(new Error(line));
 };
 const ours = (url) => url.startsWith(origin);
-// Each site's deploy adds its site.json (graphty/src/siteConfig.ts); a build has none, and the app reads
-// that as every experiment off, as on production. Its 404 is the one expected.
-const expected = (url) => url === `${origin}/site.json`;
+// Nothing may come from the network: a check that needs another site is red whenever that site is.
+page.on("request", (r) => /^https?:/.test(r.url()) && !ours(r.url()) && report(`request off this server: ${r.url()}`));
 page.on("pageerror", (e) => report(`page error: ${e.stack ?? e.message}`));
 page.on("crash", () => report("the page crashed"));
-page.on("console", (m) => m.type() === "error" && !expected(m.location().url) && report(`console error: ${m.text()}`));
-page.on(
-    "requestfailed",
-    (r) => ours(r.url()) && !expected(r.url()) && report(`request failed: ${r.url()} (${r.failure()?.errorText})`),
-);
-page.on(
-    "response",
-    (r) => ours(r.url()) && !expected(r.url()) && r.status() >= 400 && report(`${r.status()} for ${r.url()}`),
-);
+page.on("console", (m) => m.type() === "error" && report(`console error: ${m.text()}`));
+page.on("requestfailed", (r) => ours(r.url()) && report(`request failed: ${r.url()} (${r.failure()?.errorText})`));
+page.on("response", (r) => ours(r.url()) && r.status() >= 400 && report(`${r.status()} for ${r.url()}`));
 
 // Runs in the page: the graph in `selector` has drawn its nodes.
 const drawn = (selector) =>
@@ -89,7 +98,7 @@ try {
     console.log(`FAIL at "${step}"`);
 } finally {
     await browser.close();
-    http.close();
+    await server.close();
 }
 for (const p of problems) console.log(`\n${p}`);
 console.log(problems.length ? `\nthe built app at ${dist} failed its smoke check` : "\nno page errors");

@@ -1251,6 +1251,8 @@ jobs:
               id: app-smoke
               if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
               continue-on-error: ${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'lint/Smoke check the built app') }}
+              # a few seconds when the app loads; a page that stalls fails the step, not the whole Lint job
+              timeout-minutes: 5
               run: node graphty/acceptance/smoke.mjs --dist graphty/dist
 
             - name: Warn that the app's smoke check failed

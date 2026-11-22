@@ -237,12 +237,7 @@ async function runAll(o) {
 
 // ---------------------------------------------------------------- a worker (one browser slot)
 
-/**
- * Serve a build on a loopback port: a file when the path names one, else the app's page.
- * @param dist the build's directory
- * @returns the listening server
- */
-export function serve(dist) {
+function serve(dist) {
     const http = createServer(async (req, res) => {
         const url = new URL(req.url, "http://x"); // eslint-disable-line sonarjs/no-clear-text-protocols -- parses the request's path; the server is loopback only
         const path = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, "");

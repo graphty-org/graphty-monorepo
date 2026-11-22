@@ -2513,6 +2513,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getStats: READ,
             hasLayoutEngine: READ,
             updatePositions: TRANSPORT,
+            // The frame's own publish of a stale static layout, reporting a refusal as updatePositions does.
+            publishOrReport: TRANSPORT,
             onRest: RENDER,
             onMotion: RENDER,
             checkMotion: RENDER,

@@ -1019,9 +1019,12 @@ const busyIssues = (ledger) => {
  * `inherited` marker (it waits on master's fix). Every one is listed and counted as startable: how many start this
  * round is the round's start rate, never this list (#9136: capping the list at half the free test slots hid 35 of
  * 36 red pull requests whenever the slots were busy, and idle read the queue as drained).
+ * Jobs no agent can start go in `held` with their reason, listed by jobLines but never counted as startable (#9710):
+ * `open` for a group whose every member has a live wait, `fix-red` for a pull request failing only owner-only checks
+ * (PR Integrity) or whose newest marker is `owner-review`.
  * @param options `{ everyMemberReviewed, claims, isAncestor }`: the claims sweep's claims (state.json), git
  *   ancestry on origin/master
- * @returns `{ jobs, rescan, stale }`
+ * @returns `{ jobs, held, rescan, stale }`
  */
 export function ledgerJobs(ledger, q, now, options = {}) {
     const pos = new Map(q.map((i, k) => [i.number, k]));
@@ -1076,13 +1079,17 @@ export function ledgerJobs(ledger, q, now, options = {}) {
     const stale =
         Number.isNaN(age) || age > SCAN_STALE_MS ? `the last scan is older than 2 hours (${ledger.scannedAt})` : null;
     out.sort((a, b) => pos.get(a.lead) - pos.get(b.lead));
-    return { jobs: withPipeJobs(out, pipeJobs(ledger, q, now, options, live)), rescan, stale };
+    const pipe = pipeJobs(ledger, q, now, options, live);
+    const startable = pipe.filter((j) => !j.held);
+    return { jobs: withPipeJobs(out, startable), held: pipe.filter((j) => j.held), rescan, stale };
 }
 
 const PRIORITIES = ["critical", "high", "medium", "low"];
 const prank = (p) => (PRIORITIES.includes(p) ? PRIORITIES.indexOf(p) : PRIORITIES.length);
 const BLOCK_TTL_MS = 2 * HOUR;
 const OPEN_AFTER_MS = 2 * HOUR;
+// Checks only the owner can clear (his code-owner review); a pull request failing only these is no fix-red job.
+const OWNER_CHECKS = new Set(["PR Integrity"]);
 
 // A branch is held only by a claim live from session activity; one live only because a pull request or branch names
 // its issue (byWork) holds the issue, never the branch, so that pull request's fix-red and open jobs still run.
@@ -1128,6 +1135,9 @@ const redJobs = (ledger, prs, q, now, live) => {
         if (!red || now - Date.parse(p.headAt) < RED_PR_IDLE_MS || live.branches.has(p.branch)) continue;
         const attempts = p.markers.filter((m) => m.kind === "fix attempt");
         if (attempts.some((m) => now - m.at < RED_PR_IDLE_MS) || p.markers.at(-1)?.kind === "inherited") continue;
+        // only the owner's code-owner review clears PR Integrity; an owner-review marker says the rest waits on him
+        const ownerOnly =
+            p.mergeable !== "CONFLICTING" && p.failing?.length && p.failing.every((n) => OWNER_CHECKS.has(n));
         const blocks = (ledger.blocked ?? [])
             .filter((b) => (b.prs ?? []).includes(p.number) && byNumber.has(b.issue))
             .map((b) => b.issue);
@@ -1147,6 +1157,7 @@ const redJobs = (ledger, prs, q, now, live) => {
             blocks,
             attempts: attempts.length,
             why: `${why}, head ${Math.round((now - Date.parse(p.headAt)) / HOUR)} h old`,
+            held: ownerOnly || p.markers.at(-1)?.kind === "owner-review" ? "owner review" : null,
         });
     }
     return out;
@@ -1161,6 +1172,12 @@ const openJobs = (ledger, prs, now, options, live) => {
         if (live.branches.has(g.branch) || (ev?.sha && options.isAncestor?.(ev.sha))) continue;
         const { issues, points } = size(g);
         if (issues > CAPS[groupClass(g)].issues || points > CAPS[groupClass(g)].points) continue; // over-cap: split first
+        // pr-open refuses a branch whose every issue waits on another pull request (#9710: #9083 on #8596)
+        const waits = g.members.map((m) =>
+            liveWaits(ledger)
+                .filter((w) => w.issue === m.n)
+                .map((w) => w.on),
+        );
         out.push({
             kind: "open",
             group: g.id,
@@ -1168,6 +1185,7 @@ const openJobs = (ledger, prs, now, options, live) => {
             priority: PRIORITIES.find((p) => g.members.some((m) => m.priority === p)) ?? "none",
             issues: g.members.map((m) => m.n),
             why: `ready ${ev?.sha ?? "?"} ${Math.round((now - since) / HOUR)} h ago, no pull request`,
+            held: waits.every((w) => w.length) ? `waits on ${[...new Set(waits.flat())].join(" ")}` : null,
         });
     }
     return out;
@@ -1193,38 +1211,42 @@ const ascii = (s) => s.replaceAll(/[^\x20-\x7e\n\t]/g, "?");
  * @returns lines
  */
 export function jobLines(result) {
-    const lines = result.jobs.map((j) => {
-        if (j.kind === "fix-red") {
-            const close =
-                j.attempts >= 2 ? `; ${j.attempts} fix attempts: close it, branch kept` : `; attempts ${j.attempts}`;
-            const blocks = j.blocks.length ? `; blocks ${hashes(j.blocks)}` : "";
-            return ascii(
-                `fix-red #${j.pr} ${j.priority} ${j.branch} -- ${j.why}${blocks}; issues ${hashes(j.issues) || "none"}${close}`,
-            );
-        }
-        if (j.kind === "open")
-            return ascii(`open ${j.branch} ${j.priority} ${j.group} -- ${j.why}; issues ${hashes(j.issues)}`);
-        if (j.unscanned) return `job ${hashes(j.issues)} ${j.priority} unscanned -- in no group of the ledger`;
-        const pairs = j.issues.map((n, k) => n + ":" + j.tests[k]).join(" ");
-        const tests = j.issues.length > 1 ? ` tests ${pairs}` : "";
-        const why = j.why || "no reason given";
-        return ascii(
-            `job ${hashes(j.issues)} ${j.priority} ${j.group}${tests} -- ${why}; files ${j.files.join(" ") || "none named"}`,
-        );
-    });
+    const held = (result.held ?? []).map((j) => `${jobLine(j)}; held: ${j.held}`);
+    const lines = [...result.jobs.map((j) => jobLine(j)), ...held];
     const work = result.jobs.filter((j) => !j.kind);
     const issues = work.reduce((t, j) => t + j.issues.length, 0);
     const grouped = work.filter((j) => j.issues.length > 1).length;
     const red = result.jobs.filter((j) => j.kind === "fix-red").length;
     const open = result.jobs.filter((j) => j.kind === "open").length;
     const pipe = red || open ? `; ${red} fix-red, ${open} open` : "";
-    lines.push(`${work.length} jobs, ${issues} issues, ${grouped} grouped${pipe}`);
+    const heldNote = held.length ? `; ${held.length} held` : "";
+    lines.push(`${work.length} jobs, ${issues} issues, ${grouped} grouped${pipe}${heldNote}`);
     if (result.rescan.length || result.stale) {
         const why = result.stale ?? "not in the ledger";
         lines.push(`rescan: ${hashes(result.rescan) || "(none unscanned)"} -- start the free-queue scan (${why})`);
     }
     return lines;
 }
+
+const jobLine = (j) => {
+    if (j.kind === "fix-red") {
+        const close =
+            j.attempts >= 2 ? `; ${j.attempts} fix attempts: close it, branch kept` : `; attempts ${j.attempts}`;
+        const blocks = j.blocks.length ? `; blocks ${hashes(j.blocks)}` : "";
+        return ascii(
+            `fix-red #${j.pr} ${j.priority} ${j.branch} -- ${j.why}${blocks}; issues ${hashes(j.issues) || "none"}${close}`,
+        );
+    }
+    if (j.kind === "open")
+        return ascii(`open ${j.branch} ${j.priority} ${j.group} -- ${j.why}; issues ${hashes(j.issues)}`);
+    if (j.unscanned) return `job ${hashes(j.issues)} ${j.priority} unscanned -- in no group of the ledger`;
+    const pairs = j.issues.map((n, k) => n + ":" + j.tests[k]).join(" ");
+    const tests = j.issues.length > 1 ? ` tests ${pairs}` : "";
+    const why = j.why || "no reason given";
+    return ascii(
+        `job ${hashes(j.issues)} ${j.priority} ${j.group}${tests} -- ${why}; files ${j.files.join(" ") || "none named"}`,
+    );
+};
 
 // ---------------------------------------------------------------------------------------------------------------
 // Drift against GitHub.
@@ -2042,12 +2064,20 @@ export function fetchOpenPrs(branches, run = graphql) {
     return out;
 }
 
-const MARKER_KINDS = /^pipeline-round: (fix attempt|inherited|taken|released)\b/;
+const MARKER_KINDS = /^pipeline-round: (fix attempt|inherited|taken|released|owner-review)\b/;
+const FAILED = new Set(["FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"]);
+// The head commit's failing check names; a name run more than once counts by its newest result.
+const failingChecks = (rollup) => {
+    const last = new Map();
+    for (const c of rollup?.contexts?.nodes ?? []) last.set(c.name ?? c.context, c.conclusion ?? c.state);
+    return [...last].filter(([, r]) => FAILED.has(r)).map(([n]) => n);
+};
 const PR_TEXT = `createdAt body author ${ACTOR} editor ${ACTOR} lastEditedAt`;
 const AGENT_PRS = (after) => `query { repository(owner: "${OWNER}", name: "${NAME}") {
   pullRequests(states: OPEN, first: 50${after ? `, after: "${after}"` : ""}) { pageInfo { hasNextPage endCursor }
     nodes { number headRefName isDraft createdAt mergeable author { login } labels(first: 20) { nodes { name } }
-      commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } }
+      commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state
+        contexts(first: 100) { nodes { ... on CheckRun { name conclusion } ... on StatusContext { context state } } } } } } }
       comments(last: 20) { nodes { ${PR_TEXT} } }
       closingIssuesReferences(first: 5) { nodes { number labels(first: 20) { nodes { name } }
         comments(last: 15) { nodes { ${PR_TEXT} } } } } } } } }`;
@@ -2085,6 +2115,7 @@ export function fetchAgentPrs(run = graphql) {
                 labels: (p.labels?.nodes ?? []).map((l) => l.name),
                 mergeable: p.mergeable,
                 checks: head?.statusCheckRollup?.state ?? null,
+                failing: failingChecks(head?.statusCheckRollup),
                 headAt: head?.committedDate ?? p.createdAt,
                 issues: issues.map((i) => i.number),
                 priority: bestPriority(issues.map((i) => (i.labels?.nodes ?? []).map((l) => l.name))),

@@ -3,8 +3,9 @@
  * (issue #9548): the measurement behind `Limits.fullDetailTriangleBudget`.
  *
  * Each size mounts the element with the nodes on a grid three units apart (no edges, fixed
- * layout, the camera fitted to them), sets `node.meshDetail` on every node through a layer, and
- * times 30 frames, each one `scene.render()` followed by a one-pixel `readPixels`, which waits for
+ * layout, the camera fitted to them), sets `node.meshDetail` on every node through a layer, waits
+ * for `waitForPainted()` and `waitForStableFrame()` (on a large graph the new meshes land over many
+ * frames, issue #9632), and times 30 frames, each one `scene.render()` followed by a one-pixel `readPixels`, which waits for
  * the GPU to finish the frame. The number to read is the median frame and the triangles drawn in
  * it (`scene.getActiveIndices() / 3`).
  *
@@ -22,6 +23,8 @@ import type { Graphty } from "../../index.js";
 
 const GPU = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
 const FRAMES = 30;
+/** Triangles in one default node at each detail: the icosphere, and the low-detail mesh. */
+const NODE_TRIANGLES = { full: 320, low: 20 } as const;
 const CASES: readonly (readonly [number, "full" | "low"])[] = [
     [250, "full"],
     [500, "full"],
@@ -66,7 +69,9 @@ describe.skipIf(GPU === "")("a frame of default spheres", () => {
                 selector: { match: "everything" },
                 set: { "node.meshDetail": detail },
             });
-            await created.waitForSettled();
+            // The paint lands over many frames on a large graph: time only the finished picture.
+            await created.waitForPainted();
+            await created.waitForStableFrame();
 
             const { scene } = created.graph;
             const gl = (scene.getEngine() as unknown as { _gl: WebGL2RenderingContext })._gl;
@@ -87,7 +92,9 @@ describe.skipIf(GPU === "")("a frame of default spheres", () => {
                 `[node-detail-frame] gpu=${GPU} nodes=${String(n)} detail=${detail} triangles=${String(triangles)} ` +
                     `frame median=${median.toFixed(1)}ms fps=${(1000 / median).toFixed(1)}`,
             );
-            assert.isAbove(triangles, 0, "the nodes were drawn");
+            // A frame timed before every node's mesh was swapped would report a fast time for a
+            // half-drawn picture (issue #9632): fail it instead.
+            assert.strictEqual(triangles, n * NODE_TRIANGLES[detail], "every node drawn at the asked detail");
         });
     }
 });

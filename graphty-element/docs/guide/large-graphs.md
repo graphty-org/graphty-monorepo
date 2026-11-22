@@ -75,7 +75,7 @@ Round node shapes are drawn at full detail until the nodes would draw more than
 default shape's 320 -- so past 3,125 nodes. Past the budget a node whose style layers set no
 `node.meshDetail` is drawn as if they set `"low"` (a 20-triangle icosphere), and it goes back to
 full detail when the graph shrinks under the budget. The default was measured: 30 frames a second
-held to about 9.6 million node triangles on an RTX 4070 SUPER and to about 160,000 in software
+held to about 8 million node triangles on an RTX 4070 SUPER and to about 130,000 in software
 rendering, and the default leaves room for a GPU ten times slower than that card.
 
 On a fast GPU, raise the budget (honored on both render paths):

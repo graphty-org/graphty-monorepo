@@ -58,22 +58,28 @@
  * {@link FULL_DETAIL_NODE_TRIANGLES}, the default icosphere's 320), a node no layer gives a
  * `node.meshDetail` is drawn `"low"` (`StylePainter`, 20 triangles); a layer that sets one keeps
  * it. Measured 2026-11-22 with `test/browser/node-detail-frame.bench.test.ts`: default icospheres
- * on a grid, 1280 x 720, WebGL, median of 29 frames each waited out with `readPixels`:
+ * on a grid, 1280 x 720, WebGL, median of 29 frames each waited out with `readPixels`, timed only
+ * once `waitForPainted()` and `waitForStableFrame()` resolved and the frame drew every node
+ * (issue #9632: timed earlier, 50,000 low-detail nodes drew a half-swapped scene and looked cheap):
  *
- * | full-detail nodes | triangles | RTX 4070 SUPER | SwiftShader |
+ * | nodes, detail | triangles | RTX 4070 SUPER | SwiftShader |
  * | --- | --- | --- | --- |
- * | 500 | 160,000 | 2.1 ms | 33.8 ms |
- * | 1,000 | 320,000 | 2.3 ms | 60.1 ms |
- * | 3,000 | 960,000 | 5.3 ms | 173 ms |
- * | 10,000 | 3,200,000 | 10.7 ms | 550 ms |
- * | 20,000 | 6,400,000 | 28.0 ms | |
- * | 30,000 | 9,600,000 | 33.9 ms | |
+ * | 250 full | 80,000 | 1.4 ms | 22.1 ms |
+ * | 500 full | 160,000 | 1.7 ms | 39.5 ms |
+ * | 1,000 full | 320,000 | 2.5 ms | 65.6 ms |
+ * | 3,000 full | 960,000 | 3.2 ms | 252 ms |
+ * | 10,000 full | 3,200,000 | 15.4 ms | 728 ms |
+ * | 20,000 full | 6,400,000 | 28.0 ms | 1,283 ms |
+ * | 30,000 full | 9,600,000 | 40.1 ms | 2,554 ms |
+ * | 10,000 low | 200,000 | 16.4 ms | 132 ms |
+ * | 50,000 low | 1,000,000 | 40.8 ms | 434 ms |
  *
- * 30 fps holds to about 9.6 million triangles on that card and to about 160,000 in software. The
- * default, 1,000,000, is a tenth of the card's figure, for a GPU an order of magnitude slower (an
- * integrated one): full detail up to 3,125 default nodes. The same 10,000 nodes drawn low take
- * 6.6 ms on the card and 80 ms in software. A consumer that wants full detail on a larger graph
- * raises the budget through `limits`, or sets `node.meshDetail` in a layer.
+ * 30 fps holds to about 8 million triangles on that card and to about 130,000 in software. The
+ * default, 1,000,000, is about a tenth of the card's figure, for a GPU an order of magnitude slower
+ * (an integrated one): full detail up to 3,125 default nodes. Low detail pays in software (10,000
+ * nodes: 728 ms full, 132 ms low); on the card a frame of 10,000 or more nodes costs about the same
+ * at either detail, since there the cost is per node, not per triangle. A consumer that wants full
+ * detail on a larger graph raises the budget through `limits`, or sets `node.meshDetail` in a layer.
  *
  * WHAT THESE NUMBERS DO NOT COVER, and it is the same exclusion as before: a patterned line style
  * gives every dot and dash a mesh and a ShaderMaterial of its own (`PatternedLineRenderer`), and

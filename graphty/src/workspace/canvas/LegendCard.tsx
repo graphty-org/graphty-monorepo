@@ -8,18 +8,16 @@ import { useNumberFormats } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { CatalogGlyph } from "../style/ValueField";
 import { colorName } from "../style/words";
+import { legendSections } from "./legendSections";
 import {
     belowLine,
     isSizeBlock,
-    keyNames,
-    keySections,
     NOTHING_KEYED,
     overflowLine,
     swatchName,
     swatchText,
     swatchValue,
 } from "./legendWords";
-import { modelName, pictureName } from "./models";
 
 /** Props for LegendCard. */
 interface LegendCardProps {
@@ -281,30 +279,6 @@ function useScrolls(
 }
 
 /**
- * A model's or a picture's rows named as the Style panel names
- * them ("police"), never by the element's asset id or the address a layer names, whose query may
- * hold a signed token.
- * @param session - the session.
- * @param block - one legend block.
- * @returns the block, its model and picture rows named.
- */
-function withAssetNames(session: GraphSession, block: LegendBlock): LegendBlock {
-    if (block.channel !== "node.model" && block.channel !== "node.texture") {
-        return block;
-    }
-    const nameOf = block.channel === "node.model" ? modelName : pictureName;
-    return {
-        ...block,
-        swatches: block.swatches.map((swatch) => {
-            // What it paints is the ref itself, so it is not printed beside the name either.
-            const { paints, ...rest } = swatch;
-            const ref = typeof paints === "string" ? paints : swatch.value;
-            return typeof ref === "string" ? { ...rest, name: swatch.name ?? nameOf(session, ref) } : swatch;
-        }),
-    };
-}
-
-/**
  * The legend card (tier1-design.md section 2.4): read-only, one section per channel a row paints
  * from the data, the row that wins on top. Each section is titled "<Property>: <row>"; a run's
  * node and edge highlight in one color share one section titled by the run.
@@ -322,11 +296,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
     const formats = useNumberFormats();
     const { scrolls, below } = useScrolls(ref, blocks, formats);
     // The element lists the stack bottom first; the card reads top first, the winner first.
-    const names = keyNames(session);
-    const sections = keySections(
-        blocks.map((block) => withAssetNames(session, block)),
-        names,
-    );
+    const sections = legendSections(session, blocks);
     return (
         <RenderCount id="legend-card">
             <Paper

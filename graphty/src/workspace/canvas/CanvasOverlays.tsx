@@ -14,7 +14,8 @@ import { RenderCount } from "../renderCount";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
-import { dataBlocks, isEffectBlock, keyBlocks, keyNames } from "./legendWords";
+import { legendSections } from "./legendSections";
+import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
 
@@ -76,16 +77,16 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
             const { nodeCount, edgeCount } = session.data.statistics();
             const totalNodes = session.data.statistics({ scope: "all" }).nodeCount;
             const blocks = keyBlocks(dataBlocks(session));
-            // The card names each block from the session (a layer's or a run's name), so the
-            // names are part of what it draws: a rename changes no block.
-            const names = keyNames(session);
-            const words = blocks.map((block) => [
-                names.row(block),
-                names.entry(block),
-                (block.layers ?? [block.layerId]).map((id) => names.layer?.(id)),
-                names.covers?.(block),
+            // The card names and groups each block from the session (a layer's or a run's name, a
+            // run's folder), so its sections are part of what it draws: a rename changes no block.
+            const key = JSON.stringify([
+                blocks,
+                legendSections(session, blocks),
+                nodeCount,
+                edgeCount,
+                totalNodes,
+                load,
             ]);
-            const key = JSON.stringify([blocks, words, nodeCount, edgeCount, totalNodes, load]);
             if (key === last) {
                 return;
             }

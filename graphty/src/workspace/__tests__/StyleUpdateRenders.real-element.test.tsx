@@ -65,7 +65,8 @@ async function openRing(): Promise<{ element: GraphElement; session: GraphSessio
         name: "Dept",
         target: "node",
         selector: { match: "everything" },
-        encode: { "node.color": { by: "data.dept" } },
+        // Text keys only under a scale that reads words: a color binding's default is linear.
+        encode: { "node.color": { by: "data.dept", scale: "ordinal" } },
     });
     const fade = await session.styles.add({
         name: "Fade",
@@ -116,8 +117,8 @@ async function animate(
         assert.deepEqual(counts, was);
     });
     const before = { ...counts };
-    // A step the history did not merge into the last one (a machine slower than the history's
-    // merge expects) is a new step, which Undo may name differently: the header may draw it.
+    // The history merges each later update into the first one's step, with no clock (#9493), so
+    // Undo keeps its name and the header draws nothing.
     let steps = 0;
     const offSteps = session.on("history:changed", ({ reason }) => {
         if (reason !== "merge") {
@@ -132,10 +133,8 @@ async function animate(
     await nextFrame();
     assert.equal(session.styles.get(fade)?.set?.[channel], 0.1);
     offSteps();
-    const drawn: Counts = Object.fromEntries(PANELS.map((id) => [id, (counts[id] ?? 0) - (before[id] ?? 0)]));
-    assert.isAtMost(drawn.header ?? 0, steps, "the header draws only for a step it may name anew");
-    const { header: _header, ...rest } = drawn;
-    return rest;
+    assert.equal(steps, 0, "every later update merged into the first one's step");
+    return Object.fromEntries(PANELS.map((id) => [id, (counts[id] ?? 0) - (before[id] ?? 0)]));
 }
 
 describe("one numeric style update in the workspace", () => {
@@ -152,6 +151,7 @@ describe("one numeric style update in the workspace", () => {
         assert.deepEqual(await animate(element, session, fade, "edge.animationSpeed"), {
             "canvas-overlays": 0,
             "legend-card": 0,
+            header: 0,
             toolbar: 0,
             "style-sections-node": 0,
             "style-sections-edge": 0,
@@ -169,19 +169,28 @@ describe("one numeric style update in the workspace", () => {
         assert.isAtMost(counted["style-sections-edge"], 5);
         assert.equal(counted["style-sections-node"], 0, "the layer paints no node");
         assert.equal(counted.toolbar, 0);
+        assert.equal(counted.header, 0);
     });
 
     it("still draws the key again when a layer it names is renamed, which changes no block", async () => {
-        const { element, session, fade } = await openRing();
+        const { element, session } = await openRing();
+        // A fixed edge color is keyed by its layer's name.
+        const accent = await session.styles.add({
+            name: "Accent",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.color": "#d9480f" },
+        });
+        await element.waitForSettled();
         const legend = await screen.findByRole("region", { name: "Legend" });
         await waitFor(() => {
-            assert.match(legend.textContent, /Fade/);
+            assert.match(legend.textContent, /Accent/);
         });
-        await session.styles.renameRow(fade, "Highlights");
+        await session.styles.renameRow(accent.id, "Highlights");
         await element.waitForSettled();
         await waitFor(() => {
             assert.match(legend.textContent, /Highlights/);
         });
-        assert.notMatch(legend.textContent, /Fade/);
+        assert.notMatch(legend.textContent, /Accent/);
     });
 });

@@ -1902,9 +1902,14 @@ export class Node implements ModelUser {
         const center = table.centerOf(this.row);
         // A row renumbered by a removal keeps its place: its world matrix is brought up to date only
         // if something else left it stale, not forced again for each of a hundred thousand nodes
-        // (issue #9164).
+        // (issue #9164). Stale is asked of the anchor itself: an unforced computeWorldMatrix returns
+        // the cached matrix whenever it already ran in this render id, and before the first frame
+        // every call shares one, so an anchor moved onto its row there kept the template's place.
         if (this.#anchor.position.equals(center)) {
-            this.#anchor.computeWorldMatrix();
+            if (!this.#anchor.isSynchronized()) {
+                this.#anchor.computeWorldMatrix(true);
+            }
+
             return;
         }
 

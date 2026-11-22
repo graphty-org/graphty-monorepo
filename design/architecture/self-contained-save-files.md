@@ -380,12 +380,12 @@ Integrity) fails a pull request that weakens these checks unless a code owner ap
 owner by the same judge the trailer check uses, applied to the diff from the merge base: a change
 limited to `saved-format-lists.json`, the shader-library snapshot, lines added to `kinds.ts` and the
 `test/saved-format/*.test.ts` files needs him only when the judge finds an added exception, path,
-`notSaved` key or `volatile` field, a removed `selfContained` kind, a deleted test, or a changed
-snapshot. Removing exceptions while adding their kinds' rows, and adding kinds or tests, merges on
-agent review (owner, 2026-11-13: "a change that only removes save-file exceptions merges on agent
-review"). An edited test is free here, as it is for the trailer check (#7588 edits the scan in
-`clean-room.test.ts` to accept what a file carries): the fresh agent review is what judges whether an
-edit quietly exempts a built-in, and the test-integrity rule only catches a lost test or assertion.
+`notSaved` key or `volatile` field, a removed `selfContained` kind, an edited or deleted test, or a
+changed snapshot. Removing exceptions while adding their kinds' rows, and adding kinds or tests,
+merges on agent review (owner, 2026-11-13: "a change that only removes save-file exceptions merges on
+agent review"). An edited test still needs him: an edit can quietly exempt a built-in, and neither
+the agent review nor the test-integrity rule (which only catches a lost test or assertion) is a
+stand-in for his approval.
 Any other change under
 `test/saved-format/`, to `tools/check-saved-format-allowlist.mjs`, to the lint rule's switch in
 `graphty-element/eslint.config.js`, or to the shipped and revoked hash lists always needs him.

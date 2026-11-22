@@ -237,12 +237,11 @@ describe("prIntegrity", () => {
             return r;
         };
 
-        it("lets #7588's shape through: palettes and label looks carried, their exceptions removed, rows added", () => {
+        it("lets palettes and label looks carried through: their exceptions removed, rows added", () => {
             const r = start();
             r.commit("fix: save files carry the palettes and label looks they use", {
                 [lists]: json({ ...BASE, selfContained: ["shaders", "palettes", "labelLooks"], exceptions: [] }),
                 [`${DIR}kinds.ts`]: "export const KINDS = [\n    shaders,\n    palettes,\n    labelLooks,\n];\n",
-                [`${DIR}clean-room.test.ts`]: `${TEST}it("c", () => { expect(3).toBe(3); });\n`,
             });
             assert.deepEqual(prIntegrity(r.dir, pr(r)).problems, []);
         });
@@ -271,6 +270,13 @@ describe("prIntegrity", () => {
             ["adds a volatile field", { [lists]: json({ ...BASE, volatile: ["savedAt"] }) }],
             ["removes a self-contained kind", { [lists]: json({ ...BASE, selfContained: [] }) }],
             ["deletes a test file", { [`${DIR}clean-room.test.ts`]: null }],
+            [
+                "removes an exception but also edits a test",
+                {
+                    [lists]: json({ ...BASE, exceptions: [] }),
+                    [`${DIR}clean-room.test.ts`]: `${TEST}it("c", () => { expect(3).toBe(3); });\n`,
+                },
+            ],
             ["changes the shader-library snapshot", { [`${DIR}shader-library.json`]: '{"a":1}\n' }],
             [
                 "removes an exception but also edits a helper",

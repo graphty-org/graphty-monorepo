@@ -235,10 +235,10 @@ export function revertedMerge(cwd, { base, mergeBase, head, text }) {
 /**
  * The saved-format guard paths a pull request changes that need a code owner. The allowlist check's
  * judge decides the exception lists, the shader-library snapshot and the tests under
- * test/saved-format/: adding or editing a test, adding a self-contained kind and removing an
- * exception are free, while widening an exception, deleting a test or changing the snapshot is not
- * (an edited test is left to the agent review, as the trailer check leaves it). Lines added to the kinds' rows are free
- * too. Anything else under the guard (the checks' own code, their lint rule, the shader hash lists)
+ * test/saved-format/: adding a test, adding a self-contained kind and removing an exception are free,
+ * while widening an exception, editing or deleting a test or changing the snapshot is not (an edited
+ * test can quietly exempt a built-in, and the owner's rule frees only removing exceptions). Lines
+ * added to the kinds' rows are free too. Anything else under the guard (the checks' own code, their lint rule, the shader hash lists)
  * always needs one.
  * @param cwd the repository
  * @param mergeBase the merge base
@@ -270,6 +270,7 @@ export function savedFormatNeedingOwner(cwd, mergeBase, head, files) {
             const [status, path] = line.split("\t");
             return { status, path };
         });
+    if (changes.some((c) => SAVED_FORMAT_TEST.test(c.path) && c.status !== "A")) return guarded;
     const { needsOwner, forbidden } = judge(lists(mergeBase), lists(head), changes);
     return needsOwner.length + forbidden.length === 0 ? [] : guarded;
 }

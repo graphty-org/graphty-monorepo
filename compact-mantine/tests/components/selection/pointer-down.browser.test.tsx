@@ -163,6 +163,41 @@ describe("segmented options", () => {
         expect(onChange).toHaveBeenCalledWith("Brush");
     });
 
+    it("put focus on the option a click chose, as a click on a native radio's label does", async () => {
+        renderGroup(vi.fn());
+
+        await userEvent.click(screen.getByText("Dynamic"));
+
+        expect(screen.getByRole("radio", { name: "Dynamic" })).toHaveFocus();
+    });
+
+    // A caller that draws a new group on the change (#9567): the pressed label is gone, and the
+    // press must not then take focus off what the new group focused.
+    it("leave focus where a caller that redraws the group on the change put it", async () => {
+        function Redrawn() {
+            const [value, setValue] = useState("A");
+            return (
+                <SegmentedControl
+                    key={value}
+                    data={["A", "B"]}
+                    value={value}
+                    onChange={setValue}
+                    ref={(root) => root?.querySelector<HTMLInputElement>("input:checked")?.focus()}
+                />
+            );
+        }
+        render(
+            <MantineProvider theme={compactTheme}>
+                <Redrawn />
+            </MantineProvider>,
+        );
+
+        await userEvent.click(screen.getByText("B"));
+
+        expect(screen.getByRole("radio", { name: "B" })).toBeChecked();
+        expect(screen.getByRole("radio", { name: "B" })).toHaveFocus();
+    });
+
     it("move with the arrow keys as native radios do", async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();

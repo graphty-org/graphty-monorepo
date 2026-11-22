@@ -67,7 +67,16 @@ export function checkSegmentOnMouseDown(event: React.MouseEvent<HTMLElement>): v
     }
     const input = group.ownerDocument.getElementById(id);
     if (input instanceof HTMLInputElement && input.type === "radio" && !input.disabled && !input.checked) {
+        // The press's own focus move runs after this handler, and the label click that would focus
+        // the radio is swallowed: focus the radio here, as a label click does, and keep the press
+        // from moving focus again. A caller that redraws the group on the change (a new element in
+        // its place) has already put focus where it wants it, and the press must not take it to
+        // the page body, as it does when the pressed label is no longer in the page (issue #9567).
+        event.preventDefault();
         input.click();
+        if (input.isConnected) {
+            input.focus({ preventScroll: true });
+        }
         pendingSegment.set(group, label);
     }
 }

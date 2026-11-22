@@ -25,6 +25,7 @@ import {
     summary,
     T4_CAP_MINUTES,
     unsafeTargets,
+    withNames,
 } from "./bisect-ci.mjs";
 import { budgetFor, hangMinutes, loadBudgets } from "./ci-budgets.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
@@ -522,6 +523,55 @@ describe("runPoint", () => {
         assert.deepEqual(r, { sha: "p", runs: 2, failed: { a: 2 } });
         assert.equal(calls.length, 2);
         assert.equal(await runArgs("no-such-shard-at-this-point", []), null);
+    });
+
+    it("runs only the failing tests of a shard whose file is every story, not the whole file (#9580)", async () => {
+        const name = "../../stories/NodeStyles.stories.ts > Opacity";
+        const [flag, shard, command] = await runArgs(
+            "graphty-element-render-parity-webgpu",
+            ["graphty-element/test/render-parity/stories.test.ts"],
+            [name],
+        );
+        assert.equal(flag, "--command");
+        assert.equal(shard, "graphty-element-render-parity-webgpu");
+        assert.match(command, /VITE_PARITY_RENDERER=webgpu .*vitest run --project=render-parity /);
+        assert.ok(command.endsWith(String.raw` -t '(?:\.\./\.\./stories/NodeStyles\.stories\.ts Opacity$)'`), command);
+        // no names: the file whole, as before
+        assert.doesNotMatch((await runArgs("graphty-element-render-parity-webgpu", ["x"])).join(" "), / -t /);
+        // a name that is not plain text reaches the shell quoted, and vitest literally
+        assert.equal(
+            withNames("pnpm exec vitest run", ["a's (b) > c$"]),
+            String.raw`pnpm exec vitest run -t '(?:a'\''s \(b\) c\$$)'`,
+        );
+        assert.equal(
+            withNames("vitest run a && vitest run b", ["x"]),
+            "vitest run a && vitest run b",
+            "two runs: unnarrowed",
+        );
+    });
+
+    it("selects exactly the named test when vitest reads the pattern", () => {
+        const dir = mkdtempSync(join(process.cwd(), "tmp", "bisect-names-"));
+        try {
+            const file = join(dir, "names.test.mjs");
+            writeFileSync(
+                file,
+                'import { describe, it } from "vitest";\n' +
+                    'describe.each(["../../stories/A.stories.ts", "../../stories/B.stories.ts"])("%s", () => {\n' +
+                    '    it("Opacity", () => {});\n    it("Opacity2", () => {});\n});\n',
+            );
+            const command = withNames(`pnpm exec vitest run --root ${dir} --reporter=json`, [
+                "../../stories/B.stories.ts > Opacity",
+            ]);
+            const out = execFileSync("sh", ["-c", command], { encoding: "utf8" });
+            const ran = JSON.parse(out.slice(out.indexOf("{")))
+                .testResults.flatMap((f) => f.assertionResults)
+                .filter((t) => t.status === "passed")
+                .map((t) => t.fullName);
+            assert.deepEqual(ran, ["../../stories/B.stories.ts Opacity"]);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 
     it("runs the files of a shard since split into parts in a part of its family", async () => {

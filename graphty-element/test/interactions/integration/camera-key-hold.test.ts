@@ -93,33 +93,40 @@ describe.each(["3d", "2d"] as const)("in %s, a held camera key", (view) => {
         await hover(element, { x: WIDTH / 2, y: HEIGHT + 40 });
         await applied(element);
         assert.isTrue(element.graph.canvas.matches(":focus"), "the click focused the canvas");
-        let repeats = 0;
-        const countRepeats = (evt: KeyboardEvent): void => {
-            repeats += Number(evt.repeat);
-        };
-        element.graph.canvas.addEventListener("keydown", countRepeats);
-        onCleanup(() => {
-            element.graph.canvas.removeEventListener("keydown", countRepeats);
-        });
         const { ticks, stop } = recordTicks(element);
+        // The tick the keydown came before, counted when it arrives: the keyboard's round trip
+        // through the test runner takes no fixed number of frames.
+        let pressedAt = Number.NaN;
+        let repeats = 0;
+        const onKey = (evt: KeyboardEvent): void => {
+            repeats += Number(evt.repeat);
+            if (Number.isNaN(pressedAt)) {
+                pressedAt = ticks.length;
+            }
+        };
+        element.graph.canvas.addEventListener("keydown", onKey);
+        onCleanup(() => {
+            element.graph.canvas.removeEventListener("keydown", onKey);
+        });
 
         await holdKey(key);
-        while (ticks.length < HELD_TICKS) {
+        while (Number.isNaN(pressedAt) || ticks.length < pressedAt + 1 + HELD_TICKS) {
             await nextFrame();
         }
         stop();
         await releaseKey(key);
 
         assert.strictEqual(repeats, 0, "the key was held with one keydown and no auto-repeat");
-        // Each tick reports the frame drawn in the tick before it. The first two may report frames
-        // drawn before the keydown arrived; from there on every frame was drawn with the key held.
-        const held = ticks.slice(2);
-        const before = ticks[1].camera;
+        // Each tick reports the frame drawn in the tick before it. The tick at pressedAt is the first
+        // to run with the key down, so the next one reports its frame; the one at pressedAt reports
+        // the last frame drawn before the key.
+        const before = ticks[pressedAt].camera;
         let last = before;
         const stalls: number[] = [];
-        for (const [i, tick] of held.entries()) {
+        for (let i = pressedAt + 1; i < ticks.length; i++) {
+            const tick = ticks[i];
             if (tick.camera === last || tick.drawn === 0) {
-                stalls.push(i + 2);
+                stalls.push(i - pressedAt);
             }
             last = tick.camera;
         }
@@ -127,7 +134,7 @@ describe.each(["3d", "2d"] as const)("in %s, a held camera key", (view) => {
         assert.deepStrictEqual(
             stalls,
             [],
-            `ticks of ${String(ticks.length)} that left the camera still or drew nothing while ${key} was held`,
+            `ticks after the keydown (of ${String(ticks.length - pressedAt - 1)}) that left the camera still or drew nothing while ${key} was held`,
         );
     });
 });

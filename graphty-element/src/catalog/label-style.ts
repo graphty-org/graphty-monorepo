@@ -784,6 +784,8 @@ export const LABEL_STYLE_DEFAULTS: Readonly<LabelStyle> = Object.freeze({
     sizeMode: "world",
     onTop: defaultRichTextLabelStyle.onTop ?? false,
     pickable: defaultRichTextLabelStyle.pickable ?? false,
+    // A label cut at maxLines ends its last line in an ellipsis unless this is false.
+    maxLinesEllipsis: defaultRichTextLabelStyle.maxLinesEllipsis ?? true,
     gradientColors: DEFAULT_LABEL_GRADIENT_COLORS,
 });
 
@@ -812,7 +814,10 @@ export interface LabelStyleFieldDescriptor {
     readonly max?: number;
     /** Whether it takes whole numbers only. */
     readonly integer?: boolean;
-    /** What is drawn while nothing sets it, as {@link LABEL_STYLE_DEFAULTS} says; absent when nothing is. */
+    /**
+     * What is drawn while nothing sets it, as {@link LABEL_STYLE_DEFAULTS} says (and `true` for `enabled`: a label
+     * with words is drawn); absent when nothing is.
+     */
     readonly default?: string | number | boolean | readonly string[];
     /**
      * Everything that must hold, in the same label style, for the field to change the picture:
@@ -1120,7 +1125,8 @@ const FIELD_ROWS = {
  */
 export const LABEL_STYLE_DESCRIPTORS: readonly LabelStyleFieldDescriptor[] = Object.freeze(
     LABEL_STYLE_FIELDS.map((field): LabelStyleFieldDescriptor => {
-        const value = LABEL_STYLE_DEFAULTS[field];
+        // A label with words is drawn while nothing sets `enabled`, so a control shows it switched on.
+        const value = field === "enabled" ? true : LABEL_STYLE_DEFAULTS[field];
         const drawnWhen = FIELD_DRAWN_WHEN[field];
         const drawnOn = FIELD_DRAWN_ON[field];
         return Object.freeze({

@@ -34,9 +34,13 @@ describe("LABEL_STYLE_DESCRIPTORS", () => {
     });
 
     it("gives each field the default LABEL_STYLE_DEFAULTS states, and none where it states none", () => {
-        for (const d of LABEL_STYLE_DESCRIPTORS) {
+        for (const d of LABEL_STYLE_DESCRIPTORS.filter((each) => each.field !== "enabled")) {
             assert.deepStrictEqual(d.default, LABEL_STYLE_DEFAULTS[d.field], d.field);
         }
+    });
+
+    it("draws a label with words while nothing sets enabled, so its default is true", () => {
+        assert.isTrue(LABEL_STYLE_DESCRIPTORS.find((d) => d.field === "enabled")?.default);
     });
 
     it("takes the same choices and bounds the renderer's schema takes", () => {

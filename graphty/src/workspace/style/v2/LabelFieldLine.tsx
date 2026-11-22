@@ -375,7 +375,8 @@ function controlOf(args: LineControlArgs, rule: string): React.ReactNode {
                 <Checkbox
                     size="xs"
                     label={line.name ?? descriptor.plainName}
-                    checked={value === true}
+                    // Unset, it shows what is drawn (a label with words is shown: `enabled` defaults to true).
+                    checked={value === undefined ? labelFieldDescriptor(field)?.default === true : value === true}
                     onChange={(event) => {
                         write(event.currentTarget.checked);
                     }}
@@ -486,7 +487,10 @@ export function LabelFieldLine({
     const set = line.unit === undefined ? fields.some((each) => valueOf(style, each) !== undefined) : false;
     const shownName = line.name ?? descriptor.plainName;
     const name = `${title} ${shownName.toLowerCase()}`;
-    const rule = line.unit === undefined ? (line.rule ?? RULE_OF_KIND[descriptor.accepts] ?? "R14") : "R8";
+    // The field's own kind: a list of colors (a gradient's) is described to the controls as text, but draws the
+    // gradient editor.
+    const kind = labelFieldDescriptor(field)?.accepts ?? descriptor.accepts;
+    const rule = line.unit === undefined ? (line.rule ?? RULE_OF_KIND[kind] ?? "R14") : "R8";
     const sideValues = line.sides?.map((each) => valueOf(style, each)) ?? [];
     const split = splitAsked || new Set(sideValues).size > 1;
     const args: LineControlArgs = { label, line, field, descriptor, name, set, split };

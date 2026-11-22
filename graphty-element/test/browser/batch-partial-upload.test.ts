@@ -72,7 +72,7 @@ function webgl2Scene(): Scene {
     const scene = new Scene(engine);
     // As the element's own scene does: a lazy import still on its way when the context goes compiles
     // an empty shader on the way back.
-    useBundledStandardShaders(scene);
+    useBundledStandardShaders();
     scene.activeCamera = new ArcRotateCamera("camera", 0, 0, 10, Vector3.Zero(), scene);
     cleanups.push(() => {
         engine.dispose();

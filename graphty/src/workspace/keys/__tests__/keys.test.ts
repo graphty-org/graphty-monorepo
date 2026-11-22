@@ -50,6 +50,14 @@ describe("workspace keys", () => {
         assert.isTrue(matchesKey(press("/"), "/"));
     });
 
+    it("matches punctuation typed with AltGr (Ctrl and Alt together), but never a letter", () => {
+        assert.isTrue(matchesKey(press("[", { ctrlKey: true, altKey: true }), "["));
+        assert.isTrue(matchesKey(press("]", { ctrlKey: true, altKey: true }), "]"));
+        assert.isFalse(matchesKey(press("]", { ctrlKey: true }), "]"));
+        assert.isFalse(matchesKey(press("v", { ctrlKey: true, altKey: true }), "V"));
+        assert.isFalse(matchesKey(press("]", { ctrlKey: true, altKey: true }), "Mod+]"));
+    });
+
     it("matches a named key", () => {
         assert.isTrue(matchesKey(press("F2"), "F2"));
         assert.isTrue(matchesKey(press("Escape"), "Escape"));
@@ -119,6 +127,7 @@ describe("workspace keys", () => {
         assert.match(formatKey("Shift+Mod+Z"), /^Shift\+(Ctrl|Cmd)\+Z$/);
         assert.equal(formatKey("?"), "?");
         assert.equal(formatKey("Delete"), "Del", "a menu's Delete item never reads Delete Delete");
+        assert.equal(formatKey("Escape"), "Esc");
     });
 });
 

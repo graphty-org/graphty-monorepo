@@ -4,7 +4,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import type { Channel, Path } from "../../../src/catalog/types";
+import type { BindingNumberFormat, Channel, Path } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import { RichTextParser } from "../../../src/meshes/RichTextParser";
 import { createRunResult } from "../../../src/session/results";
@@ -20,6 +20,7 @@ import { makeSession } from "../helpers";
  * @param row - The element's values, by path.
  * @param columns - Every element's values, by path, for count and rank.
  * @param channel - The channel.
+ * @param format - The binding's number format.
  * @returns What the element is painted.
  */
 function paint(
@@ -27,10 +28,11 @@ function paint(
     row: Record<Path, unknown>,
     columns: Record<Path, unknown[]> = {},
     channel: Channel = "node.label",
+    format?: BindingNumberFormat,
 ): unknown {
     const prepared = prepareBinding({
         channel,
-        binding: { template },
+        binding: format === undefined ? { template } : { template, format },
         scales: createScaleRegistry(),
         columnOf: (path) => columns[path] ?? [],
     });
@@ -140,6 +142,33 @@ describe("a template binding", () => {
     it("is refused on a channel that is not text", () => {
         assert.strictEqual(
             codeOf(() => paint(["{data.name}"], {}, {}, "node.color")),
+            "E_BAD_LAYER",
+        );
+    });
+
+    it("writes a number a {path} reads with the binding's format, and leaves text, counts and ranks alone", () => {
+        const format = { maximumFractionDigits: 1, locale: "en-US" };
+        const columns = { "data.group": ["x", "y"] };
+        const text = paint(
+            ["{data.name}", "{results.pagerank.value}", "{data.group|count}"],
+            { "data.name": "12345.678", "results.pagerank.value": 12345.678, "data.group": "x" },
+            columns,
+            "node.label",
+            format,
+        );
+
+        assert.strictEqual(text, "12345.678\n12,345.7\n2");
+    });
+
+    it("writes ungrouped thousands when the format says useGrouping: false", () => {
+        const format = { useGrouping: false, maximumFractionDigits: 0, locale: "en-US" };
+
+        assert.strictEqual(paint(["{data.n}"], { "data.n": 12345.6 }, {}, "node.label", format), "12346");
+    });
+
+    it("refuses a format Intl.NumberFormat refuses", () => {
+        assert.strictEqual(
+            codeOf(() => paint(["{data.n}"], {}, {}, "node.label", { maximumSignificantDigits: 0 })),
             "E_BAD_LAYER",
         );
     });

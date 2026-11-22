@@ -137,12 +137,14 @@ async function yesOrNo(u, column, choice) {
 }
 
 /**
- * Fill "+" (the Color line, focus in its box), then a color typed and Enter.
+ * Fill "+", then Color from its menu (it also offers Picture), focus in the new line's box, then a
+ * color typed and Enter.
  * @param u the user's hands (README.md)
  * @param color a color word or hex, as a user types it
  */
 async function fill(u, color) {
     await u.click("Add to node fill");
+    await u.page.getByRole("menuitem", { name: "Color", exact: true }).click();
     await u.type(color);
     await u.key("Enter");
 }

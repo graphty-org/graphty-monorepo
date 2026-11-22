@@ -100,6 +100,26 @@ describe("project generate_background", () => {
         assert.deepStrictEqual([image.naturalWidth, image.naturalHeight], [32, 18]);
     });
 
+    it("sets the picture flat behind the graph when asked", async () => {
+        const { assistant, session } = await geminiAssistant();
+        const { events } = await assistant.say("use a soft paper texture behind the graph", [
+            { tool: "project", args: { action: "generate_background", prompt: "paper", projection: "flat" } },
+        ]);
+        const asked = events.find((event) => event.type === "ai-approval-requested");
+        assert.exists(asked);
+        if (asked.type !== "ai-approval-requested") {
+            return;
+        }
+
+        assistant.engine.push(textTurn("Done."));
+        await assistant.controller.resolveAiApproval(asked.request.id, { approve: true });
+
+        assert.deepInclude(assistant.lastResults()[0].params, { projection: "flat" });
+        const { background } = session.config;
+        assert.strictEqual(background.backgroundType, "skybox");
+        assert.strictEqual(background.backgroundType === "skybox" ? background.projection : undefined, "flat");
+    });
+
     it("one undo restores the previous background", async () => {
         const { assistant, session } = await geminiAssistant();
         await session.config.set({ background: { backgroundType: "color", color: "#203040" } });

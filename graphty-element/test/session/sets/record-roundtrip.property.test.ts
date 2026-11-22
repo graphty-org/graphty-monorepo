@@ -408,10 +408,9 @@ describe("a stored set survives JSON into a fresh session", () => {
     it("refuses a malformed slice and two records with one id, and drops a tombstone for a live id", () => {
         const source = new TestGraph();
         const id = source.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "A" });
-        const [record] = JSON.parse(JSON.stringify(source.setsStore.toLogicalRecords())).records as Record<
-            string,
-            unknown
-        >[];
+        const [record] = (
+            JSON.parse(JSON.stringify(source.setsStore.toLogicalRecords())) as { records: Record<string, unknown>[] }
+        ).records;
         const codeOf = (stored: unknown): string | null => {
             try {
                 new TestGraph().setsStore.loadLogicalRecords(stored);

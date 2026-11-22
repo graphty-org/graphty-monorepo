@@ -16,6 +16,7 @@ import { assert, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { LabelDeclutter } from "../../src/managers/LabelDeclutter";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 
 const WIDTH = 1280;
 const HEIGHT = 720;
@@ -72,7 +73,7 @@ async function build(count: number): Promise<{ graph: Graph; container: HTMLElem
 }
 
 function passOf(graph: Graph): LabelDeclutter {
-    const found: unknown = graph.scene.metadata?.labelDeclutter;
+    const found: unknown = (graph.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
     if (!(found instanceof LabelDeclutter)) {
         assert.fail("a labelled scene has a label pass");
     }

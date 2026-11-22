@@ -258,6 +258,8 @@ interface BackgroundParts {
     readonly color: string | undefined;
     readonly image: string | undefined;
     readonly shader: GraphBackgroundConfig["shader"];
+    /** How the image is drawn, kept as the element has it; this section has no row for it. */
+    readonly projection?: "dome" | "flat" | undefined;
 }
 
 /**
@@ -267,13 +269,14 @@ interface BackgroundParts {
  * @param parts.color - the Color row's color
  * @param parts.image - the Image row's address
  * @param parts.shader - the Shader row's shader
+ * @param parts.projection - how the image is drawn
  * @returns the background
  */
-function backgroundOf({ color, image, shader }: BackgroundParts): GraphBackgroundConfig {
+function backgroundOf({ color, image, shader, projection }: BackgroundParts): GraphBackgroundConfig {
     const rest = { ...(color === undefined ? {} : { color }), ...(shader === undefined ? {} : { shader }) };
     return image === undefined
         ? { backgroundType: "color", ...rest }
-        : { backgroundType: "skybox", data: image, ...rest };
+        : { backgroundType: "skybox", data: image, ...rest, ...(projection === undefined ? {} : { projection }) };
 }
 
 /**
@@ -295,6 +298,7 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
         color: background.color,
         image: background.backgroundType === "skybox" ? background.data : undefined,
         shader: background.shader,
+        projection: background.backgroundType === "skybox" ? background.projection : undefined,
     };
     const present = (kind: BackgroundKind): boolean => parts[kind] !== undefined || waiting.includes(kind);
     const settle = (kind: BackgroundKind): void => {
@@ -470,6 +474,7 @@ function BackgroundImage({
     const { store } = useWorkspace();
     return (
         <FileSource
+            submitOnBlur
             variant="row"
             defaultValue={address}
             url

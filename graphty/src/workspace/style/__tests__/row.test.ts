@@ -18,7 +18,7 @@ import { sectionsFor } from "../words";
 /** Every channel a section of the Style tab draws as a line, the experiments' included. */
 const LINES = new Set<string>(
     (["node", "edge"] as const).flatMap((kind) =>
-        sectionsFor(kind, { cosmograph: true, nodeModels: true }).flatMap((section) => [
+        sectionsFor(kind, { cosmograph: true }).flatMap((section) => [
             ...section.channels,
             ...(section.inner ?? []),
         ]),

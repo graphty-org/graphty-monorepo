@@ -43,6 +43,7 @@ export {
     type FilterConditionMatches,
     type FilterDraft,
     type FilterResult,
+    type FilterStepCount,
     type HiddenNotDrawn,
     type SessionVisibilityApi,
     type StepCounts,

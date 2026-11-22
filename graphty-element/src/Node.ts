@@ -155,11 +155,32 @@ function fitsNode(shape: NodeStyleConfig["shape"]): boolean {
 /** A resolved style as a node draws it: with what its table label draws over its face, once laid out. */
 type DecoratedStyle = NodeStyleConfig & { readonly table?: TableDecoration };
 
-/** The label fields an external label does not take from the label: what it says, where it sits, its switch. */
+/**
+ * The label fields an external label does not take from the label: what it says (its words or its table), where it
+ * sits, its box (what it is sized to, its background and border), its switch. It takes the label's font, size, color
+ * and outline.
+ */
 export const XLABEL_UNSHARED = [
     "enabled",
     "text",
     "textPath",
+    "table",
+    "box",
+    "backgroundColor",
+    "backgroundOpacity",
+    "backgroundShape",
+    "image",
+    "imageWidth",
+    "imageHeight",
+    "imageOffsetX",
+    "imageOffsetY",
+    "borderWidth",
+    "borderColor",
+    "borderOpacity",
+    "borders",
+    "borderStyle",
+    "borderAlign",
+    "cornerRadius",
     "location",
     "attachOffset",
     "offsetX",
@@ -197,6 +218,32 @@ const GROUP_DEPTH_RATIO = 0.02;
  * label re-attached at the new size: a moving layout changes every box a little every frame.
  */
 const GROUP_RESIZE_EPSILON = 0.01;
+
+/** How much smaller than its node, in the node's lengths, a label's table is before the node draws its outline. */
+const TABLE_FIT_SLACK = 1e-3;
+
+/**
+ * The outline a node draws round its label's table where the table is smaller than the node: the table's own border,
+ * as a frame round its box; none where the node is the table's box, since its border stands for the table's then.
+ * @param border - the table's border width, in the node's lengths
+ * @param drawn - the laid-out table
+ * @param drawn.width - its width
+ * @param drawn.height - its height
+ * @param width - the node's width
+ * @param height - its height
+ * @returns the frame, or none
+ */
+function tableOutlineFrame(
+    border: number | undefined,
+    drawn: { width: number; height: number },
+    width: number,
+    height: number,
+): { x: number; y: number; width: number; height: number; border: number }[] {
+    const inside = drawn.width < width - TABLE_FIT_SLACK || drawn.height < height - TABLE_FIT_SLACK;
+    return border !== undefined && border > 0 && inside
+        ? [{ x: 0, y: 0, width: drawn.width, height: drawn.height, border }]
+        : [];
+}
 
 /** How opaque a group following its members is drawn when no layer styled it: a faint region. */
 const GROUP_REGION_OPACITY = 0.25;
@@ -293,6 +340,7 @@ export const nodeInternals = {} as {
         outerBorder: Node["outerBorder"];
         drawnStyle: Node["drawnStyle"];
         tableTexts: Node["tableTexts"];
+        tableFrame: Node["tableFrame"];
         shadow: Node["shadow"];
         underlay: Node["underlay"];
         overlay: Node["overlay"];
@@ -311,6 +359,33 @@ export const nodeInternals = {} as {
  */
 export function nodeRebuildsFor(node: Node, paint: NodePaint): boolean {
     return rebuildsFor(node, paint);
+}
+
+/** Tells a node its geometry changed; see {@link nodeResizedFrom}. */
+let resizeNode: (node: Node) => void;
+
+/**
+ * Tell the layout and a node's edges that it is drawn at another size or shape than its row was
+ * drawn at before the node was built. A row a batch drew is built straight from the paint it is
+ * about to take when that paint does not keep the batch's source (a restyle that borders it), so
+ * painting the new `Node` changes nothing and {@link Node.applySessionPaint} sees no resize; this
+ * tells them what that paint would have.
+ * @param node - The new node.
+ * @param before - The style the batch drew its row with.
+ * @param after - The style it is built with.
+ */
+export function nodeResizedFrom(node: Node, before: NodeStyleConfig, after: NodeStyleConfig): void {
+    const fitsLabel =
+        after.shape?.labelFit !== undefined ||
+        after.shape?.labelTable !== undefined ||
+        after.shape?.imageAspect === true;
+    if (
+        !isEqual(before.shape, after.shape) ||
+        !isEqual(before.border, after.border) ||
+        (fitsLabel && !isEqual(before.label, after.label))
+    ) {
+        resizeNode(node);
+    }
 }
 
 /**
@@ -475,11 +550,15 @@ export class Node implements ModelUser {
             node.shaderDrawing?.dataChanged(node);
         };
         ownAnchor = (node) => node.#anchor;
+        resizeNode = (node) => {
+            node.geometryChanged();
+        };
         nodeInternals.drawn = (node) => ({
             border: node.border,
             outerBorder: node.outerBorder,
             drawnStyle: node.drawnStyle,
             tableTexts: node.tableTexts,
+            tableFrame: node.tableFrame,
             shadow: node.shadow,
             underlay: node.underlay,
             overlay: node.overlay,
@@ -542,6 +621,11 @@ export class Node implements ModelUser {
      * will keep only this once its mesh goes (design/rendering/row-renderer.md, stage 11).
      */
     #anchor!: TransformNode;
+    /**
+     * Whether the constructor has built the mesh: before then it measures a label it fits the shape
+     * to, which has nothing to hang from yet ({@link Node.labelTarget}).
+     */
+    readonly #constructed: boolean = false;
     /** Whether a consumer has read {@link Node.mesh}: the node then keeps drawing with its own mesh. */
     #meshHeld = false;
     /** Whether this node's model carries a silhouette mark (src/models/NodeOutlineLayers.ts). */
@@ -550,6 +634,12 @@ export class Node implements ModelUser {
     #playing: TemplateAnimation | null = null;
     /** The view's scale on this node (`node.sizeSpace`), a shrink left out. */
     #wholeScale = 1;
+    /**
+     * A model's mesh and the scale it was built at: its size (`NodeMesh.createModelInstance`),
+     * which a view's scale multiplies rather than replaces. A shape's mesh is built at its size,
+     * so it has none (issue #9304).
+     */
+    #modelBuilt: { readonly mesh: AbstractMesh; readonly scale: Vector3 } | null = null;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
     #actions: ActionManager | null = null;
 
@@ -622,6 +712,12 @@ export class Node implements ModelUser {
      * `shape.texts` places one; null when its label is not a table. Laid out with the mesh (`fitToLabel`).
      */
     private tableTexts: [number, number, string][] | null = null;
+
+    /**
+     * The width, in the style's lengths, of the table outline this node draws over its face (its label's table is
+     * smaller than the node, so the node's own border cannot stand for it); null when it draws none.
+     */
+    private tableFrame: number | null = null;
 
     /**
      * The tooltip on screen, and undefined whenever the pointer is not over this node.
@@ -962,6 +1058,7 @@ export class Node implements ModelUser {
 
         const fit = this.fitToLabel(paint.meshKey, o);
         const built = this.build(fit.meshKey, fit.style);
+        this.#constructed = true;
 
         // Parent to graph-root for XR gesture support
         // This allows gestures to transform the entire graph by manipulating the root
@@ -1117,7 +1214,17 @@ export class Node implements ModelUser {
      * @returns The reach.
      */
     private get sceneBorderReach(): number {
-        return typeof this.borderBuilt?.scale === "number" ? 0 : this.borderReach;
+        return this.screenBorder ? 0 : this.borderReach;
+    }
+
+    /**
+     * Whether this node's border is drawn in screen pixels (`border.screenWidth`), so {@link Node.borderReach} changes
+     * with the zoom and {@link Node.layoutRadius} leaves it out.
+     * @returns True for a screen-pixel border.
+     * @internal
+     */
+    get screenBorder(): boolean {
+        return typeof this.borderBuilt?.scale === "number";
     }
 
     /**
@@ -2153,7 +2260,17 @@ export class Node implements ModelUser {
      */
     get drawnScale(): number {
         const scale = this.batchTable?.extentOf(this.row).scale;
-        return scale === undefined ? this.#anchor.scaling.x : exactOf(scale, this.#anchor.scaling.x);
+        const own = this.#anchor.scaling.x / (this.builtScale()?.x ?? 1);
+        return scale === undefined ? own : exactOf(scale, own);
+    }
+
+    /**
+     * The scale the node's mesh was built at, when it is a model's.
+     * @returns The scale, or null for a mesh built at its size.
+     */
+    private builtScale(): Vector3 | null {
+        const built = this.#modelBuilt;
+        return built !== null && built.mesh === this.#anchor ? built.scale : null;
     }
 
     /**
@@ -2192,7 +2309,13 @@ export class Node implements ModelUser {
      * @param whole - Its scale when it is not shrunk.
      */
     private drawScaled(scale: number, whole: number): void {
-        this.#anchor.scaling.setAll(scale);
+        const built = this.builtScale();
+        if (built === null) {
+            this.#anchor.scaling.setAll(scale);
+        } else {
+            built.scaleToRef(scale, this.#anchor.scaling);
+        }
+
         this.measureRow();
         if (this.#wholeScale !== whole) {
             this.#wholeScale = whole;
@@ -2395,11 +2518,13 @@ export class Node implements ModelUser {
      * at the same moment: a session's paint exists from the instant it is bound, and the field is
      * filled by the first frame that drains the dirty set. A rebuild in between -- a 2D/3D switch
      * immediately after a load -- would otherwise find nothing and draw nothing.
+     * A node never painted, rebuilt while a pass is painting, is drawn with the defaults and queued
+     * for the frame after the pass (`StylePainter.settledNodePaint`).
      * @returns The session's paint when one is bound, and the element's own defaults otherwise.
      */
     private currentPaint(): NodePaint {
         const painter = this.context.getStylePainter?.();
-        const painted = painter?.owns === true ? (this.sessionPaint ?? painter.nodePaint(this.index)) : null;
+        const painted = painter?.owns === true ? (this.sessionPaint ?? painter.settledNodePaint(this.index)) : null;
 
         return painted ?? bootstrapNodePaint();
     }
@@ -2808,6 +2933,7 @@ export class Node implements ModelUser {
         const { shape } = o;
         const table = this.drawnAsGroup ? null : readLabelTable(shape?.labelTable);
         this.tableTexts = null;
+        this.tableFrame = null;
         if ((shape?.labelFit === undefined && table === null && shape?.imageAspect !== true) || this.drawnAsGroup) {
             this.fittedFor = null;
             this.fittedExtent = null;
@@ -2855,20 +2981,24 @@ export class Node implements ModelUser {
             });
             // ponytail: one picture per node, the first cell's; a mesh per picture when a file has several
             const [picture] = drawn.images;
-            const table: TableDecoration = {
+            const decoration: TableDecoration = {
                 fills: drawn.fills.map((f) => ({ box: box(f), color: f.color })),
                 image:
                     picture === undefined
                         ? null
                         : { image: picture.image, align: picture.align, valign: picture.valign, box: box(picture) },
             };
-            if (table.fills.length > 0 || table.image !== null) {
-                style = { ...style, table };
-                key = `${key}|cells:${hashText(JSON.stringify(table))}`;
+            if (decoration.fills.length > 0 || decoration.image !== null) {
+                style = { ...style, table: decoration };
+                key = `${key}|cells:${hashText(JSON.stringify(decoration))}`;
             }
+            // the table's own outline is the node's border where the node is the table's box; inside a larger node
+            // (a margin round it) it is drawn where the table is, as Graphviz draws it
+            const outline = tableOutlineFrame(table?.border, drawn, width, height);
+            this.tableFrame = outline[0]?.border ?? null;
             // each cell's outline drawn inside its box, as Graphviz strokes it
             const lines = [
-                ...drawn.frames.map((f) => {
+                ...[...outline, ...drawn.frames].map((f) => {
                     const i = f.border / 2;
                     const [x0, x1, y0, y1] = [fx(f.x + i), fx(f.x + f.width - i), fy(f.y + i), fy(f.y + f.height - i)];
                     return `${x0},${y0} ${x1},${y0} ${x1},${y1} ${x0},${y1} ${x0},${y0}`;
@@ -2877,8 +3007,9 @@ export class Node implements ModelUser {
             ];
             if (lines.length > 0) {
                 const all = [shape?.lines, ...lines].filter((l) => l !== undefined && l !== "").join("; ");
-                // ponytail: one width for every outline, the first cell's; per-cell widths when a file mixes them
-                const lineWidth = shape?.lineWidth ?? drawn.frames[0]?.border;
+                // ponytail: one width for every outline, the table's or the first cell's; per-cell widths when a file
+                // mixes them
+                const lineWidth = shape?.lineWidth ?? outline[0]?.border ?? drawn.frames[0]?.border;
                 style = { ...style, shape: { ...style.shape, lines: all, lineWidth } };
                 key = `${key}|table:${hashText(all)}`;
             }
@@ -2930,7 +3061,9 @@ export class Node implements ModelUser {
         const model = this.modelFor(o);
         if (model !== null) {
             this.setDrawn(model, null);
-            return NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
+            const mesh = NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
+            this.#modelBuilt = { mesh, scale: mesh.scaling.clone() };
+            return mesh;
         }
 
         const image = this.imageFor(o);
@@ -3778,8 +3911,10 @@ export class Node implements ModelUser {
 
     /**
      * The band a model node is marked with: its halo (selection or `node.halo*`), else its
-     * outline, else its glow. Width in pixels: a halo's `(scale - 1) x 20` (9 at the default
-     * 1.45), an outline's width x 4, a glow's strength x 8, each between 2 and 16.
+     * outline, else its glow. Width in pixels: a halo's `(scale - 1) x 6` (3 at the default
+     * 1.45, a line that hugs the model at any zoom: at 9 a small model drawn 20 pixels tall
+     * vanished into a disc of the mark), an outline's width x 4, a glow's strength x 8, each
+     * between 2 and 16.
      * @returns The look, or null for no mark.
      */
     private modelMarkLook(): ModelMarkLook | null {
@@ -3787,7 +3922,7 @@ export class Node implements ModelUser {
         const halo = this.haloLook();
         if (halo !== null && halo.opacity !== 0) {
             const { rgb } = readColor(halo.color, DEFAULT_SELECTION_STYLE.color);
-            return { color: rgb.toHexString(), thickness: pixels((halo.scale - 1) * 20) };
+            return { color: rgb.toHexString(), thickness: pixels((halo.scale - 1) * 6) };
         }
 
         const effect = this.drawnStyle?.effect;
@@ -4117,11 +4252,18 @@ export class Node implements ModelUser {
      * @internal
      */
     get surfaceIsClosedForm(): boolean {
-        return (
-            this.drawnModel === null &&
-            CLOSED_FORM_SHAPES.has(this.shapeType ?? "") &&
-            (this.drawnStyle?.shape?.rotation ?? 0) % 360 === 0
-        );
+        return this.drawnModel === null && Node.closedForm(this.shapeType, this.drawnStyle?.shape?.rotation);
+    }
+
+    /**
+     * {@link Node.surfaceIsClosedForm} for a shape with no model, as a row drawn with no `Node` reads it.
+     * @param shape - The shape's type.
+     * @param rotation - Its turn, in degrees.
+     * @returns True for a box or a rectangle left unturned.
+     * @internal
+     */
+    static closedForm(shape: string | undefined, rotation: number | undefined): boolean {
+        return CLOSED_FORM_SHAPES.has(shape ?? "") && (rotation ?? 0) % 360 === 0;
     }
 
     /**
@@ -4725,9 +4867,13 @@ export class Node implements ModelUser {
      * The mesh a label hangs from: the node's own, or for a row a batch draws, its anchor made a
      * geometry-free mesh ({@link Node.boxAnchor}), so the row stays batched. The batch is told
      * first: a paint that keeps its mesh labels the node before it re-sorts it.
-     * @returns The mesh, or undefined for a removed node with no mesh.
+     * @returns The mesh, or undefined for a removed node with no mesh, or one still being built.
      */
     private labelTarget(): AbstractMesh | undefined {
+        if (!this.#constructed) {
+            return undefined;
+        }
+
         if (this.#mesh === null && !this.disposed) {
             this.context.getNodeBatches?.()?.sync(this);
         }

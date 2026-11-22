@@ -50,6 +50,7 @@ import {
     pajekImporter,
     rankFormats,
     xgmmlImporter,
+    xlsxImporter,
 } from "@graphty/graph-io";
 
 import { GraphtyError } from "../errors";
@@ -90,6 +91,7 @@ const BUILT_IN_IMPORTERS: readonly { id: FormatId; importer: GraphImporter }[] =
     { id: "cx", importer: cxImporter },
     { id: "obo", importer: oboImporter },
     { id: "cys", importer: cysImporter },
+    { id: "xlsx", importer: xlsxImporter },
 ];
 
 /**

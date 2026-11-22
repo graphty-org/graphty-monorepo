@@ -112,6 +112,93 @@ describe("geometric layouts: geometry", () => {
         assert.ok(Math.abs(far - 5) < 1e-5);
     });
 
+    it("spiral's 2D rows are exactly those of the flat spiral before 3D existed, whatever the height", () => {
+        // recorded from layout before the 3D spiral was added
+        const plain = Float32Array.of(
+            -0.19974835216999054,
+            -0.6974629163742065,
+            0.10043998807668686,
+            -0.5878856182098389,
+            0.28908148407936096,
+            -0.28572723269462585,
+            0.27726686000823975,
+            0.1341250091791153,
+            0.017512181773781776,
+            0.5621883869171143,
+            -0.48455217480659485,
+            0.8747623562812805,
+        );
+        const equidistant = Float32Array.of(
+            -0.48406094312667847,
+            0.7013354301452637,
+            0.37498337030410767,
+            0.8832765221595764,
+            1.093117594718933,
+            1.3945249319076538,
+            1.5736358165740967,
+            2.1366403102874756,
+            1.7692697048187256,
+            3.000875234603882,
+            1.6730544567108154,
+            3.883347511291504,
+        );
+        assert.deepStrictEqual(layout.spiral(nodes(6)).positions, plain);
+        assert.deepStrictEqual(layout.spiral(nodes(6), { height: 5 }).positions, plain);
+        assert.deepStrictEqual(
+            layout.spiral(nodes(6), { equidistant: true, resolution: 0.5, scale: 2, center: [1, 2] }).positions,
+            equidistant,
+        );
+    });
+
+    it("spiral in 3D is a cone: the 2D angle and radius, z rising height per unit of radius", () => {
+        const n = 5;
+        const height = 2;
+        const raw = Array.from({ length: n }, (_, i) => [Math.cos(0.35 * i) * i, Math.sin(0.35 * i) * i, height * i]);
+        const mean = [0, 1, 2].map((k) => raw.reduce((t, p) => t + p[k], 0) / n);
+        const far = Math.max(...raw.map((p) => Math.hypot(...p.map((v, k) => v - mean[k]))));
+        const center = [1, -2, 3];
+        const r = layout.spiral(nodes(n), { dim: 3, height, scale: 4, center });
+        raw.forEach((p, i) =>
+            row(r, i).forEach((v, k) => {
+                const expected = ((p[k] - mean[k]) * 4) / far + center[k];
+                assert.ok(Math.abs(v - expected) < 1e-5, `node ${i}[${k}]: ${v} vs ${expected}`);
+            }),
+        );
+    });
+
+    it("spiral in 3D: distinct nodes rising in node order, the farthest at distance scale, in both modes", () => {
+        for (const equidistant of [false, true]) {
+            const center = [2, 3, -1];
+            const r = layout.spiral(nodes(30), { dim: 3, scale: 5, center, equidistant });
+            const keys = new Set(Array.from({ length: 30 }, (_, i) => row(r, i).join(",")));
+            assert.equal(keys.size, 30);
+            for (let i = 1; i < 30; i++) {
+                assert.ok(row(r, i)[2] > row(r, i - 1)[2], `equidistant ${equidistant} node ${i}`);
+            }
+            const far = Math.max(...Array.from({ length: 30 }, (_, i) => distance(r, i, center)));
+            assert.ok(Math.abs(far - 5) < 1e-5);
+        }
+    });
+
+    it("spiral in 3D equidistant mode keeps consecutive nodes evenly spaced along the 3D curve", () => {
+        const r = layout.spiral(nodes(40), { dim: 3, equidistant: true, height: 3 });
+        const gaps = Array.from({ length: 39 }, (_, i) => Math.hypot(...row(r, i + 1).map((v, k) => v - row(r, i)[k])));
+        // one unit of arc before rescaling; the chord is a little shorter where the curve bends most, near the tip
+        const mean = gaps.reduce((t, g) => t + g, 0) / gaps.length;
+        gaps.forEach((g, i) => assert.ok(Math.abs(g / mean - 1) < 0.03, `gap ${i}: ${g} vs ${mean}`));
+    });
+
+    it("spiral in 3D with height 0 lies flat in the centre's z plane, and refuses a height that is not finite", () => {
+        const r = layout.spiral(nodes(10), { dim: 3, height: 0, center: [0, 0, 7] });
+        for (let i = 0; i < 10; i++) {
+            assert.equal(row(r, i)[2], 7);
+        }
+        assert.throws(
+            () => layout.spiral(nodes(3), { dim: 3, height: Number.NaN }),
+            (e: unknown) => (e as { code?: string }).code === "E_BAD_OPTION",
+        );
+    });
+
     it("grid spans [-scale, scale] along its longer side", () => {
         const r = layout.grid(nodes(6), { columns: 2, scale: 2 });
         assert.deepEqual(row(r, 0), [-1, -2]);

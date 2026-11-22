@@ -120,6 +120,11 @@ such as `|`.
   types milliseconds (with the original text kept in a `<name>.text` column when it is not in
   canonical form), `point` JSON, `type[]` a list, and `vector{coordinateType:FLOAT32,dimensions:3}`
   a list of numbers of its coordinate type. A column without a type is text.
+- The first `point` property of the nodes is their position: x, y, z for a cartesian point, longitude,
+  latitude, height for a WGS-84 one, with its coordinate system (read it with `coordinateSystemOf()`)
+  taken from the first point's `crs` or `srid`, or the header's `{crs:...}`. A point of the other kind is
+  reported as `W_NEO4J_POINT_CRS` and left out. Saving writes the position back as points in the same
+  coordinate reference system.
 - A cell that does not read as its declared type (`yes` in a `boolean` column, or a vector of the
   wrong length) is reported as `E_COLUMN_TYPE` and left without a value; the rest of the row is kept.
 - Several `:ID` columns form a composite key, stored as the id `["aa","11"]`; relationships name
@@ -191,7 +196,7 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`hierarchy`](./index.md#hierarchy)             | no                          |
 | [`temporal`](./index.md#temporal)               | none                        |
 | [`graphAttributes`](./index.md#graphattributes) | no                          |
-| [`positions`](./index.md#positions)             | no                          |
+| [`positions`](./index.md#positions)             | yes                         |
 | [`viz`](./index.md#viz)                         | no                          |
 | [`styles`](./index.md#styles)                   | none                        |
 
@@ -275,6 +280,7 @@ The codes this format's import report can hold. They are also exported as `NEO4J
 - `E_NEO4J_ENDPOINT_SPACE` (error): A spaced relationship endpoint `Space:id` that names a node declared without a space; the row is skipped.
 - `W_ID_MERGED` (warning): Two different id texts became the same number because `ids` is "number", so their nodes were merged.
 - `W_NEO4J_HEADER_OPTION_IGNORED` (warning): A header brace option the importer does not apply.
+- `W_NEO4J_POINT_CRS` (warning): A point of the position property is in another coordinate reference system than its first point: a geographic point among cartesian ones (or the reverse) is dropped; a 2D point among 3D ones is kept with a 0 for the missing coordinate.
 - `W_UNKNOWN_ATTR_TYPE` (warning): A declared type the format does not define (kept as string).
 - `W_PRECISION` (warning): An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.
 - `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.

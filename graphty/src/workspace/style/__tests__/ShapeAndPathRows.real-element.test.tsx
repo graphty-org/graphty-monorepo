@@ -2,7 +2,8 @@
  * The Style tab's rows for properties outside graphty-element's file-styles experiment, on the REAL
  * graphty-element, driven by real input (issue #6812): Halo, Unlit and Flat shading are rows of
  * Shape's "+", the halo's Shown is added from Halo's own "+" and the size's Mode from Size's own
- * "+"; Route is a row of Path's "+" and its Arc height is added from Route's own "+". Each is written
+ * "+"; Route is a row of Path's "+" and its Arc height is added from Route's own "+"; Strand colors is a
+ * row of Line's "+", its Strand spacing and Color's From node are added from their rows' own "+". Each is written
  * to the layer once a value is picked or typed. The file-styles channels are the panel by part's
  * (parts/__tests__).
  */
@@ -198,5 +199,26 @@ describe("the Style tab's rows outside file-styles", () => {
             0.3,
         ]);
         assert.isDefined(height.dataset.setting, "Arc height is drawn under Route");
+    });
+
+    it("adds Strand colors from Line's '+', and Strand spacing and Color from node from their rows' '+'", async () => {
+        const session = await openScene();
+        await openStyle("edge");
+        const strands = await addFrom(session, "edge-line", "Add to edge line", [
+            "Strand colors",
+            "edge.strandColors",
+            "number",
+            "red:blue",
+            "red:blue",
+        ]);
+        assert.isUndefined(strands.dataset.setting, "Strand colors is a row of Line");
+        const settings: readonly (readonly [plus: string, setting: Setting])[] = [
+            ["Add to edge strand colors", ["Strand spacing", "edge.strandSpacing", "number", "2", 2]],
+            ["Add to edge color", ["From node", "edge.colorFrom", "choice", "Source", "source"]],
+        ];
+        for (const [plus, setting] of settings) {
+            const drawn = await addFrom(session, "edge-line", plus, setting);
+            assert.isDefined(drawn.dataset.setting, `${setting[1]} is drawn as its row's setting`);
+        }
     });
 });

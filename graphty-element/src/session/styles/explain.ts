@@ -76,7 +76,15 @@ import type { ResolvedStyle } from "./repaint";
 // ---------------------------------------------------------------------------------------------
 
 /** The element being asked about: one node, or one edge. */
-export type ExplainTarget = { readonly node: NodeId } | { readonly edge: EdgeId };
+export type ExplainTarget =
+    | {
+          /** The node's id. */
+          readonly node: NodeId;
+      }
+    | {
+          /** The edge's id. */
+          readonly edge: EdgeId;
+      };
 
 /** One layer's share of what an element is painted. */
 export interface StyleContribution {
@@ -239,7 +247,12 @@ export interface StyleAgreement {
      * row matches across all its layers, each counted once.
      * @since 3.40.0
      */
-    readonly elements?: { readonly nodes: number; readonly edges: number };
+    readonly elements?: {
+        /** How many nodes. */
+        readonly nodes: number;
+        /** How many edges. */
+        readonly edges: number;
+    };
 }
 
 /**
@@ -353,7 +366,12 @@ const COVERS_LISTED = 3;
  */
 export interface ChannelCovers {
     /** The layers that cover it most, most elements first, each with how many it covers. */
-    readonly layers: readonly { readonly layerId: LayerId; readonly count: number }[];
+    readonly layers: readonly {
+        /** The layer. */
+        readonly layerId: LayerId;
+        /** How many elements it covers the channel on. */
+        readonly count: number;
+    }[];
     /** How many further layers cover it on some elements, beyond `layers`. */
     readonly more: number;
 }
@@ -1222,7 +1240,11 @@ function walkWins(stack: readonly StackEntry[], at: Located, columns: ElementCol
             ? mergeListValue(channel, values[channel], result, winner.id, useLayers)
             : result;
         if (winner.id === layerId) {
-            own[channel] = isShaderListChannel(channel) ? [...((own[channel] as []) ?? []), ...(result as [])] : result;
+            // A bound shader parameter paints a patch to one use, not a list: merged, as the
+            // repaint merges it.
+            own[channel] = isShaderListChannel(channel)
+                ? mergeChannelValue(channel, own[channel], result as object)
+                : result;
         }
     });
 

@@ -10,11 +10,12 @@ import { groupsAnnouncement, pathAnnouncement, topAnnouncement } from "../analyz
 import { GLYPHS } from "../glyphs";
 import { runFailureWords, selectedNameWords } from "../inspector/words";
 import { layoutWarningWords } from "../layout/refusalWords";
+import { RenderCount } from "../renderCount";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
+import { legendSections } from "./legendSections";
 import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
-import { PreviewKey } from "./PreviewKey";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
 
@@ -64,6 +65,9 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
         let load: ProgressChange | null = null;
         // A run that ends after the session changed must not post a notice for the old session.
         let live = true;
+        // What the last read gave, so a read that gives the same draws nothing again: a style
+        // update the key does not show (an animation's, once a frame) redrew the card (#9423).
+        let last: string | null = null;
         const read = (): void => {
             // While the selection workspace draws its own key the canvas key is not drawn: it is
             // read again when the workspace closes, not on every edit (ws-polish 2).
@@ -73,6 +77,20 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
             const { nodeCount, edgeCount } = session.data.statistics();
             const totalNodes = session.data.statistics({ scope: "all" }).nodeCount;
             const blocks = keyBlocks(dataBlocks(session));
+            // The card names and groups each block from the session (a layer's or a run's name, a
+            // run's folder), so its sections are part of what it draws: a rename changes no block.
+            const key = JSON.stringify([
+                blocks,
+                legendSections(session, blocks),
+                nodeCount,
+                edgeCount,
+                totalNodes,
+                load,
+            ]);
+            if (key === last) {
+                return;
+            }
+            last = key;
             setReading({ blocks, nodeCount, edgeCount, totalNodes, load });
             // An effect is listed in a key that shows, and never opens it: a style write of an
             // effect is no reason for the key to appear.
@@ -141,7 +159,7 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
                     if (groups !== null) {
                         store.set({ announcement: groups });
                     }
-                    const notice = runNotice(session, change.run.id);
+                    const notice = runNotice(session, change.run.id, name);
                     if (notice !== null) {
                         store.set({ notice });
                     }
@@ -396,15 +414,15 @@ export function CanvasOverlays(): React.JSX.Element | null {
     }
 
     return (
-        <>
-            {/* Asked for over nothing, the card says nothing is styled yet. */}
-            {/* While a selection is picked, the key says the styles are suspended and names its groups. */}
-            {legendShown && !workspaceOpen ? (
-                <PreviewKey session={session}>
-                    {keyed || legendAsked ? <LegendCard blocks={blocks} session={session} /> : null}
-                </PreviewKey>
-            ) : null}
-            {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
-        </>
+        <RenderCount id="canvas-overlays">
+            <>
+                {/* Asked for over nothing, the card says nothing is styled yet. */}
+                {/* While a selection is picked, the selection workspace draws its own key at its preview. */}
+                {legendShown && !workspaceOpen && (keyed || legendAsked) ? (
+                    <LegendCard blocks={blocks} session={session} />
+                ) : null}
+                {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
+            </>
+        </RenderCount>
     );
 }

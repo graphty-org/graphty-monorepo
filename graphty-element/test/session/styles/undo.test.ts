@@ -61,7 +61,7 @@ describe("a style edit in the history", () => {
 
         assert.deepEqual(
             session.history.steps.map((step) => step.fact),
-            [{ code: "style.add-layer", params: { layer: "Red" } }],
+            [{ code: "style.add-layer", params: { layer: "Red", layerId: layer.id } }],
         );
         assert.deepEqual(session.history.steps[0]?.ops, ["style.patch"]);
         assert.deepEqual(session.history.steps[0]?.slices, ["styles"]);
@@ -96,15 +96,52 @@ describe("a style edit in the history", () => {
         assert.strictEqual(session.styles.compiled(), beforeDrag, "the identical stack, not a copy");
     });
 
-    it("does not merge an edit made after the window has lapsed", async () => {
+    it("merges an edit of the same channel however long after, and a transaction is its own step", async () => {
         const { session, advance } = clocked();
         const layer = await session.styles.add(RED);
 
         await session.styles.update(layer.id, { set: { "node.color": "#00ff00" } });
-        advance(5000);
+        advance(60_000);
         await session.styles.update(layer.id, { set: { "node.color": "#0000ff" } });
+        assert.lengthOf(session.history.steps, 2, "the add, then both color edits");
 
-        assert.lengthOf(session.history.steps, 3);
+        await session.transaction("Blue again", async (tx) => {
+            await tx.styles.update(layer.id, { set: { "node.color": "#0000aa" } });
+        });
+        await session.styles.update(layer.id, { set: { "node.color": "#000055" } });
+        assert.lengthOf(session.history.steps, 4, "the transaction, then the edit after it");
+    });
+
+    it("makes the same steps from the same updates on an idle and on a loaded machine (#9488)", async () => {
+        // Each reading of the real clock a whole stall later than the last: a machine so loaded
+        // that every frame of a drag lands seconds after the one before.
+        const steps = async (stallMs: number): Promise<unknown[]> => {
+            let real = 0;
+            const clock = vi.spyOn(performance, "now").mockImplementation(() => (real += stallMs));
+            const session = createElementSession({});
+            sessions.push(session);
+            try {
+                const layer = await session.styles.add(RED);
+                for (let frame = 1; frame <= 20; frame++) {
+                    await session.styles.update(layer.id, {
+                        set: { "node.color": "#ff0000", "node.opacity": frame / 20 },
+                    });
+                }
+                for (let frame = 1; frame <= 5; frame++) {
+                    await session.styles.update(layer.id, { set: { "node.color": "#ff0000", "node.size": frame } });
+                }
+                await session.styles.update(layer.id, { set: { "node.color": "#00ff00" } });
+            } finally {
+                clock.mockRestore();
+            }
+
+            return session.history.steps.map((step) => [step.fact, step.ops.length]);
+        };
+
+        const idle = await steps(0);
+        assert.lengthOf(idle, 4, "the add, the opacity drag, the size drag, the color edit");
+        assert.deepEqual(await steps(16), idle);
+        assert.deepEqual(await steps(5000), idle);
     });
 
     it("compiles nothing on undo or redo: the restored layers are the compiled ones", async () => {

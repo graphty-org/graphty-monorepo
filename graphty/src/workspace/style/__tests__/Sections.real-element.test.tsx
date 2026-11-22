@@ -593,16 +593,8 @@ describe("the Style tab's sections", () => {
         await session.styles.settled();
         await openStyle("Over degree");
         await userEvent.click(within(section("node", "fill")).getByRole("button", { name: "Add to node fill" }));
-        // Fill offers Color alone and adds it at once, or Color and Picture in a menu with the node
-        // models experiment on.
-        const color = await waitFor(() => {
-            const item = screen.queryByRole("menuitem", { name: "Color" });
-            assert.isTrue(item !== null || section("node", "fill").querySelector('[data-line="node.color"]') !== null);
-            return item;
-        });
-        if (color !== null) {
-            await userEvent.click(color);
-        }
+        // Fill offers Color and Picture in a menu.
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
         await waitFor(() => {
             assert.isNotNull(section("node", "fill").querySelector('[data-line="node.color"]'));
         });

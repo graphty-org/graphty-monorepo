@@ -133,7 +133,14 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         plainName: "View",
         core: true,
         profiles: STANDARD,
-        actions: ["dimension", "camera", "zoom_to", "fit", "save", "restore", "remove_saved", "list_saved"],
+        actions: ["dimension", "camera", "zoom_to", "fit", "save", "restore", "remove_saved", "rename", "list_saved"],
+    },
+    {
+        name: "tour",
+        plainName: "Camera tours",
+        core: false,
+        profiles: STANDARD,
+        actions: ["list", "save", "play"],
     },
     {
         name: "hidden",
@@ -201,7 +208,7 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         plainName: "Project",
         core: false,
         profiles: STANDARD,
-        actions: ["settings", "generate_background", "rename", "rename_run", "declare", "status"],
+        actions: ["model_settings", "settings", "generate_background", "rename", "rename_run", "declare", "status"],
     },
     {
         name: "capture",
@@ -229,7 +236,7 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         plainName: "Filter conditions",
         core: false,
         profiles: STANDARD,
-        actions: ["list", "add", "update", "remove", "clear", "set_steps"],
+        actions: ["list", "add", "update", "remove", "clear", "move_step", "set_steps"],
     },
     {
         name: "columns",

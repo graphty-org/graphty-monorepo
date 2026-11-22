@@ -65,7 +65,12 @@ export interface AiStatus {
     canCancel: boolean;
 
     /** What waits on the reader: open approval requests and questions. Absent when nothing does. */
-    pending?: { approvals: number; questions: number };
+    pending?: {
+        /** How many approval requests wait on the reader. */
+        approvals: number;
+        /** How many questions wait on the reader. */
+        questions: number;
+    };
 }
 
 /** Callback type for status change subscriptions */

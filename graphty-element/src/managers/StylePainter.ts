@@ -17,6 +17,7 @@ import type { NodeSizeSpace as NodeSizeSpaceValue } from "../config/NodeStyle";
 import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
+import type { ModelDefaults } from "../session/assets/AssetsApi";
 import {
     asColorValue,
     CHANNEL_DESCRIPTORS,
@@ -212,6 +213,39 @@ const EDGE_PAINT_CACHE_LIMIT = 4096;
  * unset, a cap follows the line it caps.
  */
 const EDGE_BASE_DIRECTED: EdgeStyleConfig = EdgeStyle.parse({ ...defaultEdgeStyle, arrowHead: { type: "normal" } });
+
+/**
+ * The color a label's words are drawn in under a dark color scheme when no layer chose one and the
+ * label has no panel: the schema's black would vanish on the dark canvas. Light gray, not white,
+ * so it reads on the dark default (#121212) without glaring.
+ */
+const DARK_LABEL_COLOR = "#E6E6E6";
+
+/**
+ * A base style whose label words are drawn in {@link DARK_LABEL_COLOR}.
+ * @param base - The light base.
+ * @returns The dark base.
+ */
+function darkBaseOf<T extends NodeStyleConfig | EdgeStyleConfig>(base: T): T {
+    return { ...base, label: { ...base.label, textColor: DARK_LABEL_COLOR } };
+}
+
+const NODE_BASE_DARK = darkBaseOf(NODE_BASE);
+/** The edge bases, with and without the head a directed graph draws. */
+const EDGE_BASES = { directed: EDGE_BASE_DIRECTED, undirected: EDGE_BASE };
+const EDGE_BASES_DARK = { directed: darkBaseOf(EDGE_BASE_DIRECTED), undirected: darkBaseOf(EDGE_BASE) };
+
+/**
+ * Whether the dark base fills a label: under a dark scheme, unless a layer gave the label a panel,
+ * whose own color the default black words were chosen against.
+ * @param bag - What the layers wrote.
+ * @param dark - Whether the color scheme is dark.
+ * @returns True to fill from the dark base.
+ */
+function darkLabel(bag: Record<string, unknown>, dark: boolean): boolean {
+    const label = bag.label as { backgroundColor?: unknown } | undefined;
+    return dark && label?.backgroundColor === undefined;
+}
 
 /** No elements were repainted, which is what an unbound painter drains. */
 const NOTHING: readonly number[] = Object.freeze([]);
@@ -656,9 +690,15 @@ const FILL_READERS: Partial<Record<Channel, (fill: FillChannels, value: unknown)
  * @param resolved - Everything the stack painted this node.
  * @param meshKey - The key the interner gave this node's geometry.
  * @param plainText - Whether a text channel's words are drawn as plain text.
+ * @param dark - Whether the color scheme is dark, so a label no layer colored is drawn light.
  * @returns The paint.
  */
-function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (channel: Channel) => boolean): NodePaint {
+function nodePaintOf(
+    resolved: ResolvedStyle,
+    meshKey: number,
+    plainText: (channel: Channel) => boolean,
+    dark = false,
+): NodePaint {
     const bag: Record<string, unknown> = {};
     const fill: FillChannels = {};
 
@@ -715,7 +755,7 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
 
     return {
         meshKey: key.join(""),
-        style: resolveRelativeExtents(fillDefaults(bag, NODE_BASE)),
+        style: resolveRelativeExtents(fillDefaults(bag, darkLabel(bag, dark) ? NODE_BASE_DARK : NODE_BASE)),
         color: filled ? null : color,
     };
 }
@@ -835,6 +875,7 @@ function coarsened(resolved: ResolvedStyle, large: boolean): ResolvedStyle {
  * @param meshKey - The key the interner gave this edge's geometry.
  * @param plainText - Whether a text channel's words are drawn as plain text.
  * @param directed - Whether the graph is directed, which is what gives an edge a head no layer chose.
+ * @param dark - Whether the color scheme is dark, so a label no layer colored is drawn light.
  * @returns The paint.
  */
 function edgePaintOf(
@@ -842,6 +883,7 @@ function edgePaintOf(
     meshKey: number,
     plainText: (channel: Channel) => boolean,
     directed: boolean,
+    dark = false,
 ): EdgePaint {
     const bag: Record<string, unknown> = {};
 
@@ -850,7 +892,8 @@ function edgePaintOf(
     }
 
     const headed = edgeHeaded(resolved, directed);
-    const base = headed ? EDGE_BASE_DIRECTED : EDGE_BASE;
+    const bases = darkLabel(bag, dark) ? EDGE_BASES_DARK : EDGE_BASES;
+    const base = headed ? bases.directed : bases.undirected;
 
     return {
         meshKey: edgeIdentity(resolved, meshKey, directed),
@@ -1323,17 +1366,43 @@ export class StylePainter {
      *     cheap; a painter with no graph behind it draws edges as directed.
      * @param minimums - The smallest node size and edge width drawn (the project setting
      *     `minMarkSize`), asked as often; absent, every mark is drawn as painted.
+     * @param modelDefaults - A model's own settings, by what `node.model` names; asked once per
+     *     node painted with a model.
      * @param largeGraph - Whether the graph holds more nodes than `Limits.largeGraphThreshold`, so
      *     a node no layer gives a detail is drawn at low detail ({@link coarsened}); asked once per
      *     node painted, so it must be cheap.
+     * @param dark - Whether the color scheme is dark, so a label no layer colored is drawn light;
+     *     asked as often as the minimums.
      */
     constructor(
         private readonly directed: (row: number) => boolean = () => true,
         private readonly minimums: () => MarkMinimums | undefined = () => undefined,
+        private readonly modelDefaults: (model: string) => ModelDefaults | undefined = () => undefined,
         private readonly largeGraph: () => boolean = () => false,
+        private readonly dark: () => boolean = () => false,
     ) {}
 
-    /** The minimums the cached paints were built at; see {@link StylePainter.floorOf}. */
+    /**
+     * A node's values with its model's own settings under them: each `node.model*` value no layer
+     * set comes from the model it draws (`session.assets.setDefaults`), and the key says which
+     * settings, so a change of them draws the node again.
+     * @param resolved - What the stack painted the node.
+     * @returns The values, and what goes on its mesh key.
+     */
+    private withModelDefaults(resolved: ResolvedStyle): { resolved: ResolvedStyle; tag: string } {
+        const model = resolved["node.model"];
+        const defaults = typeof model === "string" && model !== "" ? this.modelDefaults(model) : undefined;
+        if (defaults === undefined) {
+            return { resolved, tag: "" };
+        }
+
+        return {
+            resolved: { ...defaults.style, ...resolved } as ResolvedStyle,
+            tag: `|md${JSON.stringify([defaults.style, defaults.hiddenTextures])}`,
+        };
+    }
+
+    /** The minimums and the scheme the cached paints were built at; see {@link StylePainter.floorOf}. */
     private floorSeen = "";
 
     /** What the last pass painted, or null while no session is bound. */
@@ -1372,6 +1441,9 @@ export class StylePainter {
     /** Whether every pending edge came from a pass marked `rowsOnly`. False unless one says so. */
     private edgesRowsOnly = false;
 
+    /** Whether every pending node was queued for a `Node` built from its row ({@link queue}), and no pass painted one. */
+    private nodesQueuedOnly = false;
+
     /** How to stop listening to the pass currently bound, or null when nothing is bound. */
     private stopListening: (() => void) | null = null;
 
@@ -1400,6 +1472,7 @@ export class StylePainter {
         this.pendingEdges.clear();
         this.nodesRowsOnly = false;
         this.edgesRowsOnly = false;
+        this.nodesQueuedOnly = false;
 
         if (paint !== null) {
             this.stopListening = paint.onPainted(() => {
@@ -1442,6 +1515,7 @@ export class StylePainter {
 
         if (nodes.length > 0) {
             this.nodesRowsOnly = rowsOnly && (this.nodesRowsOnly || this.pendingNodes.size === 0);
+            this.nodesQueuedOnly = false;
         }
 
         if (edges.length > 0) {
@@ -1486,6 +1560,27 @@ export class StylePainter {
     }
 
     /**
+     * Whether every pending node was queued for a `Node` built from its row, without taking the answer.
+     * @returns True when they were.
+     */
+    get nodesFromBuildsOnly(): boolean {
+        return this.nodesQueuedOnly;
+    }
+
+    /**
+     * Whether the nodes just drawn were only `Node`s built from their rows ({@link queue}): each is drawn as its row
+     * was, so only its own edges are placed again, not every edge (issue #9166). Asked by the frame that drew the
+     * last of them.
+     * @returns True when they were, once.
+     */
+    takeNodesBuildsOnly(): boolean {
+        const buildsOnly = this.nodesQueuedOnly;
+        this.nodesQueuedOnly = false;
+
+        return buildsOnly;
+    }
+
+    /**
      * Whether the edges just drawn came only from a time window's slide; see
      * {@link StylePainter.takeNodesRowsOnly}.
      * @returns True when they did, once.
@@ -1506,6 +1601,9 @@ export class StylePainter {
      */
     queue(target: SelectorTarget, index: number): void {
         if (index >= 0) {
+            if (target === "node") {
+                this.nodesQueuedOnly ||= this.pendingNodes.size === 0;
+            }
             (target === "node" ? this.pendingNodes : this.pendingEdges).add(index);
             this.nodesRowsOnly &&= target !== "node";
             this.edgesRowsOnly &&= target !== "edge";
@@ -1594,6 +1692,7 @@ export class StylePainter {
     invalidate(nodes: number, edges: number): void {
         this.nodesRowsOnly = false;
         this.edgesRowsOnly = false;
+        this.nodesQueuedOnly = false;
 
         for (let index = 0; index < nodes; index++) {
             this.pendingNodes.add(index);
@@ -1606,7 +1705,8 @@ export class StylePainter {
 
     /**
      * The smallest size one kind of mark is drawn at, now. A change of the setting drops every
-     * cached paint, which was built at the old minimum under the same mesh key.
+     * cached paint, which was built at the old minimum under the same mesh key; so does a change of
+     * color scheme, which changes a label's default color.
      * @param target - Nodes or edges.
      * @returns The minimum, 0 for none.
      */
@@ -1614,7 +1714,7 @@ export class StylePainter {
         const minimums = this.minimums();
         const node = minimums?.node ?? 0;
         const edge = minimums?.edge ?? 0;
-        const seen = `${String(node)}|${String(edge)}`;
+        const seen = `${String(node)}|${String(edge)}|${String(this.dark())}`;
         if (seen !== this.floorSeen) {
             this.floorSeen = seen;
             this.edgePaints.clear();
@@ -1637,6 +1737,52 @@ export class StylePainter {
     }
 
     /**
+     * What one node is painted, for a reader that applies it to a `Node` outside the pass's own
+     * drain: null while a pass is painting, with the node queued so the frame after the pass draws it.
+     *
+     * NOT WHILE A PASS IS PAINTING, for the reason `UpdateManager.syncStyles` gives (#440): the
+     * paint is then the mesh key from before the pass with a style from the middle of it, and the
+     * mesh built from that pair is kept when the pass announces the same key (#9414, #9442).
+     * @param index - Its dense index.
+     * @returns The paint, or null while a pass is painting, when nothing is bound or the index is not an element's.
+     */
+    settledNodePaint(index: number): NodePaint | null {
+        if (this.isPainting) {
+            this.queue("node", index);
+            return null;
+        }
+
+        return this.nodePaint(index);
+    }
+
+    /**
+     * The resolved style of one node row, with its model's defaults under it, and how to build its
+     * paint: used by {@link StylePainter.rowPaint}.
+     * @param paint - The bound paint source.
+     * @param index - The row's dense index.
+     * @returns The resolved style, its mesh key, the model-defaults tag and the paint builder.
+     */
+    private nodePaintMaker(
+        paint: ElementPaint,
+        index: number,
+    ): { resolved: ResolvedStyle; meshKey: number; tag: string; make: () => NodePaint } {
+        const floor = this.floorOf("node");
+        const defaulted = this.withModelDefaults(floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE));
+        const { tag } = defaulted;
+        const resolved = coarsened(defaulted.resolved, this.largeGraph());
+        const meshKey = paint.meshKeyOf("node", index);
+        const make = (): NodePaint => {
+            const made = keyedByFloor(
+                nodePaintOf(resolved, meshKey, (channel) => paint.plainText("node", index, channel), this.dark()),
+                resolved,
+                floor,
+            );
+            return tag === "" ? made : { ...made, meshKey: made.meshKey + tag };
+        };
+        return { resolved, meshKey, tag, make };
+    }
+
+    /**
      * What one row is painted, built once per look rather than once per row.
      *
      * Rows painted by their mesh key alone share one style object, and each keeps its own color,
@@ -1650,19 +1796,9 @@ export class StylePainter {
             return null;
         }
 
-        const floor = this.floorOf("node");
-        const resolved = coarsened(
-            floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE),
-            this.largeGraph(),
-        );
-        const meshKey = paint.meshKeyOf("node", index);
-        const make = (): NodePaint =>
-            keyedByFloor(
-                nodePaintOf(resolved, meshKey, (channel) => paint.plainText("node", index, channel)),
-                resolved,
-                floor,
-            );
-        const shared = nodeIdentity(resolved, meshKey);
+        const { resolved, meshKey, tag, make } = this.nodePaintMaker(paint, index);
+        const bare = nodeIdentity(resolved, meshKey);
+        const shared = bare === null ? null : bare + tag;
         if (shared === null) {
             return make();
         }
@@ -1721,7 +1857,13 @@ export class StylePainter {
 
         const make = (): EdgePaint =>
             keyedByFloor(
-                edgePaintOf(resolved, meshKey, (channel) => paint.plainText("edge", index, channel), directed),
+                edgePaintOf(
+                    resolved,
+                    meshKey,
+                    (channel) => paint.plainText("edge", index, channel),
+                    directed,
+                    this.dark(),
+                ),
                 resolved,
                 floor,
             );

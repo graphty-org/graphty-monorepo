@@ -45,6 +45,7 @@ import {
     FR_COOLING_STEP,
 } from "./constants.js";
 import { kickDir } from "./forceatlas2.js";
+import { resolveFixedMask } from "./inputs.js";
 import { seedPositions } from "./seed.js";
 import type { ClusterOptions, CollisionOptions, FruchtermanReingoldOptions, LayoutSimulation } from "./types.js";
 
@@ -814,47 +815,8 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
      * @returns the mask words, or null for no pinned node
      */
     private resolveFixed(snapshot: GraphSnapshot, n: number): U32 | null {
-        const words = Math.ceil(n / 32);
-        const spec = this.fixedOption;
-        if (typeof spec === "string") {
-            const column = snapshot.nodes.get(spec);
-            if (column === null) {
-                throw refusal(
-                    new RangeError(
-                        `FruchtermanReingoldSimulation: fixed names node column "${spec}", which the snapshot does not hold`,
-                    ),
-                    "E_UNKNOWN_COLUMN",
-                    { option: "fixed", column: spec },
-                );
-            }
-            if (column.dtype !== "bool") {
-                throw refusal(
-                    new TypeError(
-                        `FruchtermanReingoldSimulation: fixed names node column "${spec}", which is ${column.dtype}, not bool`,
-                    ),
-                    "E_COLUMN_TYPE",
-                    { option: "fixed", column: spec, dtype: column.dtype, expected: "bool" },
-                );
-            }
-            return new Uint32Array(column.data.subarray(0, words));
-        }
-        if (spec !== null) {
-            if (spec.length < words) {
-                throw refusal(
-                    new RangeError(
-                        `FruchtermanReingoldSimulation: the fixed mask has ${spec.length} words, ${words} needed for ${n} nodes`,
-                    ),
-                    "E_BAD_OPTION",
-                    { option: "fixed", length: spec.length, expected: words },
-                );
-            }
-            return new Uint32Array(spec.subarray(0, words));
-        }
-        const byRole = snapshot.nodes.byRole("fixed");
-        if (byRole !== null && byRole.dtype === "bool") {
-            return new Uint32Array(byRole.data.subarray(0, words));
-        }
-        return n === this.n ? this.fixed : null;
+        const resolved = resolveFixedMask(this.fixedOption, snapshot, "FruchtermanReingoldSimulation");
+        return resolved ?? (n === this.n ? this.fixed : null);
     }
 
     private assertNotDisposed(): void {

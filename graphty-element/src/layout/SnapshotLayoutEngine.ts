@@ -3,7 +3,7 @@ import type { LayoutResult } from "@graphty/layout";
 
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { RankSet } from "../data/groups";
-import { readSeedPosition } from "../data/seedPosition";
+import { type PositionAxes, readSeedPosition } from "../data/seedPosition";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { GraphtyWarningCode } from "../errors/codes";
@@ -138,10 +138,16 @@ export type SnapshotLayoutAnswer = F32 | Promise<F32>;
 /** A layout on the snapshot contract: a descriptor, and a function from the graph to coordinates. */
 export interface SnapshotLayoutRegistration {
     /**
-     * What the catalog publishes. `honoursWeights` and `scoped` are declared here, since there is
-     * no class to carry them as statics.
+     * What the catalog publishes. `honorsWeights` and `scoped` are declared here, since there is
+     * no class to carry them as statics. `honoursWeights` is the deprecated British spelling of
+     * `honorsWeights`, still read (and preferred) when set, and removed in the next major.
      */
-    readonly descriptor: AuthoredLayoutDescriptor & { readonly honoursWeights?: boolean; readonly scoped?: boolean };
+    readonly descriptor: AuthoredLayoutDescriptor & {
+        readonly honorsWeights?: boolean;
+        /** @deprecated Use `honorsWeights`. Removed in the next major. */
+        readonly honoursWeights?: boolean;
+        readonly scoped?: boolean;
+    };
     /** Arrange the graph. */
     readonly compute: (input: SnapshotLayoutInput) => SnapshotLayoutAnswer;
 }
@@ -170,10 +176,15 @@ interface SnapshotLayoutHost {
      * null before it is measured.
      */
     rowHalfExtents?(row: number): Readonly<{ x: number; y: number; z: number }> | null;
+    /**
+     * How far past {@link rowHalfExtents} a row drawn with no `Node` reaches with its border, as the row table measured
+     * it; 0 before it is measured.
+     */
+    rowBorderReach?(row: number): number;
     /** The element's `data.knownFields.positionScale`; undefined before the element is attached. */
     positionScale?(): number | undefined;
     /** The element's `data.knownFields`; undefined before the element is attached. */
-    knownFields?(): LocationDesignation | undefined;
+    knownFields?(): (LocationDesignation & PositionAxes) | undefined;
     /** The data manager's rank subgraphs, which a graph whose rows have no `Node` (renderPath "batched") reaches no other way. */
     rankSets?(): readonly RankSet[];
 }
@@ -488,9 +499,10 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             },
             dataPositions: () => {
                 const out = new Float32Array(dim * n).fill(Number.NaN);
+                const axes = this.knownFields();
                 for (let row = 0; row < n; row++) {
                     const data = dataOf(row);
-                    const seed = data === undefined ? null : readSeedPosition(data);
+                    const seed = data === undefined ? null : readSeedPosition(data, axes);
                     if (seed !== null) {
                         const scale =
                             this.#host?.positionScale?.() ??
@@ -506,24 +518,27 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             // The sizes as the nodes are about to be drawn: paint that has arrived is drawn first.
             // ponytail: a style pass still running is not waited for; its sizes are read as drawn
             // now. Wait for it here if a layout is ever seen starting mid-pass.
-            // A row drawn with no `Node` (renderPath "batched") is read from the row table, as a batched `Node` is.
+            // Under renderPath "batched" every measured row is read from the row table, `Node` or none, border included as
+            // `Node.layoutRadius` counts it: whether a row has its `Node` when a layout reads the sizes is no fixed point
+            // in a load, and two answers (one without the border, one in doubles) had Graphviz route round two sizes.
+            // A border drawn in screen pixels is left out, as `layoutRadius` leaves it out (`RowTable.extentOf`).
             nodeSizes: () => {
                 this.#host?.drawPaint();
                 return Float32Array.from({ length: n }, (_, row) => {
-                    const node = nodes[row];
-                    if (node !== undefined) {
-                        return 2 * node.layoutRadius;
+                    const half = this.#host?.rowHalfExtents?.(row);
+                    if (half) {
+                        return 2 * (Math.max(half.x, half.y, half.z) + (this.#host?.rowBorderReach?.(row) ?? 0));
                     }
 
-                    const half = this.#host?.rowHalfExtents?.(row);
-                    return half ? 2 * Math.max(half.x, half.y, half.z) : Number.NaN;
+                    const node = nodes[row];
+                    return node === undefined ? Number.NaN : 2 * node.layoutRadius;
                 });
             },
             nodeExtents: () => {
                 this.#host?.drawPaint();
                 const out = new Float32Array(2 * n).fill(Number.NaN);
                 for (let row = 0; row < n; row++) {
-                    const half = nodes[row]?.drawnHalfExtents ?? this.#host?.rowHalfExtents?.(row);
+                    const half = this.#host?.rowHalfExtents?.(row) ?? nodes[row]?.drawnHalfExtents;
                     if (half) {
                         out[2 * row] = 2 * half.x;
                         out[2 * row + 1] = 2 * half.y;
@@ -600,8 +615,20 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
      * path) still reads what was designated; else through the first `Node`, for an engine the element did not connect.
      * @returns The fields, or undefined before the element is attached.
      */
-    protected knownFields(): LocationDesignation | undefined {
+    protected knownFields(): (LocationDesignation & PositionAxes) | undefined {
         return this.#host?.knownFields?.() ?? this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields;
+    }
+
+    /**
+     * The element's `data.knownFields.positionScale`, which `dataPositions` multiplies by.
+     * @returns The scale, 1 before the element is attached.
+     */
+    protected positionScale(): number {
+        return (
+            this.#host?.positionScale?.() ??
+            this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ??
+            1
+        );
     }
 
     /**
@@ -637,13 +664,14 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
  * @throws what `LayoutEngine.register` throws for a missing, mismatched or taken name
  */
 export function registerSnapshotLayout(registration: SnapshotLayoutRegistration): void {
-    const { honoursWeights = false, scoped = false, ...descriptor } = registration.descriptor;
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- reading the alias is what keeps old registrations working
+    const { honorsWeights = false, honoursWeights, scoped = false, ...descriptor } = registration.descriptor;
     const { compute } = registration;
 
     class RegisteredSnapshotLayout extends SnapshotLayoutEngine {
         static override readonly type = descriptor.id;
         static readonly maxDimensions = descriptor.maxDimensions;
-        static override readonly honoursWeights = honoursWeights;
+        static override readonly honorsWeights = honoursWeights ?? honorsWeights;
         static override readonly scoped = scoped;
         static override readonly descriptor: AuthoredLayoutDescriptor = descriptor;
 

@@ -245,7 +245,22 @@ const LineStyle = z.strictObject({
      * @experimental file-styles
      */
     dashGap: z.number().nonnegative().optional(),
+    /**
+     * A pattern of several dash lengths: dashes and gaps alternating from the line's start, in the line's own width
+     * units, separated by spaces or commas ("8 1 2 1" draws a dash 8 widths long, a gap of 1, a dash of 2 and a gap of
+     * 1, then repeats). An odd count is repeated once, as an SVG dash array is; up to 8 numbers are drawn. Set on a
+     * "dash", "dot" or "dash-dot" line, the line is drawn as these square-ended dashes in place of its own elements,
+     * `dashLength`, `dashGap` and `patternCount`; unset, or on any other line type, it changes nothing.
+     * @experimental file-styles
+     */
+    dashArray: z.string().optional(),
     color: ColorStyle.optional(),
+    /**
+     * Draw the line in the color the style layers painted one of its nodes: "source" its source node's, "target" its
+     * target node's, in place of `color`. Kept current: a later layer that recolors the node recolors the line. An end
+     * node no layer colored leaves the line its own `color`. "none", or unset, draws the line in `color`.
+     */
+    colorFrom: z.enum(["source", "target", "none"]).optional(),
     opacity: z.number().min(0).max(1).optional(),
     /**
      * Fade the line with its length on screen, in CSS pixels (cosmos.gl's
@@ -318,6 +333,23 @@ const LineStyle = z.strictObject({
             colors: z.string().optional(),
             stops: z.string().optional(),
             kind: z.enum(["linear", "radial", "none"]).optional(),
+        })
+        .optional(),
+    /**
+     * Draw the line as parallel strands side by side, one per color, in place of its `color` (Graphviz's color list
+     * with no fractions, `color="red:green:blue"`): `colors` are CSS colors separated by spaces, the first strand on
+     * the right of the line's direction from its source to its target and the last on its left, each drawn over the
+     * one before; `spacing` is how far apart the strands' middles are, in the line's own width units (unset, 1:
+     * strands that touch). Each strand is as wide as the line. Fewer than two colors draw the line as it is. Drawn
+     * on solid lines; in 3D the strands are laid apart in the layout's plane.
+     * @experimental file-styles
+     */
+    strands: z
+        .strictObject({
+            /** The strands' CSS colors, separated by spaces, first on the right. */
+            colors: z.string().optional(),
+            /** How far apart the strands' middles are, in the line's width units (unset, 1). */
+            spacing: z.number().nonnegative().optional(),
         })
         .optional(),
     bezier: z.boolean().optional(),

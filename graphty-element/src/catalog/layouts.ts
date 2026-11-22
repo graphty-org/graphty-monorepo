@@ -49,7 +49,9 @@ import type {
 export interface LayoutImplementation {
     /** The registered engine name, exactly as `LayoutEngine.getRegisteredTypes` reports it. */
     engine: string;
+    /** The engine's default name for a reader, such as "D3 Force". */
     plainName: string;
+    /** The library or algorithm the engine runs, such as "d3-force-3d". */
     technicalName: string;
     /**
      * What this engine draws, in one English sentence.
@@ -63,7 +65,12 @@ export interface LayoutImplementation {
      * @since 3.55.0
      */
     descriptionId?: string;
+    /**
+     * How the engine places nodes: `"live"` moves them a step each frame until it settles,
+     * `"batch"` computes every position at once.
+     */
     kind: "live" | "batch";
+    /** The most dimensions the engine lays out in: 2 for a flat drawing only, 3 for 2D or 3D. */
     maxDimensions: 2 | 3;
     /** True for the engine the element runs when this layout is asked for by name. */
     isDefault: boolean;
@@ -80,12 +87,18 @@ export interface LayoutImplementation {
      * @since 3.20.0
      */
     fact: CodedFact<LayoutImplementationCode>;
+    /** The options this engine takes, in the same shape as every other catalog option. */
     options: readonly OptionDescriptor[];
     /**
      * Whether this engine arranges a graph differently when its edges carry weights.
      *
-     * Read off the engine class's own `static honoursWeights` rather than written here, so the
+     * Read off the engine class's own `static honorsWeights` rather than written here, so the
      * catalog cannot claim a weight channel an engine does not have.
+     */
+    honorsWeights: boolean;
+    /**
+     * The British spelling of {@link LayoutImplementation.honorsWeights}, always the same value.
+     * @deprecated Read `honorsWeights`. Removed in the next major.
      */
     honoursWeights: boolean;
     /** Whether this engine accepts a scope, read off the engine class's own `static scoped`. */
@@ -172,7 +185,9 @@ export interface LayoutCatalogEntry {
 
 /** A built-in layout name that no registered engine draws yet. */
 export interface UnservedLayout {
+    /** The built-in layout name. */
     id: (typeof KNOWN_LAYOUT_IDS)[number];
+    /** Why no engine draws it, in English for a developer reading a log. */
     reason: string;
 }
 
@@ -211,7 +226,7 @@ const LOCATION_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
 /** Everything about a layout that is not its default engine, as an entry is authored. */
 interface LayoutBase extends Omit<
     LayoutDescriptor,
-    "engine" | "options" | "honoursWeights" | "scoped" | "description" | "descriptionId"
+    "engine" | "options" | "honorsWeights" | "honoursWeights" | "scoped" | "description" | "descriptionId"
 > {
     /** What the layout does, in English: written to the published descriptor's deprecated field. */
     description: string;
@@ -236,7 +251,8 @@ function entry(
             descriptionId: `layout.${base.id}`,
             engine: primary.engine,
             options: withDescriptionIds(`layout.${primary.engine}`, primary.options),
-            honoursWeights: primary.honoursWeights,
+            honorsWeights: primary.honorsWeights,
+            honoursWeights: primary.honorsWeights,
             scoped: primary.scoped,
             ...(primary.requires === undefined ? {} : { requires: primary.requires }),
         },
@@ -409,7 +425,7 @@ const spiral: LayoutImplementationSpec = {
     plainName: "Spiral",
     technicalName: "Archimedean spiral layout",
     kind: "batch",
-    maxDimensions: 2,
+    maxDimensions: 3,
     description: "Places nodes one after another along a spiral winding out from the center.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
@@ -512,6 +528,24 @@ const locationMap: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
     ...layoutFacts("location-map", LOCATION_OVERRIDE),
+};
+
+/** The map projection's latitude and longitude options name node attributes. */
+const COORDINATES_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
+    latitude: { type: "attribute", on: "node" },
+    longitude: { type: "attribute", on: "node" },
+};
+
+const geographic: LayoutImplementationSpec = {
+    engine: "geographic",
+    plainName: "Map Projection",
+    technicalName: "Map projection layout",
+    kind: "batch",
+    maxDimensions: 2,
+    description: "Places every node at its latitude and longitude, projected onto a flat map, with no map drawn.",
+    reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
+    ...layoutFacts("geographic", COORDINATES_OVERRIDE),
 };
 
 /** What each Graphviz engine is, as the catalog describes it. */
@@ -710,7 +744,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             description: "Places nodes one after another along a spiral winding out from the center.",
             family: "geometric",
             kind: "batch",
-            maxDimensions: 2,
+            maxDimensions: 3,
             sizeRating: "any",
             structuralInputs: [],
         },
@@ -833,6 +867,22 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             structuralInputs: [],
         },
         locationMap,
+    ),
+    entry(
+        {
+            id: "geographic",
+            plainName: "Map Projection",
+            technicalName: "Map projection layout",
+            description:
+                "Places every node at its latitude and longitude, projected onto a flat map (equirectangular, " +
+                "Web Mercator or Equal Earth), north up, with no map drawn under it.",
+            family: "special",
+            kind: "batch",
+            maxDimensions: 2,
+            sizeRating: "any",
+            structuralInputs: [],
+        },
+        geographic,
     ),
     ...(["dot", "neato", "fdp", "sfdp", "circo", "twopi", "osage", "patchwork"] as const).map(graphvizEntry),
 ];

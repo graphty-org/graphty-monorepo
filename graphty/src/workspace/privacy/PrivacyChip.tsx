@@ -3,7 +3,7 @@ import type React from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { useUsageAnswer } from "./usageData";
+import { useAnalyticsSends, useUsageAnswer } from "./usageData";
 import { useAssistantSendsTo } from "./useAssistantSendsTo";
 
 /**
@@ -16,7 +16,10 @@ import { useAssistantSendsTo } from "./useAssistantSendsTo";
 export function PrivacyChip(): React.JSX.Element {
     const { run } = useWorkspace();
     const on = useUsageAnswer() === "share";
-    const usage = on ? "Usage data is sent, content masked" : "Nothing is sent";
+    const offWords = useAnalyticsSends()
+        ? "Your files stay on this computer. Anonymous counts are sent"
+        : "Nothing is sent";
+    const usage = on ? "Usage data is sent, content masked" : offWords;
     const sendsTo = useAssistantSendsTo();
     const usageWords = on ? "Usage data on, content masked" : "Local only";
     const glyph =

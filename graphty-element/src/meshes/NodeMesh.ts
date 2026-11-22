@@ -3,11 +3,12 @@ import "@babylonjs/core/Meshes/instancedMesh.js";
 
 import type { BaseTexture, ICanvasGradient, ICanvasRenderingContext, InstancedMesh } from "@babylonjs/core";
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Material } from "@babylonjs/core/Materials/material.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
 import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
-import { Matrix } from "@babylonjs/core/Maths/math.vector.js";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
@@ -30,6 +31,7 @@ import {
     outlineSlab,
     projectedVertices,
     ringSlab,
+    ringVertexData,
     setLabelBox,
 } from "./NodeShapeGeometry";
 import {
@@ -42,6 +44,7 @@ import {
     mitredEdges,
     offsetOutline,
     type Point2,
+    type RingPiece,
     sharpTwinOf,
     type WaveShape,
 } from "./shapeOutlines";
@@ -97,26 +100,62 @@ const SHADOW_LAYERS = 4;
 const Z_INDEX_STEP = 0.05;
 
 /**
- * In a 2D view, move a node mesh's geometry back so its front face sits `-zIndex` steps behind
- * the plane every edge and every node at `zIndex` 0 is drawn on (the 2D camera looks along +z).
- * Its position stays the node's own, so edges, picking and the layout see no difference; only the
- * depth test does. A 3D view, and a node at 0 or with no `zIndex`, are left exactly as they were.
+ * The nearest node in front of the camera that draws an instance of a ring.
+ * @param ring - The ring's source mesh.
+ * @param view - The camera's view matrix.
+ * @param ahead - 1 where the camera looks along +z in its view, -1 where along -z.
+ * @param at - Set to that node's middle in the camera's view.
+ * @returns The node, or null when none is in front of the camera.
+ */
+function nearestDrawing(ring: Mesh, view: Matrix, ahead: number, at: Vector3): TransformNode | null {
+    const middle = new Vector3();
+    let nearest: TransformNode | null = null;
+    let distance = Infinity;
+    for (const instance of ring.instances) {
+        const node = instance.parent as TransformNode | null;
+        if (node === null || !instance.isEnabled()) {
+            continue;
+        }
+        Vector3.TransformCoordinatesToRef(node.getAbsolutePosition(), view, middle);
+        if (middle.z * ahead > 0 && middle.z * ahead < distance) {
+            [nearest, distance] = [node, middle.z * ahead];
+            at.copyFrom(middle);
+        }
+    }
+
+    return nearest;
+}
+
+/**
+ * Move a node mesh's geometry back so its front face sits `-zIndex` steps behind the plane every
+ * edge and every node at `zIndex` 0 is drawn on (both views look along +z). Its position stays the
+ * node's own, so edges, picking and the layout see no difference; only the depth test does. In a
+ * 3D view only a flat shape moves: a group from a file drawn flat around its members at their own
+ * depth would otherwise be thicker than they are and hide them, while moving a solid back by its
+ * depth would shift it visibly. A node at 0 or with no `zIndex` is left exactly as it was.
  * @param mesh - The source mesh, before any instance is made of it.
  * @param shape - The node's shape block.
  * @param is2D - Whether the graph is drawn in 2D.
  */
 function placeByZIndex(mesh: Mesh, shape: NodeStyleConfig["shape"], is2D: boolean): void {
     const zIndex = shape?.zIndex ?? 0;
-    if (!is2D) {
-        return;
-    }
-
     if (zIndex >= 0) {
-        placeByDrawOrder(mesh, shape?.drawOrder);
+        if (is2D) {
+            placeByDrawOrder(mesh, shape?.drawOrder);
+        }
+
         return;
     }
 
     mesh.refreshBoundingInfo();
+    if (!is2D) {
+        const { extendSize } = mesh.getBoundingInfo().boundingBox;
+        // a flat shape is THIN_DEPTH_RATIO of its smaller side deep; twice that leaves room for rounding
+        if (extendSize.z > 2 * THIN_DEPTH_RATIO * Math.min(extendSize.x, extendSize.y)) {
+            return;
+        }
+    }
+
     const front = mesh.getBoundingInfo().boundingBox.minimum.z;
     mesh.bakeTransformIntoVertices(Matrix.Translation(0, 0, -zIndex * Z_INDEX_STEP - front));
     mesh.refreshBoundingInfo();
@@ -457,7 +496,7 @@ export class NodeMesh {
      */
     static createModelInstance(template: ModelTemplate, shape: NodeStyleConfig["shape"], name: string): InstancedMesh {
         const [first, ...rest] = template.groups;
-        const root = first.createInstance(name);
+        const root = modelInstance(first, name);
         root.isPickable = true;
         root.instancedBuffers.color = new Color4(1, 1, 1, 1);
         // The box only: a pointer move tests no model triangle (design section 3.8).
@@ -465,7 +504,7 @@ export class NodeMesh {
         root.intersects = (ray, fastCheck, trianglePredicate, _onlyBoundingInfo, worldToUse, skipBoundingInfo) =>
             intersects(ray, fastCheck, trianglePredicate, true, worldToUse, skipBoundingInfo);
         for (const group of rest) {
-            const part = group.createInstance(`${name}-part`);
+            const part = modelInstance(group, `${name}-part`);
             part.parent = root;
             part.isPickable = false;
             part.instancedBuffers.color = new Color4(1, 1, 1, 1);
@@ -751,16 +790,12 @@ export class NodeMesh {
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
-            const mesh = ringSlab(
-                "node-border",
-                borderRing(outline, width, border?.style ?? "solid", wave),
-                depth,
-                scene,
-            );
-            placeByZIndex(mesh, shape, options.is2D);
-            mesh.material = this.createBorderMaterial(border?.color ?? "#000000", opacity, scene);
+            const piecesOf = (round: Point2[]): RingPiece[] => borderRing(round, width, border?.style ?? "solid", wave);
+            const color = border?.color ?? "#000000";
 
-            return mesh;
+            const ring = { outline, depth, piecesOf, flat, color, opacity };
+
+            return this.borderSlab("node-border", ring, shape, options, fill, scene);
         });
 
         instance.sourceMesh.isPickable = false;
@@ -812,17 +847,17 @@ export class NodeMesh {
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             // each further ring (`count`, Graphviz's peripheries) starts the offset beyond the one before
             const step = width + Math.max(0, (outerBorder?.offset ?? 0) * perSize);
-            const pieces = Array.from({ length: Math.floor(outerBorder?.count ?? 1) }, (_, i) => {
-                const at = gap + i * step;
-                // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
-                const base = at > 0 ? mitredEdges(outline, [at])[0] : outline;
-                return borderRing(base, width, outerBorder?.style ?? "solid");
-            }).flat();
-            const mesh = ringSlab("node-outer-border", pieces, depth, scene);
-            placeByZIndex(mesh, shape, options.is2D);
-            mesh.material = this.createBorderMaterial(outerBorder?.color ?? "#000000", opacity, scene);
+            const piecesOf = (round: Point2[]): RingPiece[] =>
+                Array.from({ length: Math.floor(outerBorder?.count ?? 1) }, (_, i) => {
+                    const at = gap + i * step;
+                    // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
+                    const base = at > 0 ? mitredEdges(round, [at])[0] : round;
+                    return borderRing(base, width, outerBorder?.style ?? "solid");
+                }).flat();
+            const color = outerBorder?.color ?? "#000000";
+            const ring = { outline, depth, piecesOf, flat, color, opacity };
 
-            return mesh;
+            return this.borderSlab("node-outer-border", ring, shape, options, fill, scene);
         });
 
         instance.sourceMesh.isPickable = false;
@@ -870,7 +905,12 @@ export class NodeMesh {
             const own = halo?.shape;
             const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
             let outline: Point2[];
-            if (own !== undefined && isFlatShape(own)) {
+            const ownOutline = own !== undefined && isFlatShape(own);
+            // drawn as a ring from the middle out, so it fills the whole shape
+            const piecesOf = (round: Point2[]): RingPiece[] => [
+                { inner: round.map((): Point2 => [0, 0]), outer: round, closed: true },
+            ];
+            if (ownOutline) {
                 outline = flatShapeOutline(
                     own,
                     (sized.x ?? sized.across) + 2 * pad,
@@ -884,13 +924,7 @@ export class NodeMesh {
             fill.computeWorldMatrix(true);
             const box = fill.getBoundingInfo().boundingBox;
             const depth = THIN_DEPTH_RATIO * Math.max(sized.across, MIN_NODE_SIZE);
-            // drawn as a ring from the middle out, so it fills the whole shape
-            const mesh = ringSlab(
-                `node-${kind}`,
-                [{ inner: outline.map((): Point2 => [0, 0]), outer: outline, closed: true }],
-                depth,
-                scene,
-            );
+            const mesh = ringSlab(`node-${kind}`, piecesOf(outline), depth, scene);
             // just behind the node's back, or just before its front (2D looks along +z)
             const gap = depth * 0.01;
             const at = kind === "underlay" ? box.maximum.z + gap + depth / 2 : box.minimum.z - gap - depth / 2;
@@ -901,6 +935,9 @@ export class NodeMesh {
                 }
                 mesh.setVerticesData(VertexBuffer.PositionKind, positions);
                 mesh.refreshBoundingInfo();
+            }
+            if (!ownOutline && !flat && !options.is2D) {
+                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, pad)));
             }
             mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
 
@@ -961,16 +998,14 @@ export class NodeMesh {
             const key = `node-shadow-${String(layer)}-${options.styleId}-${options.is2D ? "2d" : "3d"}`;
             const instance = cache.get(key, () => {
                 const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
-                const outline = offsetOutline(nodeOutline, pad).map(([x, y]): Point2 => [x + dx, y + dy]);
+                const piecesOf = (round: Point2[]): RingPiece[] => {
+                    const outline = offsetOutline(round, pad).map(([x, y]): Point2 => [x + dx, y + dy]);
+                    return [{ inner: outline.map((): Point2 => [dx, dy]), outer: outline, closed: true }];
+                };
                 fill.computeWorldMatrix(true);
                 const box = fill.getBoundingInfo().boundingBox;
                 const depth = THIN_DEPTH_RATIO * Math.max(sized.across, MIN_NODE_SIZE);
-                const mesh = ringSlab(
-                    "node-shadow",
-                    [{ inner: outline.map((): Point2 => [dx, dy]), outer: outline, closed: true }],
-                    depth,
-                    scene,
-                );
+                const mesh = ringSlab("node-shadow", piecesOf(nodeOutline), depth, scene);
                 // behind the node's back and its underlay (2D looks along +z), the outermost layer furthest
                 const gap = depth * 0.01;
                 const at = box.maximum.z + (depth + gap) * (1 + count - layer) + depth / 2;
@@ -981,6 +1016,9 @@ export class NodeMesh {
                     }
                     mesh.setVerticesData(VertexBuffer.PositionKind, positions);
                     mesh.refreshBoundingInfo();
+                }
+                if (!flat && !options.is2D) {
+                    this.followView(mesh, fill, depth, piecesOf);
                 }
                 mesh.material = this.createBorderMaterial(shadow?.color ?? "#000000", share, scene);
 
@@ -1187,10 +1225,138 @@ export class NodeMesh {
         return grow === 1 ? outline : outline.map(([x, y]): Point2 => [x * grow, y * grow]);
     }
 
-    private static solidOutline(fill: AbstractMesh): Point2[] {
+    /**
+     * A border or outer border ring's source mesh: built round its outline, placed by the node's z-index, in its
+     * color, and for a solid in a 3D view kept on the outline the camera sees.
+     * @param name - The mesh's name.
+     * @param ring - The ring.
+     * @param ring.outline - The node's outline the ring is built round first.
+     * @param ring.depth - How deep the ring is along z.
+     * @param ring.piecesOf - The ring's pieces round an outline.
+     * @param ring.flat - Whether the node's shape is flat.
+     * @param ring.color - The ring's color.
+     * @param ring.opacity - The ring's opacity, 0..1.
+     * @param shape - The node's shape block.
+     * @param options - The node's mesh options.
+     * @param fill - The node's own mesh.
+     * @param scene - The scene.
+     * @returns The mesh.
+     */
+    private static borderSlab(
+        name: string,
+        ring: {
+            outline: Point2[];
+            depth: number;
+            piecesOf: (outline: Point2[]) => RingPiece[];
+            flat: boolean;
+            color: string;
+            opacity: number;
+        },
+        shape: NodeStyleConfig["shape"],
+        options: NodeMeshOptions,
+        fill: AbstractMesh,
+        scene?: Scene,
+    ): Mesh {
+        const mesh = ringSlab(name, ring.piecesOf(ring.outline), ring.depth, scene);
+        placeByZIndex(mesh, shape, options.is2D);
+        if (!ring.flat && !options.is2D) {
+            this.followView(mesh, fill, ring.depth, ring.piecesOf);
+        }
+        mesh.material = this.createBorderMaterial(ring.color, ring.opacity, scene);
+
+        return mesh;
+    }
+
+    private static solidOutline(fill: AbstractMesh, view?: Matrix, at?: Vector3): Point2[] {
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
 
-        return convexHull(projectedVertices(source));
+        return convexHull(projectedVertices(source, view, at));
+    }
+
+    /**
+     * Keep a solid's ring (its border, outer border, underlay, overlay or shadow) on the outline the solid shows the
+     * camera. The ring turns to face the camera in a 3D view, but a solid's outline changes shape as the camera goes
+     * round it (an icosahedron's is a decagon from one side and a hexagon from another), and with perspective the
+     * near half of it is drawn larger than the far half, so a ring built once from the outline seen along z was drawn
+     * turned against the solid (issue #9272). The ring is rebuilt, at the depth it was placed at, whenever the
+     * outline the camera sees changes.
+     *
+     * ponytail: one ring per style, drawn round the outline the nearest node drawing it shows; a node of the style
+     * much further away or across the view shows a slightly different one. A ring per node if that shows.
+     * @param mesh - The ring's source mesh, which every node of the style instances.
+     * @param fill - The node's mesh, whose source's vertices the outline is the hull of.
+     * @param depth - How deep the ring is along z.
+     * @param piecesOf - The ring's pieces round an outline of the solid.
+     */
+    private static followView(
+        mesh: Mesh,
+        fill: AbstractMesh,
+        depth: number,
+        piecesOf: (outline: Point2[]) => RingPiece[],
+    ): void {
+        const scene = mesh.getScene();
+        const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
+        const [toView, turn] = [new Matrix(), new Matrix()];
+        const [scale, at] = [new Vector3(), new Vector3()];
+        const quaternion = new Quaternion();
+        let seen = "";
+        let drawn: Point2[] = [];
+        const observer = scene.onBeforeRenderObservable.add(() => {
+            const camera = scene.activeCamera;
+            if (camera === null || source.isDisposed()) {
+                return;
+            }
+
+            const view = camera.getViewMatrix();
+            const ahead = scene.useRightHandedSystem ? -1 : 1;
+            const nearest = nearestDrawing(mesh, view, ahead, at);
+            if (nearest === null) {
+                return;
+            }
+
+            const world = nearest.getWorldMatrix();
+            const key = `${String(view.updateFlag)}|${String(nearest.uniqueId)}|${String(world.updateFlag)}`;
+            if (key === seen) {
+                return;
+            }
+
+            seen = key;
+            world.decompose(scale, quaternion);
+            Matrix.FromQuaternionToRef(quaternion, turn);
+            turn.multiplyToRef(view, toView);
+            toView.setTranslationFromFloats(0, 0, 0);
+            const box = mesh.getBoundingInfo().boundingBox;
+            let outline: Point2[];
+            if (camera.mode === Camera.PERSPECTIVE_CAMERA) {
+                at.scaleInPlace(1 / scale.x);
+                // looking into the ring, its inner wall is seen down to the face away from the camera, drawn smaller
+                // than the node's middle by as much: that face's inner edge is put on the solid's outline
+                const back = (at.z + (ahead > 0 ? box.maximum.z : box.minimum.z)) / at.z;
+                outline = this.solidOutline(source, toView, at).map(([x, y]): Point2 => [x * back, y * back]);
+            } else {
+                outline = this.solidOutline(source, toView);
+            }
+            const same =
+                outline.length === drawn.length &&
+                outline.every(([x, y], i) => Math.abs(x - drawn[i][0]) < 1e-6 && Math.abs(y - drawn[i][1]) < 1e-6);
+            if (same) {
+                return;
+            }
+
+            drawn = outline;
+            // kept at the depth it was placed at (behind the node, by z-index)
+            const shift = box.minimum.z + depth / 2;
+            const data = ringVertexData(piecesOf(outline), depth);
+            const positions = data.positions ?? [];
+            for (let z = 2; z < positions.length; z += 3) {
+                positions[z] += shift;
+            }
+            data.applyToMesh(mesh, true);
+            mesh.refreshBoundingInfo();
+        });
+        mesh.onDisposeObservable.addOnce(() => {
+            scene.onBeforeRenderObservable.remove(observer);
+        });
     }
 
     /**
@@ -1782,4 +1948,20 @@ export class NodeMesh {
             scene,
         );
     }
+}
+
+/**
+ * An instance of a model template's group, answering for the group's own locked box. Babylon
+ * sizes an instance of a skinned source from its raw vertices, and an animated template's are in
+ * the file's units (its bones place and fit them), so a Fox was boxed 150 times too large and the
+ * camera framed the graph by that box (issue #8607).
+ * @param group - The template's group.
+ * @param name - The instance's name.
+ * @returns The instance.
+ */
+function modelInstance(group: Mesh, name: string): InstancedMesh {
+    const instance = group.createInstance(name);
+    const { minimum, maximum } = group.getBoundingInfo();
+    instance.buildBoundingInfo(minimum, maximum);
+    return instance;
 }

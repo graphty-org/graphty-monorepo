@@ -41,10 +41,10 @@ const OUR_ENV = Object.fromEntries(
 // A checkout with the gate's tools in it: a source file, an ignored dist/ and tmp/, an installed lockfile.
 function repo() {
     const dir = join(TMP, `repo-${++made}`);
-    mkdirSync(join(dir, "tools"), { recursive: true });
+    mkdirSync(join(dir, "tools/lib"), { recursive: true });
     mkdirSync(join(dir, ".husky"));
     mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
-    for (const f of ["prepush-inputs.mjs", "push-base.mjs", "wait-log.mjs"])
+    for (const f of ["prepush-inputs.mjs", "push-base.mjs", "wait-log.mjs", "lib/git.mjs"])
         copyFileSync(join(TOOLS, f), join(dir, "tools", f));
     writeFileSync(join(dir, ".husky/pre-push"), "hook\n");
     writeFileSync(join(dir, ".gitignore"), "node_modules/\ndist/\ntmp/\n");
@@ -459,6 +459,56 @@ wait`,
         assert.equal(fifth?.kind, "browser-slot", JSON.stringify(lines));
         assert.equal(fifth.heldBy.length, 4);
         for (const h of fifth.heldBy) assert.match(h, /^\d+ \S+ .* :: sh -c touch held\.\d/);
+    });
+
+    it("names a browser slot holder that makes no progress to its waiter and once in the wait log, and never stops it", () => {
+        const dir = join(TMP, "stalled-holder");
+        mkdirSync(dir, { recursive: true });
+        const log = join(dir, "waits.jsonl");
+        // The holder blocks reading a fifo: no CPU, no output, as the hung app-perf.mjs did (#9046). The waiter
+        // reports it, the holder is left alone, and once the fifo is written the holder ends and the waiter runs.
+        const r = spawnSync(
+            "bash",
+            [
+                "-c",
+                `set -u
+mkfifo hang
+"$GATE" sh -c "touch held; read x < hang; touch holder-done" &
+until [ -e held ]; do sleep 0.05; done
+"$GATE" sh -c "echo waited > waited" 2> waiter.err &
+until [ "$(grep -c "STUCK? browser slot 1" waiter.err 2>/dev/null)" -ge 2 ]; do sleep 0.05; done
+[ ! -e holder-done ] || exit 9
+echo go > hang
+wait`,
+            ],
+            {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GATE: join(TOOLS, "with-browser.sh"),
+                    BROWSER_SLOT_PRIORITY: "",
+                    BROWSER_SLOTS: "1",
+                    BROWSER_SLOT_DIR: join(dir, "browser-slots"),
+                    BROWSER_SLOT_POLL: "0.1",
+                    BROWSER_SLOT_STALL: "1",
+                    BROWSER_SLOT_STALL_CHECK: "0",
+                    PIPELINE_WAIT_LOG: log,
+                },
+            },
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.ok(existsSync(join(dir, "holder-done")), "the holder ran to its end");
+        assert.equal(readFileSync(join(dir, "waited"), "utf8"), "waited\n");
+        const err = readFileSync(join(dir, "waiter.err"), "utf8");
+        assert.match(
+            err,
+            /STUCK\? browser slot 1 holder pid \d+ .* by .*stalled-holder :: sh -c touch held; read x < hang/,
+        );
+        const stalled = read(log).filter((l) => l.kind === "browser-slot-stalled");
+        assert.equal(stalled.length, 1, JSON.stringify(stalled));
+        assert.match(stalled[0].waiter, /:: sh -c touch held; read x < hang; touch holder-done$/);
+        assert.equal(stalled[0].slot, 1);
     });
 
     it("gives a low-priority command (BROWSER_SLOT_PRIORITY=low) slot 4 first, then a lower one no ordinary waiter wants", () => {

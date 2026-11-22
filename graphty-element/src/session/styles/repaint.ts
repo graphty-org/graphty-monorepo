@@ -55,11 +55,11 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { withLabelLook } from "../../catalog/label-looks";
 import type { ShaderUse } from "../../catalog/shaders";
 import type { Binding, Channel, GraphtyErrorCode, LabelStyle, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
+import { withLabelLook } from "./carried";
 import {
     asColorValue,
     type ChannelDescriptor,
@@ -372,6 +372,14 @@ export interface RepaintEngine extends ElementPaint {
      *   could not prepare at all, and for one that has never been painted.
      */
     encoding(entry: CompiledLayer): readonly PreparedBinding[];
+    /**
+     * A number that moves whenever what {@link RepaintEngine.encoding} answers for some layer
+     * changes: a pass prepared a layer it had not prepared before, or prepared it again. A reader
+     * that keeps an answer read from `encoding` keys it on this, because a pass that first paints
+     * a kind (the first edges arriving) moves nothing else a reader can see.
+     * @returns The revision.
+     */
+    encodingRevision(): number;
     /**
      * Forget every prepared binding.
      *
@@ -726,6 +734,22 @@ function readColumn(column: ChannelColumn, index: number): unknown {
 }
 
 /**
+ * For a label style channel, the step that paints a named look as if the layer wrote its fields,
+ * beneath the layer's own, resolving the look against what an opened file carried first.
+ * @param channel - The channel.
+ * @param scales - The session's registry.
+ * @returns The step, or null for any other channel.
+ */
+function lookFiller(channel: string, scales: ScaleRegistry): ((painted: unknown) => unknown) | null {
+    if (!channel.endsWith("Style")) {
+        return null;
+    }
+
+    return (painted) =>
+        typeof painted === "object" && painted !== null ? withLabelLook(painted, scales.carried) : painted;
+}
+
+/**
  * Paint one element in one column.
  * @param column - The column.
  * @param index - The element's dense index.
@@ -749,7 +773,7 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown, plain
     // wrote it; a shader parameter map and an effects map merge by id and then by field the same
     // way. `mergeChannelValue` is the one rule, shared with `explain()`. A label field channel
     // (`node.labelSize`) arrives here as a one-field label style in this same column. A named look
-    // is painted as if the layer wrote its fields, beneath the layer's own.
+    // was filled in beneath the layer's own fields before it got here (`lookFiller`).
     if (column.kind === "merge") {
         if (typeof value !== "object" || value === null) {
             column.values[index] = value;
@@ -757,8 +781,7 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown, plain
             return;
         }
 
-        const over = column.channel.endsWith("Style") ? withLabelLook(value) : value;
-        column.values[index] = mergeChannelValue(column.channel, column.values[index], over);
+        column.values[index] = mergeChannelValue(column.channel, column.values[index], value);
 
         return;
     }
@@ -1214,6 +1237,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * layer it describes, and a layer dropped from the stack takes its record with it.
      */
     const lastPreparedFrom = new WeakMap<CompiledLayer, PreparedLayer>();
+    /** Moves whenever {@link lastPreparedFrom} changes; see {@link RepaintEngine.encodingRevision}. */
+    let preparedRevision = 0;
 
     /**
      * Which elements each layer was applied to, one byte per element.
@@ -1483,7 +1508,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 // A label field writes into its label style's column, so the two merge field by
                 // field in layer order however the stack mixes them.
                 column: columnFor(store, labelField?.into ?? channel),
-                toColumn: labelField === undefined ? null : labelPatcher(labelField.field),
+                toColumn: labelField === undefined ? lookFiller(channel, scales) : labelPatcher(labelField.field),
                 path,
                 plainText: path !== null && isNotePath(path),
                 combine: combineOf(descriptor, binding),
@@ -1542,7 +1567,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             // Written on the cache hit as well as the miss, so the record stays in step with the
             // cache without anybody having to reason about which paths clear which. One map
             // write per layer per pass, against a read that has to be right every time.
-            lastPreparedFrom.set(entry, cached);
+            if (lastPreparedFrom.get(entry) !== cached) {
+                lastPreparedFrom.set(entry, cached);
+                preparedRevision++;
+            }
 
             return cached;
         }
@@ -1550,6 +1578,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const built = buildPreparedLayer(entry);
         prepared.set(entry, built);
         lastPreparedFrom.set(entry, built);
+        preparedRevision++;
 
         return built;
     };
@@ -2472,6 +2501,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             // Built per call rather than kept, because the pass holds the channel and the reader
             // wants the binding, and a legend is read once a picture rather than once an element.
             return layer.channels.map((channel) => channel.binding);
+        },
+
+        encodingRevision(): number {
+            return preparedRevision;
         },
 
         invalidate(): void {

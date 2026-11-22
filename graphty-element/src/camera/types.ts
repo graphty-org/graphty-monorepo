@@ -34,8 +34,8 @@ export type DrawingMode = "2d" | "3d";
 
 /**
  * What each node counts as in the box a camera view frames: `"centers"` its center alone,
- * `"drawn"` the box it is drawn in, so a big node at the edge of the frame is not cut off. A camera
- * view framing the whole graph defaults to `"drawn"`; one framing a subset defaults to `"centers"`.
+ * `"drawn"` the box it is drawn in, so a big node at the edge of the frame is not cut off. The default is
+ * `"drawn"`, for the whole graph and for a subset alike.
  */
 export type CameraViewExtent = "centers" | "drawn";
 
@@ -77,6 +77,13 @@ export interface GraphBounds {
  */
 export interface CameraState {
     /**
+     * The drawing mode this state belongs to. `getCameraState()` writes it in 2D and 3D. A state
+     * with it applies only in that mode; one without it applies in each mode it holds a member
+     * of (2D reads `zoom`, `pan` and `rotation`; 3D reads `position`, `target`, `alpha`, `beta`,
+     * `radius`, `pivotRotation`, `cameraDistance` and `fov`).
+     */
+    mode?: DrawingMode;
+    /**
      * Which kind of camera the state describes. A label only: a state is applied to whichever
      * camera is active, through the members it gives.
      */
@@ -112,10 +119,7 @@ export interface CameraState {
     beta?: number;
     /** Distance from `target` for an orbit state given as `alpha` and `beta`. */
     radius?: number;
-    /**
-     * The vertical field of view in radians, as read from the camera. Applying a state does not
-     * change the field of view.
-     */
+    /** The 3D camera's vertical field of view, in radians. */
     fov?: number;
 
     // 2D Camera Properties
@@ -139,13 +143,13 @@ export interface CameraState {
     rotation?: number;
 
     // Orthographic frustum (advanced)
-    /** The left edge of a 2D view's frustum, in world units. Not applied: a 2D view is placed by `zoom` and `pan`. */
+    /** The left edge of a 2D view, in world units from `pan`. Wins over the edge `zoom` sets. */
     orthoLeft?: number;
-    /** The right edge of a 2D view's frustum, in world units. Not applied: a 2D view is placed by `zoom` and `pan`. */
+    /** The right edge of a 2D view, in world units from `pan`. Wins over the edge `zoom` sets. */
     orthoRight?: number;
-    /** The top edge of a 2D view's frustum, in world units. Not applied: a 2D view is placed by `zoom` and `pan`. */
+    /** The top edge of a 2D view, in world units from `pan`. Wins over the edge `zoom` sets. */
     orthoTop?: number;
-    /** The bottom edge of a 2D view's frustum, in world units. Not applied: a 2D view is placed by `zoom` and `pan`. */
+    /** The bottom edge of a 2D view, in world units from `pan`. Wins over the edge `zoom` sets. */
     orthoBottom?: number;
 
     // OrbitCameraController-specific fields

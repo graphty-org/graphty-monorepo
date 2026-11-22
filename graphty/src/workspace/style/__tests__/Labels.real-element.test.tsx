@@ -251,7 +251,8 @@ describe("label entries on the real element", () => {
             set: { "node.label": "Saved", "node.labelStyle": { enabled: false, look: "default" } },
         });
         store.set({ inspected: { kind: "layer-row", id: layer.id } });
-        await within(textList()).findByRole("combobox", { name: /^Node label look/ });
+        // The Text section is looked up on each try: the inspector replaces it once it opens the row.
+        await waitFor(() => within(textList()).getByRole("combobox", { name: /^Node label look/ }));
         assert.notEqual(element.labelOf("1")?.drawn, true, "the saved label opens as it was saved: not drawn");
 
         await choose("Node label look", "Dark", textList());
@@ -442,7 +443,7 @@ describe("label entries on the real element", () => {
         // Drawn, not held: the font beneath is the unset field's placeholder.
         const font = within(settings).getByRole<HTMLInputElement>("combobox", { name: /^Font(,|$)/ });
         assert.equal(font.value, "", "no font is set here");
-        assert.equal(font.placeholder, "Verdana");
+        assert.equal(font.placeholder, "Verdana, sans-serif");
         // The groups are headings one level under the pop-out's title.
         assert.deepEqual(
             [...settings.querySelectorAll("h3")].map((h) => h.textContent),
@@ -518,6 +519,22 @@ describe("a label entry's size, keys, lists and widths", () => {
             assert.equal(labelStyle(session).sizePx, 14);
             assert.equal(labelStyle(session).sizeMode, "screen");
         });
+    });
+
+    it("Label settings' Box sets the label's picture width and its offset", async () => {
+        const { session } = await openWithGraph();
+        await addNameLabel(session);
+        const settings = await openSettings();
+        for (const [word, typed, key] of [
+            ["Picture width", "24", "imageWidth"],
+            ["Picture right", "3", "imageOffsetX"],
+        ] as const) {
+            await userEvent.tripleClick(within(settings).getByLabelText<HTMLInputElement>(new RegExp(`^${word}(,|$)`)));
+            await userEvent.keyboard(`${typed}{Enter}`);
+            await waitFor(() => {
+                assert.equal(labelStyle(session)[key], Number(typed), key);
+            });
+        }
     });
 
     it("Escape after typing in the settings' Size box keeps the settings open and says the discard", async () => {

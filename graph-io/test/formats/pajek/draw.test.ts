@@ -55,6 +55,13 @@ describe("Pajek's Draw window size (pajekDraw width and height)", () => {
         expect(back[1]).toBeCloseTo(0.142778, 9);
     });
 
+    it("frames the window's whole 0..1 square, in the coordinates' own convention, whatever the vertices' extent", async () => {
+        // y down becomes y up, and y takes x's unit: the 1200 x 900 window's square is 0.75 units tall
+        const { result } = await load(doc, { width: 1200, height: 900 });
+        const p = extractPositions(registry.importer("pajek"), result.snapshot, result.report) as FilePositions;
+        expect(p.viewerFrame).toEqual({ min: [0, -0.75], max: [1, 0] });
+    });
+
     it("keeps the square 500 x 500 window without the option", async () => {
         const { result } = await load(doc);
         const p = extractPositions(registry.importer("pajek"), result.snapshot, result.report) as FilePositions;

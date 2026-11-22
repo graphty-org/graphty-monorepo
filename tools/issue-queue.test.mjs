@@ -694,6 +694,41 @@ describe("claims judged by the work that names them (2026-11-18: 18 live claims 
         for (const n of [8604, 8605, 8606, 8311, 7284]) assert.doesNotMatch(sent, new RegExp(`"I_${n}"`));
     });
 
+    it("strands, never releases, a claim whose only evidence is a pull request red or conflicting for 6 h (#9136)", () => {
+        const head = (age, state) => ({
+            nodes: [{ commit: { committedDate: new Date(NOW - age).toISOString(), statusCheckRollup: { state } } }],
+        });
+        const pr = (n, extra) => ({ number: n, headRefName: `fix/${n - 1000}-x`, title: "t", body: "", ...extra });
+        const prs = [
+            pr(9001, { mergeable: "MERGEABLE", commits: head(7 * HOUR, "FAILURE") }),
+            pr(9002, { mergeable: "CONFLICTING", commits: head(30 * HOUR, "SUCCESS") }),
+            pr(9003, { mergeable: "MERGEABLE", commits: head(5 * HOUR, "FAILURE") }),
+            pr(9004, { mergeable: "MERGEABLE", commits: head(30 * HOUR, "PENDING") }),
+        ];
+        const issues = [8001, 8002, 8003, 8004].map((n) => bare(n, 3 * HOUR));
+        // the red branch also has a commit of its own in 24 h: that is the same stale work, no new evidence
+        const recent = { name: "fix/8001-x", messages: "fix: x\n\nFixes #8001\n" };
+        const facts = {
+            ...deadFacts,
+            openPrBranches: new Set(),
+            recentBranches: () => [recent],
+            commitsAhead: () => 2,
+        };
+        const mutations = [];
+        const r = main(["claims", "--fix"], fakeRun(issues, prs, mutations), NOW, undefined, {
+            claims: { dir: mkdtempSync(join(tmpdir(), "claims-")), facts },
+        });
+        const by = new Map(r.claims.map((c) => [c.n, c]));
+        assert.equal(by.get(8001).live, false, "red, head 7 h old");
+        assert.equal(by.get(8002).live, false, "conflicting, head 30 h old");
+        assert.equal(by.get(8003).live, true, "red, but a commit 5 h ago");
+        assert.equal(by.get(8004).live, true, "pending checks, not red");
+        for (const n of [8001, 8002])
+            assert.equal(by.get(n).action, "stranded", `#${n} kept: its pull request names it`);
+        assert.match(by.get(8002).why, /open pull request #9002 names it, red or conflicting with no commit for 6 h/);
+        assert.deepEqual(mutations, [], "no label removed, no release comment");
+    });
+
     it("never removes a label or posts a release comment on an issue an open pull request names", () => {
         const released = {
             ...bare(7284, 9 * HOUR),
@@ -832,6 +867,51 @@ describe("held", () => {
         assert.deepEqual(both.held, []);
         assert.deepEqual(both.cites, [8124]);
         assert.equal(both.misheld, false);
+    });
+
+    it("lifts blocked only when the pull requests the reason waits on have closed (#9056)", () => {
+        const blockedIssue = (n, body) => ({
+            ...held(n, [], [c(body)]),
+            id: `I_${n}`,
+            labels: { nodes: [{ id: "L_blocked", name: "blocked" }] },
+        });
+        const blocked = [
+            // #291: the cited pull requests merged; what is left waits on an owner order
+            blockedIssue(
+                1,
+                "pipeline-round: blocked -- the element part merged (#8899, #9033). Unblock when the owner orders it.",
+            ),
+            blockedIssue(2, "pipeline-round: blocked -- needs owner-only code; waiting on the owner."),
+            blockedIssue(3, "pipeline-round: blocked on #500 and #501"),
+            blockedIssue(4, "pipeline-round: blocked on #500 and #502"),
+            blockedIssue(5, "pipeline-round: blocked until #503 merges"),
+        ];
+        const states = { 500: "MERGED", 501: "CLOSED", 502: "OPEN", 503: "MERGED", 8899: "MERGED", 9033: "MERGED" };
+        const mutations = [];
+        const run = (query, vars) => {
+            if (query.startsWith("mutation")) {
+                mutations.push(query);
+                return {};
+            }
+            if (query.startsWith("query {")) {
+                const repository = {};
+                for (const [, n] of query.matchAll(/p(\d+): issueOrPullRequest/g)) {
+                    repository[`p${n}`] = { __typename: "PullRequest", state: states[n] };
+                }
+                return { repository };
+            }
+            const page = (nodes) => ({ pageInfo: { hasNextPage: false }, nodes });
+            if (query.includes("pullRequests(states: OPEN")) return { repository: { pullRequests: page([]) } };
+            return { repository: { issues: page(vars.label === "blocked" ? blocked : []) } };
+        };
+        const dir = mkdtempSync(join(tmpdir(), "lift-"));
+        const r = claimsCommand({ fix: true, run, now: NOW, dir, facts: { openPrBranches: new Set() } });
+        assert.match(r.out, /; blocked lifted #3 #5$/);
+        assert.equal(mutations.length, 1);
+        assert.deepEqual(
+            [...mutations[0].matchAll(/labelableId: "(I_\d+)"/g)].map((m) => m[1]),
+            ["I_3", "I_5"],
+        );
     });
 
     it("prints the held listing as JSON from one paged query", () => {

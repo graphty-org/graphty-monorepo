@@ -670,8 +670,11 @@ export class RowTable {
             laneRows.read(row, lane);
         }
 
-        const atLane =
-            Math.fround(x) === lane.x && Math.fround(y) === lane.y && Math.fround(z) === (this.twoD ? 0 : lane.z);
+        // Flat by the view the frame draws, not the one the table last followed: a node a 2D engine's first walk
+        // puts at its Z, before the table turned 2D, is held there, as the objects path draws it, and not flattened
+        // by the repack that turns the table.
+        const twoD = (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true;
+        const atLane = Math.fround(x) === lane.x && Math.fround(y) === lane.y && Math.fround(z) === (twoD ? 0 : lane.z);
         const flags = this.flags[row] ?? 0;
         this.flags[row] = atLane ? flags & ~HELD : flags | HELD;
         // A node that follows its lane row each frame (a labeled one) changes nothing a skip walk reads.

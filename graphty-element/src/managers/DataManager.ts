@@ -2821,9 +2821,6 @@ export class DataManager implements Manager {
         // after the engine has it: drawing reads its place from the engine
         if (rowPaint !== null) {
             this.paintBuiltRow(n, rowPaint);
-        } else if (!announce) {
-            // its paint waits for its pass, but its place is read now, which a frame's update would write only later
-            n.update();
         }
 
         // Emit node added event
@@ -2950,13 +2947,7 @@ export class DataManager implements Manager {
         //
         // Not while a pass is painting (`StylePainter.settledNodePaint`): the row is queued, so the
         // frame after the pass draws it; until then the `Node` keeps the look the batch drew it with.
-        //
-        // Nor while the row's newest paint still waits for its pass: that pass draws it in row order, as every
-        // other row's, and until then the `Node` keeps the look the batch drew it with. Painted here, a `Node` read
-        // between a style change and its pass built its new look's source before every other row's, and under
-        // `"batched"` that look then drew over the others.
-        const painter = this.graphContext?.getStylePainter?.();
-        const rowPaint = painter?.isNodePending(index) === true ? null : (painter?.settledNodePaint(index) ?? null);
+        const rowPaint = this.graphContext?.getStylePainter?.()?.settledNodePaint(index) ?? null;
         const drawn = batches?.lookOf(index) ?? null;
         const look = rowPaint !== null && batches?.keepsLook(index, rowPaint) === false ? null : drawn;
         batches?.unpaintRow(index);

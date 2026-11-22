@@ -686,27 +686,8 @@ export class RowTable {
         this.ownRowWrites += next === flags ? 0 : 1;
         const base = row * POSITION_FLOATS;
         const { floats } = this.positions;
-        // A write that leaves the row where it is drawn moves nothing: a node built lazily for its row (a
-        // selection, a hover) places it again where it already is, and must not tell the edge ID target, the
-        // nodes that follow the rows or the update loop that rows moved. Drawn where the lane says unless held,
-        // and where the floats say when held.
-        const unmoved =
-            next === flags &&
-            (atLane ||
-                (floats[base] === Math.fround(x) &&
-                    floats[base + 1] === Math.fround(y) &&
-                    floats[base + 2] === Math.fround(z))) &&
-            ((flags & (HIDDEN | SHRUNK)) !== 0 || floats[base + 3] === 1);
-        if (!unmoved) {
-            this.moves++;
-        }
-
+        const unchanged = this.countPlace(base, flags, next, atLane, x, y, z);
         const { bounds } = this;
-        // The row as it stood: one put again where it already was (a pinned labeled node, each frame) is unchanged.
-        const unchanged =
-            floats[base] === Math.fround(x) &&
-            floats[base + 1] === Math.fround(y) &&
-            floats[base + 2] === Math.fround(z);
         floats[base] = bounds[base] = x;
         floats[base + 1] = bounds[base + 1] = y;
         floats[base + 2] = bounds[base + 2] = z;
@@ -730,6 +711,45 @@ export class RowTable {
             this.positions.touch(row);
             this.mirror(row);
         }
+    }
+
+    /**
+     * Count what a {@link RowTable.place} write changes, before it is written.
+     * @param base - The row's first float.
+     * @param flags - The row's flags before the write.
+     * @param next - Its flags after it.
+     * @param atLane - Whether the write puts it where its lane row is.
+     * @param x - Drawn x.
+     * @param y - Drawn y.
+     * @param z - Drawn z.
+     * @returns Whether the row stays where it stood.
+     */
+    private countPlace(
+        base: number,
+        flags: number,
+        next: number,
+        atLane: boolean,
+        x: number,
+        y: number,
+        z: number,
+    ): boolean {
+        const { floats } = this.positions;
+        // The row as it stood: one put again where it already was (a pinned labeled node, each frame) is unchanged.
+        const unchanged =
+            floats[base] === Math.fround(x) &&
+            floats[base + 1] === Math.fround(y) &&
+            floats[base + 2] === Math.fround(z);
+        // A write that leaves the row where it is drawn moves nothing: a node built lazily for its row (a
+        // selection, a hover) places it again where it already is, and must not tell the edge ID target, the
+        // nodes that follow the rows or the update loop that rows moved. Drawn where the lane says unless held,
+        // and where the floats say when held.
+        const unmoved =
+            next === flags && (atLane || unchanged) && ((flags & (HIDDEN | SHRUNK)) !== 0 || floats[base + 3] === 1);
+        if (!unmoved) {
+            this.moves++;
+        }
+
+        return unchanged;
     }
 
     /**

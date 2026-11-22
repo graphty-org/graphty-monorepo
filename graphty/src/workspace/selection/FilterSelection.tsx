@@ -106,12 +106,14 @@ export function FilterSelection({
     // The rule as last edited, until the element holds it.
     // on reload: fresh: derived: a reopened draft's rule, read from graphty-element
     const [local, setLocal] = useState<UnionLeaf | null>(adoptedRule);
+    const own = useRef(false);
     // The card can open before autosave has opened its draft again (the place comes back first):
     // the draft is picked up when it opens, unless the reader has started one of their own.
     useEffect(
         () =>
             session.on("visibility:draft-changed", () => {
-                const found = draft.current === null ? session.visibility.draftOf(id) : null;
+                // Read again on each change: autosave opens the draft, then puts its edits back.
+                const found = own.current ? null : session.visibility.draftOf(id);
                 if (found !== null) {
                     draft.current = found;
                     setAdopted(found);
@@ -122,6 +124,8 @@ export function FilterSelection({
     );
     const toDraft = (next: UnionLeaf): void => {
         if (draft.current?.open !== true) {
+            // A draft of its own is not a reopened one to pick up (the event below fires inside it).
+            own.current = true;
             draft.current = session.visibility.draft(
                 effect === undefined
                     ? {
@@ -184,7 +188,7 @@ export function FilterSelection({
     return (
         <SelectionEditor
             session={session}
-            workspaceKey={`filter:${id}`}
+            workspaceKey={`filter:${id}:${rule.side}`}
             restoredFrom={adoptedRule === null ? undefined : rule}
             rule={local ?? rule}
             host="filter"

@@ -96,7 +96,7 @@ async function typeDegreeFrom(value: string): Promise<void> {
  * @param count - the count the card shows.
  */
 async function cardCounts(count: number): Promise<void> {
-    await screen.findByRole("region", { name: `A, ${String(count)} of 77 nodes` });
+    await screen.findAllByRole("region", { name: `A, ${String(count)} of 77 nodes` });
 }
 
 /** Opens the Data place's Filters, with the sample's load drawn. */

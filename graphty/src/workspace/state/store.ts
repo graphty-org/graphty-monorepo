@@ -308,7 +308,7 @@ export interface WorkspaceState {
     readonly selectionWorkspace: {
         /**
          * The editor that opened it, by its workspace key (`selector:<layer id>:<side>`,
-         * `filter:<condition id>`): only it draws the workspace, and only it clears it.
+         * `filter:<condition id>:<side>`): only it draws the workspace, and only it clears it.
          */
         readonly owner: string;
         /** Its host: a style layer's selector covers the left panel, a filter card the inspector. */

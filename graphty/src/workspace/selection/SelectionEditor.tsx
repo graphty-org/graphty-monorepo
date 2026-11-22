@@ -95,7 +95,8 @@ interface SelectionEditorProps {
     readonly session: GraphSession;
     /**
      * What the editor is, the same on every mount (`selector:<layer id>:<side>`,
-     * `filter:<condition id>`): the open workspace is kept under it, so a reload reopens it.
+     * `filter:<condition id>:<side>`): the open workspace is kept under it, so a reload reopens it.
+     * Two editors mounted at once never share one.
      */
     readonly workspaceKey: string;
     /** The selection as the host holds it. */

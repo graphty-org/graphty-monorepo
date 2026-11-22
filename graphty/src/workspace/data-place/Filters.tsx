@@ -159,7 +159,10 @@ export function FiltersSection({
     // The card whose workspace is open; a reload reopens the one the kept selectionWorkspace names,
     // whether the place comes back before this section mounts or after (from the autosave stash).
     const keptOwner = useWorkspaceState((state) => state.selectionWorkspace?.owner ?? "");
-    const keptCard = keptOwner.startsWith(FILTER_KEY) ? keptOwner.slice(FILTER_KEY.length) : null;
+    // The key is `filter:<id>:<side>`: a new card's side switch starts another editor.
+    const keptCard = keptOwner.startsWith(FILTER_KEY)
+        ? keptOwner.slice(FILTER_KEY.length, keptOwner.lastIndexOf(":"))
+        : null;
     // on reload: fresh: derived: read from the kept selectionWorkspace
     const [openId, setOpenId] = useState<string | null>(keptCard);
     useEffect(() => {

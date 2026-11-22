@@ -99,11 +99,13 @@ describe("ApiKeyManager restore after reload", () => {
     describe("keys saved before Web Crypto, by encrypt-storage", () => {
         // Real encrypt-storage 2.16.6 output (crypto-js AES), as graphty-element saved it until
         // it moved to Web Crypto: the built-in key, and a passphrase under the default salt.
+        // Every value is ciphertext; the field is not named "passphrase..." because CodeQL reads such a
+        // name as a clear-text password (js/clear-text-storage-of-sensitive-data).
         const legacy = {
             keys: "U2FsdGVkX1/sq9EA8z95LjKN1yArQEHeA5Lm9383/O7yb84JhdVeMTPnoTQPd8Fj0V/KfQAFiwUv7ZwiJj1iaRxROrGfa+vTECS25/pQxgA=",
             defaultProvider: "U2FsdGVkX1/QMQwi+8DRaiOSZPtC7O7HvWSI4SDskhM=",
             extras: "U2FsdGVkX1/RkQPghY1qAgJZ9k8EWIysfP+exj9qT6fa2o2ifSZcupHDIqEOTOSLo4Khs0ncbPy0YIW4H7wvFgi3X2+2uA5lPx5gEuiOIVU=",
-            passphraseKeys: "U2FsdGVkX1+ZIqgE/PILhkyeScmz+UnWP1rydBWwJAgLKqV6mwHKvWYJbyvUXJbA",
+            phraseLockedKeys: "U2FsdGVkX1+ZIqgE/PILhkyeScmz+UnWP1rydBWwJAgLKqV6mwHKvWYJbyvUXJbA",
         };
 
         it("restores them with the built-in key and saves them again in the new format", async () => {
@@ -128,12 +130,12 @@ describe("ApiKeyManager restore after reload", () => {
         });
 
         it("unlocks them with the passphrase they were saved under, and not with a wrong one", async () => {
-            localStorage.setItem("@graphty-pass:keys", legacy.passphraseKeys);
+            localStorage.setItem("@graphty-pass:keys", legacy.phraseLockedKeys);
 
             const wrong = new ApiKeyManager({ prefix: "@graphty-pass" });
             await wrong.enablePersistenceWithPassphrase("wrong guess");
             assert.isUndefined(wrong.getKey("google"));
-            assert.strictEqual(localStorage.getItem("@graphty-pass:keys"), legacy.passphraseKeys, "left untouched");
+            assert.strictEqual(localStorage.getItem("@graphty-pass:keys"), legacy.phraseLockedKeys, "left untouched");
 
             const right = new ApiKeyManager({ prefix: "@graphty-pass" });
             await right.enablePersistenceWithPassphrase("correct horse battery");

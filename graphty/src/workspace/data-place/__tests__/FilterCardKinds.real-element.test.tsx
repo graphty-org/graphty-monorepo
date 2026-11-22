@@ -2,7 +2,8 @@
  * Each kind of filter card on the REAL graphty-element: a card says what stays (All, then Keep its
  * value); a category step holds several values; a text step writes what is typed once it is
  * committed and lists the column's values in the order a reader counts them; and a new card and a
- * match picked hand focus to the value.
+ * match picked hand focus to the value; a letter typed on a new card's Value field searches for it;
+ * and a name typed in the workspace's title names the card.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -68,6 +69,11 @@ async function openPeople(): Promise<{ session: GraphSession; store: WorkspaceSt
         throw new Error("the element never came up");
     }
     await session.data.import({ type: "json", name: "people.json", config: { data: PEOPLE } });
+    // The load's own section holds its Filters once the Data place has drawn it: the "+" found
+    // before then is the no-load one, gone at the next render.
+    await waitFor(() => {
+        assert.isNotNull(document.querySelector(".dp-source-sections [data-filters-plus]"), "the load's Filters");
+    });
     return { session, store };
 }
 
@@ -140,5 +146,50 @@ describe("Each kind of filter card", () => {
         assert.equal(session.visibility.summary.visibleNodes, 8);
         assert.deepEqual(session.selection.nodes, [], "a card never selects");
         assert.equal(cardsDrawn(), 1);
+    });
+});
+
+describe("a new filter card's value field and name", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    it("a letter typed on the empty card's Value field opens its list searching for it", async () => {
+        await openPeople();
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        const field = await screen.findByRole("button", { name: "Value" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, field, "the new card's Value field has focus");
+        });
+        await userEvent.keyboard("r");
+        const search = await screen.findByRole<HTMLInputElement>("combobox", { name: "Find attributes, results" });
+        assert.strictEqual(search.value, "r", "the letter starts the search");
+        await userEvent.click(await screen.findByRole("option", { name: /^role(,|$)/ }));
+        await screen.findByRole("group", { name: "role values" });
+    });
+
+    it("a name typed in the workspace's title is the card's name on Done, and Escape in the box keeps it", async () => {
+        const { session } = await openPeople();
+        await newCardOn("role");
+        const values = await screen.findByRole("group", { name: "role values" });
+        await userEvent.click(within(values).getByRole("checkbox", { name: "board, 3 nodes" }));
+        const head = (): HTMLElement => {
+            const found = document.querySelector<HTMLElement>(".sel-ws .sel-ws-head");
+            assert.isNotNull(found, "the workspace is open");
+            return found;
+        };
+        await userEvent.click(within(head()).getByRole("button", { name: /, rename$/ }));
+        await userEvent.keyboard("{Control>}a{/Control}Board{Enter}");
+        await within(head()).findByRole("button", { name: "Board, rename" });
+
+        await userEvent.click(within(head()).getByRole("button", { name: "Board, rename" }));
+        await userEvent.keyboard("{Control>}a{/Control}Nope{Escape}");
+        await within(head()).findByRole("button", { name: "Board, rename" });
+        assert.isNotNull(document.querySelector(".sel-ws"), "Escape in the box leaves the workspace open");
+
+        await userEvent.click(within(head()).getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.strictEqual(session.visibility.conditions[0]?.name, "Board");
+        });
     });
 });

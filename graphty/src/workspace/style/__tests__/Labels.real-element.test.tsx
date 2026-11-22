@@ -251,7 +251,8 @@ describe("label entries on the real element", () => {
             set: { "node.label": "Saved", "node.labelStyle": { enabled: false, look: "default" } },
         });
         store.set({ inspected: { kind: "layer-row", id: layer.id } });
-        await within(textList()).findByRole("combobox", { name: /^Node label look/ });
+        // The Text section is looked up on each try: the inspector replaces it once it opens the row.
+        await waitFor(() => within(textList()).getByRole("combobox", { name: /^Node label look/ }));
         assert.notEqual(element.labelOf("1")?.drawn, true, "the saved label opens as it was saved: not drawn");
 
         await choose("Node label look", "Dark", textList());

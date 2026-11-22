@@ -155,7 +155,10 @@ export interface GraphtyErrorDetailsMap {
         readonly rowErrors?: number;
         /** The source's error limit, when the reader stopped at it. */
         readonly limit?: number;
-        /** graph-io's code for what stopped the read (`"E_XML_SYNTAX"`, `"E_CSV_UNCLOSED_QUOTE"`...), when graph-io read it. */
+        /**
+         * graph-io's code for what stopped the read (`"E_XML_SYNTAX"`, `"E_CSV_UNCLOSED_QUOTE"`...), when graph-io read it,
+         * or graph-samples' `"E_DATASET_CHECKSUM"` for a dataset file that is not the published one.
+         */
         readonly issue?: string;
         /** The element or column graph-io names as where the read stopped, when it names one. */
         readonly element?: string;

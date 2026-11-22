@@ -36,6 +36,8 @@ export interface ResolvedForceAtlas2Options {
     readonly nodeMass: F32 | string | Readonly<Record<NodeId, number>> | null;
     readonly nodeSize: F32 | string | Readonly<Record<NodeId, number>> | null;
     readonly weight: boolean | string | null;
+    /** The pinned nodes applied at load: a mask, a bool node column's name, or null (the role-`fixed` column, if any). */
+    readonly fixed: NodeMask | string | null;
     readonly dissuadeHubs: boolean;
     readonly dim: 2 | 3;
     readonly scale: number;

@@ -434,12 +434,12 @@ function along(src: Xyz, dst: Xyz, t: number): Xyz {
 }
 
 /**
- * The span's shape as the shader's three numbers: (bow or where an uncut curve starts; 0 for a lone curve,
+ * The span's shape as the shader's three numbers: (bow or where an uncut curve starts; 0 for no span,
  * 1 for a fanned arc, 3 for a lone curve between two points of the chord, 4 for a raised arc
  * (its height first), 5 for a great-circle arc (its height first), or for a self-loop's teardrop (its controls'
  * mean x first) 6 plus its share k, under tan(pi / 5), 7 for a curve through a support point (its share along
- * first), 8 for a straight line through bends or a center arc (the texel its cut path starts at in the route table
- * first, modulo {@link ROUTE_SPLIT}); where that
+ * first), 8 for a straight line through bends, a center arc or a plain lone curve (the texel its cut path starts
+ * at in the route table first, modulo {@link ROUTE_SPLIT}); where that
  * curve stops, a great-circle arc's angle, the teardrop's mean y, or the support point's share across; the routed
  * texel over {@link ROUTE_SPLIT}), the last three
  * of a curve piece's fourth texel.
@@ -479,18 +479,19 @@ export function curveShape(span: Shape | null, route = 0): [number, number, numb
     }
 
     // a center arc is routed too: the shader's float32 sine and cosine put its points a last bit off the object
-    // path's, which flips a multisample on its edge (#6392)
-    if ((span?.turn ?? null) !== null) {
+    // path's, which flips a multisample on its edge (#6392); and so is a plain lone curve, whose float32 cubic is a
+    // last bit off the object path's doubles in about half its coordinates, on WebGL and WebGPU alike (#9456)
+    const bow = span?.bow ?? null;
+    if ((span?.turn ?? null) !== null || (span !== null && bow === null)) {
         return [route % ROUTE_SPLIT, 8, Math.floor(route / ROUTE_SPLIT)];
     }
 
-    const bow = span?.bow ?? null;
     return bow === null ? [0, 0, 0] : [bow, 1, 0];
 }
 
 /**
  * Whether a span's cut path is read from the batch's route table, placed in doubles, rather than worked out by the
- * shader: a line through bends and a center arc ({@link curveShape} kind 8).
+ * shader: a line through bends, a center arc and a plain lone curve ({@link curveShape} kind 8).
  * @param span - The span.
  * @returns True when its points go in the route table.
  */

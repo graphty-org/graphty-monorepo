@@ -20,8 +20,7 @@ import { LinkPredictionAlgorithm } from "../../src/algorithms/LinkPredictionAlgo
 import { MaxFlowAlgorithm } from "../../src/algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../../src/algorithms/MinCutAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/results";
-import type { Graph } from "../../src/Graph";
-import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
+import { createSessionGraph, type SessionGraph, type SessionGraphOpts } from "../helpers/session-graph";
 
 /** The dispatcher members called since the last reset, in call order. */
 const reached: string[] = [];
@@ -48,7 +47,7 @@ vi.mock("@graphty/algorithms", async (importOriginal) => {
 });
 
 /** A square: two sides, two unjoined pairs that share neighbors, and a cut of two. */
-const SQUARE: MockGraphOpts = {
+const SQUARE: SessionGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
     edges: [
         { srcId: "A", dstId: "B", weight: 1 },
@@ -62,7 +61,9 @@ const SQUARE: MockGraphOpts = {
 const CASES: {
     name: string;
     member: string;
-    make: (graph: Graph) => { compute: (c: ReturnType<typeof detachedRunContext>) => Promise<AlgorithmOutput | null> };
+    make: (graph: SessionGraph) => {
+        compute: (c: ReturnType<typeof detachedRunContext>) => Promise<AlgorithmOutput | null>;
+    };
 }[] = [
     {
         name: "bipartite matching",
@@ -102,7 +103,7 @@ describe("the adapters whose algorithm no accelerator implements run through the
 
     for (const { name, member, make } of CASES) {
         it(`${name} calls the dispatcher's ${member} and says its numbers are double precision`, async () => {
-            const graph = await createMockGraph(SQUARE);
+            const graph = await createSessionGraph(SQUARE);
             const output = await make(graph).compute(detachedRunContext());
 
             assert.isNotNull(output);
@@ -111,7 +112,7 @@ describe("the adapters whose algorithm no accelerator implements run through the
         });
 
         it(`${name} under acceleration required, with no accelerator, runs on the CPU port as every capability the element never hands over does`, async () => {
-            const graph = await createMockGraph(SQUARE);
+            const graph = await createSessionGraph(SQUARE);
             graph.acceleration.setPolicy("required");
             const output = await make(graph).compute(detachedRunContext());
 
@@ -124,7 +125,7 @@ describe("the adapters whose algorithm no accelerator implements run through the
 
 describe("max flow runs over the network it builds", () => {
     it("reads its input once and derives no second snapshot of a multigraph for the dispatcher", async () => {
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: SQUARE.nodes,
             edges: [...(SQUARE.edges ?? []), { srcId: "A", dstId: "B", weight: 1 }],
         });

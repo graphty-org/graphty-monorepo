@@ -17506,7 +17506,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.963,
+            "edge.route": 0.982,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -29187,18 +29187,19 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.95,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.95,
+            "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.94,
             "raster.edge": 0.88,
-            "raster.arrowhead": 0.89,
+            "raster.arrowhead": 0.9,
             "raster.label": 0.9,
-            "raster.canvas": 0.98
+            "raster.canvas": 0.98,
+            "label.align": 1
         },
         "graphml-synthetic-nodes@matched": {
             "node.present": 1,
@@ -29259,12 +29260,13 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.95,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "label.align": 1
         },
         "graphml-yed-voctomix": {
             "node.present": 1,

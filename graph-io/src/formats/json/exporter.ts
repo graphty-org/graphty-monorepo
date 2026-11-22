@@ -31,6 +31,7 @@ import { jsonText } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
 import { neutralPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -2036,55 +2037,58 @@ function resolveStyled(snapshot: GraphSnapshot, options: JsonWriteOptions | unde
  * default dialect); check() applies the table of the dialect actually selected.
  * @category Built-in formats
  */
-export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
-    format: "json",
-    options: Object.freeze([
-        "dialect",
-        "edgesKey",
-        "indent",
-        "indexLinks",
-        "nodeIdKey",
-        "ontologyIri",
-        "sourceKey",
-        "targetKey",
-        "weightKey",
-    ]),
-    capabilities: dialectCapabilities("node-link"),
-    styles: Object.freeze({ capabilities: JSON_STYLE_CAPABILITIES }),
+export const jsonExporter: GraphExporter<JsonExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: "json",
+        options: Object.freeze([
+            "dialect",
+            "edgesKey",
+            "indent",
+            "indexLinks",
+            "nodeIdKey",
+            "ontologyIri",
+            "sourceKey",
+            "targetKey",
+            "weightKey",
+        ]),
+        capabilities: dialectCapabilities("node-link"),
+        styles: Object.freeze({ capabilities: JSON_STYLE_CAPABILITIES }),
 
-    /**
-     * Pre-flight: every loss of the selected dialect, without writing anything.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): readonly LossNote[] {
-        const resolved = resolveStyled(snapshot, options);
-        const s = resolved.styled?.snapshot ?? snapshot;
-        const notes = resolved.dialect === "obographs" ? planObographs(s, resolved).notes : plan(s, resolved).notes;
-        return Object.freeze([...notes, ...(resolved.styled?.notes ?? [])]);
-    },
+        /**
+         * Pre-flight: every loss of the selected dialect, without writing anything.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the notes, empty when the export is exact
+         */
+        check(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): readonly LossNote[] {
+            const resolved = resolveStyled(snapshot, options);
+            const s = resolved.styled?.snapshot ?? snapshot;
+            const notes = resolved.dialect === "obographs" ? planObographs(s, resolved).notes : plan(s, resolved).notes;
+            return Object.freeze([...notes, ...(resolved.styled?.notes ?? [])]);
+        },
 
-    /**
-     * Write the document as UTF-8 chunks.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(parts(snapshot, resolveStyled(snapshot, options)));
-    },
+        /**
+         * Write the document as UTF-8 chunks.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the chunks
+         */
+        export(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
+            return encodeChunks(parts(snapshot, resolveStyled(snapshot, options)));
+        },
 
-    /**
-     * Write the document as one string.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the document
-     */
-    exportToString(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): Promise<string> {
-        return joinText(parts(snapshot, resolveStyled(snapshot, options)));
-    },
-});
+        /**
+         * Write the document as one string.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the document
+         */
+        exportToString(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): Promise<string> {
+            return joinText(parts(snapshot, resolveStyled(snapshot, options)));
+        },
+    }),
+    () => true,
+);
 
 /**
  * The capability table of one dialect, for callers that pick a dialect before check().

@@ -283,7 +283,7 @@ describe("source-steps drafts: commit equals preview", () => {
                 key: "badge",
                 type: "person",
             });
-            const people = session.data.sources()[0]?.key ?? "";
+            const people = session.data.sources({ staged: true })[0]?.key ?? "";
             const buildings = await session.data.stage(csv("buildings.csv", "door,building\nD1,North\nD2,South"), {
                 key: "door",
                 type: "building",
@@ -309,7 +309,7 @@ describe("source-steps drafts: commit equals preview", () => {
                 pv.steps.map((r) => r.buckets),
                 `sequence ${String(n)}: buckets`,
             );
-            const staged = session.data.sources().find((s) => s.key === entries)?.state ?? "removed";
+            const staged = session.data.sources({ staged: true }).find((s) => s.key === entries)?.state ?? "removed";
             assert.strictEqual(staged, pv.sources.find((s) => s.source === entries)?.state);
             session.dispose();
         }

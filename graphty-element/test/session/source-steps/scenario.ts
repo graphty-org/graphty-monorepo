@@ -68,7 +68,7 @@ export async function edgeFile(session: GraphSession, data: string, name: string
             },
         },
     );
-    return session.data.sources().at(-1)?.key ?? "";
+    return session.data.sources({ staged: true }).at(-1)?.key ?? "";
 }
 
 /**

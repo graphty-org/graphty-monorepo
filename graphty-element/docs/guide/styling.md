@@ -323,6 +323,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.color`                  | any CSS color                                                                                                    |
 | `edge.width`                  | 0 or more; 0 draws no line (the caps and label still draw)                                                       |
 | `edge.opacity`                | 0 to 1                                                                                                           |
+| `edge.drawOrder`              | 0 to 100: which of two crossing lines is drawn on top                                                            |
 | `edge.fadeEnd`                | CSS pixels: a line this long on screen or longer draws at `edge.fadeOpacity` times its opacity; unset, no fade   |
 | `edge.fadeStart`              | CSS pixels: a line this long on screen or shorter does not fade (0)                                              |
 | `edge.fadeOpacity`            | 0 to 1: what the fade multiplies the longest lines' opacity by (0.25)                                            |
@@ -491,6 +492,13 @@ every node without one; a node without one is drawn as before. Loading a file wi
 stored `z` (XGMML, CX, CX2 and sessions) or Cytoscape.js's `z-index` where the file has one, and
 otherwise by the file's own order, a node later in the file on top. Each distinct value is its own source mesh, so use a few
 levels on a large graph. A 3D view draws by real depth and ignores it.
+
+`edge.drawOrder` decides which of two crossing lines is drawn on top: the one with the higher value, from 0 to 100.
+A line without one is drawn over every line with one, and lines without one keep the order they always had, so give
+every line that may cross a value. Loading a Cytoscape.js file with `styles: "file"` sets it on every edge from the
+file's `z-index` where its edges have different ones, a later edge on top among equal ones. It orders lines among
+lines only: a node is never hidden behind a line by it. A line drawn as a row of shapes (dots, stars, boxes) is
+not ordered.
 
 The numbers behind the default look -- the default edge width
 (`EDGE_CONSTANTS.DEFAULT_LINE_WIDTH`), arrow sizes, line pattern spacing and node shape

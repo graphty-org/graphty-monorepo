@@ -295,6 +295,8 @@ export const GLYPHS = {
     intersect: SquaresIntersect,
     // A step whose result depends on where it sits in its list.
     order: ArrowDownUp,
+    // Swap two fields, one above the other (the Join card).
+    swap: ArrowDownUp,
     // Take a value or a row out of a list.
     remove: Minus,
     // Delete a thing for good (a note).

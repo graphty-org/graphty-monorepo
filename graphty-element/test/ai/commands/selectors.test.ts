@@ -87,6 +87,21 @@ describe("AI command selectors", () => {
         assert.deepStrictEqual([...servers.nodes], ["a"]);
     });
 
+    // A rule reads a bare name as the data column of that name (rulePath, parsePath), and the
+    // help every selector parameter carries says so (#9654).
+    it("a bare data-column name matches what its data. path matches", async () => {
+        const bare = await findNodes.execute(graph, { selector: "type == 'server'" }, context);
+        const dotted = await findNodes.execute(graph, { selector: "data.type == 'server'" }, context);
+        const zoomed = await zoomToNodes.execute(graph, { selector: "age > `30`" }, context);
+
+        assert.deepStrictEqual((bare.data as { nodeIds: string[] }).nodeIds, ["node-0", "node-2", "node-4"]);
+        assert.deepStrictEqual(
+            (bare.data as { nodeIds: string[] }).nodeIds,
+            (dotted.data as { nodeIds: string[] }).nodeIds,
+        );
+        assert.deepStrictEqual(zoomed.affectedNodes, ["node-4", "node-5"]);
+    });
+
     // A bare name the graph carries as a data column reads that column, as a style rule reads it
     // (#9654), so the field here is one nothing carries.
     it("a field nothing carries matches nothing and the answer says to write data.", async () => {

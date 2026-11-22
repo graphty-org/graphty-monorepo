@@ -505,6 +505,8 @@ export const dataManagerInternals = {} as {
      * the row or none is stored there.
      */
     unbuiltEdgeEnds(manager: DataManager, row: number): readonly [number, number] | undefined;
+    /** The id of an edge stored with no `Edge`, building none; undefined when an `Edge` draws the row or none is stored there. */
+    unbuiltEdgeId(manager: DataManager, row: number): EdgeId | undefined;
     /**
      * Build the `Edge` of an edge row stored with no `Edge` yet, and hand it back; its paint is queued
      * unless the caller paints it now (`paintingNow`).
@@ -895,6 +897,10 @@ export class DataManager implements Manager {
         };
         dataManagerInternals.storeEdgesUnbuilt = (manager, on) => {
             manager.edgesUnbuilt = on;
+        };
+        dataManagerInternals.unbuiltEdgeId = (manager, row) => {
+            const counter = manager.unbuiltEdges.edgeIdAt(row);
+            return counter === undefined ? undefined : edgeIdOf(counter);
         };
         dataManagerInternals.unbuiltEdgeEnds = (manager, row) => {
             const edges = manager.unbuiltEdges;

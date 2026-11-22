@@ -609,9 +609,14 @@ export class Node implements ModelUser {
      * @param row - The new row.
      */
     private set index(row: number) {
+        // The edge ID target draws each line from its nodes' rows, so a node that moves to another row moves its
+        // edges' lines. A node built into the row its data already has (from none) moves no line: building one
+        // lazily, for a selection or a hover, must not throw away the target's last read.
+        if (this.row !== INVALID_INDEX && this.row !== row) {
+            edgeDrawChanges.count++;
+        }
+
         this.row = row;
-        // the edge ID target draws each line from its nodes' rows
-        edgeDrawChanges.count++;
     }
 
     /**

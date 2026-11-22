@@ -355,7 +355,20 @@ describe("the edge ID target", () => {
                 // The loop is a curve: it alone goes on screen point by point.
                 assert.strictEqual(edgePickWork.measured - before, 1, `only the loop is measured ${where}`);
                 edgesNamed += got === null ? 0 : 1;
-                assert.strictEqual(got?.id, walked(element, point.x, point.y), where);
+                const expected = walked(element, point.x, point.y);
+                if (got?.id === expected) {
+                    continue;
+                }
+
+                // A press reads the target as hover does, so two lines over the same pixels (some edges join the
+                // same two nodes the other way round) are told apart as hover tells them.
+                const all = edgesOf(element);
+                const one = all.find((e) => e.id === expected);
+                const other = all.find((e) => e.id === got?.id);
+                assert.isTrue(
+                    one !== undefined && other !== undefined && overdrawn(element, one, other, point.x, point.y),
+                    `${where}: elementAt ${String(got?.id)}, walk ${String(expected)}`,
+                );
             }
 
             assert.isAbove(edgesNamed, POINTS / 2, "enough points are on an edge");

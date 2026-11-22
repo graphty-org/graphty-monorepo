@@ -9,6 +9,7 @@ import { GraphtyError } from "../errors/GraphtyError";
 import { type EdgePaint, isPlainPaint } from "../managers/StylePainter";
 import type { RowTable } from "../render/RowTable";
 import type { ArrowCapBatch } from "./ArrowCapBatch";
+import { DirtyRuns } from "./DirtyRuns";
 import { EdgeMesh } from "./EdgeMesh";
 import { batchUploadFrames } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
@@ -159,6 +160,8 @@ export class EdgeRowLines {
     /** Of {@link drawn}, the rows drawn in a plain batch. */
     private plainDrawn = 0;
     private lastLook: RowLook | null = null;
+    /** The rows whose line was drawn, removed, hidden or shown since the edge ID target last took them. */
+    private readonly changes = new DirtyRuns();
 
     /**
      * Start with no edge row drawn.
@@ -238,6 +241,35 @@ export class EdgeRowLines {
     }
 
     /**
+     * Visit each shown row line, in row order, with no object made per row: what an edge pick measures for the
+     * edges drawn with no `Edge`.
+     * @param visit - Given the edge row and its source and target node rows.
+     * @param only - Visit only these edge rows (those not drawn here or hidden are skipped); every row when absent.
+     */
+    forEachShown(visit: (row: number, source: number, target: number) => void, only?: readonly number[]): void {
+        const { batchOf, hidden, source, target } = this.lines;
+        if (only !== undefined) {
+            for (const row of only) {
+                if ((batchOf[row] ?? NO_LINE) !== NO_LINE && hidden[row] === 0) {
+                    visit(row, source[row], target[row]);
+                }
+            }
+
+            return;
+        }
+
+        if (this.drawn === 0) {
+            return;
+        }
+
+        for (let row = 0; row < batchOf.length; row++) {
+            if (batchOf[row] !== NO_LINE && hidden[row] === 0) {
+                visit(row, source[row], target[row]);
+            }
+        }
+    }
+
+    /**
      * Whether an edge row's line is hidden ({@link EdgeRowLines.setHidden}).
      * @param row - The edge row.
      * @returns True for a drawn row that is hidden; false for a shown one or a row not drawn here.
@@ -262,6 +294,7 @@ export class EdgeRowLines {
 
         lines.hidden[row] = hidden ? 1 : 0;
         this.batches[lines.batchOf[row]].setHidden(lines.piece[row], hidden);
+        this.changed(row);
         this.showHead(row);
         this.host.requestFrame();
     }
@@ -286,6 +319,7 @@ export class EdgeRowLines {
 
             hidden[row] = flag;
             this.batches[batch].setHidden(piece[row], flag === 1);
+            this.changed(row);
             this.showHead(row);
             changed = true;
         }
@@ -417,6 +451,7 @@ export class EdgeRowLines {
         }
 
         this.drawn++;
+        this.changed(row);
         if (isPlainPaint(paint)) {
             this.plainBatches.add(at);
             this.plainDrawn++;
@@ -438,6 +473,7 @@ export class EdgeRowLines {
             this.plainDrawn -= this.plainBatches.has(lines.batchOf[row]) ? 1 : 0;
             lines.batchOf[row] = NO_LINE;
             this.drawn--;
+            this.changed(row);
             this.host.requestFrame();
         }
     }
@@ -486,6 +522,7 @@ export class EdgeRowLines {
             this.plainDrawn += this.plainBatches.has(lines.batchOf[row]) ? 1 : 0;
         }
 
+        this.changes.whole();
         this.host.requestFrame();
     }
 
@@ -500,6 +537,37 @@ export class EdgeRowLines {
         this.capBatches.length = 0;
         this.plainBatches.clear();
         this.plainDrawn = 0;
+        this.changes.whole();
+    }
+
+    /**
+     * The rows whose line was drawn, removed, hidden or shown since the last call: what the edge ID target writes
+     * again, so a change costs it the rows changed, not every line. Its one reader takes them each time it draws.
+     * @returns Runs of rows as flat pairs of first row and end row (exclusive), [] for none, or null for every row.
+     * @internal
+     */
+    takeChanged(): readonly number[] | null {
+        return this.changes.dirty ? this.changes.take(true) : [];
+    }
+
+    /**
+     * The row an edge row's line is drawn between and whether it shows, for the edge ID target.
+     * @param row - The edge row.
+     * @returns Its source and target node rows, or undefined for a row drawn nowhere here or hidden.
+     * @internal
+     */
+    shownEnds(row: number): readonly [number, number] | undefined {
+        const { lines } = this;
+        return lines.has(row) && lines.hidden[row] === 0 ? [lines.source[row], lines.target[row]] : undefined;
+    }
+
+    /**
+     * Note a row's line changed, for {@link EdgeRowLines.takeChanged}. Past half the rows the list becomes "every
+     * row", so it stays bounded while nothing takes it.
+     * @param row - The edge row.
+     */
+    private changed(row: number): void {
+        this.changes.mark(row, true, this.lines.batchOf.length);
     }
 
     /**

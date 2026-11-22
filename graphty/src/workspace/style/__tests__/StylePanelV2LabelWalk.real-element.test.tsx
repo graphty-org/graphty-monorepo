@@ -2,7 +2,9 @@
  * Every one of graphty-element's 90 label style fields is reachable from a node Label's row and changes the
  * picture (owner, 2026-11-20: "it seems like we are missing 90 label styles"; E673), on the REAL graphty-element
  * and real input. For each field the layer holds what the field needs beside it to draw (its `drawnWhen` partners,
- * as graphty-element's own label-fields render test sets them), then a reader opens the row's settings, adds the
+ * as graphty-element's own label-fields render test sets them), except the partners graphty-element names as its
+ * `needs` (a look's switch): those the panel must write from the reader's one click, and the walk checks it did and
+ * that the field draws more than its needs alone. Then a reader opens the row's settings, adds the
  * field's group from "+" where it is not shown yet, finds the field's line, sets it by clicking and typing, and
  * the canvas is compared before and after. The walk fails on a field no line reaches, a write that misses, and a
  * write that draws nothing. `pickable` changes no pixel: its effect is that a click on the label selects its node.
@@ -99,9 +101,9 @@ const CASES: Readonly<Record<LabelField, WalkCase>> = {
     borderColor: { value: "#ff0000", base: { borderWidth: 6 } },
     borderOpacity: { value: 0.2, base: { borderWidth: 6 } },
     gradient: {},
-    gradientType: { value: "radial", base: { gradient: true } },
-    gradientColors: { value: ["#00ff00", "#0000ff"], base: { gradient: true, gradientColors: ["#ff0000", "#0000ff"] } },
-    gradientDirection: { value: "horizontal", base: { gradient: true, gradientType: "linear" } },
+    gradientType: { value: "radial" },
+    gradientColors: { value: ["#00ff00", "#0000ff"], base: { gradientColors: ["#ff0000", "#0000ff"] } },
+    gradientDirection: { value: "horizontal", base: { gradientType: "linear" } },
     location: { value: "inside-top" },
     attachOffset: { value: 3 },
     offsetX: { value: 2 },
@@ -124,30 +126,30 @@ const CASES: Readonly<Record<LabelField, WalkCase>> = {
     marginLeft: { value: 30, base: BACKGROUND },
     marginRight: { value: 30, base: BACKGROUND },
     pointer: { base: BACKGROUND },
-    pointerDirection: { value: "top", base: { pointer: true, ...BACKGROUND } },
-    pointerWidth: { value: 90, base: { pointer: true, pointerHeight: 60, ...BACKGROUND } },
-    pointerHeight: { value: 60, base: { pointer: true, ...BACKGROUND } },
-    pointerOffset: { value: 60, base: { pointer: true, pointerWidth: 40, pointerHeight: 60, ...BACKGROUND } },
-    pointerCurve: { base: { pointer: true, pointerWidth: 60, pointerHeight: 60, ...BACKGROUND } },
+    pointerDirection: { value: "top", base: BACKGROUND },
+    pointerWidth: { value: 90, base: { pointerHeight: 60, ...BACKGROUND } },
+    pointerHeight: { value: 60, base: BACKGROUND },
+    pointerOffset: { value: 60, base: { pointerWidth: 40, pointerHeight: 60, ...BACKGROUND } },
+    pointerCurve: { base: { pointerWidth: 60, pointerHeight: 60, ...BACKGROUND } },
     outline: { value: "#ff0000" },
-    outlineWidth: { value: 8, base: { outline: "#ff0000" } },
-    outlineOpacity: { value: 0.2, base: { outline: "#ff0000", outlineWidth: 6 } },
+    outlineWidth: { value: 8 },
+    outlineOpacity: { value: 0.2, base: { outlineWidth: 6 } },
     shadow: {},
-    shadowColor: { value: "#ff0000", base: { shadow: true } },
-    shadowBlur: { value: 20, base: { shadow: true } },
-    shadowOffsetX: { value: 10, base: { shadow: true } },
-    shadowOffsetY: { value: 10, base: { shadow: true } },
+    shadowColor: { value: "#ff0000" },
+    shadowBlur: { value: 20 },
+    shadowOffsetX: { value: 10 },
+    shadowOffsetY: { value: 10 },
     panelShadow: { base: BACKGROUND },
-    panelShadowColor: { value: "#ff0000", base: { panelShadow: true, ...BACKGROUND } },
-    panelShadowBlur: { value: 20, base: { panelShadow: true, ...BACKGROUND } },
-    panelShadowOffsetX: { value: 10, base: { panelShadow: true, ...BACKGROUND } },
-    panelShadowOffsetY: { value: 10, base: { panelShadow: true, ...BACKGROUND } },
+    panelShadowColor: { value: "#ff0000", base: BACKGROUND },
+    panelShadowBlur: { value: 20, base: BACKGROUND },
+    panelShadowOffsetX: { value: 10, base: BACKGROUND },
+    panelShadowOffsetY: { value: 10, base: BACKGROUND },
     animation: { value: "shake" },
     animationSpeed: { value: 5, base: { animation: "shake" } },
     depthFade: {},
     // the camera stands beyond the default far distance: a near or far past it brings the labels back
-    depthFadeNear: { value: 1000, base: { depthFade: true } },
-    depthFadeFar: { value: 1000, base: { depthFade: true } },
+    depthFadeNear: { value: 1000 },
+    depthFadeFar: { value: 1000 },
     pickable: { base: { size: 2 } },
     badge: { value: "notification" },
     icon: { value: "A" },
@@ -401,7 +403,11 @@ describe("every label field is reachable from the Label row and draws (E673)", (
             const test = CASES[field];
             const words = test.text ?? WORDS;
             // A field whose effect shows only at some measure: the first setup where graphty-element draws it.
-            let base: Style = test.base ?? {};
+            // What the field needs beside it is left for the panel to write: the reader sets only the field.
+            const needs = labelFieldDescriptor(field)?.needs ?? [];
+            const unneeded = (style: Style): Style =>
+                Object.fromEntries(Object.entries(style).filter(([key]) => !needs.some((need) => need.field === key)));
+            let base: Style = unneeded(test.base ?? {});
             if (test.bases !== undefined) {
                 const want = test.value ?? labelFieldDescriptor(field)?.default !== true;
                 let found: Style | undefined;
@@ -444,10 +450,15 @@ describe("every label field is reachable from the Label row and draws (E673)", (
             }
             const want = await setByHand(field, test);
             await waitFor(() => {
-                const got = labelStyle(session, nodes)[field];
+                const style = labelStyle(session, nodes);
+                const got = style[field];
                 assert.isDefined(got, "not written");
                 if (want !== undefined) {
                     assert.isTrue(same(got, want), `wrote ${JSON.stringify(got)}, set ${JSON.stringify(want)}`);
+                }
+                // The one click wrote what graphty-element says the field needs (a look's switch, its partner).
+                for (const need of needs) {
+                    assert.isTrue(same(style[need.field], need.value), `did not write its need ${need.field}`);
                 }
             });
             await session.styles.settled();
@@ -469,7 +480,13 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                 await session.styles.remove(big);
                 await session.styles.settled();
             }
-            assert.isAbove(pixelsApart(before, after), 0, "the picture does not change");
+            if (needs.length === 0) {
+                assert.isAbove(pixelsApart(before, after), 0, "the picture does not change");
+                return;
+            }
+            // Against its needs alone (a look's switch): the field itself changes the picture, not only its switch.
+            await hold(words, { ...base, ...Object.fromEntries(needs.map((need) => [need.field, need.value])) });
+            assert.isAbove(pixelsApart(await picture(element), after), 0, "the picture does not change");
         };
 
         /**

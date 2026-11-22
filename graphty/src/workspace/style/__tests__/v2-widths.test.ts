@@ -135,6 +135,13 @@ describe("Style panel v2's label rubric", () => {
         }
     });
 
+    it("pictures every option of a segment line or none, never icons mixed with words (E674, E418)", () => {
+        for (const [field, options] of Object.entries(LABEL_OPTION_NAMES)) {
+            const pictured = Object.values(options ?? {}).map((option) => option.glyph !== undefined);
+            assert.isTrue(pictured.every(Boolean) || !pictured.some(Boolean), field);
+        }
+    });
+
     it("every line edits a label style field graphty-element describes", () => {
         for (const { line } of lines) {
             for (const field of labelLineFields(line)) {

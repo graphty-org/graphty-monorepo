@@ -320,11 +320,12 @@ export const LABEL_OPTION_NAMES: Readonly<Partial<Record<LabelField, Readonly<Re
         right: { name: "Right", glyph: "arrowRightToLine" },
     },
     pointerDirection: {
+        // Every option pictured, Auto too: an option set is all glyphs or all words (E674, E418).
         top: { name: "Up", glyph: "pointUp" },
         bottom: { name: "Down", glyph: "pointDown" },
         left: { name: "Left", glyph: "pointLeft" },
         right: { name: "Right", glyph: "pointRight" },
-        auto: { name: "Auto" },
+        auto: { name: "Auto", glyph: "pointAuto" },
     },
     // "Ink", not "Glyphs": the Label row's Glyph kind is a different thing (E275).
     lineBox: { font: { name: "Font" }, size: { name: "Size" }, glyphs: { name: "Ink" } },

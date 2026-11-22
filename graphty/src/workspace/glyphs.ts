@@ -108,6 +108,7 @@ import {
     Minus,
     MoreHorizontal,
     MousePointerClick,
+    Move,
     MoveHorizontal,
     MoveRight,
     Network,
@@ -444,11 +445,12 @@ export const GLYPHS = {
     alignLeft: AlignLeft,
     alignCenter: AlignCenter,
     alignRight: AlignRight,
-    // Which way a label's speech-bubble pointer points.
+    // Which way a label's speech-bubble pointer points, or Auto: toward its node from wherever the label sits.
     pointUp: ArrowUp,
     pointDown: ArrowDown,
     pointLeft: ArrowLeft,
     pointRight: ArrowRight,
+    pointAuto: Move,
     // An edge's route: straight, an arc, or along a great circle of the globe.
     routeStraight: Slash,
     routeArc: Rainbow,

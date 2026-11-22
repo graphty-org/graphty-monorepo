@@ -530,7 +530,12 @@ frame empty. Once the rows rest (no `RowTable.drawnWrites` for a frame and a set
 places each pulled head and the ends of every capped or patterned pulled line by the object path's own float64
 arithmetic (`meshes/restPlacement.ts`; heads into the slot's matrix, line ends and pattern spacing into
 `PulledLineBatch`'s `edgeEnds` table), so a still graph draws the objects picture to the pixel; a frame that moves a row
-hands both back to the shader. Dash, dot, box, diamond and star lines and dash arrays are pulled too: a patterned pulled
+hands both back to the shader. `drawnWrites` counts only a write that changes a value: a layout transition held at its
+pose writes every row again each frame with the value it holds, and those rows rest. A row held off its lane (a
+transition's pose) is placed from its node's own float64 place (`RowTable.restingPlaceOf`), which `rowPosition` keeps
+only to 32 bits; a lane row's place is float32 on both paths. In 2D the objects path draws its caps in one batch per
+color, the later color on top where two heads meet, so 2D pulled heads are batched by color too, up to 64 colors.
+Dash, dot, box, diamond and star lines and dash arrays are pulled too: a patterned pulled
 batch draws the joined line's pattern with world width, and the shader runs `patternSpacing` for its own length
 (`pulledSpacing`), in 3D and in 2D.
 

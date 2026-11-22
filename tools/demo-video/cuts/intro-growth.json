@@ -1,7 +1,7 @@
 {
     "name": "intro-growth",
     "title": "Growth (new)",
-    "note": "One continuous shot: an untangled 2D tree of airports grows, lifts into 3D in two moves, lights its communities, flies the Sydney-to-New York route with each airport up front in turn, holds New York for about 2 s while the earth fades in behind it, and pulls back to the whole globe centered between the logo and the tagline (the title card's `gap`). Music is a PLACEHOLDER (audio/trailer.wav, its build lengthened to the crescendo by ~/intros/growth/make-music.sh, which also sets its loudness curve to the cut's marks): the owner has not chosen a track. To swap it, set music.file, and move the logo onto the new track's final hit by shifting Part B's `to` and the title's `over.at` by the same amount (both after mark turn, so the dissolve into the title shows the same frames on both sides).",
+    "note": "One continuous shot: an untangled 2D tree of airports grows, lifts into 3D in two moves, lights its communities, flies the Sydney-to-New York route with each airport up front in turn (the flight plays at one speed, 3.1x, the speed its offline tuning assumes, but for the route line's fade before the close-up: the take plays that stretch 3 times slower so its restyles cost no visible frames, and the cut 9.3x; likewise the pull back's first 6 s of output, while the light comes back, 2 times slower in the take), holds New York for about 2 s while the earth fades in behind it, and pulls back to the whole globe centered between the logo and the tagline (the title card's `gap`). Music is a PLACEHOLDER (audio/trailer.wav, its build lengthened to the crescendo by ~/intros/growth/make-music.sh, which also sets its loudness curve to the cut's marks): the owner has not chosen a track. To swap it, set music.file, and move the logo onto the new track's final hit by shifting Part B's `to` and the title's `over.at` by the same amount (both after mark turn, so the dissolve into the title shows the same frames on both sides).",
     "top": true,
     "crossfadeMs": 1500,
     "music": {
@@ -20,7 +20,7 @@
                     "bleed": true,
                     "zoom": false,
                     "caption": "",
-                    "at": ["open", 0],
+                    "at": ["open", 7],
                     "to": ["seam", 0],
                     "ramp": [
                         [["open", 0], 2.7],
@@ -30,13 +30,11 @@
                         [["lift", 0], 3.3],
                         [["grow3d", 4.5], 3.8],
                         [["grow3d", 12], 4.0],
-                        [["communities", 0], 3.7],
-                        [["hush", 0], 3.9],
-                        [["route", 0], 3.6],
-                        [["flight", 0], 2.8],
-                        [["flight", 12], 3.1],
-                        [["flight", 22.5], 3.4],
-                        [["close", -4.5], 3.4],
+                        [["communities", 0], 4.4],
+                        [["hush", 0], 4.8],
+                        [["route", 0], 4.8],
+                        [["flight", 0], 3.1],
+                        [["close", -18.6], 9.3],
                         [["close", -1.5], 3.2]
                     ]
                 },
@@ -46,16 +44,18 @@
                     "zoom": false,
                     "caption": "",
                     "at": ["onglobe", 0],
-                    "to": ["turn", 2.04],
+                    "to": ["turn", 4.18],
                     "ramp": [
                         [["onglobe", 0], 3.2],
                         [["pull", 3], 3.6],
-                        [["pull", 6], 4.2],
-                        [["pull", 8], 4.5],
-                        [["pull", 16], 4.8],
-                        [["pull", 24], 3.8],
-                        [["pull", 30], 2.8],
-                        [["pull", 34], 1.8],
+                        [["pull", 4.16], 7.2],
+                        [["pull", 7.84], 8.4],
+                        [["pull", 11.84], 9],
+                        [["pull", 27.84], 9.6],
+                        [["pull", 40.16], 4.8],
+                        [["pull", 42], 3.8],
+                        [["pull", 48], 2.8],
+                        [["pull", 52], 1.8],
                         [["turn", 0], 1]
                     ]
                 },
@@ -63,7 +63,7 @@
                     "card": "title",
                     "over": {
                         "clip": "growth-world",
-                        "at": ["turn", 0.54]
+                        "at": ["turn", 2.68]
                     },
                     "zoom": false,
                     "lines": ["See what your connected data is hiding"],

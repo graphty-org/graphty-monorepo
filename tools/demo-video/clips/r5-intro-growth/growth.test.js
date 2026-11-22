@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { flatPlaces, flightPoses, lobes, principalAxes, revealPoses } from "./growth.js";
+import { bendOut, flatPlaces, flightPoses, govern, lobes, principalAxes, revealPoses, stretch } from "./growth.js";
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const unit = (a) => {
@@ -10,6 +10,20 @@ const unit = (a) => {
     return { x: a.x / l, y: a.y / l, z: a.z / l };
 };
 const angle = (a, b) => Math.acos(Math.min(1, a.x * b.x + a.y * b.y + a.z * b.z));
+
+test("a bend opened out puts its middle airport halfway, on the outside, apart from both ends", () => {
+    const at = (x, y, z) => ({ position: { x, y, z } });
+    const byId = new Map([
+        ["a", at(-20, 0, 0)],
+        ["b", at(0, 0, 0)],
+        ["c", at(1, 0.5, 0)],
+        ["d", at(0, -10, 0)],
+    ]);
+    bendOut(byId, ["a", "b", "c", "d"], 6);
+    const c = byId.get("c").position;
+    assert.ok(Math.abs(c.y + 5) < 1e-9 && Math.abs(c.x - 6) < 1e-9 && c.z === 0);
+    assert.ok(dist(c, byId.get("b").position) > 7 && dist(c, byId.get("d").position) > 7);
+});
 
 test("the widest spread comes first, the thinnest last", () => {
     const ps = [];
@@ -122,4 +136,37 @@ test("the reveal starts on the flight's close-up, creeping, then pulls back and 
     // clearly pulling back a twentieth of the way into the pull (over a tenth farther out)
     const at = poses[Math.round(((1000 + 0.05 * 12000) * 60) / 1000)];
     assert.ok(dist(at.p, spot) > 1.15 * dist(poses[60].p, spot));
+});
+
+test("stretch plays a stretch slower and keeps the poses before and after it", () => {
+    const at = (x) => ({ p: { x, y: 0, z: 0 }, t: { x: x + 1, y: 0, z: 0 }, r: 0 });
+    const poses = Array.from({ length: 11 }, (_, i) => at(i)); // 10 Hz, 1 s
+    const out = stretch(poses, 10, 200, 400, 3);
+    assert.equal(out.length, 15); // 1.4 s
+    assert.equal(out[2].p.x, 2);
+    assert.ok(Math.abs(out[5].p.x - 3) < 1e-9); // 300 ms into the stretch: 100 ms of the poses
+    assert.ok(Math.abs(out[8].p.x - 4) < 1e-9);
+    assert.equal(out.at(-1).p.x, 10);
+});
+
+test("govern slows the camera where an airport sweeps past, and hurries it where there is none", () => {
+    // 60 Hz, 4 s: the camera runs along x, looking ahead, past an airport 4 units to its side at x = 20
+    const run = (side) =>
+        Array.from({ length: 241 }, (_, i) => {
+            const x = i / 6;
+            return { p: { x, y: 0, z: 0 }, t: { x: x + 10, y: 0, z: side }, r: 0 };
+        });
+    const pts = [{ x: 20, y: 0, z: 4 }];
+    const slow = govern(run(0), 60, pts, { maxSlide: 0.5, maxSlow: 4 });
+    assert.ok(slow.poses.length > 290);
+    assert.equal(slow.poses[0].p.x, 0);
+    assert.ok(Math.abs(slow.poses.at(-1).p.x - 40) < 1e-6);
+    // slowed round the pass, not before it
+    assert.ok(Math.abs(slow.at(500) - 500) < 20);
+    assert.ok(slow.at(3000) - slow.at(1000) > 2600);
+    // nothing slows when the limit is never reached
+    assert.equal(govern(run(0), 60, pts, { maxSlide: 5 }).poses.length, 241);
+    // looking away from it, nothing is ever in the frame: the whole run plays twice as fast
+    const fast = govern(run(-1e4), 60, pts, { fast: 0.5 });
+    assert.ok(Math.abs(fast.poses.length - 121) <= 1);
 });

@@ -172,6 +172,7 @@ export async function plan(h, preload, flat) {
             const [x, y, z] = turn.map((a) => a.x * p.x + a.y * p.y + a.z * p.z);
             n.position = { x, y, z };
         }
+    bendOut(byId, BEND, 10);
     steps.flat = flatPlaces(steps, flat);
     // the sample cleared and the first airport added back: removing all but one of the sample's
     // 3,214 airports instead leaves every later addNodes and addEdges call taking 1-5 s
@@ -190,6 +191,28 @@ export async function plan(h, preload, flat) {
     steps.firstEdgeId = edges.length;
     steps.europe = spots[EUROPE];
     return steps;
+}
+
+/**
+ * The flight's last bend, [before, start, middle, end]: its middle airport (PHL) lies 4.8 from its
+ * start (SFO) in the force drawing, too near for the flight to give each its own beat up front.
+ */
+const BEND = ["MNL", "SFO", "PHL", "JFK"];
+
+/**
+ * A bend of the route opened out: its middle airport moved to halfway between the bend's start and
+ * end, `out` beyond the line joining them on the side away from the airport before (in place), so
+ * the flight meets the start, the middle and the end one at a time and turns in an even arc.
+ * @param byId - the airport records, by id (their `position` read and the middle's replaced)
+ * @param ids - [before, start, middle, end]
+ * @param out - how far beyond the line
+ */
+export function bendOut(byId, ids, out) {
+    const [pa, pb, pd] = [ids[0], ids[1], ids[3]].map((id) => byId.get(id).position);
+    const u = unit(sub(pb, pa));
+    const w = unit(sub(pd, pb));
+    const perp = unit(sub(u, mul(w, dot(u, w))));
+    byId.get(ids[2]).position = add(mul(add(pb, pd), 0.5), mul(perp, out));
 }
 
 /**
@@ -614,6 +637,13 @@ function slowing(pts, c, passAt, { dip, dipWidth, pace, paceExp }) {
  * @param [o.maxRoll] - the most roll (radians)
  * @param [o.sigma] - how long the look is smoothed over (s of take)
  * @param [o.maxTurn] - the fastest the look turns (rad a second of take)
+ * @param [o.turnShare] - when above 0, the speed is capped wherever the path bends so it turns at
+ *     most this share of `maxTurn` (the look can keep up, and no bend is a whip pan)
+ * @param [o.bendSpan] - how far either side of a point its bend is measured over
+ * @param [o.tau] - when above 0, near a route airport (but the last) the speed is at most its
+ *     distance / tau (s of take): it grows on screen at a steady rate however fast the cruise is
+ * @param [o.swingOut] - how far out (in `close`s) the swing round to the close-up's side passes
+ *     the last airport
  * @param [o.hz] - poses a second
  * @returns `poses`, the camera's position `p`, its target `t` and its roll `r`, `hz` a second;
  *     `vEnd`, the creep's speed (units a second of take); and `dir`, the side the close-up is
@@ -623,6 +653,7 @@ export function flightPoses(pts, o) {
     const { from = null, normal, cone = 0.6, lead = 32, clear = 5.5, sides = Math.PI / 3, handoff = [2, 2] } = o;
     const { close = 4.6, hold = 0, creep = 0.1, aim = 0, dipWidth = 8, pace = 0, paceExp = 1 } = o;
     const { v0 = 0.3, dip = 0.5, bank = 0.5, maxRoll = 0.17, sigma = 0.7, maxTurn = 0.4, hz = 60, land = 0.6 } = o;
+    const { turnShare = 0, bendSpan = 1.5, swingOut = 5, tau = 0 } = o;
     const last = pts.at(-1);
     const u = unit(normal);
     const n = pts.length;
@@ -632,7 +663,11 @@ export function flightPoses(pts, o) {
     // the approach: round to it, then in along it
     let swing = add(dir, unit(sub(cam.at(-1), last)));
     if (len(swing) < 0.3) swing = side;
-    cam.push(add(last, mul(unit(swing), close * 5)), add(last, mul(dir, close * 2.2)), add(last, mul(dir, close)));
+    cam.push(
+        add(last, mul(unit(swing), close * swingOut)),
+        add(last, mul(dir, close * 2.2)),
+        add(last, mul(dir, close)),
+    );
     const c = curve(cam);
     // where along the path the camera passes each airport but the last
     const passAt = pts.slice(0, -1).map((_, m) => c.knots[k0 + 1 + m]);
@@ -651,11 +686,29 @@ export function flightPoses(pts, o) {
         return (vmax * v0 + vmax * (1 - v0) * rise) * (1 - fall) + vEnd * fall;
     };
     const steps = Math.round(T * hz);
+    // how sharply the path bends at s (rad per unit, its tangent's turn over `bendSpan` either
+    // side), on a grid; the speed is capped by it so the path itself never turns the camera faster
+    // than `turnShare` of the look's `maxTurn`: every bend takes its time, none is a whip
+    const grid = 0.5;
+    const bends = Array.from({ length: Math.ceil(sEnd / grid) + 1 }, (_, j) => {
+        const s = j * grid;
+        const [a, m, b] = [c.at(s - bendSpan), c.at(s), c.at(s + bendSpan)];
+        const [t1, t2] = [unit(sub(m, a)), unit(sub(b, m))];
+        return Math.acos(Math.min(1, Math.max(-1, dot(t1, t2)))) / bendSpan;
+    });
+    const bendAt = (s) => bends[Math.min(bends.length - 1, Math.max(0, Math.round(s / grid)))];
+    const turnCap = turnShare * maxTurn;
+    // with `tau`: the distance to the nearest route airport but the last, on the same grid
+    const nearest = bends.map((_, j) => Math.min(...pts.slice(0, -1).map((q) => len(sub(c.at(j * grid), q)))));
     const travel = (vmax, out) => {
         let s = 0;
         for (let k = 0; k <= steps; k++) {
             out?.push(s);
-            s += speed(vmax, (k * dt) / T) * near(s) * dt;
+            const j = Math.min(bends.length - 1, Math.max(0, Math.round(s / grid)));
+            let v = speed(vmax, (k * dt) / T) * near(s);
+            if (turnShare) v = Math.min(v, turnCap / Math.max(1e-6, bendAt(s)));
+            if (tau) v = Math.min(v, nearest[j] / tau);
+            s += v * dt;
         }
         return s;
     };
@@ -737,6 +790,146 @@ export const nearLens = (poses, others, clear, ahead = 0) =>
             }),
         )
         .map(([id]) => id);
+
+/**
+ * Play a stretch of poses `f` times slower (the cut speeds that stretch up `f` times more, so the
+ * output video's camera is unchanged): a style update stalls the page for 80-200 ms
+ * (defects.md 5), and while the take runs slower each stall is a smaller share of an output
+ * frame, so it no longer shows as a held frame and a jump.
+ * @param poses - [{ p, t, r }] at `hz`
+ * @param hz - poses a second
+ * @param a - where the stretch starts (ms into the poses)
+ * @param b - where it ends (ms into the poses)
+ * @param f - how many times slower
+ * @returns the new poses, at `hz`
+ */
+export function stretch(poses, hz, a, b, f) {
+    const last = poses.length - 1;
+    const total = (last * 1000) / hz + (b - a) * (f - 1);
+    const lerp = (u, v, k) => ({ x: u.x + (v.x - u.x) * k, y: u.y + (v.y - u.y) * k, z: u.z + (v.z - u.z) * k });
+    const out = [];
+    for (let i = 0; (i * 1000) / hz <= total + 1e-6; i++) {
+        const T = (i * 1000) / hz;
+        let ms = T - (b - a) * (f - 1); // after the stretch
+        if (T < a) ms = T;
+        else if (T < a + (b - a) * f) ms = a + (T - a) / f;
+        const x = Math.min(last, (ms * hz) / 1000);
+        const j = Math.floor(x);
+        const [u, v] = [poses[j], poses[Math.min(j + 1, last)]];
+        const k = x - j;
+        out.push({ p: lerp(u.p, v.p, k), t: lerp(u.t, v.t, k), r: u.r + (v.r - u.r) * k });
+    }
+    return out;
+}
+
+/**
+ * Re-time camera poses so nothing on the route moves too fast on screen: a speed governor. Where
+ * a route airport in the frame slides across it faster than `maxSlide`, the route line of the
+ * airport in the middle of the frame turns faster than `maxSpin`, or the look turns faster than
+ * `maxLook`, that stretch plays slower, so much that it no longer does (at most `maxSlow` times);
+ * where no route airport in the frame is `lull` of its height or larger, it plays `fast` times as
+ * long (under 1: quicker), unless that would turn the look faster than `maxLook`. The factor is
+ * smoothed over `sigma`, so the camera eases into and out of each change of speed. The path and
+ * the look are unchanged: only when the camera is where.
+ * @param poses - [{ p, t, r }] at `hz`
+ * @param hz - poses a second
+ * @param pts - the route's airports
+ * @param o - the governor
+ * @param [o.upto] - govern only the poses before this (ms); the rest play as they are
+ * @param [o.play] - how many times faster the cut plays the poses (the limits are in its seconds)
+ * @param [o.maxSlide] - the fastest an airport slides, in half-widths of the frame a second
+ * @param [o.maxSpin] - the fastest the middle airport's route line turns on screen, rad a second
+ * @param [o.maxLook] - the fastest the look turns, rad a second
+ * @param [o.lull] - the least size (of the frame's height) an airport counts as a subject at
+ * @param [o.fast] - how much shorter a stretch with no subject plays (under 1)
+ * @param [o.maxSlow] - the most a stretch is slowed
+ * @param [o.sigma] - how long the speed changes over (s of the cut)
+ * @param [o.view] - the frame: `tanY` (tangent of half the view's height), `aspect`, `yc` and `hh`
+ *     (the crop's middle and half-height, against the view's half-height), `d` (an airport's size)
+ * @returns `poses`, at `hz`, and `at(ms)`: where a time of the old poses is in the new
+ */
+export function govern(poses, hz, pts, o = {}) {
+    const { upto = Infinity, play = 1, maxSlide = 0.7, maxSpin = 2, lull = 0.25, fast = 1, maxSlow = 3 } = o;
+    const { sigma = 0.15, view = {}, maxLook = Infinity } = o;
+    const { tanY = Math.tan(0.4), aspect = 1.356, yc = 0.0955, hh = 0.7628, d = 2.99 } = view;
+    const Y = { x: 0, y: 1, z: 0 };
+    const N = Math.min(poses.length - 1, Math.round((upto * hz) / 1000));
+    const frame = ({ p, t }) => {
+        const F = unit(sub(t, p));
+        const R = unit(cross(F, Y));
+        const U = cross(R, F);
+        const at = (q) => {
+            const v = sub(q, p);
+            const z = dot(v, F);
+            if (z <= 0.3) return null;
+            const x = {
+                X: dot(v, R) / z / tanY / aspect,
+                Y: (dot(v, U) / z / tanY - yc) / hh,
+                s: d / z / tanY / (2 * hh),
+            };
+            return Math.abs(x.X) < 1.05 && Math.abs(x.Y) < 1.05 ? x : null;
+        };
+        // each airport, and the point 3 units along its route line to the next
+        return pts.map((q, k) => ({
+            q: at(q),
+            on: k + 1 < pts.length ? at(add(q, mul(unit(sub(pts[k + 1], q)), 3))) : null,
+        }));
+    };
+    const fs = poses.slice(0, N + 1).map((q) => frame(q));
+    const dtOut = 1 / (hz * play);
+    const look = (i) => unit(sub(poses[i].t, poses[i].p));
+    const need = fs.map((a, i) => {
+        const turn = Math.acos(Math.min(1, dot(look(i), look(Math.min(N, i + 1))))) / dtOut / maxLook;
+        if (!a.some(({ q }) => q && q.s >= lull)) return Math.min(maxSlow, Math.max(fast, turn));
+        const b = fs[Math.min(N, i + 1)];
+        let f = Math.max(1, turn);
+        a.forEach(({ q, on }, k) => {
+            const r = b[k].q;
+            if (!q || !r || q.s < 0.8 * lull) return;
+            f = Math.max(f, Math.hypot(r.X - q.X, ((r.Y - q.Y) * hh) / aspect) / dtOut / maxSlide);
+            // the line turning round an airport near the middle
+            if (on && b[k].on && Math.abs(q.X) < 0.6 && Math.abs(q.Y) < 0.6) {
+                const ang = (u, w) => Math.atan2((w.Y - u.Y) * hh, (w.X - u.X) * aspect);
+                let da = Math.abs(ang(r, b[k].on) - ang(q, on));
+                if (da > Math.PI) da = 2 * Math.PI - da;
+                f = Math.max(f, da / dtOut / maxSpin);
+            }
+        });
+        return Math.min(maxSlow, f);
+    });
+    // a running max (so a peak is not smoothed away) then smoothed, both over sigma
+    const w = Math.max(1, Math.round(sigma * hz * play));
+    const held = need.map((_, i) => Math.max(...need.slice(Math.max(0, i - w), i + w + 1)));
+    const factor = gauss(held, w, false);
+    const lerp = (u, v, k) => ({ x: u.x + (v.x - u.x) * k, y: u.y + (v.y - u.y) * k, z: u.z + (v.z - u.z) * k });
+    const pose = (x) => {
+        const j = Math.min(poses.length - 1, Math.floor(x));
+        const [u, v] = [poses[j], poses[Math.min(j + 1, poses.length - 1)]];
+        const k = x - j;
+        return { p: lerp(u.p, v.p, k), t: lerp(u.t, v.t, k), r: u.r + (v.r - u.r) * k };
+    };
+    const out = [];
+    const taus = [];
+    let tau = 0;
+    while (tau <= poses.length - 1 + 1e-9) {
+        out.push(pose(tau));
+        taus.push(tau);
+        tau += tau < N ? 1 / factor[Math.min(N, Math.floor(tau))] : 1;
+    }
+    // the last pose, where the steps step over it
+    if (taus.at(-1) < poses.length - 1 - 1e-9) {
+        out.push(pose(poses.length - 1));
+        taus.push(poses.length - 1);
+    }
+    const at = (ms) => {
+        const x = (ms * hz) / 1000;
+        const i = taus.findIndex((t) => t >= x);
+        if (i < 0) return ((out.length - 1) * 1000) / hz;
+        if (i === 0) return 0;
+        return ((i - 1 + (x - taus[i - 1]) / (taus[i] - taus[i - 1])) * 1000) / hz;
+    };
+    return { poses: out, at };
+}
 
 /**
  * The reveal, as camera poses (playPoses): an extreme close-up on a point of the globe, straight
@@ -868,7 +1061,11 @@ export async function playPoses(h, { poses, hz }, { blendMs = 0, marks = [] } = 
                         },
                         { skipQueue: true },
                     ).catch(fail);
-                    if (x >= o.poses.length - 1) return done(out);
+                    if (x >= o.poses.length - 1) {
+                        // marks due at the very end (the last pose falls up to a frame short of them)
+                        while (next < o.marks.length) out.push({ name: o.marks[next++][1], t: Date.now() });
+                        return done(out);
+                    }
                     globalThis.requestAnimationFrame(frame);
                 };
                 globalThis.requestAnimationFrame(frame);
@@ -1158,11 +1355,21 @@ export const follow = (h, o = {}) =>
                               z: cam.position.z - cam.target.z,
                           };
                           const r = Math.hypot(d.x, d.y, d.z);
+                          const alpha = opt.alpha ?? Math.atan2(d.z, d.x);
+                          const beta = Math.acos(d.y / r);
+                          // taken over where the camera looks: the rig aims `shift` px below its
+                          // target (below), so its target starts that far above the camera's, or the
+                          // first frame jumps the whole picture up by `shift` (the lift into 3D)
+                          const dn = (shift / el.getCanvasSize().height) * 2 * r * Math.tan((cam.fov ?? 0.8) / 2);
                           return {
-                              alpha: opt.alpha ?? Math.atan2(d.z, d.x),
-                              beta: Math.acos(d.y / r),
+                              alpha,
+                              beta,
                               radius: r,
-                              target: { ...cam.target },
+                              target: {
+                                  x: cam.target.x - dn * Math.cos(alpha) * Math.cos(beta),
+                                  y: cam.target.y + dn * Math.sin(beta),
+                                  z: cam.target.z - dn * Math.sin(alpha) * Math.cos(beta),
+                              },
                           };
                       })();
             const s = was && "half" in was.state === (cam.mode === "2d") ? was.state : fresh();
@@ -1437,6 +1644,13 @@ export const lift = (h, at) =>
             const a = el.worldToScreen({ x: cam.pan.x, y: cam.pan.y, z: 0 });
             const b = el.worldToScreen({ x: cam.pan.x, y: cam.pan.y + 1, z: 0 });
             const ppu = Math.hypot(b.x - a.x, b.y - a.y);
+            // TEMPORARY (defects.md 19): setViewMode re-runs the fixed layout from the records and
+            // drops places set with session.positions.set (the growth's gliders keep the airport they
+            // joined in their record), so every airport's drawn place is written into its record
+            // first; a no-op on screen. Delete once the element keeps drawn places across the switch.
+            await el.session.data.updateNodes(
+                el.getNodes().map((n) => ({ id: n.id, values: { position: { ...n.getPosition() } } })),
+            );
             await el.setViewMode("3d");
             await new Promise((done) => {
                 const look = () =>

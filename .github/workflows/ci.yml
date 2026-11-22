@@ -1231,6 +1231,33 @@ jobs:
               if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty')
               run: pnpm --filter @graphty/graphty run size
 
+            # The built app loads its landing page, draws its graph, opens a sample and draws it, with no page
+            # error, console error or failed request (graphty/acceptance/smoke.mjs, #9633): a build threw "nn is
+            # not a function" on its landing page and every test passed (#9616). Here because this job already
+            # has the built app: built above on a pull request, downloaded with the package builds on master and
+            # the full run. Chromium draws in software; no GPU is needed.
+            - uses: ./.github/actions/drop-microsoft-apt-source
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+
+            - name: Install Playwright system packages
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              uses: ./.github/actions/playwright-system-deps
+
+            - name: Install Chromium for the app's smoke check
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              run: pnpm exec playwright install --only-shell chromium
+
+            - name: Smoke check the built app
+              id: app-smoke
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              continue-on-error: ${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'lint/Smoke check the built app') }}
+              run: node graphty/acceptance/smoke.mjs --dist graphty/dist
+
+            - name: Warn that the app's smoke check failed
+              if: ${{ steps.app-smoke.outcome == 'failure' }}
+              continue-on-error: true
+              run: echo "::warning::advisory check lint/Smoke check the built app failed"
+
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true

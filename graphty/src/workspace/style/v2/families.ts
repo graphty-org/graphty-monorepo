@@ -31,6 +31,7 @@ import type { RowContext } from "../PropertyRow";
 import { lineIn, needsFor, startFor, writeIn } from "../row";
 import { placeOf } from "../shaderSlots";
 import { experimentChannelsOff } from "../words";
+import { firstColors } from "./lists";
 
 /** The family each thing's row draws, by kind and thing id. */
 const THING_FAMILIES: Readonly<Record<"node" | "edge", Readonly<Record<string, StyleFamilyId>>>> = {
@@ -259,6 +260,10 @@ function startOf(ctx: RowContext, to: MemberChoice, leaving: Readonly<Record<str
         const own = typeof drawn === "string" ? drawn : "#FFFFFF";
         const from = typeof had === "string" ? had : own;
         return { [main]: writeChannelList(main, [from, "#FFFFFF"]) };
+    }
+    if (main === "edge.strandColors") {
+        // Two strands in colors unlike each other and the line's, so they show the moment they are picked.
+        return { [main]: writeChannelList(main, firstColors(ctx)) };
     }
     const descriptor = shownChannel(ctx.session, ctx.side, main, false);
     return descriptor === undefined ? {} : { [main]: startFor(ctx, descriptor) };

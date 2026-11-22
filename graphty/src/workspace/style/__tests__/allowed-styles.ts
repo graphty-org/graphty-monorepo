@@ -490,6 +490,30 @@ export const BASE_LABEL_FIELDS: readonly (keyof LabelStyle)[] = [
 ];
 
 /**
+ * graphty-element's own styles added on master after the merge base and merged into this branch: an edge's
+ * color from an end node (68ad68cd59), a label box's double stroke (109ff9a970) and a picture in a label
+ * (994d193e8d). They are graphty-element's, as the merge base's are.
+ */
+export const MASTER_CHANNELS: readonly string[] = [
+    "edge.colorFrom",
+    ...(["node", "edge"] as const).flatMap((side) =>
+        ["BorderStyle", "Image", "ImageWidth", "ImageHeight", "ImageOffsetX", "ImageOffsetY"].map(
+            (field) => `${side}.label${field}`,
+        ),
+    ),
+];
+
+/** The label style fields of those styles. */
+export const MASTER_LABEL_FIELDS: readonly (keyof LabelStyle)[] = [
+    "borderStyle",
+    "image",
+    "imageWidth",
+    "imageHeight",
+    "imageOffsetX",
+    "imageOffsetY",
+];
+
+/**
  * The look of a text a file's styles switch on where graphty-element had no such text at the merge base: an edge's
  * tooltip, whose words graph-io reads from Cytoscape's `EDGE_TOOLTIP` and Graphviz's `edgetooltip` (`edge.tooltip`
  * is in `fileStyleChannels()`). It is styled as the node's tooltip is (ia-design 5, fix 2): its style, and the

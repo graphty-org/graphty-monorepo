@@ -3,7 +3,8 @@
  * (design/ui/style-panel-v2/design.md, sections 4.2, 7.2 and 8): Arrows adds a Target arrow whose
  * arrow comes from a list shown one section at a time, with a Size line under it; the Line's Width
  * line, its Pattern sub-group and the dash length | gap pair; a caption's distance from its end in
- * its Position sub-group; the Route row's value list. Each write is undone in one step (edits of
+ * its Position sub-group; the Route row's value list; the Line's Color from, Source taper and Strands kind and
+ * Pattern's Custom dash list, each changing the picture. Each write is undone in one step (edits of
  * one layer within the element's coalescing window may share that step, so an Undo is checked only
  * for the write it must take back).
  */
@@ -20,7 +21,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
-import { picture, pixelsApart, sectionOf, written } from "./v2Harness";
+import { pickKind, picture, pixelsApart, sectionOf, written } from "./v2Harness";
 
 /**
  * Opens three nodes, two edges and a layer "Links" over every edge that sets only its color, on
@@ -145,6 +146,42 @@ async function pickRoute(row: HTMLElement, name: RegExp): Promise<void> {
     await userEvent.click(await found(row, '[data-value-listbox="edge.route"]'));
     const list = await screen.findByRole("group", { name: /values$/ });
     await userEvent.click(within(list).getByRole("option", { name }));
+}
+
+/**
+ * Holds the graph still with one long edge across the middle, so a picture changes only by how edges are drawn.
+ * @param session - the session.
+ * @returns the element.
+ */
+async function stillEdge(session: GraphSession): Promise<HTMLElementTagNameMap["graphty-element"]> {
+    await session.layout.set("fixed");
+    await session.data.addNodes([
+        { id: "p", position: { x: -20, y: 0, z: 0 } },
+        { id: "q", position: { x: 20, y: 0, z: 0 } },
+    ]);
+    await session.data.addEdges([{ source: "p", target: "q" }]);
+    await session.styles.settled();
+    const element = document.querySelector("graphty-element");
+    if (element === null) {
+        throw new Error("no graphty-element");
+    }
+    // Still: two pictures in a row are the same, so a change after an edit is the edit's.
+    assert.equal(pixelsApart(await picture(element), await picture(element)), 0, "the graph holds still");
+    return element;
+}
+
+/**
+ * The picture once the styles have settled.
+ * @param session - the session.
+ * @param element - the element.
+ * @returns its pixels.
+ */
+async function settledPicture(
+    session: GraphSession,
+    element: HTMLElementTagNameMap["graphty-element"],
+): Promise<ImageData> {
+    await session.styles.settled();
+    return picture(element);
 }
 
 describe("Style panel v2's edge things", () => {
@@ -344,5 +381,95 @@ describe("Style panel v2's edge things", () => {
         });
         await session.styles.settled();
         assert.isAbove(pixelsApart(before, await picture(element)), 0, "the edges are drawn bundled");
+    });
+    it("the Line's Color from draws the line in its source node's color", async () => {
+        const { session, id, tab } = await openEdges();
+        const element = await stillEdge(session);
+        await session.styles.add({
+            name: "Blue nodes",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#1C7ED6" },
+        });
+        const before = await settledPicture(session, element);
+        const row = await found(sectionOf(tab, "edge-line"), '[data-thing="line"]');
+        const colorFrom = await settingsLine(row, "Edge line", '.ws-row[data-line="edge.colorFrom"]');
+        await userEvent.click(await found(colorFrom, '[data-value-listbox="edge.colorFrom"]'));
+        const list = await screen.findByRole("group", { name: /values$/ });
+        await userEvent.click(within(list).getByRole("option", { name: /^Source/ }));
+        await waitFor(() => {
+            assert.equal(written(session, id, "edge.colorFrom"), "source");
+        });
+        assert.isAbove(
+            pixelsApart(before, await settledPicture(session, element)),
+            0,
+            "the line takes the node's color",
+        );
+        // The color from a node is a Solid line's: another kind takes it off.
+        await pickKind(row, "Edge line", "Strands");
+        await waitFor(() => {
+            assert.isDefined(written(session, id, "edge.strandColors"));
+            assert.isUndefined(written(session, id, "edge.colorFrom"), "Strands take Color from off");
+        });
+    });
+
+    it("the Line's Source taper narrows the line at its source", async () => {
+        const { session, id, tab } = await openEdges();
+        const element = await stillEdge(session);
+        const before = await settledPicture(session, element);
+        const row = await found(sectionOf(tab, "edge-line"), '[data-thing="line"]');
+        await typeInto(await settingsLine(row, "Edge line", '.ws-row[data-line="edge.taperSource"]'), "0");
+        await waitFor(() => {
+            assert.equal(written(session, id, "edge.taperSource"), 0);
+        });
+        assert.isAbove(pixelsApart(before, await settledPicture(session, element)), 0, "the source end narrows");
+    });
+
+    it("the Line's Kind switches to Strands, which draw at once, and Spacing spreads them", async () => {
+        const { session, id, tab } = await openEdges();
+        const element = await stillEdge(session);
+        const before = await settledPicture(session, element);
+        const line = sectionOf(tab, "edge-line");
+        const row = await found(line, '[data-thing="line"]');
+        await pickKind(row, "Edge line", "Strands");
+        await waitFor(() => {
+            const colors = written(session, id, "edge.strandColors");
+            assert.isString(colors);
+            assert.lengthOf(String(colors).split(" "), 2, "two strands to start");
+            assert.isUndefined(written(session, id, "edge.color"), "strands draw in place of the color");
+        });
+        const strands = await settledPicture(session, element);
+        assert.isAbove(pixelsApart(before, strands), 0, "the strands are drawn");
+
+        const pop = await found(document, "[data-thing-popover]");
+        assert.isNotNull(pop.querySelector('[data-line="edge.strandColors:1"]'), "each strand is a line of the list");
+        await typeInto(await found(pop, '.ws-row[data-line="edge.strandSpacing"]'), "3");
+        await waitFor(() => {
+            assert.equal(written(session, id, "edge.strandSpacing"), 3);
+        });
+        assert.isAbove(pixelsApart(strands, await settledPicture(session, element)), 0, "the strands spread apart");
+    });
+
+    it("Pattern's Custom dash list draws its own dashes on a dashed line", async () => {
+        const { session, id, tab } = await openEdges();
+        const element = await stillEdge(session);
+        const line = sectionOf(tab, "edge-line");
+        await userEvent.click(within(line).getByRole("button", { name: /^Add to edge line/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Pattern" }));
+        await waitFor(() => {
+            assert.equal(written(session, id, "edge.style"), "dash");
+        });
+        const before = await settledPicture(session, element);
+        const patternRow = await found(line, '[data-thing="pattern"]');
+        await userEvent.click(within(patternRow).getByRole("button", { name: /^Edge pattern settings/ }));
+        const pop = await found(document, "[data-thing-popover]");
+        await userEvent.click(within(pop).getByRole("button", { name: "Add to edge pattern settings" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Dashes" }));
+        const dashes = await within(pop).findByRole("group", { name: "Dashes" });
+        await typeInto(await found(dashes, '.ws-row[data-line="edge.dashArray"]'), "8 1 2 1");
+        await waitFor(() => {
+            assert.equal(written(session, id, "edge.dashArray"), "8 1 2 1");
+        });
+        assert.isAbove(pixelsApart(before, await settledPicture(session, element)), 0, "the dashes follow the list");
     });
 });

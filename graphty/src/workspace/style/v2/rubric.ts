@@ -523,6 +523,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
  */
 const LINE_MAIN: readonly LineSpec[] = [
     { channel: "edge.taper", name: "Taper" },
+    { channel: "edge.taperSource", name: "Source taper" },
     { channel: "edge.minScreenWidth", name: "Min width" },
     { channel: "edge.blending" },
     // Lift draws only in 3D: dimmed in 2D from graphty-element's view fact, like every one-view line.
@@ -548,6 +549,7 @@ export const PATTERN_CHANNELS: readonly Channel[] = [
     "edge.dashGap",
     "edge.waveAmplitude",
     "edge.wavePeriod",
+    "edge.dashArray",
 ];
 
 /** An edge end's channels' stem. */
@@ -607,7 +609,8 @@ function edgeEnd(end: EdgeEnd): ThingRubric {
 export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     line: {
         common: [{ channel: "edge.width", name: "Width" }],
-        main: LINE_MAIN,
+        // A solid line's color may come from an end node's, in place of its own (graphty-element's `edge.colorFrom`).
+        main: [{ channel: "edge.colorFrom", name: "Color from", rule: "R10" }, ...LINE_MAIN],
         groups: LINE_GROUPS,
     },
     "line:edge.gradientColors": {
@@ -620,12 +623,30 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
         groups: LINE_GROUPS,
     },
+    // Strands: the row is their colors (`lists.ts`), the pop-over their spacing.
+    "line:edge.strandColors": {
+        common: [{ channel: "edge.width", name: "Width" }],
+        rowOwns: ["edge.strandColors"],
+        main: [
+            { channel: "edge.strandSpacing", name: "Spacing" },
+            { channel: "edge.opacity", name: "Opacity" },
+            ...LINE_MAIN,
+        ],
+        groups: LINE_GROUPS,
+    },
     // The row is the sectioned pattern list; its settings the count, and dashes and waves (ia-design 2).
     pattern: {
         row: { channel: "edge.style", name: "Pattern", rule: "R10" },
         main: [{ channel: "edge.patternCount", name: "Count" }],
         groups: [
-            { name: "Dashes", lines: [{ channel: "edge.dashLength", name: "Dash", pair: "edge.dashGap" }] },
+            {
+                name: "Dashes",
+                lines: [
+                    { channel: "edge.dashLength", name: "Dash", pair: "edge.dashGap" },
+                    // Several dash lengths, dashes and gaps alternating ("8 1 2 1"), in place of Dash and Gap.
+                    { channel: "edge.dashArray", name: "Custom", rule: "R14" },
+                ],
+            },
             { name: "Wave", lines: [{ channel: "edge.waveAmplitude", name: "Wave", pair: "edge.wavePeriod" }] },
         ],
     },

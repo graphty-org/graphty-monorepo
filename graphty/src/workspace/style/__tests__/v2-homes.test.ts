@@ -25,7 +25,11 @@ const MEMBER_RUBRICS: Readonly<Record<string, Readonly<Record<string, ThingRubri
         solid: NODE_RUBRIC.fill,
         gradient: NODE_RUBRIC["fill:node.gradientColors"],
     },
-    "edge.line": { solid: EDGE_RUBRIC.line, gradient: EDGE_RUBRIC["line:edge.gradientColors"] },
+    "edge.line": {
+        solid: EDGE_RUBRIC.line,
+        gradient: EDGE_RUBRIC["line:edge.gradientColors"],
+        strands: EDGE_RUBRIC["line:edge.strandColors"],
+    },
 };
 
 /**

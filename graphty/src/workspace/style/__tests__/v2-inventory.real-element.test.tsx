@@ -46,7 +46,14 @@ import { ruleOf } from "../v2/lineWrites";
 import { ITEM_LISTS, LISTS } from "../v2/lists";
 import { EDGE_RUBRIC, type LineSpec, NODE_RUBRIC, segmentOptions, SHAPE_REPLACE_RUBRIC } from "../v2/rubric";
 import { SECTIONS, type ThingSpec } from "../v2/things";
-import { BASE_CHANNELS, BASE_LABEL_FIELDS, FILE_TEXT_LOOKS, OWNER_REQUESTED } from "./allowed-styles";
+import {
+    BASE_CHANNELS,
+    BASE_LABEL_FIELDS,
+    FILE_TEXT_LOOKS,
+    MASTER_CHANNELS,
+    MASTER_LABEL_FIELDS,
+    OWNER_REQUESTED,
+} from "./allowed-styles";
 import { openProject, openStyle, sectionOf, written } from "./v2Harness";
 
 type Side = "node" | "edge";
@@ -85,6 +92,7 @@ const KNOWN_EXTRANEOUS: readonly string[] = [];
 const OWNER_REMOVED_FILE_STYLES: Readonly<Record<string, string>> = {
     "node.zIndex": "E420, E422",
     "node.drawOrder": "E420, E422",
+    "edge.drawOrder": "E420, E422",
     "node.groupPadding": "E420, E422",
     "node.groupPaddingRatio": "E420, E422",
     "node.groupPaddingOf": "E420, E422",
@@ -131,6 +139,9 @@ const CONFIG_NOT_LOOKS: readonly string[] = [
     "runAlgorithmsOnLoad",
     "runPlacement",
     "selectionStyle",
+    // Bookkeeping, not a reader setting: whether graphty-element has written the starting cameras into this
+    // project yet (`ProjectConfig.startingCamerasWritten`), so it writes them once. No line shows it.
+    "startingCamerasWritten",
     "startingRows",
     "timelineHiddenAdded",
     "timelineHiddenLook",
@@ -358,7 +369,12 @@ describe("Style panel v2's style inventory", () => {
 
     it("2. every label style field of every text kind has a line, varying by data where it can", () => {
         assert.lengthOf(TEXT_KINDS, 8, "eight text kinds");
-        assert.equal(TEXT_KINDS.length * LABEL_STYLE_FIELDS.length, 720, "720 label styles");
+        // The fields are graphty-element's catalog's: each one it lists, it describes, so each is checked below.
+        assert.sameMembers(
+            LABEL_STYLE_DESCRIPTORS.map((descriptor) => descriptor.field),
+            [...LABEL_STYLE_FIELDS],
+            "every label style field graphty-element lists, it describes",
+        );
         // Every field has a line, and every field with its own channel varies by data through it.
         assert.deepEqual(
             LABEL_STYLE_FIELDS.filter((field) => !LABEL_COVERED.has(field)),
@@ -538,11 +554,12 @@ vec4 shade(NodeInput n) {
     it("5. v2 writes only styles graphty-element had, graph-io writes or the owner asked for", () => {
         const allowed = new Set<string>([
             ...BASE_CHANNELS,
+            ...MASTER_CHANNELS,
             ...fileStyleChannels(),
             ...OWNER_REQUESTED.map(({ channel }) => channel),
             ...FILE_TEXT_LOOKS,
         ]);
-        const fields = new Set<string>(BASE_LABEL_FIELDS);
+        const fields = new Set<string>([...BASE_LABEL_FIELDS, ...MASTER_LABEL_FIELDS]);
         // What v2 writes: every channel it has a control for, and the companions a "+" starts with.
         const writes = (side: Side): readonly string[] => [
             ...HOMED[side],

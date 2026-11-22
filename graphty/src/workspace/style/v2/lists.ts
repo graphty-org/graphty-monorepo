@@ -65,19 +65,33 @@ export const LISTS: Readonly<Record<string, ListSpec>> = {
     },
 };
 
+/** An edge Line's kinds that are color lists, by their colors channel: strands (each item a strand). */
+export const EDGE_LISTS: Partial<Readonly<Record<Channel, ListSpec>>> = {
+    "edge.strandColors": { name: "Strands", item: "Strand", colors: "edge.strandColors", numbers: [] },
+};
+
+/**
+ * The list a thing's row draws: a node list thing's, by its id, or an edge Line kind's, by its main channel.
+ * @param side - nodes or edges.
+ * @param thing - the thing's id.
+ * @param main - the row's main channel.
+ * @returns the list, or undefined for a thing that is not one.
+ */
+export function listOf(side: "node" | "edge", thing: string, main: Channel): ListSpec | undefined {
+    return side === "node" ? LISTS[thing] : EDGE_LISTS[main];
+}
+
 /**
  * The color a new item starts with (design 5.1): the next of the document's colors, then of the
- * element's Okabe-Ito palette, that is neither in the list nor the color the row's nodes are drawn in,
- * so every item shows against the node and its neighbors.
+ * element's Okabe-Ito palette, that is neither in the list nor the color the row's nodes or edges are drawn in,
+ * so every item shows against the mark and its neighbors.
  * @param ctx - the row.
  * @param colors - the list's colors now.
  * @returns the color.
  */
 export function nextColor(ctx: RowContext, colors: readonly string[]): string {
-    const drawn =
-        lineIn(ctx, "node.color")?.value ??
-        ctx.beneath("node.color").value ??
-        ctx.session.styles.defaultValue("node.color");
+    const color: Channel = ctx.side === "node" ? "node.color" : "edge.color";
+    const drawn = lineIn(ctx, color)?.value ?? ctx.beneath(color).value ?? ctx.session.styles.defaultValue(color);
     const taken = new Set(
         [...colors, drawn].flatMap((color) => (typeof color === "string" ? [color.toUpperCase()] : [])),
     );

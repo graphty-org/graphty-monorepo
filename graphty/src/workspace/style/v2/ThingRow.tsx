@@ -34,7 +34,7 @@ import { entryLook, removeEntry } from "./labelEntries";
 import { LabelRow } from "./LabelRow";
 import { TEXT_THINGS, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
-import { firstItemWords, ITEM_LISTS, LISTS } from "./lists";
+import { firstItemWords, ITEM_LISTS, listOf } from "./lists";
 import { EntryLookMenu, KindMenu, MemberMenu, ReplaceGallery } from "./MemberMenu";
 import {
     lineChannels,
@@ -271,7 +271,7 @@ function MainControl({
     ) {
         return frame(main.channel, "R16", <GradientButton ctx={ctx} />);
     }
-    const list = ctx.side === "node" ? LISTS[thing.id] : undefined;
+    const list = listOf(ctx.side, thing.id, main.channel);
     if (main.channel === list?.colors) {
         // A list thing's row (R15r): its swatches, opening its pop-over on the list.
         const strip = (
@@ -443,7 +443,7 @@ export function ThingRow({
         ) : (
             <EntryLookMenu ctx={ctx} entry={entry.id} title={title} />
         );
-    const list = ctx.side === "node" ? LISTS[thing.id] : undefined;
+    const list = listOf(ctx.side, thing.id, main.channel);
     // A shader drawn in the shapes' place is the Shape row's member (design 5): its row names it.
     const replacing = thing.id === "shape" ? replaceUse(ctx) : undefined;
     const rubric = replacing === undefined ? rubricOf(ctx.side, thing.id, main.channel) : SHAPE_REPLACE_RUBRIC;

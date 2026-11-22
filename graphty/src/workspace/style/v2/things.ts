@@ -228,7 +228,7 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         id: "line",
                         name: "Line",
                         items: ["line", "gradient", "strands"],
-                        main: ["edge.color", "edge.gradientColors"],
+                        main: ["edge.color", "edge.gradientColors", "edge.strandColors"],
                         unnamed: true,
                     },
                     // Pattern is its own item, so "dashed" is in "+" (ia-design 2).

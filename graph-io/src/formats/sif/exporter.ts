@@ -15,6 +15,7 @@ import { idText } from "../../common/format.js";
 import { resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { INTERACTION_COLUMN } from "./importer.js";
 
@@ -331,27 +332,29 @@ function check(snapshot: GraphSnapshot, options: SifExportOptions | undefined): 
  * The SIF exporter, registered as "sif".
  * @category Built-in formats
  */
-export const sifExporter: GraphExporter<SifExportOptions> = Object.freeze({
-    format: "sif",
-    extensions: Object.freeze([".sif"]),
-    mimeTypes: Object.freeze([]),
-    options: Object.freeze([]),
-    capabilities: SIF_CAPABILITIES,
-    check(snapshot: GraphSnapshot, options?: SifExportOptions): readonly LossNote[] {
-        return check(snapshot, options);
-    },
-    export(snapshot: GraphSnapshot, options?: SifExportOptions): AsyncIterable<Uint8Array> {
-        const refused = refusedSave(check(snapshot, options));
-        if (refused !== null) {
-            throw refused;
-        }
-        return encodeChunks(write(snapshot, resolveExportOptions(options).sanitizeIds === "mangle"));
-    },
-    exportToString(snapshot: GraphSnapshot, options?: SifExportOptions): Promise<string> {
-        const refused = refusedSave(check(snapshot, options));
-        if (refused !== null) {
-            return Promise.reject(refused);
-        }
-        return joinText(write(snapshot, resolveExportOptions(options).sanitizeIds === "mangle"));
-    },
-});
+export const sifExporter: GraphExporter<SifExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: "sif",
+        extensions: Object.freeze([".sif"]),
+        mimeTypes: Object.freeze([]),
+        options: Object.freeze([]),
+        capabilities: SIF_CAPABILITIES,
+        check(snapshot: GraphSnapshot, options?: SifExportOptions): readonly LossNote[] {
+            return check(snapshot, options);
+        },
+        export(snapshot: GraphSnapshot, options?: SifExportOptions): AsyncIterable<Uint8Array> {
+            const refused = refusedSave(check(snapshot, options));
+            if (refused !== null) {
+                throw refused;
+            }
+            return encodeChunks(write(snapshot, resolveExportOptions(options).sanitizeIds === "mangle"));
+        },
+        exportToString(snapshot: GraphSnapshot, options?: SifExportOptions): Promise<string> {
+            const refused = refusedSave(check(snapshot, options));
+            if (refused !== null) {
+                return Promise.reject(refused);
+            }
+            return joinText(write(snapshot, resolveExportOptions(options).sanitizeIds === "mangle"));
+        },
+    }),
+);

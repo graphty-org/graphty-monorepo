@@ -1583,18 +1583,11 @@ export async function pixelsOfColour(scene: Drawn, hex: string, tolerance: numbe
 }
 
 /**
- * How many pixels of each of several colors are on the canvas, from one render and one read.
- * `pixelsOfColour` for a list: the canvas is warmed and copied once, not once per color.
+ * The canvas as it is drawn now, four RGBA bytes a pixel, the same on WebGL and on WebGPU.
  * @param scene - What the story drew.
- * @param hexes - The colors to count, each as `#rrggbb`.
- * @param tolerance - How far one channel may be from a color and still count as it; see `pixelsOfColour`.
- * @returns The count for each color, in the order given.
+ * @returns Its pixels.
  */
-export async function pixelsOfColours(
-    scene: Drawn,
-    hexes: readonly string[],
-    tolerance: number = COLOUR_TOLERANCE,
-): Promise<number[]> {
+export async function canvasPixels(scene: Drawn): Promise<Uint8Array> {
     const { engine } = scene.graph;
 
     // Wait for every shader to have compiled, then draw ONE frame and read it in the same task, so
@@ -1616,6 +1609,24 @@ export async function pixelsOfColours(
             [pixels[offset], pixels[offset + 2]] = [pixels[offset + 2], pixels[offset]];
         }
     }
+
+    return pixels;
+}
+
+/**
+ * How many pixels of each of several colors are on the canvas, from one render and one read.
+ * `pixelsOfColour` for a list: the canvas is warmed and copied once, not once per color.
+ * @param scene - What the story drew.
+ * @param hexes - The colors to count, each as `#rrggbb`.
+ * @param tolerance - How far one channel may be from a color and still count as it; see `pixelsOfColour`.
+ * @returns The count for each color, in the order given.
+ */
+export async function pixelsOfColours(
+    scene: Drawn,
+    hexes: readonly string[],
+    tolerance: number = COLOUR_TOLERANCE,
+): Promise<number[]> {
+    const pixels = await canvasPixels(scene);
 
     return hexes.map((hex) => {
         const want = [

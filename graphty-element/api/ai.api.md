@@ -980,7 +980,7 @@ export const sampleData: GraphCommand;
 
 // @public
 export class SchemaExtractor {
-    constructor(graph: Graph, options?: SchemaExtractorOptions);
+    constructor(graph: Graph | GraphSession, options?: SchemaExtractorOptions);
     extract(): SchemaSummary;
 }
 
@@ -996,7 +996,7 @@ export interface SchemaExtractorOptions {
 
 // @public
 export class SchemaManager {
-    constructor(graph: Graph, options?: SchemaExtractorOptions);
+    constructor(graph: Graph | GraphSession, options?: SchemaExtractorOptions);
     extract(): SchemaSummary;
     getFormattedSchema(): string;
     getSchema(): SchemaSummary | null;

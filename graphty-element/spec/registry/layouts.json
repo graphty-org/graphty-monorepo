@@ -139,7 +139,7 @@
                         {
                             "name": "maxIter",
                             "type": "integer",
-                            "default": 100,
+                            "default": null,
                             "min": 0
                         },
                         {

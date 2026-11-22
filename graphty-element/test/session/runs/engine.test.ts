@@ -9,7 +9,7 @@ import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 import { LAYOUT_ENGINE, RUN_ENGINE, withAcceleratorPackage } from "../../../src/session/runs/engine";
 import { createFakeAccelerator } from "../../../src/testing/fakeAccelerator";
-import { createMockGraph } from "../../helpers/mockGraph";
+import { createSessionGraph } from "../../helpers/session-graph";
 
 /** A fake accelerator of a backend and package no real one has, so what is recorded is its own. */
 const fakeGpu = (): ReturnType<typeof createFakeAccelerator> =>
@@ -54,7 +54,7 @@ describe("the hardware a run records", () => {
     };
 
     it("is the backend of the accelerator the work reached, and the CPU below the threshold", async () => {
-        const graph = await createMockGraph(pieces);
+        const graph = await createSessionGraph(pieces);
         const fake = fakeGpu();
         graph.acceleration.setAccelerator(fake);
         graph.acceleration.setMinNodes(0);

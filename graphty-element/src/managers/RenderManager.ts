@@ -21,7 +21,7 @@ import { PassPostProcess } from "@babylonjs/core/PostProcesses/passPostProcess.j
 import { Scene } from "@babylonjs/core/scene.js";
 import { WebXRState } from "@babylonjs/core/XR/webXRTypes.js";
 
-import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "../camera/builtins";
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "../camera/orbit";
 import { CameraManager } from "../cameras/CameraManager";
 import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";

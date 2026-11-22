@@ -14,12 +14,11 @@
 
 import "../../src/graphty-element";
 
-import type { AbstractMesh, BaseTexture } from "@babylonjs/core";
+import type { AbstractMesh, BaseTexture, Mesh } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
-import { JOIN_TEMPLATE_INDICES } from "../../src/meshes/edgeJoinShader";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { edgeBetween } from "../helpers/testSetup";
 import { pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
@@ -228,19 +227,19 @@ async function restyled(element: Graphty, name: string, id: unknown, set: Record
 
 /**
  * Join the two far nodes by a long curve, then bend it through 200 bends, counting at each step the curve batch's
- * vertices and the pieces the edges' curves are drawn in.
+ * draw slots and the pieces the edges' curves are drawn in.
  * @param element - The element, loaded with {@link shortPairs} on the batched path.
  * @param pairs - Its short pairs.
- * @returns For short curves only, with the long curve and with the bent line: the vertices, and the pieces.
+ * @returns For short curves only, with the long curve and with the bent line: the slots drawn, and the pieces.
  */
-async function lengthened(element: Graphty, pairs: number): Promise<{ vertices: number; pieces: number }[]> {
-    const count = (): { vertices: number; pieces: number } => {
+async function lengthened(element: Graphty, pairs: number): Promise<{ slots: number; pieces: number }[]> {
+    const count = (): { slots: number; pieces: number } => {
         const batch = element.graph.scene.meshes.find((mesh) => mesh.name.endsWith("|curve"));
         let pieces = 0;
         for (const edge of element.graph.getDataManager().edges.values()) {
             pieces += (edge.drawnCurve?.length ?? 1) - 1;
         }
-        return { vertices: batch?.subMeshes[0]?.verticesCount ?? 0, pieces };
+        return { slots: (batch as Mesh | undefined)?.forcedInstanceCount ?? 0, pieces };
     };
     const counts = [count()];
     await element.session.data.addEdges([{ src: pairs * 2, dst: pairs * 2 + 1 }]);
@@ -267,20 +266,19 @@ describe.each(RENDERERS)("a curve's draw on %s", (renderer) => {
 
         const { element, errors } = await loaded(renderer, "batched", shortPairs(pairs));
         const [short, long, bent] = (await lengthened(element, pairs)) as [
-            { vertices: number; pieces: number },
-            { vertices: number; pieces: number },
-            { vertices: number; pieces: number },
+            { slots: number; pieces: number },
+            { slots: number; pieces: number },
+            { slots: number; pieces: number },
         ];
         assert.deepInclude(element.graph.rowCounts, { pulledEdges: pairs + 1, objectEdges: 0 });
-        const corners = JOIN_TEMPLATE_INDICES.length;
-        const counts = [short, long, bent].map(({ vertices, pieces }) => `${String(vertices)} for ${String(pieces)}`);
-        // the draw covers each curve's own pieces, a template's corners each, whatever the other curves ask for: the
+        const counts = [short, long, bent].map(({ slots, pieces }) => `${String(slots)} for ${String(pieces)}`);
+        // the draw covers each curve's own pieces, an instance each, whatever the other curves ask for: the
         // bent line's 201 pieces take the long curve's freed slots, then new ones
         assert.isAbove(short.pieces, 0, "the short curves are drawn from the batch");
-        assert.strictEqual(short.vertices, short.pieces * corners, `short curves: ${counts.join(", then ")}`);
-        assert.strictEqual(long.vertices, long.pieces * corners, `with the long curve: ${counts.join(", then ")}`);
+        assert.strictEqual(short.slots, short.pieces, `short curves: ${counts.join(", then ")}`);
+        assert.strictEqual(long.slots, long.pieces, `with the long curve: ${counts.join(", then ")}`);
         assert.strictEqual(bent.pieces, short.pieces + 201, "the bent line is drawn in 201 pieces");
-        assert.strictEqual(bent.vertices, bent.pieces * corners, `with the bent line: ${counts.join(", then ")}`);
+        assert.strictEqual(bent.slots, bent.pieces, `with the bent line: ${counts.join(", then ")}`);
         assert.deepEqual(errors, [], "no error");
         assert.equal(overBar(objectsRest, await readCanvas(element.graph)), 0, "the objects path's picture");
     });

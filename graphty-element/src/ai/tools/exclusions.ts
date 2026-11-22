@@ -559,6 +559,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "SessionLayout", members: ["play", "pause", "tick", "settle"], reason: "in-flight", kind: BY_DESIGN },
+    // The package versions and hardware that draw the layout: what a save records, not a question a reader asks.
+    { root: "SessionLayout", members: ["provenance"], reason: "internal-handle", kind: BY_DESIGN },
     {
         root: "SessionConfig",
         members: ["backgroundColor"],

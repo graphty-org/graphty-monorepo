@@ -7,7 +7,7 @@
  * Nothing here reaches a Babylon.js scene, Lit or the DOM.
  */
 
-import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "../../../camera/builtins";
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "../../../camera/orbit";
 import type { CameraState, Vec3 } from "../../../camera/types";
 import { engineOptionsOf, layoutEntry } from "../../../catalog/layouts";
 import type { EdgeId, EdgeMember } from "../../../catalog/types";

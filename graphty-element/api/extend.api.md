@@ -188,7 +188,7 @@ export type AdHocData<KeyType extends string | number = string> = Record<KeyType
 
 // @public
 abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<string, unknown>> {
-    constructor(g: Graph, options?: Partial<TOptions>);
+    constructor(g: AlgorithmHost | GraphSession, options?: Partial<TOptions>);
     protected accelerated(capability: string, mode: AlgorithmGraphMode, options?: {
         accelerable?: boolean;
         sources?: number;
@@ -198,15 +198,14 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     protected algorithmGraph(mode: AlgorithmGraphMode): Graph_2;
     // @internal
     protected forgetReachedAccelerator(): void;
-    static get(g: Graph, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
+    static get(g: AlgorithmHost | GraphSession, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
     static getClass(namespace: string, type: string): (AlgorithmClass & AlgorithmStatics) | null;
     // @deprecated
     static getOptionsSchema(): OptionsSchema;
     static getRegisteredAlgorithms(namespace?: string): string[];
     static getRegisteredTypes(): string[];
     static getZodOptionsSchema(): OptionsSchema_2;
-    // (undocumented)
-    protected graph: Graph;
+    protected graph: AlgorithmHost;
     // @deprecated
     static hasOptions(): boolean;
     static hasZodOptions(): boolean;
@@ -232,7 +231,7 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
     // (undocumented)
-    abstract run(g: Graph): Promise<void>;
+    abstract run(g: AlgorithmHost): Promise<void>;
     protected get schemaOptions(): TOptions;
     protected _schemaOptions: TOptions;
     static scopeInput?: ScopeInputDeclaration;
@@ -257,6 +256,20 @@ export interface AlgorithmContext<V> {
     readonly options: V;
     progress(fraction: number): Promise<void>;
     readonly signal: AbortSignal;
+}
+
+// @public
+export interface AlgorithmData {
+    getNode(id: NodeId_2): {
+        readonly data: Readonly<Record<string, unknown>>;
+    } | undefined;
+    getSnapshot(): GraphSnapshot;
+    readonly lastImport: {
+        readonly weights: {
+            readonly attribute: string | null;
+        };
+    } | null;
+    undirected(snapshot: GraphSnapshot): DerivedGraph;
 }
 
 // @public
@@ -301,6 +314,20 @@ export type AlgorithmGraphMode = "directed" | "undirected";
 
 // @public @deprecated
 export type AlgorithmGraphView = Graph_2;
+
+// @public
+export interface AlgorithmHost {
+    readonly acceleration: Pick<AccelerationController, "run" | "policy" | "accelerator">;
+    getDataManager(): AlgorithmData;
+    getSession(): GraphSession;
+    readonly styles?: {
+        readonly config: {
+            readonly data: {
+                readonly knownFields: AlgorithmKnownFields;
+            };
+        };
+    };
+}
 
 // @public
 export type AlgorithmKey = KnownAlgorithm | (string & {});
@@ -776,6 +803,8 @@ export class Edge {
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     // @internal
+    batchEndRow(end: "source" | "target"): number;
+    // @internal
     columnEnd(end: "source" | "target"): ColumnRow | undefined;
     get data(): AdHocData;
     dispose(): void;
@@ -811,6 +840,8 @@ export class Edge {
     readonly dstId: NodeIdType;
     get dstNode(): Node_2;
     set dstNode(node: Node_2);
+    // @internal
+    endDrawnAsGroup(end: "source" | "target"): boolean;
     // @internal
     endRow(end: "source" | "target"): number;
     // @internal
@@ -2392,6 +2423,8 @@ class Node_2 implements ModelUser {
     get borderReach(): number;
     // @internal
     borderReachAlong(dir: Xyz): number;
+    // @internal
+    static closedForm(shape: string | undefined, rotation: number | undefined): boolean;
     get data(): AdHocData<string | number>;
     // @internal
     get decorationPieces(): readonly NodeDecorationPiece[];
@@ -3451,9 +3484,7 @@ export interface SuggestedName {
 
 // @beta
 export interface TimeField {
-    // (undocumented)
     readonly edges?: TimeSource;
-    // (undocumented)
     readonly nodes?: TimeSource;
 }
 

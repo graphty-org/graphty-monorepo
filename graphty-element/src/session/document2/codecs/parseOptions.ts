@@ -79,7 +79,7 @@ export const PARSE_OPTIONS: Readonly<Record<string, ParseOption>> = {
  * bytes arrived, how they were chunked and laid out, and the endpoint and id choices a mapping
  * carries.
  */
-export const NOT_OPTIONS: ReadonlySet<string> = new Set([
+const NOT_OPTIONS: ReadonlySet<string> = new Set([
     "data",
     "file",
     "url",

@@ -18,13 +18,13 @@
 // Reach only ORDERS the work: every story is rendered by the rotation whatever changed, and nothing here ever
 // reuses a render or skips one (the owner's rule, early-capture.md section 2, option d). Node built-ins only, so
 // the plan job installs nothing. Store: RESULTS_URL and the job's OIDC token (tools/results/client.mjs).
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { STORYBOOKS } from "../ci-reuse-plan.mjs";
+import { git as runGit } from "../lib/git.mjs";
 import { push } from "../release-status.mjs";
 import { call, config } from "../results/client.mjs";
 import { packBins, packStoryBins, STORY_BIN_LIMIT_MS, storyCount, storyUnitPlans } from "../test-select.mjs";
@@ -231,7 +231,7 @@ export function notices({ before, after, notified, now }) {
     return out;
 }
 
-const git = (args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 28 }).trim();
+const git = (args) => runGit(args, { cwd: ROOT });
 
 async function plan({ sha, bins }, cfg) {
     const projects = JSON.parse(readFileSync(join(ROOT, "visual-review.config.json"), "utf8")).projects;

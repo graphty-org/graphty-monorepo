@@ -21,7 +21,7 @@ export function engineJson(engine: EngineVersions): JsonObject {
 }
 
 /** One way two engines differ: a package name, `accelerator` or `method`, and both sides' values. */
-export interface EngineChange {
+interface EngineChange {
     readonly key: string;
     readonly was: string | null;
     readonly now: string | null;
@@ -51,7 +51,7 @@ const text = (value: unknown): string | null => (typeof value === "string" ? val
  * @param options - What is compared.
  * @returns The differences, packages first in name order.
  */
-export function engineChanges(saved: unknown, now: EngineVersions, options: EngineComparison): EngineChange[] {
+function engineChanges(saved: unknown, now: EngineVersions, options: EngineComparison): EngineChange[] {
     const was = isJsonObject(saved) ? saved : {};
     const wasPackages = isJsonObject(was.packages) ? was.packages : {};
     const changes: EngineChange[] = [];

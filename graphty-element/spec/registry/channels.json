@@ -3211,6 +3211,31 @@
             "experimental": "file-styles"
         },
         {
+            "channel": "node.xlabelColor",
+            "target": "node",
+            "accepts": "color",
+            "experimental": "file-styles"
+        },
+        {
+            "channel": "node.xlabelFont",
+            "target": "node",
+            "accepts": "text",
+            "experimental": "file-styles"
+        },
+        {
+            "channel": "node.xlabelWeight",
+            "target": "node",
+            "accepts": "enum",
+            "values": ["normal", "bold", "100", "200", "300", "500", "600", "800", "900"],
+            "experimental": "file-styles"
+        },
+        {
+            "channel": "node.xlabelItalic",
+            "target": "node",
+            "accepts": "boolean",
+            "experimental": "file-styles"
+        },
+        {
             "channel": "edge.labelTable",
             "target": "edge",
             "accepts": "text",

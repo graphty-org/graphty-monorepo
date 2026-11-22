@@ -2312,6 +2312,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             togglesOwnMeshes: READ,
             columnEnd: READ,
             endRow: READ,
+            batchEndRow: READ,
+            endDrawnAsGroup: READ,
         },
     },
     {
@@ -4152,6 +4154,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             options: READ,
             dimension: READ,
             arrangedDimension: READ,
+            provenance: READ,
             motion: READ,
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),

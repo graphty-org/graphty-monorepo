@@ -1579,7 +1579,7 @@ function rangeFor(
  * @throws A `GraphtyError` with code `E_BAD_LAYER` or `E_OPTION_RANGE` when the value is not one
  *   the channel carries.
  */
-function missingValue(descriptor: ChannelDescriptor, binding: RuleBinding): EncodedValue | undefined {
+export function missingValue(descriptor: ChannelDescriptor, binding: RuleBinding): EncodedValue | undefined {
     const { missing } = binding;
     if (missing === undefined || missing === "skip") {
         return undefined;

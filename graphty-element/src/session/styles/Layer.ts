@@ -94,7 +94,7 @@ import {
     parseShaderParamAddress,
     toColorValue,
 } from "./channels";
-import { type RuleBinding, stopsProblem } from "./encoding";
+import { missingValue, type RuleBinding, stopsProblem } from "./encoding";
 import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import { colorsProblem } from "./palettes";
 import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
@@ -1075,6 +1075,7 @@ function checkBinding(
 
     readsPath(log, binding.by);
     checkBindingOptions(descriptor, binding, path, options, log);
+    checkMissing(descriptor, binding, path, log);
 
     // Only a binding that paints a MISSING value reaches an element the run never measured: an
     // element with no value is otherwise not painted at all (encoding.ts), so a layer matching
@@ -1090,6 +1091,37 @@ function checkBinding(
             path: "selector",
             scope: { match: "has", path: binding.by },
         });
+    }
+}
+
+/**
+ * Check what a binding paints for a missing value with the same check the repaint applies, so a
+ * value the channel cannot draw is refused here rather than failing every repaint after (#9706).
+ * @param descriptor - The channel it writes.
+ * @param binding - The binding.
+ * @param path - Where in the specification it sits.
+ * @param log - Where problems are collected.
+ */
+function checkMissing(descriptor: ChannelDescriptor, binding: RuleBinding, path: string, log: ProblemLog): void {
+    const { missing } = binding;
+    if (missing === undefined || missing === "skip") {
+        return;
+    }
+
+    if (!isPlainObject(missing)) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: 'What a missing value paints is "skip" or { value }.',
+            path: `${path}.missing`,
+        });
+
+        return;
+    }
+
+    try {
+        missingValue(descriptor, binding);
+    } catch (error) {
+        report(log, problemFrom(error, `${path}.missing.value`));
     }
 }
 
@@ -1223,6 +1255,21 @@ function resolveTarget(spec: LayerSpec, channels: readonly string[], log: Proble
     return null;
 }
 
+/** Every key a {@link LayerSpec} has. */
+const LAYER_SPEC_KEYS: readonly string[] = [
+    "name",
+    "target",
+    "kind",
+    "selector",
+    "set",
+    "encode",
+    "source",
+    "enabled",
+    "userData",
+    "row",
+    "unmatched",
+];
+
 /**
  * Check the parts of a specification that are neither channels nor a selector. Any layer may write
  * no channel: it paints nothing until a value is written into it, whoever made it.
@@ -1230,6 +1277,19 @@ function resolveTarget(spec: LayerSpec, channels: readonly string[], log: Proble
  * @param log - Where problems are collected.
  */
 function checkShape(spec: LayerSpec, log: ProblemLog): void {
+    // A key the specification does not have is refused, not ignored: `style:` written for
+    // `encode:` otherwise adds a layer that paints nothing, with no signal (#9708).
+    for (const key of Object.keys(spec)) {
+        if (!LAYER_SPEC_KEYS.includes(key)) {
+            report(log, {
+                code: "E_BAD_LAYER",
+                message: `"${key}" is not part of a layer.`,
+                path: key,
+                candidates: LAYER_SPEC_KEYS,
+            });
+        }
+    }
+
     if (typeof spec.name !== "string" || spec.name.trim() === "") {
         report(log, {
             code: "E_BAD_LAYER",

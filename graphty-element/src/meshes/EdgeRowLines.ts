@@ -1,4 +1,5 @@
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
@@ -147,6 +148,13 @@ interface RowLook {
     /** In 2D, the line batch an `Edge` of this look draws into, made once for every row the look paints. */
     objectLine?: EdgeLineBatch | null;
 }
+
+/**
+ * A 2D pulled line batch's mesh to the line batch an `Edge` of its width draws into: the graph's opaque order draws it
+ * right after that batch. A 2D scene draws coplanar meshes in the order their materials were made, and a pulled batch's
+ * is made at its first row, which may come long after the first `Edge` of its width.
+ */
+export const pulledLineSortsWith = new WeakMap<AbstractMesh, AbstractMesh>();
 
 /** What {@link EdgeRowLines} reads from the graph. */
 export interface EdgeRowLinesHost {
@@ -464,6 +472,11 @@ export class EdgeRowLines {
             }
 
             throw error;
+        }
+
+        if (look.objectLine) {
+            // ...and its pieces draw where that batch draws, not where their own batch's material was made
+            pulledLineSortsWith.set(batch.mesh, look.objectLine.mesh);
         }
 
         batch.setLook(piece, look.rgb, look.opacity, drawnWidth);

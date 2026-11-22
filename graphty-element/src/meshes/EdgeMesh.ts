@@ -785,7 +785,10 @@ export class EdgeMesh {
         }
 
         const patterned = pattern === undefined ? "" : `|pattern|${JSON.stringify(pattern)}`;
-        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${suffix}${flat ? "|2d" : ""}${patterned}`;
+        // a 2D batch a width, as an `Edge`'s line batch is (`EdgeMesh.lineBatch`), so it can draw where that batch
+        // draws (`pulledLineSortsWith`)
+        const width = flat ? `|w${String(options.width)}` : "";
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}${width}|${pass}${suffix}${flat ? "|2d" : ""}${patterned}`;
         return cache.getPulledBatch(key, () => {
             const mesh = flat
                 ? this.createFlatPulledLine(options, style, scene, leanLine, pattern)

@@ -94,6 +94,7 @@ describe("the published style surface", () => {
             "resolveRule",
             "resolveStyles",
             "settleStyles",
+            "statesStyles",
             "styleFingerprint",
             "toCytoscapeStylesheet",
             "toolDefaults",

@@ -82,6 +82,7 @@ describe("what the assistant reaches", () => {
         assert.deepStrictEqual([...excluded.keys()].filter((key) => key.startsWith("op:")).sort(), [
             "op:annotations.patch",
             "op:batch",
+            "op:data.steps-set",
             "op:layout.transport",
             "op:note.merge",
             "op:style.template",

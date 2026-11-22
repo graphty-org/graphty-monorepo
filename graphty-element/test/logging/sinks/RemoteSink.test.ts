@@ -4,7 +4,7 @@ import { createRemoteSink } from "../../../src/logging/sinks/RemoteSink.js";
 import { LogLevel, type LogRecord } from "../../../src/logging/types.js";
 
 describe("RemoteSink", () => {
-    let fetchSpy: MockInstance;
+    let fetchSpy: MockInstance<typeof fetch>;
 
     beforeEach(() => {
         // Mock fetch
@@ -60,7 +60,7 @@ describe("RemoteSink", () => {
             vi.runAllTimers();
 
             assert.isTrue(fetchSpy.mock.calls.length > 0);
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as { sessionId: string };
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as { sessionId: string };
             assert.isTrue(body.sessionId.startsWith("custom-prefix-"));
         });
     });
@@ -81,7 +81,7 @@ describe("RemoteSink", () => {
             vi.runAllTimers();
 
             assert.strictEqual(fetchSpy.mock.calls.length, 1);
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as { logs: unknown[] };
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as { logs: unknown[] };
             assert.strictEqual(body.logs.length, 3);
         });
 
@@ -163,7 +163,7 @@ describe("RemoteSink", () => {
             vi.runAllTimers();
 
             assert.strictEqual(fetchSpy.mock.calls.length, 1);
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as { logs: unknown[] };
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as { logs: unknown[] };
             // Only 1 log should be sent (throttled duplicates)
             assert.strictEqual(body.logs.length, 1);
         });
@@ -207,7 +207,7 @@ describe("RemoteSink", () => {
             vi.runAllTimers();
 
             assert.strictEqual(fetchSpy.mock.calls.length, 1);
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as { logs: unknown[] };
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as { logs: unknown[] };
             assert.strictEqual(body.logs.length, 3);
         });
     });
@@ -232,7 +232,7 @@ describe("RemoteSink", () => {
             vi.runAllTimers();
 
             assert.isTrue(fetchSpy.mock.calls.length > 0);
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as {
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as {
                 sessionId: string;
                 logs: { time: string; level: string; message: string }[];
             };
@@ -258,7 +258,7 @@ describe("RemoteSink", () => {
 
             vi.runAllTimers();
 
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as {
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as {
                 logs: { message: string }[];
             };
             const { logs } = body;
@@ -283,7 +283,7 @@ describe("RemoteSink", () => {
             );
             vi.runAllTimers();
 
-            const sent = fetchSpy.mock.calls[0][1].body as string;
+            const sent = fetchSpy.mock.calls[0][1]?.body as string;
             assert.notInclude(sent, "sk-ant-api03-abcdefgh");
             assert.notInclude(sent, "sk-live-1234567890");
             assert.notInclude(sent, "abc123");
@@ -305,7 +305,7 @@ describe("RemoteSink", () => {
 
             vi.runAllTimers();
 
-            const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string) as {
+            const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string) as {
                 logs: { message: string }[];
             };
             const { logs } = body;

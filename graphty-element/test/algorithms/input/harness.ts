@@ -117,27 +117,7 @@ export class InputGraph {
         nodeIds: readonly string[],
         keepEdge?: (source: string, target: string, index: number) => boolean,
     ): ResolvedInputScope {
-        const graph = this.snapshot();
-        const nodes = makeMask(graph.nodeCount);
-        for (const id of nodeIds) {
-            maskSet(nodes, graph.ids.indexOf(id), true);
-        }
-
-        const edges = makeMask(graph.edgeCount);
-        const { src, dst } = graph.edgeList();
-        for (let edge = 0; edge < graph.edgeCount; edge++) {
-            const inside =
-                (nodes[src[edge] >>> 5] & (1 << (src[edge] & 31))) !== 0 &&
-                (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0;
-            if (
-                inside &&
-                (keepEdge?.(String(graph.ids.idOf(src[edge])), String(graph.ids.idOf(dst[edge])), edge) ?? true)
-            ) {
-                maskSet(edges, edge, true);
-            }
-        }
-
-        return { graph, resolution: resolutionOver(graph, nodes, edges, this.store) };
+        return scopeOver(this.snapshot(), this.store, nodeIds, keepEdge);
     }
 
     /**
@@ -157,6 +137,43 @@ export class InputGraph {
             ),
         };
     }
+}
+
+/**
+ * A scope over a snapshot: the named nodes, and of the edges between them those the filter keeps
+ * (all of them, the induced reading, when there is no filter).
+ * @param graph - The snapshot.
+ * @param store - The store it came from.
+ * @param nodeIds - The nodes.
+ * @param keepEdge - Which induced edges stay, by `[source, target]` id and row.
+ * @returns The scope.
+ */
+export function scopeOver(
+    graph: GraphSnapshot,
+    store: object | null,
+    nodeIds: readonly string[],
+    keepEdge?: (source: string, target: string, index: number) => boolean,
+): ResolvedInputScope {
+    const nodes = makeMask(graph.nodeCount);
+    for (const id of nodeIds) {
+        maskSet(nodes, graph.ids.indexOf(id), true);
+    }
+
+    const edges = makeMask(graph.edgeCount);
+    const { src, dst } = graph.edgeList();
+    for (let edge = 0; edge < graph.edgeCount; edge++) {
+        const inside =
+            (nodes[src[edge] >>> 5] & (1 << (src[edge] & 31))) !== 0 &&
+            (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0;
+        if (
+            inside &&
+            (keepEdge?.(String(graph.ids.idOf(src[edge])), String(graph.ids.idOf(dst[edge])), edge) ?? true)
+        ) {
+            maskSet(edges, edge, true);
+        }
+    }
+
+    return { graph, resolution: resolutionOver(graph, nodes, edges, store) };
 }
 
 /**

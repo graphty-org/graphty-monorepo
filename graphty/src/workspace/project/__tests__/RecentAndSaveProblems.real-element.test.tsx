@@ -14,6 +14,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { openSampleFromStart } from "../../../test/open";
 import { screen, waitFor, within } from "../../../test/test-utils";
+import type { WorkspaceStore } from "../../state/store";
 import { clearRecent, refreshStored, rememberRecent } from "../recent";
 
 /** A small edge list. */
@@ -47,12 +48,25 @@ async function openRecentFromMenu(name: string): Promise<void> {
 
 /**
  * Save as through Control+S, keeping the project's name, until the project is kept in this browser.
+ * It waits for the save's notice, whatever it says, and then checks its words, so a save that
+ * reports a problem fails with what the notice says instead of waiting for words that never come,
+ * and then waits for Save as to close.
+ * @param store - the workspace store the notice is shown from.
  */
-async function saveInBrowser(): Promise<void> {
+async function saveInBrowser(store: WorkspaceStore): Promise<void> {
+    const before = store.get().notice;
     await userEvent.keyboard("{Control>}s{/Control}");
     const dialog = await screen.findByRole("dialog", { name: "Save Florentine families as" });
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-    await screen.findByText("Saved Florentine families in this browser.");
+    await waitFor(() => {
+        const { notice } = store.get();
+        assert.isTrue(notice !== null && notice !== before);
+    });
+    assert.deepEqual(store.get().notice, { message: "Saved Florentine families in this browser." });
+    // The notice comes before Save as has finished; a key pressed while it is still open goes to it.
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("dialog"));
+    });
 }
 
 // Wide enough that the notice, with Locate..., clears the side panels.
@@ -73,7 +87,7 @@ afterEach(async () => {
 describe("Open recent in the main menu", () => {
     it("says a project is no longer kept in this browser once it was cleared", async () => {
         const { store } = await openSampleFromStart("Florentine families");
-        await saveInBrowser();
+        await saveInBrowser(store);
         // Cleared elsewhere (another tab, the browser's own storage settings) after the list was read.
         const [kept] = await browserProjects.list();
         await browserProjects.remove(kept.id);
@@ -122,7 +136,7 @@ describe("Open recent in the main menu", () => {
 describe("saves the browser refuses", () => {
     it("says why a second Save did not keep the project, and the project stays unsaved", async () => {
         const { session, store } = await openSampleFromStart("Florentine families");
-        await saveInBrowser();
+        await saveInBrowser(store);
         await session.styles.add({
             name: "Later",
             target: "node",

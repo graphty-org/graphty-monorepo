@@ -3,7 +3,7 @@
  * label is hidden. The grid is laid over the drawing as the program first frames it: the positions fitted into the
  * canvas they are drawn on. Each cell keeps the label of its largest node (then the lesser id) and shows `ceil(z * z)`
  * of its labels at `z` times that framing's zoom, so the label ranked `r` in its cell shows once its node is drawn
- * `sqrt(r)` times as large as the framing draws it. That is a minimum node screen size per label
+ * more than `sqrt(r)` times as large as the framing draws it. That is a minimum node screen size per label
  * (`labelMinNodeScreenSize`), which follows the camera in any viewer that draws that property.
  */
 
@@ -12,6 +12,14 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import type { FilePositions } from "../positions/types.js";
 import { resolveStyles } from "./plan/resolve.js";
 import type { ExtractedStyles } from "./types.js";
+
+/**
+ * A label ranked `r` shows only once its node is drawn MORE than `sqrt(r)` times as large as the framing draws it: sigma
+ * shows `ceil(z * z)` labels a cell, so at the framing's own zoom (z = 1) only the first. A viewer hides a label whose
+ * node is drawn smaller than its minimum, so the minimum is set a millionth above that size, past the rounding of a
+ * drawn size (json-graphology-synth n53 and n57, second in their cells, showed at the framing by 3e-8 of a pixel).
+ */
+const STRICTLY_LARGER = 1 + 1e-6;
 
 /** The size of the canvas a drawing is first framed in, in CSS px. */
 export interface StyleViewport {
@@ -119,7 +127,7 @@ export function labelGridSizes(
         members.sort((a, b) => side(b) - side(a) || (id(a) > id(b) ? 1 : -1));
         members.forEach((i, rank) => {
             if (rank > 0) {
-                sizes[i] = Math.max(num(floors, i) ?? 0, side(i) * k * Math.sqrt(rank));
+                sizes[i] = Math.max(num(floors, i) ?? 0, side(i) * k * Math.sqrt(rank) * STRICTLY_LARGER);
             }
         });
     }

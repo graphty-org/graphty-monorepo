@@ -17,6 +17,13 @@ export interface MultipartiteLayoutOptions extends CommonLayoutOptions {
     readonly subsets?: readonly NodeSet[] | string | undefined;
     /** Default `vertical`. */
     readonly align?: LayerAlign | undefined;
+    /**
+     * Width over height of the drawing, as drawn (after `align`). The layers, or the nodes within them, are spread
+     * apart until the drawing has this shape, so many short layers or a few tall ones still fill a wide view; the
+     * spacing is never pulled below one unit. Unset (the default) keeps NetworkX's spacing: layers one apart, nodes
+     * one apart.
+     */
+    readonly aspectRatio?: number | undefined;
 }
 
 /**
@@ -86,6 +93,44 @@ export const multipartitePlace = (k: number, count: number, j: number, size: num
 ];
 
 /**
+ * The multipartite place stretched along one axis so the drawing is `aspectRatio` wide over high once drawn.
+ * @param layers - node indices per layer
+ * @param aspectRatio - width over height, as drawn
+ * @param align - the layer direction; `horizontal` swaps x and y after placing
+ * @returns the place function for {@link layeredRows}
+ * @throws `E_BAD_OPTION` when `aspectRatio` is not a positive finite number
+ */
+function aspectPlace(
+    layers: readonly ArrayLike<number>[],
+    aspectRatio: number,
+    align: string,
+): (k: number, count: number, j: number, size: number) => readonly [number, number] {
+    if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) {
+        throw refusal(new Error("aspectRatio must be a positive number"), "E_BAD_OPTION", {
+            option: "aspectRatio",
+            value: aspectRatio,
+        });
+    }
+    const across = layers.length - 1;
+    const along = layers.reduce((max, layer) => Math.max(max, layer.length), 0) - 1;
+    const target = align === "horizontal" ? 1 / aspectRatio : aspectRatio;
+    let sx = 1;
+    let sy = 1;
+    if (across > 0 && along > 0) {
+        const stretch = (target * along) / across;
+        if (stretch >= 1) {
+            sx = stretch;
+        } else {
+            sy = 1 / stretch;
+        }
+    }
+    return (k, count, j, size) => {
+        const [x, y] = multipartitePlace(k, count, j, size);
+        return [x * sx, y * sy];
+    };
+}
+
+/**
  * Node indices per distinct value of a `u32` or `dict` node column, in ascending value order; an unset row is left
  * out.
  * @param s - the snapshot
@@ -141,14 +186,15 @@ export function groupsOfColumn(s: GraphSnapshot, name: string, option: string): 
  * @returns the layout
  * @throws an Error with `code` `E_UNKNOWN_COLUMN` or `E_COLUMN_TYPE` when `subsets` names a node column the snapshot
  * does not hold or one that is not u32 or dict, `E_BAD_NODE` for a layer index that is not a node, and
- * `E_BAD_OPTION` for an unknown `align`; `params` carry the facts
+ * `E_BAD_OPTION` for an unknown `align` or an `aspectRatio` that is not a positive number; `params` carry the facts
  */
 export function multipartite(s: GraphSnapshot, options: MultipartiteLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);
-    const { subsets = "subset", align = "vertical" } = options;
+    const { subsets = "subset", align = "vertical", aspectRatio } = options;
     const layers =
         typeof subsets === "string"
             ? groupsOfColumn(s, subsets, "subsets")
             : subsets.map((set) => resolveNodeSet(s, set));
-    return result(planar(layeredRows(n, layers, multipartitePlace, align, scale, center), dim, center), dim, n);
+    const place = aspectRatio === undefined ? multipartitePlace : aspectPlace(layers, aspectRatio, align);
+    return result(planar(layeredRows(n, layers, place, align, scale, center), dim, center), dim, n);
 }

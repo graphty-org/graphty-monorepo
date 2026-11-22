@@ -377,6 +377,32 @@ const CASES: readonly Case[] = [
             ),
     },
     {
+        // Thawing only flips a flag; its cost lands on the draw after it, which walks every mesh
+        // again instead of reusing the frozen list, so the pair may grow with the graph.
+        methods: ["UpdateManager.thawActiveMeshes"],
+        prepare: async (element) => {
+            const scene = element.graph.getScene();
+            // Quiet frames freeze the list of what is drawn.
+            while (!scene._activeMeshesFrozen) {
+                element.graph.getUpdateManager().renderFrames(1);
+                await new Promise((resolve) => requestAnimationFrame(resolve));
+            }
+
+            return drawing(
+                element.graph,
+                1,
+                0,
+                () => {
+                    element.graph.getUpdateManager().thawActiveMeshes();
+                    element.graph.render();
+                },
+                () => {
+                    assert.isFalse(scene._activeMeshesFrozen, "the list was thawed");
+                },
+            );
+        },
+    },
+    {
         methods: ["UpdateManager.forceEdgeWalk"],
         prepare: (element, size) => {
             const manager = element.graph.getUpdateManager();

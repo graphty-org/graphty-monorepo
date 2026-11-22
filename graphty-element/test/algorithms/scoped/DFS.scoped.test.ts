@@ -3,7 +3,7 @@
  */
 
 import { DFSAlgorithm } from "../../../src/algorithms/DFSAlgorithm";
-import type { Graph } from "../../../src/Graph";
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { describeScopedAdapter } from "./harness";
 
-describeScopedAdapter("dfs", (graph: Graph) => new DFSAlgorithm(graph));
+describeScopedAdapter("dfs", (graph: AlgorithmHost) => new DFSAlgorithm(graph));

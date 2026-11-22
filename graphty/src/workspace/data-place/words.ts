@@ -19,8 +19,8 @@ import {
     type LocationUnused,
     type LocationUsing,
     pathParts,
+    type PositionAxis,
     type Run,
-    type TableMapping,
     type TableMappingRead,
 } from "@graphty/graphty-element/session";
 
@@ -540,7 +540,16 @@ export const FIELD_ROWS: readonly FieldRow[] = [
 
 /** What a Fields "+" entry is. */
 export type EntryId =
-    "label" | "kind" | "kindName" | "weight" | "time" | LocationKind | "edgeId" | "sourceKind" | "targetKind";
+    | "label"
+    | "kind"
+    | "kindName"
+    | "weight"
+    | "time"
+    | LocationKind
+    | PositionAxis
+    | "edgeId"
+    | "sourceKind"
+    | "targetKind";
 
 /** One kind of Fields "+" entry. */
 export interface FieldEntry {
@@ -572,6 +581,9 @@ export const FIELD_ENTRIES: Readonly<Record<FieldSide, readonly FieldEntry[]>> =
         { id: "weight", name: "Weight", role: "weight" },
         { id: "time", name: "Time", role: "time" },
         ...LOCATION_ENTRIES,
+        { id: "x", name: "X", role: "x" },
+        { id: "y", name: "Y", role: "y" },
+        { id: "z", name: "Z", role: "z" },
     ],
     edges: [
         { id: "edgeId", name: "Id", load: "edgeId" },
@@ -732,24 +744,6 @@ export function kindChoices(roles: TableMappingRead | undefined, current: string
 export function fileKindChoices(source: LoadedSource | undefined, current: string | null): string[] {
     const file = source === undefined ? null : sourceName(source).replace(/\.[^.]*$/, "");
     return [...new Set([file, current].filter((name) => name !== null && name !== ""))] as string[];
-}
-
-/**
- * A load-time mapping that changes one role, in the shape the load's table is named by: a bare
- * mapping for a load of one table, the table by id otherwise.
- * @param source - the load.
- * @param side - which table.
- * @param roles - the roles to change.
- * @returns the mapping.
- */
-export function remap(
-    source: LoadedSource,
-    side: FieldSide,
-    roles: TableMapping,
-): TableMapping | { tables: Record<string, TableMapping> } {
-    const tables = Object.entries(source.mapping?.tables ?? {});
-    const id = tables.find(([, table]) => table.rowsAre === side)?.[0];
-    return tables.length <= 1 || id === undefined ? roles : { tables: { [id]: roles } };
 }
 
 /**

@@ -61,7 +61,9 @@ export interface LlmResponse {
     toolCalls: ToolCall[];
     /** Token usage information */
     usage?: {
+        /** Tokens the request sent to the model. */
         promptTokens: number;
+        /** Tokens the model wrote in reply. */
         completionTokens: number;
     };
 }

@@ -95,3 +95,8 @@ export const ARF: Story = {
     ...tile("Layouts", "arf"),
     name: "ARF",
 };
+
+export const Geographic: Story = {
+    ...tile("Layouts", "geographic"),
+    name: "Geographic",
+};

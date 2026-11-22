@@ -86,6 +86,7 @@ export type AiConversationMessage =
     | {
           /** The message's id, stable across saves and reloads. */
           readonly id: string;
+          /** Who said it: the reader. */
           readonly role: "reader";
           /** What the reader said. */
           readonly text: string;
@@ -114,6 +115,7 @@ export type AiConversationMessage =
     | {
           /** The message's id, stable across saves and reloads. */
           readonly id: string;
+          /** Who said it: the assistant, or one of its helpers (`agent`). */
           readonly role: "assistant";
           /**
            * What the model said in this message, a question it asked included once the question no
@@ -130,7 +132,12 @@ export type AiConversationMessage =
            * `aiCommand` resolved with. Absent on an answer. `text` beside it is what the model had
            * said by then, which no longer stands.
            */
-          readonly outcome?: { readonly code: AiResultCode; readonly params: AiResultParams };
+          readonly outcome?: {
+              /** The result code `aiCommand` resolved with. */
+              readonly code: AiResultCode;
+              /** The facts that came with the code. */
+              readonly params: AiResultParams;
+          };
           /** The helper (`AiAgentRole.name`) that said it, when a helper did; absent for the assistant itself. */
           readonly agent?: string;
           /**

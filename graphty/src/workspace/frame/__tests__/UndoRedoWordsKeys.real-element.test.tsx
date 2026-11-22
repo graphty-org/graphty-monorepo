@@ -116,7 +116,10 @@ describe("undo and redo: words and keys", () => {
 
     it("names the change in Undo's accessible name, and a dimmed Undo says why on hover", async () => {
         const { session, store, id } = await openGraph();
-        assert.strictEqual(undoButton().getAttribute("aria-label"), "Undo", "nothing to name yet");
+        // The header re-renders after history:changed, not inside clear() itself.
+        await waitFor(() => {
+            assert.strictEqual(undoButton().getAttribute("aria-label"), "Undo", "nothing to name yet");
+        });
         await session.styles.update(id, { set: { "node.color": "#0072b2" } });
         const undo = await screen.findByRole("button", { name: "Undo changing node color on Picked" });
 

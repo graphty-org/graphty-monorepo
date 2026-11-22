@@ -13779,7 +13779,7 @@
             "background": 1,
             "raster.arrowhead": 0.95,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.92,
             "raster.label": 0.94,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.94,
@@ -17299,7 +17299,7 @@
             "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
-            "edge.color": 0.99,
+            "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
@@ -17375,7 +17375,7 @@
             "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
-            "edge.color": 0.99,
+            "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
@@ -17506,7 +17506,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.963,
+            "edge.route": 0.982,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -18195,7 +18195,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.989,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -18257,7 +18257,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.989,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -24365,7 +24365,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.985,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -24425,7 +24425,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.985,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -27726,7 +27726,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.988,
-            "edge.route": 0.873,
+            "edge.route": 0.949,
             "edge.curve": 0.975,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -27739,7 +27739,7 @@
             "edge.arrowShape": 0.98,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.96,
+            "edge.arrowFill": 0.99,
             "edge.arrowColor": 0.989,
             "edge.arrowLength": 0.99,
             "edge.arrowWidth": 0.98,
@@ -27759,10 +27759,10 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.92,
             "raster.edge": 0.92,
-            "raster.arrowhead": 0.91,
+            "raster.arrowhead": 0.92,
             "raster.label": 0.87,
             "raster.canvas": 0.98,
             "stray.extra": 1,
@@ -27802,7 +27802,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.988,
-            "edge.route": 0.873,
+            "edge.route": 0.949,
             "edge.curve": 0.975,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -27815,7 +27815,7 @@
             "edge.arrowShape": 0.98,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.96,
+            "edge.arrowFill": 0.99,
             "edge.arrowColor": 0.989,
             "edge.arrowLength": 0.99,
             "edge.arrowWidth": 0.98,
@@ -28378,7 +28378,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.982,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -28441,7 +28441,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.982,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -28874,11 +28874,11 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.972,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.972,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
@@ -28925,7 +28925,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.938,
+            "stray.present": 0.95,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -28946,11 +28946,11 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.972,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.972,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
@@ -28997,7 +28997,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.938,
+            "stray.present": 0.958,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -29038,7 +29038,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.982,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -29047,11 +29047,11 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.994,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.984,
+            "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
@@ -29103,7 +29103,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.982,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -29112,11 +29112,11 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.994,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.984,
+            "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
@@ -29161,7 +29161,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.957,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -29187,18 +29187,19 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.95,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.95,
+            "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.94,
             "raster.edge": 0.88,
-            "raster.arrowhead": 0.89,
+            "raster.arrowhead": 0.9,
             "raster.label": 0.9,
-            "raster.canvas": 0.98
+            "raster.canvas": 0.98,
+            "label.align": 1
         },
         "graphml-synthetic-nodes@matched": {
             "node.present": 1,
@@ -29233,7 +29234,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.957,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -29259,12 +29260,13 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.95,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "label.align": 1
         },
         "graphml-yed-voctomix": {
             "node.present": 1,
@@ -29444,7 +29446,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.995,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -29519,7 +29521,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.995,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -31294,13 +31296,13 @@
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.edge": 0.93,
+            "raster.edge": 0.94,
             "raster.label": 0.91,
-            "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.93,
+            "raster.nodeBody": 0.95,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "pajek-1crn@matched": {
@@ -31347,7 +31349,7 @@
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
             "edge.wiggle": 1
         },
@@ -31395,11 +31397,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.98,
-            "raster.edge": 0.82,
-            "raster.label": 0.85,
+            "raster.canvas": 0.99,
+            "raster.edge": 0.94,
+            "raster.label": 0.88,
             "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.85,
+            "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
         },
         "pajek-c@matched": {
@@ -31500,12 +31502,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.96,
+            "raster.arrowhead": 0.97,
             "raster.canvas": 0.98,
-            "raster.edge": 0.95,
+            "raster.edge": 0.97,
             "raster.label": 0.87,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.91,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "pajek-football@matched": {
@@ -31614,12 +31616,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.91,
+            "raster.arrowhead": 0.95,
             "raster.canvas": 0.97,
-            "raster.edge": 0.89,
+            "raster.edge": 0.96,
             "raster.label": 0.86,
             "raster.nodeBody": 0.95,
-            "raster.nodeOutline": 0.88,
+            "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
         },
         "pajek-graphstream-b@matched": {
@@ -31728,12 +31730,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
-            "raster.canvas": 0.92,
-            "raster.edge": 0.9,
-            "raster.label": 0.83,
-            "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.92,
+            "raster.arrowhead": 0.95,
+            "raster.canvas": 0.93,
+            "raster.edge": 0.92,
+            "raster.label": 0.84,
+            "raster.nodeBody": 0.95,
+            "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
         },
         "pajek-iliad@matched": {
@@ -31835,10 +31837,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.96,
-            "raster.edge": 0.87,
+            "raster.edge": 0.91,
             "raster.label": 0.85,
             "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.84,
+            "raster.nodeOutline": 0.89,
             "edge.wiggle": 1
         },
         "pajek-kdorola@matched": {
@@ -31937,14 +31939,14 @@
             "edge.arrowToSpacing": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
             "raster.arrowhead": 0.82,
             "raster.canvas": 0.92,
-            "raster.edge": 0.82,
+            "raster.edge": 0.83,
             "raster.label": 0.79,
             "raster.nodeBody": 0.83,
-            "raster.nodeOutline": 0.82,
+            "raster.nodeOutline": 0.83,
             "edge.wiggle": 1
         },
         "pajek-lin-rel4@matched": {
@@ -31997,7 +31999,7 @@
             "edge.arrowToSpacing": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
             "edge.wiggle": 1
         },
@@ -33649,12 +33651,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
-            "raster.canvas": 0.97,
-            "raster.edge": 0.91,
+            "raster.arrowhead": 0.95,
+            "raster.canvas": 0.98,
+            "raster.edge": 0.93,
             "raster.label": 0.85,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.89,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1,
             "edge.dashPeriod": 1
         },
@@ -33757,13 +33759,13 @@
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.97,
-            "raster.edge": 0.9,
-            "raster.label": 0.84,
-            "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.91,
+            "raster.edge": 0.95,
+            "raster.label": 0.86,
+            "raster.nodeBody": 0.96,
+            "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
         },
         "pajek-synth-vertices@matched": {
@@ -33810,7 +33812,7 @@
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
             "edge.wiggle": 1
         },
@@ -39693,14 +39695,14 @@
             "label.background": 1,
             "label.backgroundBorder": 1,
             "stray.present": 1,
-            "stray.extra": 0.6,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.94,
-            "raster.nodeBody": 0.96,
+            "raster.label": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94
         },
         "yed-graphml-specimen-images-charts@matched": {
@@ -39734,7 +39736,7 @@
             "label.background": 1,
             "label.backgroundBorder": 1,
             "stray.present": 1,
-            "stray.extra": 0.6,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -44232,8 +44234,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.edge": 0.95,
-            "raster.label": 0.89,
+            "raster.edge": 0.96,
+            "raster.label": 0.9,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
@@ -44294,7 +44296,7 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "stray.extra": 0.667,
+            "stray.extra": 0.833,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -44304,7 +44306,8 @@
             "raster.label": 0.95,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.99,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "stray.present": 1
         },
         "json-graphology-synth@matched": {
             "node.present": 1,
@@ -44331,12 +44334,13 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "stray.extra": 0.667,
+            "stray.extra": 0.833,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "stray.present": 1
         },
         "json-sigma-lesmis": {
             "node.present": 1,
@@ -56340,29 +56344,53 @@
         "gml-synthetic-coverage": {
             "edge.arrowLength": {
                 "floor": 0.99,
-                "to": 0.98,
-                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
-                "date": "2026-11-17"
+                "to": 0.96,
+                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
+                "date": "2026-11-19"
             },
             "edge.arrowWidth": {
                 "floor": 0.98,
-                "to": 0.97,
-                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
-                "date": "2026-11-17"
+                "to": 0.95,
+                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
+                "date": "2026-11-19"
+            },
+            "label.offset": {
+                "floor": 0.988,
+                "to": 0.963,
+                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
+                "date": "2026-11-19"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0.988,
+                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
+                "date": "2026-11-19"
             }
         },
         "gml-synthetic-coverage@matched": {
             "edge.arrowLength": {
                 "floor": 0.99,
-                "to": 0.98,
-                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
-                "date": "2026-11-17"
+                "to": 0.96,
+                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
+                "date": "2026-11-19"
             },
             "edge.arrowWidth": {
                 "floor": 0.98,
-                "to": 0.97,
-                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
-                "date": "2026-11-17"
+                "to": 0.95,
+                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
+                "date": "2026-11-19"
+            },
+            "label.offset": {
+                "floor": 0.988,
+                "to": 0.963,
+                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
+                "date": "2026-11-19"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0.988,
+                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
+                "date": "2026-11-19"
             }
         },
         "graphml-yfiles-html-ss13-tree": {
@@ -56391,22 +56419,6 @@
                 "to": 0.6,
                 "reason": "yFiles for HTML markup labels now read (h3, strong): the labels pair with yEd Live's, which shows faults hidden while they did not -- edge label rotation not kept upright (graphty 125.7, yEd Live -54.3) and the h3 group label's anchor and offset; stray.present 5/8 -> 3/5 is three texts becoming paired labels, no new unmatched stray",
                 "date": "2026-11-07"
-            }
-        },
-        "json-graphology-synth": {
-            "stray.extra": {
-                "floor": 0.667,
-                "to": 0.286,
-                "reason": "comparator, issue #5367: framed at sigma's own zoom, the big nodes put graphty's labels of nodes 13, 27 and 53 further from their node's center than the comparator counts as near; sigma's record gives each label a zero-size box at its node's center though sigma draws it to the node's right, so the words are not found near it",
-                "date": "2026-11-01"
-            }
-        },
-        "json-graphology-synth@matched": {
-            "stray.extra": {
-                "floor": 0.667,
-                "to": 0.286,
-                "reason": "comparator, issue #5367: framed at sigma's own zoom, the big nodes put graphty's labels of nodes 13, 27 and 53 further from their node's center than the comparator counts as near; sigma's record gives each label a zero-size box at its node's center though sigma draws it to the node's right, so the words are not found near it",
-                "date": "2026-11-01"
             }
         },
         "json-vis-siblings": {
@@ -56449,6 +56461,22 @@
                 "date": "2026-11-16"
             }
         },
+        "pajek-1crn": {
+            "node.extra": {
+                "floor": 1,
+                "to": 0.997,
+                "reason": "pajek-1crn v1 sits at the half-pixel cover boundary once graphty draws Pajek samples on Pajek's own 500 x 500 canvas: covered on the oracle's side, shown on graphty's, though neither drawing shows a pixel of it (#9149)",
+                "date": "2026-11-20"
+            }
+        },
+        "pajek-1crn@matched": {
+            "node.extra": {
+                "floor": 1,
+                "to": 0.997,
+                "reason": "pajek-1crn v1 sits at the half-pixel cover boundary once graphty draws Pajek samples on Pajek's own 500 x 500 canvas: covered on the oracle's side, shown on graphty's, though neither drawing shows a pixel of it (#9149)",
+                "date": "2026-11-20"
+            }
+        },
         "xgmml-syn-mappings": {
             "label.alongLine": {
                 "floor": 1,
@@ -56463,22 +56491,6 @@
                 "to": 0.971,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
-            }
-        },
-        "yed-graphml-specimen-images-charts": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.158,
-                "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
-                "date": "2026-11-07"
-            }
-        },
-        "yed-graphml-specimen-images-charts@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.158,
-                "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
-                "date": "2026-11-07"
             }
         },
         "yed-live-graphml-specimen-labels-p5": {

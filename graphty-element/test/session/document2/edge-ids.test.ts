@@ -55,7 +55,10 @@ async function open(
     });
     return {
         session,
-        problems: report.problems.filter((problem) => problem.code !== "W_RECIPE_NOT_APPLIED"),
+        // A CSV edge list's ends only name its nodes (design 3.1), which these tests are not about.
+        problems: report.problems.filter(
+            (problem) => problem.code !== "W_RECIPE_NOT_APPLIED" && problem.code !== "W_NODE_NAMED_ONLY",
+        ),
     };
 }
 
@@ -325,7 +328,7 @@ describe("edge ids in a version 2 save", () => {
         vi.stubGlobal("fetch", fetched);
         const { session: opened, problems } = await open(text, undefined, "https://example.test/p/x.graphty.json");
         const unavailable = problems.find((problem) => (problem as { code: string }).code === "W_SOURCE_UNAVAILABLE");
-        assert.strictEqual((unavailable as { params: JsonObject } | undefined)?.params.reason, "unreachable");
+        assert.strictEqual((unavailable as { params: JsonObject } | undefined)?.params.reason, "not-found");
         assert.strictEqual(fetched.mock.calls.length, 1);
         await opened.data.addEdges([{ source: "a", target: "b" }]);
         const saved = Object.values(data(await save(opened)).edgeIds as Record<string, Record<string, EdgeId>>).flatMap(

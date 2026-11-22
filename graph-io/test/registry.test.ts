@@ -45,15 +45,15 @@ function edges(s: GraphSnapshot): string[] {
 }
 
 describe("FormatRegistry", () => {
-    it("holds the built-in formats in GRAPH_FORMATS order; every one is read and written", () => {
+    it("holds the built-in formats in GRAPH_FORMATS order; every one is read and all but workbooks written", () => {
         expect(registry).toBeInstanceOf(FormatRegistry);
         expect(registry.formats()).toEqual([...GRAPH_FORMATS]);
         expect(registry.importers().map((i) => i.format)).toEqual([...GRAPH_FORMATS]);
-        const written = GRAPH_FORMATS;
+        const written = GRAPH_FORMATS.filter((format) => format !== "xlsx");
         expect(registry.exporters().map((e) => e.format)).toEqual(written);
         for (const format of GRAPH_FORMATS) {
             expect(registry.hasImporter(format)).toBe(true);
-            expect(registry.hasExporter(format)).toBe(true);
+            expect(registry.hasExporter(format)).toBe(format !== "xlsx");
             expect(registry.importer(format).format).toBe(format);
         }
         for (const format of written) {
@@ -64,7 +64,7 @@ describe("FormatRegistry", () => {
     });
 
     it("rejects an unknown format with E_UNSUPPORTED naming the known ones", () => {
-        const written = GRAPH_FORMATS;
+        const written = GRAPH_FORMATS.filter((format) => format !== "xlsx");
         for (const [fn, supported] of [
             [(): unknown => registry.importer("nope"), GRAPH_FORMATS],
             [(): unknown => registry.exporter("nope"), written],

@@ -18,6 +18,49 @@ describe("the generator catalogue", () => {
         expect(graphHash(generateGraph(name))).toBe(graphHash(graph));
     });
 
+    const bounds = GENERATOR_CATALOG.flatMap((each) =>
+        each.params.flatMap((param) =>
+            param.type === "integer" || param.type === "number"
+                ? [param.min, param.max]
+                      .filter((value): value is number => value !== undefined)
+                      .map((value) => [each.name, param.name, value] as const)
+                : [],
+        ),
+    );
+
+    // A bound may also depend on another parameter (n above m), so when the defaults do not fit, the
+    // others go to their own minimum, one at a time and then all together; what must never fail is
+    // the bound itself.
+    it.each(bounds)("%s takes %s at its declared bound %d", (name, param, value) => {
+        const others = (GENERATOR_CATALOG.find((each) => each.name === name)?.params ?? []).flatMap((each) =>
+            each.name !== param && each.name !== "seed" && each.min !== undefined
+                ? [[each.name, each.min] as const]
+                : [],
+        );
+        const tries: Record<string, number>[] = [
+            {},
+            ...others.map(([other, min]) => ({ [other]: min })),
+            Object.fromEntries(others),
+        ];
+        let error: unknown;
+        for (const params of tries.map((each) => ({ ...each, [param]: value }))) {
+            try {
+                generateGraph(name, params);
+                return;
+            } catch (thrown) {
+                error = thrown;
+            }
+        }
+        expect((error as Error).message).not.toMatch(new RegExp(`^${param} must be`));
+    });
+
+    it("builds the smallest graph each classic family has", () => {
+        expect(generateGraph("cycle", { n: 3 }).nodeCount).toBe(3);
+        expect(generateGraph("wheel", { n: 4 }).nodeCount).toBe(4);
+        expect(generateGraph("mobius-ladder", { n: 3 }).nodeCount).toBe(6);
+        expect(generateGraph("lollipop", { cliqueSize: 2, pathLength: 0 }).nodeCount).toBe(2);
+    });
+
     it("takes a parameter and changes the graph with the seed", () => {
         const graph = generateGraph("erdos-renyi", { n: 40, p: 0.1 });
         expect(graph.nodeCount).toBe(40);

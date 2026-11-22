@@ -259,3 +259,11 @@
 .ws-body > [hidden] {
     display: none;
 }
+
+/* The inspector's title takes focus from script once a run or a find pick fills the inspector.
+   After a pointer press Chrome still rings it when the reader typed earlier (Find path clicked
+   after typing its ends), so its ring follows the reader's last press, which installFocusGuard
+   records: none after a pointer, the shared ring after any key (#9290). */
+:root[data-ws-last-press="pointer"] #ws-inspector-title:focus-visible {
+    outline-color: transparent;
+}

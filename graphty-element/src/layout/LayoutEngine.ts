@@ -770,6 +770,16 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Step again from where the bodies are, because the layout manager moved them: a 2D drawing
+     * rising into 3D a step at a time (issue #9372). An engine that cannot is lifted in one go.
+     * @returns True when the engine was woken and steps from the moved bodies.
+     * @internal
+     */
+    wakeForLift(): boolean {
+        return false;
+    }
+
+    /**
      * Whether this engine keeps nodes apart by their drawn size (`nodeGap`), so it must not step while a size is still
      * to come: see `UpdateManager.updateLayout`.
      * @returns True when the engine reads node sizes.

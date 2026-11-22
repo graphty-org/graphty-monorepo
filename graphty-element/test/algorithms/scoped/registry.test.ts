@@ -18,10 +18,20 @@ import "../../../src/algorithms";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { withRunInput } from "../../../src/algorithms/input/ScopedInput";
-import type { Graph } from "../../../src/Graph";
-import { edgesOf, idsOf, InputGraph } from "../input/harness";
-import { assertComputesOverScope, type Build, coveredBy, handBuilt, runScoped, runWhole, valuesOf } from "./harness";
+import { edgesOf, idsOf } from "../input/harness";
+import {
+    assertComputesOverScope,
+    type Build,
+    coveredBy,
+    handBuilt,
+    runScoped,
+    runWhole,
+    type ScopedGraph,
+    scopedGraph,
+    valuesOf,
+} from "./harness";
 
 /** Each registered algorithm's `scopeInput`: on computes over the scope, off over the whole graph. */
 const EXPECTED: Readonly<Record<string, "on" | "off">> = {
@@ -126,44 +136,45 @@ const FIXTURES: Readonly<Record<string, Fixture>> = {
 };
 
 /** The fixture graph, recording every read of the graph that goes around the input accessor. */
-class Recording extends InputGraph {
+type Recording = ScopedGraph & {
     /** Reads around `Algorithm.input`, in order. */
-    readonly around: string[] = [];
-
+    readonly around: string[];
     /** How deep inside `Algorithm.input` the current call is. */
-    inside = 0;
+    inside: number;
+};
 
-    /**
-     * The data manager, whose node and edge maps record every read, and whose snapshot records a
-     * read made outside the input accessor.
-     * @returns It.
-     */
-    override getDataManager(): ReturnType<InputGraph["getDataManager"]> {
-        const base = super.getDataManager();
-        const watch = <T extends object>(name: string, target: T): T =>
-            new Proxy(target, {
-                get: (object, property) => {
-                    this.around.push(`${name}.${String(property)}`);
-                    const value: unknown = Reflect.get(object, property, object);
-                    return typeof value === "function"
-                        ? (value as (...args: unknown[]) => unknown).bind(object)
-                        : value;
-                },
-            });
-
-        return {
-            nodes: watch("nodes", base.nodes),
-            edges: watch("edges", base.edges),
-            getSnapshot: () => {
-                if (this.inside === 0) {
-                    this.around.push("getSnapshot()");
-                }
-
-                return base.getSnapshot();
+/**
+ * A session-backed graph whose data manager records every read: its node and edge maps record
+ * each one, and its snapshot records a read made outside the input accessor.
+ * @param graph - The graph.
+ * @returns It, recording.
+ */
+function recording(graph: ScopedGraph): Recording {
+    const base = graph.getDataManager();
+    const around: string[] = [];
+    const watch = <T extends object>(name: string, target: T): T =>
+        new Proxy(target, {
+            get: (object, property) => {
+                around.push(`${name}.${String(property)}`);
+                const value: unknown = Reflect.get(object, property, object);
+                return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(object) : value;
             },
-            undirected: base.undirected,
-        };
-    }
+        });
+    const recorded: Recording = Object.assign(graph, { around, inside: 0 });
+    const data = Object.assign(Object.create(base) as typeof base, {
+        nodes: watch("nodes", base.nodes),
+        edges: watch("edges", base.edges),
+        getSnapshot: () => {
+            if (recorded.inside === 0) {
+                around.push("getSnapshot()");
+            }
+
+            return base.getSnapshot();
+        },
+    });
+    recorded.getDataManager = () => data;
+
+    return recorded;
 }
 
 /** The graph the current run reads, for the wrapper of `Algorithm.input`. */
@@ -174,11 +185,13 @@ let active: Recording | null = null;
  * @param spec - The fixture; the shared one by default.
  * @returns It.
  */
-function fixture(spec: Fixture = SHARED): Recording {
-    active = new Recording(
-        [...spec.nodes],
-        spec.edges.map(([s, t, w]) => [s, t, w] as const),
-        true,
+async function fixture(spec: Fixture = SHARED): Promise<Recording> {
+    active = recording(
+        await scopedGraph(
+            [...spec.nodes],
+            spec.edges.map(([s, t, w]) => [s, t, w] as const),
+            true,
+        ),
     );
     return active;
 }
@@ -219,7 +232,7 @@ const KEYS = Algorithm.getRegisteredAlgorithms("graphty");
 function builderOf(key: string): Build {
     const [namespace, type] = key.split(":");
 
-    return (graph: Graph) => {
+    return (graph: AlgorithmHost) => {
         const algorithm = Algorithm.get(graph, namespace, type, OPTIONS[key]);
         assert.isNotNull(algorithm, key);
         return algorithm;
@@ -247,18 +260,18 @@ describe("the declaration table", () => {
         );
     });
 
-    it("the hand-built graph holds its nodes and edges in the order inducedSubgraph gives them", () => {
-        const graph = fixture();
+    it("the hand-built graph holds its nodes and edges in the order inducedSubgraph gives them", async () => {
+        const graph = await fixture();
         const scope = graph.scope(MEMBERS);
         const induced = graph.snapshot().inducedSubgraph({ mask: scope.resolution.nodes }).snapshot;
-        const hand = handBuilt(graph, scope).snapshot();
+        const hand = (await handBuilt(graph, scope)).snapshot();
 
         assert.deepStrictEqual(idsOf(hand), idsOf(induced));
         assert.deepStrictEqual(edgesOf(hand), edgesOf(induced));
     });
 
-    it("a pure relabelling of a partition is judged equal", () => {
-        const graph = new InputGraph(["p", "q"], []);
+    it("a pure relabelling of a partition is judged equal", async () => {
+        const graph = await scopedGraph(["p", "q"], []);
         const result = (labels: number[]): Parameters<typeof valuesOf>[0] =>
             ({
                 shape: "community",
@@ -294,8 +307,8 @@ class Peeker extends Algorithm {
 
 describe("the recording of reads around the input accessor", () => {
     it("sees a read of the node map, and not the input's own read of the snapshot", async () => {
-        const graph = fixture();
-        const peeker = new Peeker(graph.asGraph());
+        const graph = await fixture();
+        const peeker = new Peeker(graph);
         const seen = await withRunInput(
             peeker,
             graph,
@@ -316,7 +329,7 @@ describe.runIf(DECLARED_ON.length > 0)("every algorithm declared on computes ove
         it(key, async () => {
             const build = builderOf(key);
             const spec = FIXTURES[key] ?? SHARED;
-            const graph = fixture(spec);
+            const graph = await fixture(spec);
             const scope = graph.scope([...spec.members]);
 
             const scoped = await assertComputesOverScope(build, graph, scope);
@@ -326,7 +339,7 @@ describe.runIf(DECLARED_ON.length > 0)("every algorithm declared on computes ove
                 "scope.whole-graph",
             );
 
-            const whole = await runWhole(build, fixture(spec));
+            const whole = await runWhole(build, await fixture(spec));
             const covered = coveredBy(graph, scope);
             // A pair list publishes its answer as graph-level rows and nothing on an element, so
             // its rows are what tell the two runs apart. Every other shape is told apart by its
@@ -349,7 +362,7 @@ const DECLARED_OFF = Object.keys(EXPECTED).filter((name) => EXPECTED[name] === "
 describe.runIf(DECLARED_OFF.length > 0)("every algorithm declared off says it computed on the whole graph", () => {
     for (const key of DECLARED_OFF) {
         it(key, async () => {
-            const graph = fixture();
+            const graph = await fixture();
             const result = await runScoped(builderOf(key), graph, graph.scope(MEMBERS));
 
             assert.isDefined(result, "the run published a result");

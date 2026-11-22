@@ -93,6 +93,7 @@ function actSource(act: StepsAct): string | null {
         case "rename":
             return act.rename.source;
         case "remove-step":
+        case "move-step":
         case "set-step-off":
             return null;
         default:
@@ -109,8 +110,10 @@ const ACT_LABELS: Readonly<Record<StepsAct["act"], string>> = {
     rename: "Renamed a column",
     pick: "Picked a value",
     "remove-step": "Deleted a step",
+    "move-step": "Moved a step",
     "set-step-off": "Turned a step off or on",
     "add-staged": "Added a staged source",
+    "set-mapping": "Changed a staged source's mapping",
 };
 
 /**
@@ -217,6 +220,23 @@ function joinNow(value: SourceSteps, src: StepsSource): JoinRecord | undefined {
 }
 
 /**
+ * For a staged source: the committed source it is named like (design 5.1, 9.2), the one Replace
+ * would replace.
+ * @param value - The value.
+ * @param src - The source.
+ * @returns `{ sameName }`, or nothing.
+ */
+function sameNameOf(value: SourceSteps, src: StepsSource): { sameName?: string } {
+    if (src.label === null || sourceState(value, src.id) !== "staged") {
+        return {};
+    }
+    const same = Object.values(value.sources).find(
+        (other) => other.id !== src.id && other.label === src.label && sourceState(value, other.id) !== "staged",
+    );
+    return same === undefined ? {} : { sameName: same.id };
+}
+
+/**
  * The sources list and the provenance `data.sources()` and `data.sourcesOf()` read, from the build.
  * @param value - The value.
  * @param copies - Its copies.
@@ -250,6 +270,7 @@ function listed(
             added: Object.freeze({ nodes: own?.added.nodes ?? 0, edges: own?.added.edges ?? 0 }),
             counts,
             state: sourceState(value, src.id),
+            ...sameNameOf(value, src),
             named: own?.named ?? 0,
             rowsLeftOut: Object.freeze({ ...own?.leftOut }),
             ...(src.issues === undefined ? {} : { issues: src.issues }),
@@ -264,6 +285,39 @@ function listed(
         });
     }
     return { sources: Object.freeze(sources), provenance: Object.freeze(provenance) };
+}
+
+/**
+ * The listed sources with those no step builds put back first: the sources a file saved without the
+ * experiment brought in stay listed, with their provenance, until a replacing load starts a new graph.
+ * @param ctx - The command's context.
+ * @param prior - The value before the edit.
+ * @param next - The value after it.
+ * @param sources - The sources the steps list.
+ * @param provenance - Their provenance.
+ * @returns The sources and provenance to write.
+ */
+function withUnbuilt(
+    ctx: UndoableContext,
+    prior: SourceSteps,
+    next: SourceSteps,
+    sources: readonly LoadedSource[],
+    provenance: Provenance,
+): { sources: readonly LoadedSource[]; provenance: Provenance } {
+    const stepped = (key: string): boolean => prior.sources[key] !== undefined || next.sources[key] !== undefined;
+    // An entry saved before loads had keys has its place in the list as its key, as `sources()` reads it.
+    const unbuilt = valueOf<readonly LoadedSource[]>(ctx, SOURCES_VALUE, []).filter(
+        (each, at) => !stepped(each.key ?? `s${String(at + 1)}`),
+    );
+    if (unbuilt.length === 0) {
+        return { sources, provenance };
+    }
+    const priorProvenance = valueOf<Provenance>(ctx, PROVENANCE_VALUE, {});
+    const kept = Object.entries(priorProvenance).filter(([key]) => key !== READER_SOURCE && !stepped(key));
+    return {
+        sources: Object.freeze([...unbuilt, ...sources]),
+        provenance: Object.freeze({ ...Object.fromEntries(kept), ...provenance }),
+    };
 }
 
 /**
@@ -475,6 +529,7 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         "remove-step",
         "set-step-off",
         "add-staged",
+        "set-mapping",
         "replace-copy",
         "settle-edit",
         "resolve-step",
@@ -526,7 +581,9 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
             apply({ kind: "add-nodes", records: diff.addNodes, idPath });
         }
         const ids = Object.freeze({ ...diff.kept, ...addEdges(diff.addEdges, ctx) });
-        const { sources, provenance } = listed(next, copies, ids);
+        const built = listed(next, copies, ids);
+        const { sources, provenance } =
+            adds?.replace === true ? built : withUnbuilt(ctx, prior, next, built.sources, built.provenance);
         const added = adds?.source ?? null;
         // A removal names the source left, as the off path does; an add names the one it adds.
         const named = edit.kind === "remove-source" ? newestLoaded(next) : added;

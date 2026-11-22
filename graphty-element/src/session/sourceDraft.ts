@@ -20,13 +20,14 @@ import {
     type DraftMarks,
     draftMarks,
     type DraftState,
-    mappingEdit,
+    mappingApply,
     openQuestions,
     stepEdit,
 } from "./sources/steps/draft";
 import { clearPicksEdit, drillCells, drillElements, drillRows, exceptOf, pickAllEdit } from "./sources/steps/drill";
 import { matchCounts, matchValues } from "./sources/steps/match";
 import { contextIssues, type PreviewContext, previewOf } from "./sources/steps/preview";
+import { spaceProfile, tableHandle } from "./sources/steps/profile";
 import {
     buildOf,
     type Copies,
@@ -42,6 +43,7 @@ import type {
     ReaderEditRow,
     SourceCellValue,
     SourceClearPicksOptions,
+    SourceColumnProfile,
     SourceConnectOptions,
     SourceDraft,
     SourceDraftChange,
@@ -60,7 +62,9 @@ import type {
     SourcePickAllOptions,
     SourceStepPatch,
     SourceStepRow,
+    SourceTable,
     SourceTypeEntry,
+    StageOptions,
 } from "./types";
 
 type DrillQueryArg = Parameters<typeof drillRows>[2];
@@ -74,7 +78,7 @@ export interface SourceDraftHost {
      * @param options - Its key, type, space and edge ends.
      * @returns The source and its rows as read, or null when the read held no rows.
      */
-    read(source: DataSourceInput, options: ImportOptions): Promise<{ source: StepsSource; copies: Copies } | null>;
+    read(source: DataSourceInput, options: StageOptions): Promise<{ source: StepsSource; copies: Copies } | null>;
     /**
      * Dispatch the commit: one `data.steps-set`, with the filters of the sources it removes taken
      * out in the same step, as `removeSource` takes them out (design 7.12).
@@ -263,7 +267,7 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
-    async stage(source: DataSourceInput, options: ImportOptions = {}): Promise<string> {
+    async stage(source: DataSourceInput, options: StageOptions = {}): Promise<string> {
         this.live("stage");
         const read = await this.host.read(source, options);
         if (read === null) {
@@ -414,7 +418,23 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
+    moveStep(index: number, to: number): void {
+        this.stepsAct("moveStep", { act: "move-step", index, to });
+    }
+
+    /** @inheritdoc */
     removeSource(source: SourceKey): void {
+        this.live("removeSource");
+        if (this.state.value.sources[source] === undefined) {
+            // A source a file saved without the experiment brought in: the steps do not build it,
+            // so only data.removeSource takes it out.
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `The steps do not read ${JSON.stringify(source)}: data.removeSource takes it out.`,
+                source: "data",
+                details: { reason: "not-in-steps", source },
+            });
+        }
         this.edit("removeSource", { kind: "remove-source", id: source });
     }
 
@@ -431,7 +451,7 @@ export class SourceDraftHandle implements SourceDraft {
             // the committed project's, refused as every data write is while a draft is open.
             throw draftOpenError(this.id);
         }
-        this.act("setMapping", (state) => draftApply(state, mappingEdit(state.value, source, patch)));
+        this.act("setMapping", (state) => mappingApply(state, source, patch));
     }
 
     /** @inheritdoc */
@@ -460,6 +480,18 @@ export class SourceDraftHandle implements SourceDraft {
     /** @inheritdoc */
     edits(): readonly ReaderEditRow[] {
         return editRows(this.state.value, this.state.copies);
+    }
+
+    /** @inheritdoc */
+    sourceTable(source: SourceKey): SourceTable {
+        this.live("sourceTable");
+        return tableHandle(() => this.state, source);
+    }
+
+    /** @inheritdoc */
+    profile(options: { readonly space: string }): SourceColumnProfile {
+        this.live("profile");
+        return spaceProfile(this.state.value, this.state.copies, options.space);
     }
 
     /** @inheritdoc */

@@ -164,6 +164,7 @@ const PULLED_LINE_KEYS = new Set([
     "color",
     "opacity",
     "minScreenWidth",
+    "drawOrder",
     "bezier",
     "fanned",
     "fanSpacing",
@@ -354,6 +355,9 @@ const ALONG_CAP = 4;
 
 /** How near, in `along, across` units, a laid bend may sit to a line end the layout gives and be that end. */
 const LAID_END_MATCH = 1e-4;
+
+/** How near a node's outline, in scene units, a route point counts as on it (`Edge.outside`'s `onOutline`). */
+const ON_OUTLINE = 1e-4;
 
 /**
  * Scratch vectors for the per-edge, per-frame placement of a straight line and its arrow head (issue #9420): read
@@ -1157,6 +1161,8 @@ export class Edge {
         run: number[];
         /** The look its pieces are given, for the pieces a curve takes later. */
         look: { color: Color3; opacity: number; width: number };
+        /** Its `line.drawOrder`, undefined for none, for the pieces a curve takes later ({@link PulledLineBatch.acquire}). */
+        drawOrder: number | undefined;
         /** A curve's last span and the centers it was cut between, null while it draws nothing ({@link Edge.drawnCurve}). */
         path?: { src: Vector3; dst: Vector3; span: CurveSpan } | null;
         /** A line through bends' block in the batch's route table and the cut path it holds ({@link Edge.pullSpan}). */
@@ -3531,9 +3537,10 @@ export class Edge {
         const look = this.pulledLook(options, style);
         const { opacity } = look;
         const animationSpeed = style.line?.animationSpeed ?? 0;
+        const drawOrder = style.line?.drawOrder;
         let piece: number;
         try {
-            piece = batch.acquire(look.width);
+            piece = batch.acquire(look.width, drawOrder);
         } catch (error) {
             // a batch the card cannot hold more of: this line is drawn as the object path draws it
             this.refuseTooLarge(batch, error);
@@ -3565,6 +3572,7 @@ export class Edge {
             run: [],
             look,
             head: this.pullHead(batch, piece, style, rows),
+            drawOrder,
         };
         this.pullRows();
         // the walk leaves a straight pulled line alone ({@link Edge.followsRows}), so what it last placed is stale
@@ -3756,12 +3764,12 @@ export class Edge {
         // an entry a CURVE_STRIDE pieces, taken as the cut grows and kept while the edge is pulled; each entry is
         // written before the next is taken, so its pieces take their draw slots in piece order, as the object path's
         // curve takes its batch slots
-        const { look, run } = pulled;
+        const { look, run, drawOrder } = pulled;
         const parts = Math.ceil((span?.pieces ?? 0) / CURVE_STRIDE);
         batch.setCurve(pulled.piece, 0, span, at);
         for (let part = 1; part < parts || part <= run.length; part++) {
             if (part > run.length) {
-                const piece = batch.acquire(look.width);
+                const piece = batch.acquire(look.width, drawOrder);
                 batch.setLook(piece, look.color, look.opacity, look.width);
                 batch.setRows(piece, pulled.source, pulled.target);
                 run.push(piece);
@@ -4906,14 +4914,24 @@ export class Edge {
      * @param node - The node.
      * @param centre - The node's center.
      * @param gap - How far past the outline a point must be to count as outside (`line.nodeGap`).
+     * @param onOutline - Whether a point on the outline itself, under its border, counts as outside too.
      * @returns True for a point farther from the center than the node's outline in its direction.
      */
-    private static outside(node: RowMeasure, centre: Vector3, gap = 0): (x: number, y: number, z: number) => boolean {
+    private static outside(
+        node: RowMeasure,
+        centre: Vector3,
+        gap = 0,
+        onOutline = false,
+    ): (x: number, y: number, z: number) => boolean {
+        const under = onOutline ? node.borderReach + ON_OUTLINE : 0;
         return (x, y, z) => {
             const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
             return (
                 d > 0 &&
-                d > gap + Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
+                d >
+                    gap -
+                        under +
+                        Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
             );
         };
     }
@@ -5104,7 +5122,15 @@ export class Edge {
         const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
         const outSrc = Edge.outside(this.endMeasure("source"), src, srcGap);
         const outDst = Edge.outside(this.endMeasure("target"), dst, dstGap);
-        const span = routeEnds(route, ports, outSrc, outDst);
+        // a bend on a node's outline is drawn from, as a tool clipping the line at the outline draws it from there
+        // (gml-synthetic-coverage 47->48: its bends sit on star8's tip and on the fat arrow's side); a sampled curve's
+        // points are not bends and stay clipped by the border
+        const span = routeEnds(
+            route,
+            ports,
+            Edge.outside(this.endMeasure("source"), src, srcGap, !sampled),
+            Edge.outside(this.endMeasure("target"), dst, dstGap, !sampled),
+        );
         if (span === null) {
             return false;
         }

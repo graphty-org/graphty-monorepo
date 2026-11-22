@@ -294,18 +294,24 @@ function growForLabel(box: FramingBox, labelMesh: Mesh | null | undefined): void
 
 /**
  * Grow a box to take in the points an edge's curve or bends are drawn through, which can reach
- * well outside the box of its two nodes (issue #3097). A straight edge costs one check and adds
- * nothing: its line runs between two nodes the box already holds.
+ * well outside the box of its two nodes (issue #3097).
  * @param box - The box to grow.
- * @param edge - The edge.
+ * @param curve - The world points, from {@link drawnCurveInWorld}.
  */
-function growForCurve(box: FramingBox, edge: Edge): void {
-    for (const point of drawnCurveInWorld(edge) ?? []) {
+function growForCurve(box: FramingBox, curve: readonly Vector3[]): void {
+    for (const point of curve) {
         box.spots.push({ pos: point, half: 0 });
         box.min.minimizeInPlace(point);
         box.max.maximizeInPlace(point);
     }
 }
+
+/**
+ * The framing walk's work, for the tests that count it (issue #9420). No entry point exports it.
+ * `edges` counts the edges {@link framingBox} grew the box by; `skipPlain` false walks every visible edge as
+ * before the skip, which the tests compare the box against.
+ */
+export const framingWalk = { edges: 0, skipPlain: true };
 
 /**
  * The most rounds a framing takes to size the labels sized on screen for its own camera. Each round
@@ -357,13 +363,32 @@ export function framingBox(
     }
 
     for (const edge of edges) {
-        if (edge.isRenderVisible()) {
-            growForLabel(box, edge.label?.labelMesh);
-            growForLabel(box, edge.xlabelLabel?.labelMesh);
-            growForLabel(box, edge.arrowHeadText?.labelMesh);
-            growForLabel(box, edge.arrowTailText?.labelMesh);
-            growForCurve(box, edge);
+        if (!edge.isRenderVisible()) {
+            continue;
         }
+
+        const curve = drawnCurveInWorld(edge);
+        // A straight edge with no text runs between two nodes the box already holds: it cannot widen it. On a
+        // moving graph of plain lines that is every edge, so it is left before any growing (issue #9420).
+        // ponytail: still one check per edge; a list of the curved and labeled edges, like `placedEdges`, if a
+        // million plain edges need the frame back.
+        if (
+            framingWalk.skipPlain &&
+            curve === null &&
+            edge.label === null &&
+            edge.xlabelLabel === null &&
+            edge.arrowHeadText === null &&
+            edge.arrowTailText === null
+        ) {
+            continue;
+        }
+
+        framingWalk.edges++;
+        growForLabel(box, edge.label?.labelMesh);
+        growForLabel(box, edge.xlabelLabel?.labelMesh);
+        growForLabel(box, edge.arrowHeadText?.labelMesh);
+        growForLabel(box, edge.arrowTailText?.labelMesh);
+        growForCurve(box, curve ?? []);
     }
 
     return box;

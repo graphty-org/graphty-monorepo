@@ -12,6 +12,7 @@
  */
 
 import { type GraphSnapshot, makeMask, maskSet, maskTest, type U32 } from "@graphty/graph-format";
+import { geographicColumnNames } from "@graphty/graph-io/positions";
 import {
     arf,
     type ArfOptions,
@@ -177,10 +178,14 @@ export interface LayoutOptionFields {
     readonly nodeSize?: string | ArrayLike<number> | Readonly<Record<string, number>>;
     /**
      * geographic: the node data field holding each node's latitude in degrees (a number, or text that reads as one);
-     * default "latitude". A node without one is not placed and keeps its position.
+     * default: the one field named `lat` or `latitude` (any case, the rule graph-io reads a file's geographic
+     * position by), else "latitude". A node without one is not placed and keeps its position.
      */
     readonly latitude?: string;
-    /** geographic: the node data field holding each node's longitude in degrees; default "longitude". */
+    /**
+     * geographic: the node data field holding each node's longitude in degrees; default: the one field named `lon`,
+     * `lng` or `longitude` (any case), else "longitude".
+     */
     readonly longitude?: string;
 }
 
@@ -356,7 +361,13 @@ const STATIC: Readonly<Record<string, StaticLayout>> = {
         bfs(s, { ...o, start: indexOf(cs, root as NodeSelection | undefined, "graphty layout: root") }),
     radial: (s, o, cs) =>
         radial(s, { ...o, root: indexOf(cs, o.root as NodeSelection | undefined, "graphty layout: root") }),
-    geographic: (s, { latitude = "latitude", longitude = "longitude", ...o }, cs) => {
+    geographic: (s, { latitude, longitude, ...o }, cs) => {
+        const named =
+            latitude === undefined || longitude === undefined
+                ? geographicColumnNames(cs.nodes.toArray().flatMap((node) => Object.keys(node.data() as object)))
+                : null;
+        latitude ??= named?.latitude ?? "latitude";
+        longitude ??= named?.longitude ?? "longitude";
         const degrees = (field: unknown): Float64Array<ArrayBuffer> => {
             const out = new Float64Array(s.nodeCount);
             cs.nodes.forEach((node, i) => {

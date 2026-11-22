@@ -35,6 +35,7 @@ const ROW_LINE_KEYS = new Set([
     "dashGap",
     "dashArray",
     "patternCount",
+    "drawOrder",
 ]);
 
 /**
@@ -391,7 +392,7 @@ export class EdgeRowLines {
         const drawnWidth = EdgeMesh.drawsFlat(scene) || look.patterned ? width / 40 : width * 20;
         let piece: number;
         try {
-            piece = batch.acquire(drawnWidth);
+            piece = batch.acquire(drawnWidth, style.line?.drawOrder);
         } catch (error) {
             // a batch the card cannot hold more of: the row's `Edge` draws it, and reports it (`Edge.refuseTooLarge`)
             if (error instanceof GraphtyError && error.code === "E_TOO_LARGE") {

@@ -2325,6 +2325,8 @@ export abstract class LayoutEngine {
     // @internal
     wakeForClusters(): boolean;
     // @internal
+    wakeForLift(): boolean;
+    // @internal
     wakeForResize(): boolean;
     // @internal
     protected get workingGraph(): WorkingView | null;

@@ -428,6 +428,15 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     /**
+     * Step again from where the bodies are: the layout manager lifted them toward 3D.
+     * @returns True: the next refresh reheats the simulation.
+     */
+    override wakeForLift(): boolean {
+        this.reheat = true;
+        return true;
+    }
+
+    /**
      * Start the simulation again because a node's drawn size changed, when `nodeGap` keeps nodes apart by that size.
      * @returns True when the frame loop has to start stepping this layout again.
      */

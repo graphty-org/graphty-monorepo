@@ -56,6 +56,42 @@ export function markEdgeLineBatchMesh(mesh: Mesh): void {
 }
 
 /**
+ * Where a batch of edge lines with a draw order is drawn (Babylon draws a lower `alphaIndex` first): after the node
+ * surfaces (`NodeBillboardBatch`, 1e8), before the edge shaders' lines (`EdgeEffectBatch`, 1e9) and every edge batch
+ * that keeps the default, lowest order first.
+ */
+const EDGE_ORDER_ALPHA_INDEX = 1e9 - 1000;
+
+/**
+ * Draw a batch of edge lines after every batch of a lower `line.drawOrder` and before every edge batch with none, so
+ * where two lines cross at one depth the higher order is on top. The blended pass draws by `alphaIndex`, and the
+ * opaque pass orders the edge batches by it too (`Graph.#drawOverMap`). A batch with no order keeps the default, so a
+ * graph that sets none is drawn as it always was.
+ * @param mesh - The batch's mesh.
+ * @param drawOrder - Its lines' draw order, or undefined for none.
+ */
+export function stackByDrawOrder(mesh: Mesh, drawOrder: number | undefined): void {
+    if (drawOrder !== undefined) {
+        mesh.alphaIndex = EDGE_ORDER_ALPHA_INDEX + drawOrder;
+        drawOrdered.add(mesh);
+    }
+}
+
+/** The batch meshes {@link stackByDrawOrder} has given an order. */
+const drawOrdered = new WeakSet();
+
+/**
+ * Where an edge batch is drawn among the edge batches: its {@link stackByDrawOrder} place, or Infinity for one with
+ * no order, which keeps the order it always had.
+ * @param mesh - The mesh.
+ * @param mesh.alphaIndex - Its blended-pass place.
+ * @returns The place, lowest drawn first.
+ */
+export function edgeDrawPlace(mesh: { readonly alphaIndex: number }): number {
+    return drawOrdered.has(mesh) ? mesh.alphaIndex : Infinity;
+}
+
+/**
  * Whether a mesh is a shared edge line batch rather than one edge's own mesh. A pulled batch has
  * no instances, so `hasThinInstances` cannot tell.
  * @param mesh - The mesh.

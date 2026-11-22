@@ -268,7 +268,7 @@ function manyOf(
         },
         count: (channel) => linesOf(channel).filter((line) => line !== undefined).length,
         of: rows.length,
-        write: (channel, write) => record(channel, write),
+        write: (channel, write, after) => record(channel, write, after),
         clear: async (channel) => {
             const patches = rows.flatMap((row) => {
                 const layer = lineOfRow(row, channel)?.layer;
@@ -458,11 +458,15 @@ export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): Re
     // Layer rows only: a folder has no pick of its own.
     const layerRows = open.filter((row) => row.row.kind !== "folder").map((row) => row.row.id);
     const kinds = kindControl(session, store, layerRows);
+    // Keyed by the rows, not their layers, so turning a kind on keeps the tab, and a card asked
+    // for on the other kind's tab, where they are (#9537).
+    const rows = open.map((row) => row.row.id).join(" ");
     return (
         <Stack gap={0}>
             {sides.length > 0 && (
                 <RowStyle
-                    key={layerIds.join(" ")}
+                    key={rows}
+                    panel={rows}
                     session={session}
                     row={layerIds}
                     sides={sides}

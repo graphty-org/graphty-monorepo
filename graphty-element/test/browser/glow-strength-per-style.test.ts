@@ -17,7 +17,7 @@ import type { GraphSession } from "../../src/session";
 const WIDTH = 480;
 const HEIGHT = 360;
 /**
- * The strong-to-faint glow ratio with placement cancelled out. Drawn at one strength it is exactly
+ * The strong-to-faint glow ratio with placement canceled out. Drawn at one strength it is exactly
  * 1. Each at its own strength the faint glow is drawn at a tenth of the strong one's opacity.
  */
 const RATIO_FLOOR = 1.5;
@@ -69,7 +69,7 @@ describe("glow strength per style", () => {
     /**
      * Where a node lands in the frame, in readPixels coordinates (bottom row first).
      * @param id - The node.
-     * @returns The pixel the node's centre projects to.
+     * @returns The pixel the node's center projects to.
      */
     function project(id: string): { x: number; y: number } {
         const node = graph.getDataManager().getNode(id);
@@ -94,7 +94,7 @@ describe("glow strength per style", () => {
      * glow, summed. The glow is blended over the canvas, so it can darken a channel as well as
      * lighten one.
      * @param pixels - The frame.
-     * @param at - The centre.
+     * @param at - The center.
      * @param half - Half the side of the square.
      * @param baseline - The frame with no glow.
      * @returns The summed change.

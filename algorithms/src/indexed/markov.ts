@@ -99,7 +99,7 @@ function multiply(a: Csc, b: Csc, acc: Float64Array, mark: Uint8Array): Csc {
 }
 
 /**
- * Raise every entry to `inflation`, renormalise, drop the entries below `threshold` and renormalise
+ * Raise every entry to `inflation`, renormalize, drop the entries below `threshold` and renormalize
  * again: the legacy inflate and prune steps.
  * @param m - The expanded matrix
  * @param inflation - The element-wise power
@@ -177,7 +177,7 @@ function checkedArcWeight(weights: NumericVector | null, a: number): number {
 
 /**
  * The starting matrix: entry (i, j) is the weight of the arc i -> j (parallel arcs summed), the
- * diagonal set to 1 when `selfLoops`, every column normalised.
+ * diagonal set to 1 when `selfLoops`, every column normalized.
  * @param s - The adjacency
  * @param weights - Per-arc weights, or null for all ones
  * @param selfLoops - Whether to set the diagonal to 1
@@ -241,18 +241,18 @@ function transitionMatrix(s: AdjacencyView, weights: NumericVector | null, selfL
 /**
  * Markov clustering (MCL; van Dongen, 2000), the index-based port of the legacy `markovClustering`.
  *
- * The flow matrix starts as the column-normalised adjacency: entry (i, j) is the weight of the arc
+ * The flow matrix starts as the column-normalized adjacency: entry (i, j) is the weight of the arc
  * i -> j, so column j spreads j's flow over the nodes with an arc into it (on an undirected
- * snapshot, its neighbours). With `selfLoops` every diagonal entry is first set to 1, replacing a
+ * snapshot, its neighbors). With `selfLoops` every diagonal entry is first set to 1, replacing a
  * self-loop's weight. Each round raises the matrix to the `expansion` power, raises every entry to
- * the `inflation` power, renormalises the columns, drops the entries below `pruningThreshold` and
- * renormalises again, until no entry moves by more than `tolerance` or `maxIterations` rounds ran.
+ * the `inflation` power, renormalizes the columns, drops the entries below `pruningThreshold` and
+ * renormalizes again, until no entry moves by more than `tolerance` or `maxIterations` rounds ran.
  * Node j then joins the attractor with the largest entry in its column, the lowest index on a tie;
  * a node whose column emptied is a community of its own.
  *
  * The matrix is kept sparse, and every sum is taken in the order the legacy dense loops take it, so
  * the rounds are bit-identical to the legacy function's and so are the communities, their order and
- * the attractors. Communities are labelled in the legacy function's order: the flow clusters by
+ * the attractors. Communities are labeled in the legacy function's order: the flow clusters by
  * their lowest member, then the nodes whose column emptied. Two differences: parallel arcs are
  * summed (a legacy graph has none), and `iterations` counts the rounds run, where the legacy
  * function reports one more than `maxIterations` when it stops at the cap. A negative, NaN or

@@ -100,14 +100,46 @@ async function busySession(): Promise<GraphSession> {
 }
 
 /**
+ * Give a version 1 file's runs their results as columns, as a build from before runs were saved
+ * as commands wrote them (today's builds save the command only and compute the run again on open),
+ * so the migration of such a file is covered.
+ * @param v1 - The version 1 file.
+ * @param session - The session that saved it.
+ */
+function withSavedResults(v1: JsonObject, session: GraphSession): void {
+    const results = (v1.members as JsonObject[]).find((member) => member.kind === "graphty-results");
+    const columnsOf = (rows: (Readonly<Record<string, unknown>> | undefined)[]): JsonObject => {
+        const fields = new Set(rows.flatMap((row) => (row === undefined ? [] : Object.keys(row))));
+        return Object.fromEntries([...fields].map((field) => [field, rows.map((row) => row?.[field] ?? null)]));
+    };
+    for (const run of (results?.runs ?? []) as JsonObject[]) {
+        const result = session.results.get(String(run.id));
+        assert.isDefined(result);
+        const nodes = session.data.nodes().filter((node) => result.node(node.id) !== undefined);
+        run.fields = result.fields;
+        run.nodes = {
+            ids: nodes.map((node) => node.id),
+            columns: columnsOf(nodes.map((node) => result.node(node.id))),
+        };
+        run.edges = { columns: columnsOf(session.data.edges().map((edge) => result.edge(edge.id))) };
+    }
+}
+
+/**
  * A version 1 file of a session, saved with format 1, migrated.
  * @param session - The session.
+ * @param savedResults - Whether the file holds its runs' results, as an older build's did.
  * @returns The version 1 file, the version 2 file and what the migration reported.
  */
 async function migrated(
     session: GraphSession,
+    savedResults = false,
 ): Promise<{ v1: JsonObject; v2: JsonObject; sections: Record<string, JsonObject>; problems: DocumentProblem[] }> {
     const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
+    if (savedResults) {
+        withSavedResults(v1, session);
+    }
+
     const problems: DocumentProblem[] = [];
     const v2 = migrateDocument1(v1, problems);
     assert.isDefined(v2);
@@ -159,7 +191,7 @@ describe("a version 1 project file, migrated", () => {
 
     it("turns every positional edge reference into an element reference", async () => {
         const session = await busySession();
-        const { sections } = await migrated(session);
+        const { sections } = await migrated(session, true);
         const { view, results, notes, data } = sections;
         const graph = data.graph as { nodes: JsonObject[]; links: JsonObject[] };
         const keyOf = new Map(graph.nodes.map((node) => [node.id, node["graphty.key"]]));
@@ -191,7 +223,10 @@ describe("a version 1 project file, migrated", () => {
         // The run records the build it ran on and the copy ids, which equal the data's.
         assert.strictEqual(run.bindsTo.build, data.build);
         const copies = Object.fromEntries(
-            (data.sources as JsonObject[]).map((source) => [source.id, (source.origin as JsonObject).copy]),
+            (data.sources as JsonObject[]).map((source): [string, unknown] => [
+                String(source.id),
+                (source.origin as JsonObject).copy,
+            ]),
         );
         assert.deepStrictEqual(run.bindsTo.sources, copies);
 
@@ -205,7 +240,7 @@ describe("a version 1 project file, migrated", () => {
 
     it("puts each member in its section: the data, the look, the settings and the view", async () => {
         const session = await busySession();
-        const { sections } = await migrated(session);
+        const { sections } = await migrated(session, true);
         const { data, style, settings, results, view } = sections;
         const [reader, source] = data.sources as JsonObject[];
         const space = `source:${String(source.id)}`;
@@ -544,6 +579,49 @@ describe("a version 1 document of one kind, migrated", () => {
             `graphty-data/members/${String(members.length - 2)}`,
             `org.example.lab/members/${String(members.length - 1)}`,
         ]);
+    });
+});
+
+describe("version 1 weight, time and location settings", () => {
+    it("become the migrated source's roles where its rows carry the column, unreported", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", year: 1990, until: 2000, lat: 1, lon: 2 },
+            { id: "b", year: 1995, until: 2001, lat: 3, lon: 4 },
+        ]);
+        await session.data.addEdges([{ source: "a", target: "b", cost: 3 }]);
+        const v1 = JSON.parse((await session.project.save()).text) as JsonObject;
+        const state = (v1.members as JsonObject[]).find((each) => each.kind === "graphty-session") as JsonObject;
+        ((state.config as JsonObject).data as JsonObject).knownFields = {
+            nodeTimePath: "year",
+            nodeTimeUnit: "year",
+            nodeTimeEndPath: "until",
+            nodeLatitudePath: "lat",
+            nodeLongitudePath: "lon",
+            edgeWeightPath: "cost",
+            edgeWeightMeaning: "distance",
+            edgeTimePath: "missing",
+        };
+        const problems: DocumentProblem[] = [];
+        const migrated = migrateDocument1(v1, problems);
+        assert.isDefined(migrated);
+        const { data } = migrated.sections as Record<string, JsonObject>;
+        const source = (data.sources as JsonObject[]).find((each) => each.kind !== "reader") as JsonObject;
+        const mapping = source.mapping as JsonObject;
+        assert.deepInclude(mapping.nodes as JsonObject, {
+            time: "year",
+            timeUnit: "year",
+            timeEnd: "until",
+            latitude: "lat",
+            longitude: "lon",
+        });
+        assert.deepInclude(mapping.edges as JsonObject, { weight: "cost", weightMeaning: "distance" });
+        assert.notProperty(mapping.edges as JsonObject, "time", "no column, no role");
+        const leftOut = problems.map((problem) => String(problem.params.pointer));
+        assert.include(leftOut, "/config/data/knownFields/edgeTimePath");
+        assert.notInclude(leftOut, "/config/data/knownFields/nodeTimePath");
+        assert.notInclude(leftOut, "/config/data/knownFields/edgeWeightMeaning");
+        session.dispose();
     });
 });
 

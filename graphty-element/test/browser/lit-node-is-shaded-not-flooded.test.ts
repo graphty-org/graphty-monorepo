@@ -1,51 +1,51 @@
 /**
- * @file A lit node has to be SHADED in its own colour, not flooded with it.
+ * @file A lit node has to be SHADED in its own color, not flooded with it.
  *
  * WHAT A NODE'S COLOUR IS MADE OF. A 3D node is drawn from a shared `StandardMaterial` whose
- * diffuse colour is neutral white and whose emissive colour is a flat fifth of white -- the
+ * diffuse color is neutral white and whose emissive color is a flat fifth of white -- the
  * "minimum brightness floor" that keeps a shadowed surface from going black -- and the node's real
- * colour arrives per instance, in a vertex colour buffer. Babylon's default fragment shader spends
+ * color arrives per instance, in a vertex color buffer. Babylon's default fragment shader spends
  * that buffer LAST:
  *
  *     finalDiffuse = clamp(diffuseBase * diffuseColor + emissiveColor, 0, 1) * instanceColour
  *
  * With a white diffuse and a 0.2 floor the clamp saturates everywhere the light term passes 0.8,
  * which under this element's single hemispheric light is the whole cap of the node facing the
- * light. Left alone, every pixel inside that cap would come out as the node's flat unshaded colour,
- * and the gradient a material carrying its own colour produces -- where the colour is inside the
+ * light. Left alone, every pixel inside that cap would come out as the node's flat unshaded color,
+ * and the gradient a material carrying its own color produces -- where the color is inside the
  * clamp and the lit pole rides up to 1.2 times it -- would be gone. The plugin in
  * `src/meshes/InstanceColorShading.ts` is what stops that, and this file is what notices if it
  * ever stops working.
  *
  * WHY IT IS WORTH A TEST. Nothing else in the package can see this. The style model reports the
- * colour it resolved, the instance buffer holds the colour it was handed, the mesh is the mesh: by
- * every reading the element takes of itself the node is the right colour. Only the frame buffer
+ * color it resolved, the instance buffer holds the color it was handed, the mesh is the mesh: by
+ * every reading the element takes of itself the node is the right color. Only the frame buffer
  * knows the lit half of it is flat, and the only reason anyone found out is that a visual baseline
- * from before the colour moved into the buffer disagreed by six to eight percent on the handful of
+ * from before the color moved into the buffer disagreed by six to eight percent on the handful of
  * nodes whose lit cap was large enough to cross a diff threshold.
  *
  * HOW IT IS MEASURED, and why not simply "is this pixel 204". The specular highlight adds white,
  * the frame may pass through an image-processing stage, and neither is what this file is about. So
- * the reading is the SPREAD between two channels of the node's colour -- red minus green for an
+ * the reading is the SPREAD between two channels of the node's color -- red minus green for an
  * orange node. White added to a pixel lifts both channels together and cancels out of a
  * difference, which makes the spread a measurement of the diffuse term alone.
  *
  * WHAT THE FIX WAS MEASURED AGAINST, once, while it was being written. A material that carries
- * its own colour is the picture this is trying to get back, and it can be built in the same scene:
- * put the colour in the material's diffuse and emissive floor and set the instance buffer to
+ * its own color is the picture this is trying to get back, and it can be built in the same scene:
+ * put the color in the material's diffuse and emissive floor and set the instance buffer to
  * white, and the frame that comes out is plugin-independent, because multiplying by white before
  * or after a clamp is the same thing. Against that reference the element drew 16,268 differing
- * pixels, by up to 33 of 255, before the instance colour was moved inside the clamp; after, 20
+ * pixels, by up to 33 of 255, before the instance color was moved inside the clamp; after, 20
  * pixels differ and none of them by more than 1, which is the order the two expressions round in.
- * That measurement is not kept as a test -- it can only be set up by writing a colour into a
+ * That measurement is not kept as a test -- it can only be set up by writing a color into a
  * material by hand, which is the one thing nothing in this package is allowed to do -- so the
  * standing gate is the ceiling below.
  *
  * UNDER THE MATTE LIGHTING, which this file pins. The scene's light then has no specular and an intensity of 0.8, so
  * under it the light term tops out at 0.8 + 0.2 = 1.0 and never reaches the clamp: the face turned
- * to the light is exactly the colour, and a pale colour no longer washes to white. Under that
+ * to the light is exactly the color, and a pale color no longer washes to white. Under that
  * light the plugin and the stock shader draw the same picture, so this file now pins the picture
- * itself -- lit up to the colour and no further, shadowed to the floor, flat in 2D. The plugin
+ * itself -- lit up to the color and no further, shadowed to the floor, flat in 2D. The plugin
  * still matters for any brighter light a consumer adds to the scene.
  */
 
@@ -65,7 +65,7 @@ const NODES = [{ id: "one" }];
 
 /**
  * Ask for the opening view before `init()`, where `init()` reads it from the `layout` slice.
- * @param graph - The graph, not yet initialised.
+ * @param graph - The graph, not yet initialized.
  * @param settings - The view mode.
  * @param settings.viewMode - "2d" or "3d".
  */
@@ -74,37 +74,37 @@ function openIn(graph: Graph, settings: { viewMode: "2d" | "3d" }): void {
 }
 
 /**
- * The node's colour: an orange whose channels are far apart and whose brightest channel has room
+ * The node's color: an orange whose channels are far apart and whose brightest channel has room
  * above it.
  *
  * The spread is what gets measured, so the two channels have to differ by a lot. And red sits at
- * 0.8, which leaves headroom for the 1.18 the lit cap climbs to -- a colour any nearer white would
+ * 0.8, which leaves headroom for the 1.18 the lit cap climbs to -- a color any nearer white would
  * clamp at the top for a second reason and hide the one this file is about.
  */
 const COLOR = "#CC3300";
 
-/** The node colour's red channel, 0-255. */
+/** The node color's red channel, 0-255. */
 const COLOR_RED = 0xcc;
 
 /** Its green channel. */
 const COLOR_GREEN = 0x33;
 
 /**
- * The widest red-minus-green any pixel can show when the instance colour is spent after the clamp.
+ * The widest red-minus-green any pixel can show when the instance color is spent after the clamp.
  *
  * This is the ceiling the fault imposes, not a measurement: `clamp(...)` is at most 1, so the
- * diffuse part of a pixel is at most the colour itself, and the specular part is white and cancels
+ * diffuse part of a pixel is at most the color itself, and the specular part is white and cancels
  * out of the difference.
  */
 const FLOODED_SPREAD = COLOR_RED - COLOR_GREEN;
 
-/** How close to the colour's own spread the brightest face must come, in bytes. */
+/** How close to the color's own spread the brightest face must come, in bytes. */
 const LIT_CAP_MARGIN = 3;
 
 /**
  * How far apart two channels must be before a pixel counts as the node rather than the page.
  *
- * The background is whitesmoke and the edges are grey, so both read zero here. The node's own
+ * The background is whitesmoke and the edges are gray, so both read zero here. The node's own
  * darkest visible pixel is about 84 on this measure, and a pixel at the silhouette that has been
  * blended with the background falls below it -- which is the point: a blended pixel is a mixture
  * and has nothing to say about how the surface was shaded.
@@ -172,8 +172,8 @@ async function mountOneNode(viewMode: "2d" | "3d"): Promise<{ container: HTMLEle
     await graph.addNodes(NODES);
 
     // THROUGH A STYLE LAYER, which is the only way an appearance is allowed to be applied. It also
-    // happens to be the path the fault lives on: a layer's colour is interned, so the material is
-    // built neutral and the colour is handed to the instance.
+    // happens to be the path the fault lives on: a layer's color is interned, so the material is
+    // built neutral and the color is handed to the instance.
     await graph.getSession().styles.add({
         name: "one orange node",
         target: "node",
@@ -211,9 +211,9 @@ describe("a lit node's surface", () => {
 
     it("lights the face turned to the light up to its own colour, and no further", () => {
         // The light is matte at intensity 0.8, so the face turned straight at it is 0.8 + the 0.2
-        // floor = exactly the colour, and nothing is brighter: a brighter light would clamp a
-        // pale colour toward white (see lit-node-keeps-its-color.test.ts). So the widest spread
-        // reaches the colour's own and stops there.
+        // floor = exactly the color, and nothing is brighter: a brighter light would clamp a
+        // pale color toward white (see lit-node-keeps-its-color.test.ts). So the widest spread
+        // reaches the color's own and stops there.
         assert.isAtMost(
             surface.widestSpread,
             FLOODED_SPREAD + LIT_CAP_MARGIN,
@@ -231,8 +231,8 @@ describe("a lit node's surface", () => {
     });
 
     it("keeps the shadowed side where the brightness floor puts it", () => {
-        // The floor is a fifth, and the hemispheric light's ground colour is 0.35 at intensity
-        // 0.8, so the dimmest lit pixel is about 0.48 of the colour: 98 of 204. The band is wide enough for the
+        // The floor is a fifth, and the hemispheric light's ground color is 0.35 at intensity
+        // 0.8, so the dimmest lit pixel is about 0.48 of the color: 98 of 204. The band is wide enough for the
         // silhouette to be a pixel out and narrow enough to fail a "fix" that lifts the whole
         // surface -- raising the light or dropping the floor buys the gradient back by washing the
         // shadowed side out, and that is a different picture, not this one.
@@ -270,8 +270,8 @@ describe("a 2D node's surface", () => {
     it("stays flat, because a 2D node is drawn unlit", () => {
         assert.isAbove(surface.pixels, 500, "The 2D node was not drawn in its colour.");
 
-        // Exactly the colour, top and bottom: there is no light in this mode, so every pixel of the
-        // disc is the colour it was painted. Stated as a band of one to absorb a byte of rounding
+        // Exactly the color, top and bottom: there is no light in this mode, so every pixel of the
+        // disc is the color it was painted. Stated as a band of one to absorb a byte of rounding
         // between the buffer and the frame.
         assert.closeTo(
             surface.widestSpread,

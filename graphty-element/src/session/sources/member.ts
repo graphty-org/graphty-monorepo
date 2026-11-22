@@ -9,13 +9,16 @@
  * marks a credential.
  */
 
-import type { NodeId, SourceKey } from "../../catalog/types";
+import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import type { GraphtyErrorCode, GraphtyWarningCode } from "../../errors/codes";
 import type { CodedFact } from "../shared";
 import type { LoadedSource } from "../types";
 import { isRecordableEndpoint } from "./endpoint";
 import { SOURCE_RECORD_MEMBER, SOURCES_MEMBER_VERSION } from "./ids";
 import type { Provenance } from "./provenance";
+import type { Copies, SourceSteps } from "./steps/project";
+import { readStepsMember, STEPS_MEMBER_FIELDS } from "./steps/saved";
+import { READER_SOURCE } from "./steps/types";
 import type { SourceLoadRecord } from "./types";
 
 /** The member's kind. */
@@ -120,6 +123,10 @@ export interface LoadFacts {
     readonly credentialSlot?: string;
     /** An entry read from a file that cannot run: written back exactly as read. */
     readonly kept?: Readonly<Record<string, unknown>>;
+    /** `"reference"` when a save keeps the load as a reference (`session.data.setCopy`). */
+    readonly copy?: "reference";
+    /** Read from a file: its URL came from the file, so a fetch of it asks the network gate. */
+    readonly opened?: true;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -182,6 +189,44 @@ function defined(value: Record<string, unknown>): Record<string, unknown> {
  */
 function jsonBytes(value: unknown): number {
     return new TextEncoder().encode(JSON.stringify(value) ?? "").length;
+}
+
+/**
+ * The address a sample was read from, when it was read by URL (an application's own sample file)
+ * rather than generated or fetched as a named dataset: resolved against the page, so a reference
+ * to it reads the same file from anywhere.
+ * @param load - The listed load.
+ * @param facts - Its facts.
+ * @returns The absolute address, or undefined.
+ */
+export function sampleAddress(load: LoadedSource, facts: LoadFacts | undefined): string | undefined {
+    const url = load.config?.url;
+    if (load.kind !== "sample" || facts?.sample !== undefined || typeof url !== "string") {
+        return undefined;
+    }
+
+    const base = (globalThis as { document?: { baseURI?: string } }).document?.baseURI;
+    try {
+        return new URL(url, base).href;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * An address on the page's own origin as a path from that origin, so a file saved on one host
+ * reads the application's sample from whichever host opens it; any other address as it is.
+ * @param address - The absolute address.
+ * @returns The path and query, or the address.
+ */
+function originRelative(address: string): string {
+    const base = (globalThis as { document?: { baseURI?: string } }).document?.baseURI;
+    try {
+        const url = new URL(address);
+        return base !== undefined && url.origin === new URL(base).origin ? `${url.pathname}${url.search}` : address;
+    } catch {
+        return address;
+    }
 }
 
 /**
@@ -258,6 +303,26 @@ export interface SourcesWriteInput {
     readonly waiting?: readonly string[];
     /** The `provenance` graph value, for each load's `foundNodes` (the nodes it found already held). */
     readonly provenance?: Provenance;
+    /**
+     * The loads whose rows this save left out of the data member, by key: what their entries say
+     * about the rows as read (`rowsSha256`, `removedRows`).
+     */
+    readonly references?: ReadonlyMap<SourceKey, ReferenceEntry>;
+}
+
+/** The rows of a load as read that the graph no longer held when it was saved: the reader removed them. */
+export interface RemovedRows {
+    readonly nodes: readonly (string | number)[];
+    /** Each removed edge as its `[source, target]` pair. */
+    readonly edges: readonly (readonly [string | number, string | number])[];
+}
+
+/** What a referenced load's entry says about its rows as read when the save left them out. */
+export interface ReferenceEntry {
+    /** The SHA-256 of the rows as read: an open compares it to tell a changed source. */
+    readonly rowsSha256: string;
+    /** The rows as read the graph did not hold, which an open leaves out; absent when none. */
+    readonly removedRows?: RemovedRows;
 }
 
 /** What a save writes about the loads. */
@@ -273,6 +338,11 @@ export interface SourcesWrite {
     readonly idOf: (value: string) => string;
     /** Where an id sits in the member, for writing a record's loads oldest first; unknown ids last. */
     readonly rank: (id: string) => number;
+    /**
+     * Under the `source-steps` experiment, each element's type, written on its record as
+     * `graphty.types` (at most one item; `[]` for the default type). Absent with the experiment off.
+     */
+    readonly typeOf?: (kind: "node" | "edge", id: NodeId | EdgeId) => string | null;
 }
 
 /**
@@ -374,7 +444,7 @@ function withoutSecretNames(value: unknown, dropped: Set<string>): unknown {
  * @param dropped - Collects the names left out.
  * @returns The params.
  */
-function paramsOf(config: Readonly<Record<string, unknown>>, dropped: Set<string>): Record<string, unknown> {
+export function paramsOf(config: Readonly<Record<string, unknown>>, dropped: Set<string>): Record<string, unknown> {
     const params = withoutSecretNames(withoutSecretUrls(jsonOf(config) ?? {}, dropped), dropped) as Record<
         string,
         unknown
@@ -577,6 +647,13 @@ function localPart(
     load: LoadedSource,
     facts: LoadFacts,
 ): { kind: string; part: Record<string, unknown>; dropped: readonly string[] } {
+    // A sample read by URL and kept as a reference is written with the URL it reads again.
+    const address = facts.copy === "reference" ? sampleAddress(load, facts) : undefined;
+    if (address !== undefined) {
+        const { address: url, dropped } = redactUrl(address);
+        return { kind: "sample", part: { url: originRelative(url) }, dropped };
+    }
+
     const url = load.config?.url;
     if (load.kind === "sample") {
         return { kind: "sample", part: { ...(facts.sample ?? { dataset: load.name ?? "sample" }) }, dropped: [] };
@@ -616,6 +693,7 @@ function localPart(
  * @param record - Its network record, for a network load.
  * @param rename - Collects each network key and the id it is written as.
  * @param found - The nodes its rows named that the graph already held (its provenance's `held`).
+ * @param reference - For a reference whose rows the save left out: what its entry says of them.
  * @returns The entry and the parameters its URL left out.
  */
 function entryOf(
@@ -624,6 +702,7 @@ function entryOf(
     record: SourceLoadRecord | undefined,
     rename: Map<string, string>,
     found: readonly NodeId[] | undefined,
+    reference?: ReferenceEntry,
 ): Written {
     const network = record !== undefined;
     if (network) {
@@ -658,6 +737,9 @@ function entryOf(
             record?.total === undefined && record?.totalEdges === undefined
                 ? undefined
                 : defined({ nodes: record.total, edges: record.totalEdges }),
+        copy: facts.copy,
+        rowsSha256: reference?.rowsSha256,
+        removedRows: reference?.removedRows === undefined ? undefined : jsonOf(reference.removedRows),
     });
     return { entry, dropped: local?.dropped ?? [...secrets] };
 }
@@ -734,7 +816,14 @@ export function writeSourcesMember(input: SourcesWriteInput): SourcesWrite {
             return jsonOf(facts.kept) as Record<string, unknown>;
         }
 
-        const { entry, dropped } = entryOf(load, facts, record, rename, input.provenance?.[load.key]?.held);
+        const { entry, dropped } = entryOf(
+            load,
+            facts,
+            record,
+            rename,
+            input.provenance?.[load.key]?.held,
+            input.references?.get(load.key),
+        );
         if (dropped.length > 0) {
             problems.push({ code: "W_SOURCE_URL_REDACTED", params: { id: load.key, names: [...dropped] } });
         }
@@ -754,6 +843,9 @@ export function writeSourcesMember(input: SourcesWriteInput): SourcesWrite {
                 : {
                       kind: KIND,
                       version: SOURCES_MEMBER_VERSION,
+                      // An entry whose rows the data member left out: an element that does not
+                      // read them back refuses the member rather than open part of the graph.
+                      ...(loads.some((entry) => entry.rowsSha256 !== undefined) ? { data: "references" } : {}),
                       loads,
                       ...(input.waiting === undefined ? {} : { waiting }),
                   },
@@ -974,7 +1066,9 @@ const PART_SHAPES: Readonly<Record<(typeof PARTS)[number], Shape | Check>> = {
             Object.keys(value).every((name) => name === "generator" || name === "params")) ||
             (text(1, 128)(value.dataset) &&
                 (value.baseUrl === undefined || text(1, 8192)(value.baseUrl)) &&
-                Object.keys(value).every((name) => name === "dataset" || name === "baseUrl"))),
+                Object.keys(value).every((name) => name === "dataset" || name === "baseUrl")) ||
+            // An application's own sample file kept as a reference: where it is read again.
+            (text(1, 8192)(value.url) && Object.keys(value).every((name) => name === "url"))),
 };
 
 const ENTRY: Shape = {
@@ -998,6 +1092,9 @@ const ENTRY: Shape = {
         foundNodes: (value) =>
             Array.isArray(value) && value.every((id) => typeof id === "string" || typeof id === "number"),
         total: COUNTS,
+        copy: oneOf("copy", "reference"),
+        rowsSha256: pattern(SHA256),
+        removedRows: openMap,
         file: PART_SHAPES.file,
         url: PART_SHAPES.url,
         source: PART_SHAPES.source,
@@ -1102,7 +1199,9 @@ function overLimit(member: Record<string, unknown>, loads: readonly unknown[]): 
         return "extensions";
     }
 
-    return jsonBytes(member) > LIMITS.bytes ? "bytes" : undefined;
+    // The rows as read a source-steps member carries count against the file's limit, not the member's.
+    const records = Object.fromEntries(Object.entries(member).filter(([name]) => !STEPS_MEMBER_FIELDS.includes(name)));
+    return jsonBytes(records) > LIMITS.bytes ? "bytes" : undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1121,10 +1220,16 @@ export interface SourcesReadContext {
     readonly links: readonly Record<string, unknown>[];
     /** Whether a source id is registered in this release. */
     readonly isRegistered: (source: string) => boolean;
-    /** Whether a name is one of the catalogue's generators. */
+    /** Whether a name is one of the catalog's generators. */
     readonly isGenerator: (name: string) => boolean;
     /** The time of opening, RFC 3339. */
     readonly now: string;
+    /**
+     * Whether the `source-steps` experiment is on, so the member's sources and steps (section 10
+     * names) are read; while it is off a member carrying them is skipped, as a release without the
+     * experiment skips it.
+     */
+    readonly steps?: boolean;
 }
 
 /** What the reader found. */
@@ -1151,6 +1256,8 @@ export interface SourcesRead {
     readonly skipped?: Readonly<Record<string, unknown>>;
     /** The ids of the entries that were still waiting to be run when the member was written. */
     readonly waiting?: readonly string[];
+    /** Under the `source-steps` experiment: the sources and steps the member carries, and their rows as read. */
+    readonly steps?: { readonly value: SourceSteps; readonly copies: Copies };
 }
 
 /** One entry as read. */
@@ -1216,7 +1323,8 @@ function describedOf(raw: Record<string, unknown>, network: boolean): Record<str
         return { type: `source:${String(source.id)}`, config: isObject(source.params) ? source.params : {} };
     }
 
-    const { address } = partOf(raw, "url");
+    // A URL entry's address, or the address an application's own sample is read again from.
+    const address = partOf(raw, "url").address ?? partOf(raw, "sample").url;
     return {
         type: typeof raw.format === "string" ? raw.format : undefined,
         config: { ...partOf(raw, "options"), ...(typeof address === "string" ? { url: address } : {}) },
@@ -1251,8 +1359,11 @@ function readFacts(raw: Record<string, unknown>, now: string): LoadFacts {
         mode: raw.mode === "merge" ? "merge" : "replace",
         file: isObject(file) ? file : undefined,
         url: isObject(url) ? defined({ ...url, address: undefined }) : undefined,
-        sample: isObject(raw.sample) ? raw.sample : undefined,
+        // An application's own sample read by URL keeps its address in the load's config.
+        sample: isObject(raw.sample) && raw.sample.url === undefined ? raw.sample : undefined,
         credentialSlot: typeof source?.credentialSlot === "string" ? source.credentialSlot : undefined,
+        copy: raw.copy === "reference" ? "reference" : undefined,
+        opened: true,
     }) as unknown as LoadFacts;
 }
 
@@ -1409,15 +1520,18 @@ function badIds(loads: readonly Record<string, unknown>[]): string | undefined {
  * or its ids (sources.md, "Reading" rules 1 and 5, "Limits").
  * @param member - The member.
  * @param pointer - Its pointer.
+ * @param steps - Whether the sources and steps names are read (the `source-steps` experiment).
  * @returns The problem, or undefined for a member that is read.
  */
-function memberProblem(member: Record<string, unknown>, pointer: string): SourcesProblem | undefined {
+function memberProblem(member: Record<string, unknown>, pointer: string, steps: boolean): SourcesProblem | undefined {
     const problem = (code: ProblemCode, at: string, more: Record<string, unknown> = {}): SourcesProblem => ({
         code,
         params: { kind: KIND, pointer: `${pointer}${at}`, ...more },
     });
     const unknown = Object.keys(member).find(
-        (name) => !["kind", "version", "data", "loads", "extensions", "waiting"].includes(name),
+        (name) =>
+            !["kind", "version", "data", "loads", "extensions", "waiting"].includes(name) &&
+            !(steps && STEPS_MEMBER_FIELDS.includes(name)),
     );
     if (unknown !== undefined) {
         return problem("E_BAD_DOCUMENT", `/${unknown}`);
@@ -1434,7 +1548,12 @@ function memberProblem(member: Record<string, unknown>, pointer: string): Source
         return problem("E_BAD_DOCUMENT", "/loads");
     }
 
-    if (member.data !== undefined && member.data !== "embedded" && member.data !== "steps") {
+    if (
+        member.data !== undefined &&
+        member.data !== "embedded" &&
+        member.data !== "steps" &&
+        member.data !== "references"
+    ) {
         return problem("E_BAD_DOCUMENT", "/data");
     }
 
@@ -1490,6 +1609,7 @@ function readEntries(
  * @param rename - The version 1 keys and the ids they are read as.
  * @param provenance - Collects what each entry supplied: a node's id, or a link's position.
  * @param target - Whether the rows are nodes or links.
+ * @param rebuilt - Values that name no entry but are dropped too: the rebuild writes them again.
  * @returns The rows, a copy of each one whose column changed.
  */
 function readColumn(
@@ -1498,6 +1618,7 @@ function readColumn(
     rename: ReadonlyMap<string, string>,
     provenance: Record<string, { nodes: NodeId[]; edges: number[] }>,
     target: "nodes" | "edges",
+    rebuilt: ReadonlySet<string> = new Set(),
 ): Record<string, unknown>[] {
     const live = (value: string): boolean => entries.get(value.split("/x")[0] ?? "")?.record !== undefined;
     return rows.map((row, at) => {
@@ -1521,11 +1642,32 @@ function readColumn(
         }
 
         const held = values.filter((value) => typeof value === "string" && live(value));
-        const other = values.filter((value) => !(typeof value === "string" && (live(value) || entries.has(value))));
+        const other = values.filter(
+            (value) => !(typeof value === "string" && (live(value) || entries.has(value) || rebuilt.has(value))),
+        );
         const kept = [...new Set([...held, ...other])];
         const { "_source.loads": _column, ...rest } = row;
         return kept.length === 0 ? rest : { ...rest, "_source.loads": kept };
     });
+}
+
+/**
+ * The sources and steps a member carries, read under the `source-steps` experiment.
+ * @param member - The member.
+ * @param ctx - The file.
+ * @param problems - Collects `E_BAD_DOCUMENT` for sources and steps not shaped as saved.
+ * @returns The value and its copies, or undefined when none are read.
+ */
+function stepsOf(
+    member: Record<string, unknown>,
+    ctx: SourcesReadContext,
+    problems: SourcesProblem[],
+): SourcesRead["steps"] {
+    const steps = ctx.steps === true ? readStepsMember(member) : null;
+    if (steps !== null && "pointer" in steps) {
+        problems.push({ code: "E_BAD_DOCUMENT", params: { kind: KIND, pointer: `${ctx.pointer}${steps.pointer}` } });
+    }
+    return steps !== null && "value" in steps ? steps : undefined;
 }
 
 /**
@@ -1565,9 +1707,12 @@ function readVersion2(
 
     const entries = readEntries(member.loads as Record<string, unknown>[], ctx, problems);
     const byId = new Map(entries.map((entry) => [entry.id, entry]));
+    const restored = stepsOf(member, ctx, problems);
+    // The reader source's value comes back with the rebuild, which writes every `_source.loads` again.
+    const rebuilt = new Set(restored === undefined ? [] : [READER_SOURCE]);
     const provenance: Record<string, { nodes: NodeId[]; edges: number[]; held?: NodeId[] }> = {};
-    const nodes = readColumn(ctx.nodes, byId, rename, provenance, "nodes");
-    const links = readColumn(ctx.links, byId, rename, provenance, "edges");
+    const nodes = readColumn(ctx.nodes, byId, rename, provenance, "nodes", rebuilt);
+    const links = readColumn(ctx.links, byId, rename, provenance, "edges", rebuilt);
     for (const [id, supplied] of Object.entries(legacy)) {
         const into = (provenance[id] ??= { nodes: [], edges: [] });
         into.nodes = [...new Set([...into.nodes, ...supplied.nodes])];
@@ -1615,6 +1760,7 @@ function readVersion2(
         records: entries.flatMap((entry) => (entry.record === undefined ? [] : [entry.record])),
         facts: new Map(entries.map((entry) => [entry.id, entry.facts])),
         ...(Array.isArray(member.waiting) ? { waiting: member.waiting as string[] } : {}),
+        ...(restored === undefined ? {} : { steps: restored }),
     };
 }
 
@@ -1901,7 +2047,7 @@ function upgradeVersion1(
 
     problems.push({ code: "W_VERSION_UPGRADED", params: { kind: KIND, pointer: ctx.pointer, found: 1, version: 2 } });
     const upgraded = { kind: KIND, version: SOURCES_MEMBER_VERSION, loads };
-    const skipped = memberProblem(upgraded, ctx.pointer);
+    const skipped = memberProblem(upgraded, ctx.pointer, false);
     if (skipped !== undefined) {
         problems.push(skipped);
         return { problems, records: [], facts: new Map(), skipped: member };
@@ -1926,7 +2072,7 @@ export function readSourcesMember(member: Record<string, unknown> | undefined, c
         return upgradeVersion1(member, ctx, problems);
     }
 
-    const skipped = memberProblem(member, ctx.pointer);
+    const skipped = memberProblem(member, ctx.pointer, ctx.steps === true);
     if (skipped !== undefined) {
         problems.push(skipped);
         return { problems, records: [], facts: new Map(), skipped: member };

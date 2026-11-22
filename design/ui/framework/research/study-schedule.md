@@ -45,7 +45,7 @@ reports direction and the left-panel placement stays.
   and a large project seeded from real graphty-element session fixtures.
 - **Scenario.** One scenario per study version, worded in its own terms. The first version is
   investigations (accounts, transfers, a Watchlist), because it covers the most personas; a biology
-  version (genes, tumour and normal networks) runs only after it passes. The version is recorded.
+  version (genes, tumor and normal networks) runs only after it passes. The version is recorded.
 - **Participants.** Drawn from the analyst personas (`design/designloom/personas/`). Figma
   familiarity and Gephi or Cytoscape familiarity are recorded. The tree test has 39 tasks and each
   participant does at most 10, in random order, with task position recorded, so about 195
@@ -241,7 +241,7 @@ narrower findings of 2026-09-27:
 | Task | Status |
 |---|---|
 | Why is this node orange? (painted value to its layer) | testable once wireframes exist |
-| Your lab's colors are on, then you looked for groups; why did nothing recolour? | waits: the withheld-suggestion outcome |
+| Your lab's colors are on, then you looked for groups; why did nothing recolor? | waits: the withheld-suggestion outcome |
 | Where is TP53? (large project) | waits: search over graph content |
 | The first panel on a fresh project | testable |
 | Run Louvain among 30 or more results, palette hidden | testable |
@@ -279,7 +279,7 @@ Each is a two-way door decided now, judged by the bars above.
 | Esc returns focus to the trigger, so a double Esc never deselects | the double-Esc keystroke task | Figma's behavior, and principle 0's not-copied item 2 removed |
 | Notes on the rail, newest first with a target filter | the "last week" first-click task | Notes reached from the Note tool and Find, with no rail button |
 | The rail opens on Graph | the fresh-project first-click task | open on Results for a project with no kept objects |
-| A withheld suggestion gets its own route | the recolour first-click task | the line on the run alone |
+| A withheld suggestion gets its own route | the recolor first-click task | the line on the run alone |
 | Run layout sits on the Layout row | the "tidy this graph" first-click task | Run layout on the graph's type row |
 | The import report is reached from Last import | the "rows rejected" first-click task | a mark row per rejected-row count beside Last import |
 | The Path tool has a toolbar slot | count, over the investigation workflows, how often the first endpoint is not already selected | drop it; Shortest path from a node arms the same bar |
@@ -373,7 +373,7 @@ Studies share people, and several teach what another measures, so the pools are 
 
 | Study | People | Entries | Settles | Rule |
 |---|---|---|---|---|
-| Weekly return and travelling starting point, four weeks | 5 to 8 analysts with a recurring export, and the recipe leads' recipients above; pool A | one short entry per return or per recipe received: what they opened, what had changed, what they redid; the weekly-return interview is then held over the participant's own last project file | the between-session rows of `user-journeys.md` journeys 2 and 4, which interviews recall unreliably | a between-session row no diary shows is deleted; a redo that recurs in most diaries is a gap against `top-tasks.md` |
+| Weekly return and traveling starting point, four weeks | 5 to 8 analysts with a recurring export, and the recipe leads' recipients above; pool A | one short entry per return or per recipe received: what they opened, what had changed, what they redid; the weekly-return interview is then held over the participant's own last project file | the between-session rows of `user-journeys.md` journeys 2 and 4, which interviews recall unreliably | a between-session row no diary shows is deleted; a redo that recurs in most diaries is a gap against `top-tasks.md` |
 
 **Prior for the investigators.** Practitioner accounts of anti-money-laundering work put the start
 at an alert raised by transaction monitoring, due diligence, a third-party report or a law

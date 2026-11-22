@@ -1,25 +1,45 @@
+/**
+ * Error reporting (design/graphty/usage-analytics.md, section 7): errors, a masked replay of the
+ * moments before an error, and feedback the reader sends. Started only after Share usage data
+ * (workspace/privacy/usageData.ts); usage itself is counted by analytics.ts, never here.
+ */
+
 import * as SentrySdk from "@sentry/react";
 
 import { siteConfig } from "../siteConfig";
-import { privacyFilters } from "./sentryPrivacy";
+import { sentryMaskedAttributes } from "./analytics";
+import { beforeAddRecordingEvent, privacyFilters } from "./sentryPrivacy";
 
 /** The parts of Sentry's SDK this module calls. */
 export type SentryCalls = Pick<
     typeof SentrySdk,
-    "init" | "close" | "replayIntegration" | "captureException" | "captureFeedback" | "getCurrentScope"
+    | "init"
+    | "getClient"
+    | "replayIntegration"
+    | "captureException"
+    | "captureFeedback"
+    | "flush"
+    | "getCurrentScope"
+    | "getIsolationScope"
 >;
 
 /** Sentry's SDK, or the stand-in a test passed to {@link setSentryCallsForTests}. */
 let Sentry: SentryCalls = SentrySdk;
+/** The configuration a test supplies in place of the build's and the site's, else undefined. */
+let testDefaultConfig: SentryConfig | undefined;
 
 /**
  * Sends this module's calls to a stand-in rather than Sentry's SDK. A test passes one in here instead
  * of mocking the module: in a browser test, a module mock switches the page's HTTP cache off
- * (issue #3416).
- * @param calls - the stand-in, or nothing for Sentry's SDK again.
+ * (issue #3416). Members left out stay Sentry's own.
+ * @param calls - the stand-ins, and optionally `defaultConfig`, the configuration `initSentry()`
+ * and {@link sentryConfigured} read in place of the build's (a DSN, a transport, replay options);
+ * nothing for Sentry's SDK and the build's configuration again.
  */
-export function setSentryCallsForTests(calls?: SentryCalls): void {
-    Sentry = calls ?? SentrySdk;
+export function setSentryCallsForTests(calls?: Partial<SentryCalls> & { defaultConfig?: SentryConfig }): void {
+    const { defaultConfig, ...members } = calls ?? {};
+    Sentry = { ...SentrySdk, ...members };
+    testDefaultConfig = defaultConfig;
 }
 
 let initialized = false;
@@ -29,29 +49,77 @@ let initialized = false;
  * off and on again in one visit, so it is made once and restarted.
  */
 let replay: ReturnType<typeof SentrySdk.replayIntegration> | undefined;
+/** True while an error's replay is being sent and the buffer restarted. */
+let sendingErrorReplay = false;
+/** The last stop of the replay, settled once it has stopped (see {@link sentryStoppedForTests}). */
+let stopping: Promise<void> = Promise.resolve();
 
-interface SentryConfig {
-    dsn?: string;
-    environment?: string;
-    isProd?: boolean;
-    /** Where events go; Sentry's own by default. Tests pass one that records them. */
-    transport?: SentrySdk.BrowserOptions["transport"];
+/**
+ * Sends the buffered replay of the moments before an error once, then starts a new buffer. Sentry's
+ * own handling would switch the replay to recording the whole session from here, uploading every
+ * segment for up to an hour and resuming after a reload: a second full-session recorder beside
+ * PostHog, which is not what the reader was told. Called from `beforeErrorSampling`, which then
+ * answers false so Sentry never converts the buffer itself.
+ */
+function sendErrorReplayOnce(): void {
+    const integration = replay;
+    if (integration === undefined || sendingErrorReplay || integration.getRecordingMode() !== "buffer") {
+        return;
+    }
+    sendingErrorReplay = true;
+    integration
+        .flush({ continueRecording: false })
+        .then(() => integration.stop({ flush: false }))
+        .then(() => {
+            if (initialized) {
+                integration.startBuffering();
+            }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+            sendingErrorReplay = false;
+        });
 }
 
 /**
- * Get the default configuration from environment variables.
- * This function is separated to allow for testing.
+ * Sentry's default integrations this page leaves out: release-health session pings (PostHog
+ * counts visits), console breadcrumbs (dropped anyway) and gen-AI conversation tagging (the
+ * app sends none).
+ */
+const DROPPED_INTEGRATIONS: ReadonlySet<string> = new Set(["BrowserSession", "Console", "ConversationId"]);
+
+export interface SentryConfig {
+    dsn?: string;
+    environment?: string;
+    /** Where events go; Sentry's own by default. Tests pass one that records them. */
+    transport?: SentrySdk.BrowserOptions["transport"];
+    /** Whether the replay compresses its recording; Sentry's default (true) when absent. Tests turn it off to read it. */
+    useCompression?: boolean;
+}
+
+/**
+ * The configuration from the build and the site, or the one a test supplied.
  * @returns The default Sentry configuration
  */
 function getDefaultConfig(): SentryConfig {
+    if (testDefaultConfig !== undefined) {
+        return testDefaultConfig;
+    }
     const { site, sentryEnvironment } = siteConfig();
     return {
         dsn: import.meta.env.VITE_SENTRY_DSN,
-        // The site's label from its site.json, so canary's errors are not labelled production; a
-        // site that serves none is labelled as the build was before site.json existed.
+        // The site's label from its site.json, so canary's errors are not labeled production; a
+        // site that serves none is labeled as the build was before site.json existed.
         environment: sentryEnvironment ?? (site === "unknown" ? import.meta.env.MODE : site),
-        isProd: import.meta.env.PROD,
     };
+}
+
+/**
+ * Whether error reporting would start: the default configuration has a DSN.
+ * @returns true when `initSentry()` would start Sentry.
+ */
+export function sentryConfigured(): boolean {
+    return Boolean(getDefaultConfig().dsn);
 }
 
 /**
@@ -61,32 +129,63 @@ function getDefaultConfig(): SentryConfig {
  */
 export function initSentry(config?: SentryConfig): void {
     const effectiveConfig = config ?? getDefaultConfig();
-    const { dsn } = effectiveConfig;
+    const { dsn, useCompression } = effectiveConfig;
 
     if (!dsn) {
         console.warn("Sentry DSN not configured, error tracking disabled");
         return;
     }
 
-    const restart = replay !== undefined;
-    replay ??= Sentry.replayIntegration({ maskAllText: true, maskAllInputs: true, blockAllMedia: true });
+    const client = replay === undefined ? undefined : Sentry.getClient();
+    if (replay !== undefined && client !== undefined) {
+        // A later start in the same page: the client made by the first start is enabled again.
+        // Sentry.init would make a new client, while the replay's hooks (the one that sends a
+        // buffered recording with an error, and its breadcrumbs) stay on the first one, once per
+        // page, so no error replay would ever be sent again. start() would record the whole session.
+        // The breadcrumbs gathered while it was off (clicks, requests, the errors it refused) are
+        // dropped, or the next error would carry them.
+        Sentry.getIsolationScope().clearBreadcrumbs();
+        Sentry.getCurrentScope().clearBreadcrumbs();
+        client.getOptions().enabled = true;
+        replay.startBuffering();
+        initialized = true;
+        return;
+    }
+    replay ??= Sentry.replayIntegration({
+        maskAllText: true,
+        maskAllInputs: true,
+        blockAllMedia: true,
+        // Sentry's default masks only title, placeholder and aria-label. This list masks every
+        // attribute but the few PostHog's replay keeps too (analytics.ts sentryMaskedAttributes).
+        maskAttributes: sentryMaskedAttributes(),
+        beforeAddRecordingEvent,
+        // An error sends its buffer once and buffering starts again; the session is never recorded.
+        beforeErrorSampling: () => {
+            sendErrorReplayOnce();
+            return false;
+        },
+        // A reload never resumes a replay of the page before it.
+        stickySession: false,
+        // An error in the first seconds of a buffer is sent too. Sentry's default (5 s) holds a
+        // shorter replay back for a later flush, which the one-shot stop above would cancel.
+        minReplayDuration: 0,
+        ...(useCompression === undefined ? {} : { useCompression }),
+    });
+    const integration = replay;
     Sentry.init({
         dsn,
         environment: effectiveConfig.environment,
-        tracesSampleRate: effectiveConfig.isProd ? 0.1 : 1,
-        // Started only once the reader has said Share usage data (workspace/privacy/usageData.ts),
-        // whose "What is collected" list promises a replay of each session with every text and
-        // input masked. The canvas is not recorded: replay draws no canvas without its canvas
-        // integration, which is not added.
-        replaysSessionSampleRate: 1,
+        // Started only once the reader has said Share usage data (workspace/privacy/usageData.ts).
+        // Replay only buffers: a recording of the moments before an error is sent with that error,
+        // and no session is recorded otherwise (PostHog records consenting sessions). The canvas is
+        // not recorded: replay draws no canvas without its canvas integration, which is not added.
+        replaysSessionSampleRate: 0,
         replaysOnErrorSampleRate: 1,
-        integrations: [replay],
+        integrations: (defaults) => [...defaults.filter((each) => !DROPPED_INTEGRATIONS.has(each.name)), integration],
+        // Dropped-event statistics nobody reads.
+        sendClientReports: false,
         // Every event, transaction and breadcrumb is cut down to an allowlist before it is sent.
         ...privacyFilters,
-        // Spans go out inside their transaction, through beforeSendTransaction above. Sentry 11's
-        // default, streaming each span on its own, skips that hook and would send span attributes
-        // (a request URL with its query, anything a caller set) unfiltered.
-        traceLifecycle: "static",
         // Sentry 11 collects these by default, and some (the reader's IP address, inferred by Sentry's
         // server from the request) are added after the event leaves the page, past every hook above.
         dataCollection: {
@@ -101,10 +200,6 @@ export function initSentry(config?: SentryConfig): void {
         },
         transport: effectiveConfig.transport,
     });
-    if (restart) {
-        // The integration sets itself up once per page; on a later start it records only when asked.
-        replay.start();
-    }
     initialized = true;
 }
 
@@ -113,11 +208,26 @@ export function initSentry(config?: SentryConfig): void {
  */
 export function stopSentry(): void {
     if (initialized) {
-        // Best effort: events that cannot be flushed as usage data is turned off are dropped.
-        replay?.stop().catch(() => undefined);
-        Sentry.close().catch(() => undefined);
+        // The client is disabled, not closed: it stays the page's one client, so a later Share
+        // enables it again (initSentry). Disabled at once, so nothing captured from here is sent;
+        // close() would disable it only after a flush, and could undo a quick Share again.
+        // flush: false, or the segment recorded before the No (the No click among it) is sent
+        // after it: the replay sends through the transport directly, past the disabled client.
+        stopping = replay?.stop({ flush: false }).catch(() => undefined) ?? Promise.resolve();
+        const client = Sentry.getClient();
+        if (client !== undefined) {
+            client.getOptions().enabled = false;
+        }
     }
     initialized = false;
+}
+
+/**
+ * Settles once the replay stopped by the last {@link stopSentry} has stopped. Only for testing.
+ * @returns the stop's promise.
+ */
+export function sentryStoppedForTests(): Promise<void> {
+    return stopping;
 }
 
 /**
@@ -134,6 +244,8 @@ export function isSentryEnabled(): boolean {
 export function resetSentryState(): void {
     initialized = false;
     replay = undefined;
+    sendingErrorReplay = false;
+    stopping = Promise.resolve();
 }
 
 /**
@@ -190,11 +302,28 @@ export function captureUserFeedback(feedback: FeedbackData): FeedbackResult {
         }
     }
 
+    // Feedback carries no replay: the reader was told a replay goes only with an error. Sentry's
+    // replay uploads its buffer with any feedback event it sees while enabled, so it is stopped
+    // (its buffer dropped) before the capture and buffers again once the capture is processed.
+    const integration = replay;
+    const wasBuffering = integration?.getRecordingMode() !== undefined;
+    if (wasBuffering) {
+        void integration.stop({ flush: false }).catch(() => undefined);
+    }
     Sentry.captureFeedback({
         message: feedback.message,
         name: feedback.name,
         email: feedback.email,
     });
+    if (wasBuffering) {
+        void Sentry.flush()
+            .catch(() => false)
+            .then(() => {
+                if (initialized) {
+                    integration.startBuffering();
+                }
+            });
+    }
 
     // Clear attachments after sending
     scope.clearAttachments();

@@ -251,10 +251,13 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
             }),
         );
         await session.styles.settled();
-        // The key lists the run's groups once per property, not once per layer.
+        // The key lists the run's groups once per property, not once per layer, once it has drawn
+        // the write.
         const legend = screen.getByRole("region", { name: "Legend" });
-        assert.lengthOf(within(legend).getAllByRole("group", { name: "Color: Louvain" }), 1);
-        assert.lengthOf(within(legend).getAllByRole("group", { name: "Shape: Louvain" }), 1);
+        await waitFor(() => {
+            assert.lengthOf(within(legend).getAllByRole("group", { name: "Color: Louvain" }), 1);
+            assert.lengthOf(within(legend).getAllByRole("group", { name: "Shape: Louvain" }), 1);
+        });
         // Each shape row draws the shape beside its name: the picker's glyph at once, then the
         // node itself as graphty-element draws it (its nodeThumbnail).
         const shapeKey = within(legend).getByRole("group", { name: "Shape: Louvain" });

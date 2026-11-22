@@ -66,7 +66,7 @@ edges on the Edges side).
 
 Typing searches every section as one flat list. On the Nodes side, edge fields sit last under
 "Edges (nodes touching)", mirrored on the Edges side. Graph values are never entries, only bounds.
-An unsupported value kind stays greyed, with the reason in its tooltip.
+An unsupported value kind stays grayed, with the reason in its tooltip.
 
 **Test controls are not dropdowns.** Number, ordered and time: a "By value | By position"
 segmented control over the histogram brush. Category: a checklist with counts. Only tags (any of /

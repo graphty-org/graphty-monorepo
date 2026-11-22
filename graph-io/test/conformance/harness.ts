@@ -6,7 +6,7 @@
  * format's specification; tools/oracle.py regenerates the oracle-derived ones.
  *
  * checkFixture() and checkRoundTrip() return a list of problems (empty when the fixture conforms)
- * so the test file can assert on it and the report writer can summarise it.
+ * so the test file can assert on it and the report writer can summarize it.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -101,7 +101,7 @@ export interface Fixture {
     readonly file: string;
     /** Where it came from (a URL with the commit, or "authored"). */
     readonly origin: string;
-    /** Its licence. */
+    /** Its license. */
     readonly license: string;
     /** The upstream commit, release or retrieval date. */
     readonly version: string;

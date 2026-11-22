@@ -10,7 +10,7 @@ import {
 import type { WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { openFilterDraft, selectRule } from "./filterCards";
-import { remap, sourceName } from "./words";
+import { sourceName } from "./words";
 
 /** One network load, as `data.loads()` records it. */
 type LoadRecord = ReturnType<GraphSession["data"]["loads"]>[number];
@@ -52,7 +52,7 @@ export async function pickEnd(
     workspace.set({ ends });
     if (ends.source !== null && ends.target !== null) {
         await session.data.reloadSource(load.key, {
-            mapping: remap(load, "nodes", { rowsAre: "edges", source: ends.source, target: ends.target }),
+            mapping: { rowsAre: "edges", source: ends.source, target: ends.target },
         });
         workspace.set({ ends: null });
     }
@@ -182,10 +182,6 @@ const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
 ];
 
 /**
- * The Data place package's registration: its Sources row commands. Its Fields rows act on the row
- * they are drawn for, so they are not commands.
- */
-/**
  * A column's attribute, as `data.attributes()` describes it.
  * @param ctx - the workspace.
  * @param column - the column.
@@ -236,6 +232,10 @@ const COLUMN_HEADER_COMMANDS: readonly ColumnHeaderCommand[] = [
     },
 ];
 
+/**
+ * The Data place package's registration: its Sources row and column header commands. Its Fields rows act on the row
+ * they are drawn for, so they are not commands.
+ */
 export const registration = defineRegistration({
     owner: "data-place",
     commands: [],

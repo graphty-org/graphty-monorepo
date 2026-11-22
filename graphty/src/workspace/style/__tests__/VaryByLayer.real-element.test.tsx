@@ -211,7 +211,7 @@ function written(session: GraphSession, ids: readonly string[], channel: Channel
 }
 
 /**
- * The sections of a binding popover in order, outside its group list: each labelled control with
+ * The sections of a binding popover in order, outside its group list: each labeled control with
  * its kind, each button but a field's Reset, and the group list itself. The words that name the source ("values",
  * "layers") are taken out, so two popovers drawn by one component give the same structure.
  * @param popover - The popover.
@@ -426,6 +426,37 @@ describe("vary by layer", () => {
         await waitFor(() => {
             const row = session.styles.tree().find((r) => r.name === "Story")?.children[0];
             assert.isTrue(row?.hidden, "the top layer of the folder is hidden");
+        });
+    });
+
+    it("renames a layer with F2 on its group row, and selects its nodes from the row's menu", async () => {
+        const session = await openSample();
+        await handMade(session, "Story", "node", { "node.color": "#cccccc" });
+        await clickRow("Story");
+        const byLayer = await varyByLayer(await line("node.color"));
+        const [first] = gridRows(byLayer);
+        const original = first.querySelector("[data-group-name]")?.firstChild?.textContent ?? "";
+        const named = (name: string): boolean =>
+            (session.styles.tree().find((row) => row.name === "Story")?.children ?? []).some(
+                (row) => row.name === name,
+            );
+        assert.isTrue(named(original), "a row names its layer");
+
+        // F2 on the row renames the layer, as the layer list does.
+        gridRows(byLayer)[0].querySelector<HTMLElement>("[role=gridcell]")?.focus();
+        await userEvent.keyboard("{F2}");
+        const box = await within(byLayer).findByRole("textbox", { name: new RegExp(`^Name of .*${original}$`) });
+        await userEvent.clear(box);
+        await userEvent.type(box, "Opening{Enter}");
+        await waitFor(() => {
+            assert.isTrue(named("Opening") && !named(original), "the layer is renamed");
+        });
+
+        // Select these: the nodes the layer paints, two characters (the inspector then shows them).
+        await userEvent.click(within(gridRows(byLayer)[0]).getByRole("button", { name: / actions$/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Select these / }));
+        await waitFor(() => {
+            assert.lengthOf(session.selection.nodes, 2, "the layer's two characters");
         });
     });
 

@@ -135,7 +135,7 @@ const state = graph.resolveCameraPreset("acme-corner");
 ```
 
 Animation, easing, queueing, cancellation and the `camera-state-changed` event all come with the
-name: a registered view is animated to and cancelled part way exactly as a built-in is.
+name: a registered view is animated to and canceled part way exactly as a built-in is.
 
 ## Framing a subset
 

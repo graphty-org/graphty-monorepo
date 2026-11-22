@@ -2,7 +2,7 @@
  * @file The layout and the dimension as undoable steps, on a real `Graph`.
  *
  * Choosing a layout keeps the engine that was chosen and its options, so undo brings back d3, not
- * the catalogue's default engine for the same layout. Switching between 2D and 3D, and undoing
+ * the catalog's default engine for the same layout. Switching between 2D and 3D, and undoing
  * the switch, leaves every reading of the dimension agreeing with the `layout` slice: the graph
  * context, the engine, the scene's record and the merged configuration. A layout whose pre-steps
  * are still computing when it is undone or replaced publishes nothing, and the nodes go back to
@@ -20,6 +20,7 @@ import { Graph, graphContextOf, operationQueueOf } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { laneOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { nextFrame } from "../helpers/real-input";
 
@@ -94,7 +95,11 @@ function agrees(graph: Graph, dimension: "2d" | "3d", what: string): void {
     assert.strictEqual(graph.getSession().layout.dimension, dimension, `${what}: the slice`);
     assert.strictEqual(context.is2D(), twoD, `${what}: GraphContext.is2D`);
     assert.strictEqual(graph.getLayoutManager().dimension, twoD ? 2 : 3, `${what}: the engine's dimension`);
-    assert.strictEqual(graph.getScene().metadata?.twoD, twoD, `${what}: scene.metadata.twoD`);
+    assert.strictEqual(
+        (graph.getScene().metadata as GraphSceneMetadata | null)?.twoD,
+        twoD,
+        `${what}: (scene.metadata as GraphSceneMetadata).twoD`,
+    );
 
     assert.strictEqual(graph.styles.config.graph.twoD, twoD, `${what}: Styles.config.graph.twoD`);
     assert.strictEqual(graph.styles.config.graph.viewMode, dimension, `${what}: Styles.config.graph.viewMode`);

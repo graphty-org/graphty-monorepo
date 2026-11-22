@@ -278,7 +278,7 @@ const evidence = (t) => t.occurrences.filter((o) => o.current !== false);
 /**
  * Marks each failure current or not (the failing commit's copy of the test file against the default
  * branch's), once per failure while the default branch's copy holds. When that copy changed (or on
- * the first judgement) every failure is judged again, and the proofs are dropped when any failure no
+ * the first judgment) every failure is judged again, and the proofs are dropped when any failure no
  * longer counts, to be rebuilt from those that do.
  * @param {Store} store the record
  * @param {BlobReader} blob the blob reader

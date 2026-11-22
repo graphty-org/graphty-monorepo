@@ -60,7 +60,7 @@ export function gradientStopList(text: string | undefined, count: number): numbe
  * @param stops - Where each sits, or none.
  * @returns One offset per color.
  */
-function gradientOffsets(count: number, stops?: readonly number[] | null): number[] {
+export function gradientOffsets(count: number, stops?: readonly number[] | null): number[] {
     if (stops?.length === count) {
         return [...stops];
     }

@@ -227,7 +227,7 @@ export interface GraphtyElementJSXProps {
      * A value the schema refuses is REPORTED AND DROPPED rather than thrown, on the same terms
      * as `acceleration`: this setter is reached from `attributeChangedCallback`, and a throw
      * there escapes as an unhandled rejection that reaches nobody, leaving the page with an
-     * element that never rendered. A wrong colour in markup must not take the graph down.
+     * element that never rendered. A wrong color in markup must not take the graph down.
      */
     background?: Graphty["background"];
     /**
@@ -242,6 +242,10 @@ export interface GraphtyElementJSXProps {
      * Sets whether the graph reduces motion.
      */
     reducedMotion?: Graphty["reducedMotion"];
+    /**
+     * Sets which background color the canvas draws.
+     */
+    colorScheme?: Graphty["colorScheme"];
     /**
      * Sets the starting camera distance.
      */
@@ -281,7 +285,7 @@ export interface GraphtyElementJSXProps {
     /**
      * Sets the acceleration policy and applies it immediately.
      *
-     * An unrecognised value is reported and then ignored, leaving the previous policy in
+     * An unrecognized value is reported and then ignored, leaving the previous policy in
      * force. It is not thrown. Lit drives this setter from `attributeChangedCallback`, so a
      * throw here would abort attribute processing and leave the element unrendered -- a typo
      * in markup would take the whole graph down. HTML has never behaved that way about an
@@ -299,7 +303,7 @@ export interface GraphtyElementJSXProps {
     /**
      * Sets the renderer the element opens when it is first drawn.
      *
-     * An unrecognised value, or a change once the element is drawing, is reported and ignored
+     * An unrecognized value, or a change once the element is drawing, is reported and ignored
      * rather than thrown, for the reason given on `acceleration`: Lit drives this setter from
      * `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
@@ -330,6 +334,9 @@ export interface GraphtyElementJSXProps {
      * this from `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
+    /**
+     * Names the graph for assistive technology: it is copied onto the canvas that takes keyboard focus.
+     */
     "aria-label"?: string;
     /**
      * Adds or removes the node list.
@@ -472,6 +479,10 @@ export interface GraphtyElementJSXProps {
      */
     "reduced-motion"?: string;
     /**
+     * Sets which background color the canvas draws.
+     */
+    "color-scheme"?: string;
+    /**
      * Sets the starting camera distance.
      */
     "starting-camera-distance"?: string;
@@ -533,7 +544,11 @@ export interface GraphtyElementJSXProps {
      */
     "onai-capability-unavailable"?: (event: CustomEvent<EventOfType<"ai-capability-unavailable">>) => void;
     /**
-     * Emitted when an AI command is cancelled
+     * Emitted when an AI command is canceled
+     */
+    "onai-command-canceled"?: (event: CustomEvent<EventOfType<"ai-command-canceled">>) => void;
+    /**
+     * The British spelling of `ai-command-canceled`, emitted right after it with the same fields.
      */
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
     /**
@@ -561,7 +576,7 @@ export interface GraphtyElementJSXProps {
      */
     "onai-hosted-tool-result"?: (event: CustomEvent<EventOfType<"ai-hosted-tool-result">>) => void;
     /**
-     * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`), cancelled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
+     * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`), canceled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
      */
     "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
     /**
@@ -615,9 +630,13 @@ export interface GraphtyElementJSXProps {
     /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */
-    "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
+    "onanimation-canceled"?: (event: CustomEvent<EventOfType<"animation-canceled">>) => void;
     /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
+    "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
+    /**
+     * Emitted while `captureAnimation` records: how far the recording has got, from 0 to 100. A tour recording follows the tour's own clock, so it reaches 100 only with the tour.
      */
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
     /**
@@ -680,30 +699,109 @@ export interface GraphtyElementJSXProps {
      * Emitted once the render loop has started, after the element finished initializing.
      */
     "ongraph-started"?: (event: CustomEvent<EventOfType<"graph-started">>) => void;
+    /**
+     * Emitted once when the browser may delete this site's storage while unsaved work is only in autosave (`W_AUTOSAVE_ORIGIN_EPHEMERAL`).
+     */
     "ongraphty-autosave-at-risk"?: (event: GraphtyElementEventMap["graphty-autosave-at-risk"]) => void;
+    /**
+     * Emitted when an autosaved project could be restored but was not restored automatically, and why.
+     */
     "ongraphty-autosave-available"?: (event: GraphtyElementEventMap["graphty-autosave-available"]) => void;
+    /**
+     * Emitted when autosave restored the project automatically, with what it brought back.
+     */
     "ongraphty-autosave-restored"?: (event: GraphtyElementEventMap["graphty-autosave-restored"]) => void;
+    /**
+     * Emitted when where autosave stands changes.
+     */
     "ongraphty-autosave-status"?: (event: GraphtyElementEventMap["graphty-autosave-status"]) => void;
+    /**
+     * Emitted when `session.capabilities` changes, such as what acceleration is in use.
+     */
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
+    /**
+     * Emitted once the element has started, with the experiments it switched on and the ids it did not recognize.
+     */
     "ongraphty-features"?: (event: GraphtyElementEventMap["graphty-features"]) => void;
+    /**
+     * Emitted when the undo history changes: what an undo and a redo would now do.
+     */
     "ongraphty-history-change"?: (event: GraphtyElementEventMap["graphty-history-change"]) => void;
+    /**
+     * Emitted when how many node labels are drawn, or hidden and why, changes.
+     */
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;
+    /**
+     * Emitted when a 3D model a style layer names changes state, once per model and state.
+     */
     "ongraphty-model-change"?: (event: GraphtyElementEventMap["graphty-model-change"]) => void;
+    /**
+     * Emitted when a node is clicked, with the node's id.
+     */
     "ongraphty-node-click"?: (event: GraphtyElementEventMap["graphty-node-click"]) => void;
+    /**
+     * Emitted when a dragged node is let go, with the node's id.
+     */
     "ongraphty-node-drag-end"?: (event: GraphtyElementEventMap["graphty-node-drag-end"]) => void;
+    /**
+     * Emitted when a node starts being dragged, with the node's id.
+     */
     "ongraphty-node-drag-start"?: (event: GraphtyElementEventMap["graphty-node-drag-start"]) => void;
+    /**
+     * Emitted when the pointer moves onto a node, with the node's id.
+     */
     "ongraphty-node-hover"?: (event: GraphtyElementEventMap["graphty-node-hover"]) => void;
+    /**
+     * Emitted when a note is created, updated or removed, including by undo, redo and opening a project.
+     */
     "ongraphty-note-change"?: (event: GraphtyElementEventMap["graphty-note-change"]) => void;
+    /**
+     * Emitted while a load, a prepare or a run makes progress, and once when it stops.
+     */
     "ongraphty-progress-change"?: (event: GraphtyElementEventMap["graphty-progress-change"]) => void;
+    /**
+     * Emitted when the project's name or its unsaved-changes flag changes. Nothing is emitted at startup.
+     */
     "ongraphty-project-status"?: (event: GraphtyElementEventMap["graphty-project-status"]) => void;
+    /**
+     * Emitted when an algorithm run starts, progresses, finishes or fails, with the run as it stands now.
+     */
     "ongraphty-run-change"?: (event: GraphtyElementEventMap["graphty-run-change"]) => void;
+    /**
+     * Emitted when the selection changes, with what was added and removed.
+     */
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
+    /**
+     * Emitted when a skybox image could not be loaded (`E_IMAGE_LOAD`, with its `url`).
+     */
     "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
+    /**
+     * Emitted when a new skybox image has loaded.
+     */
     "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
+    /**
+     * Emitted when expanding nodes from their data source failed, with a code and its facts.
+     */
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
+    /**
+     * Emitted when expanding nodes from their data source begins, with the seed node ids.
+     */
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
+    /**
+     * Emitted when expanding nodes from their data source has added their neighbors.
+     */
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
+    /**
+     * Emitted when a load added a data source, or replaced one in place: which source, where it came from and how it was loaded.
+     */
+    "ongraphty-source-loaded"?: (event: GraphtyElementEventMap["graphty-source-loaded"]) => void;
+    /**
+     * Emitted when a filter, a time window or the context flag changes what is visible.
+     */
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
+    /**
+     * Emitted for a notice that stops nothing, as a code and its facts.
+     */
     "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;
     /**
      * Emitted when user input on the canvas is switched on or off, by `setInputEnabled`.
@@ -770,6 +868,10 @@ export interface GraphtyElementJSXProps {
      */
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
     /**
+     * Emitted when the running layout has moved the nodes after nodes were added to the graph.
+     */
+    "onlayout-updated"?: (event: CustomEvent<EventOfType<"layout-updated">>) => void;
+    /**
      * Emitted when a layout could not do everything it was asked. The data kept it from placing every node (`W_NO_POSITION`), or it ran without options it does not take (`W_UNKNOWN_OPTION`), or a 2D view replaced its dimension options (`W_DIMENSION_OVERRIDDEN`). It carries a warning code and its parameters, never a sentence.
      */
     "onlayout-warning"?: (event: CustomEvent<EventOfType<"layout-warning">>) => void;
@@ -795,6 +897,10 @@ export interface GraphtyElementJSXProps {
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
     /**
      * Emitted when a queued operation is aborted before it finished.
+     */
+    "onoperation-canceled"?: (event: CustomEvent<EventOfType<"operation-canceled">>) => void;
+    /**
+     * The British spelling of `operation-canceled`: emitted right after it for every aborted operation, with `"cancelled"` where that one says `"canceled"`.
      */
     "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
     /**
@@ -825,6 +931,10 @@ export interface GraphtyElementJSXProps {
      * What `getOverview()` returns has changed: the camera, the graph root or a node moved. Fired at most once per drawn frame, never per node; read `getOverview()` in the listener.
      */
     "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
+    /**
+     * Emitted when whether motion is reduced changes: `setReducedMotion` was called with a different answer, or, under `"auto"`, the platform's `prefers-reduced-motion` changed. Read `isMotionReduced()` for the answer at any time.
+     */
+    "onreduced-motion-changed"?: (event: CustomEvent<EventOfType<"reduced-motion-changed">>) => void;
     /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */
@@ -865,6 +975,22 @@ export interface GraphtyElementJSXProps {
      * Emitted after the style stack changed and the graph was repainted for it.
      */
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
+    /**
+     * Emitted once when a tour ends, however it ended; `playTour` resolves with the same reason.
+     */
+    "ontour-ended"?: (event: CustomEvent<EventOfType<"tour-ended">>) => void;
+    /**
+     * Emitted while a tour plays or records, on each stop or phase change (never on a timer): the flight to a stop (`"flight"`, absent for a zero-length flight), the hold there (`"hold"`), or a pause stop's wait where the camera is (`"pause"`, one event per pause).
+     */
+    "ontour-progress"?: (event: CustomEvent<EventOfType<"tour-progress">>) => void;
+    /**
+     * Emitted when anything `planTour` or `viewProblem` reads may have changed: the saved views, their order or the tours, the 2D/3D dimension, an XR session starting or ending, or a camera view being registered. An editor showing tour lengths or broken stops plans again on it alone.
+     */
+    "onviews-changed"?: (event: CustomEvent<EventOfType<"views-changed">>) => void;
+    /**
+     * Emitted when the reader presses an item of the in-headset menu (`xr.menu`).
+     */
+    "onxr-menu-select"?: (event: CustomEvent<EventOfType<"xr-menu-select">>) => void;
     /**
      * Emitted when a VR or AR session has ended and the graph is back in its 3D view.
      */

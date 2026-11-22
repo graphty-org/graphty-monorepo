@@ -19,6 +19,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { DEFERRED_HASH_COLUMN, EDGE_ID_COLUMN, IDENTITY_COLUMNS, identityColumnsOf } from "../../data/edgeIdentity";
 import { stableDigest } from "../runs/runId";
+import { SOURCE_COPIES_VALUE, SOURCE_STEPS_VALUE, type SourceSteps } from "../sources/steps/project";
 import { ownRows } from "../styles/tree";
 import type { ProjectState } from "./state";
 
@@ -133,7 +134,7 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         ...(ownRows(state.styles) === undefined ? [] : [`styleRows=${canonical(ownRows(state.styles), path)}`]),
         `visibility=${canonical(state.visibility, path)}`,
         // Each set by its revision, the canonical hash of its definition: a fixed set's edge
-        // members are typed columns that a walk would materialise at 72 bytes a member.
+        // members are typed columns that a walk would materialize at 72 bytes a member.
         `sets=${canonical(
             new Map(
                 [...state.sets].map(([id, set]) => [
@@ -150,12 +151,18 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
             path,
         )}`,
         `views=${canonical(state.views, path)}`,
+        // The order the views are kept in; a canonical map sorts its keys.
+        `viewOrder=${canonical(state.viewOrder, path)}`,
+        // Only when a tour is saved, so a digest of a state without tours is as it was.
+        ...(state.tours.length === 0 ? [] : [`tours=${canonical(state.tours, path)}`]),
         `notes=${canonical(state.notes, path)}`,
         `attributes=${canonical(state.attributes, path)}`,
         // Only when some value is named, so a digest of a state without names is as it was.
         ...(state.valueLabels.size === 0 ? [] : [`valueLabels=${canonical(state.valueLabels, path)}`]),
         // Likewise for pasted shaders.
         ...(state.shaders.size === 0 ? [] : [`shaders=${canonical(state.shaders, path)}`]),
+        // And for the models' own settings.
+        ...(state.modelDefaults.size === 0 ? [] : [`modelDefaults=${canonical(state.modelDefaults, path)}`]),
     ];
     if (options.snapshot !== undefined) {
         parts.push(
@@ -166,6 +173,22 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
     return stableDigest(parts.join("\n"));
 }
 
+/**
+ * Under the source-steps experiment, the build stamp and the copy ids the graph was built from
+ * (8.6): a later build, or other rows read, make the data another one even when the graph comes
+ * out the same. Empty with the experiment off.
+ * @param graph - The `graph` slice.
+ * @returns The digest's suffix.
+ */
+function buildsOf(graph: ProjectState["graph"]): string {
+    const steps = graph.values.get(SOURCE_STEPS_VALUE) as SourceSteps | undefined;
+    if (steps === undefined) {
+        return "";
+    }
+    const copies = Object.keys((graph.values.get(SOURCE_COPIES_VALUE) as object | undefined) ?? {}).sort(); // eslint-disable-line sonarjs/no-alphabetical-sort -- code-unit order, stable in every locale
+    return `\nbuild=${steps.build ?? ""}\ncopies=${copies.join(",")}`;
+}
+
 /** The data digest of each graph slice. */
 const dataDigests = new WeakMap<object, string>();
 
@@ -174,7 +197,7 @@ const dataDigests = new WeakMap<object, string>();
  * weights and columns). Equal for two loads of the same data, whatever else the project holds, so
  * a run can tell that the numbers it was computed from have changed under it.
  *
- * Memoised per `graph` slice, which is replaced, never edited, when data moves. The snapshot is
+ * Memoized per `graph` slice, which is replaced, never edited, when data moves. The snapshot is
  * read only on a miss: a layout replaces it every frame (positions are lane columns, which the
  * digest leaves out), so keying on it re-hashed the whole graph on every frame of a layout.
  * ponytail: hashes the whole graph once per data change; hash per column if a large graph's edits
@@ -194,7 +217,7 @@ export function dataDigest(graph: ProjectState["graph"], readSnapshot: () => Gra
     // file names the same edges afresh.
     const edges = [...graph.edges.values()].map((edge) => canonical(edge, path)).sort(); // eslint-disable-line sonarjs/no-alphabetical-sort -- code-unit order, the same in every locale, so the digest is stable
     const digest = stableDigest(
-        `graph=${canonical({ nodes: graph.nodes, edges }, path)}\nrows=${rowsDigest(readSnapshot(), path, NOT_DATA)}`,
+        `graph=${canonical({ nodes: graph.nodes, edges }, path)}\nrows=${rowsDigest(readSnapshot(), path, NOT_DATA)}${buildsOf(graph)}`,
     );
     dataDigests.set(graph, digest);
 

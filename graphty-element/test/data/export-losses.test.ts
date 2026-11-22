@@ -100,6 +100,10 @@ describe("export losses as coded facts", () => {
                 assert.deepEqual(Object.keys(loss.params).sort(), ["columns", "count"], loss.code);
                 assert.isArray(loss.params.columns, loss.code);
                 assert.isTrue(Object.isFrozen(loss) && Object.isFrozen(loss.params), loss.code);
+                assert.isBoolean(loss.expected, loss.code);
+                if (loss.code.startsWith("E_")) {
+                    assert.isFalse(loss.expected, `${loss.code}: a refusal is never expected`);
+                }
             }
 
             h.session.dispose();
@@ -111,11 +115,31 @@ describe("export losses as coded facts", () => {
         const result = exportSession(h.session, "csv");
         const byCode = (code: string): unknown[] => {
             const columns = result.losses.find((loss) => loss.code === code)?.params.columns;
-            return Array.isArray(columns) ? [...columns] : [];
+            // a list param is the one that is an object; Array.isArray would read it as any[]
+            return typeof columns === "object" && columns !== null ? [...columns] : [];
         };
 
         assert.deepEqual(byCode(CSV_LOSS.NODE_TABLE), ["tags", "meta", "score"]);
         assert.include(byCode("W_GRAPHTY_COLUMN_DROPPED"), "graphty.n");
+        h.session.dispose();
+    });
+
+    it("marks what a format never holds as expected, and what changes the data as not", () => {
+        const h = lossy();
+        const expected = (losses: ReturnType<typeof exportSession>["losses"], code: string): boolean => {
+            const found = losses.find((loss) => loss.code === code);
+            assert.isDefined(found, `${code} among ${losses.map((loss) => loss.code).join(" ")}`);
+            return found.expected;
+        };
+        const csv = exportSession(h.session, "csv").losses;
+        // CSV has no direction column and its edge table no node columns: normal for CSV.
+        assert.isTrue(expected(csv, CSV_LOSS.DIRECTION_DROPPED));
+        assert.isTrue(expected(csv, CSV_LOSS.NODE_TABLE));
+        assert.isTrue(expected(csv, "W_GRAPHTY_NOTES"));
+        // GEXF writes the nested value as text: the value changes.
+        assert.isFalse(expected(exportSession(h.session, "gexf").losses, LOSS.JSON));
+        // Pajek numbers the nodes: the ids change.
+        assert.isFalse(expected(exportSession(h.session, "pajek").losses, LOSS.ID_RENUMBERED));
         h.session.dispose();
     });
 

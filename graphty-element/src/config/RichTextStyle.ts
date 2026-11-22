@@ -108,8 +108,8 @@ export const RichTextStyle = z.strictObject({
     /** The words drawn; set, it is used in place of `textPath`. */
     text: z.string().optional(),
 
-    /** The font family. Default "Verdana". */
-    font: z.string().default("Verdana").optional(),
+    /** The font family. Default "Verdana, sans-serif": Verdana, or the sans-serif face where it is missing. */
+    font: z.string().default("Verdana, sans-serif").optional(),
     /** The font size, in pixels of the label's texture. Default 48. */
     fontSize: z.number().min(1).default(48).optional(),
     /** How tall one line is drawn in the scene, in the units of a node's size; unset, fontSize / 48. */
@@ -154,8 +154,27 @@ export const RichTextStyle = z.strictObject({
     lineBox: z.enum(["font", "size", "glyphs"]).optional(),
     /** Where the border is drawn: past the panel's edge, or centered on it. */
     borderAlign: z.enum(["outside", "center"]).optional(),
+    /** How the border is drawn: one line, or the line again inside it, one line's width in. */
+    borderStyle: z
+        .enum({
+            /** One line. */
+            solid: "solid",
+            /** Two lines, the second one line's width inside the first. */
+            double: "double",
+        })
+        .optional(),
     /** The panel's shape: a rectangle, or a disc as wide as its shorter side. */
     backgroundShape: z.enum(["rectangle", "circle"]).optional(),
+    /** The URL of a picture drawn beside or behind the words (yEd's label icon); unset, none. */
+    image: z.string().optional(),
+    /** The picture's width, in pixels of the label's texture; unset, `fontSize`. */
+    imageWidth: z.number().min(0).optional(),
+    /** The picture's height, in pixels of the label's texture; unset, `fontSize`. */
+    imageHeight: z.number().min(0).optional(),
+    /** How far right of the words' middle the picture's middle sits, in pixels of the label's texture. Default 0. */
+    imageOffsetX: z.number().optional(),
+    /** How far below the words' middle the picture's middle sits, in pixels of the label's texture. Default 0. */
+    imageOffsetY: z.number().optional(),
     /** Below how many screen pixels tall the letters are drawn the label is hidden; unset, never. */
     minScreenSize: z.number().min(0).optional(),
     /**
@@ -166,7 +185,7 @@ export const RichTextStyle = z.strictObject({
     /** Below how many screen pixels across its node is drawn this node label is hidden; unset, never. */
     minNodeScreenSize: z.number().min(0).optional(),
 
-    /** The color of the words. Default "#000000". */
+    /** The color of the words. Default "#000000", or a light gray under a dark color scheme when the label has no panel. */
     textColor: ColorStyle.default("#000000").optional(),
     /** How opaque the words are, over their color's own alpha; unset, 1. */
     textOpacity: z.number().min(0).max(1).optional(),

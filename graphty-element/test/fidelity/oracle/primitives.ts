@@ -226,6 +226,10 @@ export interface PStroke {
     line?: number;
     /** A stroke painted with a gradient (its first stop is also its `color`), or null for a flat color. */
     gradient?: PGradient | null;
+    /** A line drawn as parallel strands side by side: their colors, in the order drawn. */
+    strands?: readonly string[];
+    /** How its corners are joined, where not mitered (SVG's default): what a thick-stroked arrowhead's tip reaches. */
+    join?: "round" | "bevel";
 }
 
 /** Text as drawn. */
@@ -568,6 +572,8 @@ export interface PStray {
     text: string | null;
     /** Words a program drew as glyph outlines (`isLettering`), whose words it does not say. */
     lettering?: true;
+    /** A picture graphty draws in a node's label (yEd's label icon). */
+    label?: true;
 }
 
 /** One side's drawing, associated with graph elements. */
@@ -684,9 +690,9 @@ export function boxOfPoints(pts: readonly Pt[]): PBox {
 }
 
 /**
- * Places for the nodes a drawing has none for, from their neighbours': each at the middle of its neighbours that have
- * one, taken in rounds so a node whose neighbours have none waits for them. A node with fewer than two placed
- * neighbours stays without: one neighbour says nothing of where beside it the node stood. A position-matched drawing moves graphty's nodes to where the program drew them, and a node the
+ * Places for the nodes a drawing has none for, from their neighbors': each at the middle of its neighbors that have
+ * one, taken in rounds so a node whose neighbors have none waits for them. A node with fewer than two placed
+ * neighbors stays without: one neighbor says nothing of where beside it the node stood. A position-matched drawing moves graphty's nodes to where the program drew them, and a node the
  * program's drawing does not show (drawn wholly under another, as in a dense clique) would otherwise stay where graphty's
  * own layout put it, far from the drawing it is moved into.
  * @param placed - the nodes that have a place

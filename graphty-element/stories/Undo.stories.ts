@@ -11,6 +11,7 @@ import {
     assertBackgroundColour,
     assertSkyboxDrawn,
     assertViewMode,
+    canvasPixels,
     type Drawn,
     drawn,
     eventually,
@@ -31,7 +32,7 @@ const DATA3 = data3Url;
 /** The image the skybox story puts behind the graph. */
 const SKYBOX = skyboxUrl;
 
-/** The background every story is drawn against, so the skybox story's undo has a colour to return to. */
+/** The background every story is drawn against, so the skybox story's undo has a color to return to. */
 const PAPER = "#f5f5f5";
 
 /**
@@ -79,21 +80,18 @@ function projectState(scene: Drawn): string {
     return stateDigest(dispatcherOf(scene.session).state);
 }
 
-/** How far a colour channel may move before a pixel counts as changed: rounding, not a repaint. */
+/** How far a color channel may move before a pixel counts as changed: rounding, not a repaint. */
 const CHANNEL_TOLERANCE = 2;
 
 /**
- * The finished picture on the canvas.
+ * The finished picture on the canvas, read inside a frame so a WebGPU canvas is not read empty.
  * @param scene - What the story drew.
  * @returns Its pixels, four bytes each.
  */
 async function picture(scene: Drawn): Promise<Uint8Array> {
-    const { graph } = scene;
     await scene.session.styles.settled();
-    await graph.waitForStableFrame();
-    graph.getUpdateManager().renderFrames(1);
-    const { engine } = graph;
-    return (await engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight())) as unknown as Uint8Array;
+    await scene.graph.waitForStableFrame();
+    return canvasPixels(scene);
 }
 
 /**
@@ -222,7 +220,7 @@ export const ImportThenUndo: Story = {
     },
 };
 
-/** Degree centrality run with its colour and size applied, then undone: the run and its paint go together. */
+/** Degree centrality run with its color and size applied, then undone: the run and its paint go together. */
 export const RunThenUndo: Story = {
     play: async ({ canvasElement }) => {
         const scene = await actThenUndo(canvasElement, "Undo RunThenUndo", async ({ session }) => {
@@ -303,7 +301,7 @@ export const ThreeDToTwoDThenUndo: Story = {
     },
 };
 
-/** A plain background swapped for a photo skybox, then undone: the dome is gone and the colour is back. */
+/** A plain background swapped for a photo skybox, then undone: the dome is gone and the color is back. */
 export const SkyboxThenUndo: Story = {
     play: async ({ canvasElement }) => {
         const scene = await actThenUndo(canvasElement, "Undo SkyboxThenUndo", async (acted) => {

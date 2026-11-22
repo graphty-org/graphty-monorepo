@@ -30,7 +30,7 @@
   6.11 (the door test, the four obligations, the anchor rule, the seven families, the caret, the pin set).
   Dataset: ovarian_de_string.tsv -- 318 proteins, 1,104 STRING interactions, combined_score 0.4 to 0.99,
   with expression.tsv joined on preferredName (log2FoldChange, padj, baseMean, go_terms). 312 proteins
-  matched, 6 have no expression row and draw the not-measured grey. Markov clustering at granularity 2.5
+  matched, 6 have no expression row and draw the not-measured gray. Markov clustering at granularity 2.5
   put all 318 into 6 groups of 118 / 71 / 52 / 38 / 24 / 15 (FIXTURES 3.1, 3.2, 3.4).
   State: Style, the Expression layer selected, its ramp door OPEN.
 
@@ -62,22 +62,22 @@
     [792,300] are (B5, the five that are already right).
     Shared edge line, vertical: pop-out top 180 on the RT-4 row's top 180. Zero offset, against B4's
     review clause of 8 and 6.11's "not anchored" threshold of 32.
-    Caret: 6px on the pop-out's RIGHT edge -- the edge that faces the opener -- centred on the opener
-    row's centre y 196, so 10px down from the pop-out's own top, past the 12px corner clamp by the
-    clamp's own reckoning (the clamp protects the rounded corner; 10 + 6 = 16 is the caret's centre and
+    Caret: 6px on the pop-out's RIGHT edge -- the edge that faces the opener -- centered on the opener
+    row's center y 196, so 10px down from the pop-out's own top, past the 12px corner clamp by the
+    clamp's own reckoning (the clamp protects the rounded corner; 10 + 6 = 16 is the caret's center and
     it clears the 6px radius). B3's sentence names the leading edge as "the left edge for an inspector
     pop-out"; VOCAB 14.2's own snippet says the opposite in its comment -- "activity-panel pop-out:
     caret on the LEFT edge, pointing back at the panel" -- and geometry decides it: the caret points
     back at its opener, so an inspector pop-out that opens leftward carries it on the right. Drawn that
     way here; the wording in B3 is the half that needs the fix.
     Nothing is surrendered, so nothing needs a recorded obstruction: no slide, no flip, no width rung
-    dropped, no centred fallback. Height 343 against the two caps -- half the owning region (836 / 2 =
+    dropped, no centered fallback. Height 343 against the two caps -- half the owning region (836 / 2 =
     418) and the region height minus 32 (804) -- so the smaller binds at 418 and the flip stays
     available. Bottom 523 against a legend top of 633: the clearance clause never fires.
     While the pop-out is open its opener row carries the selected-row background #28364e, so the door is
     visibly the thing the pop-out belongs to (VOCAB 12).
 
-  NO PIN, AND THE REASON. 6.11 closes the pin set at four -- the colour and gradient picker, Selection
+  NO PIN, AND THE REASON. 6.11 closes the pin set at four -- the color and gradient picker, Selection
   statistics with a pin active, the group profile, the AI console -- and gives the test: a pin renders
   only on a pop-out whose content is comparative across selections, because "a pop-out whose content is
   the parameters of the row that opened it has nothing to hold still: pinning it produces a stale panel
@@ -106,7 +106,7 @@
   board that draws one), and the legend keeps every encoded channel.
 
   RULE 7c INSIDE THE POP-OUT. "Use values as-is" is not drawn: 5.3 renders it only where the values
-  parse as colours, sizes or shape names, and log2FoldChange parses as none of them. Everything else
+  parse as colors, sizes or shape names, and log2FoldChange parses as none of them. Everything else
   behind the door IS drawn even at its default -- Scale linear, Palette family diverging, Midpoint 0 --
   because 6.11 is explicit that the door exists so a reader can reach a control in order to CREATE the
   deviation, which Rule 7a alone leaves unreachable. 5.3's older "a control still at its default is not
@@ -131,10 +131,10 @@
        that C6 expects to bind nothing today.
   One clause of C3 does not survive contact with this board, and is recorded rather than quietly obeyed:
   5.1 spells the Other row as "one Other row in the neutral the canvas paints for the same nodes", which
-  is true where the cap fires because the palette has run out of colours. Here it fires on row count and
-  on height while Okabe-Ito still has colours to give, so the canvas paints Group 5 and Group 6 their own
+  is true where the cap fires because the palette has run out of colors. Here it fires on row count and
+  on height while Okabe-Ito still has colors to give, so the canvas paints Group 5 and Group 6 their own
   rings and the legend's neutral Other swatch is a pointer to the groups table rather than a key to a
-  colour. The swatch keeps VOCAB 14.5's spelling; what changes is how it is read.
+  color. The swatch keeps VOCAB 14.5's spelling; what changes is how it is read.
   Measured 231 against C6's cap of 240 (was 334). The scale word prints though diverging is what the
   palette family already says, because LEGEND-1.8 section 3 keeps it on both surfaces and it is the
   highest-uniqueness line in the whole legend inventory.
@@ -143,18 +143,18 @@
   at the export's own scale, never captured from this overlay -- ScreenshotCapture.ts calls
   CreateScreenshotAsync(engine, camera, ...), a Babylon scene capture that cannot see a DOM overlay.
 
-  NO SIZE AND NO EDGE-WIDTH CHANNEL, deliberately. This layer encodes colour and outline and nothing
+  NO SIZE AND NO EDGE-WIDTH CHANNEL, deliberately. This layer encodes color and outline and nothing
   else, so every node is drawn at one radius and every edge at one width, the Size / Shape / Labels /
   Effects sections are RT-8's empty form, and the legend has exactly the two blocks the canvas can
   justify. StyleDiverging is the board that carries Size by padj and Edge width by combined_score.
 
   ROW TYPES. Every row here is one of the ten and says which. Resident counts, panel then inspector:
-  19 panel rows (headers plus content rows, list rows itemised -- the same 19 StyleDiverging draws after
+  19 panel rows (headers plus content rows, list rows itemized -- the same 19 StyleDiverging draws after
   D2's panel cuts, which had already landed there) and 13 inspector rows, against StyleDiverging's 18
   before this revision: Which nodes -4 (Rule 7a), the ramp's chart row, domain triple and clamp toggle
   -3 (behind the door), Outline +4, Size's encoded pair -2 back to its empty header.
   Shell from SHELL-SKELETON.html; palette, row anatomy and every snippet from VOCAB.md.
-  REVISION 1.9 (SECTIONS-1.9.md, VOCAB section 15). D1 withdraws the licence a section had to be nothing
+  REVISION 1.9 (SECTIONS-1.9.md, VOCAB section 15). D1 withdraws the license a section had to be nothing
   but a door: every section expands in place, a chevron renders only where it opens onto resident rows,
   and a gear is an ADDITION to a section that already draws content, never the section itself. The door
   test keeps its shape and changes one word -- clause (a)'s denominator is now LOCAL: of the readers who
@@ -165,7 +165,7 @@
   DECISIONS-1.8 D2's room argument for the histogram still holds), while the categorical Values was a
   SECTION drawn as a pop-out, which is the one shape D1 forbids.
   5.1 PARAMETERS. The section expands in place, drawn from VOCAB 15.1 verbatim: the RT-1 pair Edge length
-  30 | Pull to centre -1.2, and the bound Edge weight field below it reading "combined_score", which is this file's own
+  30 | Pull to center -1.2, and the bound Edge weight field below it reading "combined_score", which is this file's own
   Weight column (FIXTURES 0). All three sit at their shipped defaults -- NGraphLayoutEngine.ts declares
   springLength .default(30) and gravity .default(-1.2), and Edge weight defaults to the import column --
   and they are drawn anyway, which is D3: Rule 7a no longer reaches the two or three locally common rows
@@ -176,8 +176,8 @@
   (dragCoefficient), Time step (timeStep), Random seed (seed). Three values resident, six behind the gear,
   which is the product owner's own sentence. The gear keeps its "Layout parameters" title and A6's two
   inks, dimmed because nothing behind it deviates, and it is now an addition to a section rather than the
-  section itself. Pull to centre takes 1.9's one new field glyph, four chevrons pointing inward at a
-  centre dot, owed to REGISTER-1.5 section 1.
+  section itself. Pull to center takes 1.9's one new field glyph, four chevrons pointing inward at a
+  center dot, owed to REGISTER-1.5 section 1.
   The section comment below records the trailing slot of this header drawing nothing at all -- "A6's stub
   obligation working in the negative" -- which is the case section 5.1 of the record cites as the defect
   at its clearest: a section that says nothing, opens onto nothing, and hides six engine internals behind
@@ -203,14 +203,14 @@
   A6'S TWO SPELLINGS SURVIVE THE CHANGE, in a better pairing than the one this board was built on. The
   contrast is no longer two doors, one primary and one dimmed; it is the ramp door glyph in the primary
   ink, because the domain is hand-set and Clamp outliers is on, against the new Values gear in the dimmed
-  ink, because not one of the six group colours has been overridden. One door and one gear, same two inks,
+  ink, because not one of the six group colors has been overridden. One door and one gear, same two inks,
   same screen -- and the count that used to be the section's only fact is now five named rows and a
   "1 more", which is what D6 means by a section resolving on what a reader came to READ.
   D4, AND WHAT THIS BOARD DRAWS. Nothing here opens a live collapsed section: each of these was a DOOR,
   and a door has no open state to preserve. Every one of them still DEFAULTS closed in the product, so
   6.9's skyline promise is untouched -- eight collapsed sections are still 8 x 33 = 264px -- and the new
   rows cost a reader nothing until they open the section. This board draws them open because section 4 of
-  the record settles 5.1's board-to-board divergence in StyleLibrary's favour and moves the other four
+  the record settles 5.1's board-to-board divergence in StyleLibrary's favor and moves the other four
   Style boards to its open form.
   MEASURED, by rendering the board and reading the boxes. Panel: the stack goes 633 to 761 -- Layers 147,
   Arrangement 137, Parameters 33 -> 105, Styles 209, Canvas 73, Animation 33 -> 89, closing rule 1 --
@@ -971,7 +971,7 @@
                                     <!-- SECTION Layers. RT-8 header (live: the layer set is the value), then an RT-6 list. "nodes"
                  rides on the column caption, so the rows carry bare numbers (Rule 9, RT-6's repetition rule).
                  The 16px leading slot carries each layer's own paint, which is what the canvas draws: the
-                 white ring for the outlined DE list, the diverging ramp for Expression, flat grey for the
+                 white ring for the outlined DE list, the diverging ramp for Expression, flat gray for the
                  base layer. Actions are hover-revealed (RT-7's hover split); only the selected Expression row
                  is drawn hovered. No divider above the first section -- the title row's border draws it. -->
                                     <div style="display: flex; flex-direction: column">
@@ -1927,7 +1927,7 @@
                  current arrangement, Stiffness, Speed vs accuracy, Damping, Time step, Random seed -- are
                  more than four rows, so 6.2's arithmetic routes them to a 280 pop-out opened from this row
                  in the panel lane at left 336, anchored top-to-top on this header. Edge length 30, Pull to
-                 centre -1.2 and Edge weight are not drawn as rows here at all: NGraphLayoutEngine.ts declares
+                 center -1.2 and Edge weight are not drawn as rows here at all: NGraphLayoutEngine.ts declares
                  springLength .default(30) and gravity .default(-1.2), and Edge weight defaults to the import
                  Weight column, so Rule 7a forbids the rows and the door is how a reader reaches them to
                  create a deviation. The chevron stays in the closed right-pointing form permanently and the
@@ -1935,7 +1935,7 @@
                  which is A6's stub obligation working in the negative. The title says it in words, so the
                  stub is not silent about what is behind it.
                  REVISION 1.9 (SECTIONS-1.9 5.1, D1, D3, D5; VOCAB 15.1). The door is withdrawn and the section
-                 expands in place. Resident, from VOCAB 15.1 verbatim: the RT-1 pair Edge length 30 | Pull to centre
+                 expands in place. Resident, from VOCAB 15.1 verbatim: the RT-1 pair Edge length 30 | Pull to center
                  -1.2, and the bound Edge weight field below it. All three sit at their shipped defaults and are drawn
                  anyway -- D3 lifts Rule 7a off the two or three locally common rows of a section, because a section
                  whose rows 7a all deletes is a chevron over nothing, which D1 forbids. No reset x on any of them:
@@ -1944,8 +1944,8 @@
                  (theta), Damping (dragCoefficient), Time step (timeStep), Random seed (seed). Three values resident,
                  six behind the gear, which is the product owner's own sentence. The gear keeps A6's two inks (VOCAB
                  14.1), dimmed here because none of the six deviates, and it is now an ADDITION to a section that
-                 draws content rather than the section itself. Pull to centre takes 1.9's one new field glyph -- four
-                 chevrons pointing inward at a centre dot, owed to REGISTER-1.5 section 1 -- and every field keeps the
+                 draws content rather than the section itself. Pull to center takes 1.9's one new field glyph -- four
+                 chevrons pointing inward at a center dot, owed to REGISTER-1.5 section 1 -- and every field keeps the
                  title of the word its glyph replaced. Closed, this header would carry no gear and the mark
                  "Force directed - settled" instead (VOCAB 15.2); open, D5 gives the slot to the gear and Rule 8
                  deletes the mark, because the header above already says Force directed.
@@ -3999,10 +3999,10 @@
                                     </g>
                                 </svg>
 
-                                <!-- CANVAS TOOLBAR (5.6). The navigation cluster, centred on the live canvas rect with left: 50%
+                                <!-- CANVAS TOOLBAR (5.6). The navigation cluster, centered on the live canvas rect with left: 50%
                and translateX(-50%), never on the window, at the bottom offset of 12: nothing else is on the
                bottom stack here, no time slider and no Data table drawer. Width 246, height 36. The item set
-               is fixed and nothing appears or disappears with selection, because a centred bar that changes
+               is fixed and nothing appears or disappears with selection, because a centered bar that changes
                width moves every item under the pointer.
                "Zoom to selection (F)" stays disabled at #5f6873 with its one reason appended to the title: a
                style layer is selected, and a selected layer is not a selection of nodes.
@@ -5729,7 +5729,7 @@
                                         </div>
                                     </div>
 
-                                    <!-- SECTIONS Size, Shape, Labels and Effects. This layer sets colour and outline and nothing
+                                    <!-- SECTIONS Size, Shape, Labels and Effects. This layer sets color and outline and nothing
                  else, so each is RT-8's empty form: one 32px row, dimmed name, one 24px + in the trailing
                  slot, no content rows, no "Not set" and no empty-state sentence. Dimming the name says it,
                  and the closed skyline is the inventory of what has not been done on this layer. Sections
@@ -6015,10 +6015,10 @@
                        surface is in the inspector lane, not the overlay layer
          shared edge   vertical, top 180 on the opener row's top 180, offset 0
          caret         6px on the right edge, the edge that faces the opener, at top 9 inside the
-                       1px border, so its centre sits on the opener row's centre y 196
+                       1px border, so its center sits on the opener row's center y 196
          size          280 x 343, against a half-region cap of 418 and a region-minus-32 cap of 804
          clearances    bottom 523 against a legend top of 633; left 872 against a toolbar right end
-                       of 867. Nothing slid, nothing flipped, no width rung dropped, no centred
+                       of 867. Nothing slid, nothing flipped, no width rung dropped, no centered
                        fallback, so no obstruction is recorded for this board
        No scrim and no focus trap: the canvas keeps pointer and keyboard, the selection keeps
        flowing, every change previews live, Escape closes and returns focus to the glyph. One
@@ -6046,7 +6046,7 @@
                       names "gradient handle editing as its own pop-out opened from the ramp
                       pop-out" as forbidden from this revision forward.
        NOT DRAWN, and each for a stated reason: "Use values as-is" (5.3 renders it only where the
-       values parse as colours, sizes or shape names, and log2FoldChange parses as none of them --
+       values parse as colors, sizes or shape names, and log2FoldChange parses as none of them --
        Rule 7c, the data cannot support the control); the Palette select (resident beside the door,
        because LEGEND-1.8 pins the palette name there); the clamp departure line (resident under the
        door, because 6.10 binds a departure to its channel); the attribute chip (resident, Rule 6).
@@ -6073,7 +6073,7 @@
                         z-index: 8;
                     "
                 >
-                    <!-- The caret: 6px, on the leading edge, centred on the opener row. -->
+                    <!-- The caret: 6px, on the leading edge, centered on the opener row. -->
                     <div style="position: absolute; right: -6px; top: 9px; width: 6px; height: 12px; overflow: hidden">
                         <div
                             style="
@@ -6168,7 +6168,7 @@
                         "
                     >
                         <!-- RT-1 pair: the two words that name the ramp. Scale is the transform on the values; Palette
-           family is the shape of the colour run. Both are at their defaults and both are drawn,
+           family is the shape of the color run. Both are at their defaults and both are drawn,
            because behind a door a default must stay reachable. Reverse takes the trailing slot. -->
                         <div
                             style="
@@ -6321,7 +6321,7 @@
            ends and the midpoint. The 19 bins are the log2FoldChange distribution over the measured
            axis -6.8 to 5.9, painted by the palette they encode. Every horizontal position is
            (value - axisMin) / (axisMax - axisMin) and nothing is placed at a round number because it
-           looks centred: zero is 6.8 / 12.7 = 53.54 per cent, the domain start -4.2 is 20.47 and the
+           looks centered: zero is 6.8 / 12.7 = 53.54 per cent, the domain start -4.2 is 20.47 and the
            domain end 3.8 is 83.46, so the thumbs, the filled span and the midpoint rule are all
            where the numbers put them. This row is the reason the door exists at all: it is the one
            control in the section that cannot be drawn at 32px, and 6.11's own anatomy is that a
@@ -6468,7 +6468,7 @@
 
                         <!-- RT-2 compound row: the domain's two ends belong to one thing, so they share one box,
            separated by a 1px hairline of panel background so they read as one control. Each end
-           carries its own point on the ramp as the 14px slot swatch, so the field says which colour
+           carries its own point on the ramp as the 14px slot swatch, so the field says which color
            that number gets. The trailing slot is the reset, because the pair deviates: auto would be
            -6.8 and 5.9, the measured ends. -->
                         <div style="display: flex; align-items: center; gap: 8px; height: 32px">
@@ -6655,12 +6655,12 @@
                             >
                         </div>
 
-                        <!-- RT-1 pair: the midpoint, and the colour for a node the attribute does not reach. Midpoint
+                        <!-- RT-1 pair: the midpoint, and the color for a node the attribute does not reach. Midpoint
            is a concept with no glyph in the register, so by Rule 4 it keeps its word, and the word is
            the scrub handle in place of the 16px slot. A diverging encoding is a claim about where
            zero is, and floor item 5 wants that claim in words rather than only in a draggable pixel.
            The missing-value field keeps the one word the register has no glyph for and lets the
-           swatch be the colour; its count rides in the title and stays in words on the legend. -->
+           swatch be the color; its count rides in the title and stays in words on the legend. -->
                         <div style="display: flex; align-items: center; gap: 8px; height: 32px">
                             <div
                                 title="Midpoint: 0"
@@ -6754,7 +6754,7 @@
                         <!-- SECTION Gradient handles, INSIDE this pop-out. A3 forbids it as a surface of its own by
            name -- "gradient handle editing as its own pop-out opened from the ramp pop-out" is on the
            forbidden list from this revision forward -- and 6.11's nesting limit is the reason: a
-           pop-out may open a menu, an info circle, a colour picker or a 3b dialog, and never a second
+           pop-out may open a menu, an info circle, a color picker or a 3b dialog, and never a second
            pop-out. So it is a section, on the same 32px pitch as everything above it.
            The bar is the ramp at row size with its five stops drawn as handles; the neutral stop at
            50 per cent is selected, and the RT-1 row below it edits the selected stop -- the swatch is

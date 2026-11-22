@@ -71,6 +71,8 @@ import type { MapSourceId } from 'babylonjs-map';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
 import { ModelFormat } from 'babylonjs-models/detect';
+import type { ModelLimits as ModelLimits_2 } from 'babylonjs-models/files';
+import type { ModelSummary } from 'babylonjs-models/files';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
@@ -130,6 +132,7 @@ import { SourceRuntime } from '@graphty/graph-io';
 import { SourceRuntimeReason } from '@graphty/graph-io';
 import { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture.js';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
@@ -160,7 +163,7 @@ export const ACCELERATION_POLICY_DEFAULT: AccelerationPolicy;
 export type AccelerationCapabilities = Pick<Capabilities, "acceleration">;
 
 // @public
-export type AccelerationErrorCode = "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_INCORRECT" | "E_DEVICE_LOST" | "E_TOO_LARGE" | "E_NO_ACCELERATOR_REGISTERED" | "E_ACCELERATOR_FAILED";
+export type AccelerationErrorCode = "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_INCORRECT" | "E_DEVICE_LOST" | "E_GPU_TIMEOUT" | "E_TOO_LARGE" | "E_NO_ACCELERATOR_REGISTERED" | "E_ACCELERATOR_FAILED" | "E_ACCELERATOR_INCOMPATIBLE" | "E_MISSING_PACKAGE";
 
 // @public
 export type AccelerationPolicy = "auto" | "off" | "required";
@@ -177,6 +180,7 @@ export interface AccelerationStatus {
     readonly backend?: "webgpu" | (string & {});
     readonly code?: AccelerationErrorCode;
     readonly device?: string;
+    readonly params?: Readonly<Record<string, CodedFactParam>>;
     readonly policy: AccelerationPolicy;
     readonly reason?: string;
     readonly state: AccelerationState;
@@ -231,11 +235,18 @@ export type AdHocData<KeyType extends string | number = string> = Record<KeyType
 };
 
 // @public
+export interface AiCommandCanceledEvent {
+    input: string;
+    reason: "user" | "timeout";
+    type: "ai-command-canceled";
+}
+
+// @public
 export type AiEventType = AiEvent["type"];
 
 // @public
 abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<string, unknown>> {
-    constructor(g: Graph, options?: Partial<TOptions>);
+    constructor(g: AlgorithmHost | GraphSession, options?: Partial<TOptions>);
     protected accelerated(capability: string, mode: AlgorithmGraphMode, options?: {
         accelerable?: boolean;
         sources?: number;
@@ -243,15 +254,14 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     }): AcceleratedAlgorithmRun;
     // @deprecated
     protected algorithmGraph(mode: AlgorithmGraphMode): Graph_2;
-    static get(g: Graph, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
+    static get(g: AlgorithmHost | GraphSession, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
     static getClass(namespace: string, type: string): (AlgorithmClass & AlgorithmStatics) | null;
     // @deprecated
     static getOptionsSchema(): OptionsSchema_2;
     static getRegisteredAlgorithms(namespace?: string): string[];
     static getRegisteredTypes(): string[];
     static getZodOptionsSchema(): OptionsSchema;
-    // (undocumented)
-    protected graph: Graph;
+    protected graph: AlgorithmHost;
     // @deprecated
     static hasOptions(): boolean;
     static hasZodOptions(): boolean;
@@ -275,7 +285,7 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
     // (undocumented)
-    abstract run(g: Graph): Promise<void>;
+    abstract run(g: AlgorithmHost): Promise<void>;
     protected get schemaOptions(): TOptions;
     protected _schemaOptions: TOptions;
     static scopeInput?: ScopeInputDeclaration;
@@ -321,38 +331,60 @@ export const AlgorithmOnLoad: z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
 export type AlgorithmOnLoad = z.infer<typeof AlgorithmOnLoad>;
 
 // @public
-export class AnimationCancelledError extends Error {
+export const AnimationCanceledError: typeof AnimationCancelledError;
+
+// @public
+export type AnimationCanceledError = AnimationCancelledError;
+
+// @public
+export class AnimationCancelledError extends GraphtyError {
     constructor();
+    readonly name: string;
 }
 
 // @public
 export interface AnimationOptions {
     camera?: CameraState | {
+        view: string;
+    } | {
         preset: string;
     };
-    cameraMode: "stationary" | "animated";
+    cameraMode?: "stationary" | "animated";
+    // @deprecated
     cameraPath?: (CameraWaypoint | ViewWaypoint)[];
+    destination?: {
+        download?: boolean;
+        filename?: string;
+    };
+    // @deprecated
     download?: boolean;
+    // @deprecated
     downloadFilename?: string;
-    duration: number;
-    easing?: "linear" | "easeInOut" | "easeIn" | "easeOut";
-    format?: "webm" | "mp4" | "auto";
+    duration?: number;
+    easing?: EasingName;
+    format?: VideoFormat | "auto";
     fps?: number;
     height?: number;
-    tour?: readonly string[];
+    motion?: "follow-view" | "authored";
+    signal?: AbortSignal;
+    tour?: TourInput | readonly string[];
     videoBitrate?: number;
     width?: number;
 }
 
-// @public (undocumented)
+// @public
+export interface AnimationProgressEvent {
+    progress: number;
+    type: "animation-progress";
+}
+
+// @public
 export interface AnimationResult {
-    // (undocumented)
     blob: Blob;
-    // (undocumented)
     metadata: {
         duration: number;
         fps: number;
-        format: string;
+        format: VideoFormat;
         width: number;
         height: number;
         framesCaptured: number;
@@ -471,7 +503,7 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
-    layout?: "recommended" | "keep";
+    layout?: "recommended" | "placed" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -556,7 +588,7 @@ export const BLUE_ORANGE_COLORS: readonly ["#2166ac", "#4393c3", "#92c5de", "#d1
 export const BLUES_COLORS: readonly ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"];
 
 // @public
-export const BUILTIN_PRESETS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
+export const BUILTIN_PRESETS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric", "bottomView"];
 
 // @public
 export interface CalibrationRecord {
@@ -565,49 +597,35 @@ export interface CalibrationRecord {
     machine: string;
 }
 
-// @public (undocumented)
+// @public
 export interface CameraAnimationOptions {
-    // (undocumented)
     animate?: boolean;
-    // (undocumented)
     description?: string;
-    // (undocumented)
     duration?: number;
-    // (undocumented)
-    easing?: "linear" | "easeIn" | "easeOut" | "easeInOut";
-    // (undocumented)
+    easing?: EasingName;
     skipQueue?: boolean;
 }
 
 // @public
 export interface CameraState {
     alpha?: number;
-    // (undocumented)
     beta?: number;
-    // (undocumented)
     cameraDistance?: number;
-    // (undocumented)
     fov?: number;
-    // (undocumented)
+    mode?: DrawingMode;
     orthoBottom?: number;
-    // (undocumented)
     orthoLeft?: number;
-    // (undocumented)
     orthoRight?: number;
-    // (undocumented)
     orthoTop?: number;
-    // (undocumented)
     pan?: {
         x: number;
         y: number;
     };
-    // (undocumented)
     pivotRotation?: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     position?: {
         x: number;
         y: number;
@@ -615,13 +633,11 @@ export interface CameraState {
     };
     radius?: number;
     rotation?: number;
-    // (undocumented)
     target?: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     type?: "arcRotate" | "free" | "universal" | "orthographic";
     zoom?: number;
 }
@@ -680,11 +696,9 @@ export interface Capabilities {
 
 // @public
 export interface CapabilityCheck {
-    // (undocumented)
     estimatedMemoryMB: number;
     height?: number;
     reason?: CodedFact<GraphtyErrorCode>;
-    // (undocumented)
     supported: boolean;
     warnings?: CodedFact<ScreenshotWarningCode>[];
     width?: number;
@@ -694,24 +708,21 @@ export interface CapabilityCheck {
 export interface CaptureCapability {
     readonly clipboard: boolean;
     readonly jpeg: boolean;
-    readonly pdf: boolean;
     readonly png: boolean;
     readonly svg: boolean;
     readonly video: boolean;
     readonly webp: boolean;
 }
 
-// @public (undocumented)
+// @public
 export interface CaptureEstimate {
-    // (undocumented)
     estimatedFileSize?: number;
-    // (undocumented)
     likelyToDropFrames: boolean;
-    // (undocumented)
     recommendedFps?: number;
-    // (undocumented)
-    recommendedResolution?: string;
-    // (undocumented)
+    recommendedResolution?: {
+        width: number;
+        height: number;
+    };
     totalFrames: number;
 }
 
@@ -724,7 +735,7 @@ export type ClipboardStatus = "success" | "not-requested" | "not-supported" | "p
 // @public
 export interface CodedFact<Code extends string = string> {
     readonly code: Code;
-    readonly params: Readonly<Record<string, CodedFactParam>>;
+    readonly params: Readonly<Partial<Record<string, CodedFactParam>>>;
 }
 
 // @public
@@ -736,6 +747,9 @@ export interface CollapseResult {
     readonly removedEdges: number;
     readonly removedNodes: readonly NodeId[];
 }
+
+// @public
+export type ColorScheme = "light" | "dark" | "auto";
 
 // @public
 export function colorToHex(s: string): string | undefined;
@@ -1045,10 +1059,59 @@ export function defineShader(definition: ShaderDefinition, options?: RegisterOpt
 export { defineSource }
 
 // @beta
-export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_CHANGED" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+export const DOCUMENT_SECTIONS: readonly DocumentSection[];
+
+// @beta
+export interface DocumentBindFacts {
+    readonly file: boolean;
+    readonly open: boolean;
+}
+
+// @beta
+export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+
+// @beta
+export interface DocumentHeldFacts {
+    readonly reads: number | null;
+    readonly reason: DocumentHeldReason;
+    readonly version: number | null;
+}
+
+// @beta
+export type DocumentHeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs" | "add";
 
 // @beta
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
+
+// @beta
+export interface DocumentSectionAbout {
+    readonly authors?: readonly {
+        readonly name: string;
+        readonly uri?: string;
+    }[];
+    readonly created?: string;
+    readonly description?: string;
+    readonly from?: string;
+    readonly license?: string;
+    readonly modified?: string;
+}
+
+// @beta
+export interface DocumentSectionFacts {
+    readonly counts: Readonly<Record<string, number>>;
+    readonly held?: DocumentHeldFacts;
+    readonly name?: string;
+    readonly section: DocumentSection;
+}
+
+// @beta
+export interface DocumentSectionNeed {
+    readonly found?: boolean;
+    readonly kind: "column" | "type" | "source" | "result";
+    readonly name: string;
+    readonly schema?: Readonly<Record<string, unknown>>;
+    readonly table?: "node" | "edge";
+}
 
 // @public
 export interface DrawnShaders {
@@ -1062,6 +1125,9 @@ export interface DrawnShaders {
         readonly entering: number;
     }>;
 }
+
+// @public
+export type EasingName = "linear" | "easeIn" | "easeOut" | "easeInOut";
 
 // @public
 export class Edge {
@@ -1082,6 +1148,8 @@ export class Edge {
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     // @internal
+    batchEndRow(end: "source" | "target"): number;
+    // @internal
     columnEnd(end: "source" | "target"): ColumnRow | undefined;
     get data(): AdHocData;
     dispose(): void;
@@ -1091,6 +1159,8 @@ export class Edge {
         span: number;
         visibility: number;
     }[];
+    get drawnCenter(): Vector3;
+    // @deprecated
     get drawnCentre(): Vector3;
     get drawnCurve(): Vector3[] | null;
     get drawnEffects(): {
@@ -1104,14 +1174,19 @@ export class Edge {
         length: number;
         width: number;
         visibility: number;
+        center: Vector3;
         centre: Vector3;
         pattern: JoinedPatternKind | null;
     } | null;
     get drawnPattern(): readonly ArrowCap[];
+    // @internal
+    get drawnStrands(): readonly string[];
     // (undocumented)
     readonly dstId: NodeIdType;
     get dstNode(): Node_2;
     set dstNode(node: Node_2);
+    // @internal
+    endDrawnAsGroup(end: "source" | "target"): boolean;
     // @internal
     endRow(end: "source" | "target"): number;
     // @internal
@@ -1165,7 +1240,7 @@ export class Edge {
     xlabelLabel: RichTextLabel | null;
 }
 
-// @public (undocumented)
+// @public
 export const EDGE_CONSTANTS: {
     readonly DEFAULT_LINE_WIDTH: 8;
     readonly DEFAULT_LINE_COLOR: "#FFFFFF";
@@ -1236,6 +1311,10 @@ export interface EdgePosition {
     dst: Position;
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
+    laidCurve?: {
+        readonly points: readonly number[];
+        readonly params: readonly number[];
+    };
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
     lineEnds?: {
         readonly source: readonly [along: number, across: number];
@@ -1359,10 +1438,19 @@ export const EdgeStyle: z.ZodObject<{
                 center: "center";
                 outside: "outside";
             }>>;
+            borderStyle: z.ZodOptional<z.ZodEnum<{
+                readonly solid: "solid";
+                readonly double: "double";
+            }>>;
             backgroundShape: z.ZodOptional<z.ZodEnum<{
                 rectangle: "rectangle";
                 circle: "circle";
             }>>;
+            image: z.ZodOptional<z.ZodString>;
+            imageWidth: z.ZodOptional<z.ZodNumber>;
+            imageHeight: z.ZodOptional<z.ZodNumber>;
+            imageOffsetX: z.ZodOptional<z.ZodNumber>;
+            imageOffsetY: z.ZodOptional<z.ZodNumber>;
             minScreenSize: z.ZodOptional<z.ZodNumber>;
             declutter: z.ZodOptional<z.ZodEnum<{
                 size: "size";
@@ -1652,10 +1740,19 @@ export const EdgeStyle: z.ZodObject<{
                 center: "center";
                 outside: "outside";
             }>>;
+            borderStyle: z.ZodOptional<z.ZodEnum<{
+                readonly solid: "solid";
+                readonly double: "double";
+            }>>;
             backgroundShape: z.ZodOptional<z.ZodEnum<{
                 rectangle: "rectangle";
                 circle: "circle";
             }>>;
+            image: z.ZodOptional<z.ZodString>;
+            imageWidth: z.ZodOptional<z.ZodNumber>;
+            imageHeight: z.ZodOptional<z.ZodNumber>;
+            imageOffsetX: z.ZodOptional<z.ZodNumber>;
+            imageOffsetY: z.ZodOptional<z.ZodNumber>;
             minScreenSize: z.ZodOptional<z.ZodNumber>;
             declutter: z.ZodOptional<z.ZodEnum<{
                 size: "size";
@@ -1941,6 +2038,7 @@ export const EdgeStyle: z.ZodObject<{
         type: z.ZodOptional<z.ZodEnum<{
             solid: "solid";
             dot: "dot";
+            double: "double";
             box: "box";
             diamond: "diamond";
             star: "star";
@@ -1948,7 +2046,6 @@ export const EdgeStyle: z.ZodObject<{
             "dash-dot": "dash-dot";
             sinewave: "sinewave";
             zigzag: "zigzag";
-            double: "double";
             "forward-slash": "forward-slash";
             "backward-slash": "backward-slash";
             "vertical-slash": "vertical-slash";
@@ -1963,7 +2060,13 @@ export const EdgeStyle: z.ZodObject<{
         wavePeriod: z.ZodOptional<z.ZodNumber>;
         dashLength: z.ZodOptional<z.ZodNumber>;
         dashGap: z.ZodOptional<z.ZodNumber>;
+        dashArray: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        colorFrom: z.ZodOptional<z.ZodEnum<{
+            none: "none";
+            source: "source";
+            target: "target";
+        }>>;
         opacity: z.ZodOptional<z.ZodNumber>;
         fade: z.ZodOptional<z.ZodObject<{
             start: z.ZodOptional<z.ZodNumber>;
@@ -2001,9 +2104,14 @@ export const EdgeStyle: z.ZodObject<{
                 radial: "radial";
             }>>;
         }, z.core.$strict>>;
+        strands: z.ZodOptional<z.ZodObject<{
+            colors: z.ZodOptional<z.ZodString>;
+            spacing: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>>;
         bezier: z.ZodOptional<z.ZodBoolean>;
         bends: z.ZodOptional<z.ZodString>;
         taper: z.ZodOptional<z.ZodNumber>;
+        taperSource: z.ZodOptional<z.ZodNumber>;
         lift: z.ZodOptional<z.ZodNumber>;
         fanSpacing: z.ZodOptional<z.ZodNumber>;
         fanned: z.ZodOptional<z.ZodBoolean>;
@@ -2097,10 +2205,19 @@ export const EdgeStyle: z.ZodObject<{
             center: "center";
             outside: "outside";
         }>>;
+        borderStyle: z.ZodOptional<z.ZodEnum<{
+            readonly solid: "solid";
+            readonly double: "double";
+        }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -2336,10 +2453,19 @@ export const EdgeStyle: z.ZodObject<{
             center: "center";
             outside: "outside";
         }>>;
+        borderStyle: z.ZodOptional<z.ZodEnum<{
+            readonly solid: "solid";
+            readonly double: "double";
+        }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -2597,7 +2723,7 @@ export class EventManager implements Manager {
     emitGraphDataLoaded(graph: Graph | GraphContext, chunksLoaded: number, dataSourceType: string, report: ImportReport, loadId?: number): void;
     emitGraphError(graph: Graph | GraphContext | null, error: Error, context: GraphErrorEvent["context"], details?: Record<string, unknown>): void;
     // @deprecated
-    emitGraphEvent(type: string, data: Record<string, unknown>): void;
+    emitGraphEvent(type: EmittableEventType, data: Record<string, unknown>): void;
     emitGraphSettled(graph: Graph): void;
     emitLayoutInitialized(layoutType: string, shouldZoomToFit: boolean): void;
     emitNodeEvent(type: NodeEvent["type"], eventData: object): void;
@@ -2642,6 +2768,7 @@ export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExpor
     readonly scope?: ExportScope;
     readonly columns?: readonly string[];
     readonly groupTable?: ExportGroupTable;
+    readonly onProgress?: (fact: PendingWorkProgress) => void;
 };
 
 // @public
@@ -2650,7 +2777,9 @@ export interface ExportGroupTable extends GroupTableOptions {
 }
 
 // @public
-export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
+export interface ExportLoss extends CodedFact<ExportLossCode | (string & {})> {
+    readonly expected: boolean;
+}
 
 // @public
 export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof CYS_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED" | ExportStyleLossCode;
@@ -2674,7 +2803,7 @@ export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "save-files-v2";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
 
 // @public
 export interface FigureOptions {
@@ -2691,6 +2820,30 @@ export interface FigureResult {
     downloaded: boolean;
     height: number;
     width: number;
+}
+
+// @beta
+export type FileKind = "project" | "recipe" | "style" | "document" | "graph";
+
+// @public
+export interface FileLoadOptions {
+    edgeSource?: string;
+    edgeTarget?: string;
+    format?: string;
+    graphIndex?: number;
+    graphName?: string;
+    layout?: "recommended" | "placed" | "keep";
+    nodeIdPath?: string;
+    replace?: boolean;
+    signal?: AbortSignal;
+    styleOptions?: FileStyleOptions;
+    styles?: "file" | "none";
+}
+
+// @public
+export interface FilesApi {
+    // @beta
+    kindOf(source: ProjectSource): Promise<FileKind>;
 }
 
 // @public
@@ -2863,6 +3016,8 @@ export class Graph implements GraphContext {
         params?: Readonly<Record<string, unknown>>;
         extent?: CameraViewExtent;
     } & CameraAnimationOptions): Promise<void>;
+    // @internal
+    applyCaptureCamera(state: CameraState): Promise<void>;
     applySuggestedStyles(algorithmKey: string | string[]): boolean;
     get basemapStatus(): BasemapStatus;
     batchOperations(fn: (tx: TransactionScope_2) => Promise<void> | void, label?: string): Promise<void>;
@@ -2880,6 +3035,7 @@ export class Graph implements GraphContext {
         x: number;
         y: number;
     }, options?: CameraAnimationOptions): Promise<void>;
+    checkModel(ref: string, options?: ModelCheckOptions): Promise<ModelCheck>;
     clearAiHistory(options?: {
         readonly database?: string;
     }): Promise<void>;
@@ -2906,16 +3062,19 @@ export class Graph implements GraphContext {
     // (undocumented)
     engine: WebGPUEngine | Engine;
     enterXR(mode: "immersive-vr" | "immersive-ar"): Promise<void>;
-    estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<CaptureEstimate>;
+    estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height" | "videoBitrate" | "tour">): Promise<CaptureEstimate>;
     readonly eventManager: EventManager;
     exitXR(): Promise<void>;
     // @internal
     expectRenderer(): void;
     exportAiConversation(id: string): Promise<string | null>;
+    // @deprecated
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     // (undocumented)
     fetchEdges?: FetchEdgesFn;
+    // @internal
+    fetchNeighborEdges?: FetchNeighborEdgesFn;
     // (undocumented)
     fetchNodes?: FetchNodesFn;
     forgetAiKeys(options?: {
@@ -2932,11 +3091,18 @@ export class Graph implements GraphContext {
     getApiKeyManager(): ApiKeyManager | null;
     getAutoFrame(): boolean;
     getCameraController(): CameraController | null;
+    // @deprecated
     getCameraPresets(): Record<string, CameraState | {
         builtin: true;
     }>;
     getCameraState(): CameraState;
     getCameraTransitionDuration(): number | undefined;
+    getCanvasSize(): {
+        width: number;
+        height: number;
+        devicePixelRatio: number;
+    };
+    getColorScheme(): ColorScheme;
     getConfig(): GraphContextConfig;
     getDataManager(): DataManager;
     // @internal
@@ -2988,7 +3154,10 @@ export class Graph implements GraphContext {
         x: number;
         y: number;
     }): GroupOutlineAtResult | null;
-    importCameraPresets(presets: Record<string, CameraState>): void;
+    // @deprecated
+    importCameraPresets(presets: Record<string, CameraState>): {
+        skipped: SkippedPreset[];
+    };
     init(): Promise<void>;
     // (undocumented)
     initialized: boolean;
@@ -3003,6 +3172,7 @@ export class Graph implements GraphContext {
     get isFrameStable(): boolean;
     // @beta
     get isGraphDrawn(): boolean;
+    isMotionReduced(): boolean;
     isNodeSelected(nodeId: string | number): boolean;
     isRunning(): boolean;
     isVoiceActive(): boolean;
@@ -3015,35 +3185,12 @@ export class Graph implements GraphContext {
         readonly allKeys?: boolean;
     }): Promise<readonly AiConversationSummary[]>;
     listenerCount(): number;
+    // @deprecated
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
-    loadFromFile(file: File, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromFile(file: File, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
-    loadFromUrl(url: string, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromUrl(url: string, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
@@ -3066,10 +3213,16 @@ export class Graph implements GraphContext {
     // (undocumented)
     pinOnDrag?: boolean;
     get pixelRatio(): PixelRatio;
-    playTour(path: readonly (CameraWaypoint | ViewWaypoint)[], options?: {
-        easing?: CameraAnimationOptions["easing"];
-    }): Promise<void>;
+    planTour(tour: TourInput): TourPlan;
+    playTour(tour: TourInput, options?: {
+        easing?: EasingName;
+        restoreCamera?: boolean;
+        signal?: AbortSignal;
+    }): Promise<{
+        reason: TourEndReason;
+    }>;
     readonly preserveDrawingBuffer: boolean;
+    // @deprecated
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeListener(id: symbol): boolean;
@@ -3079,6 +3232,8 @@ export class Graph implements GraphContext {
     get rendererRequest(): RendererRequest;
     get rendererStatus(): RendererStatus | null;
     get renderPath(): RenderPath;
+    // @internal
+    replaceTour(): void;
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
     // @internal
     resize(): void;
@@ -3099,7 +3254,8 @@ export class Graph implements GraphContext {
     set runAlgorithmsOnLoad(value: boolean);
     // @internal
     saveCameraPlacement(): () => void;
-    saveCameraPreset(name: string, camera?: CameraState): void;
+    // @deprecated
+    saveCameraPreset(name: string, camera?: CameraState): Promise<void>;
     // (undocumented)
     scene: Scene;
     screenToWorld(screenPos: {
@@ -3135,6 +3291,7 @@ export class Graph implements GraphContext {
     }, options?: CameraAnimationOptions): Promise<void>;
     setCameraTransitionDuration(ms: number | undefined): void;
     setCameraZoom(zoom: number, options?: CameraAnimationOptions): Promise<void>;
+    setColorScheme(scheme: ColorScheme): void;
     setData(data: {
         nodes: Record<string, unknown>[];
         edges: Record<string, unknown>[];
@@ -3185,6 +3342,9 @@ export class Graph implements GraphContext {
         id: string | number;
         [key: string]: unknown;
     }[], options?: QueueableOptions): Promise<void>;
+    viewProblem(name: string, options?: {
+        saved?: boolean;
+    }): CodedFact | null;
     // @beta
     waitForPainted(): Promise<void>;
     waitForSettled(): Promise<void>;
@@ -3225,6 +3385,7 @@ export interface GraphAccelerator {
 export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
     backgroundType: z.ZodLiteral<"color">;
     color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    darkColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     shader: z.ZodOptional<z.ZodObject<{
         id: z.ZodString;
         params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
@@ -3232,7 +3393,9 @@ export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
 }, z.core.$strict>, z.ZodObject<{
     backgroundType: z.ZodLiteral<"skybox">;
     data: z.ZodUnion<[z.ZodURL, z.ZodString]>;
+    projection: z.ZodOptional<z.ZodLiteral<"flat" | "dome">>;
     color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    darkColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     shader: z.ZodOptional<z.ZodObject<{
         id: z.ZodString;
         params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
@@ -3324,7 +3487,7 @@ export interface GraphErrorEvent {
 }
 
 // @public
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public
 export type GraphEventType = GraphEvent["type"];
@@ -3333,7 +3496,7 @@ export type GraphEventType = GraphEvent["type"];
 export interface GraphGenericEvent {
     // (undocumented)
     [key: string]: unknown;
-    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-progress" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
+    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-canceled" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
 }
 
 // @public
@@ -3439,10 +3602,13 @@ export class Graphty extends LitElement {
         x: number;
         y: number;
     }, options?: CameraAnimationOptions): Promise<void>;
+    checkModel(ref: string, options?: ModelCheckOptions): Promise<ModelCheck>;
     clearAiHistory(options?: {
         readonly database?: string;
     }): Promise<void>;
     clearData(): void;
+    get colorScheme(): ColorScheme;
+    set colorScheme(value: ColorScheme);
     connectedCallback(): void;
     static createApiKeyManager(): Promise<ApiKeyManager>;
     get credentials(): CredentialStore;
@@ -3492,9 +3658,10 @@ export class Graphty extends LitElement {
     set enableDetailedProfiling(value: boolean | undefined);
     get enabledFeatures(): EnabledFeatures;
     endAiLive(): void;
-    estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<CaptureEstimate>;
+    estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height" | "videoBitrate" | "tour">): Promise<CaptureEstimate>;
     exitXR(): Promise<void>;
     exportAiConversation(id: string): Promise<string | null>;
+    // @deprecated
     exportCameraPresets(): Record<string, CameraState>;
     exportFigure(options?: FigureOptions): Promise<FigureResult>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
@@ -3512,10 +3679,16 @@ export class Graphty extends LitElement {
     getAiVoiceSupport(): Promise<AiVoiceSupport>;
     getApiKeyManager(): ApiKeyManager | null;
     getCameraController(): CameraController | null;
+    // @deprecated
     getCameraPresets(): Record<string, CameraState | {
         builtin: true;
     }>;
     getCameraState(): CameraState;
+    getCanvasSize(): {
+        width: number;
+        height: number;
+        devicePixelRatio: number;
+    };
     getDataManager(): DataManager;
     getEdgeCount(): number;
     getEdges(): Edge[];
@@ -3550,7 +3723,10 @@ export class Graphty extends LitElement {
     }): GroupOutlineAtResult | null;
     get historyKeys(): boolean;
     set historyKeys(value: boolean);
-    importCameraPresets(presets: Record<string, CameraState>): void;
+    // @deprecated
+    importCameraPresets(presets: Record<string, CameraState>): {
+        skipped: SkippedPreset[];
+    };
     is2D(): boolean;
     isAiEnabled(): boolean;
     isAiTalking(): boolean;
@@ -3559,6 +3735,7 @@ export class Graphty extends LitElement {
     get isFrameStable(): boolean;
     // @beta
     get isGraphDrawn(): boolean;
+    isMotionReduced(): boolean;
     isNodeSelected(nodeId: string | number): boolean;
     isPinned(id: string | number): boolean;
     isRunning(): boolean;
@@ -3592,38 +3769,15 @@ export class Graphty extends LitElement {
         readonly allKeys?: boolean;
     }): Promise<readonly AiConversationSummary[]>;
     listenerCount(): number;
+    // @deprecated
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
-    loadFromFile(file: File, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromFile(file: File, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
     loadFromSource(source: string, params: Readonly<Record<string, unknown>>, options?: SourceLoadOptions): Promise<{
         key: string;
     }>;
-    loadFromUrl(url: string, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromUrl(url: string, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
@@ -3666,9 +3820,14 @@ export class Graphty extends LitElement {
     get pinnedNodes(): ReadonlySet<string | number>;
     get pixelRatio(): PixelRatio;
     set pixelRatio(value: PixelRatio);
-    playTour(path: readonly (CameraWaypoint | ViewWaypoint)[], options?: {
-        easing?: "linear" | "easeIn" | "easeOut" | "easeInOut";
-    }): Promise<void>;
+    planTour(tour: TourInput): TourPlan;
+    playTour(tour: TourInput, options?: {
+        easing?: EasingName;
+        restoreCamera?: boolean;
+        signal?: AbortSignal;
+    }): Promise<{
+        reason: TourEndReason;
+    }>;
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
     get preserveDrawingBuffer(): boolean;
@@ -3676,6 +3835,7 @@ export class Graphty extends LitElement {
     get reducedMotion(): boolean | "auto";
     set reducedMotion(value: boolean | "auto");
     get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[];
+    // @deprecated
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeEventListener<K extends keyof GraphtyForwardedEventMap>(type: K, listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
@@ -3709,7 +3869,8 @@ export class Graphty extends LitElement {
     runAlgorithm(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void>;
     get runAlgorithmsOnLoad(): boolean | undefined;
     set runAlgorithmsOnLoad(value: boolean | undefined);
-    saveCameraPreset(name: string, camera?: CameraState): void;
+    // @deprecated
+    saveCameraPreset(name: string, camera?: CameraState): Promise<void>;
     screenToWorld(screenPos: {
         x: number;
         y: number;
@@ -3786,6 +3947,9 @@ export class Graphty extends LitElement {
     set viewInsets(value: ViewInsets | undefined);
     get viewMode(): ViewMode | undefined;
     set viewMode(value: ViewMode | undefined);
+    viewProblem(name: string, options?: {
+        saved?: boolean;
+    }): CodedFact | null;
     // @beta
     waitForPainted(): Promise<void>;
     waitForSettled(): Promise<void>;
@@ -3845,6 +4009,9 @@ export type GraphtyErrorCode =
 /**
 * A command or a call is malformed: a missing required field, or two fields that may not be
 * set together. `details` name the fields.
+* For saved views, `details` are `{ reason: "empty-name" }` for an empty name,
+* `{ reason: "name-taken", name }` for a rename onto a name in use, and
+* `{ missing, available }` for a rename, move or removal of a name that is not saved.
 * The caller fixes the call; retrying the same call always fails the same way.
 */
 "E_BAD_COMMAND"
@@ -3936,7 +4103,7 @@ export type GraphtyErrorCode =
 | "E_NO_TIME_FIELD"
 /**
 * An algorithm key is not registered. `details.available` lists the registered keys. The
-* caller picks a key from the catalogue or registers a plugin that provides it.
+* caller picks a key from the catalog or registers a plugin that provides it.
 */
 | "E_UNKNOWN_ALGORITHM"
 /**
@@ -3954,7 +4121,7 @@ export type GraphtyErrorCode =
 /**
 * A binding, an `encode` call or a saved document names a palette nothing registered.
 * `details.available` lists the known palette ids and `details.candidates` the nearest few.
-* The caller picks a palette from the catalogue or registers its own first.
+* The caller picks a palette from the catalog or registers its own first.
 */
 | "E_UNKNOWN_PALETTE"
 /**
@@ -3977,17 +4144,19 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_SHADER_PARAM"
 /**
-* A camera view name is not one the element knows. `details.available` lists the registered
-* view ids. The caller picks one of those or registers its own view first.
+* A camera view name is not one the element knows. `details` are `{ name, available, stop? }`:
+* `available` lists the camera view ids and then the saved view names, and `stop` is the
+* 0-based tour stop that named it. The caller picks one of those or registers or saves its
+* own view first.
 */
 | "E_UNKNOWN_CAMERA"
 /**
-* `data.generate` names a generator the catalogue does not list. `details.available` lists
+* `data.generate` names a generator the catalog does not list. `details.available` lists
 * the generator names. The caller picks one from `catalog.generators()`.
 */
 | "E_UNKNOWN_GENERATOR"
 /**
-* `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+* `data.loadDataset` names a dataset the catalog does not list. `details.available` lists
 * the dataset names. The caller picks one from `catalog.datasets()`.
 */
 | "E_UNKNOWN_DATASET"
@@ -4066,7 +4235,7 @@ export type GraphtyErrorCode =
 */
 | "E_AUTOSAVE_STALLED"
 /**
-* A document being serialised refers to a run whose id was derived rather than author
+* A document being serialized refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
 * explicit `as:` id and saves again.
 */
@@ -4074,9 +4243,17 @@ export type GraphtyErrorCode =
 /**
 * An id that must be unique is already taken -- a node or edge id arriving twice under a
 * plan that does not merge, or a saved scope, layer or run name that already exists.
-* `details.id` names it. The caller chooses another id or asks for merge behaviour.
+* `details.id` names it. The caller chooses another id or asks for merge behavior.
 */
 | "E_DUPLICATE_ID"
+/**
+* A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
+* incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
+* `details.column` and `details.rule` name them. The caller picks another rule for that column.
+* Under the source-steps experiment a step's merge refuses the same way, and `details.step`
+* also names the step.
+*/
+| "E_CLASH_RULE_TYPE"
 /**
 * Two edges run between the same ordered pair of nodes and `data.knownFields.repeatedEdges`
 * is `"error"`. `details` name both endpoints and the index of the edge already present. The
@@ -4085,14 +4262,16 @@ export type GraphtyErrorCode =
 | "E_DUPLICATE_EDGE"
 /**
 * A plugin is registered twice under one kind and name with a different implementation, and
-* the registration asked for strict behaviour. `details` name the kind and the name. The
+* the registration asked for strict behavior. `details` name the kind and the name. The
 * caller removes one registration, or registers into its own `createRegistry()` instance.
 */
 | "E_DUPLICATE_PLUGIN"
 /**
 * The target is owned by the element and may not be removed or edited: the base and
 * selection style layers carry `locked: true` and exist by construction. `details` name the
-* target. The caller adds its own layer above instead of editing the protected one.
+* target. The caller adds its own layer above instead of editing the protected one. Also what
+* saving a view under a camera view's id refuses with, and a saved view that a camera view's
+* id shadows; `details` are then `{ name }`, and the caller picks another name.
 */
 | "E_PROTECTED"
 /**
@@ -4118,6 +4297,13 @@ export type GraphtyErrorCode =
 * the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
+/**
+* A workbook source's `sheet` option names no sheet of the workbook. `details` are
+* `{ sheet, available }`: the name asked for, and every sheet's name in tab order. The file
+* itself was read fine. The caller loads again naming one of the available sheets, or leaves
+* `sheet` out to read the first.
+*/
+| "E_SHEET_NOT_FOUND"
 /**
 * A graphty project or document file (one `session.project.save` writes) was handed to a data
 * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
@@ -4267,9 +4453,10 @@ export type GraphtyErrorCode =
 */
 | "E_NO_ACCELERATOR"
 /**
-* No accelerator factory is registered, so the element never looked for a GPU. Usually
-* `import "@graphty/graphty-element/webgpu"` was never evaluated -- not written, or its module
-* failed to load (a network error, a blocked request, a stale dev-server cache). Reported
+* No accelerator factory is registered, so the element never looked for a GPU. The root entry
+* point registers one for `@graphty/webgpu-graph-algorithms` by itself, so this means the
+* element was used only through an entry point that does not (`./session` and the other
+* Node-safe entries) and nothing called `import "@graphty/graphty-element/webgpu"`. Reported
 * through `capabilities.acceleration`; a registration that arrives later switches
 * acceleration on without the consumer doing anything.
 */
@@ -4278,9 +4465,20 @@ export type GraphtyErrorCode =
 * A registered accelerator factory threw while setting up, with an error that is not one of
 * the other acceleration codes -- a module of the backend that failed to load, or a defect in
 * the backend. `reason` carries what it threw. Reported through `capabilities.acceleration`;
-* the CPU path runs.
+* the CPU path runs. Also what an installed `@graphty/webgpu-graph-algorithms` reports when
+* it is present and fails to load (a syntax error, a throw while its module evaluates, an
+* import-map URL that does not answer); `params.package` names it.
 */
 | "E_ACCELERATOR_FAILED"
+/**
+* The installed accelerator package loaded but lacks what this graphty-element needs: an
+* export it calls is missing, usually because the installed version is older or newer than
+* the range graphty-element declares as its peer, or because a bundler alias replaced it with
+* an empty module. Reported through `capabilities.acceleration` with `params.package` and
+* `params.missing` (the export names); the CPU path runs. The caller installs a version in
+* the declared peer range.
+*/
+| "E_ACCELERATOR_INCOMPATIBLE"
 /**
 * The runtime exposes no WebGPU at all: no `navigator.gpu`, usually because the page is not
 * in a secure context or the browser does not implement it. Reported through
@@ -4293,7 +4491,7 @@ export type GraphtyErrorCode =
 */
 | "E_NO_ADAPTER"
 /**
-* An adapter was found but it is a software rasteriser, which is slower than the element's
+* An adapter was found but it is a software rasterizer, which is slower than the element's
 * own CPU path. Acceleration stays off and says why, rather than making the graph slower in
 * silence.
 */
@@ -4318,6 +4516,16 @@ export type GraphtyErrorCode =
 * the CPU in silence.
 */
 | "E_DEVICE_LOST"
+/**
+* An accelerated run got no answer from the GPU within its time limit, and the device never
+* reported itself lost either. WebGPU has no event for a device that stops answering without
+* being lost, so the element waits for a limit it scales from the run's size, then fails the
+* run rather than wait forever. `details` carry `capability`, `nodeCount`, `edgeCount`,
+* `elapsedMs` and `limitMs`. The element releases the device as suspect and tries a fresh one
+* for the next run; it never finishes the stuck run on the CPU. Change the limit with
+* `getAcceleration().setRunTimeout(ms)`.
+*/
+| "E_GPU_TIMEOUT"
 /**
 * The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
 * device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
@@ -4349,8 +4557,10 @@ export type GraphtyErrorCode =
 /**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
-* needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
-* picks a feature that does not need it.
+* needs it (for the in-browser AI provider, `"webllm"`; for acceleration, `"webgpu"`). The
+* caller installs the package, or picks a feature that does not need it. Also reported, not
+* thrown, on `capabilities.acceleration` when `@graphty/webgpu-graph-algorithms` is not
+* installed, with `params.package`; nothing is printed then, because nothing asked for a GPU.
 */
 | "E_MISSING_PACKAGE"
 /**
@@ -4360,7 +4570,10 @@ export type GraphtyErrorCode =
 * uses the stated alternative; retrying does not help. Also what `styles.encode({ column })`
 * and `styles.proposeEncoding` refuse a column with when it has no default drawing on that
 * channel (groups on a size, a time column); `details` then carry `kind`, `name`, `channel`
-* and `measurement`, and naming a `scale` draws it anyway.
+* and `measurement`, and naming a `scale` draws it anyway. A camera view, saved view or tour
+* stop that does not fit the drawing mode is refused with
+* `{ reason: "mode", name?, stop?, modes, mode }` (`modes` are the modes it works in, `name` is
+* absent for a raw camera state), and any of them while immersive with `{ reason: "xr", mode }`.
 */
 | "E_UNSUPPORTED"
 /**
@@ -4495,11 +4708,11 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_TOO_LARGE"
 /**
-* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; a reader's damaged-file refusals `ply`, `splat`, `babylon`, and `delayLoad` for a `.babylon` whose meshes load from other files).
+* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; `fbx`, `usd` and `usdz` for a damaged file of that format; a reader's damaged-file refusals `ply`, `babylon`, `delayLoad` for a `.babylon` whose meshes load from other files, and `empty` for a USD stage that defines nothing to draw).
 */
 | "E_MODEL_STRUCTURE"
 /**
-* A recognized 3D format graphty-element does not load (FBX, USD and USDZ, DAE, .blend, 3MF, BVH animation). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read.
+* A recognized 3D format graphty-element does not load (DAE, .blend, 3MF, BVH, and Gaussian splats: `.splat`, `.spz`, `.sog` and `splat-ply`, a PLY holding splats; a glTF or GLB that uses `KHR_gaussian_splatting`, required or not, names it in `params.extension`). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read, or uses Gaussian splatting; `params.kind` is `"splat"` for every Gaussian splat refusal, whatever its format.
 * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
 */
 | "E_MODEL_FORMAT_UNSUPPORTED"
@@ -4577,7 +4790,10 @@ export type GraphtyErrorCode =
 * A screenshot, a video or a clipboard copy was started and could not be finished: the
 * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
 * no camera to draw from. `details.media` is `"image"`, `"video"` or `"figure"` (`exportFigure`), `details.destination` is
-* `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
+* `"clipboard"` for a failed copy, and `cause` carries the original failure. A recording that
+* stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
+* background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
+* it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
 * @since 3.40.0
 */
 | "E_CAPTURE_FAILED"
@@ -4587,13 +4803,79 @@ export type GraphtyErrorCode =
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
 * @since 3.40.0
 */
-| "E_NOT_SETTLED" | "E_INTERNAL";
+| "E_NOT_SETTLED"
+/**
+* A load or a stage names an id space the element reserves (`graph:...`). `details.space` is
+* the space. The caller names another space. Experimental: the source-steps experiment.
+*/
+| "E_SPACE_RESERVED"
+/**
+* A key names nodes in more than one id space, so it names no one node. `details.key` is the
+* key, `details.spaces` the spaces holding it. The caller names the space, or the
+* `<space>:<key>` NodeId. Experimental: the source-steps experiment.
+*/
+| "E_AMBIGUOUS_ID"
+/**
+* Make an edge would add a staged source in the id space of the nodes it connects to, so its
+* nodes would meet them instead of being joined by edges. `details.source` and `details.space`
+* name them. The caller stages the source in another space. Experimental: the source-steps
+* experiment.
+*/
+| "E_JOIN_SPACE_SAME"
+/**
+* A merge or Make an edge reads node rows the source does not hold. `details.source` is the
+* source. Experimental: the source-steps experiment.
+*/
+| "E_STEP_NEEDS_NODES"
+/**
+* An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
+* `details.column` is the column. Experimental: the source-steps experiment.
+*/
+| "E_EDIT_ROLE_COLUMN"
+/**
+* A role setter that names no source could mean several built sources: each carries the
+* column and can carry the role. `details.sources` lists them; the caller names one with the
+* setter's `source` option. Experimental: the source-steps experiment.
+*/
+| "E_ROLE_TARGET_AMBIGUOUS"
+/**
+* A draft of the sources and steps is open (`session.data.draft()`), so a data write, an undo
+* or a redo would change what its commit replaces. `details.draft` names the draft. The caller
+* commits or discards it first. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_OPEN"
+/**
+* A draft's commit was refused because the committed sources and steps changed after the
+* draft opened: a data write already on its way when it opened landed first, and the commit
+* would have undone it. `details.draft` names the draft, which stays open. The caller discards
+* it and opens a new one. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_STALE"
+/**
+* A draft opened with `askOverlap` holds a key-overlap question nobody answered: a source it
+* added meets nodes another source's node rows built (`W_SPACE_OVERLAP`). `details.space` and
+* `details.source` name the space and the source. The caller answers it with
+* `draft.answerOverlap(source, "merge" | "separate")` and commits again. Experimental: the
+* source-steps experiment.
+*/
+| "E_OVERLAP_UNANSWERED"
+/**
+* A recording (`captureAnimation`) was canceled: its `signal` aborted, or
+* `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
+* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+*/
+| "E_CANCELED" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
 
 // @public
 export interface GraphtyErrorDetailsMap {
+    E_CLASH_RULE_TYPE: {
+        readonly column: string;
+        readonly rule: string;
+        readonly step?: number;
+    };
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
@@ -4611,6 +4893,11 @@ export interface GraphtyErrorDetailsMap {
         readonly limit?: number;
         readonly issue?: string;
         readonly element?: string;
+    };
+    E_SHEET_NOT_FOUND: {
+        readonly format?: string;
+        readonly sheet?: string;
+        readonly available?: readonly string[];
     };
     E_TOO_LARGE: {
         readonly limit?: number;
@@ -4720,8 +5007,85 @@ export type GraphtyWarningCode =
 * know: kept and never run (`params.kind`, `params.pointer`, `params.found`).
 */
 | "W_UNKNOWN_KIND"
-/** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
+/** No longer reported: a project open computes each saved run again over the data it holds, so no saved result can disagree with it. */
 | "W_DATA_DIFFERS"
+/**
+* A source's keys meet nodes already in the id space it would join (`params.space`,
+* `params.count` of `params.of` keys; `params.other` names the other source for an untyped
+* one). Kept in the source's own space unless the load asked `overlap: "merge"`. In a draft's
+* preview `questions`, an open question a draft opened with `askOverlap` waits on:
+* `params.source` is the source asked about and `params.sources` the sources whose node rows
+* built the nodes it meets. Experimental: the source-steps experiment.
+*/
+| "W_SPACE_OVERLAP"
+/**
+* A step went with a removed source (`params.step`, `params.reason` `"source-removed"`,
+* `params.source`). Experimental: the source-steps experiment.
+*/
+| "W_STEP_REMOVED"
+/**
+* Values from different sources differ in one column of one step (`params.step`,
+* `params.column`, `params.count` cells, `params.rule` the step's rule for the column,
+* `params.decided` cells a reader decision settles). Experimental: the source-steps experiment.
+*/
+| "W_VALUES_DIFFER"
+/**
+* A refresh or replace brought a column the source's old rows did not hold (`params.source`,
+* `params.column`). Experimental: the source-steps experiment.
+*/
+| "W_COLUMN_UNUSED"
+/**
+* The value under a reader edit moved since it was made (`params.edit`, `params.was`,
+* `params.now`, and `params.picked` for a pick). Experimental: the source-steps experiment.
+*/
+| "W_EDIT_SOURCE_CHANGED"
+/**
+* A note, a pin or a reader edit names an element a rebuild left out (`params.ref`): the
+* reference is kept and binds again when Undo brings the element back. Experimental: the
+* source-steps experiment.
+*/
+| "W_REFERENCE_UNBOUND"
+/**
+* Rows of a step name more than one element, so they join nothing (`params.step`,
+* `params.rows`). Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_FAN_OUT"
+/**
+* Rows of a step meet no element (`params.step`, `params.rows`). Reported by a draft's preview.
+* Experimental: the source-steps experiment.
+*/
+| "W_UNMATCHED"
+/**
+* Nodes of the space a merge folds into that no row reached (`params.step`, `params.nodes`).
+* Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_UNTOUCHED"
+/**
+* A step joins end pairs an earlier edge already joins (`params.step`, `params.pairs`). Reported
+* by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_PARALLEL_EDGES"
+/**
+* A step makes edges whose two ends are one node (`params.step`, `params.count`). Reported by a
+* draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_SELF_LOOPS"
+/**
+* Rows of one repeated key hold different values in a column (`params.step`, `params.column`,
+* `params.keys`). Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_ROWS_DIFFER"
+/**
+* A source's edges name nodes of its own space its node rows lack (`params.step`,
+* `params.source`, `params.nodes`); a merge leaves them unmerged. Reported by a draft's preview.
+* Experimental: the source-steps experiment.
+*/
+| "W_NODE_NAMED_ONLY"
+/**
+* Edge ends of a step found no node in a space (`params.step`, `params.space`, `params.ends`).
+* Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_EDGE_END_MISSING"
 /** A run was still computing when the project was saved, so the file does not hold it. */
 | "W_RUN_PENDING"
 /**
@@ -4821,8 +5185,9 @@ export type GraphtyWarningCode =
 /**
 * A glTF uses an extension that is drawn without: the transmission family
 * (`KHR_materials_transmission`, `_volume`, `_dispersion`, `_diffuse_transmission`,
-* `_volume_scatter`), whose parts are drawn opaque. `params.extension` names it; one fact per
-* extension.
+* `_volume_scatter`). A transmissive part is drawn alpha blended, as see-through as its
+* transmission factor says (at least 20% opaque); the rest of the family draws opaque.
+* `params.extension` names it; one fact per extension.
 */
 | "W_MODEL_EXTENSION_IGNORED"
 /**
@@ -4841,9 +5206,8 @@ export type GraphtyWarningCode =
 */
 | "W_MODEL_ANIMATION_PARTIAL"
 /**
-* A point cloud or Gaussian splat model is drawn as small solids, one per point: a splat's
-* size, opacity falloff and rotation are not drawn, and more points than are drawn were thinned
-* evenly. `params.points` is the count in the file, `params.drawn` how many are drawn at most.
+* A point cloud model is drawn as small solids, one per point, and more points than are drawn
+* were thinned evenly. `params.points` is the count in the file, `params.drawn` how many are drawn at most.
 */
 | "W_MODEL_POINTS_APPROXIMATED"
 /**
@@ -4925,12 +5289,54 @@ export type GraphtyWarningCode =
 */
 | "W_WEIGHT_MEANING_MISMATCH"
 /**
+* Under the `source-steps` experiment, a layout that reads edge weights left them unread because
+* the edges' weights do not share one meaning, or some edges' sources read no weight (design
+* 8.6): every edge counts the same. Emitted as a `layout-warning` event. `params.sources` lists
+* the sources of the edges.
+*/
+| "W_WEIGHT_MEANING_MIXED"
+/**
+* Under the `source-steps` experiment, a Source scope on a source's edges named sources that
+* supplied no edges, so it holds their nodes and the edges between them instead (design 8.6).
+* Reported in `scope.count(...).issues`. `params.nodes` is how many nodes it holds.
+*/
+| "W_SCOPE_NO_EDGES"
+/**
+* Under the `source-steps` experiment, a filter condition reads a column no element carries, so
+* it is held off and judges nothing rather than hiding every node (design 8.4). Reported in
+* `visibility.held`. `params.filter` is the condition's id and `params.column` its column.
+*/
+| "W_FILTER_HELD"
+/**
 * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
 * the `graphty-sources` member: query parameters of a URL load's address, or of a network
 * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
 * names left out. See the project file guide, "What a save leaves out".
 */
 | "W_SOURCE_URL_REDACTED"
+/**
+* A load cannot be saved as a reference: there is nothing to read it from again. It stays a
+* copy. `params.source` is the load's key and `params.reason` why (`file`, `inline`, `join`,
+* `secret-url`, `relative-url`, `no-seed`; OPEN UNION).
+*/
+| "W_SOURCE_NO_PATH"
+/**
+* A load saved as a reference could not be read again: the project opened with its rows held
+* bare in their places (node ids and edge ends, with no values; a save writes them and the
+* reference back as they were), or a save kept it as a copy. `params.source` is the load's key
+* and `params.reason` is `not-found`, `denied` or `unreadable`. On an open, `params.name` (its
+* name, when it has one) and `params.url` (its address, for a URL load) say which it was.
+* When the read threw, `params.cause` is what it threw: the error's code (a `GraphtyErrorCode`,
+* or `unknown` for an error that is not a `GraphtyError`), and `params["cause.<name>"]` each
+* plain value of its `details` (`cause.status`, `cause.url`, ...; `cause.name`, the error's
+* name, for `unknown`). Absent when nothing was thrown (`denied`, or a copy that changed).
+*/
+| "W_SOURCE_UNAVAILABLE"
+/**
+* A load saved as a reference was read again and is no longer what the project was saved
+* with: its rows hold the new values. `params.source` is the load's key.
+*/
+| "W_SOURCE_CHANGED"
 /**
 * A `graphty-sources` entry of an opened project names a network source this release has not
 * registered: its elements are there and the entry is written back, but it is not offered to
@@ -4939,7 +5345,9 @@ export type GraphtyWarningCode =
 | "W_SOURCE_UNREGISTERED"
 /**
 * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
-* data applied. `params.graph` names the graph, null for the file's one graph.
+* data applied. `params.graph` names the graph, null for the file's one graph. Under the
+* `source-steps` experiment, also when the member's sources and steps build a graph other than
+* the one the file embeds: the embedded graph applied and the sources and steps were left out.
 */
 | "W_SOURCE_STEPS_IGNORED"
 /**
@@ -5002,13 +5410,9 @@ export const GREENS_COLORS: readonly ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b"
 
 // @public
 export interface GroupOutlineAtResult {
-    // (undocumented)
     readonly group: string | number | boolean | null;
-    // (undocumented)
     readonly kind: "group-outline";
-    // (undocumented)
     readonly layer: LayerId;
-    // (undocumented)
     readonly shader: string;
 }
 
@@ -5027,12 +5431,18 @@ export interface HighlightSuggestion {
     readonly spec: HighlightSpec;
 }
 
-// @public (undocumented)
+// @public
 const ImageData_2: z.ZodUnion<[z.ZodURL, z.ZodString]>;
 export { ImageData_2 as ImageData }
 
 // @public
 export const INFERNO_COLORS: readonly ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d"];
+
+// @public
+export interface InputBookkeepingEvent {
+    [key: string]: unknown;
+    type: "input-initialized" | "input-config-updated" | "input-pointer-lock-changed" | "input-recording-started" | "input-recording-stopped" | "input-playback-completed";
+}
 
 // @public
 export interface InputEnabledChangedEvent {
@@ -5060,23 +5470,14 @@ export class InputManager implements Manager {
     getPointerPosition(): Vector2;
     init(): Promise<void>;
     isPointerDown(button?: MouseButton): boolean;
-    // (undocumented)
     readonly onKeyDown: Observable<KeyboardInfo>;
-    // (undocumented)
     readonly onKeyUp: Observable<KeyboardInfo>;
-    // (undocumented)
     readonly onPointerDown: Observable<PointerInfo>;
-    // (undocumented)
     readonly onPointerMove: Observable<PointerInfo>;
-    // (undocumented)
     readonly onPointerUp: Observable<PointerInfo>;
-    // (undocumented)
     readonly onTouchEnd: Observable<number[]>;
-    // (undocumented)
     readonly onTouchMove: Observable<TouchPoint[]>;
-    // (undocumented)
     readonly onTouchStart: Observable<TouchPoint[]>;
-    // (undocumented)
     readonly onWheel: Observable<WheelInfo>;
     // @internal
     rebind(context: ManagerContext): void;
@@ -5187,7 +5588,9 @@ export abstract class LayoutEngine {
     protected hidesRow(index: number): boolean;
     get holdMask(): NodeMask | null;
     protected get holdsAny(): boolean;
-    static honoursWeights: boolean;
+    static honorsWeights: boolean;
+    // @deprecated
+    static readonly honoursWeights?: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
     protected isFollower(index: number): boolean;
@@ -5215,6 +5618,8 @@ export abstract class LayoutEngine {
     protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     // @internal
     publishedBounds(): Readonly<Float64Array> | null;
+    // @internal
+    protected publishLeavesRow(lane: ElementPositions, row: number, x: number, y: number, z: number): boolean;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal
@@ -5231,7 +5636,7 @@ export abstract class LayoutEngine {
         x: number;
         y: number;
         z: number;
-    }): boolean;
+    }, lane?: ElementPositions): boolean;
     static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T;
     // @internal
     protected releasePublishScratch(): void;
@@ -5332,6 +5737,8 @@ export class LayoutManager implements Manager {
     stepBatch(): void;
     // @internal
     steppedPublishes: number;
+    // @internal
+    takeFrameHold(): boolean;
     updatePositions(nodes: Node_2[]): Promise<void>;
     updateStyles(styles: Styles): void;
     // @internal
@@ -5340,6 +5747,12 @@ export class LayoutManager implements Manager {
 
 // @public
 export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
+
+// @public
+export interface LayoutUpdatedEvent {
+    nodeCount: number;
+    type: "layout-updated";
+}
 
 // @public
 export interface LayoutWarningEvent {
@@ -5417,13 +5830,9 @@ export interface ManagerConfig {
 
 // @public
 export interface ManagerContext {
-    // (undocumented)
     canvas: HTMLCanvasElement;
-    // (undocumented)
     engine: Engine | WebGPUEngine;
-    // (undocumented)
     eventManager: EventManager;
-    // (undocumented)
     scene: Scene;
 }
 
@@ -5455,6 +5864,18 @@ export interface MarkSuggestion {
 }
 
 // @public
+export interface ModelCheck {
+    readonly drawable: boolean | null;
+    readonly failure?: CodedFact;
+}
+
+// @public
+export interface ModelCheckOptions {
+    readonly signal?: AbortSignal;
+    readonly standInMissing?: boolean;
+}
+
+// @public
 export interface ModelPreview {
     readonly canvas: HTMLCanvasElement;
     dispose(): void;
@@ -5464,12 +5885,14 @@ export interface ModelPreview {
 
 // @public
 export interface ModelPreviewOptions {
+    readonly hiddenTextures?: readonly string[];
     readonly standInMissing?: boolean;
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
 }
 
 // @public
 export interface ModelThumbnailOptions {
+    readonly hiddenTextures?: readonly string[];
     readonly size?: number;
     readonly standInMissing?: boolean;
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
@@ -5520,11 +5943,12 @@ class Node_2 implements ModelUser {
     get borderReach(): number;
     // @internal
     borderReachAlong(dir: Xyz): number;
+    // @internal
+    static closedForm(shape: string | undefined, rotation: number | undefined): boolean;
     get data(): AdHocData<string | number>;
     // @internal
     get decorationPieces(): readonly NodeDecorationPiece[];
     dispose(): void;
-    // (undocumented)
     dragging: boolean;
     get dragHandler(): NodeDragHandler | undefined;
     set dragHandler(handler: NodeDragHandler | undefined);
@@ -5602,7 +6026,6 @@ class Node_2 implements ModelUser {
     hideTooltip(): void;
     // @internal
     holdOffBatch(): void;
-    // (undocumented)
     readonly id: NodeIdType;
     // @internal
     imageDrawn(): BaseTexture | null;
@@ -5616,7 +6039,6 @@ class Node_2 implements ModelUser {
     isDrawnInFrustum(planes: Plane[]): boolean;
     isPinned(): boolean;
     isSelected(): boolean;
-    // (undocumented)
     label?: RichTextLabel;
     // @internal
     get layoutRadius(): number;
@@ -5631,7 +6053,6 @@ class Node_2 implements ModelUser {
         readonly colored: boolean;
         readonly clip: string | null;
     };
-    // (undocumented)
     opts: NodeOpts;
     // @internal
     get outlineHalfExtents(): Readonly<{
@@ -5645,10 +6066,8 @@ class Node_2 implements ModelUser {
     get paintedOpacity(): number;
     // @internal
     get paintedSourceMesh(): AbstractMesh;
-    // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
-    // (undocumented)
     pinOnDrag: boolean;
     // @internal
     get reachOutline(): readonly (readonly [x: number, y: number])[] | null;
@@ -5665,6 +6084,8 @@ class Node_2 implements ModelUser {
     resampleLabel(): void;
     get roundRadius(): number | null;
     // @internal
+    get screenBorder(): boolean;
+    // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
@@ -5675,7 +6096,6 @@ class Node_2 implements ModelUser {
     shapeTextLabels: RichTextLabel[];
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     showTooltip(): void;
-    // (undocumented)
     size: number;
     // @internal
     get sizeSpace(): NodeSizeSpace | undefined;
@@ -5789,7 +6209,7 @@ export interface NodeHoverEvent {
 // @public
 export type NodeId = string | number;
 
-// @public (undocumented)
+// @public
 export type NodeIdType = string | number;
 
 // @public
@@ -6080,10 +6500,10 @@ export const NodeStyle: z.ZodObject<{
         opacity: z.ZodOptional<z.ZodNumber>;
         style: z.ZodOptional<z.ZodEnum<{
             solid: "solid";
+            double: "double";
             "dash-dot": "dash-dot";
             sinewave: "sinewave";
             zigzag: "zigzag";
-            double: "double";
             "forward-slash": "forward-slash";
             "backward-slash": "backward-slash";
             "vertical-slash": "vertical-slash";
@@ -6106,10 +6526,10 @@ export const NodeStyle: z.ZodObject<{
         opacity: z.ZodOptional<z.ZodNumber>;
         style: z.ZodOptional<z.ZodEnum<{
             solid: "solid";
+            double: "double";
             "dash-dot": "dash-dot";
             sinewave: "sinewave";
             zigzag: "zigzag";
-            double: "double";
             "forward-slash": "forward-slash";
             "backward-slash": "backward-slash";
             "vertical-slash": "vertical-slash";
@@ -6417,10 +6837,19 @@ export const NodeStyle: z.ZodObject<{
             center: "center";
             outside: "outside";
         }>>;
+        borderStyle: z.ZodOptional<z.ZodEnum<{
+            readonly solid: "solid";
+            readonly double: "double";
+        }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -6656,10 +7085,19 @@ export const NodeStyle: z.ZodObject<{
             center: "center";
             outside: "outside";
         }>>;
+        borderStyle: z.ZodOptional<z.ZodEnum<{
+            readonly solid: "solid";
+            readonly double: "double";
+        }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -6895,10 +7333,19 @@ export const NodeStyle: z.ZodObject<{
             center: "center";
             outside: "outside";
         }>>;
+        borderStyle: z.ZodOptional<z.ZodEnum<{
+            readonly solid: "solid";
+            readonly double: "double";
+        }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -7262,11 +7709,21 @@ export interface NoteTargetStatus {
 export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#F0E442"];
 
 // @public
+export interface OperationCanceledEvent {
+    code: "queue-cleared" | "canceled";
+    id: string;
+    type: "operation-canceled";
+}
+
+// @public @deprecated
 export interface OperationCancelledEvent {
     code: "queue-cleared" | "cancelled";
     id: string;
     type: "operation-cancelled";
 }
+
+// @public
+export type OperationCategory = "style-init" | "style-apply" | "style-edit" | "data-add" | "data-remove" | "data-update" | "layout-set" | "layout-update" | "algorithm-run" | "camera-update" | "view-mode" | "render-update";
 
 // @public
 export class OperationQueueManager implements Manager {
@@ -7291,12 +7748,12 @@ export class OperationQueueManager implements Manager {
         size: number;
         isPaused: boolean;
     };
-    // (undocumented)
     hasLayoutEngine?: () => boolean;
     get hasWork(): boolean;
     init(): Promise<void>;
     markCategoryCompleted(category: OperationCategory): void;
     pause(): void;
+    pendingWork(): PendingWorkProgress;
     queueOperation(category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, options?: Partial<OperationMetadata>): string;
     queueOperationAsync(category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, options?: Partial<OperationMetadata>): Promise<void>;
     registerTrigger(category: OperationCategory, trigger: (metadata?: OperationMetadata) => {
@@ -7307,6 +7764,7 @@ export class OperationQueueManager implements Manager {
     resume(): void;
     settled(): Promise<void>;
     waitForCompletion(): Promise<void>;
+    watchPendingWork(onProgress: (fact: PendingWorkProgress) => void): () => void;
 }
 
 // @public
@@ -7387,42 +7845,37 @@ export interface PendingSourceLoad {
 }
 
 // @public
+export interface PendingWorkProgress {
+    readonly code: "PENDING_WORK";
+    readonly params: {
+        readonly operations: number;
+        readonly category: OperationCategory | null;
+        readonly percent: number | null;
+    };
+}
+
+// @public
 export type PixelRatio = number | "device";
 
 // @public
 export const PLASMA_COLORS: readonly ["#0d0887", "#5302a3", "#8b0aa5", "#b83289", "#db5c68", "#f48849", "#febd2a", "#f0f921"];
 
-// @public (undocumented)
+// @public
 export enum PolyhedronType {
-    // (undocumented)
     DODECAHEDRON = 2,
-    // (undocumented)
     ELONGATED_PENTAGONAL_CUPOLA = 14,
-    // (undocumented)
     ELONGATED_PENTAGONAL_DIPYRAMID = 13,
-    // (undocumented)
     ELONGATED_SQUARE_DIPYRAMID = 12,
-    // (undocumented)
     HEXAGONAL_PRISM = 7,
-    // (undocumented)
     ICOSAHEDRON = 3,
-    // (undocumented)
     OCTAHEDRON = 1,
-    // (undocumented)
     PENTAGONAL_DIPYRAMID = 11,
-    // (undocumented)
     PENTAGONAL_PRISM = 6,
-    // (undocumented)
     PENTAGONAL_PYRAMID = 9,
-    // (undocumented)
     RHOMBICUBOCTAHEDRON = 4,
-    // (undocumented)
     SQUARE_PYRAMID = 8,
-    // (undocumented)
     TETRAHEDRON = 0,
-    // (undocumented)
     TRIANGULAR_DIPYRAMID = 10,
-    // (undocumented)
     TRIANGULAR_PRISM = 5
 }
 
@@ -7476,8 +7929,12 @@ export const PROJECT_FILE: Readonly<{
 // @public
 export interface ProjectApi {
     assetChoices(): ProjectAssetChoice[];
+    // @beta
+    describe(options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths" | "handles" | "location">): Promise<ProjectSaveFacts>;
     readonly dirty: boolean;
     readonly id: string;
+    // @beta
+    inspect(source: ProjectSource, options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode" | "columns">): Promise<ProjectFileFacts | undefined>;
     markSaved(saved: SavedProject): void;
     readonly name: string | null;
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
@@ -7496,13 +7953,72 @@ export interface ProjectAssetChoice {
     readonly urlRefused?: CodedFact<"W_MODEL_NOT_KEPT_BY_URL">;
 }
 
+// @beta
+export interface ProjectFileFacts {
+    readonly form: "full" | "section";
+    readonly name: string | null;
+    readonly problems: readonly ProjectProblem[];
+    readonly runs: readonly ProjectFileRun[];
+    readonly sections: readonly ProjectFileSection[];
+    readonly sources: readonly ProjectFileSource[];
+}
+
+// @beta
+export interface ProjectFileHandle {
+    getFile(): Promise<Blob>;
+    readonly name: string;
+    queryPermission?(descriptor: {
+        mode: "read";
+    }): Promise<"granted" | "denied" | "prompt">;
+    requestPermission?(descriptor: {
+        mode: "read";
+    }): Promise<"granted" | "denied" | "prompt">;
+}
+
 // @public
-export function projectFileName(name: string | null | undefined): string;
+export function projectFileName(name: string | null | undefined, options?: {
+    readonly section?: DocumentSection;
+}): string;
+
+// @beta
+export interface ProjectFileRun {
+    readonly algorithm?: string;
+    readonly id: string;
+    readonly name?: string;
+    readonly replayable: boolean;
+    readonly restorable: boolean;
+}
+
+// @beta
+export interface ProjectFileSection extends DocumentSectionFacts {
+    readonly about: DocumentSectionAbout;
+    readonly binding?: SectionBinding;
+    readonly binds?: DocumentBindFacts;
+    readonly needs: readonly DocumentSectionNeed[];
+    readonly version: number | null;
+}
+
+// @beta
+export interface ProjectFileSource {
+    readonly id: string;
+    readonly kind: ProjectSourceKind;
+    readonly name: string;
+    readonly path?: string;
+    readonly storage: SourceStorage;
+    readonly url?: string;
+}
 
 // @public
 export interface ProjectOpenOptions {
     // @beta
+    readonly applyRecipe?: boolean;
+    // @beta
     readonly bindOtherData?: boolean;
+    // @beta
+    readonly columns?: {
+        readonly node?: Readonly<Record<string, string>>;
+        readonly edge?: Readonly<Record<string, string>>;
+    };
     // @beta
     readonly dataMode?: "replace" | "add";
     readonly discard?: boolean;
@@ -7528,6 +8044,8 @@ export interface ProjectOpenOptions {
     // @beta
     readonly rerun?: boolean;
     // @beta
+    readonly runs?: Readonly<Record<string, boolean>>;
+    // @beta
     readonly sections?: readonly DocumentSection[];
     // @beta
     readonly signal?: AbortSignal;
@@ -7546,6 +8064,13 @@ export interface ProjectOpenReport {
 // @public
 export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved">;
 
+// @beta
+export interface ProjectSaveFacts {
+    readonly project: boolean;
+    readonly sections: readonly ProjectSaveSection[];
+    readonly sources: readonly ProjectSourceChoice[];
+}
+
 // @public
 export interface ProjectSaveOptions {
     readonly assets?: Readonly<Record<string, AssetStorage>>;
@@ -7556,12 +8081,18 @@ export interface ProjectSaveOptions {
     readonly form?: "full" | "section";
     // @beta
     readonly format?: 1 | 2;
+    // @beta
+    readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
+    // @beta
+    readonly location?: string;
     readonly markSaved?: boolean;
     // @beta
     readonly paths?: Readonly<Record<string, string>>;
     // @beta
     readonly results?: boolean;
+    // @beta
+    readonly rewriteRecipe?: boolean;
     // @beta
     readonly sections?: readonly DocumentSection[];
 }
@@ -7573,8 +8104,32 @@ export interface ProjectSaveReport {
     readonly written: readonly string[];
 }
 
+// @beta
+export interface ProjectSaveSection extends DocumentSectionFacts {
+    readonly required: boolean;
+    readonly saved: boolean;
+}
+
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
+
+// @beta
+export interface ProjectSourceChoice {
+    readonly edges: number;
+    readonly format?: string;
+    readonly id: string;
+    readonly key?: string;
+    readonly kind: ProjectSourceKind;
+    readonly name: string;
+    readonly nodes: number;
+    readonly operations?: number;
+    readonly referable: boolean;
+    readonly refused?: CodedFact<DocumentCode>;
+    readonly storage: SourceStorage;
+}
+
+// @beta
+export type ProjectSourceKind = "file" | "url" | "network" | "sample" | "derived" | "reader";
 
 // @public
 export interface ProjectStatus {
@@ -7601,12 +8156,18 @@ export interface QueueableManager extends Manager {
     queueOperation?(category: OperationCategory, fn: () => void | Promise<void>): string;
 }
 
-// @public (undocumented)
+// @public
 export interface QueueableOptions {
     description?: string;
     obsoletes?: OperationCategory[];
     respectProgress?: boolean;
     skipQueue?: boolean;
+}
+
+// @beta
+export interface RecipesApi {
+    apply(recipe: ProjectSource): Promise<ProjectOpenReport>;
+    export(): Promise<SavedProject>;
 }
 
 export { RecordBatch }
@@ -7617,6 +8178,12 @@ export { recordingFrom }
 
 // @public
 export const RED_BLUE_COLORS: readonly ["#67001f", "#b2182b", "#d6604d", "#f4a582", "#fddbc7", "#f7f7f7", "#d1e5f0", "#92c5de", "#4393c3", "#2166ac"];
+
+// @public
+export interface ReducedMotionChangedEvent {
+    reduced: boolean;
+    type: "reduced-motion-changed";
+}
 
 // @public
 export function registerCameraView(registration: CameraViewRegistration, options?: RegisterOptions): void;
@@ -7668,6 +8235,7 @@ export class RenderManager implements Manager {
     camera: CameraManager;
     // @internal
     get canvasInView(): boolean;
+    set darkScheme(dark: boolean);
     dispose(): void;
     // @internal
     drawHeld: (() => boolean) | null;
@@ -7711,6 +8279,7 @@ export class RenderManager implements Manager {
         rested: number;
         gpuBehind: number;
         smooth: number;
+        awaitedLanding: number;
     };
 }
 
@@ -7814,10 +8383,19 @@ export const RichTextStyle: z.ZodObject<{
         center: "center";
         outside: "outside";
     }>>;
+    borderStyle: z.ZodOptional<z.ZodEnum<{
+        readonly solid: "solid";
+        readonly double: "double";
+    }>>;
     backgroundShape: z.ZodOptional<z.ZodEnum<{
         rectangle: "rectangle";
         circle: "circle";
     }>>;
+    image: z.ZodOptional<z.ZodString>;
+    imageWidth: z.ZodOptional<z.ZodNumber>;
+    imageHeight: z.ZodOptional<z.ZodNumber>;
+    imageOffsetX: z.ZodOptional<z.ZodNumber>;
+    imageOffsetY: z.ZodOptional<z.ZodNumber>;
     minScreenSize: z.ZodOptional<z.ZodNumber>;
     declutter: z.ZodOptional<z.ZodEnum<{
         size: "size";
@@ -8007,7 +8585,7 @@ export interface RowCounts {
     readonly pulledEdges: number;
 }
 
-// @public (undocumented)
+// @public
 export interface RunAlgorithmOptions extends QueueableOptions {
     algorithmOptions?: AlgorithmSpecificOptions;
     applySuggestedStyles?: boolean;
@@ -8027,8 +8605,34 @@ export interface SavedProject {
 }
 
 // @public
+export interface SavedView {
+    readonly camera?: CameraState;
+    readonly filters?: readonly FilterCondition[];
+    readonly follows?: string;
+    readonly hidden?: readonly NodeId_2[];
+    readonly key?: string;
+    readonly layers?: StyleDocument;
+    readonly legend?: boolean;
+    readonly positions?: {
+        readonly order: readonly NodeId_2[];
+        readonly xyz: readonly number[];
+    };
+}
+
+// @public
+export interface SavedViewInput extends Omit<SavedView, "key"> {
+    readonly include?: readonly SavedViewPart[];
+    readonly key?: string | null;
+    readonly name: string;
+}
+
+// @public
+export type SavedViewPart = "filters" | "layers" | "hidden" | "positions" | "legend";
+
+// @public
 export interface ScreenshotLegendOptions {
     position?: ScreenshotLegendPosition;
+    sections?: readonly ScreenshotLegendSection[];
     title?: string;
 }
 
@@ -8051,63 +8655,49 @@ export interface ScreenshotLegendSection {
     title: string;
 }
 
-// @public (undocumented)
+// @public
 export interface ScreenshotOptions {
     backgroundColor?: string;
     camera?: CameraState | {
+        view: string;
+        params?: Readonly<Record<string, unknown>>;
+    } | {
         preset: string;
         params?: Readonly<Record<string, unknown>>;
     };
-    // (undocumented)
     destination?: {
-        blob?: boolean;
         download?: boolean;
         clipboard?: boolean;
     };
-    // (undocumented)
     downloadFilename?: string;
     enhanceQuality?: boolean | QualityEnhancementOptions;
-    // (undocumented)
     format?: "png" | "jpeg" | "webp";
-    // (undocumented)
     height?: number;
     legend?: boolean | "auto" | ScreenshotLegendOptions | readonly ScreenshotLegendSection[];
-    // (undocumented)
     multiplier?: number;
-    // (undocumented)
+    onProgress?: (fact: PendingWorkProgress) => void;
     preset?: "print" | "web-share" | "thumbnail" | "documentation";
-    // (undocumented)
     quality?: number;
     showSelection?: boolean;
     signal?: AbortSignal;
-    // (undocumented)
     strictAspectRatio?: boolean;
-    // (undocumented)
     timing?: {
         waitForSettle?: boolean;
         waitForOperations?: boolean;
         settleTimeoutMs?: number;
         captureNow?: AbortSignal;
     };
-    // (undocumented)
     transparentBackground?: boolean;
-    // (undocumented)
     width?: number;
 }
 
-// @public (undocumented)
+// @public
 export interface ScreenshotResult {
-    // (undocumented)
     blob: Blob;
-    // (undocumented)
     clipboardError?: Error;
-    // (undocumented)
     clipboardStatus: ClipboardStatus;
-    // (undocumented)
     downloaded: boolean;
-    // (undocumented)
-    errors?: Error[];
-    // (undocumented)
+    errors: GraphtyError[];
     metadata: {
         width: number;
         height: number;
@@ -8121,11 +8711,16 @@ export interface ScreenshotResult {
 // @public
 export type ScreenshotWarningCode = "W_LARGE_CAPTURE" | "W_HIGH_MEMORY";
 
+// @beta
+export type SectionBinding = "loads" | "held" | "other-data";
+
 // @public
 export class SelectionManager implements Manager {
     constructor(eventManager: EventManager);
     add(node: Node_2): void;
     bindSelection(selection: SelectionOwner): void;
+    // @internal
+    byInput(via: SelectionVia, fn: () => void): void;
     deselect(): void;
     dispose(): void;
     getSelectedNode(): Node_2 | null;
@@ -8159,7 +8754,7 @@ export interface ShaderSettings {
     readonly untrusted?: "hold" | "run" | "refuse";
 }
 
-// @public (undocumented)
+// @public
 export const SHAPE_CONSTANTS: {
     readonly GOLDEN_RATIO: 1.618;
     readonly DEFAULT_NODE_SIZE: 1;
@@ -8185,6 +8780,12 @@ export abstract class SimpleLayoutEngine extends StaticLayoutEngine {
 
 // @public (undocumented)
 export type SimpleLayoutOpts = Partial<SimpleLayoutConfigType>;
+
+// @public
+export interface SkippedPreset {
+    code: "E_PROTECTED" | "E_BAD_COMMAND";
+    name: string;
+}
 
 // @public
 export type SnapshotLayoutAnswer = F32 | Promise<F32>;
@@ -8223,6 +8824,7 @@ export interface SnapshotLayoutProgress {
 export interface SnapshotLayoutRegistration {
     readonly compute: (input: SnapshotLayoutInput) => SnapshotLayoutAnswer;
     readonly descriptor: AuthoredLayoutDescriptor & {
+        readonly honorsWeights?: boolean;
         readonly honoursWeights?: boolean;
         readonly scoped?: boolean;
     };
@@ -8303,6 +8905,9 @@ export { SourceDescriptor }
 
 export { SourceEdgeRecord }
 
+// @beta
+export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind";
+
 export { sourceEndpoint }
 
 export { SourceExample }
@@ -8374,6 +8979,24 @@ export { SourceListing }
 export { SourceListItem }
 
 export { SourceListQuery }
+
+// @public
+export interface SourceLoaded {
+    readonly callerKey?: string;
+    readonly format?: FormatId;
+    readonly kind: LoadedSourceKind;
+    readonly mode: "replace" | "merge";
+    readonly replaced?: "replaceSource" | "reloadSource";
+    readonly sample?: {
+        readonly datasetId: string;
+    } | {
+        readonly generatorId: string;
+    } | {
+        readonly exampleId: string;
+    };
+    readonly source: SourceKey;
+    readonly sourceId?: string;
+}
 
 // @public
 export interface SourceLoadOptions extends LoadChoices {
@@ -8454,6 +9077,7 @@ export interface SourceRead extends SourceInput {
 export interface SourceRefreshReport {
     readonly added: SourceCounts;
     readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
+    readonly issues?: readonly SourceRefreshIssue[];
     readonly removed: SourceCounts;
     readonly updated: SourceCounts;
 }
@@ -8477,6 +9101,9 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
 // @beta
 export type SourceStorage = "embedded" | "referenced";
 
+// @beta
+export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind";
+
 export { SourceValidators }
 
 // @public
@@ -8486,15 +9113,20 @@ export interface StableFrameOptions {
 }
 
 // @public
+export interface StartingCamera {
+    readonly follows: string;
+    readonly key?: string;
+    readonly name: string;
+}
+
+// @public
 export class StatsManager implements Manager {
     constructor(eventManager: EventManager);
-    // (undocumented)
     arrowCapUpdate: PerfCounter;
     decrementCounter(label: string, amount?: number): void;
     disableFrameProfiling(): void;
     disableProfiling(): void;
     dispose(): void;
-    // (undocumented)
     edgeUpdate: PerfCounter;
     enableFrameProfiling(): void;
     enableProfiling(): void;
@@ -8522,20 +9154,16 @@ export class StatsManager implements Manager {
         edgeUpdateCount: number;
         arrowCapUpdateCount: number;
     };
-    // (undocumented)
     graphStep: PerfCounter;
     incrementCounter(label: string, amount?: number): void;
     init(): Promise<void>;
     initializeBabylonInstrumentation(scene: Scene, engine: Engine | WebGPUEngine): void;
     // @internal
     _injectMockInstrumentation(engineInstrumentation?: EngineInstrumentation | null, sceneInstrumentation?: SceneInstrumentation | null): void;
-    // (undocumented)
     intersectCalc: PerfCounter;
-    // (undocumented)
     loadTime: PerfCounter;
     measure<T>(label: string, fn: () => T): T;
     measureAsync<T>(label: string, fn: () => Promise<T>): Promise<T>;
-    // (undocumented)
     nodeUpdate: PerfCounter;
     reportDetailed(): void;
     reset(): void;
@@ -8548,7 +9176,6 @@ export class StatsManager implements Manager {
     startMeasurement(label: string): void;
     step(): void;
     toString(): string;
-    // (undocumented)
     totalUpdates: number;
     updateCacheStats(hits: number, misses: number): void;
     updateCounts(nodeCount: number, edgeCount: number): void;
@@ -8614,6 +9241,61 @@ export const TOL_MUTED_COLORS: readonly ["#332288", "#88CCEE", "#44AA99", "#1177
 export const TOL_VIBRANT_COLORS: readonly ["#0077BB", "#33BBEE", "#009988", "#EE7733", "#CC3311", "#EE3377", "#BBBBBB"];
 
 // @public
+export interface Tour {
+    easing?: EasingName;
+    stops: readonly TourStop[];
+}
+
+// @public
+export interface TourEndedEvent {
+    reason: TourEndReason;
+    tour: string | null;
+    type: "tour-ended";
+}
+
+// @public
+export type TourEndReason = "finished" | "cancelled" | "interrupted" | "replaced" | "mode-changed";
+
+// @public
+export type TourInput = string | Tour | readonly (ViewWaypoint | CameraWaypoint | TourPause)[];
+
+// @public
+export interface TourPause {
+    readonly pause: number;
+}
+
+// @public
+export interface TourPlan {
+    readonly playable: boolean;
+    readonly problem: CodedFact | null;
+    readonly stops: readonly TourPlanStop[];
+    readonly totalMs: number;
+}
+
+// @public
+export interface TourPlanStop {
+    readonly duration: number;
+    readonly hold: number;
+    readonly problem: CodedFact | null;
+    readonly startMs: number;
+}
+
+// @public
+export interface TourProgressEvent {
+    phase: "flight" | "hold" | "pause";
+    stop: number;
+    stops: number;
+    tour: string | null;
+    type: "tour-progress";
+    view?: string;
+}
+
+// @public
+export type TourStop = (ViewWaypoint & {
+    view: string;
+}) | TourPause;
+
+// @public
 export class UpdateManager implements Manager {
     constructor(eventManager: EventManager, statsManager: StatsManager, layoutManager: LayoutManager, dataManager: DataManager, camera: CameraManager, graphContext: GraphContext, config?: UpdateManagerConfig);
     // @internal
@@ -8621,9 +9303,11 @@ export class UpdateManager implements Manager {
     // @internal
     adoptBuiltNode(node: Node_2): void;
     autoTurning: boolean;
+    get awaitsLanding(): boolean;
     bindViewMasks(masks: ViewMasks | null): void;
     // @internal
-    buildPlainRow(id: NodeIdType_2): void;
+    buildPlainRows(ids: readonly NodeIdType_2[]): void;
+    cameraHeld: boolean;
     // @internal
     columnFraming(): ColumnFraming | undefined;
     // @internal
@@ -8660,6 +9344,8 @@ export class UpdateManager implements Manager {
     markViewSized(node: Node_2, on: boolean): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    // @internal
+    nodeRowSelected(row: number): boolean;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
@@ -8679,6 +9365,7 @@ export class UpdateManager implements Manager {
     static readonly RETRIM_COUNTER = "edges.retrimmedForNodeScale";
     // @internal
     rowsRenumbered(): void;
+    saveFraming(): () => void;
     stepFrames(count: number): void;
     stopAutoZoomToFit(): void;
     syncStyles(budgetMs?: number): void;
@@ -8694,22 +9381,29 @@ export class UpdateManager implements Manager {
 }
 
 // @public
+export const VIDEO_FORMATS: readonly VideoFormat[];
+
+// @public
+export type VideoFormat = "webm" | "mp4";
+
+// @public
 export const VIEW_MODE_VALUES: readonly ["2d", "3d", "ar", "vr"];
 
 // @public
 export interface ViewInsets {
-    // (undocumented)
     readonly bottom?: number;
-    // (undocumented)
     readonly left?: number;
-    // (undocumented)
     readonly right?: number;
-    // (undocumented)
     readonly top?: number;
 }
 
 // @public
 export type ViewMode = (typeof VIEW_MODE_VALUES)[number];
+
+// @public
+export interface ViewsChangedEvent {
+    type: "views-changed";
+}
 
 // @public
 export interface ViewWaypoint {
@@ -8769,6 +9463,7 @@ export interface XRConfig {
     ar: XRModeConfig;
     enabled: boolean;
     input: XRInputConfig;
+    menu?: readonly XRMenuItem[];
     ui: XRUIConfig;
     vr: XRModeConfig;
 }
@@ -8782,6 +9477,18 @@ export interface XRInputConfig {
     handTracking: boolean;
     nearInteraction: boolean;
     zAxisAmplification?: number;
+}
+
+// @public
+export interface XRMenuItem {
+    id: string;
+    label: string;
+}
+
+// @public
+export interface XRMenuSelectEvent {
+    id: string;
+    type: "xr-menu-select";
 }
 
 // @public

@@ -356,6 +356,21 @@ export interface FilterSources {
         readonly edges: ReadonlySet<EdgeId>;
     };
     /**
+     * Under the source-steps experiment, one source's own values (design 3.8): what a filter
+     * condition naming that `source` reads, so it judges that source's value and only the elements
+     * that source gave a value for. Absent, or undefined for a source, a condition reads the shown
+     * value of every element the source supplied.
+     * @param source - The source.
+     * @returns Its values, or undefined.
+     */
+    readonly own?: (source: SourceKey) => FilterValueSource | undefined;
+    /**
+     * Whether the source-steps experiment is on. Under it, a `source` leaf with `side: "edges"`
+     * also keeps the ends of the listed sources' edges, or for sources that supplied no edges,
+     * their nodes and the edges between them (design 8.6). Absent reads off.
+     */
+    readonly sourceSteps?: () => boolean;
+    /**
      * The hovered node, else a lone selected node: what a step's `"hovered-or-selected"` names.
      * Absent refuses that reference.
      * @returns The node, or null when there is none.
@@ -496,7 +511,7 @@ const TIME_STEPS: ReadonlySet<string> = new Set(["hour", "day", "week", "month",
 
 /**
  * The refusal a filter this session cannot evaluate gets, naming what would evaluate it.
- * @param kind - The filter kind that cannot be honoured.
+ * @param kind - The filter kind that cannot be honored.
  * @param needs - The capability whose absence is the reason.
  * @returns The error to throw.
  */
@@ -796,7 +811,7 @@ function assertFilter(filter: RuleTree): void {
                 throw malformed(`An "${filter.kind}" filter needs a list of filters.`, { of: filter.of });
             }
 
-            for (const member of filter.of) {
+            for (const member of filter.of as readonly RuleTree[]) {
                 assertFilter(member);
             }
 
@@ -1254,10 +1269,51 @@ function sourceTests(context: CompileContext, keys: readonly SourceKey[], side: 
     const { nodes, edges } = supplied(keys);
     const { graph } = context;
     const space = edgeSpaceOf(graph);
+    if (side === "edges" && context.sources.sourceSteps?.() === true) {
+        return sourceEdgesSide(graph, space, nodes, edges);
+    }
     return {
         node: side === "edges" ? null : (index) => nodes.has(graph.ids.idOf(index)),
         edge: side === "nodes" ? null : (index) => edges.has(space.idOf(index)),
     };
+}
+
+/**
+ * Under source-steps, the Source scope's halves (design 8.6, the model's `scope()`): the listed
+ * edges and their end nodes; for sources that supplied no edges, their nodes and the edges between
+ * them.
+ * @param graph - The snapshot.
+ * @param space - Its edge id space.
+ * @param nodes - The nodes the sources supplied.
+ * @param edges - The edges the sources supplied.
+ * @returns The halves.
+ */
+function sourceEdgesSide(
+    graph: GraphSnapshot,
+    space: ReturnType<typeof edgeSpaceOf>,
+    nodes: ReadonlySet<NodeId>,
+    edges: ReadonlySet<EdgeId>,
+): CompiledHalves {
+    const ends = new Uint8Array(graph.nodeCount);
+    const kept = new Uint8Array(graph.edgeCount);
+    let any = false;
+    for (let edge = 0; edge < graph.edgeCount; edge++) {
+        if (edges.has(space.idOf(edge))) {
+            any = true;
+            kept[edge] = 1;
+            ends[graph.edgeSource(edge)] = 1;
+            ends[graph.edgeTarget(edge)] = 1;
+        }
+    }
+    if (!any) {
+        for (let node = 0; node < graph.nodeCount; node++) {
+            ends[node] = nodes.has(graph.ids.idOf(node)) ? 1 : 0;
+        }
+        for (let edge = 0; edge < graph.edgeCount; edge++) {
+            kept[edge] = ends[graph.edgeSource(edge)] === 1 && ends[graph.edgeTarget(edge)] === 1 ? 1 : 0;
+        }
+    }
+    return { node: (index) => ends[index] === 1, edge: (index) => kept[index] === 1 };
 }
 
 /**
@@ -1424,7 +1480,7 @@ function baseOf(context: CompileContext): { readonly node: Bytes; readonly edge:
 
 /**
  * Every node's degree (in, out, or both ways when `which` is absent), counted over the base's
- * edges inside a step, so a filtered-out neighbour is never counted; the snapshot's otherwise.
+ * edges inside a step, so a filtered-out neighbor is never counted; the snapshot's otherwise.
  * @param context - The compile context.
  * @param which - In, out, or both.
  * @returns The degrees.
@@ -1732,8 +1788,8 @@ function nextHop(
 /**
  * A test over the nodes within so many hops of a set of seeds.
  *
- * Hops are counted in BOTH directions even on a directed graph: a neighbourhood is what surrounds
- * a node, and a predecessor is as much a neighbour as a successor. A caller that wants only one
+ * Hops are counted in BOTH directions even on a directed graph: a neighborhood is what surrounds
+ * a node, and a predecessor is as much a neighbor as a successor. A caller that wants only one
  * direction wants a traversal, which is an algorithm and not a filter.
  * @param context - The compile context.
  * @param seeds - The nodes to start from; ones the graph does not hold are skipped.
@@ -2171,6 +2227,10 @@ function compileGroup(context: CompileContext, filter: Extract<RuleTree, { kind:
  * @returns Its halves.
  */
 function compileSourceScoped(context: CompileContext, scoped: SourceScopedRule): CompiledHalves {
+    const own = scoped.withinSources.length === 1 ? context.sources.own?.(scoped.withinSources[0]) : undefined;
+    if (own !== undefined) {
+        return compileOwnScoped(context, scoped, own);
+    }
     const inner = compileOne(scoped.of[0], context);
     const within = sourceTests(context, scoped.withinSources, undefined);
     const { outside } = scoped;
@@ -2178,6 +2238,114 @@ function compileSourceScoped(context: CompileContext, scoped: SourceScopedRule):
         test === null || mine === null ? test : (index) => (mine(index) ? test(index) : outside);
 
     return { node: half(inner.node, within.node), edge: half(inner.edge, within.edge) };
+}
+
+/**
+ * The value paths a rule's leaves read, however deep (`range`, `categories` and `text` leaves).
+ * @param rule - The rule.
+ * @returns The paths.
+ */
+export function valuePaths(rule: RuleTree): Path[] {
+    switch (rule.kind) {
+        case "range":
+        case "categories":
+            return [rule.attribute];
+        case "text":
+            return [rule.reads];
+        case "all":
+        case "any":
+            return rule.of.flatMap((each) => valuePaths(each));
+        case "not":
+            return valuePaths(rule.of);
+        default:
+            return [];
+    }
+}
+
+/**
+ * Under source-steps, the column a rule is held on (design 8.4, `W_FILTER_HELD`): when it reads
+ * values and no element carries any column it reads, it is held off and judges nothing, so it never
+ * hides every node. A source-scoped rule is judged against that source's own values.
+ * @param graph - The snapshot.
+ * @param rule - The rule, as one filter condition compiles to.
+ * @param sources - The compile sources.
+ * @returns The first column it reads when it is held, else null.
+ */
+export function heldColumn(graph: GraphSnapshot, rule: RuleTree, sources: FilterSources): Path | null {
+    if (isSourceScoped(rule)) {
+        const own = rule.withinSources.length === 1 ? sources.own?.(rule.withinSources[0]) : undefined;
+        return own === undefined ? null : heldColumn(graph, rule.of[0], { ...sources, values: own });
+    }
+    const { values } = sources;
+    const paths = valuePaths(rule);
+    if (values === undefined || paths.length === 0) {
+        return null;
+    }
+    for (const path of paths) {
+        const known = values.halvesOf?.(path);
+        if (
+            (known?.node ?? carries(graph.nodeCount, (index) => values.nodeValue(index, path))) ||
+            (known?.edge ?? carries(graph.edgeCount, (index) => values.edgeValue(index, path)))
+        ) {
+            return null;
+        }
+    }
+    return paths[0];
+}
+
+/**
+ * The filter with its held conditions left out (see {@link heldColumn}): each member of a
+ * top-level `all`, or the filter itself.
+ * @param graph - The snapshot.
+ * @param filter - The filter the masks evaluate.
+ * @param sources - The compile sources.
+ * @returns The filter, or null when all of it is held.
+ */
+function withoutHeld(graph: GraphSnapshot, filter: RuleTree, sources: FilterSources): RuleTree | null {
+    if (filter.kind === "all" && !isSourceScoped(filter)) {
+        const judged = filter.of.filter((member) => heldColumn(graph, member, sources) === null);
+        if (judged.length === filter.of.length) {
+            return filter;
+        }
+        return judged.length === 0 ? null : { kind: "all", of: judged };
+    }
+    return heldColumn(graph, filter, sources) === null ? filter : null;
+}
+
+/**
+ * A source-scoped rule over that source's own values (source-steps, design 3.8 and 8.4): it reads
+ * the source's own value, judges only the elements that carry one for a column it reads, and
+ * answers `outside` for every other element. A rule whose columns no element carries is held
+ * (`W_FILTER_HELD`): it judges nothing, so it never hides everything.
+ * @param context - The compile context.
+ * @param scoped - The scoped rule.
+ * @param own - The source's own values.
+ * @returns Its halves.
+ */
+function compileOwnScoped(context: CompileContext, scoped: SourceScopedRule, own: FilterValueSource): CompiledHalves {
+    const inner = compileOne(scoped.of[0], { ...context, sources: { ...context.sources, values: own } });
+    const paths = valuePaths(scoped.of[0]);
+    const { outside } = scoped;
+    const carries =
+        (read: (index: number, path: Path) => unknown): ElementTest =>
+        (index) =>
+            paths.some((path) => {
+                const v = read(index, path);
+                return v !== undefined && v !== null && v !== "";
+            });
+    const half = (test: ElementTest | null, mine: ElementTest): ElementTest | null =>
+        test === null ? null : (index) => (mine(index) ? test(index) : outside);
+
+    return {
+        node: half(
+            inner.node,
+            carries((index, path) => own.nodeValue(index, path)),
+        ),
+        edge: half(
+            inner.edge,
+            carries((index, path) => own.edgeValue(index, path)),
+        ),
+    };
 }
 
 /**
@@ -2849,8 +3017,8 @@ function remembered(test: ElementTest | null, count: number): ElementTest | null
  * is visible when it passes both; either one on its own behaves exactly as it does with the other
  * set, and clearing one leaves the other's answer standing.
  *
- * The compilation itself does the work that cannot be done per element -- materialising a query's
- * matches, walking a neighbourhood, reading the degree view -- so it is O(n + m) before the pass
+ * The compilation itself does the work that cannot be done per element -- materializing a query's
+ * matches, walking a neighborhood, reading the degree view -- so it is O(n + m) before the pass
  * even starts, and it happens once per pass rather than once per element.
  * @param graph - The snapshot every test is written against.
  * @param filter - The filter, or null for none.
@@ -2866,6 +3034,7 @@ export function compileVisibility(
     sources: FilterSources,
 ): CompiledVisibility {
     assertVisibility(filter, window);
+    const judged = filter !== null && sources.sourceSteps?.() === true ? withoutHeld(graph, filter, sources) : filter;
 
     const context: CompileContext = {
         graph,
@@ -2875,7 +3044,7 @@ export function compileVisibility(
     };
 
     const halves: CompiledHalves[] = [];
-    const compiledFilter = filter === null ? null : compileOne(filter, context);
+    const compiledFilter = judged === null ? null : compileOne(judged, context);
     // Only a slide reads the answers again.
     const filtering =
         window === null || compiledFilter === null
@@ -3019,7 +3188,7 @@ export function runPass(pass: VisibilityPass): void {
  * @param signal - Aborted when the caller cancels; the pass throws the signal's reason.
  * @param report - Called with how many of the elements have been looked at.
  * @returns Nothing, once every element has been looked at.
- * @throws The abort signal's reason when the pass is cancelled part way through.
+ * @throws The abort signal's reason when the pass is canceled part way through.
  */
 export async function runPassInSlices(
     pass: VisibilityPass,

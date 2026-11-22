@@ -12,7 +12,7 @@ to other tasks and were not walked here.
 ## Result
 
 Reached. Nothing crashes, blocks the task, or gives a wrong result that would spoil its grading.
-Every walk that adds a card ends with exactly one filter card, `telemetry yes`, 7 of 11; a cancelled
+Every walk that adds a card ends with exactly one filter card, `telemetry yes`, 7 of 11; a canceled
 new card leaves no card, no filter mark and no undo step.
 
 ## success (pointer)
@@ -31,13 +31,13 @@ Replay matched through the new layer's Cancel, the Ctrl+Z that brings back "inst
 (3 of 11), and Data, Add filter, `telemetry`, yes, Cancel (no card left, no filter mark:
 tmp/design-studio/tier5/r1d3/pilot/T70B/touched-2/04.png). It then diverged as the fix intends: the
 Undo button is no longer "Undo deleting a filter condition"; it is "Undo changing the conditions on
-Layer 1" (tooltip, tmp/design-studio/tier5/r1d3/pilot/T70B/touched-2/07.png). The cancelled card
+Layer 1" (tooltip, tmp/design-studio/tier5/r1d3/pilot/T70B/touched-2/07.png). The canceled card
 left no undo step.
 
 - Ctrl+Z then undoes the layer's last condition edit: Which nodes reads "installed", 11 of 11, notice
   "Undid changing the conditions on Layer 1."; Filters stays empty and no card comes back
   (tmp/design-studio/tier5/r1d3/pilot/T70B/touched-2/08.png). That is the step before the
-  cancelled card, as a person expects.
+  canceled card, as a person expects.
 - Ctrl+Shift+Z redoes it: "installed before 2000", 3 of 11, notice "Redid changing the conditions on
   Layer 1." (tmp/design-studio/tier5/r1d3/pilot/T70B/touched-2/09.png). The end-state records hold
   no filter card.

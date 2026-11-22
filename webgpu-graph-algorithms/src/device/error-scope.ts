@@ -53,7 +53,7 @@ export class AllocationTracker {
     }
 
     /**
-     * createBuffer with the scope rule; every buffer is labelled (an unlabelled descriptor becomes `buffer-<n>`).
+     * createBuffer with the scope rule; every buffer is labeled (an unlabeled descriptor becomes `buffer-<n>`).
      * @param descriptor - the buffer descriptor
      * @returns the buffer
      */

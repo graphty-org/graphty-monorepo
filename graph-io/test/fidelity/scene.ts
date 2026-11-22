@@ -93,7 +93,7 @@ export interface SceneNode {
     z: number;
     /**
      * Reference side only: the program paints a gradient over the node's whole face (Cytoscape desktop's gradient
-     * custom graphics), so `fill`, the colour under it, is not what it draws and is not judged (`fillOpacity` is the
+     * custom graphics), so `fill`, the color under it, is not what it draws and is not judged (`fillOpacity` is the
      * gradient's too, and is).
      * The oracle scorecard, which reads the program's own drawing, judges the gradient.
      */
@@ -162,6 +162,8 @@ export interface Scene {
         text?: string;
         heads?: Box[];
         fill?: string;
+        /** A picture drawn in a node's label (yEd's label icon), not over its face. */
+        label?: true;
     }[];
     background?: Color;
     /** Things this side could not read; a property listed here is not judged against this side. */

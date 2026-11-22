@@ -4,7 +4,9 @@
  *
  * `History` does not know how a patch is made or what is inside one. It is handed three
  * functions: apply a patch forward (redo), apply it backward (undo), and merge a newer patch into
- * an older one (coalescing). Steps before the cursor are done; steps from the cursor on are the
+ * an older one (coalescing). Whether two edits merge depends only on what they change and on what
+ * happened between them, never on the time between them, so the same calls give the same steps on
+ * any machine. Steps before the cursor are done; steps from the cursor on are the
  * redo tail. See design/undo/undo-design.md sections 5, 5.2 and 7.
  *
  * It also keeps the arrangement (design section 6.4): each step may hold a before-capture, an
@@ -26,7 +28,7 @@
 
 import type { NodeId } from "../../catalog/types";
 import { POSITION_COMPONENTS } from "../../data/positions";
-import type { CodedFact } from "../shared";
+import type { CodedFact, CodedFactParam } from "../shared";
 import type { HistoryCode } from "../types";
 import { type ArrangementOp, captureBytes, coordsIn, mergeRowPatches, type RowPatch } from "./arrangement";
 import type { ArrangementCapture } from "./state";
@@ -36,14 +38,7 @@ export const STEP_OVERHEAD_BYTES = 512;
 
 const DEFAULT_LIMIT_BYTES = 256 * 1024 * 1024;
 const DEFAULT_LIMIT_STEPS = 1000;
-const DEFAULT_COALESCE_MS = 1000;
-/**
- * The longest a chain of merged edits may run, from its first edit to its last. The window slides
- * with every merge, so without this a steady stream of edits each under a second apart would
- * merge without end and one undo would take back a minute of deliberate work.
- */
-const COALESCE_SPAN_MS = 5000;
-/** Eviction runs down to this share of both limits, so its work is amortised over many records. */
+/** Eviction runs down to this share of both limits, so its work is amortized over many records. */
 const EVICT_TO = 0.9;
 
 /** What a charge pass has counted: something counted once is counted where it is first seen. */
@@ -63,9 +58,6 @@ export interface HistoryOptions<P> {
     backward(patch: P): void;
     /** One patch doing what `older` then `newer` did: the first prior, the last written value. */
     merge(older: P, newer: P): P;
-    /** The clock of the coalescing window, in milliseconds. */
-    now?: () => number;
-    coalesceMs?: number;
     limitBytes?: number;
     limitSteps?: number;
     /** Called after every change, once the version has moved. */
@@ -90,7 +82,10 @@ interface RecordInput<P> {
     /** What the step did; `{ code: "transaction", params: { label } }` when absent. */
     readonly fact?: CodedFact<HistoryCode>;
     readonly patch: P;
-    /** Steps with equal keys recorded within the coalescing window become one step. */
+    /**
+     * Consecutive steps with equal keys become one step, while nothing else is recorded or undone
+     * between them and the newer one changes no channel the step does not already change.
+     */
     readonly key?: string | null;
     /**
      * True when undoable work was dispatched after the top step was recorded and is still
@@ -122,6 +117,8 @@ export interface OpenArrangement {
      * when a history call restores the lane.
      */
     readonly provisional: ArrangementCapture | null;
+    /** The number of the first step recorded after it opened. */
+    readonly since: number;
 }
 
 /** A step as the history publishes it. Frozen. */
@@ -144,10 +141,6 @@ interface Step<P> {
     readonly key: string | null;
     patch: P;
     at: string;
-    /** `now()` of the record that started the step, for the span a merge chain may cover. */
-    readonly started: number;
-    /** `now()` of the last record or merge, for the coalescing window. */
-    lastMerge: number;
     ops: readonly string[];
     slices: readonly string[];
     readonly provenance: Readonly<Record<string, string>>;
@@ -178,8 +171,6 @@ interface Step<P> {
 /** Undo history over patches of type `P`. */
 export class History<P> {
     private readonly options: HistoryOptions<P>;
-    private readonly now: () => number;
-    private readonly coalesceMs: number;
     private entries: Step<P>[] = [];
     private cursor = 0;
     private total = 0;
@@ -197,7 +188,7 @@ export class History<P> {
      */
     private baseline: { capture: ArrangementCapture; owned: boolean } | null = null;
     /** The pending groups holding a before-arrangement, oldest first. */
-    private groups: { before: ArrangementCapture; provisional: ArrangementCapture | null }[] = [];
+    private groups: { before: ArrangementCapture; provisional: ArrangementCapture | null; since: number }[] = [];
     /** What the undos and redos since the last take restore, in order. */
     private arrangementOps: ArrangementOp[] = [];
     /** While above zero, a history move is under way and eviction waits for it to land. */
@@ -214,8 +205,6 @@ export class History<P> {
      */
     constructor(options: HistoryOptions<P>) {
         this.options = options;
-        this.now = options.now ?? (() => performance.now());
-        this.coalesceMs = options.coalesceMs ?? DEFAULT_COALESCE_MS;
         this.maxBytes = options.limitBytes ?? DEFAULT_LIMIT_BYTES;
         this.maxSteps = options.limitSteps ?? DEFAULT_LIMIT_STEPS;
     }
@@ -307,7 +296,6 @@ export class History<P> {
      * @returns The id of the step the patch is now in.
      */
     record(input: RecordInput<P>): string {
-        const time = this.now();
         const at = new Date().toISOString();
         const key = input.key ?? null;
         const held = (input.after ? captureBytes(input.after) : 0) + (input.before ? captureBytes(input.before) : 0);
@@ -321,12 +309,10 @@ export class History<P> {
             this.mergeable &&
             top?.key === key &&
             this.cursor === this.entries.length &&
-            time - top.lastMerge < this.coalesceMs &&
-            time - top.started < COALESCE_SPAN_MS
+            sameChannels(top.fact, factOf(input))
         ) {
-            // The step's fact now names every channel it changed: undo reverts them all.
             top.fact = mergedFact(top.fact, factOf(input));
-            this.mergeInto(top, input, time, at);
+            this.mergeInto(top, input, at);
             return top.id;
         }
 
@@ -339,8 +325,6 @@ export class History<P> {
             key,
             patch: input.patch,
             at,
-            started: time,
-            lastMerge: time,
             ops: [...(input.ops ?? [])],
             slices: [...(input.slices ?? [])],
             provenance: Object.freeze({ ...input.provenance }),
@@ -375,7 +359,7 @@ export class History<P> {
             return false;
         }
 
-        this.mergeInto(top, input, this.now(), new Date().toISOString());
+        this.mergeInto(top, input, new Date().toISOString());
         return true;
     }
 
@@ -502,9 +486,24 @@ export class History<P> {
      * @returns Its handle; the dispatcher records `before` and `provisional` from it.
      */
     open(before: ArrangementCapture): OpenArrangement {
-        const group = { before, provisional: null };
+        const group = { before, provisional: null, since: this.nextId };
         this.groups.push(group);
         return group;
+    }
+
+    /**
+     * The rows the applied steps recorded since a group opened placed, written over its before:
+     * what a source draft's After writes after its before-arrangement when it comes off, so a node
+     * the reader moved meanwhile stays where that step put it.
+     * @param group - The group's handle.
+     * @returns The ops, oldest step first; empty when nothing was recorded since.
+     */
+    since(group: OpenArrangement): ArrangementOp[] {
+        return this.entries
+            .slice(0, this.cursor)
+            .flatMap((step, index) =>
+                Number(step.id.slice("step-".length)) >= group.since ? this.placedRows(index) : [],
+            );
     }
 
     /**
@@ -676,10 +675,9 @@ export class History<P> {
      * Merge a patch into a done top step: the first prior, the last written value.
      * @param top - The top step.
      * @param input - The patch and what describes it.
-     * @param time - `now()` of the merge.
      * @param at - ISO 8601 of the merge.
      */
-    private mergeInto(top: Step<P>, input: RecordInput<P>, time: number, at: string): void {
+    private mergeInto(top: Step<P>, input: RecordInput<P>, at: string): void {
         const done = input.bytes?.done ?? 0;
         const undone = input.bytes?.undone ?? 0;
         top.patch = this.options.merge(top.patch, input.patch);
@@ -696,7 +694,6 @@ export class History<P> {
         this.total -= top.cache?.bytes ?? 0;
         top.cache = null;
         top.at = at;
-        top.lastMerge = time;
         top.ops = [...top.ops, ...(input.ops ?? [])];
         top.slices = [...new Set([...top.slices, ...(input.slices ?? [])])];
         // ponytail: a merge sums both patches' sizes, an overestimate; re-estimate the merged
@@ -1069,6 +1066,17 @@ export class History<P> {
     }
 
     /**
+     * The rows one step placed, without its before-arrangement: a capture taken mid-group would
+     * write a half-run layout over what the group puts back.
+     * @param index - The step.
+     * @returns The ops; empty when it placed no rows.
+     */
+    private placedRows(index: number): ArrangementOp[] {
+        const rows = this.rowsOf(this.entries[index]);
+        return rows === null ? [] : [{ patch: rows, forward: true }];
+    }
+
+    /**
      * What redoing the step at `index` restores, given that the lane holds A(index).
      * @param index - The step.
      * @returns The ops: A(k).
@@ -1232,6 +1240,24 @@ function factOf(input: RecordInput<unknown>): CodedFact<HistoryCode> {
 }
 
 /**
+ * Whether an edit changes only channels the step already changes, so merging it keeps the step
+ * about the same thing: a color drag merges frame by frame, a size edit after it is a step of its
+ * own. True when either fact names no channels (a filter, a config key: the key says it all).
+ * @param older - The step's fact so far.
+ * @param newer - The edit's fact.
+ * @returns Whether they may merge.
+ */
+function sameChannels(older: CodedFact<HistoryCode>, newer: CodedFact<HistoryCode>): boolean {
+    const before = older.params.channels;
+    const after = newer.params.channels;
+    if (typeof before !== "object" || before === null || typeof after !== "object" || after === null) {
+        return true;
+    }
+
+    return after.every((channel) => before.includes(channel));
+}
+
+/**
  * The fact of a step an edit merged into: the newer edit's, with the `channels` both name when
  * they share a code, so a color edit and a size edit merged into one step name both channels.
  * @param older - The step's fact so far.
@@ -1241,7 +1267,14 @@ function factOf(input: RecordInput<unknown>): CodedFact<HistoryCode> {
 function mergedFact(older: CodedFact<HistoryCode>, newer: CodedFact<HistoryCode>): CodedFact<HistoryCode> {
     const before = older.params.channels;
     const after = newer.params.channels;
-    if (older.code !== newer.code || !Array.isArray(before) || !Array.isArray(after)) {
+    // A param that is an object is its list (CodedFactParam); Array.isArray would narrow it to any[].
+    if (
+        older.code !== newer.code ||
+        typeof before !== "object" ||
+        before === null ||
+        typeof after !== "object" ||
+        after === null
+    ) {
         return newer;
     }
 
@@ -1259,9 +1292,9 @@ export function frozenFact(fact: CodedFact<HistoryCode>): CodedFact<HistoryCode>
     }
 
     const params = Object.fromEntries(
-        Object.entries(fact.params).map(([name, value]) => [
+        Object.entries(fact.params).map(([name, value]): [string, CodedFactParam | undefined] => [
             name,
-            Array.isArray(value) ? Object.freeze([...value]) : value,
+            typeof value === "object" && value !== null ? Object.freeze([...value]) : value,
         ]),
     );
     return Object.freeze({ code: fact.code, params: Object.freeze(params) });

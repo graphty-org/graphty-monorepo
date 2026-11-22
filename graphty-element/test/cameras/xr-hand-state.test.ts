@@ -30,7 +30,7 @@ interface Joint {
     position: Vector3;
 }
 
-/** Thumb-to-index distances, in metres, for a hand that is clearly pinching or clearly open. */
+/** Thumb-to-index distances, in meters, for a hand that is clearly pinching or clearly open. */
 const PINCHED = 0.02;
 const OPEN = 0.08;
 
@@ -114,7 +114,7 @@ describe("XRInputHandler hand state", () => {
     /**
      * Add a controller whose grip sits at `x` on the X axis.
      * @param handedness - which hand
-     * @param x - grip X, in metres
+     * @param x - grip X, in meters
      * @param trigger - the trigger component, or null for none
      * @returns the fake, to change between frames
      */
@@ -129,8 +129,8 @@ describe("XRInputHandler hand state", () => {
     /**
      * Place a tracked hand with its wrist at `x` on the X axis.
      * @param handedness - which hand
-     * @param x - wrist X, in metres
-     * @param pinchDistance - thumb tip to index tip, in metres
+     * @param x - wrist X, in meters
+     * @param pinchDistance - thumb tip to index tip, in meters
      */
     function hand(handedness: Handedness, x: number, pinchDistance: number): void {
         const wrist = new Vector3(x, 1, 0);
@@ -145,7 +145,7 @@ describe("XRInputHandler hand state", () => {
     /**
      * Move a controller's grip along X.
      * @param fake - the controller
-     * @param x - grip X, in metres
+     * @param x - grip X, in meters
      */
     function moveGrip(fake: FakeController, x: number): void {
         (fake.grip as TransformNode).position = new Vector3(x, 1, 0);

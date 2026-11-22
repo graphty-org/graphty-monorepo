@@ -1,5 +1,5 @@
 /**
- * Robustness of the JSON importer: truncated, malformed, mislabelled and self-contradicting
+ * Robustness of the JSON importer: truncated, malformed, mislabeled and self-contradicting
  * documents in every dialect it reads. Each test states the exact outcome -- the issue codes
  * recorded and the data kept, or the fatal ImportError and its code -- for a condition the format
  * tests and the audit suite do not already pin.

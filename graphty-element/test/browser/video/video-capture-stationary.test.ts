@@ -68,7 +68,7 @@ test("fires animation-progress events", async () => {
 
     graph.on("animation-progress", (event) => {
         assert.isNumber(event.progress);
-        progressEvents.push(Number(event.progress));
+        progressEvents.push(event.progress);
     });
 
     await graph.captureAnimation({
@@ -247,7 +247,7 @@ test("supports cancellation", async () => {
     // Should no longer be capturing
     assert.equal(graph.isAnimationCapturing(), false, "Should not be capturing after cancel");
 
-    // Cancelling again should return false
+    // Canceling again should return false
     const secondCancel = graph.cancelAnimationCapture();
     assert.equal(secondCancel, false, "Second cancel should return false");
 

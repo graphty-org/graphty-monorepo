@@ -96,13 +96,13 @@ interface AlgorithmStoryExpectations {
     /** The reader's own layers, beneath the algorithm's. */
     readonly readerLayers?: readonly LayerSpec[];
     /**
-     * Size the nodes by the run as well as colour them, over this node size range.
+     * Size the nodes by the run as well as color them, over this node size range.
      *
-     * A node metric suggests a colour and no size, so a story that wants both asks for it the way
+     * A node metric suggests a color and no size, so a story that wants both asks for it the way
      * a consumer does: `{ algorithm, style: { size: [min, max] } }` in the load-time list.
      */
     readonly size?: readonly [min: number, max: number];
-    /** The algorithm's options, such as the seed a randomised method needs to draw the same picture every time. */
+    /** The algorithm's options, such as the seed a randomized method needs to draw the same picture every time. */
     readonly params?: Readonly<Record<string, unknown>>;
 }
 
@@ -132,7 +132,7 @@ export const createAlgorithmStory = (
             runAlgorithmsOnLoad: true,
         },
         play: async ({ canvasElement }) => {
-            // The algorithm's colours do NOT wait for this: the load-time run paints as soon as it
+            // The algorithm's colors do NOT wait for this: the load-time run paints as soon as it
             // finishes, while the layout is still moving (test/browser/algorithms-on-load-options
             // pins it). This wait is the story's own, so the reader's layers and the re-applied
             // suggestion below land on a settled picture the assertions can read (issue #35).
@@ -153,7 +153,7 @@ export const createAlgorithmStory = (
             // run of this algorithm has anything per element to paint -- which is to say, when
             // this story is a picture of the element's own defaults with no algorithm in it. All
             // twenty-seven of these stories called it as a bare statement and passed either way.
-            // A run started with `style: { size }` suggests its size as well as its colour, so
+            // A run started with `style: { size }` suggests its size as well as its color, so
             // this puts both back on top of the reader's layers.
             const applied = graph.applySuggestedStyles(algorithmId);
 
@@ -191,7 +191,7 @@ export const createAlgorithmStory = (
 };
 
 /**
- * The catalogue key a `namespace:type` story address names, such as "hits" for "graphty:hits".
+ * The catalog key a `namespace:type` story address names, such as "hits" for "graphty:hits".
  * @param algorithmId - The story's address.
  * @returns The key `session.runs.start` takes.
  */
@@ -206,7 +206,7 @@ function algorithmKey(algorithmId: string): string {
  * about `max / min` times the smallest -- so a size layer the style model holds and the renderer
  * never applies fails here, and so does a size that follows some other field.
  * @param scene - What the story drew.
- * @param algorithm - The catalogue key of the run the sizes follow, such as "pagerank".
+ * @param algorithm - The catalog key of the run the sizes follow, such as "pagerank".
  * @param range - The node size range the story asked for.
  */
 export async function assertSizedBy(

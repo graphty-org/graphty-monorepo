@@ -162,7 +162,7 @@ describe("a dequeued release pull request", () => {
             { method: "POST", path: "repos/o/r/issues/1840/comments", body: { body: REQUEUE } },
         ]);
         expect(ctx.lines).toMatchObject([{ kind: "release-requeue", target: "pr:1840", draft: 1841, performed: true }]);
-        // Still labelled while Mergify takes it back: the same draft, so no second comment.
+        // Still labeled while Mergify takes it back: the same draft, so no second comment.
         await requeueReleases(ctx, s, PATTERN);
         expect(ctx.writes).toHaveLength(1);
     });

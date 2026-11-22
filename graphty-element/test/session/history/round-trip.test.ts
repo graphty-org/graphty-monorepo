@@ -11,23 +11,25 @@ import type { GraphSession } from "../../../src/session/types";
 import { fileStylesOn } from "../../helpers/file-styles-on";
 import { fakeLayout, heldScheduler } from "./fakes";
 import { blankHarness, blankSession, fixtureSession, paintBaseline } from "./fixture-session";
-import { FIXTURES } from "./fixtures";
+import { FIXTURES, withFixtureFeatures } from "./fixtures";
 import { pictureDigest, roundTrip } from "./round-trip-harness";
 
 fileStylesOn();
 
 describe("round trip per command", () => {
     for (const fixture of FIXTURES.filter((each) => each.tags.includes("session"))) {
-        it(fixture.name, async () => {
-            const session = await fixtureSession();
-            // An undo that puts rows back mid-graph leaves them to be rebuilt at the next read,
-            // and a session with no renderer does not read the graph to repaint until then; a data
-            // command's picture is read after a repaint of the settled graph. Every other op is
-            // read as its own pass painted it.
-            const settle = fixture.command.op.startsWith("data.") ? () => paintBaseline(session) : undefined;
-            await roundTrip(session, fixture, undefined, settle);
-            session.dispose();
-        });
+        it(fixture.name, () =>
+            withFixtureFeatures(fixture, async () => {
+                const session = await fixtureSession();
+                // An undo that puts rows back mid-graph leaves them to be rebuilt at the next read,
+                // and a session with no renderer does not read the graph to repaint until then; a data
+                // command's picture is read after a repaint of the settled graph. Every other op is
+                // read as its own pass painted it.
+                const settle = fixture.command.op.startsWith("data.") ? () => paintBaseline(session) : undefined;
+                await roundTrip(session, fixture, undefined, settle);
+                session.dispose();
+            }),
+        );
     }
 
     it("digests a session the same way twice when nothing changed", () => {

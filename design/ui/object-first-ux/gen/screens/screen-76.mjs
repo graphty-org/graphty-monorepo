@@ -23,7 +23,7 @@ for (const a of ids) for (const b of ids) {
 }
 pairs.sort((x, y) => y.score - x.score);
 const TOP = pairs.slice(0, 25);
-// Triangles: every edge's shared neighbours, each triangle counted three times.
+// Triangles: every edge's shared neighbors, each triangle counted three times.
 const triangles = EDGES.reduce((t, [a, b]) => t + [...adj[a]].filter((x) => adj[b].has(x)).length, 0) / 3;
 
 const byId = {};
@@ -31,7 +31,7 @@ for (const [g, members] of Object.entries(COMMUNITIES)) for (const id of members
 const first = TOP[0];
 for (const id of [first.a, first.b]) byId[id] = { ...byId[id], halo: true };
 // The selected pair is drawn as a dashed candidate edge only in the design;
-// the generator draws real edges only, so the two ends are haloed and labelled.
+// the generator draws real edges only, so the two ends are haloed and labeled.
 
 export default {
   id: 76,

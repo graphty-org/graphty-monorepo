@@ -12,6 +12,7 @@
  */
 
 import { type GraphSnapshot, makeMask, maskSet, maskTest, type U32 } from "@graphty/graph-format";
+import { geographicColumnNames } from "@graphty/graph-io/positions";
 import {
     arf,
     type ArfOptions,
@@ -22,6 +23,8 @@ import {
     createSimulation,
     type ForceAtlas2Options,
     type FruchtermanReingoldOptions,
+    geographic,
+    type GeographicLayoutOptions,
     grid,
     type GridLayoutOptions,
     kamadaKawai,
@@ -173,10 +176,22 @@ export interface LayoutOptionFields {
     readonly nodeMass?: string | ArrayLike<number> | Readonly<Record<string, number>>;
     /** forceatlas2: accepted in the same forms as `nodeMass` and not used yet: nodes are treated as points. */
     readonly nodeSize?: string | ArrayLike<number> | Readonly<Record<string, number>>;
+    /**
+     * geographic: the node data field holding each node's latitude in degrees (a number, or text that reads as one);
+     * default: the one field named `lat` or `latitude` (any case, the rule graph-io reads a file's geographic
+     * position by), else "latitude". A node without one is not placed and keeps its position.
+     */
+    readonly latitude?: string;
+    /**
+     * geographic: the node data field holding each node's longitude in degrees; default: the one field named `lon`,
+     * `lng` or `longitude` (any case), else "longitude".
+     */
+    readonly longitude?: string;
 }
 
 /** The options of LayoutOptionFields that only some layouts take. */
-type PerLayoutField = "nlist" | "subsets" | "top" | "align" | "root" | "nodeMass" | "nodeSize";
+type PerLayoutField =
+    "nlist" | "subsets" | "top" | "align" | "root" | "nodeMass" | "nodeSize" | "latitude" | "longitude";
 /** The options every layout takes. */
 type Shared = Omit<LayoutOptionFields, "name" | PerLayoutField>;
 /** Some of the per-layout options. */
@@ -207,6 +222,7 @@ export interface GraphtyLayoutOptionsByName {
     "graphty-circular": Shared;
     "graphty-spiral": Shared & Library<SpiralLayoutOptions>;
     "graphty-grid": Shared & Library<GridLayoutOptions>;
+    "graphty-geographic": Shared & Own<"latitude" | "longitude"> & Library<GeographicLayoutOptions, "position">;
     "graphty-spectral": Shared;
     "graphty-planar": Shared;
     "graphty-arf": Shared & Library<ArfOptions>;
@@ -345,6 +361,32 @@ const STATIC: Readonly<Record<string, StaticLayout>> = {
         bfs(s, { ...o, start: indexOf(cs, root as NodeSelection | undefined, "graphty layout: root") }),
     radial: (s, o, cs) =>
         radial(s, { ...o, root: indexOf(cs, o.root as NodeSelection | undefined, "graphty layout: root") }),
+    geographic: (s, { latitude, longitude, ...o }, cs) => {
+        const named =
+            latitude === undefined || longitude === undefined
+                ? geographicColumnNames(cs.nodes.toArray().flatMap((node) => Object.keys(node.data() as object)))
+                : null;
+        latitude ??= named?.latitude ?? "latitude";
+        longitude ??= named?.longitude ?? "longitude";
+        const degrees = (field: unknown): Float64Array<ArrayBuffer> => {
+            const out = new Float64Array(s.nodeCount);
+            cs.nodes.forEach((node, i) => {
+                const v: unknown = node.data(String(field));
+                out[i] = typeof v === "number" || (typeof v === "string" && v.trim() !== "") ? Number(v) : Number.NaN;
+            });
+            return out;
+        };
+        const r = geographic(s.withColumns({ lat: degrees(latitude), lon: degrees(longitude) }), {
+            ...o,
+            latitude: "lat",
+            longitude: "lon",
+        });
+        // the map's y grows north; Cytoscape's grows down
+        for (let i = 1; i < r.positions.length; i += r.dim) {
+            r.positions[i] = -r.positions[i];
+        }
+        return r;
+    },
 };
 
 // This package's own iteration budgets for the simulations, passed explicitly so a change of a @graphty/layout
@@ -381,16 +423,16 @@ function box(bb: BoundingBox12 | BoundingBoxWH | undefined, cy: Core): BoundingB
 }
 
 /**
- * The radius and centre the layout fills inside a box.
+ * The radius and center the layout fills inside a box.
  * @param b - the box
- * @returns half the shorter side (at least 1) and the centre
+ * @returns half the shorter side (at least 1) and the center
  */
 function frame(b: BoundingBoxWH): { radius: number; center: [number, number, number] } {
     return { radius: Math.max(Math.min(b.w, b.h) / 2, 1), center: [b.x1 + b.w / 2, b.y1 + b.h / 2, 0] };
 }
 
 /**
- * The x-y pairs of `n` rows of `stride` values, rescaled so the farthest placed node is `radius` from the centre. NaN
+ * The x-y pairs of `n` rows of `stride` values, rescaled so the farthest placed node is `radius` from the center. NaN
  * rows (unplaced nodes) stay NaN.
  * @param rows - the rows
  * @param stride - values per row (2 or 3)

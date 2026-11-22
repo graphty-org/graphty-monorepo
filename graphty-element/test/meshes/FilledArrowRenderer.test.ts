@@ -3,6 +3,7 @@ import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { EDGE_CONSTANTS } from "../../src/constants/meshConstants";
 import { FilledArrowRenderer, HALF_BARB } from "../../src/meshes/FilledArrowRenderer";
+import type { LineMeshMetadata } from "../../src/types/sceneMetadata";
 
 describe("FilledArrowRenderer - 3D Arrow Geometry", () => {
     let scene: Scene;
@@ -355,7 +356,7 @@ describe("FilledArrowRenderer - 3D Shader Application", () => {
 
     test("applyShader sizes the bounding volume to what the shader draws instead of switching culling off", () => {
         // This test used to assert `alwaysSelectAsActiveMesh === true`, i.e. that applyShader
-        // switched frustum culling OFF for every mesh it shadered. That behaviour was removed
+        // switched frustum culling OFF for every mesh it shadered. That behavior was removed
         // deliberately: the flag was written for thin instances, which this path no longer uses,
         // and it meant every shadered mesh -- thousands of them on a single dotted edge -- was
         // submitted every frame regardless of where the camera pointed.
@@ -482,7 +483,7 @@ describe("FilledArrowRenderer - 2D Arrows", () => {
 
         assert(mesh.material instanceof StandardMaterial, "Should use StandardMaterial for 2D mode");
         assert.strictEqual(mesh.rotation.x, Math.PI / 2, "Should be rotated to XY plane");
-        assert.strictEqual(mesh.metadata?.is2D, true, "Should be marked as 2D");
+        assert.strictEqual((mesh.metadata as LineMeshMetadata | null)?.is2D, true, "Should be marked as 2D");
     });
 
     test("create2DArrow supports normal arrow type", () => {

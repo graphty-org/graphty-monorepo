@@ -16,6 +16,7 @@ describe("the dot subpath entry", () => {
             "dotImporter",
             "graphvizFont",
             "graphvizPosBends",
+            "graphvizPosCurve",
             "requestedLayout",
         ]);
         expect(dot.dotImporter.format).toBe("dot");

@@ -32,13 +32,13 @@
  * Usage: node tools/check-peer-deps-stable.mjs [--self-test]
  */
 
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import semver from "semver";
 
+import { git as runGit } from "./lib/git.mjs";
 import { workspaceDirs } from "./workspace-files.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -154,7 +154,7 @@ export function declaresPeerChange(message, scopes, problem) {
  * @returns its output
  */
 function git(...args) {
-    return execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 26 });
+    return runGit(args, { cwd: root, trim: false });
 }
 
 /**

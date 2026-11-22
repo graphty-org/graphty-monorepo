@@ -12,6 +12,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { pixelsAt } from "../helpers/canvas-pixels";
 import { SKYBOX_PNG } from "../session/history/fixtures";
 
 const containers: HTMLElement[] = [];
@@ -63,5 +64,37 @@ describe("graphty-skybox-loaded", () => {
         element.background = { backgroundType: "skybox", data: url };
 
         assert.deepEqual((await failed).detail, { code: "E_IMAGE_LOAD", params: { url } });
+    });
+
+    it("draws a flat picture still behind the graph, covering the canvas", async () => {
+        const element = await mount();
+        const picture = document.createElement("canvas");
+        picture.width = 16;
+        picture.height = 9;
+        const context = picture.getContext("2d")!;
+        context.fillStyle = "#ff0000";
+        context.fillRect(0, 0, 16, 9);
+        const url = picture.toDataURL("image/png");
+        const loaded = new Promise<unknown>((resolve) => {
+            element.addEventListener("graphty-skybox-loaded", resolve, { once: true });
+        });
+
+        element.background = { backgroundType: "skybox", data: url, projection: "flat", color: "#ffffff" };
+        await loaded;
+        // waitForSettled() waits only for queued operations; the picture (the backdrop's shader
+        // compiling after its image arrives) is what waitForStableFrame() waits for.
+        await element.waitForStableFrame();
+
+        assert.isNull(element.graph.scene.getMeshByName("testdome"), "no photo dome is built");
+        const corners = await pixelsAt(element, [
+            { x: 2, y: 2 },
+            { x: 398, y: 2 },
+            { x: 200, y: 150 },
+            { x: 2, y: 298 },
+            { x: 398, y: 298 },
+        ]);
+        for (const [r, g, b] of corners) {
+            assert.deepStrictEqual([r > 200, g < 60, b < 60], [true, true, true], `${r},${g},${b}`);
+        }
     });
 });

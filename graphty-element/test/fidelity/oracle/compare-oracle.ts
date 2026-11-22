@@ -224,6 +224,12 @@ export const ORACLE_TOLERANCES = {
     /** A radial gradient's middle within this fraction of its node's box. */
     gradientCenter: 0.1,
     /**
+     * A gradient's colors are compared at each place along it, or this share of its length to either side on graphty's:
+     * a hard switch on the place itself reads either color, and a switch drawn a hair off the oracle's, as a band split
+     * at a laid spline's parameter is (dot-specimen-edges-lines color-segments: 0.0006 of the line), is no miss.
+     */
+    gradientShare: 0.01,
+    /**
      * An arrowhead's length and width: their ratio in this range, as a node's size, or within `pixel` of the
      * oracle's, which a rounding on a small head moves by more than the ratio allows.
      */
@@ -1045,6 +1051,26 @@ const insideNode = (n: PNode, [x, y]: Pt): boolean => {
 };
 
 /**
+ * Whether a line's end lies on a node's box, within a pixel, and out past the ellipse the box holds by more than one:
+ * where the program stopped the line on an outline that reaches the box (a notched note's corner). Not for a box or a
+ * round node, which are cut at their own outline already.
+ * @param n - the node
+ * @param end - the line's end
+ * @param pixel - one render pixel, in the node's frame
+ * @returns whether it does
+ */
+export function onBoxPastEllipse(n: PNode, end: Pt, pixel: number): boolean {
+    // a round node's box is no outline: a line stopped there short of the ellipse leaves a gap a reader sees
+    if (n.shape === null || ["rect", "roundrect", "ellipse"].includes(n.shape) || !(n.w > 0 && n.h > 0)) {
+        return false;
+    }
+    const [dx, dy] = [Math.abs(end[0] - n.cx), Math.abs(end[1] - n.cy)];
+    const [hw, hh] = [n.w / 2, n.h / 2];
+    const onBox = dx <= hw + pixel && dy <= hh + pixel && (dx >= hw - pixel || dy >= hh - pixel);
+    return onBox && !insideNode({ ...n, shape: "ellipse", w: n.w + 2 * pixel, h: n.h + 2 * pixel }, end);
+}
+
+/**
  * A path without its ends inside a node: from where it first leaves the start node to where it last enters the
  * end node, each crossing found on its segment. One program draws an edge from border to border and another from
  * center to center under opaque nodes; a reader sees the same line, so a route is judged on the part between the
@@ -1475,7 +1501,13 @@ function gradientMissAsRun(
     if (o.kind !== g.kind) {
         return { miss: 1, ...out };
     }
-    const colors = Math.max(...RAMP_AT.map((t) => deltaE(rampColor(o, t), rampColor(g, t))));
+    const near = (t: number): number[] =>
+        [t - ORACLE_TOLERANCES.gradientShare, t, t + ORACLE_TOLERANCES.gradientShare].map((u) =>
+            Math.min(1, Math.max(0, u)),
+        );
+    const colors = Math.max(
+        ...RAMP_AT.map((t) => Math.min(...near(t).map((u) => deltaE(rampColor(o, t), rampColor(g, u))))),
+    );
     let miss = Math.max(0, colors - ORACLE_TOLERANCES.colorDeltaE);
     // a ramp of one color looks the same run either way (Pajek's gradient between two vertices of one color), so it
     // has no direction to judge
@@ -1548,7 +1580,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "node.shape": "same shape class, where the oracle's can be told",
     "node.fill": `both unfilled, or both filled within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "node.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05`,
-    "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees, a radial one's middle within ${String(ORACLE_TOLERANCES.gradientCenter)} of its node's box`,
+    "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it (graphty's within ${String(ORACLE_TOLERANCES.gradientShare)} of its length), a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees, a radial one's middle within ${String(ORACLE_TOLERANCES.gradientCenter)} of its node's box`,
     "node.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and at an opacity as a fill's, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
     "node.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
     "node.ring": `a ring clear outside the outline (an outline ring, a second periphery) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity as a fill's, its width ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}], the same line class, and how far it reaches out from the node in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
@@ -1584,7 +1616,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.opacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05`,
     "edge.dash":
         "same line class (solid, dashed, dotted, dash-dot from the dashes and gaps against the width; double, zigzag, sine wave, slashes, arrows, a taper to a point from a pattern's geometry); a pattern no class names matches nothing",
-    "edge.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction against the edge's chord within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
+    "edge.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it (graphty's within ${String(ORACLE_TOLERANCES.gradientShare)} of its length), a linear one's direction against the edge's chord within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
     "edge.outline": `a band under the line (a line outline, an edge background) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its whole width ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}] and its opacity within ${String(ORACLE_TOLERANCES.opacity)}`,
     "edge.overlay": `a band over the line (Cytoscape.js's overlay) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its whole width ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}] and its opacity within ${String(ORACLE_TOLERANCES.opacity)}`,
     "edge.arrow": "an arrowhead at the same ends",
@@ -1985,6 +2017,16 @@ function withEdges(box: PBox, edges: readonly PEdge[], nodes: ReadonlySet<string
     }
     return out;
 }
+
+/**
+ * Whether a font size in px is legible: at least {@link ORACLE_TOLERANCES}' `legibleFontPx`, less the share the fitted
+ * scale is good to (`labelRuleShare`). Pajek's 1 px label, drawn 1 px by graphty on the same canvas, reads 0.999999 px
+ * once divided by a fitted scale of 1.000001 (pajek-lin-rel4 v226, issue #8193).
+ * @param px - the size
+ * @returns true for a legible size
+ */
+export const legiblePx = (px: number): boolean =>
+    px >= ORACLE_TOLERANCES.legibleFontPx * (1 - ORACLE_TOLERANCES.labelRuleShare);
 
 /** The share of a canvas a box fills along its tighter axis: 1 when it fits the canvas exactly one way. */
 const fillOf = (b: PBox, width: number, height: number): number =>
@@ -2432,6 +2474,21 @@ export function compareOracle(
         if (!bodied(on) || !bodied(at)) {
             return [undefined, undefined];
         }
+        // a line the program stops on its node's box out past the ellipse the box holds is cut at the boxes on both
+        // sides: the outline reaches the box there (graphml-libcitygml-mapping n38 -> n14: yEd stops at a UML note's
+        // top left corner, which the scene classes as a hexagon, and graphty's line, run to the center, was cut 20 px
+        // inside at the ellipse)
+        if (
+            on.figure === undefined &&
+            at.figure === undefined &&
+            end !== undefined &&
+            onBoxPastEllipse(on, end, pixel)
+        ) {
+            return [
+                { ...on, shape: "rect" },
+                { ...at, shape: "rect" },
+            ];
+        }
         return at.figure !== undefined && runsToMiddle(on, end)
             ? [on, at]
             : [
@@ -2805,14 +2862,13 @@ export function compareOracle(
             j.add("edge.wiggle", "edge", id, Math.max(0, Math.abs(rg - ro) - allowed), ro, rg);
         }
         if (o.stroke !== null && g.stroke !== null) {
-            j.add(
-                "edge.color",
-                "edge",
-                id,
-                Math.max(0, deltaE(o.stroke.color, g.stroke.color) - T.colorDeltaE),
-                o.stroke.color,
-                g.stroke.color,
-            );
+            // a line drawn as parallel strands is its strands' colors, strand by strand; a count that differs misses
+            const [os, gs] = [o.stroke.strands ?? [o.stroke.color], g.stroke.strands ?? [g.stroke.color]];
+            const colorMiss =
+                os.length === gs.length
+                    ? Math.max(...os.map((c, i) => deltaE(c, gs[i])))
+                    : Math.max(100, ...os.map((c) => deltaE(c, g.stroke?.color ?? c)));
+            j.add("edge.color", "edge", id, Math.max(0, colorMiss - T.colorDeltaE), os.join(" "), gs.join(" "));
             // a pattern drawn as a fill of its own (slashes, arrows, a double line) has no width to read; a width in
             // screen pixels (a line at its screen floor, sigma's minEdgeThickness) is the same whatever the frame's scale
             if (Number.isFinite(o.stroke.width)) {
@@ -2915,7 +2971,16 @@ export function compareOracle(
             } else if (place !== null) {
                 j.add("edge.arrowPlace", "edge", at, place.miss, place.oracle, place.graphty);
             }
-            j.add("edge.arrowFill", "edge", at, oa.filled === gg.filled ? 0 : 1, oa.filled, gg.filled);
+            // a head filled in the canvas's own color and drawn with no outline shows nothing on either side: the
+            // oracle's reads hollow with no color (associate.ts arrowFrom), graphty's as filled in that color
+            // (graphml-synthetic-edges n17 -> n27 and n27 -> n36: white lines and white heads on white, in both)
+            const blank =
+                !oa.filled &&
+                oa.color === null &&
+                gg.filled &&
+                gg.color !== null &&
+                deltaE(gg.color, oracle.background ?? "#ffffff") <= 3;
+            j.add("edge.arrowFill", "edge", at, oa.filled === gg.filled || blank ? 0 : 1, oa.filled, gg.filled);
             if (oa.color !== null && gg.color !== null) {
                 j.add(
                     "edge.arrowColor",
@@ -3186,7 +3251,7 @@ export function compareOracle(
         // (extract-scene.ts), so an oracle's that small is left out too (dot-real-depcruise's 9 pt cluster names at
         // about 1 px, issue #5756)
         const legible = (t: PText | null, scale: number): string | null =>
-            t !== null && (t.sizePx === 0 || t.sizePx / scale >= T.legibleFontPx) ? t.content : null;
+            t !== null && (t.sizePx === 0 || legiblePx(t.sizePx / scale)) ? t.content : null;
         const oWords = legible(o.label, lengthScale);
         const gWords = legible(g.label, 1);
         if (oWords !== null || gWords !== null) {
@@ -3231,7 +3296,7 @@ export function compareOracle(
     // a text under one render pixel is no text to a reader, as judgeLabel and extract-scene.ts drop graphty's: the
     // further lines of a wrapped node label Cytoscape draws at 0.15 px (cx-ddram, node 6907), which the association
     // leaves as free text when it drops the first line with its node
-    const legibleText = (t: PText): boolean => t.sizePx === 0 || t.sizePx / lengthScale >= T.legibleFontPx;
+    const legibleText = (t: PText): boolean => t.sizePx === 0 || legiblePx(t.sizePx / lengthScale);
     // Words a program drew as glyph outlines (Cytoscape desktop's labels on cx-polygenic-sle, each a white halo and
     // the black glyphs over it) say no words: one stray per place, drawn where graphty draws any text over it
     const glyphs = new Map<string, PBox>();
@@ -3841,6 +3906,21 @@ function levelOnSlope(rotation: number, line: number, tol: number): boolean {
 }
 
 /**
+ * Whether a text paints anything: its words, their outline, or its box's fill or line.
+ * @param t - the text
+ * @returns false for a text drawn wholly clear
+ */
+function paints(t: PText): boolean {
+    const bg = t.background;
+    return (
+        t.opacity > 0 ||
+        (t.outline?.opacity ?? 0) > 0 ||
+        (bg?.fill?.opacity ?? 0) > 0 ||
+        (bg?.stroke !== null && bg?.stroke !== undefined && bg.stroke.opacity > 0 && bg.stroke.width > 0)
+    );
+}
+
+/**
  * Judges a label: its words (unless the element's own property does), size, weight, style, family, color, opacity,
  * rotation, lines and their alignment, outline, background, and its place -- against its node's or group's box, or
  * along its edge's line.
@@ -3861,11 +3941,15 @@ function judgeLabel(
     const T = ORACLE_TOLERANCES;
     // A label under one render pixel is no label to a reader, on graphty's side (extract-scene.ts) and the oracle's.
     // A raster oracle (sigma) names the labels it drew but not their size (sizePx 0): those are shown.
-    const legible = oracle !== null && (oracle.sizePx === 0 || oracle.sizePx / scale >= T.legibleFontPx);
+    // A label that paints nothing (words, outline and box all clear) is no label to a reader either, on both sides:
+    // at text-opacity 0 Cytoscape.js draws no text (json-cyjs-synth-nodes n67), Cytoscape desktop writes one at
+    // opacity 0, and graphty draws its plane clear.
+    const legible = oracle !== null && (oracle.sizePx === 0 || legiblePx(oracle.sizePx / scale)) && paints(oracle);
     const o = legible ? oracle : null;
     // and graphty's by the same measure, for a text the scene keeps however small: a node's further texts
     // (`shape.texts`, Cytoscape's chart item labels at their default 1 px, xgmml-specimen-images-charts-p5)
-    const g = graphty !== null && (graphty.sizePx === 0 || graphty.sizePx >= T.legibleFontPx) ? graphty : null;
+    const g =
+        graphty !== null && (graphty.sizePx === 0 || legiblePx(graphty.sizePx)) && paints(graphty) ? graphty : null;
     // the oracle hid it by its own choice (overlap avoidance on an unrelated layout): nothing to judge
     if (oracle === null && oracleMayHide) {
         return;

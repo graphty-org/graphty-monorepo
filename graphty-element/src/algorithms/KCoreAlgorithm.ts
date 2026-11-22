@@ -21,7 +21,7 @@ const K_CORE_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
  * K-core decomposition: how deep in the graph's densely connected core each node sits.
  *
  * A node's core number is the largest k for which it belongs to a k-core -- the largest part of
- * the graph in which every node has at least k neighbours. Every node has one, so every node is
+ * the graph in which every node has at least k neighbors. Every node has one, so every node is
  * measured.
  */
 export class KCoreAlgorithm extends MetricAlgorithm {
@@ -45,7 +45,7 @@ export class KCoreAlgorithm extends MetricAlgorithm {
      * @returns One core number per node.
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
-        // Undirected: a core counts neighbours, whichever way the record declared the edge. No
+        // Undirected: a core counts neighbors, whichever way the record declared the edge. No
         // shipped accelerator computes cores, so this runs the index-based CPU port.
         const { snapshot, run } = this.accelerated("kCoreDecomposition", "undirected");
 
@@ -62,7 +62,7 @@ export class KCoreAlgorithm extends MetricAlgorithm {
 
         return {
             nodes,
-            // A count of neighbours, published as it was counted.
+            // A count of neighbors, published as it was counted.
             normalization: "none",
             caveats: {
                 exact: true,

@@ -1,5 +1,5 @@
 /**
- * @file `@graphty/graphty-element/commands`: the serialisable form of every verb.
+ * @file `@graphty/graphty-element/commands`: the serializable form of every verb.
  *
  * Every change a session makes is a command: plain data with an `op`, which `session.execute`
  * runs, a transaction groups into one undoable step, and a recipe, a journal or an agent's tool
@@ -104,6 +104,11 @@ export const COMMANDS = Object.freeze({
         /** "undoable": a step in the history. */
         undo: "undoable",
     },
+    /** `data.steps-set`: one change to the sources and steps the graph is rebuilt from (the source-steps experiment). */
+    "data.steps-set": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
     /** `data.declare`: declare what a column measures, overriding what the element inferred. */
     "data.declare": {
         /** "undoable": a step in the history. */
@@ -146,6 +151,11 @@ export const COMMANDS = Object.freeze({
     },
     /** `shader.set`: set one shader's text in the project, or remove it with null. */
     "shader.set": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `asset.defaults`: change one model's own settings. */
+    "asset.defaults": {
         /** "undoable": a step in the history. */
         undo: "undoable",
     },
@@ -251,6 +261,46 @@ export const COMMANDS = Object.freeze({
     },
     /** `view.remove`: forget saved views. */
     "view.remove": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `view.rename`: give a saved view another name. */
+    "view.rename": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `view.move`: move a saved view to another place in the list. */
+    "view.move": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `view.key`: give a saved view a key, or take it away. */
+    "view.key": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `view.starting`: write the starting cameras into a project that has none. */
+    "view.starting": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `tour.save`: keep a tour under a name, replacing any tour already under it. */
+    "tour.save": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `tour.remove`: forget saved tours. */
+    "tour.remove": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `tour.rename`: give a saved tour another name. */
+    "tour.rename": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `tour.move`: move a saved tour to another place in the list. */
+    "tour.move": {
         /** "undoable": a step in the history. */
         undo: "undoable",
     },

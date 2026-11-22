@@ -3,23 +3,21 @@ import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session
 import { ColorSwatch, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { nodeModelsOn } from "../features";
+import { RenderCount } from "../renderCount";
 import { useNumberFormats } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { CatalogGlyph } from "../style/ValueField";
 import { colorName } from "../style/words";
+import { legendSections } from "./legendSections";
 import {
     belowLine,
     isSizeBlock,
-    keyNames,
-    keySections,
     NOTHING_KEYED,
     overflowLine,
     swatchName,
     swatchText,
     swatchValue,
 } from "./legendWords";
-import { modelName, pictureName } from "./models";
 
 /** Props for LegendCard. */
 interface LegendCardProps {
@@ -217,17 +215,24 @@ function entriesBelow(card: HTMLElement): number {
  * Watches the card's overflow as it resizes; lets a card that runs only a little over its cap
  * grow to fit, and stops a card that scrolls at a line's edge, so no line shows cut in half.
  * @param ref - the card.
+ * @param blocks - the blocks the card draws.
+ * @param formats - the Number formats it spells them with.
  * @returns whether it scrolls, and how many entries lie below what it shows.
  */
-function useScrolls(ref: React.RefObject<HTMLElement | null>): { scrolls: boolean; below: number } {
+function useScrolls(
+    ref: React.RefObject<HTMLElement | null>,
+    blocks: readonly LegendBlock[],
+    formats: unknown,
+): { scrolls: boolean; below: number } {
     const [scrolls, setScrolls] = useState(false);
     const [below, setBelow] = useState(0);
     const remeasure = useRef<(() => void) | null>(null);
-    // After every render: the line at the foot comes and goes with what it counts, and the card's
-    // own size does not change when it does.
+    // When what it draws changes, and when the line at the foot comes or goes with what it counts:
+    // the card's own size does not change then. Measuring forces a layout, so never on a render
+    // that changed neither (#9423).
     useLayoutEffect(() => {
         remeasure.current?.();
-    });
+    }, [blocks, formats, below]);
     useLayoutEffect(() => {
         const card = ref.current;
         if (!card) {
@@ -274,30 +279,6 @@ function useScrolls(ref: React.RefObject<HTMLElement | null>): { scrolls: boolea
 }
 
 /**
- * With the node-models experiment on, a model's or a picture's rows named as the Style panel names
- * them ("police"), never by the element's asset id or the address a layer names, whose query may
- * hold a signed token.
- * @param session - the session.
- * @param block - one legend block.
- * @returns the block, its model and picture rows named.
- */
-function withAssetNames(session: GraphSession, block: LegendBlock): LegendBlock {
-    if (block.channel !== "node.model" && block.channel !== "node.texture") {
-        return block;
-    }
-    const nameOf = block.channel === "node.model" ? modelName : pictureName;
-    return {
-        ...block,
-        swatches: block.swatches.map((swatch) => {
-            // What it paints is the ref itself, so it is not printed beside the name either.
-            const { paints, ...rest } = swatch;
-            const ref = typeof paints === "string" ? paints : swatch.value;
-            return typeof ref === "string" ? { ...rest, name: swatch.name ?? nameOf(session, ref) } : swatch;
-        }),
-    };
-}
-
-/**
  * The legend card (tier1-design.md section 2.4): read-only, one section per channel a row paints
  * from the data, the row that wins on top. Each section is titled "<Property>: <row>"; a run's
  * node and edge highlight in one color share one section titled by the run.
@@ -311,76 +292,74 @@ function withAssetNames(session: GraphSession, block: LegendBlock): LegendBlock 
  */
 export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): React.JSX.Element {
     const ref = useRef<HTMLElement>(null);
-    const { scrolls, below } = useScrolls(ref);
     // The reader's Number format respells the key's values.
-    useNumberFormats();
+    const formats = useNumberFormats();
+    const { scrolls, below } = useScrolls(ref, blocks, formats);
     // The element lists the stack bottom first; the card reads top first, the winner first.
-    const names = keyNames(session);
-    const sections = keySections(
-        nodeModelsOn(session) ? blocks.map((block) => withAssetNames(session, block)) : blocks,
-        names,
-    );
+    const sections = legendSections(session, blocks);
     return (
-        <Paper
-            ref={ref}
-            component="section"
-            aria-label="Legend"
-            className="ws-legend-card cm-focus-inside"
-            // A key that scrolls takes focus, so the keyboard can scroll it too; its scrollbar says
-            // that more lies below. Its ring is the app's shared inset one, on the card's own edge.
-            tabIndex={scrolls ? 0 : undefined}
-            withBorder
-            shadow="xs"
-            p="xs"
-        >
-            <Stack gap="xs">
-                {sections.length === 0 ? (
-                    <Text size="xs" c="dimmed">
-                        {NOTHING_KEYED}
+        <RenderCount id="legend-card">
+            <Paper
+                ref={ref}
+                component="section"
+                aria-label="Legend"
+                className="ws-legend-card cm-focus-inside"
+                // A key that scrolls takes focus, so the keyboard can scroll it too; its scrollbar says
+                // that more lies below. Its ring is the app's shared inset one, on the card's own edge.
+                tabIndex={scrolls ? 0 : undefined}
+                withBorder
+                shadow="xs"
+                p="xs"
+            >
+                <Stack gap="xs">
+                    {sections.length === 0 ? (
+                        <Text size="xs" c="dimmed">
+                            {NOTHING_KEYED}
+                        </Text>
+                    ) : null}
+                    {sections.map(({ title, block, entry, merged, scope, covered }) => {
+                        const continuous = block.kind === "sequential" || block.kind === "diverging";
+                        return (
+                            <fieldset
+                                key={`${block.layerId}-${block.channel}`}
+                                // Named once: a merged section's one row already says its title, and a
+                                // titled section's heading line is hidden from a screen reader, which
+                                // hears the title as the section's name.
+                                aria-label={merged ? undefined : title}
+                                className="ws-legend-section"
+                            >
+                                {/* A run's one highlight is one line: its chip beside the run's name. */}
+                                {!merged && (
+                                    <Text size="xs" fw={500} aria-hidden="true">
+                                        {title}
+                                    </Text>
+                                )}
+                                {continuous ? (
+                                    <Ramp block={block} title={title} />
+                                ) : (
+                                    <List block={block} entry={merged ? title : entry} />
+                                )}
+                                {scope === null ? null : (
+                                    <Text size="xs" c="dimmed">
+                                        {scope}
+                                    </Text>
+                                )}
+                                {covered === null ? null : (
+                                    <Text size="xs" c="dimmed">
+                                        {covered}
+                                    </Text>
+                                )}
+                            </fieldset>
+                        );
+                    })}
+                </Stack>
+                {/* A key that scrolls says how much lies below; a scrollbar alone is easy to miss. */}
+                {below > 0 ? (
+                    <Text size="xs" c="dimmed" className="ws-legend-more">
+                        {belowLine(below)}
                     </Text>
                 ) : null}
-                {sections.map(({ title, block, entry, merged, scope, covered }) => {
-                    const continuous = block.kind === "sequential" || block.kind === "diverging";
-                    return (
-                        <fieldset
-                            key={`${block.layerId}-${block.channel}`}
-                            // Named once: a merged section's one row already says its title, and a
-                            // titled section's heading line is hidden from a screen reader, which
-                            // hears the title as the section's name.
-                            aria-label={merged ? undefined : title}
-                            className="ws-legend-section"
-                        >
-                            {/* A run's one highlight is one line: its chip beside the run's name. */}
-                            {!merged && (
-                                <Text size="xs" fw={500} aria-hidden="true">
-                                    {title}
-                                </Text>
-                            )}
-                            {continuous ? (
-                                <Ramp block={block} title={title} />
-                            ) : (
-                                <List block={block} entry={merged ? title : entry} />
-                            )}
-                            {scope === null ? null : (
-                                <Text size="xs" c="dimmed">
-                                    {scope}
-                                </Text>
-                            )}
-                            {covered === null ? null : (
-                                <Text size="xs" c="dimmed">
-                                    {covered}
-                                </Text>
-                            )}
-                        </fieldset>
-                    );
-                })}
-            </Stack>
-            {/* A key that scrolls says how much lies below; a scrollbar alone is easy to miss. */}
-            {below > 0 ? (
-                <Text size="xs" c="dimmed" className="ws-legend-more">
-                    {belowLine(below)}
-                </Text>
-            ) : null}
-        </Paper>
+            </Paper>
+        </RenderCount>
     );
 }

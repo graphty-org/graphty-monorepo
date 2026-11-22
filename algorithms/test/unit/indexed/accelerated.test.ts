@@ -1041,7 +1041,7 @@ describe("accelerated(acc) routing for PageRank and eigenvector centrality", () 
                 ["d", "e"],
             ]),
         );
-        // Parallel edges: the port counts the neighbour once, the accelerator every arc.
+        // Parallel edges: the port counts the neighbor once, the accelerator every arc.
         const multi = new GraphBuilder({ directed: false, weighted: false });
         for (const [u, v] of [
             ["a", "b"],
@@ -1368,7 +1368,7 @@ describe("accelerated(acc) routing for Katz and HITS", () => {
     it("keeps Katz on the port when its series may diverge: alpha times the spectral-radius bound reaches 1", async () => {
         // A hub joined both ways to sixteen leaves has spectral radius sqrt(16) = 4, and the bound
         // is that exactly: at alpha 0.25 the series may diverge, where an f32 iteration with no
-        // normaliser can overflow, so the port answers, and refuses the run that does not converge.
+        // normalizer can overflow, so the port answers, and refuses the run that does not converge.
         // Just below it the accelerator is asked.
         const g = new Graph({ directed: true });
         for (let i = 0; i < 16; i++) {

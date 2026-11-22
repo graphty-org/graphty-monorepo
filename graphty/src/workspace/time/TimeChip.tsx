@@ -16,7 +16,8 @@ import { windowWords } from "./timeWords";
  */
 export function TimeChip(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useSessionEvents(session, TIME_EVENTS);
+    // The time window is not a style layer: a change to the layers alone does not draw the chip again.
+    useSessionEvents(session, TIME_EVENTS, true);
     if (!session?.time.field || session.time.current === null) {
         return null;
     }

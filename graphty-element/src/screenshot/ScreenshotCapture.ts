@@ -1,3 +1,9 @@
+// EncodeImageAsync draws on Babylon's own dump engine (a WebGL ThinEngine) with the "postprocess"
+// vertex shader looked up by name. Since Babylon 9 nothing on its import path registers that
+// shader, and an unregistered name is fetched as a URL (the app's HTML comes back), so the
+// encode never resolves. Registering it here keeps a node thumbnail independent of load order.
+import "@babylonjs/core/Shaders/postprocess.vertex.js";
+
 import type { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Constants } from "@babylonjs/core/Engines/constants.js";
 import type { Engine } from "@babylonjs/core/Engines/engine.js";
@@ -13,8 +19,10 @@ import { FxaaPostProcess } from "@babylonjs/core/PostProcesses/fxaaPostProcess.j
 import { DefaultRenderingPipeline } from "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
+import { cameraOptionName, cameraRefusal, stateProblem } from "../camera/mode.js";
 import type { ViewInsets } from "../camera/types.js";
 import { colorToHex } from "../config/common.js";
+import type { GraphtyError } from "../errors/index.js";
 import { type Graph, operationQueueOf } from "../Graph.js";
 import { CustomLineRenderer } from "../meshes/CustomLineRenderer.js";
 import { RichTextLabel } from "../meshes/RichTextLabel.js";
@@ -37,6 +45,9 @@ import type {
     ScreenshotOptions,
     ScreenshotResult,
 } from "./types.js";
+
+/** The kinds of pending work that are a picture still loading; see `PendingWork`. */
+const PICTURE_LOADS = ["picture", "model", "font", "basemap"] as const;
 
 /**
  * Handles screenshot capture for graph visualizations using Babylon.js rendering engine.
@@ -131,6 +142,7 @@ export class ScreenshotCapture {
         );
 
         const controller = new AbortController();
+        const stop = options.onProgress && operationQueueOf(this.graph).watchPendingWork(options.onProgress);
         try {
             return await new Promise<ScreenshotResult>((resolve, reject) => {
                 const run = (): void => {
@@ -156,6 +168,7 @@ export class ScreenshotCapture {
                 }, reject);
             });
         } finally {
+            stop?.();
             controller.abort();
         }
     }
@@ -192,7 +205,7 @@ export class ScreenshotCapture {
         }
 
         const options = typeof legend === "object" ? legend : {};
-        const bound = legendSections(this.readLegend());
+        const bound = options.sections ?? legendSections(this.readLegend());
         // "auto" draws only when a layer binds a value; true draws the heading even when none does.
         const sections =
             legend === "auto" && bound.length === 0
@@ -234,12 +247,17 @@ export class ScreenshotCapture {
                 timing.captureNow,
             );
         }
+        // 3. Wait for pictures still loading -- a background, a node's image or 3D model, a font,
+        // the map -- and a frame drawn once they have landed, as waitForStableFrame() does.
+        if (timing.captureNow?.aborted !== true) {
+            await this.waitForPictures(options.signal, timing.captureNow);
+        }
         throwIfAborted(options.signal);
 
         // The legend is read once the queued edits have landed, so the key matches the picture.
         this.legend = this.resolveLegend(options.legend);
 
-        // 3. Handle camera override
+        // 4. Handle camera override
         const cameraOverride = options.camera ? await this.overrideCamera(options, options.camera) : undefined;
 
         // Left out of the picture only: the selection itself, and its events, are untouched. A
@@ -277,6 +295,16 @@ export class ScreenshotCapture {
         options: ScreenshotOptions,
         camera: NonNullable<ScreenshotOptions["camera"]>,
     ): Promise<CameraOverride> {
+        // While immersive the headset owns the camera: refused before anything is changed.
+        const immersive = stateProblem({}, this.graph.getViewMode());
+        if (immersive !== null) {
+            throw cameraRefusal(immersive);
+        }
+
+        // A capture's camera replaces a playing tour. Ended first, so what is saved below to put
+        // back is the pre-tour framing and placement, not the tour's.
+        this.graph.replaceTour();
+
         // Temporarily disable zoom-to-fit to prevent camera from being reset
         const updateManager = this.graph.getUpdateManager();
         const zoomToFitWasEnabled = updateManager.isZoomToFitEnabled();
@@ -289,7 +317,7 @@ export class ScreenshotCapture {
             // A named view frames the graph for the picture, and the picture has none of the
             // screen's chrome in it: the only thing over it is the key this capture draws, so that
             // is the one margin the framing keeps clear.
-            insets: "preset" in camera ? this.graph.getViewInsets() : undefined,
+            insets: cameraOptionName(camera) === undefined ? undefined : this.graph.getViewInsets(),
             // The capture's camera is there for a moment, not placed by the reader, so the
             // element's own framing goes on as before once the capture puts the camera back.
             restorePlacement: this.graph.saveCameraPlacement(),
@@ -297,8 +325,18 @@ export class ScreenshotCapture {
         };
 
         try {
-            const cameraState = "preset" in camera ? this.captureView(options, camera) : camera;
-            await this.graph.setCameraState(cameraState);
+            if ("view" in camera || "preset" in camera) {
+                const name = "view" in camera ? camera.view : camera.preset;
+                const state = this.captureView(options, name, camera.params);
+                // A saved view is judged by the drawing mode as applyCameraView judges it, by name.
+                const problem = stateProblem(state, this.graph.getViewMode(), { name });
+                if (problem !== null) {
+                    throw cameraRefusal(problem);
+                }
+                await this.graph.setCameraState(state);
+            } else {
+                await this.graph.setCameraState(camera);
+            }
             await this.waitForRender();
         } catch (error: unknown) {
             await this.restoreCamera(override);
@@ -311,16 +349,17 @@ export class ScreenshotCapture {
     /**
      * Swap the screen's margins for the capture's key and resolve the named view inside them.
      * @param options - Screenshot configuration options.
-     * @param camera - The named view the capture asked for.
+     * @param name - The named view the capture asked for.
+     * @param params - The view's own options.
      * @returns Where the camera stands for the picture.
      */
     private captureView(
         options: ScreenshotOptions,
-        camera: Extract<NonNullable<ScreenshotOptions["camera"]>, { preset: string }>,
+        name: string,
+        params: Readonly<Record<string, unknown>> | undefined,
     ): CameraState {
         this.graph.setViewInsets(this.legend.sections.length > 0 ? this.reserveLegend() : {});
-        const { params } = camera;
-        return this.graph.resolveCameraPreset(camera.preset, params === undefined ? undefined : { params });
+        return this.graph.resolveCameraPreset(name, params === undefined ? undefined : { params });
     }
 
     /**
@@ -334,7 +373,8 @@ export class ScreenshotCapture {
             this.graph.setViewInsets(override.insets);
         }
 
-        await this.graph.setCameraState(override.original);
+        // The internal path: putting the camera back is no camera API call, so ends no tour.
+        await this.graph.applyCaptureCamera(override.original);
         override.restorePlacement();
         if (override.zoomToFitWasEnabled) {
             this.graph.getUpdateManager().enableZoomToFit();
@@ -482,7 +522,7 @@ export class ScreenshotCapture {
         const { format, quality } = encoding;
         const enhancementState = enhancement?.state;
         // Handle destinations
-        const destinations = finalOptions.destination ?? { blob: true };
+        const destinations = finalOptions.destination ?? {};
         let clipboardStatus: ClipboardStatus = "not-requested";
         let clipboardError: Error | undefined;
 
@@ -512,16 +552,25 @@ export class ScreenshotCapture {
         // Wait for the blob to be ready
         const blob = await blobPromise;
 
+        const errors: GraphtyError[] = [];
+
         // Handle download
-        const downloaded = destinations.download
+        const downloadError = destinations.download
             ? tryDownload(blob, finalOptions.downloadFilename ?? `graph-${Date.now()}.${format}`)
-            : false;
+            : undefined;
+        const downloaded = destinations.download === true && downloadError === undefined;
+        if (downloadError) {
+            errors.push(downloadError);
+        }
 
         // Wait for clipboard operation to complete
         if (clipboardPromise) {
             const result = await clipboardPromise;
             clipboardStatus = result.status;
             clipboardError = result.error;
+            if (result.error) {
+                errors.push(result.error);
+            }
         }
 
         const captureTime = Date.now() - startTime;
@@ -537,6 +586,7 @@ export class ScreenshotCapture {
             downloaded,
             clipboardStatus,
             clipboardError,
+            errors,
             metadata: {
                 width: dimensions.width,
                 height: dimensions.height,
@@ -660,6 +710,57 @@ export class ScreenshotCapture {
                 cleanup();
                 resolve();
             }
+        });
+    }
+
+    /**
+     * Wait until no picture is still loading and a frame has been drawn since, asked after every
+     * drawn frame. Only the record of pending work's loads are waited for, not the rest of what
+     * `waitForStableFrame()` waits for (a camera turning by itself never rests), and each load
+     * ends by itself, landed or failed.
+     * @param signal - Aborted, the wait rejects with the signal's reason.
+     * @param captureNow - Aborted, the wait ends at once.
+     * @returns Promise that resolves once a frame was drawn with nothing loading.
+     */
+    private async waitForPictures(signal?: AbortSignal, captureNow?: AbortSignal): Promise<void> {
+        const { pending } = this.graph.getUpdateManager();
+        const loading = (): boolean => PICTURE_LOADS.some((kind) => pending.isPending(kind));
+        if (!loading()) {
+            return;
+        }
+        throwIfAborted(signal);
+
+        await new Promise<void>((resolve, reject) => {
+            const stop = new AbortController();
+            const finish = (outcome: () => void): void => {
+                this.scene.onAfterRenderObservable.remove(observer);
+                stop.abort();
+                outcome();
+            };
+            const observer = this.scene.onAfterRenderObservable.add(() => {
+                if (loading()) {
+                    this.requestFrame();
+                } else {
+                    finish(resolve);
+                }
+            });
+            captureNow?.addEventListener(
+                "abort",
+                () => {
+                    finish(resolve);
+                },
+                { signal: stop.signal },
+            );
+            signal?.addEventListener(
+                "abort",
+                () => {
+                    finish(() => {
+                        reject(abortReason(signal));
+                    });
+                },
+                { signal: stop.signal },
+            );
+            this.requestFrame();
         });
     }
 
@@ -1001,18 +1102,22 @@ interface Enhancement {
 }
 
 /**
- * Download a blob, reporting whether it went.
+ * Download a blob, reporting why it did not go.
  * @param blob - The picture.
  * @param filename - The file name.
- * @returns true when the download started; a failed download does not fail the capture.
+ * @returns undefined when the download started, else the error; a failed download does not fail the capture.
  */
-function tryDownload(blob: Blob, filename: string): boolean {
+function tryDownload(blob: Blob, filename: string): GraphtyError | undefined {
     try {
         downloadBlob(blob, filename);
-        return true;
-    } catch {
-        // Download failed, but we continue
-        return false;
+        return undefined;
+    } catch (error) {
+        return captureError(
+            "E_CAPTURE_FAILED",
+            "Failed to download the image",
+            { media: "image", destination: "download" },
+            error,
+        );
     }
 }
 

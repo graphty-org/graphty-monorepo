@@ -642,6 +642,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
     #precision: AccelerationPrecision = CPU_PRECISION;
 
+    /** The backend the running simulation computes on: `"cpu"`, or the accelerator's. */
+    #backend = "cpu";
+
     readonly #options: SimulationEngineOptions;
     readonly #controller: AccelerationController;
     readonly #report: (error: GraphtyError) => void;
@@ -978,6 +981,14 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     get precision(): AccelerationPrecision {
         return this.#precision;
+    }
+
+    /**
+     * The hardware the running simulation computes on, for a caller that records what drew it.
+     * @returns `"cpu"`, or the accelerator's backend (`"webgpu"`).
+     */
+    get accelerator(): string {
+        return this.#backend;
     }
 
     /**
@@ -2568,6 +2579,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#builtWith = null;
         this.#accelerated = false;
         this.#precision = CPU_PRECISION;
+        this.#backend = "cpu";
 
         const decision = this.#controller.plan({ capability: this.capability, nodeCount: snapshot.nodeCount });
         const accelerator = decision.accelerated ? decision.accelerator : null;
@@ -2607,6 +2619,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#accelerated = decision.accelerated;
         this.#software = decision.accelerated && decision.software;
         this.#precision = decision.accelerated ? decision.precision : CPU_PRECISION;
+        this.#backend = decision.accelerated ? decision.accelerator.backend : "cpu";
         this.#failed = false;
         this.#iterationsDone = 0;
 

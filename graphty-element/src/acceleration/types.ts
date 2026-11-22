@@ -143,6 +143,17 @@ export interface GraphAccelerator {
     /** The hardware, when the backend can describe it. */
     readonly device?: AcceleratorDeviceInfo;
     /**
+     * The package that implements it and its version, read from the package itself. A run or a
+     * layout this accelerator computed lists it among the packages that produced it
+     * (spec/README.md 4.5 rule 6). Absent, none is listed.
+     */
+    readonly package?: {
+        /** The package name, such as `"@graphty/webgpu-graph-algorithms"`. */
+        readonly name: string;
+        /** Its version. */
+        readonly version: string;
+    };
+    /**
      * Resolves when the underlying device is lost and this accelerator stops working.
      *
      * The element awaits it, reports `state: "error"` with `E_DEVICE_LOST`, and attempts to

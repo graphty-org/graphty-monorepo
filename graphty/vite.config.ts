@@ -206,13 +206,39 @@ export default defineConfig(({ mode }) => {
                     // `manualChunks` function, so this is a `codeSplitting` group.
                     codeSplitting: {
                         groups: [
-                            { name: "preload-helper", test: /vite\/preload-helper/, priority: 2 },
+                            //
+                            // jmespath (CommonJS) rides in the same chunk (#9616). In the `start` group
+                            // below it landed in one start chunk while a module that calls it at top
+                            // level landed in another, the two chunks importing each other: the
+                            // caller's chunk ran first and the landing page threw "nn is not a
+                            // function". This chunk imports nothing of the app, so no cycle can form,
+                            // and it is on the start page already, so no extra request.
+                            {
+                                name: "preload-helper",
+                                test: /vite\/preload-helper|\/node_modules\/.*\/jmespath\//,
+                                priority: 2,
+                            },
                             // The Babylon.js code only a model or a map needs is a chunk of its own,
                             // fetched with the first model or map, not before the first frame (#9217).
                             {
                                 name: (id) => (babylonSplit.isLazy(id) ? "babylon-lazy" : "babylon"),
                                 test: /\/node_modules\/@babylonjs\//,
                                 priority: 1,
+                            },
+                            // The rest of what the start page loads before any import(), in a few
+                            // chunks instead of about 70 (#8523). Each is a request on the start
+                            // page's critical path. `$initial` alone over-reaches: it follows the
+                            // static imports of re-export barrels (graph-io's, graphty-element's)
+                            // that tree-shaking drops, and one such group put graph-io's importers
+                            // back in the first load. `entriesAware` keeps the bundler's own split
+                            // by which entries use a module, and the threshold (source bytes) merges
+                            // the small pieces. Above about 300 KB it merges a lazy-only piece into
+                            // the start page (+450 KiB gzip); check-size.mjs's budgets catch that.
+                            {
+                                name: "start",
+                                tags: ["$initial"],
+                                entriesAware: true,
+                                entriesAwareMergeThreshold: 200_000,
                             },
                         ],
                     },

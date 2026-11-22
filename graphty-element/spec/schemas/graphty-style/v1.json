@@ -770,7 +770,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 1024,
-            "description": "A predicate in graphty-element's expression language, a subset of JMESPath with no functions (style.md, 'Expressions'), over {data, results} (style.md, 'Paths'); numbers, true, false and null may be written bare (padj < 0.05), and a path without a prefix reads data; at most 1024 characters and 32 levels of nesting."
+            "description": "A version 1 predicate: a path without a prefix reads data, and numbers may be written bare (padj < 0.05); at most 1024 characters and 32 levels of nesting. Opening a version 1 file rewrites each one into a version 2 graphty expression (README 9.1): data. before each path whose first segment is not a root, bare numbers between backticks; one that still does not parse is carried as written and refused on load."
         }
     }
 }

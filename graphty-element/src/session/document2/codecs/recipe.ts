@@ -17,6 +17,8 @@ import { isGraphtyError } from "../../../errors";
 import type { Run, RunStyle } from "../../runs/types";
 import type { ElementSet } from "../../sets/types";
 import type { GraphSession } from "../../types";
+import { markUpgraded, upgradeRun, wasUpgraded } from "../algorithmNames";
+import { layoutRecordJson, layoutRequest } from "../layoutRecord";
 import { projectMemory } from "../memory";
 import type {
     DocumentProblem,
@@ -38,16 +40,17 @@ import {
     isNamespace,
     isObject,
     isRunName,
+    membersOf,
     namespaceFromId,
+    refusedIn,
     renameRuns,
     ruleNamesElements,
     runsRead,
+    scopeMembersOf,
     scopeNamesElements,
     sourcesRead,
     splitRunId,
     STYLE_PARTS,
-    unknownMember,
-    unknownScopeMember,
 } from "./recipeCommands";
 import { markRecipeRun, restoredPositions } from "./results";
 import { fileIdsOf, fileSetId } from "./viewParts";
@@ -354,10 +357,8 @@ function writeRecipe(context: WriteContext): SectionWrite {
     const { layout } = session;
     const layoutCommand: JsonObject = {
         op: "layout.set",
-        id: layout.id,
-        algorithm: layout.engine,
+        ...layoutRecordJson(session, layout),
         dimension: layout.dimension === "2d" ? 2 : 3,
-        ...(Object.keys(layout.options).length === 0 ? {} : { options: layout.options }),
     };
 
     // Run ids become the recipe's names; a run the recipe does not hold keeps its id.
@@ -525,7 +526,8 @@ class Replay {
     }
 
     /**
-     * Report a command whose op this release does not know (recipe.md, rule 7).
+     * Report a command whose op this release does not know (spec 4.3 rule 7): the replay stops,
+     * unless the command says `narrows: false`.
      * @param at - Its position.
      * @param command - The command.
      * @param as - Its `as`, if any.
@@ -569,12 +571,24 @@ class Replay {
             return this.unknownCommand(at, command, as);
         }
 
-        const unknown = unknownMember(command, members);
-        const scopeUnknown = isObject(command.scope) ? unknownScopeMember(command.scope) : undefined;
-        const unknownAt = unknown ?? (scopeUnknown === undefined ? undefined : `scope/${scopeUnknown}`);
+        // A member this reader does not know is must-understand unless `ignorable` names it (spec 10).
+        const own = membersOf(command, members);
+        const scope = isObject(command.scope) ? scopeMembersOf(command.scope) : { ignored: [] };
+        const unknownAt = own.unknown ?? (scope.unknown === undefined ? undefined : `scope/${scope.unknown}`);
         if (unknownAt !== undefined) {
             this.report("E_UNKNOWN_OPTION", `${at}/${unknownAt}`);
             return false;
+        }
+
+        // A refused expression or rule tree leaf is a member this reader does not know (spec 4.8.2 rule 6).
+        const refused = refusedIn(command);
+        if (refused !== undefined) {
+            this.report("E_UNKNOWN_OPTION", `${at}${refused}`);
+            return false;
+        }
+
+        for (const member of [...own.ignored, ...scope.ignored.map((name) => `scope/${name}`)]) {
+            this.report("W_UNKNOWN_MEMBER", `${at}/${member}`);
         }
 
         const reads = runsRead(command).filter((name) => name !== as);
@@ -745,6 +759,18 @@ class Replay {
         const { context } = this;
         const id = this.runId(as);
         markRecipeRun(context.session, id);
+        const upgraded = upgradeRun(
+            context.session.catalog.algorithms(),
+            algorithm,
+            params,
+            `${this.section.pointer}/commands/${at}`,
+            "recipe",
+            context.problems,
+        );
+        if (upgraded?.renamed === true) {
+            markUpgraded(this.section.body);
+        }
+
         if (!context.rerun && !context.canned.has(id)) {
             this.notRun(as);
             return;
@@ -752,7 +778,7 @@ class Replay {
 
         const { seed, sample, exact } = command;
         try {
-            await context.tx.runs.start(algorithm, this.bind(params ?? {}), {
+            await context.tx.runs.start(upgraded?.key ?? algorithm, this.bind(upgraded?.params ?? params ?? {}), {
                 as: id,
                 scope,
                 style: this.style(at, command.style, as),
@@ -768,23 +794,26 @@ class Replay {
     }
 
     private async layout(at: number, command: JsonObject): Promise<void> {
-        const { id, algorithm, dimension, options } = command;
+        const { id, drawnBy, dimension, options } = command;
         if (
             typeof id !== "string" ||
             (dimension !== 2 && dimension !== 3) ||
-            (algorithm !== undefined && typeof algorithm !== "string") ||
+            (drawnBy !== undefined && !isObject(drawnBy)) ||
             (options !== undefined && !isObject(options))
         ) {
             this.report("E_BAD_DOCUMENT", `${at}`);
             return;
         }
 
+        const request = layoutRequest(command, (code, params) => {
+            this.report(code, `${at}`, params);
+        });
         const { tx } = this.context;
         try {
             await tx.layout.setDimension(dimension === 2 ? "2d" : "3d");
             await tx.layout.set(id, {
-                ...(algorithm === undefined ? {} : { engine: algorithm }),
-                ...(options === undefined ? {} : { options: this.bind(options) }),
+                ...(request?.engine === undefined ? {} : { engine: request.engine }),
+                options: this.bind(request?.options ?? {}),
             });
             this.context.restored.add("layout");
             // With rerun off, the results section's positions are restored as they are (spec
@@ -797,6 +826,35 @@ class Replay {
             this.report("E_BAD_DOCUMENT", `${at}`, { reason: isGraphtyError(error) ? error.code : "E_INTERNAL" });
         }
     }
+}
+
+/**
+ * A recipe body with each `algo.run` under its current algorithm key and option names, as a recipe
+ * written back as read is written (spec 10.1 rule 2: a writer writes only current names).
+ * @param body - The body as read.
+ * @param algorithms - The algorithms this reader knows.
+ * @returns The body, the same object when nothing was renamed.
+ */
+function currentNames(body: JsonObject, algorithms: readonly AlgorithmDescriptor[]): JsonObject {
+    if (!Array.isArray(body.commands)) {
+        return body;
+    }
+
+    let renamed = false;
+    const commands = body.commands.map((command: unknown) => {
+        if (!isObject(command) || command.op !== "algo.run" || typeof command.algorithm !== "string") {
+            return command;
+        }
+
+        const upgraded = upgradeRun(algorithms, command.algorithm, command.params, "", "recipe");
+        if (upgraded?.renamed !== true) {
+            return command;
+        }
+
+        renamed = true;
+        return { ...command, algorithm: upgraded.key, params: upgraded.params };
+    });
+    return renamed ? { ...body, commands } : body;
 }
 
 /** The `graphty-recipe` section, version 2. */
@@ -817,6 +875,9 @@ export const recipeCodec: SectionCodec = {
                 : writeRecipe(context),
         );
     },
+    standsAsRead(section) {
+        return !wasUpgraded(section.body);
+    },
     async read(section, context) {
         const header = section.header as unknown as JsonObject;
         const applied = context.applyRecipe === true;
@@ -830,8 +891,11 @@ export const recipeCodec: SectionCodec = {
                         member in header ? [[member, header[member]]] : [],
                     ),
                 ),
-                body: Object.fromEntries(
-                    Object.entries(section.body).filter(([member]) => recipeCodec.members.includes(member)),
+                body: currentNames(
+                    Object.fromEntries(
+                        Object.entries(section.body).filter(([member]) => recipeCodec.members.includes(member)),
+                    ),
+                    context.session.catalog.algorithms(),
                 ),
                 applied,
             });

@@ -11,8 +11,8 @@
 
 import { afterEach, assert, describe, it } from "vitest";
 
-import { CANVAS_KEY_DESCRIPTORS, type CanvasKeyView } from "../../../src/catalog/canvasKeys";
 import type { Graphty } from "../../../index.js";
+import { CANVAS_KEY_DESCRIPTORS, type CanvasKeyView } from "../../../src/catalog/canvasKeys";
 import { click, holdKey, hover, nextFrame, releaseHeldKeys, releaseKey } from "../../helpers/real-input";
 import { applied, camera, EMPTY, HEIGHT, mounted, onCleanup, WIDTH } from "../helpers/mounted-element";
 

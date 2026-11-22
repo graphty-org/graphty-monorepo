@@ -349,7 +349,7 @@ describe("runConversation", () => {
         abort.abort();
         const error = await pending;
         assert.instanceOf(error, TurnFailed);
-        assert.strictEqual(error.failure.code, "AI_CANCELLED");
+        assert.strictEqual(error.failure.code, "AI_CANCELED");
         assert.strictEqual(ran, 0);
     });
 

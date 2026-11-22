@@ -389,7 +389,7 @@ however the tour ended, with `{ reason }`:
 | `reason`         | What ended the tour                                                                                   |
 | ---------------- | ----------------------------------------------------------------------------------------------------- |
 | `"finished"`     | The last hold ended                                                                                   |
-| `"cancelled"`    | `options.signal` aborted, or `cancelCameraAnimation()`                                                |
+| `"canceled"`     | `options.signal` aborted, or `cancelCameraAnimation()`                                                |
 | `"interrupted"`  | The reader dragged, pinched, scrolled, pressed a camera key or clicked the canvas                     |
 | `"replaced"`     | Another tour, a recording, `setCameraState`, `applyCameraView` or a screenshot with a `camera` option |
 | `"mode-changed"` | The drawing mode switched between 2D, 3D and immersive                                                |
@@ -424,7 +424,7 @@ reduced now, and `reduced-motion-changed` fires when that changes.
 
 | Call                                | When canceled                                     | The camera afterwards                                                                                |
 | ----------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `playTour`                          | Resolves `{ reason: "cancelled" }`                | Stays where the tour left it; with `restoreCamera: true` (default false) put back when it finishes   |
+| `playTour`                          | Resolves `{ reason: "canceled" }`                 | Stays where the tour left it; with `restoreCamera: true` (default false) put back when it finishes   |
 | `captureAnimation` with a `tour`    | Rejects with a `GraphtyError`, code `E_CANCELED`  | Always put back, except after the reader's own move, an outside camera move or a drawing mode switch |
 | `captureScreenshot` with a `camera` | Rejects with the signal's reason, an `AbortError` | Always put back                                                                                      |
 

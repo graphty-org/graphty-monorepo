@@ -154,12 +154,12 @@ describe("AiManager", () => {
     });
 
     describe("cancel", () => {
-        it("ends an in-progress command as cancelled", async () => {
+        it("ends an in-progress command as canceled", async () => {
             const running = manager.execute("test");
             manager.cancel();
             const result = await running;
             assert.strictEqual(result.success, false);
-            assert.strictEqual(result.code, "AI_CANCELLED");
+            assert.strictEqual(result.code, "AI_CANCELED");
         });
     });
 });

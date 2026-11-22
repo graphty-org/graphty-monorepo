@@ -750,7 +750,7 @@ export class AiController {
     private lastInput: string | null = null;
     private lastError: Error | null = null;
     /** The messages `cancel()` ended, so their results say canceled, not undone. */
-    private readonly cancelled = new WeakSet<AbortController>();
+    private readonly canceled = new WeakSet<AbortController>();
     /** Who hears that an open live connection no longer knows the conversation. */
     private readonly liveWatchers = new Set<() => void>();
     /** Batches held for approval, by request id, until an event ends each. */
@@ -945,8 +945,8 @@ export class AiController {
      * experiment, so an application that mounts a fresh element can tell that from the reader's Stop.
      * @returns The code.
      */
-    private get cancelCode(): "AI_CANCELLED" | "AI_DISPOSED" {
-        return this.disposed && this.graph.getSession().features.has("assistant") ? "AI_DISPOSED" : "AI_CANCELLED";
+    private get cancelCode(): "AI_CANCELED" | "AI_DISPOSED" {
+        return this.disposed && this.graph.getSession().features.has("assistant") ? "AI_DISPOSED" : "AI_CANCELED";
     }
 
     /**
@@ -1528,7 +1528,7 @@ export class AiController {
             result = { ...result, code: "AI_ROLLBACK_PARTIAL", params: { ...result.params, steps: remaining } };
         }
         // The batch's rollback aborts the message too, so only a cancel overrides the tool's code.
-        if (this.cancelled.has(run.abortController)) {
+        if (this.canceled.has(run.abortController)) {
             result = { ...result, ...this.cancelOutcome(run) };
         }
 
@@ -1769,7 +1769,7 @@ export class AiController {
      * @returns Canceled when `cancel()` ended it, undone otherwise.
      */
     private abortOutcome(run: MessageRun): Outcome {
-        return this.cancelled.has(run.abortController) ? this.cancelOutcome(run) : { code: "AI_UNDONE", params: {} };
+        return this.canceled.has(run.abortController) ? this.cancelOutcome(run) : { code: "AI_UNDONE", params: {} };
     }
 
     /**
@@ -3217,7 +3217,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     cancel(): void {
         // Every request and question still waiting ends too, its message with it.
         for (const id of [...this.approvals.keys(), ...this.questions.keys()]) {
-            const pending = this.closePending(id, { code: "AI_CANCELLED", params: {} });
+            const pending = this.closePending(id, { code: "AI_CANCELED", params: {} });
             void this.enqueue(() => this.saveClosed(pending));
         }
 
@@ -3226,11 +3226,9 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 continue;
             }
 
-            this.cancelled.add(abortController);
+            this.canceled.add(abortController);
             abortController.abort();
-            // `ai-command-cancelled` is the deprecated British name, still sent until the next major.
             this.emitAiEvent({ type: "ai-command-canceled", input, reason: "user" });
-            this.emitAiEvent({ type: "ai-command-cancelled", input, reason: "user" });
         }
     }
 

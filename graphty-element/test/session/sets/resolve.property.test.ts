@@ -333,10 +333,10 @@ describe("the resolver against a naive model", () => {
                     ["set", { set: saved }, { nodes: c.listed }],
                     ["set of set", { set: outer }, { nodes: c.listed }],
                 ];
-                for (const [label, spec, modelled] of legacy) {
+                for (const [label, spec, modeled] of legacy) {
                     const resolved = scope.resolveNow(spec);
                     assert.strictEqual(resolved.nodeCount, resolved.nodes.size);
-                    check(label, null, modelled, resolved.digest, resolved.nodes, resolved.edges);
+                    check(label, null, modeled, resolved.digest, resolved.nodes, resolved.edges);
                 }
 
                 for (const reading of ["induced", "listed"] as const) {

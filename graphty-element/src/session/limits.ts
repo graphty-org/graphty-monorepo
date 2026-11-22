@@ -51,9 +51,35 @@
  * always true of these numbers -- the previous 100,000-edge ceiling already drew at 328 ms a frame
  * -- but the constraint a reader feels has moved from the heap to the frame. Measured on a quiet
  * box, 60 fps holds to 40,000 edges and 30 fps to 80,000, which is the range `largeGraphThreshold`
- * exists to describe; it is 10,000 NODES today and nothing measured it. That is the next number.
- * Past it a node no layer gives a `node.meshDetail` is drawn `"low"` (`StylePainter`), so a sphere
- * is 80 triangles rather than Babylon's default thousands; a layer that sets one keeps it.
+ * exists to describe; it is 10,000 NODES today and nothing measured it.
+ *
+ * NODE DETAIL IS CHOSEN BY TRIANGLES, AND THAT WAS MEASURED (issue #9548). Once the nodes' full
+ * meshes would draw more than `fullDetailTriangleBudget` triangles (the node count times
+ * {@link FULL_DETAIL_NODE_TRIANGLES}, the default icosphere's 320), a node no layer gives a
+ * `node.meshDetail` is drawn `"low"` (`StylePainter`, 20 triangles); a layer that sets one keeps
+ * it. Measured 2026-11-22 with `test/browser/node-detail-frame.bench.test.ts`: default icospheres
+ * on a grid, 1280 x 720, WebGL, median of 29 frames each waited out with `readPixels`, timed only
+ * once `waitForPainted()` and `waitForStableFrame()` resolved and the frame drew every node
+ * (issue #9632: timed earlier, 50,000 low-detail nodes drew a half-swapped scene and looked cheap):
+ *
+ * | nodes, detail | triangles | RTX 4070 SUPER | SwiftShader |
+ * | --- | --- | --- | --- |
+ * | 250 full | 80,000 | 1.4 ms | 22.1 ms |
+ * | 500 full | 160,000 | 1.7 ms | 39.5 ms |
+ * | 1,000 full | 320,000 | 2.5 ms | 65.6 ms |
+ * | 3,000 full | 960,000 | 3.2 ms | 252 ms |
+ * | 10,000 full | 3,200,000 | 15.4 ms | 728 ms |
+ * | 20,000 full | 6,400,000 | 28.0 ms | 1,283 ms |
+ * | 30,000 full | 9,600,000 | 40.1 ms | 2,554 ms |
+ * | 10,000 low | 200,000 | 16.4 ms | 132 ms |
+ * | 50,000 low | 1,000,000 | 40.8 ms | 434 ms |
+ *
+ * 30 fps holds to about 8 million triangles on that card and to about 130,000 in software. The
+ * default, 1,000,000, is about a tenth of the card's figure, for a GPU an order of magnitude slower
+ * (an integrated one): full detail up to 3,125 default nodes. Low detail pays in software (10,000
+ * nodes: 728 ms full, 132 ms low); on the card a frame of 10,000 or more nodes costs about the same
+ * at either detail, since there the cost is per node, not per triangle. A consumer that wants full
+ * detail on a larger graph raises the budget through `limits`, or sets `node.meshDetail` in a layer.
  *
  * WHAT THESE NUMBERS DO NOT COVER, and it is the same exclusion as before: a patterned line style
  * gives every dot and dash a mesh and a ShaderMaterial of its own (`PatternedLineRenderer`), and
@@ -103,6 +129,25 @@ export function graphMemoryBudgetFor(deviceMemoryGb: number | undefined): number
 }
 
 /**
+ * Triangles in one node's full-detail mesh, the default shape: Babylon's icosphere of four
+ * subdivisions. What `fullDetailTriangleBudget` is counted in.
+ */
+export const FULL_DETAIL_NODE_TRIANGLES = 320;
+
+/**
+ * Whether a graph's nodes at full detail would draw past the budget, so a node no layer gives a
+ * detail is drawn low.
+ * @param nodes - How many nodes the graph holds.
+ * @param budget - `Limits.fullDetailTriangleBudget`.
+ * @returns True past the budget.
+ */
+export function fullDetailOverBudget(nodes: number, budget: number): boolean {
+    // ponytail: counts every node as the default shape; a "sphere" layer (thousands of triangles)
+    // is underestimated, which a per-shape count would fix if it matters.
+    return nodes * FULL_DETAIL_NODE_TRIANGLES > budget;
+}
+
+/**
  * What the element runs under until something measures this machine.
  *
  * Read it rather than inventing a number: a consumer's own threshold is a copy that nothing keeps
@@ -110,10 +155,15 @@ export function graphMemoryBudgetFor(deviceMemoryGb: number | undefined): number
  */
 export const DEFAULT_LIMITS: Readonly<DefaultableLimits> = Object.freeze({
     /**
-     * Above this node count a node no layer gives a detail is drawn at low detail, and the layout
-     * recommendation scatters at random. A shipped default, not measured.
+     * Above this node count the layout recommendation scatters at random. A shipped default, not
+     * measured.
      */
     largeGraphThreshold: 10_000,
+    /**
+     * The most triangles the nodes' full-detail meshes may draw before a node no layer gives a
+     * detail is drawn at low detail. Measured (see the file comment), on one machine.
+     */
+    fullDetailTriangleBudget: 1_000_000,
     /**
      * The most nodes the element will hold. Enforced: a load past it fails with `E_TOO_LARGE`.
      * Measured (see the file comment), on one machine; not this machine's figure.
@@ -175,17 +225,24 @@ export function tooLargeError(
 
 /**
  * The ceilings a consumer asks for through `limits`: the most nodes and edges a load may bring,
- * and the most of each drawn as objects of their own (`objectRows`, `objectEdges`).
+ * the most of each drawn as objects of their own (`objectRows`, `objectEdges`), and the triangles
+ * full-detail nodes may draw (`fullDetailTriangleBudget`).
  *
- * Honored under `render-path="batched"`, whose rows cost no meshes of their own; under
- * `"objects"` the {@link DEFAULT_LIMITS} stand, because their reason (the heap a node of meshes
- * costs) still holds there. A field left out keeps its default.
+ * The ceilings are honored under `render-path="batched"`, whose rows cost no meshes of their own;
+ * under `"objects"` the {@link DEFAULT_LIMITS} stand, because their reason (the heap a node of
+ * meshes costs) still holds there. `fullDetailTriangleBudget` is honored on both paths. A field
+ * left out keeps its default.
  * @experimental cosmograph
  */
-export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges">>;
+export type LimitsOption = Partial<
+    Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges" | "fullDetailTriangleBudget">
+>;
 
-/** The fields of {@link LimitsOption}, in a fixed order. */
+/** The ceilings of {@link LimitsOption}, honored only under `"batched"`, in a fixed order. */
 const CEILING_KEYS = ["renderCeiling", "edgesDrawn", "objectRows", "objectEdges"] as const;
+
+/** Every field of {@link LimitsOption}: the ceilings, then the one honored on both paths. */
+const OPTION_KEYS = [...CEILING_KEYS, "fullDetailTriangleBudget"] as const;
 
 /**
  * The ceilings asked for and the ceilings in force, which differ while they are not honored.
@@ -248,7 +305,7 @@ export class RenderLimits {
      */
     request(value: LimitsOption): void {
         const next: LimitsOption = {};
-        for (const key of CEILING_KEYS) {
+        for (const key of OPTION_KEYS) {
             const ceiling = (value as LimitsOption | null | undefined)?.[key];
             if (ceiling === undefined) {
                 continue;
@@ -285,12 +342,17 @@ export class RenderLimits {
     }
 
     #settle(): void {
-        const next = this.#honored ? { ...DEFAULT_LIMITS, ...this.#requested } : DEFAULT_LIMITS;
-        if (CEILING_KEYS.every((key) => next[key] === this.#effective[key])) {
+        const asked = this.#requested.fullDetailTriangleBudget;
+        const next = this.#honored
+            ? { ...DEFAULT_LIMITS, ...this.#requested }
+            : { ...DEFAULT_LIMITS, ...(asked === undefined ? {} : { fullDetailTriangleBudget: asked }) };
+        if (OPTION_KEYS.every((key) => next[key] === this.#effective[key])) {
             return;
         }
 
-        this.#effective = next === DEFAULT_LIMITS ? DEFAULT_LIMITS : Object.freeze(next);
+        this.#effective = OPTION_KEYS.every((key) => next[key] === DEFAULT_LIMITS[key])
+            ? DEFAULT_LIMITS
+            : Object.freeze(next);
         for (const listener of [...this.#listeners]) {
             listener();
         }

@@ -2136,7 +2136,7 @@ class Runs implements SessionRunsApi {
                     this.dropped.add(run.id);
                 }
 
-                run.cancel(`Run "${run.id}" was cancelled (${reason ?? "cancel"}).`);
+                run.cancel(`Run "${run.id}" was canceled (${reason ?? "cancel"}).`);
             },
             { once: true },
         );
@@ -2710,7 +2710,7 @@ class Runs implements SessionRunsApi {
         const { layerIds } = removal;
         const run = this.runs.get(id);
 
-        if (run?.cancellable) {
+        if (run?.cancelable) {
             this.dropped.add(id);
             run.cancel(`Run "${id}" was removed.`);
         }
@@ -2891,7 +2891,7 @@ class Runs implements SessionRunsApi {
      */
     private cancelSiblings(algorithm: AlgorithmKey, keep: RunId): void {
         for (const run of this.runs.values()) {
-            if (run.algorithm === algorithm && run.id !== keep && run.cancellable) {
+            if (run.algorithm === algorithm && run.id !== keep && run.cancelable) {
                 run.cancel(`Replaced by a newer "${algorithm}" run.`);
             }
         }

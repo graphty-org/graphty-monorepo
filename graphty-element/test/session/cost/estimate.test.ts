@@ -276,7 +276,7 @@ describe("estimateCost: the iteration bound comes from the algorithm's own schem
         assert.strictEqual(fewer.basisFacts.iterations, 10);
     });
 
-    it("degrades to modelled when no bound is declared anywhere, however well calibrated", () => {
+    it("degrades to modeled when no bound is declared anywhere, however well calibrated", () => {
         const estimate = estimateCost({
             algorithm: "acme:test",
             descriptor: descriptor({ costClass: "iterative" }),
@@ -284,21 +284,21 @@ describe("estimateCost: the iteration bound comes from the algorithm's own schem
             calibration: calibration("probe"),
         });
 
-        assert.equal(estimate.confidence, "modelled", "an assumed iteration count is a guess, whatever the rate is");
+        assert.equal(estimate.confidence, "modeled", "an assumed iteration count is a guess, whatever the rate is");
         assert.isTrue(estimate.basisFacts.iterationsAssumed);
         assert.strictEqual(estimate.basisFacts.iterations, ASSUMED_ITERATION_BOUND);
     });
 });
 
 describe("estimateCost: the confidence ladder", () => {
-    it("reports modelled with no calibration and no timing", () => {
+    it("reports modeled with no calibration and no timing", () => {
         const estimate = estimateCost({
             algorithm: "degree",
             descriptor: algorithmByKey("degree"),
             statistics: statistics(),
         });
 
-        assert.equal(estimate.confidence, "modelled");
+        assert.equal(estimate.confidence, "modeled");
     });
 
     it("reports calibrated once this machine has been probed", () => {
@@ -313,7 +313,7 @@ describe("estimateCost: the confidence ladder", () => {
         assert.strictEqual(estimate.basisFacts.provenance.code, "cost.calibrated");
     });
 
-    it("stays modelled when the probe could not run", () => {
+    it("stays modeled when the probe could not run", () => {
         const estimate = estimateCost({
             algorithm: "degree",
             descriptor: algorithmByKey("degree"),
@@ -321,7 +321,7 @@ describe("estimateCost: the confidence ladder", () => {
             calibration: calibration("defaults"),
         });
 
-        assert.equal(estimate.confidence, "modelled", "a calibration that fell back to defaults measured nothing");
+        assert.equal(estimate.confidence, "modeled", "a calibration that fell back to defaults measured nothing");
         assert.strictEqual(estimate.basisFacts.provenance.code, "cost.built-in");
     });
 
@@ -350,7 +350,7 @@ describe("estimateCost: the confidence ladder", () => {
             measurements: logOf(measurement({ nodes: 1, edges: 1 })),
         });
 
-        assert.equal(estimate.confidence, "modelled");
+        assert.equal(estimate.confidence, "modeled");
         assert.strictEqual(estimate.basisFacts.provenance.code, "cost.extrapolated");
         assert.strictEqual(estimate.basisFacts.provenance.params.limit, MEASUREMENT_EXTRAPOLATION_LIMIT);
     });
@@ -368,7 +368,7 @@ describe("estimateCost: the confidence ladder", () => {
         assert.strictEqual(estimate.basisFacts.provenance.code, "cost.calibrated");
     });
 
-    it("keeps a plugin's own cost model at modelled, calibration or not", () => {
+    it("keeps a plugin's own cost model at modeled, calibration or not", () => {
         const estimate = estimateCost({
             algorithm: "acme:test",
             descriptor: descriptor({ cost: (n, m) => (n + m) / 1000 }),
@@ -376,7 +376,7 @@ describe("estimateCost: the confidence ladder", () => {
             calibration: calibration("probe"),
         });
 
-        assert.equal(estimate.confidence, "modelled");
+        assert.equal(estimate.confidence, "modeled");
         assert.closeTo(estimate.seconds, 5, 1e-12);
         assert.strictEqual(estimate.basisFacts.provenance.code, "cost.declared-model");
     });
@@ -458,7 +458,7 @@ describe("estimateCost: a plugin's cost in work units", () => {
         assert.closeTo(estimate.seconds, (3 * 1000 * 4000) / DEFAULT_COST_RATES.heavyPairsPerSecond, 1e-12);
     });
 
-    it("leaves the seconds-returning static cost working, and modelled", () => {
+    it("leaves the seconds-returning static cost working, and modeled", () => {
         const d = registerPlugin({ cost: (n, m) => (n + m) / 1000 });
         const estimate = estimateCost({
             algorithm: "test",
@@ -468,7 +468,7 @@ describe("estimateCost: a plugin's cost in work units", () => {
         });
 
         assert.closeTo(estimate.seconds, 5, 1e-12);
-        assert.equal(estimate.confidence, "modelled");
+        assert.equal(estimate.confidence, "modeled");
     });
 });
 
@@ -627,7 +627,7 @@ describe("estimateCost: what a UI reads off it", () => {
         assert.isFalse(estimate.blocksFrame);
     });
 
-    it("reports a long unchunked run as blocking the frame and not cancellable", () => {
+    it("reports a long unchunked run as blocking the frame and not cancelable", () => {
         const estimate = estimateCost({
             algorithm: "betweenness",
             descriptor: algorithmByKey("betweenness"),
@@ -635,10 +635,10 @@ describe("estimateCost: what a UI reads off it", () => {
         });
 
         assert.isTrue(estimate.blocksFrame);
-        assert.isFalse(estimate.cancellable, "work with no yield point cannot notice a signal");
+        assert.isFalse(estimate.cancelable, "work with no yield point cannot notice a signal");
     });
 
-    it("reports a chunked run as cancellable and frame-safe at any size", () => {
+    it("reports a chunked run as cancelable and frame-safe at any size", () => {
         const estimate = estimateCost({
             algorithm: "betweenness",
             descriptor: algorithmByKey("betweenness"),
@@ -647,7 +647,7 @@ describe("estimateCost: what a UI reads off it", () => {
         });
 
         assert.isFalse(estimate.blocksFrame);
-        assert.isTrue(estimate.cancellable);
+        assert.isTrue(estimate.cancelable);
     });
 });
 

@@ -639,7 +639,7 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *   when the provider answered with an HTTP status. `{ cause }` when the provider said why:
  *   `"quota"` (the account has no credit, quota or spend left; asking again will not help),
  *   `"rate-limit"` (too many requests for now), `"live-closed"` (a live voice session closed).
- * - `AI_CANCELLED` -- the command was canceled (`cancelAiCommand()`); what it changed is taken back.
+ * - `AI_CANCELED` -- the command was canceled (`cancelAiCommand()`); what it changed is taken back.
  * - `AI_UNDONE` -- the command was undone while it ran; what it changed is taken back.
  * - `AI_TOOL_UNKNOWN` -- the model called a tool that does not exist. `{ tool }`.
  * - `AI_TOOL_INVALID_ARGUMENTS` -- the model called a tool with arguments it refused. `{ tool }`.
@@ -728,7 +728,7 @@ export const AI_RESULT_CODES = Object.freeze([
     "AI_KEY_MISSING",
     "AI_KEY_REJECTED",
     "AI_PROVIDER_ERROR",
-    "AI_CANCELLED",
+    "AI_CANCELED",
     "AI_UNDONE",
     "AI_TOOL_UNKNOWN",
     "AI_TOOL_INVALID_ARGUMENTS",

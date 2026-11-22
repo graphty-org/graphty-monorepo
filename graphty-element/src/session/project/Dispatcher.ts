@@ -11,7 +11,7 @@
  * Two lanes. An immediate command executes synchronously inside `dispatch`, so a write is visible
  * to a getter as soon as `dispatch` returns. A queued command takes a slot on the session's queue
  * (through a {@link Scheduler}) and executes when its turn comes; until it has committed it is
- * pending work, listed in `pending` and cancellable.
+ * pending work, listed in `pending` and cancelable.
  *
  * Op-log keys (node and edge ids, or a whole `graph` or `pins` slice) cannot be handed from one
  * open group to another the way value keys are, so a group holds the op-log keys it touched until
@@ -594,7 +594,7 @@ type HistoryStepView = History<Patch>["steps"][number];
 /** What an undo, a redo or a restore did. */
 type HistoryOutcome =
     | { readonly kind: "undone" | "redone" | "restored"; readonly steps: readonly HistoryStepView[] }
-    | { readonly kind: "cancelled"; readonly pending: readonly PendingStep[] }
+    | { readonly kind: "canceled"; readonly pending: readonly PendingStep[] }
     | { readonly kind: "nothing" };
 
 /** Why pending work stopped without committing. */
@@ -642,7 +642,7 @@ interface Job {
     readonly definition: UndoableDefinition<CommandLike>;
     /** The group it writes into; a run outliving its transaction moves to a group of its own. */
     group: Group;
-    status: "new" | "queued" | "waiting" | "running" | "done" | "cancelled";
+    status: "new" | "queued" | "waiting" | "running" | "done" | "canceled";
     readonly queuedKey: string | null;
     /** A run, which a transaction does not wait for. */
     readonly run: boolean;
@@ -862,8 +862,8 @@ function abortError(label: string): DOMException {
  * @param reason - Why it stopped.
  * @returns An `AbortError` naming the reason.
  */
-function cancelledError(label: string, reason: CancelReason): DOMException {
-    return Object.assign(new DOMException(`"${label}" was cancelled (${reason}).`, "AbortError"), {
+function canceledError(label: string, reason: CancelReason): DOMException {
+    return Object.assign(new DOMException(`"${label}" was canceled (${reason}).`, "AbortError"), {
         [CANCEL_REASON]: reason,
     });
 }
@@ -1480,7 +1480,7 @@ export class Dispatcher {
     hasPendingOp(op: string): boolean {
         for (const group of this.open) {
             for (const job of group.jobs) {
-                if (job.command.op === op && job.status !== "done" && job.status !== "cancelled") {
+                if (job.command.op === op && job.status !== "done" && job.status !== "canceled") {
                     return true;
                 }
             }
@@ -1617,7 +1617,7 @@ export class Dispatcher {
         }
 
         if ("cancel" in plan) {
-            return { kind: "cancelled", pending: this.cancelAll(plan.cancel, direction) };
+            return { kind: "canceled", pending: this.cancelAll(plan.cancel, direction) };
         }
 
         const step = this.history.moveAs(() => {
@@ -1669,19 +1669,19 @@ export class Dispatcher {
             });
         }
 
-        const cancelled: PendingStep[] = [];
+        const canceled: PendingStep[] = [];
         if (id === null) {
             // A load that starts the history is not canceled, as undo does not cancel it.
             const pending = this.listed().filter((group) => group.starts === null);
-            cancelled.push(...this.cancelAll(this.cascade(pending), "undo"));
+            canceled.push(...this.cancelAll(this.cascade(pending), "undo"));
         }
 
         const direction = target < position ? "undo" : "redo";
         const passing = target < position ? steps.slice(target, position).reverse() : steps.slice(position, target);
-        const passed = this.passable(direction, passing, cancelled);
+        const passed = this.passable(direction, passing, canceled);
         // A step a pending start load will drop stops the jump, as it stops undo.
         const reached = direction === "undo" ? position - passed : position + passed;
-        return this.restoreAt(reached === 0 ? null : steps[reached - 1].id, reached, position, cancelled);
+        return this.restoreAt(reached === 0 ? null : steps[reached - 1].id, reached, position, canceled);
     }
 
     /**
@@ -1689,19 +1689,15 @@ export class Dispatcher {
      * redo would: it stops at a step with nothing to move.
      * @param direction - Which way the jump goes.
      * @param passing - The steps, in the order they would be passed.
-     * @param cancelled - Collects what was canceled.
+     * @param canceled - Collects what was canceled.
      * @returns How many, from the first.
      */
-    private passable(
-        direction: "undo" | "redo",
-        passing: readonly HistoryStepView[],
-        cancelled: PendingStep[],
-    ): number {
+    private passable(direction: "undo" | "redo", passing: readonly HistoryStepView[], canceled: PendingStep[]): number {
         let count = 0;
         for (const step of passing) {
             let plan = this.plan(direction, step);
             while (plan !== null && "cancel" in plan) {
-                cancelled.push(...this.cancelAll(plan.cancel, direction));
+                canceled.push(...this.cancelAll(plan.cancel, direction));
                 plan = this.plan(direction, step);
             }
             if (plan === null) {
@@ -1718,14 +1714,12 @@ export class Dispatcher {
      * @param id - The step it lands just after, or null for the baseline.
      * @param target - Its index: how many steps are done there.
      * @param position - How many are done now.
-     * @param cancelled - What it canceled.
+     * @param canceled - What it canceled.
      * @returns What was done.
      */
-    private restoreAt(id: string | null, target: number, position: number, cancelled: PendingStep[]): HistoryOutcome {
+    private restoreAt(id: string | null, target: number, position: number, canceled: PendingStep[]): HistoryOutcome {
         if (target === position) {
-            return cancelled.length > 0
-                ? { kind: "cancelled", pending: Object.freeze(cancelled) }
-                : { kind: "nothing" };
+            return canceled.length > 0 ? { kind: "canceled", pending: Object.freeze(canceled) } : { kind: "nothing" };
         }
 
         const passed = this.history.moveAs(() => {
@@ -2163,7 +2157,7 @@ export class Dispatcher {
      */
     private inline(command: Dispatchable, parent: Job): unknown {
         if (parent.status !== "running") {
-            throw cancelledError(parent.group.label, "cancel");
+            throw canceledError(parent.group.label, "cancel");
         }
 
         const { state, definition, concrete } = this.resolve(command);
@@ -2390,7 +2384,7 @@ export class Dispatcher {
             ),
             get draft() {
                 if (job.status !== "running") {
-                    throw cancelledError(job.group.label, "cancel");
+                    throw canceledError(job.group.label, "cancel");
                 }
 
                 return job.group.draft;
@@ -2481,7 +2475,7 @@ export class Dispatcher {
      * @param error - Why.
      */
     private fail(job: Job, error: unknown): void {
-        if (job.status === "done" || job.status === "cancelled") {
+        if (job.status === "done" || job.status === "canceled") {
             return;
         }
 
@@ -2522,7 +2516,7 @@ export class Dispatcher {
             return;
         }
 
-        const error = cancelledError(job.group.label, reason);
+        const error = canceledError(job.group.label, reason);
         if (job.group.tx === null) {
             this.cancelGroup(job.group, error);
             return;
@@ -2889,7 +2883,7 @@ export class Dispatcher {
 
         group.executed.length = 0;
         for (const job of [...group.jobs]) {
-            this.stop(job, group.tx === null ? reason : cancelledError(job.command.op, why));
+            this.stop(job, group.tx === null ? reason : canceledError(job.command.op, why));
         }
 
         this.rollback(group);
@@ -2903,11 +2897,11 @@ export class Dispatcher {
      * @param reason - What its caller's promise rejects with.
      */
     private stop(job: Job, reason: unknown): void {
-        if (job.status === "done" || job.status === "cancelled") {
+        if (job.status === "done" || job.status === "canceled") {
             return;
         }
 
-        job.status = "cancelled";
+        job.status = "canceled";
         job.group.jobs.delete(job);
         this.waiters.delete(job);
         job.controller.abort(reason);
@@ -3007,7 +3001,7 @@ export class Dispatcher {
     private waiting(match: (job: Job) => boolean): boolean {
         for (const group of this.open) {
             for (const job of group.jobs) {
-                if (job.status !== "done" && job.status !== "cancelled" && match(job)) {
+                if (job.status !== "done" && job.status !== "canceled" && match(job)) {
                     return true;
                 }
             }
@@ -3049,7 +3043,7 @@ export class Dispatcher {
         for (const group of [...groups].reverse()) {
             this.cancelGroup(
                 group,
-                group.tx === null ? cancelledError(group.label, reason) : abortError(group.label),
+                group.tx === null ? canceledError(group.label, reason) : abortError(group.label),
                 reason,
             );
         }
@@ -3254,9 +3248,9 @@ export class Dispatcher {
             if (committed) {
                 this.admit(job);
             } else if (job.group.tx === null) {
-                this.cancelGroup(job.group, cancelledError(job.group.label, "rollback"));
+                this.cancelGroup(job.group, canceledError(job.group.label, "rollback"));
             } else {
-                this.stop(job, cancelledError(job.command.op, "rollback"));
+                this.stop(job, canceledError(job.command.op, "rollback"));
             }
         }
     }

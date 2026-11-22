@@ -918,6 +918,21 @@ describe("ci.yml", () => {
         assert.ok(parseJobs(ci)["all-checks"].needs.includes("cost-accuracy"));
     });
 
+    it("loads the built app in a browser wherever it is built or affected, in a required job (#9633)", () => {
+        const steps = parseYaml(ci).jobs.lint.steps;
+        const smoke = steps.find((s) => s.name === "Smoke check the built app");
+        assert.equal(smoke.run, "node graphty/acceptance/smoke.mjs --dist graphty/dist");
+        assert.equal(
+            smoke.if,
+            "needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')",
+        );
+        // after the app is built (a pull request) and before the early verdict
+        const at = (name) => steps.findIndex((s) => s.name === name);
+        assert.ok(at("Build the graphty app (PR, when affected)") < steps.indexOf(smoke));
+        assert.ok(steps.indexOf(smoke) < at("Fail the summary checks now"));
+        assert.ok(parseJobs(ci)["all-checks"].needs.includes("lint"));
+    });
+
     it("reports flaky screenshots after the story tests without gating anything on them", () => {
         const jobs = parseJobs(ci);
         assert.deepEqual(jobs["visual-flaky"].needs, ["story-tests", "story-tests-merge"]);

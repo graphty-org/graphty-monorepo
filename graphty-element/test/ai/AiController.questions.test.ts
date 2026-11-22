@@ -350,7 +350,7 @@ describe.each([
         assert.strictEqual(late.params?.reason, "expired");
     });
 
-    it("a cancel ends it with AI_CANCELLED", async () => {
+    it("a cancel ends it with AI_CANCELED", async () => {
         const session = await assistantSession();
         const harness = new Harness(session, driver(), { questions: true });
         const request = await askQuestion(harness);
@@ -361,7 +361,7 @@ describe.each([
         assert.deepInclude(ended(harness.events.slice(start))[0], {
             id: request.id,
             kind: "question",
-            code: "AI_CANCELLED",
+            code: "AI_CANCELED",
         });
         assert.isUndefined(harness.controller.getStatus().pending);
         assert.strictEqual((await harness.controller.answerQuestion(request.id, "red")).code, "AI_APPROVAL_STALE");

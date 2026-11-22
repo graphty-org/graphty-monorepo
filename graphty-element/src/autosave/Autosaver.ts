@@ -32,8 +32,9 @@ import { ELEMENT_VERSION } from "../session/runs";
 import type { CodedFact } from "../session/shared";
 import { openingKeptWork } from "../session/sources/references";
 import type { GraphSession, ProjectSlice } from "../session/types";
+import { filterDraftHooks, reopenFilterDrafts, type SavedFilterDraft } from "../session/visibility/VisibilityApi";
 import { wholeGraph } from "../session/working/graphs";
-import { buildParts, EVERY_PART, type PartTag, PartTooLarge, reassemble, stashOf } from "./parts";
+import { buildParts, draftsOf, EVERY_PART, type PartTag, PartTooLarge, reassemble, stashOf } from "./parts";
 import {
     canRead,
     changedSettings,
@@ -588,6 +589,15 @@ export class Autosaver {
             }),
             () => arrangement.sealed.delete(sealed),
         );
+        // An open filter draft is the reader's unfinished edit: kept with the work, as the stash is.
+        const drafts = filterDraftHooks(session.visibility);
+        if (drafts !== undefined) {
+            const changed = (): void => {
+                this.#mark(["drafts"], false, false);
+            };
+            drafts.changed.add(changed);
+            this.#stops.push(() => drafts.changed.delete(changed));
+        }
         this.#told = JSON.stringify(this.status);
     }
 
@@ -1571,6 +1581,7 @@ export class Autosaver {
         let untried: AutosaveEntryMeta;
         let text: string;
         let stash: Map<string, unknown>;
+        let drafts: SavedFilterDraft[];
         let sizes: Map<string, number>;
         try {
             // A whole entry, so the write watchdog's allowance rather than the listing's.
@@ -1583,6 +1594,7 @@ export class Autosaver {
                 // Read through before anything is written: an unreadable entry stays as it is.
                 text = JSON.stringify(reassemble(entry.meta, entry.parts));
                 stash = stashOf(entry.parts);
+                drafts = draftsOf(entry.parts);
                 sizes = sizesAfter(new Map(), entry.parts);
             } catch {
                 return giveUp({ code: "E_BAD_DOCUMENT", params: { id: meta.id } });
@@ -1662,6 +1674,9 @@ export class Autosaver {
         } catch {
             // ponytail: the restore worked; an attempt left raised only costs a restore-failed report later.
         }
+
+        // After the restore's own commit, so the drafts' write is an ordinary one of the restored entry.
+        reopenFilterDrafts(this.#session.visibility, drafts);
 
         this.#absorb = current;
         if (report.problems.some((problem) => problem.code === "shader.unknown")) {

@@ -625,6 +625,33 @@ export interface VisibilityApi {
      */
     draft(target: FilterConditionInput | string): FilterDraft;
     /**
+     * The open draft of one filter condition, or null: the draft {@link draft} opened on an
+     * existing condition, or the draft of a new condition by the id it was given. Autosave keeps
+     * open drafts with the work and reopens them after a restore, so a consumer that edits a
+     * condition in a draft picks its draft up again here after a reload instead of opening a new
+     * one.
+     * @example
+     * ```ts
+     * const draft = element.session.visibility.draftOf("c1") ?? element.session.visibility.draft("c1");
+     * ```
+     * @param conditionId - The condition's id.
+     * @returns The draft, or null when none is open.
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.60.0
+     * @beta
+     */
+    draftOf(conditionId: string): FilterDraft | null;
+    /**
+     * The conditions the filter drafts still open hold, as they hold them now, the drafts autosave
+     * reopened after a restore included. A draft of a new condition holds an id no condition in
+     * `conditions` has yet.
+     * @returns The conditions.
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.60.0
+     * @beta
+     */
+    openDrafts(): readonly FilterCondition[];
+    /**
      * Whether hidden nodes should still be drawn faintly instead of vanishing.
      *
      * A reader who hides nine tenths of a graph usually still wants to see the shape of what they
@@ -685,12 +712,6 @@ export interface SessionVisibilityApi extends VisibilityApi {
     readonly keptMasks: ScopeVisibilitySource;
     /** The one rule the masks evaluate: the filter AND every step that is on, or null. */
     readonly rule: RuleTree | null;
-    /**
-     * The conditions the filter drafts still open hold, as they hold them now: what a selection
-     * editor's Done keeps the runs of, since its draft is written after the visit ends.
-     * @returns The conditions.
-     */
-    openDrafts(): readonly FilterCondition[];
     /**
      * What a steps list would leave visible, without recording it: the counts before the first
      * step (the filter and the window alone), then after each step that is on, in order.
@@ -1215,6 +1236,56 @@ function kindOf(
 // ---------------------------------------------------------------------------------------------
 // The model
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * An open filter draft as autosave keeps it: a draft of a new condition holds the condition whole,
+ * a draft of an existing condition holds its id and the edits it made, so a write that landed on
+ * the condition meanwhile is kept.
+ */
+export type SavedFilterDraft =
+    | { readonly condition: FilterCondition }
+    | { readonly id: string; readonly edits: Partial<Omit<FilterCondition, "id">> };
+
+/** What autosave reads of a visibility model's open drafts: an internal hook, on no public type. */
+export interface FilterDraftHooks {
+    /** The open drafts, as autosave keeps them. */
+    saved(): SavedFilterDraft[];
+    /** Called each time a draft opens, changes, commits or is canceled. */
+    readonly changed: Set<() => void>;
+}
+
+const DRAFT_HOOKS = new WeakMap<object, FilterDraftHooks>();
+
+/**
+ * The open-draft hooks of a visibility model.
+ * @param visibility - The model, as `createVisibilityApi` made it.
+ * @returns Its hooks, or undefined for an object no `createVisibilityApi` made.
+ */
+export function filterDraftHooks(visibility: object): FilterDraftHooks | undefined {
+    return DRAFT_HOOKS.get(visibility);
+}
+
+/**
+ * Open again drafts autosave kept. A draft whose condition is gone, or whose new condition's id is
+ * taken by now, is dropped.
+ * @param visibility - The model.
+ * @param saved - The drafts.
+ */
+export function reopenFilterDrafts(visibility: VisibilityApi, saved: readonly SavedFilterDraft[]): void {
+    for (const each of saved) {
+        try {
+            if ("id" in each) {
+                if (visibility.draftOf(each.id) === null) {
+                    visibility.draft(each.id).update(each.edits);
+                }
+            } else if (visibility.draftOf(each.condition.id) === null) {
+                visibility.draft(each.condition);
+            }
+        } catch {
+            // ponytail: a draft that no longer fits the conditions is dropped silently, as Cancel would.
+        }
+    }
+}
 
 /**
  * Build the visibility model one session holds.
@@ -2344,8 +2415,14 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         readonly FilterCondition[],
         { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }
     >();
-    /** The filter drafts still open, for {@link SessionVisibilityApi.openDrafts}. */
-    const drafts = new Set<FilterDraft>();
+    /** The filter drafts still open, for {@link VisibilityApi.openDrafts}, with what autosave keeps of each. */
+    const drafts = new Map<FilterDraft, () => SavedFilterDraft>();
+    const draftsChanged = new Set<() => void>();
+    const tellDrafts = (): void => {
+        draftsChanged.forEach((listener) => {
+            listener();
+        });
+    };
     /** The selection before a filter change dropped what it hides, by the visibility it reached. */
     const droppedFrom = new WeakMap<
         VisibilityState,
@@ -2932,7 +3009,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const insideNodeCopy = copies(inNodes);
     const insideEdgeCopy = copies(inEdges);
 
-    return {
+    const api: SessionVisibilityApi = {
         nodeMask(): Uint8Array {
             upToDate();
 
@@ -3122,7 +3199,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         },
 
         openDrafts(): readonly FilterCondition[] {
-            return [...drafts].map((each) => each.condition);
+            return [...drafts.keys()].map((each) => each.condition);
+        },
+
+        draftOf(conditionId: string): FilterDraft | null {
+            return [...drafts.keys()].find((each) => each.condition.id === conditionId) ?? null;
         },
 
         draft(target: FilterConditionInput | string): FilterDraft {
@@ -3159,6 +3240,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 update(change: Partial<Omit<FilterCondition, "id">>): void {
                     requireOpen();
                     edits = { ...edits, ...change };
+                    tellDrafts();
                 },
                 counts(): FilterConditionCount {
                     const now = held();
@@ -3168,6 +3250,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                     requireOpen();
                     open = false;
                     drafts.delete(made);
+                    tellDrafts();
                     // One step, as `updateCondition` or `addCondition` writes it, against the
                     // conditions as they stand now.
                     const now = conditionsNow();
@@ -3184,11 +3267,17 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                     return editConditions(admitConditions([...now, added]), options, { id: added.id });
                 },
                 cancel(): void {
+                    if (!open) {
+                        return;
+                    }
+
                     open = false;
                     drafts.delete(made);
+                    tellDrafts();
                 },
             };
-            drafts.add(made);
+            drafts.set(made, () => (editing ? { id, edits } : { condition: held() }));
+            tellDrafts();
             return made;
         },
 
@@ -3445,4 +3534,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             tellNotDrawn();
         },
     };
+    DRAFT_HOOKS.set(api, {
+        saved: () => [...drafts.values()].map((save) => save()),
+        changed: draftsChanged,
+    });
+    return api;
 }

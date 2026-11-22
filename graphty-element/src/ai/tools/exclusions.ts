@@ -344,10 +344,15 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         reason: "panel-state",
         kind: BY_DESIGN,
     },
-    { root: "VisibilityApi", members: ["draft", "notDrawn"], reason: "panel-state", kind: BY_DESIGN },
+    {
+        root: "VisibilityApi",
+        members: ["draft", "draftOf", "openDrafts", "notDrawn"],
+        reason: "panel-state",
+        kind: BY_DESIGN,
+    },
     {
         root: "SessionVisibilityApi",
-        members: ["draft", "openDrafts", "notDrawn"],
+        members: ["draft", "draftOf", "openDrafts", "notDrawn"],
         reason: "panel-state",
         kind: BY_DESIGN,
     },

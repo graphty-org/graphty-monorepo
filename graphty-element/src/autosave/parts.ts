@@ -12,6 +12,7 @@
  * | `rest` | the document's head, the session, style, notes and view-state members, the results' head, the assets member without its files |
  * | `asset:<sha256>` | the files of one embedded model, written once per digest |
  * | `stash` | the consumer's stash |
+ * | `drafts` | the filter drafts still open, reopened after a restore |
  * @module autosave
  */
 
@@ -35,16 +36,17 @@ import {
     viewStateMember,
 } from "../session/projectFile";
 import type { GraphSession } from "../session/types";
+import { filterDraftHooks, type SavedFilterDraft } from "../session/visibility/VisibilityApi";
 import type { AutosaveEntryMeta, AutosaveParts } from "./types";
 
 /**
  * What a change left unwritten. `runs` rewrites the runs that changed since they were written;
  * `allRuns` rewrites every run (the graph under them changed).
  */
-export type PartTag = "data" | "arrangement" | "rest" | "runs" | "allRuns" | "stash";
+export type PartTag = "data" | "arrangement" | "rest" | "runs" | "allRuns" | "stash" | "drafts";
 
 /** Every part: what a new entry, or a change to the graph, has to write. */
-export const EVERY_PART: readonly PartTag[] = ["data", "arrangement", "rest", "runs", "allRuns", "stash"];
+export const EVERY_PART: readonly PartTag[] = ["data", "arrangement", "rest", "runs", "allRuns", "stash", "drafts"];
 
 /** The `rest` part. */
 interface RestPart {
@@ -249,6 +251,10 @@ export function buildParts(
         parts.stash = attempt("stash", () => JSON.stringify(Object.fromEntries(stash)));
     }
 
+    if (tags.has("drafts")) {
+        parts.drafts = attempt("drafts", () => JSON.stringify(filterDraftHooks(session.visibility)?.saved() ?? []));
+    }
+
     return { parts, runs, order: [...finished.keys()], ...(assets === undefined ? {} : { assets }) };
 }
 
@@ -321,4 +327,14 @@ export function reassemble(meta: AutosaveEntryMeta, parts: AutosaveParts): Recor
 export function stashOf(parts: AutosaveParts): Map<string, unknown> {
     const text = parts.stash;
     return new Map(typeof text === "string" ? Object.entries(JSON.parse(text) as Record<string, unknown>) : []);
+}
+
+/**
+ * The open filter drafts an entry holds; an entry written before drafts were kept holds none.
+ * @param parts - The entry's parts.
+ * @returns The drafts.
+ */
+export function draftsOf(parts: AutosaveParts): SavedFilterDraft[] {
+    const text = parts.drafts;
+    return typeof text === "string" ? (JSON.parse(text) as SavedFilterDraft[]) : [];
 }

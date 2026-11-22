@@ -9713,6 +9713,8 @@ export interface VisibilityApi {
     readonly conditions: readonly FilterCondition[];
     // @beta
     draft(target: FilterConditionInput | string): FilterDraft;
+    // @beta
+    draftOf(conditionId: string): FilterDraft | null;
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;
@@ -9724,6 +9726,8 @@ export interface VisibilityApi {
     readonly nodes: ReadonlySet<NodeId>;
     // @beta
     readonly notDrawn: readonly HiddenNotDrawn[];
+    // @beta
+    openDrafts(): readonly FilterCondition[];
     // @beta
     removeCondition(id: string, options?: RunOptions): Run<FilterResult>;
     set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;

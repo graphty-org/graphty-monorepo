@@ -145,7 +145,10 @@ export async function submitLayout(
     const nodes = Array.from({ length: nodeCount }, (_, i) => ({ id: `n${String(i)}` }));
     await graph.addNodes(nodes);
     await graph.addEdges(nodes.map((_, i) => ({ src: `n${String(i)}`, dst: `n${String((i * 7 + 1) % nodeCount)}` })));
-    await graph.setLayout("forceatlas2", seed === undefined ? { maxIter } : { maxIter, seed });
+    // Rest comes from `maxIter` alone: at the default settle threshold a run whose batches ramp up converges within a few
+    // landings, and a test still waiting for one would wait forever.
+    const options = { maxIter, settleThreshold: 1e-12 };
+    await graph.setLayout("forceatlas2", seed === undefined ? options : { ...options, seed });
     while (!layoutOf(graph).isAccelerated || layoutOf(graph).iterationsDone === 0) {
         await nextFrame();
     }

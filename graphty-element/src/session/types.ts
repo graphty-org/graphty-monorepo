@@ -3192,9 +3192,16 @@ export interface DraftColumn extends Pick<
  * node's, which loads as its `kind` attribute and keeps ids of different kinds apart under
  * `LoadChoices.kindIds` `"scoped"`, or an edge's, which loads as its `kind` attribute. The
  * {@link LocationKind}s (`latitude`, `longitude`, `coordinates`, `country`, `region`, `city`) are
- * where a node's location is read from, one column per kind (`data.setRole` only).
+ * where a node's location is read from, one column per kind (`data.setRole` only). `x`, `y` and
+ * `z` are the columns a node's drawn position is read from (`data.setRole` only): with an `x` and a
+ * `y` column, every node whose two values are finite numbers is placed there, as a record's
+ * `position` places it (`z` is 0 without a `z` column).
  */
-export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId" | "kind" | LocationKind;
+export type ColumnRole =
+    "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId" | "kind" | LocationKind | PositionAxis;
+
+/** A column role naming one coordinate of a node's drawn position. */
+export type PositionAxis = "x" | "y" | "z";
 
 /** One row of a draft table. */
 export interface DraftRow {

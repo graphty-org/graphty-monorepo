@@ -52,7 +52,9 @@ export function NoticeSlot({
         <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- hover and focus only pause the notice's timer; the slot is not a control
             ref={slot}
             className="ws-notice-slot"
-            onPointerEnter={() => {
+            // A move, not pointerenter: a notice that comes up under a resting pointer gets a
+            // pointerenter from the browser at the next frame with no move, and would never time out.
+            onPointerMove={() => {
                 setHovered(true);
             }}
             onPointerLeave={() => {

@@ -635,11 +635,16 @@ export const edgeInternals = {} as {
     boxReachOf(node: Node, direction: Vector3): number;
     /**
      * The world points the edge's line is drawn through: its curve's, or a straight line's two ends where
-     * the canvas ends it -- at an arrowhead's back, or at a node's outline or gap -- or null for a line
-     * drawn with no slot of its own (a pulled straight line, a patterned one), which runs between its
-     * nodes' centers.
+     * the canvas ends it -- at an arrowhead's back, or at a node's outline or gap, a pulled or patterned
+     * line's too -- or null for a line drawn by none of those.
      */
     lineInWorld(edge: Edge): Vector3[] | null;
+    /**
+     * Where a straight line with no cap leaves a node or row drawn in front of edges, from `centre` toward `toward`:
+     * its outline when its body is translucent (as `PULLED_TRIM_GLSL` stops a pulled piece), else its center. In
+     * graph-root's space.
+     */
+    seenThroughStop(node: RowMeasure, centre: Vector3, toward: Vector3): Vector3;
 };
 
 /**
@@ -810,8 +815,26 @@ export class Edge {
             }
 
             const slot = edge.lineSlots[0];
-            return edge.lineBatch === null || slot === undefined ? null : inWorld(edge, edge.lineBatch.endsOf(slot));
+            if (edge.lineBatch !== null && slot !== undefined) {
+                return inWorld(edge, edge.lineBatch.endsOf(slot));
+            }
+
+            if (edge.mesh instanceof PatternedLineMesh) {
+                const route = edge.mesh.drawnRoute();
+                return route === null ? null : inWorld(edge, route);
+            }
+
+            if (edge.pulled === null) {
+                return null;
+            }
+
+            // a pulled straight piece runs between its ends' centers, its shader stopping it where bareEnd does
+            const src = edge.endPosition("source").clone();
+            const dst = edge.endPosition("target").clone();
+            return inWorld(edge, [edge.bareEnd("source", src, dst), edge.bareEnd("target", dst, src)]);
         };
+        edgeInternals.seenThroughStop = (node, centre, toward) =>
+            node.paintedOpacity < 1 ? Edge.leave(node, centre, toward) : centre.clone();
         writeRecord = (edge, record) => {
             edge.#record = frozenRecord(record);
             edge.shaderDataChanged();
@@ -5099,6 +5122,18 @@ export class Edge {
      * @returns The crossing, or the center when the point is the center.
      */
     private leaveNode(node: RowMeasure, centre: Vector3, toward: Vector3, gap = 0): Vector3 {
+        return Edge.leave(node, centre, toward, gap);
+    }
+
+    /**
+     * {@link Edge.leaveNode}, which reads nothing of the edge.
+     * @param node - The node.
+     * @param centre - Its center.
+     * @param toward - The point the segment runs to.
+     * @param gap - How far past the outline the line stops.
+     * @returns The crossing, or the center when the point is the center.
+     */
+    private static leave(node: RowMeasure, centre: Vector3, toward: Vector3, gap = 0): Vector3 {
         const dir = toward.subtract(centre);
         const span = dir.length();
         if (span === 0) {

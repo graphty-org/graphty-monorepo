@@ -24,6 +24,11 @@ export interface ListNumber {
     readonly channel: Channel;
     readonly name: string;
     readonly percent?: boolean;
+    /**
+     * A share of the whole (a pie's slice, a stripe's band): a fraction graphty-element caps at what the items
+     * before it left, read as a percent; an item left unset splits what remains evenly.
+     */
+    readonly share?: boolean;
 }
 
 /** A list thing's list: the legend, the colors (one an item) and each item's numbers. */
@@ -42,7 +47,7 @@ export const LISTS: Readonly<Record<string, ListSpec>> = {
         item: "Slice",
         colors: "node.pieColors",
         numbers: [
-            { channel: "node.pieSizes", name: "Share" },
+            { channel: "node.pieSizes", name: "Share", percent: true, share: true },
             { channel: "node.pieOpacities", name: "Opacity", percent: true },
         ],
     },
@@ -51,7 +56,7 @@ export const LISTS: Readonly<Record<string, ListSpec>> = {
         item: "Stripe",
         colors: "node.stripeColors",
         numbers: [
-            { channel: "node.stripeSizes", name: "Share" },
+            { channel: "node.stripeSizes", name: "Share", percent: true, share: true },
             { channel: "node.stripeOpacities", name: "Opacity", percent: true },
         ],
     },

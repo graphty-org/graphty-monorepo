@@ -123,7 +123,7 @@ export function colorItems({
                                     return null;
                                 }
                                 const items = numbers[number.channel];
-                                const fill = number.percent === true ? 1 : 1 / colors.length;
+                                const fill = number.percent === true && number.share !== true ? 1 : 1 / colors.length;
                                 return (
                                     <NumberLine
                                         key={number.channel}

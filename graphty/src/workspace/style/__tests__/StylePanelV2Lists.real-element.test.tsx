@@ -93,6 +93,47 @@ describe("Style panel v2's list things", () => {
         });
     }
 
+    // E495: a share is a part of the whole graphty-element caps at what is left, so it reads and types as a percent;
+    // a share typed as a plain number above 1 took the whole node and hid every item after it.
+    it("a stripe's share types as a percent of the node, and the stripe after it keeps the rest", async () => {
+        const { session, element, nodes } = await openGraph();
+        const tab = await openStyle("Key people");
+        await session.layout.setDimension("2d");
+        const fill = sectionOf(tab, "node-fill");
+        await userEvent.click(within(fill).getByRole("button", { name: /^Add to node fill/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Stripes" }));
+        const colors = await waitFor(() => {
+            const found = readChannelList("node.stripeColors", written(session, nodes, "node.stripeColors")).map(
+                String,
+            );
+            assert.lengthOf(found, 2);
+            return found;
+        });
+        await userEvent.keyboard("{Escape}");
+        const row = await waitFor(() => {
+            const found = fill.querySelector<HTMLElement>('[data-thing="stripes"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(within(row).getByRole("button", { name: /^Node stripes settings/ }));
+        const share = await screen.findByRole("textbox", { name: "Stripe 1 share" });
+        await userEvent.click(share);
+        await userEvent.keyboard("75{Tab}");
+        await waitFor(() => {
+            assert.deepEqual(
+                readChannelList("node.stripeSizes", written(session, nodes, "node.stripeSizes")).map(Number),
+                [0.75],
+                "75% is three quarters of the node",
+            );
+        });
+        await userEvent.keyboard("{Escape}");
+        const image = await picture(element);
+        const first = shareNear(image, element, "a", colors[0]);
+        const second = shareNear(image, element, "a", colors[1]);
+        assert.isAbove(second, 0.1, "the second stripe keeps the quarter left");
+        assert.isAbove(first, second * 1.5, "the first stripe is the wider");
+    });
+
     it("Chart starts drawn: its values and colors change the picture", async () => {
         const { session, element, nodes } = await openGraph();
         const tab = await openStyle("Key people");

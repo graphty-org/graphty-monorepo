@@ -6,14 +6,15 @@
  * thing's pop-over (a label's too).
  */
 
-import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import { type ChannelDescriptor, combineDrawn } from "@graphty/graphty-element/catalog";
+import type { CombineMode } from "@graphty/graphty-element/schema";
 import React, { useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { Field, type RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
 import { AddButton } from "../Section";
-import { COMBINE_WORDS, failureWords } from "../words";
+import { channelWord, COMBINE_WORDS, failureWords } from "../words";
 import { dimOf } from "./drawn";
 import { groupSet, unsetIn } from "./lineWrites";
 import { PlusList } from "./PlusList";
@@ -21,7 +22,10 @@ import { lineChannels, type LineSpec, type ThingRubric } from "./rubric";
 import { LineFrame, RemoveButton, RubricLine, SegmentsLine } from "./RubricLine";
 
 /** Combine's options, in today's words. */
-const COMBINE_OPTIONS = Object.entries(COMBINE_WORDS).map(([value, { word }]) => ({ value, name: word }));
+const COMBINE_OPTIONS = (Object.keys(COMBINE_WORDS) as CombineMode[]).map((value) => ({
+    value,
+    name: COMBINE_WORDS[value].word,
+}));
 
 /** A sub-group "+" can add: its name, and whether a divider follows it in the menu (a rarer tier next). */
 interface ShellGroup {
@@ -236,6 +240,20 @@ export function ThingPopover({
 }
 
 /**
+ * What the layers beneath a row paint for a number channel, as `combineDrawn` reads it.
+ * @param ctx - the row.
+ * @param channel - the channel.
+ * @returns one number, "mixed", or undefined where they paint nothing.
+ */
+function beneathNumber(ctx: RowContext, channel: ChannelDescriptor["channel"]): number | "mixed" | undefined {
+    const beneath = ctx.beneath(channel);
+    if (beneath.mixed === true) {
+        return "mixed";
+    }
+    return typeof beneath.value === "number" ? beneath.value : undefined;
+}
+
+/**
  * A pop-over's line above Main (design 2.6): Combine, on a number the layer sets. There is no By data line:
  * the main value binds from its own line's by-data link, Main's first.
  * @param props - Component props
@@ -258,7 +276,20 @@ export function FirstLines({ ctx, main }: Readonly<{ ctx: RowContext; main: Chan
                     control={
                         <SegmentsLine
                             label="Combine"
-                            options={COMBINE_OPTIONS}
+                            // A mode that paints what Replace does here (Multiply over a size of 1) is dimmed.
+                            options={COMBINE_OPTIONS.map((option) => {
+                                const found = combineDrawn(
+                                    main.channel,
+                                    option.value,
+                                    beneathNumber(ctx, main.channel),
+                                );
+                                return found.drawn
+                                    ? option
+                                    : {
+                                          ...option,
+                                          dimmed: `Same as Replace over a ${channelWord(main.channel).toLowerCase()} of ${String(found.unmet.base)}`,
+                                      };
+                            })}
                             value={own?.combine ?? "replace"}
                             onPick={(mode) => {
                                 const combine = mode === "multiply" || mode === "add" ? mode : undefined;
@@ -273,6 +304,9 @@ export function FirstLines({ ctx, main }: Readonly<{ ctx: RowContext; main: Chan
                     modifier={null}
                     removeName={undefined}
                     onRemove={() => undefined}
+                    // Combine meets the main value, so it draws nothing wherever that value does not (a 2D-only
+                    // raised edge's in 3D).
+                    dimmed={dimOf(ctx, main.channel)}
                 />
             )}
         </>

@@ -5,7 +5,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { channelDrawn, labelFieldDrawn } from "../../src/catalog/drawnWhen";
+import { channelDrawn, combineDrawn, labelFieldDrawn } from "../../src/catalog/drawnWhen";
 import { formatShaderText, parseShaderText } from "../../src/catalog/shaderText";
 import { NODE_SHAPE_DESCRIPTORS } from "../../src/catalog/shapes";
 import type { Channel, LabelStyle } from "../../src/catalog/types";
@@ -20,6 +20,26 @@ function reading(values: Partial<Record<string, unknown>>): (other: Channel | ke
 }
 
 describe("channelDrawn", () => {
+    it("draws a curve's circle and fan only without force curves: a support point wins over both", () => {
+        const curved = { "edge.curvature": true };
+        for (const channel of ["edge.arcRadius", "edge.fanned", "edge.fanSpacing"] as const) {
+            assert.deepStrictEqual(channelDrawn(channel, reading(curved), "2d"), { drawn: true }, channel);
+            assert.deepStrictEqual(
+                channelDrawn(channel, reading({ ...curved, "edge.supportModel": "barnesHut" }), "2d"),
+                { drawn: false, unmet: { channel: "edge.supportModel", unset: true } },
+                channel,
+            );
+        }
+    });
+
+    it("draws a node's depth only in 3D: the 2D view looks straight down on the layout", () => {
+        assert.deepStrictEqual(channelDrawn("node.depth", reading({}), "2d"), {
+            drawn: false,
+            unmet: { dimension: "3d" },
+        });
+        assert.deepStrictEqual(channelDrawn("node.depth", reading({}), "3d"), { drawn: true });
+    });
+
     it("reads an unset channel as its default", () => {
         // edge.style defaults to solid and edge.curvature to false: a plain edge animates.
         assert.deepStrictEqual(channelDrawn("edge.animationSpeed", reading({}), "3d"), { drawn: true });
@@ -133,5 +153,35 @@ describe("a shader's views", () => {
             "vec4 shade(NodeInput n) { return vec4(n.color, 1.0); }",
         ].join("\n");
         assert.isFalse(parseShaderText(text).ok);
+    });
+});
+
+describe("combineDrawn", () => {
+    it("multiplies a size over nothing beneath into the size itself, the same as replacing it", () => {
+        // node.size defaults to 1: x1 is the layer's own number.
+        assert.deepStrictEqual(combineDrawn("node.size", "multiply", undefined), {
+            drawn: false,
+            unmet: { mode: "multiply", base: 1 },
+        });
+        assert.deepStrictEqual(combineDrawn("node.size", "multiply", 1), {
+            drawn: false,
+            unmet: { mode: "multiply", base: 1 },
+        });
+        assert.deepStrictEqual(combineDrawn("node.size", "multiply", 2), { drawn: true });
+        assert.deepStrictEqual(combineDrawn("node.size", "multiply", "mixed"), { drawn: true });
+        assert.deepStrictEqual(combineDrawn("node.size", "replace", undefined), { drawn: true });
+    });
+
+    it("adds to a default that is not 0, so add draws over nothing beneath", () => {
+        assert.deepStrictEqual(combineDrawn("node.size", "add", undefined), { drawn: true });
+        assert.deepStrictEqual(combineDrawn("node.size", "add", 0), { drawn: false, unmet: { mode: "add", base: 0 } });
+    });
+
+    it("adds to a channel with no default as to 0: the layer's own number", () => {
+        // node.borderWaveAmplitude states no default.
+        assert.deepStrictEqual(combineDrawn("node.borderWaveAmplitude", "add", undefined), {
+            drawn: false,
+            unmet: { mode: "add", base: 0 },
+        });
     });
 });

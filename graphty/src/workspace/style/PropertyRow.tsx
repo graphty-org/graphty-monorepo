@@ -81,6 +81,8 @@ const FIXED_LABELS: Partial<Record<EncodeKey, string>> = { "node.size": "Fixed s
  */
 export interface BeneathValue {
     readonly value?: unknown;
+    /** The layers beneath paint different values on the row's elements (no one `value`). */
+    readonly mixed?: true;
 }
 
 /** Everything a field of one row needs: the row, where it writes, and what lies beneath it. */

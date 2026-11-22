@@ -5624,6 +5624,7 @@ const IMAGE_AT_OWN_SIZE: ChannelCondition = { channel: "node.imageFit", values: 
 /** A picture placed on the node (`node.image`): `node.texture` wraps its picture over the surface and reads none of these. */
 const IMAGE_SET: ChannelCondition = { channel: "node.image", set: true };
 const SUPPORT: readonly ChannelCondition[] = [CURVED, { channel: "edge.supportModel", set: true }];
+const NO_SUPPORT: ChannelCondition = { channel: "edge.supportModel", unset: true };
 const SHAPE_LINES: readonly ChannelCondition[] = [FLAT_SHAPE, { channel: "node.shapeLines", set: true }];
 
 /**
@@ -5638,6 +5639,8 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     // "In 2D every node is drawn unlit already, so it changes nothing there."
     ["node.unlit", [ONLY_3D]],
     ["node.flat", [ONLY_3D]],
+    // The 2D view looks straight down on the layout, so a node's depth is never seen there.
+    ["node.depth", [ONLY_3D]],
     // "Drawn only for a flat layout in the 3D view."
     ["edge.lift", [ONLY_3D]],
     // "An edge animates only where it is a straight solid line."
@@ -5659,10 +5662,11 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     // "How far an `edge.route` "bundled" edge is drawn toward its bundle."
     ["edge.bundleStrength", [BUNDLED]],
     ["edge.bundleIterations", [BUNDLED]],
-    ["edge.arcRadius", [CURVED]],
+    // "A support point wins over a fan and a circle" (Edge.ts): a force-curved edge bows to its support point.
+    ["edge.arcRadius", [CURVED, NO_SUPPORT]],
     ["edge.bendCurve", [CURVED]],
-    ["edge.fanned", [CURVED]],
-    ["edge.fanSpacing", [CURVED]],
+    ["edge.fanned", [CURVED, NO_SUPPORT]],
+    ["edge.fanSpacing", [CURVED, NO_SUPPORT]],
     // "It applies to a patterned line only."
     ["edge.patternCount", [{ channel: "edge.style", values: COUNTED_PATTERNS }]],
     // "Drawn on solid lines."

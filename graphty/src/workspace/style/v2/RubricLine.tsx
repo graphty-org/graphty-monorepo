@@ -24,7 +24,7 @@ import { Field, FieldLine, type RowContext, VarySlot, type VaryTarget } from "..
 import { lineIn, needsFor, writeIn } from "../row";
 import { ValueField } from "../ValueField";
 import { channelWord, failureWords, fieldName, FONTS, isPercent, scrubLetter, takesBinding } from "../words";
-import { dimOf } from "./drawn";
+import { dimOf, viewOf } from "./drawn";
 import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
 import { moveUnit, ruleOf, unsetIn } from "./lineWrites";
@@ -177,11 +177,21 @@ export function SegmentsLine({
         readonly name: string;
         readonly glyph?: keyof typeof GLYPHS;
         readonly disabled?: boolean;
+        /** Why graphty-element draws nothing for the option in this view: dimmed, its tooltip saying why. */
+        readonly dimmed?: string;
     }[];
     value: string;
     onPick: (value: string) => void;
 }>): React.JSX.Element {
     const pictured = isPictured(options);
+    const dim = (option: (typeof options)[number], label: React.ReactNode): React.ReactNode =>
+        option.dimmed === undefined ? (
+            label
+        ) : (
+            <span className="ws-dim" data-dimmed="" title={option.dimmed}>
+                {label}
+            </span>
+        );
     return (
         <SegmentedControl
             label={label}
@@ -194,7 +204,8 @@ export function SegmentsLine({
                 return {
                     value: option.value,
                     disabled: option.disabled,
-                    label:
+                    label: dim(
+                        option,
                         pictured && Glyph !== undefined ? (
                             <Tooltip label={option.name}>
                                 <span style={{ display: "inline-flex" }}>
@@ -205,6 +216,7 @@ export function SegmentsLine({
                         ) : (
                             option.name
                         ),
+                    ),
                 };
             })}
         />
@@ -265,14 +277,29 @@ function unitControl(args: ControlArgs): React.ReactNode {
  * @returns The control
  */
 function segmentsControl(args: ControlArgs): React.ReactNode {
-    const { line, descriptor, value, label, write } = args;
+    const { ctx, line, descriptor, value, label, write } = args;
     const boolean = descriptor.accepts === "boolean";
     const values = boolean ? ["true", "false"] : (descriptor.values ?? []);
+    // Unset, the segment drawn now is shown: what the layers beneath paint, else graphty-element's default (E495:
+    // picking the value already drawn is never mistaken for an option that does nothing).
+    const shown =
+        value ??
+        ctx.beneath(descriptor.channel).value ??
+        ctx.session.styles.defaultValue(descriptor.channel) ??
+        descriptor.default;
+    const view = viewOf(ctx.session);
+    // A value graphty-element draws only in the other view (`valueViews`: a node size's Pivot in 2D) is dimmed.
+    const options = (segmentOptions(line, values) ?? []).map((option) => {
+        const views = descriptor.valueViews?.[option.value];
+        return views === undefined || views.includes(view)
+            ? option
+            : { ...option, dimmed: view === "2d" ? "3D only" : "2D only" };
+    });
     return (
         <SegmentsLine
             label={label}
-            options={segmentOptions(line, values) ?? []}
-            value={typeof value === "string" || typeof value === "boolean" ? String(value) : ""}
+            options={options}
+            value={typeof shown === "string" || typeof shown === "boolean" ? String(shown) : ""}
             onPick={(picked) => {
                 write(descriptor.channel, boolean ? picked === "true" : picked);
             }}

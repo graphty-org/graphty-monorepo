@@ -768,6 +768,12 @@ export interface ColorValue extends Rgba {
 }
 
 // @public
+export function combineDrawn(channel: Channel, mode: CombineMode, beneath: number | "mixed" | undefined): DrawnResult<{
+    readonly mode: CombineMode;
+    readonly base: number;
+}>;
+
+// @public
 export const COST_CLASSES: readonly ["instant", "iterative", "heavy", "cubic", "unbounded"];
 
 // @public

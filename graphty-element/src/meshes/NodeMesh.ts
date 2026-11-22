@@ -521,6 +521,11 @@ export class NodeMesh {
         const extents = this.fillExtents(sized, inset);
         const mesh = creator(size, scene, createOptions.shape.detail);
         if (!this.isFitted(createOptions.shape)) {
+            // A solid at its own proportions still gives way to a centered or inside border: its fill comes in by the
+            // inset, as a fitted one's extents do, so the ring's outer edge is where `border.position` puts it.
+            if (inset > 0) {
+                NodeMesh.shrinkBy(mesh, inset);
+            }
             return mesh;
         }
 
@@ -551,6 +556,25 @@ export class NodeMesh {
         const z = world(shape.depth) ?? (thin ? THIN_DEPTH_RATIO * Math.min(x ?? across, y ?? across) : undefined);
 
         return { across, x, y, z };
+    }
+
+    /**
+     * Shrink a solid fill at its own proportions by an inset on every side: its widest extent across the view less
+     * twice the inset, as {@link borderFit} brings a fitted fill in.
+     * @param mesh - The fill, at its own size.
+     * @param inset - How far in its edge comes.
+     */
+    private static shrinkBy(mesh: Mesh, inset: number): void {
+        mesh.refreshBoundingInfo();
+        const { extendSize } = mesh.getBoundingInfo().boundingBox;
+        const across = 2 * Math.max(extendSize.x, extendSize.y);
+        if (across <= 0) {
+            return;
+        }
+
+        const k = Math.max(across - 2 * inset, MIN_NODE_SIZE) / across;
+        mesh.bakeTransformIntoVertices(Matrix.Scaling(k, k, k));
+        mesh.refreshBoundingInfo();
     }
 
     /**

@@ -801,6 +801,9 @@ export function beneathOf(
     const agreement = agreementBeneath(session, row, undefined, scope);
     return (channel) => {
         const entry = agreement.channels.find((c) => c.channel === channel);
+        if (entry?.state === "mixed") {
+            return { mixed: true };
+        }
         return entry?.state === "agree" && entry.value !== undefined ? { value: entry.value } : {};
     };
 }

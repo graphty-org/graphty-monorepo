@@ -8,7 +8,7 @@
 
 import { CHANNEL_DESCRIPTORS, type ChannelCondition } from "../session/styles/channels";
 import { LABEL_STYLE_DESCRIPTORS, type LabelFieldCondition } from "./label-style";
-import type { Channel, LabelStyle } from "./types";
+import type { Channel, CombineMode, LabelStyle } from "./types";
 
 /**
  * Whether a channel or a field is drawn, and when it is not, the first condition that does not hold.
@@ -115,4 +115,39 @@ export function labelFieldDrawn(
         (condition) => ("field" in condition ? FIELDS.get(condition.field)?.default : undefined),
     );
     return unmet === undefined ? { drawn: true } : { drawn: false, unmet };
+}
+
+/**
+ * Whether a combine mode can paint a value `"replace"` would not. A layer's number meets what the layers beneath
+ * paint, or the channel's default where they paint nothing; `"multiply"` over 1 and `"add"` over 0 paint the layer's
+ * own number, the same as `"replace"`, so a style editor offers the mode only where it can change the picture.
+ * @param channel - The number channel.
+ * @param mode - The combine mode.
+ * @param beneath - What the layers beneath paint for the channel: one number where they agree on it, `"mixed"`
+ *   where they paint different values, undefined where they paint nothing.
+ * @returns `{ drawn: true }`, or `{ drawn: false, unmet: { mode, base } }`: the number the mode meets is its identity.
+ * @since 3.64.0
+ * @example
+ * ```ts
+ * import { combineDrawn } from "@graphty/graphty-element/catalog";
+ *
+ * combineDrawn("node.size", "multiply", undefined); // { drawn: false, unmet: { mode: "multiply", base: 1 } }
+ * combineDrawn("node.size", "multiply", "mixed"); // { drawn: true }
+ * combineDrawn("node.size", "add", undefined); // { drawn: true }: the default of 1 is added to
+ * ```
+ */
+export function combineDrawn(
+    channel: Channel,
+    mode: CombineMode,
+    beneath: number | "mixed" | undefined,
+): DrawnResult<{ readonly mode: CombineMode; readonly base: number }> {
+    if (mode === "replace" || beneath === "mixed") {
+        return { drawn: true };
+    }
+
+    const fallback = CHANNEL_DESCRIPTORS[channel].default;
+    // The number each mode meets where nothing beneath paints, as the repaint pass reads it (repaint.ts combineOf).
+    const identity = mode === "multiply" ? 1 : 0;
+    const base = beneath ?? (typeof fallback === "number" ? fallback : identity);
+    return base === identity ? { drawn: false, unmet: { mode, base } } : { drawn: true };
 }

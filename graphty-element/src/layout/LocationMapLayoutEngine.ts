@@ -133,10 +133,12 @@ const locationMapOptionsSchema = defineOptions({
         },
     },
     unplaced: {
-        schema: z.enum(["tray", "leave"]).default("tray"),
+        schema: z.enum(["tray", "leave", "hide"]).default("tray"),
         meta: {
             label: "Unplaced Nodes",
-            description: "Nodes with no usable location: in a row beside the map, or left where they were",
+            description:
+                "Nodes with no usable location: in a row beside the map, left where they were, or not " +
+                "drawn (with their edges) while the layout is shown; each way they are still reported",
             advanced: true,
         },
     },
@@ -206,7 +208,7 @@ const LocationMapLayoutShape = z.strictObject({
     extent: z.enum(["data", "world"]).default("data"),
     size: z.number().positive().default(100),
     mapScale: z.number().positive().default(1),
-    unplaced: z.enum(["tray", "leave"]).default("tray"),
+    unplaced: z.enum(["tray", "leave", "hide"]).default("tray"),
     overlap: z.enum(["spread", "stack"]).default("spread"),
     flatNodeScale: z.number().positive().default(1),
     map: Basemap.nullable().default(null),
@@ -229,8 +231,9 @@ type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
  * gazetteer the `gazetteer` option names, fetched on first use; a city is narrowed by a country
  * or region column (`nodeLocationWithinPath`, else one found by name).
  *
- * Nodes with no usable location go to a tray below the map (or stay where they were) and are
- * reported as `W_LOCATION_UNPARSED` and `W_LOCATION_OUT_OF_RANGE`; they are never put at latitude
+ * Nodes with no usable location go to a tray below the map (or stay where they were, or are not
+ * drawn, their edges with them, under `unplaced: "hide"`) and are always reported in the frame's
+ * `unplaced` ids and as `W_LOCATION_UNPARSED` and `W_LOCATION_OUT_OF_RANGE`; they are never put at latitude
  * 0, longitude 0. The 2D view always draws a 2D (flat) map with straight edges; in the 3D view
  * `mapDimension` picks the 3D map, a globe (the default), or the 2D map with edges arced above it.
  * Each answer publishes {@link LocationMapLayout.geoFrame}, which the map and the edges' default

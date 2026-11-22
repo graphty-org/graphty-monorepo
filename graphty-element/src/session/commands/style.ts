@@ -28,8 +28,8 @@ import type { HighlightSpec, MarkSpec, TemplatePosition } from "../styles/Styles
 import { findRow, rowsOf, type StyleRowId, type StyleRowPin, type StyleRowPlace } from "../styles/tree";
 import type { HistoryCode } from "../types";
 
-/** The values of `style.patch`'s discriminant: one per styles verb that reaches it. */
-const STYLE_PATCH_ACTIONS = Object.freeze([
+/** The values of `style.patch`'s discriminant (`action`): one per styles verb that reaches it. */
+export const STYLE_PATCH_ACTIONS = Object.freeze([
     "add",
     "update",
     "remove",
@@ -427,9 +427,9 @@ const stylePatch: UndoableDefinition<StylePatchCommand> = {
         kind: "undoable",
         label: patchLabel,
         fact: patchFact,
-        // A drag of a color picker is one step: updates of the same keys of one layer merge. The
-        // keys are `set` and `encode`, not channels, so edits of two channels within a second merge
-        // too; the merged step's fact then names both (History's mergedFact).
+        // A drag of a color picker is one step: consecutive updates of the same keys of one layer
+        // merge while each changes only channels the step already changes (History's
+        // sameChannels), whatever the time between them. A transaction is a step of its own.
         coalesce: (command) =>
             command.action === "update" ? `style:${command.id}:${Object.keys(command.patch).sort().join(",")}` : null,
     },

@@ -980,9 +980,26 @@ function labelShown(label: unknown): boolean {
 }
 
 /**
+ * Whether yEd draws a label as its icon alone: visible, `hasText="false"` and naming an icon the graph holds
+ * (`graphml-stm32-func` n38, n39, n45, n46: a rotated label of a trapezoid icon over a white box).
+ * @param label - the label element
+ * @param icons - the graph's label icons, by resource id
+ * @returns true when only its icon is drawn
+ */
+function iconOnly(label: unknown, icons: ReadonlyMap<string, LabelIcon> | undefined): boolean {
+    const id = treeAttr(label, "iconData");
+    return (
+        treeAttr(label, "visible") !== "false" &&
+        treeAttr(label, "hasText") === "false" &&
+        id !== undefined &&
+        icons?.has(id) === true
+    );
+}
+
+/**
  * Reads an element's label: the first visible label with text (yEd icon nodes put an empty, `hasText="false"`
- * label first). A node's second one is its external label (`xlabel`) when it is drawn in the label's look, centered
- * where yEd stored it (yed-graphml-specimen-labels two-labels, configuration-er-labels); further visible labels are
+ * label first), else a node's first label drawn as its icon alone. A node's second one is its external label (`xlabel`) when it is drawn in the label's size and turn, centered
+ * where yEd drew it (yed-graphml-specimen-labels two-labels, configuration-er-labels); further visible labels are
  * noted for the element.
  * @param labels - the label elements, in file order
  * @param node - whether they are node labels (which have a position)
@@ -1002,14 +1019,14 @@ function readLabels(
     icons?: ReadonlyMap<string, LabelIcon>,
 ): void {
     const shown = labels.filter((l) => labelShown(l));
-    const label = shown[0];
+    const label = shown[0] ?? (node ? labels.find((l) => iconOnly(l, icons)) : undefined);
     if (label === undefined) {
         return;
     }
-    const text = labelWords(label);
-    const second = node && geometry !== undefined && shown[1] !== undefined && drawnAsSecond(label, shown[1]);
+    const text = shown.length === 0 ? "" : labelWords(label);
+    const second = node && geometry !== undefined && shown[1] !== undefined && drawnAsSecond(label, shown[1], geometry);
     if (second) {
-        readSecondLabel(shown[1], geometry, put, at);
+        readSecondLabel(label, shown[1], geometry, put, at);
     }
     const extra = shown.length - (second ? 2 : 1);
     if (extra > 0) {
@@ -1025,24 +1042,53 @@ function readLabels(
     }
 }
 
-/** What an external label takes from the label: its font, size, color and turn. */
-const SECOND_LABEL_SHARED = ["fontFamily", "fontSize", "fontStyle", "textColor", "rotationAngle"] as const;
+/** What an external label takes from the label: its size and turn (its own color, font and weight are written). */
+const SECOND_LABEL_SHARED = ["fontSize", "rotationAngle"] as const;
 
 /**
- * Whether a node's second label can be drawn as its external label: yEd stored the box it drew, it has the label's
- * font, size, color and turn (an external label is drawn in the label's look), no box of its own drawn, and it is not
- * a table lane's label (a ColumnNodeLabelModel or RowNodeLabelModel label belongs to its lane).
+ * The box yEd draws a node's second label in, from the node's top left corner: the one it stored, or, stored with only
+ * its size, where the internal model puts it (its inset from the sides it names, else centered:
+ * graphml-synthetic-nodes label-corners-sw "second label", internal `b`).
+ * @param label - the label element
+ * @param geometry - the node's `y:Geometry`
+ * @returns its left, top, width and height, or null when the file does not say where it is
+ */
+function secondLabelBox(label: unknown, geometry: unknown): readonly [number, number, number, number] | null {
+    const num = (o: unknown, k: string): number => Number(treeAttr(o, k) ?? Number.NaN);
+    const [x, y, w, h] = ["x", "y", "width", "height"].map((k) => num(label, k));
+    if (!Number.isFinite(w) || !Number.isFinite(h)) {
+        return null;
+    }
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+        return [x, y, w, h];
+    }
+    const inside = INTERNAL_POSITIONS.get((treeAttr(label, "modelPosition") ?? "c").trim().toLowerCase());
+    const [nw, nh] = [num(geometry, "width"), num(geometry, "height")];
+    if (treeAttr(label, "modelName") !== "internal" || inside === undefined || !Number.isFinite(nw + nh)) {
+        return null;
+    }
+    const spot = (low: string, high: string, extent: number, size: number): number => {
+        if (inside.includes(low)) {
+            return YED_INSIDE_INSET;
+        }
+        return inside.includes(high) ? extent - YED_INSIDE_INSET - size : (extent - size) / 2;
+    };
+    return [spot("left", "right", nw, w), spot("top", "bottom", nh, h), w, h];
+}
+
+/**
+ * Whether a node's second label can be drawn as its external label: yEd stored the box it drew or the model places
+ * it, it has the label's size and turn, no box of its own drawn, and it is not a table lane's label (a
+ * ColumnNodeLabelModel or RowNodeLabelModel label belongs to its lane).
  * @param first - the node's label
  * @param label - its second label
+ * @param geometry - the node's `y:Geometry`
  * @returns true when it is drawn as the external label
  */
-function drawnAsSecond(first: unknown, label: unknown): boolean {
+function drawnAsSecond(first: unknown, label: unknown, geometry: unknown): boolean {
     const model = treeChild(label, "LabelModel");
-    const stored = ["x", "y", "width", "height"].every((k) =>
-        Number.isFinite(Number(treeAttr(label, k) ?? Number.NaN)),
-    );
     return (
-        stored &&
+        secondLabelBox(label, geometry) !== null &&
         treeChild(model, "ColumnNodeLabelModel") === undefined &&
         treeChild(model, "RowNodeLabelModel") === undefined &&
         // as readLabelLook draws a box: a color, not switched off
@@ -1053,24 +1099,37 @@ function drawnAsSecond(first: unknown, label: unknown): boolean {
 }
 
 /**
- * Reads a node's second label as its external label: its words, its box's middle from the node's middle (yEd stores
- * the box it drew, from the node's top left corner) and how its lines line up.
+ * Reads a node's second label as its external label: its words, its box's middle from the node's middle, how its
+ * lines line up, and the color, font, weight and slant it has where they are not the label's.
+ * @param first - the node's label
  * @param label - the label element
  * @param geometry - the node's `y:Geometry`
  * @param put - receives the values
  * @param at - the sites
  */
-function readSecondLabel(label: unknown, geometry: unknown, put: PutValue, at: SiteOf): void {
-    const num = (o: unknown, k: string): number => {
-        const n = Number(treeAttr(o, k));
+function readSecondLabel(first: unknown, label: unknown, geometry: unknown, put: PutValue, at: SiteOf): void {
+    const [x, y, w, h] = secondLabelBox(label, geometry) ?? [0, 0, 0, 0];
+    const num = (k: string): number => {
+        const n = Number(treeAttr(geometry, k));
         return Number.isFinite(n) ? n : 0;
     };
-    const middle = (start: string, extent: string): number =>
-        Math.round(1000 * (num(label, start) + num(label, extent) / 2 - num(geometry, extent) / 2)) / 1000;
+    const middle = (start: number, extent: number, of: string): number =>
+        Math.round(1000 * (start + extent / 2 - num(of) / 2)) / 1000;
     put("xlabel", canonText(labelWords(label), at("xlabel")));
-    put("xlabelOffsetX", middle("x", "width"));
-    put("xlabelOffsetY", middle("y", "height"));
+    put("xlabelOffsetX", middle(x, w, "width"));
+    put("xlabelOffsetY", middle(y, h, "height"));
     put("xlabelTextAlign", treeAttr(label, "alignment") ?? null);
+    const own = (k: string): string | undefined =>
+        treeAttr(first, k) === treeAttr(label, k) ? undefined : treeAttr(label, k);
+    readColor(own("textColor"), "xlabelColor", null, put, at);
+    const font = canonText(own("fontFamily"), at("xlabelFont"));
+    put("xlabelFont", font === null ? null : javaFamily(font));
+    const style = own("fontStyle");
+    const known = style === undefined ? undefined : FONT_STYLES.get(style.trim().toLowerCase());
+    if (known !== undefined) {
+        put("xlabelWeight", known[0]);
+        put("xlabelItalic", known[1]);
+    }
 }
 
 /**
@@ -1088,6 +1147,13 @@ function readSecondLabel(label: unknown, geometry: unknown, put: PutValue, at: S
 function readIconPlace(label: unknown, icons: ReadonlyMap<string, LabelIcon>, put: PutValue): void {
     const id = treeAttr(label, "iconData");
     const icon = id === undefined ? undefined : icons.get(id);
+    if (icon !== undefined && iconOnly(label, icons)) {
+        // no words: the label is its icon, placed and turned as the label is
+        put("labelImage", icon.picture);
+        put("labelImageWidth", icon.size[0]);
+        put("labelImageHeight", icon.size[1]);
+        return;
+    }
     const middle = (treeAttr(label, "modelPosition") ?? "c") === "c";
     if (icon === undefined || treeAttr(label, "modelName") !== "internal" || !middle) {
         return;
@@ -1820,6 +1886,10 @@ function yedIconSizes(snapshot: GraphSnapshot, resources: ReadonlyMap<string, st
  * @returns the icon, or null when it holds no PNG that reads
  */
 function yedIconSize(r: unknown, resources: ReadonlyMap<string, string>): LabelIcon | null {
+    const realizer = treeChild(treeChild(r, "NodeRealizerIcon"), "ShapeNode");
+    if (realizer !== undefined) {
+        return realizerIcon(realizer);
+    }
     const scaled = treeChild(r, "ScaledIcon");
     const image = treeAttr(treeChild(scaled, "ImageIcon"), "image");
     const picture = image === undefined ? undefined : resources.get(image);
@@ -1832,6 +1902,47 @@ function yedIconSize(r: unknown, resources: ReadonlyMap<string, string>): LabelI
         return Number.isFinite(n) ? n : 1;
     };
     return { size: [size[0] * scale("xScale"), size[1] * scale("yScale")], picture };
+}
+
+/** yEd's shape types a node realizer icon is drawn as, each an SVG outline in a box of 1 by 1. */
+const ICON_OUTLINES: ReadonlyMap<string, string> = new Map([
+    ["rectangle", "M0 0 H1 V1 H0 Z"],
+    ["ellipse", "M0 0.5 A0.5 0.5 0 1 0 1 0.5 A0.5 0.5 0 1 0 0 0.5 Z"],
+    // yEd's own SVG of graphml-stm32-func's trapezoid icon: M0 30 L29.1025 0 L87.3075 0 L116.41 30 Z
+    ["trapezoid", "M0 1 L0.25 0 L0.75 0 L1 1 Z"],
+    ["trapezoid2", "M0 0 L1 0 L0.75 1 L0.25 1 Z"],
+    ["diamond", "M0.5 0 L1 0.5 L0.5 1 L0 0.5 Z"],
+    ["triangle", "M0.5 0 L1 1 L0 1 Z"],
+]);
+
+/** A color as yEd writes one, safe to put in an SVG. */
+const ICON_COLOR = /^#[\da-f]{6}(?:[\da-f]{2})?$/i;
+
+/**
+ * A node realizer icon (`yed:NodeRealizerIcon`: a node's look drawn as a label's icon) as a picture: its shape, fill
+ * and border drawn as an SVG the size of its geometry.
+ * @param node - the icon's `y:ShapeNode`
+ * @returns the icon, or null for a shape type it is not drawn as or a geometry with no size
+ */
+function realizerIcon(node: unknown): LabelIcon | null {
+    const geometry = treeChild(node, "Geometry");
+    const [w, h] = ["width", "height"].map((k) => Number(treeAttr(geometry, k)));
+    const outline = ICON_OUTLINES.get(treeAttr(treeChild(node, "Shape"), "type") ?? "rectangle");
+    if (outline === undefined || ![w, h].every((n) => Number.isFinite(n) && n > 0)) {
+        return null;
+    }
+    const color = (el: unknown): string => {
+        const c = treeAttr(el, "color") ?? "";
+        return ICON_COLOR.test(c) && treeAttr(el, "transparent") !== "true" ? c : "none";
+    };
+    const border = treeChild(node, "BorderStyle");
+    const line = Number(treeAttr(border, "width") ?? 1);
+    const stroke = treeAttr(border, "hasColor") === "false" ? "none" : color(border);
+    const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${String(w)}" height="${String(h)}" viewBox="0 0 1 1" ` +
+        `preserveAspectRatio="none"><path d="${outline}" fill="${color(treeChild(node, "Fill"))}" stroke="${stroke}" ` +
+        `stroke-width="${String(Number.isFinite(line) ? line : 1)}" vector-effect="non-scaling-stroke"/></svg>`;
+    return { size: [w, h], picture: `data:image/svg+xml;base64,${btoa(svg)}` };
 }
 
 /**
@@ -2964,6 +3075,37 @@ function smartEdgeLabelCenter(smart: readonly [number, number], width: number, l
 }
 
 /**
+ * The part of a route outside its nodes' boxes: from where it last leaves the source's box to where it first enters the
+ * target's. A bend inside a box or on its side is passed by, so a route that runs along a node's side starts at that
+ * side's corner, as yEd draws it (gml-synthetic-coverage e65, whose first bend is on its source's top side).
+ * @param boxes - the source's and the target's center x and y, width and height
+ * @param route - the route, from port to port through its bends
+ * @returns the line, at least its two ends
+ */
+function routeOutside(
+    boxes: readonly [readonly number[], readonly number[]],
+    route: readonly BendPoint[],
+): BendPoint[] {
+    const within = (box: readonly number[], p: BendPoint): boolean =>
+        Math.abs(p[0] - box[0]) <= box[2] / 2 + YED_PORT_SLACK &&
+        Math.abs(p[1] - box[1]) <= box[3] / 2 + YED_PORT_SLACK;
+    const last = route.length - 1;
+    let a = 0;
+    while (a < last - 1 && within(boxes[0], route[a + 1])) {
+        a++;
+    }
+    let b = last;
+    while (b > a + 1 && within(boxes[1], route[b - 1])) {
+        b--;
+    }
+    return [
+        boxExit(boxes[0], route[a], route[a + 1]),
+        ...route.slice(a + 1, b),
+        boxExit(boxes[1], route[b], route[b - 1]),
+    ];
+}
+
+/**
  * Puts a place worked out on the line drawn between the nodes' sides as an offset from where graphty-element hangs the
  * edge's label.
  * @param boxes - the source's and the target's center x and y, width and height
@@ -2977,12 +3119,7 @@ export function putEdgeLabelAt(
     centerOn: (line: readonly BendPoint[]) => BendPoint | null,
     put: PutValue,
 ): void {
-    const last = route.length - 1;
-    const line = [
-        boxExit(boxes[0], route[0], route[1]),
-        ...route.slice(1, -1),
-        boxExit(boxes[1], route[last], route[last - 1]),
-    ];
+    const line = routeOutside(boxes, route);
     const center = centerOn(line);
     if (center?.every(Number.isFinite) !== true) {
         return;

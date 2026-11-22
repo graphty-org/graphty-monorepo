@@ -7,7 +7,7 @@
  * simulation keys (`vx`, `vy`, `fx`, `fy`, `index`) or vis's `physics`. A vis-network document
  * (edges with `from` / `to`) is always y down in canvas px: vis-network draws `x` / `y` straight onto
  * its canvas. A Cytoscape compound node's saved position is not read: Cytoscape.js draws a compound
- * around its children.
+ * around its children. Plain `x` / `y` read by their names are noted (`W_POSITIONS_GUESSED`).
  */
 
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
@@ -71,6 +71,8 @@ export function jsonPositions(snapshot: GraphSnapshot): ImporterPositions | null
         yAxis: down ? "down" : "up",
         units: down ? "px" : "file",
         ...(dialect === "graphology" ? { viewerFit: SIGMA_FIT } : {}),
+        // a plain node list declares nothing about its x / y: read by their names, the y direction a guess
+        ...(dialect === "graphology" || dialect === "vis" ? {} : { byName: true }),
         ...(dialect === "vis" ? { centerOffset: visCenterOffset(snapshot) } : {}),
     };
 }

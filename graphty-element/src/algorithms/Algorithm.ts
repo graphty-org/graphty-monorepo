@@ -10,10 +10,13 @@ import { type OptionsSchema as ZodOptionsSchema } from "../config";
 import { writableLane } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { GraphtyError } from "../errors";
-import { Graph } from "../Graph";
 import { algorithmLog } from "../logging/algorithmLog";
+import type { SessionData } from "../session/data";
 import type { RunResult } from "../session/results";
 import type { Caveats } from "../session/runs/types";
+import { edgeSpaceOf } from "../session/scope/spaces";
+import type { GraphSession } from "../session/types";
+import { type AlgorithmHost, asAlgorithmHost } from "./host";
 import { type InputColumns, sessionColumns } from "./input/columns";
 import type { InputOrientation, SimplifyPolicy } from "./input/derivedInputs";
 import {
@@ -22,6 +25,7 @@ import {
     type ElementScopedInput,
     orientationOf,
     runInputOf,
+    runScopeOf,
     type ScopedInputOptions,
     type ScopeInputDeclaration,
 } from "./input/ScopedInput";
@@ -36,7 +40,7 @@ import { type Graph as LegacyGraph, legacyGraphOf } from "./utils/legacyGraph";
  * Uses any for options to allow flexibility with different algorithm option types
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AlgorithmClass = new (g: Graph, options?: any) => Algorithm;
+type AlgorithmClass = new (g: AlgorithmHost | GraphSession, options?: any) => Algorithm;
 
 /**
  * Interface for Algorithm class static members
@@ -352,7 +356,11 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      */
     static readonly loadedWeightByDefault: boolean = true;
 
-    protected graph: Graph;
+    /**
+     * What the run reads its graph through: the element's `Graph`, or a headless session's data
+     * surface when the class was constructed over a session.
+     */
+    protected graph: AlgorithmHost;
 
     /** The `weight` option as passed, before any schema dropped it. */
     readonly #weightAsked: unknown;
@@ -393,11 +401,12 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * every class the parameters that only chose it (a shortest path's `method`). The checked door
      * is `session.runs`, which refuses an undeclared name with `E_UNKNOWN_OPTION`, as does a class
      * written with `defineAlgorithm`.
-     * @param g - The graph to run the algorithm on
+     * @param g - The graph to run the algorithm on: the element's `Graph`, or a session from
+     *   `createGraphSession`, whose data the run then reads
      * @param options - Optional configuration options (uses schema defaults if not provided)
      */
-    constructor(g: Graph, options?: Partial<TOptions>) {
-        this.graph = g;
+    constructor(g: AlgorithmHost | GraphSession, options?: Partial<TOptions>) {
+        this.graph = asAlgorithmHost(g);
         this._schemaOptions = this.resolveOptions(options);
         this.#weightAsked = (options as Record<string, unknown> | undefined)?.weight;
     }
@@ -419,7 +428,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         this.#weightReading ??= resolveRunWeight(
             cls.weightMeaning,
             this.#weightAsked,
-            loadedWeightOf(this.graph),
+            loadedWeightOf(this.graph, this),
             this.graph.getDataManager().lastImport?.weights.attribute ?? null,
         );
         return this.#weightReading;
@@ -746,7 +755,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         return (this.constructor as typeof Algorithm).namespace;
     }
 
-    abstract run(g: Graph): Promise<void>;
+    abstract run(g: AlgorithmHost): Promise<void>;
 
     /**
      * Compute this algorithm and publish what it produced as a result object.
@@ -834,13 +843,18 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
 
     /**
      * Gets an algorithm instance from the registry
-     * @param g - The graph to run the algorithm on
+     * @param g - The graph to run the algorithm on, or a session
      * @param namespace - The algorithm namespace
      * @param type - The algorithm type
      * @param options - Optional algorithm-specific options to pass to constructor
      * @returns A new instance of the algorithm, or null if not found
      */
-    static get(g: Graph, namespace: string, type: string, options?: Record<string, unknown>): Algorithm | null {
+    static get(
+        g: AlgorithmHost | GraphSession,
+        namespace: string,
+        type: string,
+        options?: Record<string, unknown>,
+    ): Algorithm | null {
         const SourceClass = algorithmRegistry.get(`${namespace}:${type}`);
         if (SourceClass) {
             return new SourceClass(g, options);
@@ -933,12 +947,27 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
  * else the one the last load read -- and its meaning. A bare test graph with no session reads the
  * last load's report. A graph with no load report has none.
  * @param graph - The graph.
+ * @param algorithm - The run's algorithm, whose scope the one weight rule is judged over.
  * @returns The weight, or null.
  */
-function loadedWeightOf(graph: Graph): LoadedWeightFact | null {
-    const session = (graph as Partial<Pick<Graph, "getSession">>).getSession?.();
+function loadedWeightOf(graph: AlgorithmHost, algorithm: object): LoadedWeightFact | null {
+    const session = (graph as Partial<Pick<AlgorithmHost, "getSession">>).getSession?.();
     if (session !== undefined) {
-        return session.data.loadedWeight();
+        // The one weight rule is judged over the edges the run reads (design 8.6).
+        const data = session.data as typeof session.data & Partial<Pick<SessionData, "loadedWeightOver">>;
+        const loaded = data.loadedWeightOver === undefined ? data.loadedWeight() : data.loadedWeightOver(null);
+        const scope = loaded?.mixed === undefined ? null : runScopeOf(algorithm);
+        if (scope === null || data.loadedWeightOver === undefined) {
+            return loaded;
+        }
+        const space = edgeSpaceOf(scope.graph);
+        const read = new Set<string>();
+        for (let index = 0; index < scope.graph.edgeCount; index++) {
+            if (maskTest(scope.resolution.edges, index)) {
+                read.add(space.idOf(index));
+            }
+        }
+        return data.loadedWeightOver((edge) => read.has(edge));
     }
 
     const attribute = graph.getDataManager().lastImport?.weights.attribute ?? null;

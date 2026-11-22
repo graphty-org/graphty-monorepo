@@ -109,6 +109,14 @@ const FIXTURES: Record<
             { id: "n3", latitude: 45.45, longitude: 12.35 },
         ],
     },
+    // Projects each node's latitude and longitude.
+    geographic: {
+        nodes: [
+            { id: "n1", latitude: 45.43, longitude: 12.33 },
+            { id: "n2", latitude: 45.44, longitude: 12.34 },
+            { id: "n3", latitude: 45.45, longitude: 12.35 },
+        ],
+    },
     // Exists only on an accelerator; the fake stands in for one (it has no CPU simulation to run).
     "spring-electrical": { accelerator: true },
 };

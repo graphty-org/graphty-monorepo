@@ -197,7 +197,7 @@ async function runGuideExample(session: Awaited<ReturnType<typeof fixtureSession
             logged.push(args);
         },
     };
-    const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
+    const AsyncFunction = async function () {}.constructor as new (
         ...args: string[]
     ) => (...values: unknown[]) => Promise<void>;
 

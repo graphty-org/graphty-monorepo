@@ -1613,8 +1613,8 @@
                     "plainName": "Max Iterations",
                     "technicalName": "maxIter",
                     "type": "integer",
-                    "description": "Maximum number of simulation iterations",
-                    "default": 100,
+                    "description": "Maximum number of simulation iterations (scaled to the graph's size if null)",
+                    "default": null,
                     "min": 0
                 },
                 {
@@ -1753,6 +1753,69 @@
             ],
             "honoursWeights": true,
             "scoped": true
+        },
+        "geographic": {
+            "options": [
+                {
+                    "name": "latitude",
+                    "plainName": "Latitude",
+                    "technicalName": "latitude",
+                    "type": "string",
+                    "description": "The node attribute holding each node's latitude in degrees; empty reads the designated latitude field, else the attribute named lat or latitude (any case), else `latitude`",
+                    "default": null
+                },
+                {
+                    "name": "longitude",
+                    "plainName": "Longitude",
+                    "technicalName": "longitude",
+                    "type": "string",
+                    "description": "The node attribute holding each node's longitude in degrees; empty reads the designated longitude field, else the attribute named lon, lng or longitude (any case), else `longitude`",
+                    "default": null
+                },
+                {
+                    "name": "projection",
+                    "plainName": "Projection",
+                    "technicalName": "projection",
+                    "type": "enum",
+                    "description": "How longitude and latitude become x and y; equal-earth keeps areas in proportion",
+                    "default": "equirectangular",
+                    "values": [
+                        {
+                            "value": "equirectangular",
+                            "label": "Equirectangular"
+                        },
+                        {
+                            "value": "web-mercator",
+                            "label": "Web Mercator"
+                        },
+                        {
+                            "value": "equal-earth",
+                            "label": "Equal Earth"
+                        }
+                    ]
+                },
+                {
+                    "name": "centralMeridian",
+                    "plainName": "Central Meridian",
+                    "technicalName": "centralMeridian",
+                    "type": "node-id",
+                    "description": "The longitude drawn at the center, in degrees; auto puts the map's edges in the widest gap between nodes, so nodes on both sides of the 180th meridian are drawn side by side",
+                    "default": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "scalingFactor",
+                    "plainName": "Scaling Factor",
+                    "technicalName": "scalingFactor",
+                    "type": "number",
+                    "description": "The radius of the globe the map is drawn from, in scene units",
+                    "default": 100,
+                    "min": 0,
+                    "advanced": true
+                }
+            ],
+            "honoursWeights": false,
+            "scoped": false
         },
         "grid": {
             "options": [
@@ -2010,7 +2073,7 @@
                     "plainName": "Unplaced Nodes",
                     "technicalName": "unplaced",
                     "type": "enum",
-                    "description": "Nodes with no usable location: in a row beside the map, or left where they were",
+                    "description": "Nodes with no usable location: in a row beside the map, left where they were, or not drawn (with their edges) while the layout is shown; each way they are still reported",
                     "default": "tray",
                     "values": [
                         {
@@ -2020,6 +2083,10 @@
                         {
                             "value": "leave",
                             "label": "Leave"
+                        },
+                        {
+                            "value": "hide",
+                            "label": "Hide"
                         }
                     ],
                     "advanced": true
@@ -2139,6 +2206,16 @@
                     "type": "number",
                     "description": "Scale factor for the layout",
                     "default": 1,
+                    "min": 0,
+                    "step": 0.1
+                },
+                {
+                    "name": "aspectRatio",
+                    "plainName": "Aspect Ratio",
+                    "technicalName": "aspectRatio",
+                    "type": "number",
+                    "description": "Width to height ratio the columns are spread to",
+                    "default": 1.3333333333333333,
                     "min": 0,
                     "step": 0.1
                 }

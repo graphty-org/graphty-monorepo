@@ -74,6 +74,7 @@ import type { Node } from "../Node";
 import type { DrawnTarget } from "../render/RowTable";
 import { wholeGraph } from "../session/working/graphs";
 import { readCommunities, readRowCommunities, sameCommunities } from "./clusterForce";
+import { forceAtlas2MaxIterFor } from "./forceAtlas2Iterations";
 import { type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
 
 /**
@@ -107,6 +108,43 @@ export function iterationsPerStepFor(explicit: number | null, stepMultiplier: nu
     }
 
     return nodeCount > ITERATIONS_AUTO_RAISE_NODES ? stepMultiplier * AUTO_RAISE_FACTOR : stepMultiplier;
+}
+
+/**
+ * The most iterations one accelerated batch computes when the host set no `iterationsPerStep`.
+ *
+ * A frame submits ONE batch, so a batch of one iteration ties the layout to the frame rate: the default force layout
+ * of a 20,000-node LFR graph runs about 6,600 iterations before it reports rest, which the device computes in about
+ * 12 seconds, but at the one to three frames a second such a graph draws at that took 44 minutes (issue #9373).
+ * Measured on that graph on an NVIDIA card (test/browser/force-settle-gpu.bench.test.ts): a cap of 64 settled it in
+ * 82 s, 128 in 45 s and 256 in 31 s. 128 keeps one batch of that graph to about a quarter of a second on the device,
+ * so a drag still answers within a frame or two.
+ */
+const ACCELERATED_MAX_ITERATIONS = 128;
+
+/**
+ * Nodes times iterations one accelerated batch may compute when the host set no `iterationsPerStep`, so a batch on a
+ * huge graph stays about as long as one on a 30,000-node graph: 128 iterations to 31,250 nodes, 16 at 250,000, and
+ * never fewer than the size rule above gives.
+ */
+const ACCELERATED_BATCH_NODE_ITERATIONS = 4_000_000;
+
+/**
+ * How many iterations the next accelerated batch computes when the host set no `iterationsPerStep`.
+ *
+ * It RAMPS: each batch computes as many iterations as the simulation has already submitted since it was built
+ * (1, 1, 2, 4, 8, ...), up to the cap, so the first frames still show the layout moving and the rest of the run is
+ * not paced by the frame rate. The count depends only on the iterations submitted, never on a clock, so the same
+ * seed computes the same batches on a fast device and a slow one.
+ * @param base - The count the size rule gives ({@link iterationsPerStepFor}); never fewer.
+ * @param nodeCount - The graph this load is over.
+ * @param submitted - Iterations submitted since the simulation was built.
+ * @returns The iteration count of the next batch.
+ */
+export function acceleratedIterationsFor(base: number, nodeCount: number, submitted: number): number {
+    const byNodes = Math.floor(ACCELERATED_BATCH_NODE_ITERATIONS / Math.max(nodeCount, 1));
+    const cap = Math.max(base, Math.min(ACCELERATED_MAX_ITERATIONS, byNodes));
+    return Math.min(cap, Math.max(base, submitted));
 }
 
 /**
@@ -445,8 +483,10 @@ export interface SimulationEngineInit {
     /**
      * Start the first load from the seed rather than from the arrangement the element holds: the
      * rebuild a seeded layout makes when new data arrives, so the frames that stepped the graph
-     * as it stood before do not decide where it settles (issue #3379). Pinned rows are replayed
-     * after `init()` as for any build.
+     * as it stood before do not decide where it settles (issue #3379), and the build a consumer
+     * asks for, so applying the same seed again over the drawing the last run left draws the same
+     * picture (issue #9292). Pinned rows are replayed after `init()` as for any build. An unseeded
+     * layout ignores it and starts from the arrangement the element holds.
      */
     readonly fromSeed?: boolean;
     /**
@@ -638,6 +678,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     #builtWith: GraphAccelerator | null = null;
     #accelerated = false;
+    /** Whether the accelerator is a software adapter, on which a batch is not ramped: see `#batchIterations`. */
+    #software = false;
     /**
      * The graph the simulation runs on: the element's snapshot, or while the element hands this
      * engine a working graph, that view's compact snapshot, whose rows are the simulation's.
@@ -664,6 +706,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
     /** What a simulation-unit offset from {@link SimulationLayoutEngine.#simCentre} is multiplied by. */
     #envelopeScale = 1;
+
+    /** The simulation {@link SimulationLayoutEngine.#setCollision} last told, at {@link SimulationLayoutEngine.#envelopeScale}. */
+    #collided: unknown = null;
+
+    /** The radii {@link SimulationLayoutEngine.#setCollision} last told: a new array whenever a node's size changed. */
+    #collidedRadii: F32 | null = null;
 
     /** The arrangement's center at the last publish, in the simulation's own units. */
     readonly #simCentre: [number, number, number] = [0, 0, 0];
@@ -732,6 +780,77 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#publish(false);
     };
 
+    /** The transform the owed publish writes the rows with: the one its landing drew with. */
+    #owedTransform: DrawnTransform | null = null;
+    /** `#landed` when the publish was owed: a later landing has rewritten the simulation's rows. */
+    #owedLanded = -1;
+
+    /**
+     * One row as the owed publish writes it (`#writeRows` for that row alone), so a frame that draws
+     * a few rows from the CPU -- a label, an arrowhead -- reads them without writing every row.
+     * @param row - The element's row.
+     * @param out - Written with the row's place.
+     * @param out.x - receives the scene-unit x
+     * @param out.y - receives the scene-unit y
+     * @param out.z - receives the scene-unit z
+     * @returns False when the publish leaves the row as it is, null when it cannot say for one row.
+     */
+    readonly #owedRow = (row: number, out: { x: number; y: number; z: number }): boolean | null => {
+        const via = this.#owedVia();
+        const simPositions = this.#simPositions;
+        if (via === null || simPositions === null) {
+            return null;
+        }
+
+        const sim = this.#simRow(row);
+        if (!this.#hasRow(sim)) {
+            return false;
+        }
+
+        // `#writeRows` leaves out a fixed row the lane has placed, and `publishColumn` a kept one
+        const store = this.#dataManager[WRITABLE_LANE];
+        if (this.#fixedRows.has(sim) && isStorableCoordinate(store.unsettledView()[POSITION_COMPONENTS * row])) {
+            return false;
+        }
+
+        const { scale, center, target } = via;
+        const x = (simPositions[3 * sim] - center[0]) * scale + target[0];
+        const y = (simPositions[3 * sim + 1] - center[1]) * scale + target[1];
+        const z = (simPositions[3 * sim + 2] - center[2]) * scale + target[2];
+        if (this.publishLeavesRow(store, row, x, y, z)) {
+            return false;
+        }
+
+        // the lane is f32: answer what it will hold
+        out.x = Math.fround(x);
+        out.y = Math.fround(y);
+        out.z = Math.fround(z);
+        return true;
+    };
+
+    /**
+     * The transform the owed publish writes the rows with now. A batch that landed after the owe has
+     * rewritten the simulation's rows, and the publish, written now, carries that landing with the
+     * transform its batch drew with: a frame's work before its publish (a style paint, a label refit)
+     * reads rows between a landing and the publish, and refusing it wrote every row (issue #9490).
+     * @returns The transform, or null when the publish would not go by the card: only it knows then.
+     */
+    #owedVia(): DrawnTransform | null {
+        if (this.#owedTransform === null || this.#owedLanded === this.#landed) {
+            return this.#owedTransform;
+        }
+
+        // as `#publish(false)` takes it
+        const drawn = this.#drawnRun();
+        const via = drawn === null || this.#landedOf(drawn) === null ? null : this.#cardTransform(drawn);
+        if (via !== null) {
+            this.#owedTransform = via;
+            this.#owedLanded = this.#landed;
+        }
+
+        return via;
+    }
+
     /** The box {@link SimulationLayoutEngine.publishedBounds} answers while a publish is owed. */
     #owedBox: Float64Array | null = null;
     /** The box of the rows the last envelope measured, in the simulation's units, or empty for none. */
@@ -764,6 +883,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #paused = false;
     #iterations = 1;
     #iterationsDone = 0;
+    /** Set by {@link SimulationLayoutEngine.dispose}: a batch rejected after it is not reported. */
+    #disposed = false;
+    /** ForceAtlas2's iteration cap this simulation was built with; undefined for the other types. */
+    #maxIter: number | undefined = undefined;
 
     /**
      * Moves at every {@link SimulationLayoutEngine.loadArrangement}. A batch submitted before the
@@ -878,6 +1001,15 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
+     * How many of the batches `step()` submitted have landed, published or not.
+     * @returns The count; it only grows.
+     * @internal
+     */
+    get landedBatches(): number {
+        return this.#landed;
+    }
+
+    /**
      * Whether a batch can still land and publish new positions: a simulation is loaded, no batch
      * of it has failed, and it is being stepped or has a batch in flight. A failed batch leaves
      * the layout running with nothing to land, so a frame waiting for a landing would wait for good.
@@ -962,13 +1094,33 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#snapshot = simGraph;
         this.#positions = positions;
         const simPositions = this.#adoptPositions(simGraph.nodeCount, positions);
-        if (this.#fromSeed) {
-            // Every row unplaced, so `#seed` draws the whole graph from the seed alone.
-            this.#fromSeed = false;
-            simPositions.fill(Number.NaN);
+        if (this.#fromSeed && typeof this.#options.model.seed === "number") {
+            this.#unplaceMovable(simGraph.nodeCount, simPositions);
         }
 
+        this.#fromSeed = false;
+
         this.#build();
+    }
+
+    /**
+     * Clears every row the layout may move, so `#seed` draws them from the seed alone.
+     *
+     * A PINNED OR HELD ROW KEEPS ITS COORDINATE. It stays where the reader or the scope put it, and the seed
+     * draws the rest inside the box those rows occupy, in the same units: cleared too, the held rows were
+     * written back in scene units over a graph drawn in the seed's, and the moving rows settled against
+     * nodes the simulation saw many times further away than they are drawn.
+     * @param nodeCount - The graph being loaded.
+     * @param positions - The simulation's array, exactly `3 * nodeCount` long.
+     */
+    #unplaceMovable(nodeCount: number, positions: F32): void {
+        const pins = this.#dataManager[WRITABLE_LANE].pinnedView(this.#elementGraph?.nodeCount ?? nodeCount);
+        for (let i = 0; i < nodeCount; i += 1) {
+            const row = this.#elementRow(i);
+            if (pins[row] !== 1 && !this.isHeld(row)) {
+                positions.fill(Number.NaN, 3 * i, 3 * i + 3);
+            }
+        }
     }
 
     /**
@@ -1015,7 +1167,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
             simulation === null ||
             decision.accelerated !== this.#accelerated ||
             massStale ||
-            loadable.weight !== this.#weightSpec
+            loadable.weight !== this.#weightSpec ||
+            // A cap scaled to the graph is handed over at creation, so a graph that grew past it rebuilds.
+            this.#resolveMaxIter(simGraph.nodeCount) !== this.#maxIter
         ) {
             this.replaceSimulation();
             return;
@@ -1095,9 +1249,13 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
-        this.#iterationsDone += this.#iterations;
+        const iterations = this.#batchIterations();
         const arrangement = this.#arrangement;
-        const batch = simulation.step(this.#iterations);
+        const batch = simulation.step(iterations);
+        // A saturated simulation hands back a batch already in flight and computes nothing more.
+        if (batch === undefined || !this.#caught.has(batch)) {
+            this.#iterationsDone += iterations;
+        }
         this.#syncWork();
         if (batch !== undefined && !this.#caught.has(batch)) {
             this.#caught.add(batch);
@@ -1123,6 +1281,30 @@ export class SimulationLayoutEngine extends LayoutEngine {
                 },
             );
         }
+    }
+
+    /**
+     * How many iterations the next frame's batch computes: the load's count, ramped up on a hardware accelerator when
+     * the host did not pin one (see {@link acceleratedIterationsFor}).
+     *
+     * NOT ON A SOFTWARE ADAPTER. The ramp pays off where a batch's round trip costs more than its arithmetic, which is
+     * a real card's case. A software adapter computes on the CPU: a 128-iteration batch of a few thousand nodes takes
+     * it many frames, so the layout lands only every few seconds and every readback queued behind it -- the node under
+     * the pointer, a buffer map -- waits as long. The count still depends on nothing but the adapter's kind and the
+     * iterations submitted, so a seed draws the same on two cards however fast each one is.
+     * @returns The iteration count.
+     */
+    #batchIterations(): number {
+        if (
+            !this.#accelerated ||
+            this.#software ||
+            this.#options.iterationsPerStep !== null ||
+            this.#snapshot === null
+        ) {
+            return this.#iterations;
+        }
+
+        return acceleratedIterationsFor(this.#iterations, this.#snapshot.nodeCount, this.#iterationsDone);
     }
 
     /**
@@ -1474,6 +1656,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const store = this.#dataManager[WRITABLE_LANE];
         store.forgive(this.#owedPublish);
         this.#owedBox = null;
+        this.#owedTransform = null;
         const snapshot = this.#snapshot;
         const simPositions = this.#simPositions;
         if (snapshot === null || simPositions === null) {
@@ -1497,7 +1680,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
             const box = this.holdsAny ? null : this.#keepFixedIn(this.#rowsBox(viaCard));
             this.#owedBox = box !== null && box[0] <= box[3] ? box : null;
-            store.owe(this.#owedPublish);
+            this.#owedTransform = viaCard;
+            this.#owedLanded = this.#landed;
+            store.owe(this.#owedPublish, this.#owedRow);
             return;
         }
 
@@ -1902,7 +2087,17 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // has to divide a scene-unit coordinate back into the simulation's units, and those units
         // did not move just because no row was published in them.
         if (measured.placed > 0) {
-            this.#envelopeScale = measured.scale;
+            // A SETTLED nodeGap ARRANGEMENT NEVER SHRINKS. Its last sweeps left pairs exactly touching at the scale the
+            // collision was given, and the refit after them -- the sweeps pushed the furthest node out -- would draw
+            // every such pair a hair inside each other. It is published that hair wider instead (issue #9292). Only
+            // over the radii the simulation settled under: a size that changed since is refitted, or the scale held
+            // would be one from before the sizes arrived, and how many frames they took would decide the drawing.
+            const parted =
+                radii !== null &&
+                this.isSettled &&
+                this.#collided === this.#simulation &&
+                this.#collidedRadii === radii;
+            this.#envelopeScale = parted ? Math.max(measured.scale, this.#envelopeScale) : measured.scale;
             this.#simCentre[0] = measured.centre[0];
             this.#simCentre[1] = measured.centre[1];
             this.#simCentre[2] = measured.centre[2];
@@ -2063,6 +2258,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     #setCollision(radii: F32, envelopeScale: number): void {
         const simulation = this.#simulation;
+        this.#collided = simulation;
+        this.#collidedRadii = radii;
         try {
             simulation?.setCollision?.({
                 radii,
@@ -2116,6 +2313,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * freeze and at shutdown.
      */
     override dispose(): void {
+        this.#disposed = true;
         this.#dataManager[WRITABLE_LANE].forgive(this.#owedPublish);
         this.#detachDrawn();
         this.#simulation?.dispose();
@@ -2398,6 +2596,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#seed(snapshot, simPositions);
         this.#nodeMass = this.#resolveNodeMass(undirected);
         this.#iterations = this.#resolveIterations(snapshot.nodeCount);
+        this.#maxIter = this.#resolveMaxIter(snapshot.nodeCount);
         this.#simulation = createSimulation(
             this.simulationType,
             this.#simulationOptions(),
@@ -2406,6 +2605,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // The ATTACHED accelerator, not the one this simulation was handed: see the field.
         this.#builtWith = this.#controller.accelerator;
         this.#accelerated = decision.accelerated;
+        this.#software = decision.accelerated && decision.software;
         this.#precision = decision.accelerated ? decision.precision : CPU_PRECISION;
         this.#failed = false;
         this.#iterationsDone = 0;
@@ -2549,7 +2749,22 @@ export class SimulationLayoutEngine extends LayoutEngine {
         } = this.#options;
         const resolved = this.#nodeMass === null ? {} : { nodeMass: this.#nodeMass };
         const weight = this.#weightSpec === undefined ? {} : { weight: this.#weightSpec };
-        return { ...common, ...model, ...resolved, ...weight, iterationsPerStep: this.#iterations };
+        const cap = this.#maxIter === undefined ? {} : { maxIter: this.#maxIter };
+        return { ...common, ...model, ...resolved, ...weight, ...cap, iterationsPerStep: this.#iterations };
+    }
+
+    /**
+     * ForceAtlas2's iteration cap over a graph this size: the consumer's `maxIter`, else one scaled
+     * to the graph ({@link forceAtlas2MaxIterFor}).
+     * @param nodeCount - The graph this load is over.
+     * @returns The cap, or undefined for a simulation that is not ForceAtlas2.
+     */
+    #resolveMaxIter(nodeCount: number): number | undefined {
+        if (this.simulationType !== "forceatlas2") {
+            return undefined;
+        }
+
+        return (this.#options.model as { maxIter?: number }).maxIter ?? forceAtlas2MaxIterFor(nodeCount);
     }
 
     /**
@@ -2696,7 +2911,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @param from - The simulation the batch was submitted on.
      */
     #onError(error: unknown, from: LayoutSimulation): void {
-        if (this.#reported === from) {
+        // A batch still in flight when the layout was disposed rejects once the graph's teardown destroys the device
+        // under it ("GpuContext is disposed"): nothing asked for that batch any more, so it is no failure to report.
+        if (this.#disposed || this.#reported === from) {
             return;
         }
 

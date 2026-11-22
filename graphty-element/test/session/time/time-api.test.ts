@@ -146,7 +146,7 @@ describe("undoing window moves", () => {
         harness.session.dispose();
     });
 
-    it("keeps moves apart in time as their own steps", async () => {
+    it("merges consecutive moves however far apart in time", async () => {
         let now = 0;
         const harness = fourDays(() => now);
         const { time } = harness.session;
@@ -157,7 +157,7 @@ describe("undoing window moves", () => {
         await time.stepBy(1);
 
         await harness.session.undo();
-        assert.strictEqual(time.current?.from, T0);
+        assert.isNull(time.current, "both moves were one step");
         harness.session.dispose();
     });
 });
@@ -785,6 +785,76 @@ describe("session.time: what a window move does to finished runs", () => {
         await session.time.setSettings({ results: "rerun" });
         assert.strictEqual((await ended).trigger, "time-window");
         session.dispose();
+    });
+
+    it("lets a play keep its pace under results: rerun, re-running one at a time (#9278)", async () => {
+        let count = 0;
+        let release = (): void => undefined;
+        const session = createGraphSession({
+            runs: {
+                execute: async (context) => {
+                    count++;
+                    // The first re-run is slow: it runs until the test lets it finish.
+                    if (count === 2) {
+                        await new Promise<void>((resolve) => {
+                            release = resolve;
+                        });
+                    }
+
+                    return execute(context);
+                },
+            },
+        });
+        const rows = Array.from(
+            { length: 12 },
+            (_, day) => `n${String(day)},n${String(day + 1)},${String(T0 + day * DAY)}`,
+        );
+        await session.data.import({ type: "csv", config: { data: `source,target,sent\n${rows.join("\n")}\n` } });
+        await session.time.setField({ edges: { start: "sent" } });
+        await session.time.setSettings({ results: "rerun" });
+        await session.time.window({ from: T0, to: T0 + DAY, step: "day" });
+        const run = session.runs.start("degree", undefined, { style: false });
+        await run;
+        let steps = 0;
+        session.on("time:step", (step) => {
+            if (step.cause === "play") {
+                steps++;
+            }
+        });
+        let reran = 0;
+        const caughtUp = new Promise<void>((resolve) => {
+            session.on("run:changed", (change) => {
+                if (change.run.id === run.id && change.phase === "end" && change.trigger === "time-window") {
+                    reran++;
+                    if (reran === 2) {
+                        resolve();
+                    }
+                }
+            });
+        });
+
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            session.time.play({ interval: 100, motion: "steps" });
+            for (let step = 0; step < 4; step++) {
+                await vi.advanceTimersByTimeAsync(100);
+            }
+
+            // Four steps while the first re-run still runs: the play did not wait, and started no
+            // second re-run beside it.
+            assert.strictEqual(steps, 4);
+            assert.strictEqual(count, 1 + 1);
+
+            session.time.pause();
+            release();
+            await caughtUp;
+            // The three steps it missed are caught up by one re-run over the newest window.
+            assert.strictEqual(count, 1 + 2);
+            assert.isNull(session.runs.get(run.id)?.stale);
+        } finally {
+            vi.useRealTimers();
+            session.dispose();
+        }
     });
 
     it("saves the designation and the window with the project", async () => {

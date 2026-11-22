@@ -9,6 +9,7 @@ import { megabytes } from "../start/library";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { chipLine, middleCut } from "../style/modelWords";
 import {
+    applyCopies,
     type AssetChoices,
     assetQuestion,
     DISCARD_DIALOG,
@@ -21,6 +22,7 @@ import {
 } from "./actions";
 import { NameField } from "./NameField";
 import { NetworkPrompt } from "./NetworkPrompt";
+import { type PendingCopies, SourceCopyControl } from "./SourceCopyControl";
 
 // The version 2 dialogs load only when the save-files-v2 experiment is on.
 const SaveFilesV2Dialogs = lazy(async () => ({ default: (await import("./saveV2Lazy")).SaveFilesV2Dialogs }));
@@ -36,6 +38,10 @@ function SaveAsDialog(): React.JSX.Element {
     const current = useWorkspaceState((state) => state.project?.name ?? "");
     const [name, setName] = useState(current);
     const [saving, setSaving] = useState(false);
+    // While the data source settings pop-over is open, Escape closes it and not the dialog.
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    // The data source choices picked here: handed to graphty-element on Save, dropped on Cancel.
+    const [pending, setPending] = useState<PendingCopies>(new Map());
 
     // Whether another dialog took the slot during a save (the question about files from the web,
     // or Save as pressed again over it): the save then leaves the slot to that dialog.
@@ -44,6 +50,8 @@ function SaveAsDialog(): React.JSX.Element {
     // after `left.current = false` cannot see.
     const hasLeft = (): boolean => left.current;
     useEffect(() => {
+        setSettingsOpen(false);
+        setPending(new Map());
         if (opened) {
             setName(current);
         } else {
@@ -62,6 +70,7 @@ function SaveAsDialog(): React.JSX.Element {
         setSaving(true);
         left.current = false;
         try {
+            applyCopies(workspace.session, pending);
             await saveProjectAs(workspace, trimmed);
             if (!hasLeft()) {
                 close();
@@ -72,7 +81,7 @@ function SaveAsDialog(): React.JSX.Element {
     };
 
     return (
-        <Modal opened={opened} onClose={close} title={`Save ${current} as`}>
+        <Modal opened={opened} onClose={close} closeOnEscape={!settingsOpen} title={`Save ${current} as`}>
             <form
                 onSubmit={(event) => {
                     event.preventDefault();
@@ -80,6 +89,7 @@ function SaveAsDialog(): React.JSX.Element {
                 }}
             >
                 <NameField value={name} onChange={setName} />
+                <SourceCopyControl pending={pending} onPending={setPending} onSettingsOpen={setSettingsOpen} />
                 <ModalFooter mt="md">
                     <Button variant="default" onClick={close}>
                         Cancel

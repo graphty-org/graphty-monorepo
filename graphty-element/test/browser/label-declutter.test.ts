@@ -20,6 +20,7 @@ import { userEvent } from "vitest/browser";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { LabelDeclutter, type NodeLabelCounts } from "../../src/managers/LabelDeclutter";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 import { nextFrame, wheel } from "../helpers/real-input";
 
 const WIDTH = 640;
@@ -245,7 +246,7 @@ describe("node labels do not overlap", () => {
     });
 
     function passOf(g: Graph): LabelDeclutter {
-        const found: unknown = g.scene.metadata?.labelDeclutter;
+        const found: unknown = (g.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
         if (!(found instanceof LabelDeclutter)) {
             assert.fail("a labelled scene has a declutter pass");
         }
@@ -631,7 +632,9 @@ describe("waitForStableFrame waits for the label counts to be announced", () => 
             assert.deepEqual(heard.at(-1), tag.nodeLabelCounts);
             // Announced on the first still frame after the last pass, not after the ten-frame
             // debounce a gesture gets: each of those frames is most of a second on a software GPU.
-            const declutter = g.scene.metadata?.labelDeclutter as unknown as { quiet: number };
+            const declutter = (g.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter as unknown as {
+                quiet: number;
+            };
             assert.isBelow(declutter.quiet, 10);
         } finally {
             tag.remove();
@@ -675,7 +678,7 @@ describe("the label counts are published once the labels have settled, not after
 
             // From here every frame is one this test draws.
             g.engine.stopRenderLoop();
-            const declutter: unknown = g.scene.metadata?.labelDeclutter;
+            const declutter: unknown = (g.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
             if (!(declutter instanceof LabelDeclutter)) {
                 throw new Error("the labels have no declutter pass");
             }

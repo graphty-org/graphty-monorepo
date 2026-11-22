@@ -329,7 +329,9 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 7. **A network source's `origin`** is closed: `copy`, `url`, `credentials` (`{ "slot" }`, the
    credential slot's name, never a secret), `etag`, `lastModified` and `ledger`, the request
    history a refresh replays, written as graphty-element's `SourceLoadRecord` with its `key` set to
-   the source id.
+   the source id and its params without what marks a credential. An open restores it as the
+   session's record of that load, so a refresh of an embedded network source replays the request as
+   a refresh of a load the session made does.
 8. **A source is referenced only when its rows are its bytes alone.** Otherwise it is embedded,
    whatever the saver asked, and the save reports why (`W_SOURCE_EMBEDDED`, params
    `{ source, reason }`): `edited` (the reader edited, removed or merged its rows), `bytes` (the
@@ -351,14 +353,15 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 #### 4.1.3 The mapping
 
 `nodes` holds `key`, `space`, `weight`, `weightMeaning`, `time`, `timeUnit`, `timeEnd`,
-`timeSpells`, `timeParseZone`, `latitude`, `longitude`, `coordinates`, `country`, `region`, `city`
-and `renamed`; `edges` holds `edgeId`, `source`, `sourceSpace`, `target`, `targetSpace`, `weight`,
+`timeSpells`, `timeParseZone`, `latitude`, `longitude`, `coordinates`, `country`, `region`, `city`,
+`x`, `y`, `z` and `renamed`; `edges` holds `edgeId`, `source`, `sourceSpace`, `target`, `targetSpace`, `weight`,
 `weightMeaning`, `time`, `timeUnit`, `timeEnd`, `timeSpells`, `timeParseZone` and `renamed`. Each
 role is a working column name; `renamed` maps source column name to working name. `weightMeaning`
 (`distance`, `strength`, `capacity`), `timeUnit` (`ms`, `s`, `year`, `ordinal`) and
 `timeParseZone` (an IANA zone name, the zone a time column's text reads in when it carries no
 offset; absent, UTC) are values, not columns. `timeEnd` names the column saying where each row's
-time ends and `timeSpells` the column holding its list of spells.
+time ends and `timeSpells` the column holding its list of spells. `x`, `y` and `z` name the
+columns each node's starting position is read from.
 
 1. An absent role means none, never graphty-element's guess. Nothing is read from a column the
    mapping does not name.
@@ -650,7 +653,9 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
 `assets`.
 
 1. A layer has `id` (REQUIRED, unique in the section), `name`, `target` (`node` or `edge`),
-   `selector`, and `set` and/or `encode`; optionally `source`, `enabled` and `userData`. A layer
+   `selector`, and `set` and/or `encode`; optionally `source`, `enabled`, `userData` and `row`
+   (in style and view alike: the id of the layer that keys its row, shared by the node and edge
+   parts of one row, which open again as one row). A layer
    has no `kind`: there are no special layers. `source.by` is `run`, `template` or `plugin`; a
    layer no run, template or plugin made writes no `source`, in style and view alike.
 2. `set` maps channel names (`node.color`) to values; `encode` maps channel names to bindings
@@ -782,7 +787,7 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
 | Member          | Holds                                                                                                                               |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `camera`        | graphty-element's `CameraState` members as they are but `type`, points as `{ x, y, z }`, plus `dimension` and `controller` (rule 2) |
-| `views`         | saved views: `{ "name", "camera" }`                                                                                                 |
+| `views`         | saved views: `{ "name", "camera", "follows", "key", "filters", "layers", "hidden", "positions", "legend" }`, `camera` or `follows`  |
 | `selection`     | `{ "nodes": [...], "edges": [...] }` element references                                                                             |
 | `pinned`        | the pinned nodes only: `{ "node", "position": { "x", "y", "z" } }`                                                                  |
 | `groups`        | the collapsed groups, in the order they are collapsed again: `{ "groupBy", "group", "position", "pinned", "edges" }` (rule 8)       |
@@ -1016,9 +1021,15 @@ of the view section.
 3. **Results are optional.** By default results are not saved, and opening reruns the behaviors.
    A record or archive save includes them.
 4. **Embed or reference** is chosen per source (4.1.2 rule 4); the default is embed and there is
-   no size-based switch. A `file` source the saver asked to reference but whose `path` is not known
-   and that has no browser file handle is embedded instead, and the save report names it
-   (`W_SOURCE_NO_PATH`, params `{ source, reason }`, `reason` `file`). Every `path` written, also
+   no size-based switch. A source graphty-element's own source references refuse is embedded
+   instead, and the save report names it (`W_SOURCE_NO_PATH`, params `{ source, reason }`), with the
+   reason `data.copies()` gives: `file` for a `file` source the saver asked to reference whose
+   `path` is not known and that has no browser file handle, `inline` for rows handed over with no
+   file, `join` for a joined table, `secret-url` for an address or network source read with a
+   secret or credential a file never holds, `relative-url` for an address that is not absolute, and
+   `no-seed` for a sample with nothing recorded to make it again. A source read from a file keeps
+   what that file said of it. A source the session keeps as a reference (`data.setCopy`) is saved
+   referenced when the saver asks nothing else. Every `path` written, also
    one written back as read (a held source's, a later graph's, a data section held whole), is
    resolved against the file the project was opened from and written relative to the file being
    saved (graphty-element's `location` save option). A path is written only when both locations
@@ -1099,10 +1110,14 @@ source is read no further than the open's size limit.
    It keeps the edge ids its `edgeIds` names, and its record is written back exactly as read on the
    next save. A reader operation naming what it supplies (an `edit`, its `was` included, a
    `remove`, a `merge`, or an `add` of an edge to its nodes) is kept as read, not reported unbound,
-   and written back.
+   and written back. A held source stays in the open data as a load with no elements, kept as a
+   reference (graphty-element's `data.copies()` lists it so), so the reader can supply it later. The
+   file never marks a source held: there is no `held` member, and a held source reopens with
+   `W_SOURCE_UNAVAILABLE` and a reason again.
 3. A held source is built only when the reader asks (graphty-element's `data.refresh(source)`,
    whose call is the permission to fetch): its new bytes are read with its `format`, `options` and
-   roles and built as rule 1 says, the reader operations kept for it are applied, and the build
+   roles (a `network` source: its request replayed from `origin.ledger`, 4.1.2 rule 7) and built as
+   rule 1 says, the reader operations kept for it are applied, and the build
    gets a new stamp (4.1.1), so a run on the old copy reports `W_DATA_CHANGED`. A refresh that
    parses but lacks a column its `mapping` names supplies no rows. A refresh that still cannot read
    the source leaves it held.
@@ -1267,36 +1282,36 @@ it fails a schema, and acts by the rules above instead.
 graphty-element reports what happened while reading or writing as `{ code, params }`. An
 application words them.
 
-| Code                          | When                                                                         | Params                                    |
-| ----------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------- |
-| `E_BAD_DOCUMENT`              | the file is not I-JSON, or has no known `kind`                               | `section`                                 |
-| `E_UNKNOWN_OPTION`            | a recipe command or scope has a member the reader does not know              | `section`, `pointer`                      |
-| `E_UNKNOWN_COMMAND`           | a recipe command's `op` the reader does not know                             | `section`, `pointer`                      |
-| `W_UNKNOWN_KIND`              | an unknown `sections` key                                                    | `section`                                 |
-| `W_UNKNOWN_MEMBER`            | an unknown member of an open object, selector, binding, palette or run style | `section`, `pointer`                      |
-| `W_SCHEMA_MISMATCH`           | `$schema` disagrees with `kind` and `version`                                | `section`, `schema`                       |
-| `W_SECTION_KEPT`              | a section is held, or a local change to a held kind was not saved            | `section`, `version`, `reason`, `graph`   |
-| `W_EXTENSION_REQUIRED`        | a section lists an extension the reader lacks                                | `section`, `extension`                    |
-| `W_SECTION_UPGRADED`          | an older version was migrated on read                                        | `section`, `from`, `to`                   |
-| `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section               | `section`, `pointer`, `layer`, `movedTo`  |
-| `W_MEMBER_LEFT_OUT`           | a save, or a version 1 migration, could not carry something over             | `kind` or `section`, `field` or `pointer` |
-| `W_SOURCE_NO_PATH`            | a file source has nothing to name it by: embedded, or written with no `path` | `source`, `reason`                        |
-| `W_SOURCE_UNAVAILABLE`        | a referenced source is held: not read, or its copy changed (8.3)             | `source`, `reason`, `size`                |
-| `W_SOURCE_EMBEDDED`           | a source asked to be referenced was embedded: its rows are not its bytes     | `source`, `reason`                        |
-| `W_SPACE_OVERLAP`             | a node key would add keys to a space another source already holds            | `source`, `space`, `count`                |
-| `W_REFERENCE_UNBOUND`         | an element reference binds nowhere                                           | `section`, `pointer`, `ref`               |
-| `W_DATA_CHANGED`              | same data id, but a run's build or copy ids differ                           | `section`, `sources`                      |
-| `W_DATA_MISMATCH`             | a bound section was written on other data, or no data is open                | `section`, `data`                         |
-| `W_CAMERA_CONTROLLER_UNKNOWN` | a camera names a controller the reader does not know                         | `section`, `controller`                   |
-| `W_RUN_NOT_RUN`               | a run was neither rerun nor restored                                         | `run`                                     |
-| `W_RESULTS_DIFFER`            | a rerun disagrees with the saved results                                     | `run`                                     |
-| `W_SOURCE_UNKEYED`            | a source has no key column                                                   | `source`                                  |
-| `W_NODE_NAMED_ONLY`           | nodes only edges name, kept, supplied by those edges' sources                | `source`, `count`                         |
-| `W_KEY_EMPTY`                 | rows whose key or end cell is null or empty were left out                    | `source`, `column`, `rows`                |
-| `W_EDGE_END_MISSING`          | edges naming missing nodes were left out                                     | `source`, `count`                         |
-| `W_COLUMN_WIDENED`            | two types declare one column with different dtypes                           | `column`                                  |
-| `W_ROLES_DIFFER`              | built sources name a weight, time or location role differently               | `table`, `role`, `sources`                |
-| `W_CLASH_RULE_TYPE`           | a number clash rule met a cell it cannot read; the held value stays          | `step`, `column`, `rule`, `cells`         |
+| Code                          | When                                                                          | Params                                    |
+| ----------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------- |
+| `E_BAD_DOCUMENT`              | the file is not I-JSON, or has no known `kind`                                | `section`                                 |
+| `E_UNKNOWN_OPTION`            | a recipe command or scope has a member the reader does not know               | `section`, `pointer`                      |
+| `E_UNKNOWN_COMMAND`           | a recipe command's `op` the reader does not know                              | `section`, `pointer`                      |
+| `W_UNKNOWN_KIND`              | an unknown `sections` key                                                     | `section`                                 |
+| `W_UNKNOWN_MEMBER`            | an unknown member of an open object, selector, binding, palette or run style  | `section`, `pointer`                      |
+| `W_SCHEMA_MISMATCH`           | `$schema` disagrees with `kind` and `version`                                 | `section`, `schema`                       |
+| `W_SECTION_KEPT`              | a section is held, or a local change to a held kind was not saved             | `section`, `version`, `reason`, `graph`   |
+| `W_EXTENSION_REQUIRED`        | a section lists an extension the reader lacks                                 | `section`, `extension`                    |
+| `W_SECTION_UPGRADED`          | an older version was migrated on read                                         | `section`, `from`, `to`                   |
+| `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section                | `section`, `pointer`, `layer`, `movedTo`  |
+| `W_MEMBER_LEFT_OUT`           | a save, or a version 1 migration, could not carry something over              | `kind` or `section`, `field` or `pointer` |
+| `W_SOURCE_NO_PATH`            | a source has nothing to read it again by: embedded, or written with no `path` | `source`, `reason`                        |
+| `W_SOURCE_UNAVAILABLE`        | a referenced source is held: not read, or its copy changed (8.3)              | `source`, `reason`, `size`                |
+| `W_SOURCE_EMBEDDED`           | a source asked to be referenced was embedded: its rows are not its bytes      | `source`, `reason`                        |
+| `W_SPACE_OVERLAP`             | a node key would add keys to a space another source already holds             | `source`, `space`, `count`                |
+| `W_REFERENCE_UNBOUND`         | an element reference binds nowhere                                            | `section`, `pointer`, `ref`               |
+| `W_DATA_CHANGED`              | same data id, but a run's build or copy ids differ                            | `section`, `sources`                      |
+| `W_DATA_MISMATCH`             | a bound section was written on other data, or no data is open                 | `section`, `data`                         |
+| `W_CAMERA_CONTROLLER_UNKNOWN` | a camera names a controller the reader does not know                          | `section`, `controller`                   |
+| `W_RUN_NOT_RUN`               | a run was neither rerun nor restored                                          | `run`                                     |
+| `W_RESULTS_DIFFER`            | a rerun disagrees with the saved results                                      | `run`                                     |
+| `W_SOURCE_UNKEYED`            | a source has no key column                                                    | `source`                                  |
+| `W_NODE_NAMED_ONLY`           | nodes only edges name, kept, supplied by those edges' sources                 | `source`, `count`                         |
+| `W_KEY_EMPTY`                 | rows whose key or end cell is null or empty were left out                     | `source`, `column`, `rows`                |
+| `W_EDGE_END_MISSING`          | edges naming missing nodes were left out                                      | `source`, `count`                         |
+| `W_COLUMN_WIDENED`            | two types declare one column with different dtypes                            | `column`                                  |
+| `W_ROLES_DIFFER`              | built sources name a weight, time or location role differently                | `table`, `role`, `sources`                |
+| `W_CLASH_RULE_TYPE`           | a number clash rule met a cell it cannot read; the held value stays           | `step`, `column`, `rule`, `cells`         |
 
 ## 14. Files in this directory
 

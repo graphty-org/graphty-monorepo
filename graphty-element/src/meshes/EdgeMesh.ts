@@ -19,6 +19,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { parseArrowStack } from "./arrowStack";
 import {
@@ -275,7 +276,7 @@ export class EdgeMesh {
 
         const isOrtho = camera.mode === Camera.ORTHOGRAPHIC_CAMERA;
         // Check scene metadata for twoD flag (will be set by Graph)
-        const is2DGraph = scene.metadata?.twoD === true;
+        const is2DGraph = (scene.metadata as GraphSceneMetadata | null)?.twoD === true;
 
         return isOrtho && is2DGraph;
     }
@@ -1444,18 +1445,36 @@ export class EdgeMesh {
         arrowLength: number,
         geometry: ArrowGeometry,
     ): Vector3 {
+        return EdgeMesh.arrowPositionToRef(surfacePoint, direction, arrowLength, geometry, new Vector3());
+    }
+
+    /**
+     * {@link calculateArrowPosition} into a vector the caller holds, for a placement made every frame.
+     * @param surfacePoint - Point on the node surface where the arrow should touch
+     * @param direction - Direction vector from surface outward
+     * @param arrowLength - Length of the arrow in world units
+     * @param geometry - Arrow geometry configuration
+     * @param out - Receives the position.
+     * @returns `out`.
+     */
+    static arrowPositionToRef(
+        surfacePoint: Vector3,
+        direction: Vector3,
+        arrowLength: number,
+        geometry: ArrowGeometry,
+        out: Vector3,
+    ): Vector3 {
         const scaleFactor = geometry.scaleFactor ?? 1;
-
-        if (geometry.positioningMode === "center") {
-            // Center-based: position center back by radius so front edge touches surface
-            const actualSize = arrowLength * scaleFactor;
-            const radius = actualSize / 2;
-            return surfacePoint.subtract(direction.scale(radius));
-        }
-
-        // Tip-based: apply custom offset
-        const offset = arrowLength * geometry.positionOffset;
-        return surfacePoint.subtract(direction.scale(offset));
+        // Center-based: position center back by radius so front edge touches surface; tip-based: a custom offset
+        const back =
+            geometry.positioningMode === "center"
+                ? (arrowLength * scaleFactor) / 2
+                : arrowLength * geometry.positionOffset;
+        return out.set(
+            surfacePoint.x - direction.x * back,
+            surfacePoint.y - direction.y * back,
+            surfacePoint.z - direction.z * back,
+        );
     }
 
     /**

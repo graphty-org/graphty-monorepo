@@ -121,8 +121,8 @@ describe("a style line's color box", () => {
             assert.include(painted(session), "#008000", "a click into the focused box selected its value");
         });
 
-        // Writes this close together are one undo step (the element merges edits of one value
-        // within a second), so Control+Z takes the line back to before them all; what matters
+        // These writes are one undo step (the element merges consecutive edits of one value), so
+        // Control+Z takes the line back to before them all; what matters
         // here is that the key reached the app's undo, not the box's empty one.
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
@@ -171,9 +171,12 @@ describe("a style line's color box", () => {
             const color = paint?.set?.["node.color"];
             assert.strictEqual(typeof color === "string" ? color.toUpperCase() : color, "#0000FF");
         });
-        assert.isNull(
-            document.querySelector('[data-testid="style-tab"] .ws-row[data-line="node.opacity"]'),
-            "no Opacity line of its own",
-        );
+        // The box beside the hex is not drawn at this width, so the opacity keeps a line of its own (#9295).
+        await waitFor(() => {
+            assert.isNotNull(
+                document.querySelector('[data-testid="style-tab"] .ws-row[data-line="node.opacity"]'),
+                "an Opacity line of its own",
+            );
+        });
     });
 });

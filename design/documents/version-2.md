@@ -481,8 +481,9 @@ header:
       `ColumnDecl.origin.title`.
     - `mapping` is, per table, graphty-element's `TableMapping` names, one value per table:
       `nodes: { key, space, weight, weightMeaning, time, timeUnit, timeEnd, timeSpells,
-timeParseZone, latitude, longitude, coordinates, country, region, city, renamed }` (the location
-      roles are graphty-element's `LocationKind` names, one column each) and `edges: { edgeId,
+timeParseZone, latitude, longitude, coordinates, country, region, city, x, y, z, renamed }` (the
+      location roles are graphty-element's `LocationKind` names, one column each; `x`, `y` and `z`
+      are the position roles, the columns a node's starting position is read from) and `edges: { edgeId,
 source, sourceSpace, target, targetSpace, weight, weightMeaning, time, timeUnit, timeEnd,
 timeSpells, timeParseZone, renamed }`. `timeEnd` and `timeSpells` are columns; `timeParseZone`
       is an IANA zone name, the zone time text without an offset reads in (absent, UTC). With `key` absent, every node row is
@@ -833,7 +834,9 @@ frame later would be a view major version.
   copy id so a refetch that returns different data is reported. Default: embedded, so a file stands
   alone. There is no size-based automatic switch. A file is referenced by its `path` or by a
   browser file handle; a file source with neither cannot be referenced: it is saved embedded even
-  when a reference was asked for, and the save report names it (`W_SOURCE_NO_PATH`). Every path,
+  when a reference was asked for, and the save report names it (`W_SOURCE_NO_PATH`, with the
+  reason the session's own source references give: `file`, `inline`, `join`, `secret-url`,
+  `relative-url` or `no-seed`). Every path,
   also one written back as read (a held source, a later graph, a data section held whole), is resolved against the file the
   project was opened from and written relative to the file being saved (the `location` save
   option); with no location, or a file outside that folder, it loses its path: a built source is
@@ -920,7 +923,10 @@ frame later would be a view major version.
   so one that needs permission is held (`needs-permission`) until a refresh asks during the
   reader's click. Otherwise the load plan lists the source as needing a file, with its saved name, so the app can ask the reader to pick it; a picked file whose copy id differs is
   treated as a refresh. Only a source still not found reports `{ code: "W_SOURCE_UNAVAILABLE",
-params: { source } }`, supplies no elements and leaves references to them unbound.
+params: { source, reason } }`, supplies no elements and leaves references to them unbound. It stays in
+  the session as a held load kept as a reference (`data.copies()`), written back as read, until a
+  refresh builds it; the file has no `held` member. A network source's `origin.ledger` is restored as
+  the session's record of its load, so a refresh replays its request.
 
 ## Versions
 

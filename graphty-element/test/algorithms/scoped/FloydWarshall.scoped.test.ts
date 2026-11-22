@@ -3,7 +3,7 @@
  */
 
 import { FloydWarshallAlgorithm } from "../../../src/algorithms/FloydWarshallAlgorithm";
-import type { Graph } from "../../../src/Graph";
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { describeScopedAdapter } from "./harness";
 
-describeScopedAdapter("floyd-warshall", (graph: Graph) => new FloydWarshallAlgorithm(graph));
+describeScopedAdapter("floyd-warshall", (graph: AlgorithmHost) => new FloydWarshallAlgorithm(graph));

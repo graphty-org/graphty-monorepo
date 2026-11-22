@@ -5025,7 +5025,10 @@ export interface SourceStepAct {
      * Node 1: the space it lives in, with the source and column a value translates through when
      * the step matches on a column that is not node 1's key. `connect` and `merge` take it as it is.
      */
-    readonly into: SourceJoinInto & { readonly space: SourceSpaceName };
+    readonly into: SourceJoinInto & {
+        /** The id space node 1 lives in. */
+        readonly space: SourceSpaceName;
+    };
     /** Make an edge: which way the edges run, as `connect` takes it. */
     readonly direction?: "into-from" | "from-into";
     /** Make an edge: the type its edges carry, when one was given. */
@@ -5652,14 +5655,24 @@ export interface SourceTableMapping {
     readonly type?: SourceTypeName;
     /** Its edge rows' ends and their spaces, each space only once one was named. */
     readonly edges?: {
+        /** The column naming each edge's source node. */
         readonly source: string;
+        /** The column naming each edge's target node. */
         readonly target: string;
+        /** The id space its source ends live in, once one was named. */
         readonly sourceSpace?: SourceSpaceName;
+        /** The id space its target ends live in, once one was named. */
         readonly targetSpace?: SourceSpaceName;
+        /** The edge id column; absent ids each edge by its place. */
         readonly edgeId?: string;
     };
     /** The node types of its edge ends. */
-    readonly endTypes?: { readonly source?: SourceTypeName; readonly target?: SourceTypeName };
+    readonly endTypes?: {
+        /** The node type of its source ends. */
+        readonly source?: SourceTypeName;
+        /** The node type of its target ends. */
+        readonly target?: SourceTypeName;
+    };
 }
 
 /**

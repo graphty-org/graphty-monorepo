@@ -16,6 +16,7 @@
 
 import "../../src/graphty-element";
 
+import type { Mesh } from "@babylonjs/core";
 import { assert, describe, it } from "vitest";
 
 import { operationQueueOf } from "../../src/Graph";
@@ -90,7 +91,12 @@ describe("curved edges", () => {
                 times.sort((a, b) => a - b);
                 const curveVertices = scene.meshes
                     .filter((mesh) => mesh.name.endsWith("|curve"))
-                    .reduce((sum, mesh) => sum + (mesh.subMeshes[0]?.verticesCount ?? 0), 0);
+                    .reduce(
+                        (sum, mesh) =>
+                            sum +
+                            (mesh.subMeshes[0]?.verticesCount ?? 0) * Math.max(1, (mesh as Mesh).forcedInstanceCount),
+                        0,
+                    );
                 const errors: number[] = [];
                 for (let e = gl?.getError(); e !== undefined && e !== 0 && errors.length < 10; e = gl?.getError()) {
                     errors.push(e);

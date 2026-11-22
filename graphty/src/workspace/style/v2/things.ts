@@ -100,8 +100,6 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
             part: "shape",
             groups: [
                 [
-                    // Size is its own row, first: "size by degree" needs no Shape row (ia-design 2, E189).
-                    { id: "size", name: "Size", items: [], main: ["node.size"], own: SIZE_CHANNELS },
                     {
                         id: "shape",
                         name: "Shape",
@@ -111,6 +109,8 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         own: INNER_LINE_CHANNELS,
                         unnamed: true,
                     },
+                    // Size is its own row, after Shape (owner, 2026-11-22): "size by degree" needs no Shape row.
+                    { id: "size", name: "Size", items: [], main: ["node.size"], own: SIZE_CHANNELS },
                 ],
             ],
         },

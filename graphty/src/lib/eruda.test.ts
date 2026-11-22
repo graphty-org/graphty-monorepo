@@ -34,7 +34,7 @@ describe("pinErudaTopRight", () => {
         eruda.init();
         pinErudaTopRight(eruda);
 
-        expect(eruda.position()).toEqual({ x: window.innerWidth - 48, y: 0 });
+        expect(eruda.position()).toEqual({ x: window.innerWidth - 50, y: 0 });
     });
 
     // A full-page screenshot resizes the page to 1 x 1 for an instant. Eruda forgets a place that
@@ -46,6 +46,6 @@ describe("pinErudaTopRight", () => {
         await resizeTo(1, 1);
         await resizeTo();
 
-        expect(eruda.position()).toEqual({ x: window.innerWidth - 48, y: 0 });
+        expect(eruda.position()).toEqual({ x: window.innerWidth - 50, y: 0 });
     });
 });

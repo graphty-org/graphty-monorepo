@@ -1,23 +1,31 @@
 import type eruda from "eruda";
 
-/** How far the entry button sits from the window's top and right edges, in CSS pixels: in the workspace header bar's empty right end. */
-const INSET = { right: 48, top: 0 };
+/** eruda's gap between its entry button and the window's edge, in CSS pixels. */
+const GAP = 10;
+
+/**
+ * The entry button's width: eruda draws it inside its own shadow root, and its size differs by device.
+ * @returns The width, or eruda's usual 40 before the button is drawn.
+ */
+function buttonWidth(): number {
+    const button = document.getElementById("eruda")?.shadowRoot?.querySelector<HTMLElement>(".eruda-entry-btn");
+    return button?.offsetWidth || 40;
+}
 
 /**
  * Keeps eruda's entry button in the top-right corner, whatever size the window has been.
  *
- * Eruda remembers where its button is and re-checks that place on every `resize`. When the place
- * does not fit the window of that moment, eruda forgets it for good and remembers its own default,
- * the bottom-right corner, instead. A window that is briefly tiny therefore moves the button for
- * the rest of the page's life: Playwright's full-page screenshot resizes the page to 1 x 1 for an
- * instant whenever the page is taller than the viewport, so about one capture in sixteen of such
- * a story drew the button bottom-right instead of top-right. Placing it again after every resize
- * makes where it sits depend only on the window's current size.
+ * Eruda remembers where its button is and re-checks that place on every `resize`. A place further right than
+ * its own default (the button's width plus 10 from the right edge) or below its default counts as out of
+ * range, and eruda puts the button back in the bottom-right corner for good. So the button sits exactly at
+ * eruda's default right edge, measured from the button itself, at the top; and is placed again after every
+ * resize (a full-page screenshot shrinks the page to 1 x 1 for an instant), so where it sits depends only on
+ * the window's current size.
  * @param tool - The eruda instance, already initialized.
  */
 export function pinErudaTopRight(tool: typeof eruda): void {
     const place = (): void => {
-        tool.position({ x: window.innerWidth - INSET.right, y: INSET.top });
+        tool.position({ x: window.innerWidth - buttonWidth() - GAP, y: 0 });
     };
 
     place();

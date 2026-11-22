@@ -10,6 +10,7 @@ import ReactDOM from "react-dom/client";
 
 import { App } from "./App.tsx";
 import { loadGraphtyElement } from "./elementLoader";
+import { pinErudaTopRight } from "./lib/eruda";
 import { loadSiteConfig } from "./siteConfig";
 import { theme } from "./theme";
 import { loadFrame } from "./workspace/frameLoader";
@@ -37,6 +38,7 @@ if (logging !== null) {
 if (import.meta.env.DEV) {
     void import("eruda").then(({ default: eruda }) => {
         eruda.init();
+        pinErudaTopRight(eruda);
     });
 }
 

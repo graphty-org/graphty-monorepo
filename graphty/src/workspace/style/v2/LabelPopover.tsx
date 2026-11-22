@@ -42,12 +42,18 @@ function groupSet(label: LabelLineContext, group: LabelGroup): boolean {
  * @param props - Component props
  * @param props.label - the label
  * @param props.others - set channels of the thing no line draws, drawn as today's fields
+ * @param props.first - its Kind line, when it has kinds
  * @returns The contents
  */
 export function LabelPopover({
     label,
     others,
-}: Readonly<{ label: LabelLineContext; others: readonly ChannelDescriptor[] }>): React.JSX.Element {
+    first,
+}: Readonly<{
+    label: LabelLineContext;
+    others: readonly ChannelDescriptor[];
+    first?: React.ReactNode;
+}>): React.JSX.Element {
     const { ctx, kind, style, write, title } = label;
     // Fields the layer sets that no line names (a gradient, a margin): drawn in Main.
     const loose = (Object.keys(style) as LabelField[]).filter(
@@ -57,6 +63,7 @@ export function LabelPopover({
         <PopoverShell
             ctx={ctx}
             title={title}
+            first={first}
             groups={LABEL_RUBRIC.groups}
             isSet={(group) => groupSet(label, group)}
             onAdd={(group) => {

@@ -1,7 +1,7 @@
 import type eruda from "eruda";
 
-/** How far the entry button sits from the window's top and right edges, in CSS pixels. */
-const INSET = { right: 60, top: 20 };
+/** How far the entry button sits from the window's top and right edges, in CSS pixels: in the workspace header bar's empty right end. */
+const INSET = { right: 48, top: 0 };
 
 /**
  * Keeps eruda's entry button in the top-right corner, whatever size the window has been.

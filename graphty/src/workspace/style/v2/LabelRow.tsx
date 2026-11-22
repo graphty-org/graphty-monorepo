@@ -33,7 +33,7 @@ import {
 import { sharedWhere, sourceText, styleOf } from "./labelWords";
 import { unsetIn } from "./lineWrites";
 import { LineFrame } from "./RubricLine";
-import { RowSettings, ThingLine } from "./ThingLine";
+import { RowSettings } from "./ThingLine";
 import { setOn } from "./things";
 import { ValueButton } from "./ValueButton";
 
@@ -312,33 +312,31 @@ export function LabelRow({
     });
     const settings = (
         <RowSettings label={`${title} settings`} title={title} changed={changed}>
-            <LabelPopover label={label} others={others} />
+            <LabelPopover label={label} others={others} first={member} />
         </RowSettings>
     );
     return (
         <>
-            <ThingLine member={member}>
-                <LineFrame
-                    line={entry === undefined ? kind.words : `${ctx.side}.labels.${entry}.text`}
-                    name={name}
-                    set
-                    rule="R12"
-                    control={
-                        <TextSource
-                            ctx={ctx}
-                            kind={kind}
-                            title={title}
-                            opensAtOnce={pending && words === undefined}
-                            words={words}
-                            also={sharedWhere(ctx, kind, entry)}
-                            onWrite={writeWords}
-                        />
-                    }
-                    modifier={settings}
-                    removeName={removeLabel}
-                    onRemove={onRemove}
-                />
-            </ThingLine>
+            <LineFrame
+                line={entry === undefined ? kind.words : `${ctx.side}.labels.${entry}.text`}
+                name={name}
+                set
+                rule="R12"
+                control={
+                    <TextSource
+                        ctx={ctx}
+                        kind={kind}
+                        title={title}
+                        opensAtOnce={pending && words === undefined}
+                        words={words}
+                        also={sharedWhere(ctx, kind, entry)}
+                        onWrite={writeWords}
+                    />
+                }
+                modifier={settings}
+                removeName={removeLabel}
+                onRemove={onRemove}
+            />
             {/* Every line of the label the layer sets, in the pop-over's order, named (design 2.5). */}
             {setLines.map((line) => (
                 <LabelFieldLine key={`${line.field}-${line.name ?? ""}`} label={label} line={line} named />

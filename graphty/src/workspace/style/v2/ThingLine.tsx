@@ -49,26 +49,3 @@ export function RowSettings({
         </SettingsPopout>
     );
 }
-
-/**
- * A row: its Switch to glyph, when it has members, before the line that draws its name, main control, "..."
- * and minus.
- * @param props - Component props
- * @param props.member - its `MemberMenu`, or nothing for a row with no members
- * @param props.children - the line
- * @returns The row
- */
-export function ThingLine({
-    member,
-    children,
-}: Readonly<{ member?: React.ReactNode; children: React.ReactNode }>): React.JSX.Element {
-    if (member === undefined || member === null) {
-        return <>{children}</>;
-    }
-    return (
-        <div className="ws-thing-line" data-thing-line="">
-            {member}
-            <div className="ws-thing-line-main">{children}</div>
-        </div>
-    );
-}

@@ -98,8 +98,11 @@ function thingChannels(
             each.groups.flat().flatMap((other) => (other === thing ? [] : (other.own ?? []))),
         ),
     );
-    const offered = new Set(part.items.flatMap((item) => itemChannels(item)));
-    const items = part.items.filter((item) => thing.items.includes(item.id)).flatMap((item) => itemChannels(item));
+    const off = experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) });
+    const source =
+        thing.from === undefined ? part : (partsFor(ctx.side, off).find((each) => each.id === thing.from) ?? part);
+    const offered = new Set(source.items.flatMap((item) => itemChannels(item)));
+    const items = source.items.filter((item) => thing.items.includes(item.id)).flatMap((item) => itemChannels(item));
     // A channel another thing owns (Fit to label is the Size row's, not the Label's) is that thing's alone.
     const own = (thing.own ?? []).filter((c) => kindChannels.has(c));
     return [...new Set([...items.filter((c) => offered.has(c)), ...own])].filter((c) => !taken.has(c));

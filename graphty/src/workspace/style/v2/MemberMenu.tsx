@@ -1,22 +1,20 @@
 /**
- * A family thing's Switch to (design/ui/style-panel-v2/design.md, section 5): a glyph before the row's name
- * opening a menu of every member, the current one checked (and `aria-current`). A member an experiment has off is listed,
+ * A family thing's Switch to (design/ui/style-panel-v2/design.md, section 5): the Kind line, first in the row's
+ * "..." pop-over, choosing among every member. A member an experiment has off is listed,
  * disabled, never hidden. A member that needs a pick (a model, a picture, a shader in the shapes' place)
  * opens its picker beside the row and switches on the pick; Escape changes nothing. Others switch at once,
  * in one undo step.
  */
 
-import { Popout } from "@graphty/compact-mantine";
+import { PanelField, Popout } from "@graphty/compact-mantine";
 import {
     LABEL_LOOKS,
     type LabelLookId,
     type ShaderPlace,
     type StyleFamilyDescriptor,
 } from "@graphty/graphty-element/catalog";
-import { ActionIcon, Menu, Tooltip } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
-import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { ModelsPopover } from "../ModelsPopover";
 import { PicturePopover } from "../PicturePopover";
@@ -88,7 +86,6 @@ export function ReplaceGallery({
  * @param props - Component props
  * @param props.boxRef - the box it is drawn in, for a picker opened beside it
  * @param props.attribute - the box's data attribute naming what it switches
- * @param props.title - the thing's name with its kind ("Node fill")
  * @param props.members - the kinds, in order
  * @param props.now - the current kind's key
  * @param props.onChoose - told the kind picked
@@ -108,7 +105,6 @@ function SwitchMenu<
 >({
     boxRef,
     attribute,
-    title,
     members,
     now,
     onChoose,
@@ -122,43 +118,36 @@ function SwitchMenu<
     onChoose: (member: T) => void;
     children?: React.ReactNode;
 }>): React.JSX.Element {
-    const label = `Switch ${title.toLowerCase()} to`;
-    const current = members.find((member) => member.key === now);
+    // A second set's current choice (a label's look) is what the line reads, else the kind.
+    const value = members.find((member) => member.checked === true)?.key ?? now;
+    const item = (member: T): { value: string; label: string; disabled: boolean } => ({
+        value: member.key,
+        label: member.name,
+        disabled: member.disabled && member.key !== now,
+    });
+    const split = members.findIndex((member) => member.divided === true);
+    const data =
+        split < 0
+            ? members.map((member) => item(member))
+            : [
+                  { group: "Kind", items: members.slice(0, split).map((member) => item(member)) },
+                  { group: "Look", items: members.slice(split).map((member) => item(member)) },
+              ];
     return (
         <span ref={boxRef} className="ws-member" {...attribute}>
-            <Menu position="bottom-start">
-                <Menu.Target>
-                    <Tooltip label={current === undefined ? label : `${label}: ${current.name}`}>
-                        <ActionIcon variant="subtle" size="sm" aria-label={label}>
-                            <GLYPHS.switchTo size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                </Menu.Target>
-                <Menu.Dropdown>
-                    {members.map((member) => (
-                        <React.Fragment key={member.key}>
-                            {member.divided === true && <Menu.Divider />}
-                            <Menu.Item
-                                aria-current={member.key === now ? "true" : undefined}
-                                aria-checked={member.checked === true ? "true" : undefined}
-                                disabled={member.disabled && member.key !== now}
-                                leftSection={
-                                    member.key === now || member.checked === true ? (
-                                        <GLYPHS.check size={14} aria-hidden />
-                                    ) : (
-                                        <span className="ws-member-blank" />
-                                    )
-                                }
-                                onClick={() => {
-                                    onChoose(member);
-                                }}
-                            >
-                                {member.name}
-                            </Menu.Item>
-                        </React.Fragment>
-                    ))}
-                </Menu.Dropdown>
-            </Menu>
+            <PanelField
+                label="Kind"
+                kind="select"
+                width="fill"
+                data={data}
+                value={value}
+                onChange={(next) => {
+                    const member = members.find((each) => each.key === String(next));
+                    if (member !== undefined) {
+                        onChoose(member);
+                    }
+                }}
+            />
             {children}
         </span>
     );

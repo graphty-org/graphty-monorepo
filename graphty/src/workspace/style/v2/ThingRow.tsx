@@ -45,7 +45,7 @@ import {
     type ThingRubric,
 } from "./rubric";
 import { LineFrame, type RowSlots, RubricLine } from "./RubricLine";
-import { RowSettings, ThingLine } from "./ThingLine";
+import { RowSettings } from "./ThingLine";
 import { FirstLines, ThingPopover } from "./ThingPopover";
 import { mainOf, setOn, type ThingSpec } from "./things";
 import { ValueButton } from "./ValueButton";
@@ -475,14 +475,24 @@ export function ThingRow({
     const settings = (
         <RowSettings label={`${title} settings`} title={title} changed={changed} opened={open} onOpenChange={setOpen}>
             {rubric === undefined ? (
-                others.map((descriptor) => <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />)
+                <>
+                    {member}
+                    {others.map((descriptor) => (
+                        <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />
+                    ))}
+                </>
             ) : (
                 <ThingPopover
                     ctx={ctx}
                     title={title}
                     rubric={rubric}
                     others={others}
-                    first={<FirstLines ctx={ctx} main={main} />}
+                    first={
+                        <>
+                            {member}
+                            <FirstLines ctx={ctx} main={main} />
+                        </>
+                    }
                     head={rubric.row ?? { channel: main.channel }}
                     extra={replacing === undefined ? undefined : <ReplaceParams ctx={ctx} />}
                     after={popoverList}
@@ -553,19 +563,17 @@ export function ThingRow({
     return (
         <div ref={box} data-thing={thing.id}>
             {picker}
-            <ThingLine member={member}>
-                <MainLine
-                    ctx={ctx}
-                    thing={{ ...thing, name }}
-                    hint={kind?.hint}
-                    main={main}
-                    row={rubric?.row}
-                    replacing={replacing?.shader}
-                    pending={pending}
-                    onCancel={onCancel}
-                    slots={slots}
-                />
-            </ThingLine>
+            <MainLine
+                ctx={ctx}
+                thing={{ ...thing, name }}
+                hint={kind?.hint}
+                main={main}
+                row={rubric?.row}
+                replacing={replacing?.shader}
+                pending={pending}
+                onCancel={onCancel}
+                slots={slots}
+            />
             {/* Every line of the thing the layer sets, in the pop-over's order, named, each with its minus (design 2.5). */}
             {setLines.map((line) => (
                 <RubricLine key={line.channel} ctx={ctx} line={line} named />

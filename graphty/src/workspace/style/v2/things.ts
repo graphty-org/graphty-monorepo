@@ -33,6 +33,8 @@ export interface ThingSpec {
     readonly unnamed?: boolean;
     /** What it does, in its "+" menu item's tooltip, where its name alone does not say. */
     readonly hint?: string;
+    /** The `parts.ts` part its items are in, when not its section's (Border and Visibility sit in Effects). */
+    readonly from?: string;
     /** The tab's shaders: its "+" item opens the one shader gallery, and each use is a row of its own (E668). */
     readonly shader?: true;
 }
@@ -88,12 +90,30 @@ const INNER_LINE_CHANNELS: readonly Channel[] = [
 const SHADER: ThingSpec = { id: "shader", name: "Shader", items: [], main: [], shader: true };
 
 /**
- * Each kind's sections in the panel's order and their things (ia-design.md section 2, E675): the parts
- * of the mark first (node Fill, Text, Shape, Border; edge Line, Arrows, Route, Text), a separator, then
- * how it shows (Visibility, Effects). There is no Shaders section: shaders are Effects' Shader item (E668).
+ * Each kind's sections in the panel's order and their things: the parts of the mark first (node Shape, Fill,
+ * Text; edge Line, Arrows, Route, Text), a separator, then Effects, which holds Border and Visibility
+ * (owner, 2026-11-22). There is no Shaders section: shaders are Effects' Shader item (E668).
  */
 export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]>> = {
     node: [
+        {
+            part: "shape",
+            groups: [
+                [
+                    // Size is its own row, first: "size by degree" needs no Shape row (ia-design 2, E189).
+                    { id: "size", name: "Size", items: [], main: ["node.size"], own: SIZE_CHANNELS },
+                    {
+                        id: "shape",
+                        name: "Shape",
+                        items: ["shape", "model"],
+                        main: ["node.model", "node.shape"],
+                        start: "node.shape",
+                        own: INNER_LINE_CHANNELS,
+                        unnamed: true,
+                    },
+                ],
+            ],
+        },
         {
             part: "fill",
             groups: [
@@ -153,39 +173,20 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
             ],
         },
         {
-            part: "shape",
-            groups: [
-                [
-                    // Size is its own row, first: "size by degree" needs no Shape row (ia-design 2, E189).
-                    { id: "size", name: "Size", items: [], main: ["node.size"], own: SIZE_CHANNELS },
-                    {
-                        id: "shape",
-                        name: "Shape",
-                        items: ["shape", "model"],
-                        main: ["node.model", "node.shape"],
-                        start: "node.shape",
-                        own: INNER_LINE_CHANNELS,
-                        unnamed: true,
-                    },
-                ],
-            ],
-        },
-        // Border is the stroke on the node's own edge, nothing around it (ia-design 2, E675): the ring
-        // and the raised edge are Effects, the inner lines the Shape's custom shape.
-        {
-            part: "border",
-            groups: [[{ id: "border", name: "Border", items: ["border"], main: ["node.borderColor"] }]],
-        },
-        {
-            part: "visibility",
+            part: "effects",
             breakBefore: true,
             groups: [
-                [{ id: "visibility", name: "Visibility", items: ["visible"], main: ["node.visible"], unnamed: true }],
-            ],
-        },
-        {
-            part: "effects",
-            groups: [
+                // Border and Visibility are Effects options (owner, 2026-11-22).
+                [
+                    { id: "border", name: "Border", items: ["border"], main: ["node.borderColor"], from: "border" },
+                    {
+                        id: "visibility",
+                        name: "Visibility",
+                        items: ["visible"],
+                        main: ["node.visible"],
+                        from: "visibility",
+                    },
+                ],
                 // Every look drawn around the node is here (ia-design 2): the ring stands off the rim.
                 [
                     { id: "rings", name: "Ring", items: [], main: ["node.outerBorderColor"], own: RING_CHANNELS },
@@ -299,15 +300,18 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
             ],
         },
         {
-            part: "visibility",
+            part: "effects",
             breakBefore: true,
             groups: [
-                [{ id: "visibility", name: "Visibility", items: ["visible"], main: ["edge.visible"], unnamed: true }],
-            ],
-        },
-        {
-            part: "effects",
-            groups: [
+                [
+                    {
+                        id: "visibility",
+                        name: "Visibility",
+                        items: ["visible"],
+                        main: ["edge.visible"],
+                        from: "visibility",
+                    },
+                ],
                 // The edge's shaders and its animation; the bands along the line are Line's Outline (ia-design 2).
                 [
                     SHADER,

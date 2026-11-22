@@ -10,7 +10,10 @@ body {
 .ws-app {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    /* Fills #root, which is the visible height (100dvh less the safe areas): iPad Safari's 100vh is
+       taller than what it shows, which put the toolbar and the settings button below the screen. */
+    flex: 1 1 auto;
+    min-height: 0;
     /* Clipped, not hidden: a hidden box is still a scroller a wheel or focus can move. */
     overflow: clip;
     background: var(--cm-bg);

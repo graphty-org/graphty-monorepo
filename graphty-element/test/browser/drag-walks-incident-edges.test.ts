@@ -50,7 +50,12 @@ afterEach(() => {
  * @param path - The render path, or undefined for the element's default.
  * @returns The element.
  */
-async function mounted(size: number, layout: string, path?: "batched"): Promise<Graphty> {
+async function mounted(
+    size: number,
+    layout: string,
+    path?: "batched",
+    edgeStyle?: Record<string, unknown>,
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     if (path !== undefined) {
         element.renderPath = path;
@@ -64,6 +69,15 @@ async function mounted(size: number, layout: string, path?: "batched"): Promise<
     });
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
+    if (edgeStyle !== undefined) {
+        await element.session.styles.add({
+            name: "edges",
+            target: "edge",
+            selector: { match: "everything" },
+            set: edgeStyle,
+        } as never);
+    }
+
     const ring = Array.from({ length: size - 1 }, (_, at) => {
         const angle = (2 * Math.PI * at) / (size - 1);
         return { id: `n${String(at)}`, position: { x: 20 * Math.cos(angle), y: 20 * Math.sin(angle), z: 0 } };
@@ -152,8 +166,9 @@ async function dragCounted(
     layout: string,
     during?: { move: number; run: (element: Graphty) => void },
     path?: "batched",
+    edgeStyle?: Record<string, unknown>,
 ): Promise<{ visits: Visit[]; frames: number; followed: number; hovered: string[]; batched: boolean }> {
-    const element = await mounted(size, layout, path);
+    const element = await mounted(size, layout, path, edgeStyle);
     const position = element.nodeScreenPosition("t");
     assert.isDefined(position, "node t is drawn");
     const { x, y } = position;
@@ -242,7 +257,11 @@ describe("a drag", () => {
             engine.step();
             engine.publishPositions();
         };
-        const { visits } = await dragCounted(SIZES[0], "forceatlas2", { move: 4, run: step }, "batched");
+        // An arrowhead set back from its node is drawn only by an `Edge` (a default head is pulled from the row
+        // table and follows its rows on the card with no visit), so the others' edges are placed by a pass too.
+        const { visits } = await dragCounted(SIZES[0], "forceatlas2", { move: 4, run: step }, "batched", {
+            "edge.arrowHeadGap": 1,
+        });
         const atT = (visit: Visit): boolean => visit.edge.startsWith("t-");
         const both = new Set(visits.filter(atT).map(({ frame }) => frame));
         const rows = new Set(visits.filter((visit) => !atT(visit)).map(({ frame }) => frame));

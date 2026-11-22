@@ -1169,6 +1169,7 @@ export class Edge {
     }[];
     // @internal
     get drawnGradient(): readonly string[];
+    get drawnHeadPosition(): Vector3 | null;
     get drawnLine(): {
         name: string;
         length: number;
@@ -9350,6 +9351,7 @@ export class UpdateManager implements Manager {
     meshesShownOrHidden(): void;
     // @internal
     nodeRowSelected(row: number): boolean;
+    // @internal
     noteEndsChanged(): void;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;

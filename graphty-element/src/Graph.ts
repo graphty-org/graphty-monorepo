@@ -5552,6 +5552,14 @@ export class Graph implements GraphContext {
             pulledCapHosts.set(this.scene, {
                 rows: places,
                 settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
+                placedCaps: (count) => {
+                    // one count an arrowhead placed and its edge's ends found, as an object edge counts its own
+                    for (const counter of [this.statsManager.arrowCapUpdate, this.statsManager.intersectCalc]) {
+                        for (let at = 0; at < count; at++) {
+                            counter.fetchNewFrame();
+                        }
+                    }
+                },
             });
             this.#nodeBatches = new NodeBatches(
                 {

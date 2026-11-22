@@ -27,8 +27,11 @@ import type { Node } from "../../src/Node";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { assertScalesLinearly, type Growth, visitsDuring } from "../helpers/cost";
 
-/** The two graph sizes: big enough that a cost per call that grows with the graph is 4x. */
-const SIZES = [100, 400] as const;
+/**
+ * The two graph sizes, 16x apart: a call that walks every scene mesh grows past the constant bound even on the batched
+ * path, where an arrowed edge adds no mesh, so a fixed cost per call does not hide a walk that grows with the graph.
+ */
+const SIZES = [100, 1600] as const;
 
 /**
  * Wait until every queued operation has run and the pass that derives it has drawn it.
@@ -335,6 +338,8 @@ const CASES: readonly Case[] = [
         growth: "linear",
         prepare: (element) => {
             const edges = everyEdge(element);
+            // a head pulled from the row table has no cap of its own: its line is read where it is drawn instead
+            const lineBefore = edges.map((edge) => edge.drawnLine?.center.clone());
             // Every endpoint moves, so every edge has to be placed again.
             for (const node of everyNode(element)) {
                 node.mesh.position.x += 5;
@@ -349,7 +354,18 @@ const CASES: readonly Case[] = [
                 },
                 check: () => {
                     edges.forEach((edge, at) => {
-                        assert.isFalse(edge.arrowCap?.position.equals(before[at] ?? edge.arrowCap.position), "moved");
+                        if (edge.arrowCap === null) {
+                            assert.isTrue(
+                                edge.drawnCaps.some((cap) => cap.end === "arrowHead"),
+                                "the edge draws its arrowhead from a batch",
+                            );
+                            const was = lineBefore[at];
+                            assert.isDefined(was);
+                            assert.isFalse(edge.drawnLine?.center.equals(was) ?? true, "moved");
+                            return;
+                        }
+
+                        assert.isFalse(edge.arrowCap.position.equals(before[at] ?? edge.arrowCap.position), "moved");
                     });
                 },
             };
@@ -392,7 +408,12 @@ const CASES: readonly Case[] = [
                 },
                 check: () => {
                     for (const edge of edges) {
-                        assert.isFalse(edge.arrowCap?.isDisposed() ?? true, "the edge's arrowhead was rebuilt");
+                        // a head pulled from the row table is a slot in a shared batch, not a cap of the edge's own
+                        const rebuilt =
+                            edge.arrowCap === null
+                                ? edge.drawnCaps.some((cap) => cap.end === "arrowHead" && cap.visibility > 0)
+                                : !edge.arrowCap.isDisposed();
+                        assert.isTrue(rebuilt, "the edge's arrowhead was rebuilt");
                     }
                 },
             };

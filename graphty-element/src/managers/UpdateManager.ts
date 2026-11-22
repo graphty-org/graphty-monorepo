@@ -1619,6 +1619,7 @@ export class UpdateManager implements Manager {
     syncStyles(budgetMs = Number.POSITIVE_INFINITY): void {
         const painter = this.graphContext.getStylePainter?.();
         this.repaintPulledOffEnds(painter);
+        this.repaintRowLinesForMap(painter);
 
         // NOT WHILE A PASS IS PAINTING. A pass yields to the event loop part way through, and
         // until it announces, the columns it is rewriting and the mesh keys it has not interned
@@ -1835,6 +1836,29 @@ export class UpdateManager implements Manager {
         if (redrawn) {
             this.forceEdgeWalk();
             this.meshesAdded();
+        }
+    }
+
+    /** Whether the layout's map arced edges when the row lines were last checked ({@link repaintRowLinesForMap}). */
+    private mapArcedRows = false;
+
+    /**
+     * Paint every row line again when the layout's map starts arcing edges (a map layout in the 3D view arrives, or
+     * the view turns 3D under one), so each is drawn by an `Edge` that lays its arc ({@link unbuiltEdgePainted}): a
+     * row line runs straight between its nodes, and nothing else paints it when only the layout changed.
+     * @param painter - Where the rows are queued.
+     */
+    private repaintRowLinesForMap(painter: StylePainter | undefined): void {
+        const arcs = this.mapArcsEdges();
+        if (arcs === this.mapArcedRows || painter === undefined) {
+            return;
+        }
+
+        this.mapArcedRows = arcs;
+        if (arcs) {
+            for (const row of this.graphContext.getEdgeRowLines?.()?.rows() ?? []) {
+                painter.queue("edge", row);
+            }
         }
     }
 

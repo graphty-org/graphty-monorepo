@@ -826,6 +826,14 @@ export class Edge {
                 return null;
             }
 
+            if (edge.pulled.head !== null) {
+                // a line under a head pulled from the row table stops at the head's back, as `drawnLine` reads it
+                const { srcPoint, newEndPoint } = edge.getInterceptPoints();
+                if (srcPoint !== null && newEndPoint !== null) {
+                    return inWorld(edge, [srcPoint.clone(), newEndPoint.clone()]);
+                }
+            }
+
             // a pulled straight piece runs between its ends' centers, its shader stopping it where bareEnd does
             const src = edge.endPosition("source").clone();
             const dst = edge.endPosition("target").clone();
@@ -1632,6 +1640,20 @@ export class Edge {
     }
 
     /**
+     * Where this edge's arrowhead is drawn: its cap's center, or for a head pulled from the row table on renderPath
+     * "batched" (`ArrowCapBatch.setPulled`) the center its batch placed it at when the rows last rested.
+     * @returns The center, or null for an edge that draws no arrowhead.
+     */
+    get drawnHeadPosition(): Vector3 | null {
+        if (this.arrowCap !== null && !this.arrowCap.isDisposed()) {
+            return this.arrowCap.position;
+        }
+
+        const head = this.pulled?.head ?? null;
+        return head === null ? null : head.batch.positionOf(head.slot);
+    }
+
+    /**
      * What this edge's arrow caps are drawn as.
      *
      * THE ONLY READING OF A CAP THERE IS. A cap drawn as a thin instance has no mesh of its own
@@ -1661,7 +1683,12 @@ export class Edge {
                       {
                           end: "arrowHead" as const,
                           name: head.batch.shape,
-                          span: head.batch.spanOf(head.slot, head.size * this.capScaleAt("target")),
+                          span: EdgeMesh.drawsFlat(this.context.getScene())
+                              ? head.batch.flatSpanOf(
+                                    head.size * this.capScaleAt("target"),
+                                    this.endPosition("target").subtract(this.endPosition("source")),
+                                )
+                              : head.batch.spanOf(head.slot, head.size * this.capScaleAt("target")),
                           visibility: head.batch.visibilityOf(head.slot),
                       },
                   ];
@@ -1905,6 +1932,9 @@ export class Edge {
      * @param dstPos - The target end's position this frame.
      */
     private followLayout(srcPos: Vector3, dstPos: Vector3): void {
+        // before the route is read below: a pulled line the layout's map now arcs leaves its batch here, so this
+        // placement lays the arc (and its caps), not the straight line it was
+        this.followRoute();
         const lnk = this.laidOutPosition();
         if (!lnk) {
             this.endsMoving = false;
@@ -1993,7 +2023,6 @@ export class Edge {
         laidEnds?: EdgePosition["lineEnds"],
         laidCurve?: EdgePosition["laidCurve"],
     ): boolean {
-        this.followRoute();
         this.pullCurve(src, dst);
         const lays = this.laysRoute();
         const batch = lays ? this.lineBatch : null;

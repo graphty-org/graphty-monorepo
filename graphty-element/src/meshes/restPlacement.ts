@@ -27,6 +27,11 @@ export interface RestSource {
     readonly rows: RowTable;
     /** Whether no layout is moving the rows. */
     readonly settled: () => boolean;
+    /**
+     * Told how many arrowheads a rest placed on the CPU, each with its edge's two ends found, so the graph's stats count
+     * them as an object edge's placements are counted (`StatsManager.arrowCapUpdate`, `intersectCalc`).
+     */
+    readonly placedCaps?: (count: number) => void;
 }
 
 /** Follows the row table's moves, and says when a batch should place its pieces. */

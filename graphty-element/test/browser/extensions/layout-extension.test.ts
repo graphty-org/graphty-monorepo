@@ -971,7 +971,14 @@ describe("a third party's layout engine", () => {
         it("draws every edge between the two ends the engine reports", async () => {
             const engine = await useLayout<RingLayout>("test-ring");
 
-            assert.isAbove(engine.edgeReads, 0, "the element asked the engine where the edges are");
+            if (graph.renderPath !== "batched") {
+                assert.isAbove(engine.edgeReads, 0, "the element asked the engine where the edges are");
+            }
+
+            // On the batched path a straight edge is pulled from its two nodes' rows on the card, so it is drawn
+            // between the places the engine gave its nodes (checked above) and not asked of the engine; only an
+            // engine that lays its own routes keeps its edges placed by the CPU (`laysEdgeRoutes`).
+            assert.isAbove(graph.getDataManager().edges.size, 0, "edges were built to be read");
 
             for (const edge of graph.getDataManager().edges.values()) {
                 const { src, dst } = engine.getEdgePosition(edge);

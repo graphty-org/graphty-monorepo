@@ -755,6 +755,31 @@ export class ArrowCapBatch {
     }
 
     /**
+     * How wide a billboarded cap lying flat in a 2D graph's plane is drawn, read as a 2D cap's span is ({@link spanOf}
+     * of a cap that is not billboarded): its shape's box turned along its line and scaled to its length, so a cap pulled
+     * from the row table reads as the object path's flat cap does, its span moving with the angle of its edge.
+     * @param size - The cap's length.
+     * @param direction - Its line's direction in the plane.
+     * @returns The span.
+     */
+    flatSpanOf(size: number, direction: Vector3): number {
+        const length = Math.hypot(direction.x, direction.y);
+        const fx = length === 0 ? size : (direction.x / length) * size;
+        const fy = length === 0 ? 0 : (direction.y / length) * size;
+        const s = size;
+        // the shader's frame with the camera straight down the plane: x along the line, z across it in the plane, y
+        // toward the camera
+        const frame = Matrix.FromValues(
+            fx, fy, 0, 0,
+            0, 0, s, 0,
+            fy, -fx, 0, 0,
+            0, 0, 0, 1,
+        ); // prettier-ignore
+        this.scratchBox.reConstruct(this.localMin, this.localMax, frame);
+        return this.scratchBox.extendSizeWorld.length();
+    }
+
+    /**
      * The billboard shader's three per-instance values for one slot.
      *
      * The direction it points along, the world-space length it is drawn at and its color --
@@ -1223,6 +1248,7 @@ export class ArrowCapBatch {
         // passed over had its flag cleared in)
         this.runs.capPull.whole();
         if (this.placedCaps !== placedBefore) {
+            pulled.host.placedCaps?.(this.placedCaps - placedBefore);
             for (const kind of ["matrix", "arrowDirection", "arrowSize"] as const) {
                 this.runs[kind].whole();
             }

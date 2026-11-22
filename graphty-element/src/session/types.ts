@@ -6943,7 +6943,8 @@ export interface SessionEventMap {
     };
     /**
      * A run the `results: "rerun"` setting re-ran after a window move failed: which run, and the
-     * error's code and details.
+     * error's code and details. A re-run canceled while it runs (`run.cancel()`) is not a failure
+     * and publishes no event: the run's status reads "canceled".
      * @beta
      */
     "time:rerun-failed": {

@@ -2901,6 +2901,55 @@ const HEAD_MOST = 0.5;
 /** The arrowheads drawn with a line, by the end each caps: its source's, its target's. */
 type OwnHeads = readonly [readonly Prim[], readonly Prim[]];
 
+/**
+ * A line drawn in whole pieces of its pattern (Cytoscape desktop's arrows and slashes) stops where its last whole piece
+ * ends, up to a piece short of where the line itself ends (cx2-syn-mappings 327->333: eight arrows 18.7 px apart stop
+ * 8.6 px short of node 333, so its route and its label's place along it were read against a shorter line). An end with
+ * no arrowhead of its own is carried on along the line to its node's box where that lies within one piece; an end
+ * capped by an arrowhead stops at the head, and an end whose node lies farther off stays as read.
+ * @param points - the band's route
+ * @param nodes - the nodes it runs between
+ * @param own - the arrowheads drawn with it, at its first end and at its last
+ * @param piece - how far apart its pieces are, or undefined for a band of one outline
+ * @returns the route, each such end carried to its node
+ */
+function carriedToNodes(
+    points: readonly Pt[],
+    nodes: readonly [PNode, PNode],
+    own: OwnHeads,
+    piece: number | undefined,
+): Pt[] {
+    const out = [...points];
+    if (piece === undefined || !(piece > 0) || out.length < 2) {
+        return out;
+    }
+    const boxOf = (n: PNode): PBox => ({
+        x0: n.cx - n.w / 2,
+        y0: n.cy - n.h / 2,
+        x1: n.cx + n.w / 2,
+        y1: n.cy + n.h / 2,
+    });
+    const carry = (end: Pt, from: Pt, heads: readonly Prim[]): Pt => {
+        const d = Math.hypot(end[0] - from[0], end[1] - from[1]);
+        // the node at this end: the one whose box lies nearer it
+        const node = nodes.map((n) => ({ n, d: toBox(end, boxOf(n)) })).sort((a, b) => a.d - b.d)[0].n;
+        if (heads.length > 0 || d === 0 || inside(end, boxOf(node))) {
+            return end;
+        }
+        const [ux, uy] = [(end[0] - from[0]) / d, (end[1] - from[1]) / d];
+        for (let s = 0.25; s <= piece; s += 0.25) {
+            const q: Pt = [end[0] + ux * s, end[1] + uy * s];
+            if (inside(q, boxOf(node))) {
+                return q;
+            }
+        }
+        return end;
+    };
+    out[0] = carry(out[0], out[1], own[0]);
+    out[out.length - 1] = carry(out[out.length - 1], out[out.length - 2], own[1]);
+    return out;
+}
+
 /** What else places a line's ends: its own arrowheads, and how much farther than a line's end may lie from its node. */
 interface EndsBy {
     own?: OwnHeads;
@@ -3989,7 +4038,7 @@ export function associate(
             ...p,
             kind: "path",
             closed: false,
-            points: band.route ?? band.ends,
+            points: carriedToNodes(band.route ?? band.ends, ends, own, band.piece),
             fill: null,
             stroke: {
                 color: p.fill.color,

@@ -1737,6 +1737,25 @@ export class StylePainter {
     }
 
     /**
+     * What one node is painted, for a reader that applies it to a `Node` outside the pass's own
+     * drain: null while a pass is painting, with the node queued so the frame after the pass draws it.
+     *
+     * NOT WHILE A PASS IS PAINTING, for the reason `UpdateManager.syncStyles` gives (#440): the
+     * paint is then the mesh key from before the pass with a style from the middle of it, and the
+     * mesh built from that pair is kept when the pass announces the same key (#9414, #9442).
+     * @param index - Its dense index.
+     * @returns The paint, or null while a pass is painting, when nothing is bound or the index is not an element's.
+     */
+    settledNodePaint(index: number): NodePaint | null {
+        if (this.isPainting) {
+            this.queue("node", index);
+            return null;
+        }
+
+        return this.nodePaint(index);
+    }
+
+    /**
      * The resolved style of one node row, with its model's defaults under it, and how to build its
      * paint: used by {@link StylePainter.rowPaint}.
      * @param paint - The bound paint source.

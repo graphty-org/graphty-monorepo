@@ -653,6 +653,16 @@ export class ColumnRow implements RowMeasure {
     }
 
     /**
+     * Where its source mesh's box is centered about the row's place: off it for a shape whose box is not centered on
+     * its origin (a tetrahedron is centered on its centroid), as `Node.framingBounds` counts a node's mesh box.
+     * @returns The offset.
+     */
+    get drawnBoxCenter(): Readonly<{ x: number; y: number; z: number }> {
+        const { x, y, z } = this.paintedSourceMesh.getBoundingInfo().boundingBox.center;
+        return { x, y, z };
+    }
+
+    /**
      * With no border, its outline is its drawn surface.
      * @returns The half-extents.
      */

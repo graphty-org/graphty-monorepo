@@ -618,7 +618,7 @@ interface DispatcherOptions {
     readonly definitions: readonly CommandDefinition<CommandLike>[];
     /** The baseline; an empty project when absent. */
     readonly state?: ProjectState;
-    /** The clock of the coalescing window. */
+    /** The clock of how long a command executed. */
     readonly now?: () => number;
     /** Where changes are published; replaceable later through `events`. */
     readonly events?: DispatcherEvents;
@@ -948,7 +948,7 @@ export class Dispatcher {
     /** Node coordinates at rest: captures, the `arrangement` and `pins` hooks, rest points. */
     readonly arrangement: Arrangement;
     private readonly store: ProjectStore;
-    /** The clock of the coalescing window, and of how long a command executed. */
+    /** The clock of how long a command executed. */
     private readonly clock: () => number;
     private readonly definitions = new Map<string, CommandDefinition<CommandLike>>();
     private readonly scheduler: Scheduler;
@@ -1065,7 +1065,6 @@ export class Dispatcher {
                 this.collect(patch);
             },
             merge: mergePatches,
-            now: options.now,
             onChange: (reason) => {
                 this.note(reason);
             },

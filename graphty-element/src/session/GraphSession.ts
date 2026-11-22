@@ -522,8 +522,8 @@ interface SessionParts {
 }
 
 /**
- * What the element's own tests hand a session besides its options: the clock of the coalescing
- * window and the repaint's slices, and the queue queued commands take their turn on, so a random
+ * What the element's own tests hand a session besides its options: the clock of how long a
+ * command ran and the repaint's slices, and the queue queued commands take their turn on, so a random
  * sequence can drive both.
  */
 interface SessionInternals {
@@ -867,6 +867,8 @@ class Session implements ElementSession {
                 this.dispatcher.arrangement.rest();
             },
             headless: () => this.dispatcher.services.layout === undefined && !this.disposed,
+            nodeValues: (path) => this.planning.nodeValues?.(path) ?? null,
+            knownFields: () => this.planning.locationDesignation?.() ?? {},
         });
         // A renderer replaces it with its own layout engine.
         this.dispatcher.arrangement.engine = this.runner;

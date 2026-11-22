@@ -895,8 +895,10 @@ transaction<T>(label: string,
 
 A definition may return a coalesce key. A new step merges into the top step when the keys are
 equal, no other step was recorded and no undo happened in between, no undoable work dispatched
-after the top step is still pending, and less than `coalesceMs` (1000 ms) passed since the top
-step's last merge.
+after the top step is still pending, and, for a style update, the new edit changes only channels
+the top step already changes. Time plays no part (#9488): a time window made what Undo undid
+depend on machine load, since a loaded machine records frames further apart. A caller that wants
+an edit kept apart makes it in a transaction, which is always a step of its own.
 
 The pending-work condition keeps section 6.1's order well defined. Undo decides between a step and
 pending work by which came later, and a merge would make the top step both older than the work
@@ -917,8 +919,8 @@ also collapse while still queued (section 4.4, step 5).
 | `positions.set`                  | `positions`                             |
 
 A merged `positions.set` keeps, per row, the first prior value and the last written value, so a
-script that places nodes one at a time in a tight loop becomes one step per `coalesceMs` window,
-not one step per call (section 7 says why that matters for eviction).
+script that places the same nodes again and again in a tight loop becomes one step, not one step
+per call (section 7 says why that matters for eviction).
 
 Two keys collapse only while queued and never merge recorded steps: `element-source` on the
 element's `data.import` and `element-layout` on the element's `layout.set` (section 4.4).
@@ -1224,7 +1226,7 @@ below. Rest points are suspended while the `restoring` flag is set (section 6.2)
 layout write has moved the lane since the current capture, it records only a row patch; if one
 has, it first seals a capture into the seal target, then records its row patch. A script placing
 nodes one at a time therefore costs at most one capture per layout frame, and its calls coalesce
-into one step per `coalesceMs` window (section 5.2). When one call writes more than a third of the
+into one step while they place the same nodes (section 5.2). When one call writes more than a third of the
 rows, a row patch would cost more than a capture (24 bytes per row against 12, plus an id lookup
 per row on restore), so the call seals a full after-capture instead of a row patch. Row patches
 are stored as typed arrays -- a `Uint32Array` of row indices tagged with the graph token, and one
@@ -2433,7 +2435,7 @@ file name or the URL's last part, and `session.data.source()` reads back what wa
 | Coordinates are recorded per rest point, so undoing one of several steps made while the layout ran restores the coordinates of the last rest point below it                                                                                                     | Documented in the guide. Deliberate moves (drag, layout and dimension changes, replacing imports) and multi-frame graph writers keep their own before-arrangement, and `positions.set` records its prior rows                                                                                         |
 | Structural graph inverses are applied lazily (section 3.4), so the first read of the snapshot after an undo pays the rebuild                                                                                                                                    | That read happens in the derivation pass at the latest, which already pays one freeze; a held Ctrl+Z pays it once instead of per press                                                                                                                                                                |
 | A capture's shared node-id list is rewritten by graph-format                                                                                                                                                                                                    | The capture shares the list only where graph-format guarantees it is never rewritten; otherwise it copies it                                                                                                                                                                                          |
-| The 1000 ms coalescing window merges two deliberate edits of the same keys on the same layer                                                                                                                                                                    | Acceptable: the merged step still undoes to the value before both                                                                                                                                                                                                                                     |
+| Consecutive deliberate edits of the same channel on the same layer merge, however far apart                                                                                                                                                                     | Acceptable: the merged step still undoes to the value before both; a transaction keeps one apart                                                                                                                                                                                                      |
 | New stories add Chromatic snapshots                                                                                                                                                                                                                             | They wait for the owner's approval; nothing is auto-accepted                                                                                                                                                                                                                                          |
 | `graph-format` gains `seal()` and `E_FROZEN`                                                                                                                                                                                                                    | Additive to a published package. Code that wrote to a resident snapshot's tables after the store sealed it now throws; the only such writer in the repository is `GraphStore`, which writes before sealing                                                                                            |
 
@@ -2596,7 +2598,7 @@ Everything else in this document is reversible and decided here.
 | Showing a 2D layout flat in a VR or AR headset                                                                            | Keeps XR free of steps, but a flat graph in a device whose point is depth is a regression from today                                                                                                                                                                                      |
 | Undo canceling the newest pending item regardless of age                                                                  | A run started minutes ago would be canceled by the press meant for the color change after it, and a queued color-picker frame would absorb a press with no visible effect                                                                                                                 |
 | Demoting old steps to "not undoable" before evicting them (section 4.11.2)                                                | Undo is last in, first out: a step that cannot be undone makes every older step unreachable while still paying for it                                                                                                                                                                     |
-| Coalesce keys opened and closed by gesture ids (section 4.11.1's table)                                                   | Every consumer would have to report gesture boundaries. A key plus a time window needs no consumer code, and the element's own drag is a transaction                                                                                                                                      |
+| Coalesce keys opened and closed by gesture ids (section 4.11.1's table)                                                   | Every consumer would have to report gesture boundaries. A key needs no consumer code, a transaction keeps an edit apart, and the element's own drag is a transaction                                                                                                                      |
 | An `undo-keys="element" \| "host"` attribute                                                                              | `preventDefault` plus a boolean covers both cases                                                                                                                                                                                                                                         |
 | A hand-written lint selector list, or ESLint's built-in `no-restricted-syntax`                                            | A hand-written list drifts from the doors that exist; the built-in rule cannot tell an element receiver from any other. A type-aware rule reading the element's door list keeps one list and matches by type                                                                              |
 | Widening `session.run` to every op                                                                                        | `run` returns an algorithm-run handle whose fields mean nothing for a style edit. `execute` returns a per-op result type                                                                                                                                                                  |

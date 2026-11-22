@@ -92,6 +92,22 @@ async function addLabel(tab: HTMLElement): Promise<HTMLElement> {
     });
 }
 
+/**
+ * Asserts every line in a part of a pop-over shows a name, a switch's its checkbox's, and that no name is cut.
+ * @param root - the part.
+ */
+function assertNamedUncut(root: HTMLElement): void {
+    for (const line of root.querySelectorAll<HTMLElement>(".ws-row[data-line]")) {
+        const address = line.getAttribute("data-line") ?? "";
+        const name = line.querySelector<HTMLElement>(".ws-field-name");
+        const words = name?.textContent ?? line.querySelector(".mantine-Checkbox-label")?.textContent ?? "";
+        assert.notEqual(words, "", `${address} has a name`);
+        if (name !== null) {
+            assert.isAtMost(name.scrollWidth, name.clientWidth, `${address}: "${words}" is cut`);
+        }
+    }
+}
+
 describe("Style panel v2's Text section", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
@@ -104,12 +120,12 @@ describe("Style panel v2's Text section", () => {
             assert.isNotNull(within(row).queryByRole("button", { name: "Node label source, Node id" }));
         });
 
-        const pop = await popoverOf(row);
-        await typeInto(await lineOf(pop, "node.labelStyle.size"), "2");
+        // Size and color are the row's own lines, and only the row's: the pop-over's Main starts at Show.
+        await typeInto(await lineOf(row, "node.labelStyle.size"), "2");
         await waitFor(() => {
             assert.equal(labelStyle(session, id).size, 2, "Size writes the style's size");
         });
-        const color = await lineOf(pop, "node.labelStyle.color");
+        const color = await lineOf(row, "node.labelStyle.color");
         await userEvent.click(within(color).getByRole("textbox"));
         await userEvent.keyboard("{Control>}a{/Control}FF0000{Enter}");
         await waitFor(() => {
@@ -122,6 +138,13 @@ describe("Style panel v2's Text section", () => {
             const under = row.querySelector('.ws-row[data-line="node.labelStyle.color"] .ws-field-name');
             assert.equal(under?.textContent, "Color", "set, the color shows under the row, named");
         });
+        const pop = await popoverOf(row);
+        const main = within(pop).getByRole("group", { name: "Main" });
+        assert.deepEqual(
+            [...main.querySelectorAll(".ws-row[data-line]")].map((line) => line.getAttribute("data-line")),
+            LABEL_RUBRIC.main.map((line) => `node.labelStyle.${line.unit === undefined ? line.field : "unit"}`),
+            "Main holds Show to the size unit, and no second Size or Color",
+        );
         await userEvent.keyboard("{Escape}");
 
         // Label stays in "+", enabled, while set: it adds a further label (StylePanelV2SeveralLabels).
@@ -192,12 +215,23 @@ describe("Style panel v2's Text section", () => {
             "Behavior",
         ]);
         await userEvent.keyboard("{Escape}");
+        assertNamedUncut(within(pop).getByRole("group", { name: "Main" }));
         for (const group of LABEL_RUBRIC.groups) {
             await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: group.name }));
             const legend = await within(pop).findByRole("group", { name: group.name });
-            // Each of its lines is drawn under its legend.
+            // Each of its lines is drawn under its legend, named, with its whole name shown (E674, E599).
             assert.isAtLeast(legend.querySelectorAll(".ws-row[data-line]").length, group.lines.length, group.name);
+            assertNamedUncut(legend);
+            if (group.name === "Label shadow") {
+                // A Text shadow color set while its switch is off switches the shadow on (no tick first).
+                const color = await lineOf(legend, "node.labelStyle.shadowColor");
+                await userEvent.click(within(color).getByRole("textbox"));
+                await userEvent.keyboard("{Control>}a{/Control}FF0000{Enter}");
+                await waitFor(() => {
+                    assert.isTrue(labelStyle(session, id).shadow, "the color switches the text shadow on");
+                });
+            }
             if (group.on !== undefined) {
                 await waitFor(() => {
                     assert.isTrue(labelStyle(session, id)[group.on ?? ""], `${group.name} switches on`);
@@ -248,7 +282,7 @@ describe("Style panel v2's Text section", () => {
             assert.isNotNull(found);
             return found;
         });
-        const color = await lineOf(await popoverOf(row), "node.labelStyle.color");
+        const color = await lineOf(row, "node.labelStyle.color");
         await userEvent.click(within(color).getByRole("textbox"));
         await userEvent.keyboard("{Control>}a{/Control}FF0000{Enter}");
         await waitFor(() => {
@@ -296,8 +330,7 @@ describe("Style panel v2's Text section", () => {
             const named = line.querySelector(".ws-field-name")?.textContent ?? line.getAttribute("data-rule");
             assert.isTrue(named !== "" && named !== null, `${line.getAttribute("data-line") ?? ""} has a name`);
         }
-        const pop = await popoverOf(row);
-        const color = await lineOf(pop, "node.labelStyle.color");
+        const color = await lineOf(row, "node.labelStyle.color");
         assert.isNotNull(color.querySelector(".cm-paint"), "the color line is a color control with a swatch");
     });
 

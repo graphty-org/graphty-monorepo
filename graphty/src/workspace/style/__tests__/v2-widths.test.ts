@@ -164,7 +164,7 @@ describe("Style panel v2's label rubric", () => {
                     : line.unit.map((unit) => ({ name: unit.name }));
             assert.isDefined(options, `${line.field} has a name for every option`);
             const width = segmentsWidth(options ?? []);
-            const full = line.name === null || line.rule === "R8f";
+            const full = line.rule === "R8f";
             const room =
                 place === "panel"
                     ? LINE_WIDTHS[full ? "panelFull" : "panelNamed"]
@@ -310,8 +310,10 @@ describe("Style panel v2's label rubric", () => {
         );
         // Every one of graphty-element's 90 label fields has its one place.
         assert.sameMembers([...LABEL_COVERED], [...LABEL_STYLE_FIELDS]);
-        const names = (group: string): readonly (string | null | undefined)[] =>
-            LABEL_RUBRIC.groups.find((each) => each.name === group)?.lines.map((line) => line.name) ?? [];
+        // A line's whole name: a short one under its look's switch ("Color" under Text shadow) is called by it.
+        const names = (group: string): readonly (string | undefined)[] =>
+            LABEL_RUBRIC.groups.find((each) => each.name === group)?.lines.map((line) => line.fullName ?? line.name) ??
+            [];
         assert.includeMembers(
             [...names("Letters")],
             ["Letter outline", "Letter outline width", "Letter outline opacity"],
@@ -323,7 +325,7 @@ describe("Style panel v2's label rubric", () => {
         assert.includeMembers([...names("Badge")], ["Icon beside text", "Icon side"]);
     });
 
-    it("a location (R2) draws its Outside / Inside / Auto segments on a full unnamed line", () => {
+    it("a location (R2) draws its Outside / Inside / Auto segments on a full line, its name above them", () => {
         const locations = lines.filter(({ line }) => line.rule === "R2");
         assert.isAbove(locations.length, 0);
         const width = segmentsWidth(["Outside", "Inside", "Auto"].map((name) => ({ name })));

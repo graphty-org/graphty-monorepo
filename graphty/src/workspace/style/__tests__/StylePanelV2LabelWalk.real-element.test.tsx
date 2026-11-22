@@ -161,21 +161,27 @@ const CASES: Readonly<Record<LabelField, WalkCase>> = {
 
 /** Where a field's control is: the group holding its line (none for Main), the line, and how the line holds it. */
 interface Place {
+    /** On the row itself: its Size and Color lines (ia-design 2). */
+    readonly row?: true;
     readonly group?: LabelGroup;
     readonly line: LabelLineSpec;
     readonly how: "field" | "pair" | "side" | "unit" | "on";
 }
 
 /**
- * Where the rubric puts a field. Main's lines come first, so a field on the row is reached in the pop-over's Main.
+ * Where the rubric puts a field: the row's own lines, then the pop-over's Main, then its groups.
  * @param field - the field.
  * @returns its place, or undefined where no line holds it.
  */
 function placeOf(field: LabelField): Place | undefined {
     const shelves: readonly (readonly [LabelGroup | undefined, readonly LabelLineSpec[]])[] = [
-        [undefined, [...LABEL_RUBRIC.common, ...LABEL_RUBRIC.main]],
+        [undefined, LABEL_RUBRIC.main],
         ...LABEL_RUBRIC.groups.map((group): readonly [LabelGroup, readonly LabelLineSpec[]] => [group, group.lines]),
     ];
+    const onRow = LABEL_RUBRIC.common.find((line) => line.field === field);
+    if (onRow !== undefined) {
+        return { row: true, line: onRow, how: "field" };
+    }
     for (const [group, lines] of shelves) {
         if (group?.on === field) {
             return { group, line: { field }, how: "on" };
@@ -483,12 +489,12 @@ describe("every label field is reachable from the Label row and draws (E673)", (
             }
             const place = placeOf(field);
             assert.isDefined(place, `${field}: no line reaches it`);
-            const pop = await openSettings();
+            const pop = place.row === true ? undefined : await openSettings();
             try {
-                const root =
-                    place.group === undefined
-                        ? within(pop).getByRole("group", { name: "Main" })
-                        : await legendOf(pop, place.group);
+                let root = pop === undefined ? await rowOf() : within(pop).getByRole("group", { name: "Main" });
+                if (pop !== undefined && place.group !== undefined) {
+                    root = await legendOf(pop, place.group);
+                }
                 if (place.how === "on") {
                     // Adding its group switches it on; its line shows it on.
                     const line = await lineIn(root, `node.labelStyle.${field}`);

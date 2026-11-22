@@ -800,22 +800,28 @@
    glyphs and the Clear and settings columns (E206, E265). So the row is two lines: the name, uncut,
    with Clear and settings at the far right (E550), and under it the source across the row's whole
    width. Words longer than the whole width end in an ellipsis. */
-[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] {
+/* A named full-width segment line in a pop-over (R8f, R2: a label's Location, Unit, Direction) is two
+   lines the same way: its name, then its segments across the line (E674: every line is named). */
+[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named],
+[data-thing-popover] .ws-row:is([data-rule="R8f"], [data-rule="R2"]) > .ws-field[data-named] {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
 }
 
-[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-field-label {
+[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-field-label,
+[data-thing-popover] .ws-row:is([data-rule="R8f"], [data-rule="R2"]) > .ws-field[data-named] > .ws-field-label {
     flex: 1 0 auto;
     min-height: 24px;
 }
 
-[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-slot {
+[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-slot,
+[data-thing-popover] .ws-row:is([data-rule="R8f"], [data-rule="R2"]) > .ws-field[data-named] > .ws-slot {
     order: 1;
 }
 
-[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-field-control {
+[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-field-control,
+[data-thing-popover] .ws-row:is([data-rule="R8f"], [data-rule="R2"]) > .ws-field[data-named] > .ws-field-control {
     flex: 0 0 100%;
     order: 2;
 }

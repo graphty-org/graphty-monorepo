@@ -2,7 +2,8 @@
  * A label's settings pop-over in Style panel v2 (design/ui/style-panel-v2/design.md, sections 2.6
  * and 7.3): Main, always shown, then each sub-group the label style sets or the reader added from
  * the "+" on Main's legend, under a legend whose minus takes every field of it off the style.
- * Adding a sub-group that switches on (Pointer, Text shadow, Box shadow) writes its on field. A
+ * Adding Callout writes its pointer on; in a group holding two looks (Label shadow, Background's
+ * gradient) a look's line switches that look on when set (`needs` in labelRubric.ts). A
  * field the layer sets that no line names is drawn in Main, so no set value is hidden. A caption's
  * Position sub-group ends in its distance from its end, a channel of its own.
  */
@@ -68,8 +69,8 @@ export function LabelPopover({
                 write(Object.fromEntries(labelGroupFields(group).map((field) => [field, undefined])), drop);
             }}
             main={[
-                // The common lines lead Main as they lead the row (ia-design 2).
-                ...[...LABEL_RUBRIC.common, ...LABEL_RUBRIC.main].map((line) => (
+                // Size and color are the row's own lines (ia-design 2), so Main starts at Show: one home each.
+                ...LABEL_RUBRIC.main.map((line) => (
                     <LabelFieldLine key={`main-${line.field}-${line.name ?? ""}`} label={label} line={line} />
                 )),
                 ...loose.map((field) => <LabelFieldLine key={`loose-${field}`} label={label} line={{ field }} />),

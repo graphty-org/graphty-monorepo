@@ -237,14 +237,9 @@ describe("several labels per node", () => {
         await waitFor(() => {
             assert.isNotNull(within(hubRow).queryByRole("button", { name: /^Node label 2 source, Node id/ }));
         });
-        await userEvent.click(within(hubRow).getByRole("button", { name: /^Node label 2 settings/ }));
-        const hubPop = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
-            assert.isNotNull(found);
-            return found;
-        });
+        // Its Color is a line of its own row (ia-design 2).
         const color = await waitFor(() => {
-            const found = hubPop.querySelector<HTMLElement>(`.ws-row[data-line="node.labels.${expected}.color"]`);
+            const found = hubRow.querySelector<HTMLElement>(`.ws-row[data-line="node.labels.${expected}.color"]`);
             assert.isNotNull(found);
             return found;
         });

@@ -186,11 +186,16 @@ function numberControl({ label, line, field, descriptor, name, split }: LineCont
         return one(field, undefined, name);
     }
     const [a, b] = line.letters ?? ["", ""];
+    // A lettered pair's fields are the line's name and its letter ("Node label pointer size H"); else the second's own.
     const second = labelFieldDescriptor(line.pair)?.plainName ?? line.pair;
     return (
         <Group grow gap={4} wrap="nowrap">
-            {one(field, a === "" ? undefined : a, name)}
-            {one(line.pair, b === "" ? undefined : b, `${label.title} ${second.toLowerCase()}`)}
+            {one(field, a === "" ? undefined : a, a === "" ? name : `${name} ${a}`)}
+            {one(
+                line.pair,
+                b === "" ? undefined : b,
+                b === "" ? `${label.title} ${second.toLowerCase()}` : `${name} ${b}`,
+            )}
         </Group>
     );
 }
@@ -209,7 +214,7 @@ function unitControl({ label, line, name }: LineControlArgs): React.ReactNode {
     const held = units.find((unit) => valueOf(style, unit.field) !== undefined);
     return (
         <SegmentsLine
-            label={`${name} unit`}
+            label={name}
             options={units.map((unit) => ({ value: unit.field, name: unit.name }))}
             value={held?.field ?? ""}
             onPick={(to) => {
@@ -465,10 +470,24 @@ function flatHeld(label: LabelLineContext, line: LabelLineSpec): ChannelDescript
  * @returns The line, or nothing for a field the element does not describe
  */
 export function LabelFieldLine({
-    label,
+    label: given,
     line,
     named: alwaysNamed = false,
 }: Readonly<{ label: LabelLineContext; line: LabelLineSpec; named?: boolean }>): React.JSX.Element | null {
+    const { needs } = line;
+    // A value set on a line whose look is switched off switches it on in the same write (Text shadow's color).
+    const label: LabelLineContext =
+        needs === undefined
+            ? given
+            : {
+                  ...given,
+                  write: (patch, drop) => {
+                      const switchOn =
+                          valueOf(given.style, needs) === undefined &&
+                          Object.values(patch).some((value) => value !== undefined);
+                      given.write(switchOn ? { [needs]: true, ...patch } : patch, drop);
+                  },
+              };
     // R6 sides: split by its Separate sides line, or because the sides already differ.
     const [splitAsked, setSplit] = React.useState(false);
     const flat = flatHeld(label, line);
@@ -486,18 +505,20 @@ export function LabelFieldLine({
     const fields = labelLineFields(line);
     const set = line.unit === undefined ? fields.some((each) => valueOf(style, each) !== undefined) : false;
     const shownName = line.name ?? descriptor.plainName;
-    const name = `${title} ${shownName.toLowerCase()}`;
+    const name = `${title} ${(line.fullName ?? shownName).toLowerCase()}`;
     // The field's own kind: a list of colors (a gradient's) is described to the controls as text, but draws the
     // gradient editor.
     const kind = labelFieldDescriptor(field)?.accepts ?? descriptor.accepts;
-    const rule = line.unit === undefined ? (line.rule ?? RULE_OF_KIND[kind] ?? "R14") : "R8";
+    const rule = line.unit === undefined ? (line.rule ?? RULE_OF_KIND[kind] ?? "R14") : (line.rule ?? "R8");
     const sideValues = line.sides?.map((each) => valueOf(style, each)) ?? [];
     const split = splitAsked || new Set(sideValues).size > 1;
     const args: LineControlArgs = { label, line, field, descriptor, name, set, split };
     const control = line.unit === undefined ? controlOf(args, rule) : unitControl(args);
     const { sides } = line;
     const address = `${label.address ?? label.kind.style}.${line.unit === undefined ? field : "unit"}`;
-    const named = rule !== "R7" && (alwaysNamed || (rule !== "R8f" && rule !== "R2" && line.name !== null));
+    // Every line draws its name (E674); a switch's is its checkbox's. A full-width line (R8f, R2) draws its name
+    // above its control (style.css).
+    const named = rule !== "R7";
     const frame = (
         <LineFrame
             line={address}
@@ -506,7 +527,7 @@ export function LabelFieldLine({
             rule={rule}
             control={control}
             modifier={null}
-            removeName={set ? `Remove ${shownName.toLowerCase()}` : undefined}
+            removeName={set ? `Remove ${(line.fullName ?? shownName).toLowerCase()}` : undefined}
             onRemove={() => {
                 write(Object.fromEntries(fields.map((each) => [each, undefined])));
             }}

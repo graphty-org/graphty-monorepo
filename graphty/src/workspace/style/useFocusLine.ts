@@ -186,9 +186,14 @@ export function useFocusLine<T extends HTMLElement>(session: GraphSession, panel
         const was = drawn;
         const now = linesOf(node);
         drawn = { session: new WeakRef(session), panel, lines: now };
-        // Focus fell to the page, or stays in the tab (on a "+" an Undo did not take away).
+        // Focus fell to the page, or stays in the tab outside every line (on a "+" an Undo did not take away).
+        // A control in a line keeps it: the lines read last can be stale (a row "+" added redraws only its
+        // section), so a reader's first keystroke in a new row's Size would otherwise hand focus to its source.
         const active = document.activeElement;
-        const free = active === null || active === document.body || node.contains(active);
+        const free =
+            active === null ||
+            active === document.body ||
+            (node.contains(active) && active.closest("[data-line]") === null);
         // Another session's ask is not this tab's to answer.
         const asked = pending?.session.deref() === session ? pending : null;
         if (asked === null && free && was?.session.deref() === session && was.panel === panel) {

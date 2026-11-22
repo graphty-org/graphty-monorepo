@@ -32,8 +32,18 @@ interface LabelUnit {
 /** One line editing a label style field. */
 export interface LabelLineSpec {
     readonly field: LabelField;
-    /** Its name, when not the element's; null draws no name column. */
-    readonly name?: string | null;
+    /** Its name, when not the element's. Every label line draws its name (E674). */
+    readonly name?: string;
+    /**
+     * The whole name its controls are called by, where the short name it shows leans on the line above it
+     * ("Color" under the Text shadow switch is "Text shadow color").
+     */
+    readonly fullName?: string;
+    /**
+     * The switch its look needs: setting the line writes it true while it is unset, so a Text shadow color
+     * draws the shadow without its switch ticked first.
+     */
+    readonly needs?: LabelField;
     /** Its rule, where the field's kind does not settle it. */
     readonly rule?: Rule;
     /** The second number of a pair, on the same line. */
@@ -132,8 +142,7 @@ export const LABEL_RUBRIC: LabelRubric = {
         { field: "italic", name: "Italic" },
         { field: "textAlign", name: "Align", rule: "R8" },
         { field: "location", name: "Location", rule: "R2" },
-        // Its segments read "Node label size unit".
-        { field: "size", name: null, rule: "R8f", unit: SIZE_UNIT },
+        { field: "size", name: "Unit", fullName: "Size unit", rule: "R8f", unit: SIZE_UNIT },
     ],
     // ia-design.md "Label settings groups": nine groups by how often files vary them, a divider between tiers.
     groups: [
@@ -143,7 +152,7 @@ export const LABEL_RUBRIC: LabelRubric = {
             lines: [
                 { field: "attachOffset", name: "Distance" },
                 { field: "offsetX", name: "Offset", pair: "offsetY", letters: XY },
-                { field: "box", name: null, rule: "R8f" },
+                { field: "box", name: "Box", rule: "R8f" },
                 { field: "onTop", name: "On top" },
                 { field: "shiftX", name: "Shift", pair: "shiftY", letters: XY },
                 { field: "shiftOf", name: "Shift of", rule: "R8" },
@@ -157,11 +166,12 @@ export const LABEL_RUBRIC: LabelRubric = {
                 { field: "opacity", name: "Opacity" },
                 { field: "lineHeight", name: "Line height" },
                 { field: "rotation", name: "Rotation" },
-                { field: "runAlign", name: null, rule: "R8f" },
+                { field: "runAlign", name: "Run align", rule: "R8f" },
                 // The letters' own stroke; the box's is Box stroke (ia-design: no look has two homes).
+                // Its Width and Opacity follow it and read as its, as the shadows' lines follow their switches.
                 { field: "outline", name: "Letter outline" },
-                { field: "outlineWidth", name: "Letter outline width" },
-                { field: "outlineOpacity", name: "Letter outline opacity" },
+                { field: "outlineWidth", name: "Width", fullName: "Letter outline width" },
+                { field: "outlineOpacity", name: "Opacity", fullName: "Letter outline opacity" },
             ],
         },
         {
@@ -180,27 +190,34 @@ export const LABEL_RUBRIC: LabelRubric = {
         {
             name: "Background",
             lines: [
-                { field: "background", name: null },
-                { field: "backgroundOpacity", name: "Opacity" },
+                { field: "background", name: "Color", fullName: "Background color" },
+                { field: "backgroundOpacity", name: "Opacity", fullName: "Background opacity" },
                 { field: "backgroundShape", name: "Shape", rule: "R8" },
                 { field: "cornerRadius", name: "Corners" },
                 { field: "padding", name: "Padding", units: ["boxPadding"] },
-                { field: "padding", name: "Unit", rule: "R8", unit: PADDING_UNIT },
+                { field: "padding", name: "Unit", fullName: "Padding unit", rule: "R8", unit: PADDING_UNIT },
+                // The lines under the Gradient switch read as its: "Kind" is the gradient's kind.
                 { field: "gradient", name: "Gradient" },
-                { field: "gradientType", name: "Gradient kind", rule: "R8" },
-                { field: "gradientColors", name: "Gradient colors" },
-                { field: "gradientDirection", name: null, rule: "R8f" },
+                { field: "gradientType", name: "Kind", fullName: "Gradient kind", rule: "R8", needs: "gradient" },
+                { field: "gradientColors", name: "Colors", fullName: "Gradient colors", needs: "gradient" },
+                {
+                    field: "gradientDirection",
+                    name: "Direction",
+                    fullName: "Gradient direction",
+                    rule: "R8f",
+                    needs: "gradient",
+                },
             ],
         },
         {
             name: "Box stroke",
             divider: true,
             lines: [
-                { field: "borderWidth", name: "Width" },
-                { field: "borderColor", name: null },
-                { field: "borderOpacity", name: "Opacity" },
-                { field: "borderAlign", name: "Align", rule: "R8" },
-                { field: "lineBox", name: null, rule: "R8f" },
+                { field: "borderWidth", name: "Width", fullName: "Box stroke width" },
+                { field: "borderColor", name: "Color", fullName: "Box stroke color" },
+                { field: "borderOpacity", name: "Opacity", fullName: "Box stroke opacity" },
+                { field: "borderAlign", name: "Align", fullName: "Box stroke align", rule: "R8" },
+                { field: "lineBox", name: "Line box", rule: "R8f" },
                 // Margin is the space outside the stroke, so it sits with it.
                 {
                     field: "marginTop",
@@ -212,14 +229,29 @@ export const LABEL_RUBRIC: LabelRubric = {
         {
             name: "Label shadow",
             lines: [
+                // Each look's switch leads its lines, which read as its (ia-design: "Text shadow ...", "Box shadow ...").
                 { field: "shadow", name: "Text shadow" },
-                { field: "shadowColor", name: "Text shadow color" },
-                { field: "shadowBlur", name: "Text shadow blur" },
-                { field: "shadowOffsetX", name: "Text shadow offset", pair: "shadowOffsetY", letters: XY },
+                { field: "shadowColor", name: "Color", fullName: "Text shadow color", needs: "shadow" },
+                { field: "shadowBlur", name: "Blur", fullName: "Text shadow blur", needs: "shadow" },
+                {
+                    field: "shadowOffsetX",
+                    name: "Offset",
+                    fullName: "Text shadow offset",
+                    pair: "shadowOffsetY",
+                    letters: XY,
+                    needs: "shadow",
+                },
                 { field: "panelShadow", name: "Box shadow" },
-                { field: "panelShadowColor", name: "Box shadow color" },
-                { field: "panelShadowBlur", name: "Box shadow blur" },
-                { field: "panelShadowOffsetX", name: "Box shadow offset", pair: "panelShadowOffsetY", letters: XY },
+                { field: "panelShadowColor", name: "Color", fullName: "Box shadow color", needs: "panelShadow" },
+                { field: "panelShadowBlur", name: "Blur", fullName: "Box shadow blur", needs: "panelShadow" },
+                {
+                    field: "panelShadowOffsetX",
+                    name: "Offset",
+                    fullName: "Box shadow offset",
+                    pair: "panelShadowOffsetY",
+                    letters: XY,
+                    needs: "panelShadow",
+                },
             ],
         },
         {
@@ -227,9 +259,15 @@ export const LABEL_RUBRIC: LabelRubric = {
             on: "pointer",
             lines: [
                 { field: "pointer", name: "Pointer" },
-                { field: "pointerDirection", name: null, rule: "R8f" },
-                { field: "pointerWidth", name: "Size", pair: "pointerHeight", letters: ["W", "H"] },
-                { field: "pointerOffset", name: "Offset" },
+                { field: "pointerDirection", name: "Direction", fullName: "Pointer direction", rule: "R8f" },
+                {
+                    field: "pointerWidth",
+                    name: "Size",
+                    fullName: "Pointer size",
+                    pair: "pointerHeight",
+                    letters: ["W", "H"],
+                },
+                { field: "pointerOffset", name: "Offset", fullName: "Pointer offset" },
                 { field: "pointerCurve", name: "Curved" },
             ],
         },
@@ -237,7 +275,7 @@ export const LABEL_RUBRIC: LabelRubric = {
             name: "Badge",
             lines: [
                 { field: "badge", name: "Badge", rule: "R9" },
-                { field: "icon", name: "Icon beside text", rule: "R14" },
+                { field: "icon", name: "Icon", fullName: "Icon beside text", rule: "R14" },
                 { field: "iconPosition", name: "Icon side", rule: "R8" },
                 { field: "progress", name: "Progress" },
                 { field: "maxNumber", name: "Max number" },

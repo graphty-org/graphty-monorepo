@@ -247,15 +247,34 @@ describe("Style panel v2's edge things", () => {
         const { session, id, tab } = await openEdges();
         const row = await addFromTitle(tab, "edge-text", "End caption", "endCaption");
         await userEvent.keyboard("{Escape}");
-        await typeInto(
-            await settingsLine(row, "Edge target", '.ws-row[data-line="edge.arrowHeadTextStyle.size"]'),
-            "12",
-        );
+        // Size is a line of the row itself (ia-design 2).
+        await typeInto(await found(row, '.ws-row[data-line="edge.arrowHeadTextStyle.size"]'), "12");
         await waitFor(() => {
             assert.deepEqual(written(session, id, "edge.arrowHeadTextStyle"), { size: 12 });
         });
+        await userEvent.click(within(row).getByRole("button", { name: /^Edge target settings/ }));
         const pop = await found(document, "[data-thing-popover]");
         await userEvent.click(within(pop).getByRole("button", { name: "Add to edge target settings" }));
+        // A caption offers the label's nine groups too, in their tiers (ia-design "Label settings groups").
+        const menu = await screen.findByRole("menu");
+        assert.deepEqual(
+            [...menu.querySelectorAll('[role="menuitem"], .mantine-Menu-divider')].map((item) =>
+                item.getAttribute("role") === "menuitem" ? (item.textContent ?? "") : "|",
+            ),
+            [
+                "Position",
+                "|",
+                "Letters",
+                "Wrap",
+                "Background",
+                "Box stroke",
+                "|",
+                "Label shadow",
+                "Callout",
+                "Badge",
+                "Behavior",
+            ],
+        );
         await userEvent.click(await screen.findByRole("menuitem", { name: "Position" }));
         const position = await within(pop).findByRole("group", { name: "Position" });
         await typeInto(await found(position, '.ws-row[data-line="edge.arrowHeadTextDistance"]'), "0.5");

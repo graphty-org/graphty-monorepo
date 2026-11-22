@@ -113,10 +113,9 @@ describe("every v2 number is Figma's number input", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Label" }));
         await screen.findByRole("group", { name: "Node label" });
         await userEvent.keyboard("{Escape}");
-        await userEvent.click(await within(text).findByRole("button", { name: /^Node label settings/ }));
-        const pop = await screen.findByRole("dialog");
+        // Size is a line of the row itself, set or not (ia-design 2).
         const input = await waitFor(() => {
-            const found = pop.querySelector<HTMLInputElement>('input[aria-label="Node label size"]');
+            const found = text.querySelector<HTMLInputElement>('input[aria-label="Node label size"]');
             assert.isNotNull(found);
             return found;
         });

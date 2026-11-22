@@ -48,6 +48,9 @@ import { attachPendingWork, PendingWork } from "./PendingWork";
 import type { StatsManager } from "./StatsManager";
 import { type NodePaint, type NodeSizeSpace, plainEdgePaint, plainNodePaint, type StylePainter } from "./StylePainter";
 
+/** How many mask rows each built `Edge` must stand for before a row pass walks the built edges instead of the rows. */
+const EDGE_ROWS_PER_WALK = 64;
+
 /** How much room a framed globe leaves around itself, as a share of its radius: its air's glow. */
 const GLOBE_FRAMING = 1.1;
 
@@ -1381,10 +1384,11 @@ export class UpdateManager implements Manager {
             this.buildMaskedRowLines(rows);
         }
 
-        // Fewer `Edge`s than rows, as on a graph loaded on `"batched"` where most rows are row lines: visit the
-        // `Edge`s, since a state already right is left alone.
+        // Far fewer `Edge`s than rows, as on a graph loaded on `"batched"` where most rows are row lines and a time
+        // window slides a million: visit the `Edge`s, since a state already right is left alone. A few rows, as an
+        // edit's, are looked up by row, so an edit never walks the built edges.
         const built = dataManagerInternals.builtEdges(this.dataManager);
-        if (built.size < rows.length) {
+        if (built.size * EDGE_ROWS_PER_WALK < rows.length) {
             for (const edge of built.values()) {
                 this.applyEdgeRow(edge, edgeVisibility);
             }
@@ -1706,16 +1710,17 @@ export class UpdateManager implements Manager {
      */
     private readonly styleHiddenRows = new Set<number>();
 
-    /** Whether a node's style hid or showed it since the pulled edges' ends were last checked. */
-    private endsChanged = false;
+    /** The node rows whose style hid or showed them since the pulled edges' ends were last checked. */
+    private endRows = new Set<number>();
 
     /**
      * Note that a node's style hid or showed it: the edges pulled onto it are checked at the next frame
      * ({@link UpdateManager.repaintPulledOffEnds}).
+     * @param row - The node's row.
      * @internal
      */
-    noteEndsChanged(): void {
-        this.endsChanged = true;
+    noteEndsChanged(row: number): void {
+        this.endRows.add(row);
     }
 
     /**
@@ -1987,21 +1992,30 @@ export class UpdateManager implements Manager {
             painter === undefined ||
             table === null ||
             lines === null ||
-            (table.roundWrites === this.roundWritesSeen && !this.endsChanged)
+            (table.roundWrites === this.roundWritesSeen && this.endRows.size === 0)
         ) {
             return;
         }
 
         this.roundWritesSeen = table.roundWrites;
-        this.endsChanged = false;
-        for (const row of lines.rowsOffEnds((end) => this.endHiddenByStyle(end))) {
-            painter.queue("edge", row);
-        }
-
-        // ponytail: every built edge, once per outline turned; a list of the edges with pulled heads if this shows up
+        const turned = table.takeTurned();
+        const rows = turned === null ? null : new Set([...turned, ...this.endRows]);
+        this.endRows = new Set();
+        // only the edges at the rows that turned, so an edit's outline change costs its degree, not the graph; every
+        // edge after a clear or past RowTable's list of turned rows
+        const at =
+            rows === null
+                ? [{ built: this.builtEdges(), rows: undefined }]
+                : Array.from(rows, (row) => dataManagerInternals.edgesAtRow(this.dataManager, row));
         let redrawn = false;
-        for (const edge of this.builtEdges()) {
-            redrawn = edge.redrawPulledOffEnds() || redrawn;
+        for (const { built, rows: edgeRows } of at) {
+            for (const edgeRow of lines.rowsOffEnds((end) => this.endHiddenByStyle(end), edgeRows)) {
+                painter.queue("edge", edgeRow);
+            }
+
+            for (const edge of built) {
+                redrawn = edge.redrawPulledOffEnds() || redrawn;
+            }
         }
 
         // a placed line and cap are placed by the next walk, as after a render path change
@@ -2335,14 +2349,14 @@ export class UpdateManager implements Manager {
             table?.hide(index, true);
             if (!this.styleHiddenRows.has(index)) {
                 this.styleHiddenRows.add(index);
-                this.noteEndsChanged();
+                this.noteEndsChanged(index);
             }
 
             return undefined;
         }
 
         if (this.styleHiddenRows.delete(index)) {
-            this.noteEndsChanged();
+            this.noteEndsChanged(index);
         }
 
         if (id === undefined || paint === null) {

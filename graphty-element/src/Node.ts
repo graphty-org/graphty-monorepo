@@ -2712,7 +2712,7 @@ export class Node implements ModelUser {
             this.styleHidden = hidden;
             this.applyRenderState();
             // an edge pulled from the row table onto this node's row draws nothing to a hidden row: its edges look again
-            this.context.getUpdateManager?.()?.noteEndsChanged();
+            this.context.getUpdateManager?.()?.noteEndsChanged(this.index);
         }
 
         this.syncShaders();

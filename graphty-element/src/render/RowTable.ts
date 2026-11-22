@@ -269,6 +269,31 @@ class RowTexture {
  * @param perRow - Values a row.
  * @param remap - Old row to new row or INVALID_INDEX, or null to keep every row where it is.
  */
+/** How many turned rows {@link RowTable.takeTurned} lists before it says "every row". */
+const MAX_TURNED = 4096;
+
+/**
+ * Renumber the turned rows through a freeze's remap, dropping removed ones.
+ * @param turned - The rows, or null for every row.
+ * @param remap - The remap, or null when no row moved.
+ * @returns The renumbered rows.
+ */
+function followTurned(turned: Set<number> | null, remap: U32 | null): Set<number> | null {
+    if (turned === null || remap === null || turned.size === 0) {
+        return turned;
+    }
+
+    const moved = new Set<number>();
+    for (const row of turned) {
+        const to = remap[row] ?? INVALID_INDEX;
+        if (to !== INVALID_INDEX) {
+            moved.add(to);
+        }
+    }
+
+    return moved;
+}
+
 function moveRows(
     from: Float64Array | Float32Array | Uint8Array,
     to: Float64Array | Float32Array | Uint8Array,
@@ -338,6 +363,23 @@ export class RowTable {
      * on round rows (`EdgeRowLines`), so a change asks for the edges on it to be painted again.
      */
     roundWrites = 0;
+
+    /**
+     * The node rows counted in {@link roundWrites} since {@link RowTable.takeTurned}, or null for "every row": past
+     * {@link MAX_TURNED} of them, or after the dataset was cleared.
+     */
+    private turned: Set<number> | null = new Set();
+
+    /**
+     * The node rows whose outline turned since the last call ({@link roundWrites}), which the edges pulled onto them
+     * are checked against again.
+     * @returns The rows, or null for every row.
+     */
+    takeTurned(): ReadonlySet<number> | null {
+        const { turned } = this;
+        this.turned = new Set();
+        return turned;
+    }
 
     /**
      * Keep a row held off its lane at its float64 place ({@link heldExact}), counting a move of it in
@@ -971,6 +1013,7 @@ export class RowTable {
             (node.screenBorder === true ? ROW_EXTENT_SCREEN_BORDER : 0);
         if (((this.extents.floats[base + 3] ?? 0) & HEAD_FLAGS) !== (extentFlags & HEAD_FLAGS)) {
             this.roundWrites++;
+            this.turned = this.turned === null || this.turned.size >= MAX_TURNED ? null : this.turned.add(row);
         }
 
         const extent = [
@@ -1056,6 +1099,7 @@ export class RowTable {
         }
 
         this.keptChanges = kept ? lane.changes : -1;
+        this.turned = followTurned(this.turned, remap);
         this.ownRowWrites++;
         this.positions.follow(remap, lane.capacity);
         this.extents.follow(remap, lane.capacity);
@@ -1105,6 +1149,7 @@ export class RowTable {
 
     /** Forget every row: the dataset was cleared. */
     cleared(): void {
+        this.turned = null;
         this.moves++;
         this.unplacedMoves++;
         this.drawnWrites++;

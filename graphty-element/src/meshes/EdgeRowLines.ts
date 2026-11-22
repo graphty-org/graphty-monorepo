@@ -643,12 +643,17 @@ export class EdgeRowLines {
      * The edge rows a row line can no longer draw: a head on an end that is no longer round, or an end the caller says
      * is gone (its style hid it). An `Edge` draws them now, so they are painted again (`UpdateManager.syncStyles`).
      * @param endGone - Whether a node row is no end a row line draws to.
+     * @param among - Only these edge rows; every row drawn here when left out.
      * @returns The rows.
      */
-    rowsOffEnds(endGone: (row: number) => boolean): number[] {
+    rowsOffEnds(endGone: (row: number) => boolean, among?: Iterable<number>): number[] {
         const { lines } = this;
         const off: number[] = [];
-        for (const row of this.drawnRows(lines)) {
+        for (const row of among ?? this.drawnRows(lines)) {
+            if (!lines.has(row)) {
+                continue;
+            }
+
             if (endGone(lines.source[row]) || endGone(lines.target[row])) {
                 off.push(row);
                 continue;

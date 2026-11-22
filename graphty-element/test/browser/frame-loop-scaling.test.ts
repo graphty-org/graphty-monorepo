@@ -880,7 +880,9 @@ describe("a repaint of every node", () => {
                 }
 
                 assert.isAbove(frames, 1, "the repaint was spread over frames");
-                assert.strictEqual(walk.mock.calls.length, 1);
+                // Under "batched" an edge drawn as a row line has no `Edge` to walk: its paint is written to its slot.
+                const edgesToWalk = kind === "nodes" || dataManagerInternals.edgesBuilt(graph.getDataManager()) > 0;
+                assert.strictEqual(walk.mock.calls.length, edgesToWalk ? 1 : 0);
             } finally {
                 vi.restoreAllMocks();
                 setMinimumWorkPerFrame(minimumWork);

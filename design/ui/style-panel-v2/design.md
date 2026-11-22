@@ -130,7 +130,7 @@ Row: `[<> name] [main] [-] [...]`.
 - **Off**: a thing switched off on this layer (2.6) draws its main control as a read-only field reading "Off",
   which opens the popover. Nothing is dimmed for it.
 - **Bound**: a main value bound to data draws as the field with the column name as its value and `GLYPHS.link`
-  in its glyph slot; no pill, no summary line. Clicking it opens `BindingPopover`. Pressing "=" in a field opens
+  in its glyph slot (its Stop varying button, the one way back to a single value); no pill, no summary line. Clicking it opens `BindingPopover`. Pressing "=" in a field opens
   the value picker (a key, not a button).
 - **Hover**: hovering a row does nothing on the graph (E181), and there is no setting for it.
 
@@ -139,10 +139,10 @@ Row: `[<> name] [main] [-] [...]`.
 Under a row show only the lines the layer sets for that thing, in popover order, each named, each with its
 "-". A line appears when its value is set (in the popover, or by "+" writing a required partner, 5.1) and goes
 when it is unset; there are no empty lines waiting to be written. Every line is the one common pattern: name,
-value control, "-" (E674). A line under a row leaves its second trailing slot empty: it carries no by-data link,
-and its value is bound from the same line in the popover's Main, which holds every common line (2.6), or by "="
-in its field (2.4). Nothing above a
-line moves when one is written.
+value control, "-" (E674). A line under a row carries its by-data link in its second trailing slot, as every line in
+the popover does (2.6, E679), and binds from it or by "=" in its field (2.4). A line that holds no value of its own
+(a Unit line, which only picks the unit a number is in) draws no link. Nothing above a line moves when one is
+written.
 
 ### 2.6 Settings popover
 
@@ -154,7 +154,8 @@ opened from it are plain `Popout`s (SettingsPopout refuses nesting).
   `onClick` and cannot hold a menu, and compact-mantine is locked to Figma.
 - **Switch to is not in the popover**: it is on the row (2.4).
 - **First lines**: there is no separate By data line. Every line, the main value's included, carries its own
-  by-data link in its trailing slot. For a switchable thing, a **Show** line (R7 checkbox, the one control for
+  by-data link in its trailing slot; a line that holds no value of its own (a Unit line) draws none. A line of two
+  values (a pair) has one link whose list opens with a "Which value" choice (E680). For a switchable thing, a **Show** line (R7 checkbox, the one control for
   every Show line, label Show included, 7.3) writes its dedicated off field (10.2). Kind groups have no Off
   member, so a switchable kind group (Label, Tooltip, External label, End caption, Plate) has its Show line. Only
   a family whose element member list holds an off value (Shape: none, 5) shows it as an **Off** member and has no

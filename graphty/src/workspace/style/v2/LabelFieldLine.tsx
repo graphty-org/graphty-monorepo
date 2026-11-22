@@ -24,8 +24,8 @@ import React from "react";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { shownChannel } from "../offered";
 import { GradientBar } from "../parts/GradientRow";
-import { BoundValue, Field, type RowContext, type VaryTarget } from "../PropertyRow";
-import { lineIn, propose, removeLine, writeIn } from "../row";
+import { BoundValue, Field, type RowContext, StopVarying, type VaryTarget } from "../PropertyRow";
+import { lineIn, propose, removeLine, startingValue, writeIn } from "../row";
 import { ValueField } from "../ValueField";
 import { enumWords, failureWords, positionWord } from "../words";
 import { labelDimOf } from "./drawn";
@@ -588,7 +588,19 @@ function BoundAtLine({
                     }}
                 />
             }
-            modifier={null}
+            modifier={
+                <StopVarying
+                    ctx={ctx}
+                    descriptor={descriptor}
+                    name={name}
+                    to={bound.address}
+                    onStop={() => {
+                        const value = binding.otherwise ?? startingValue(descriptor, ctx.session, layer.selector);
+                        write({ value });
+                        return value;
+                    }}
+                />
+            }
             removeName={`Remove ${name.toLowerCase()}`}
             onRemove={() => {
                 removeLine(ctx.session, layer, bound.address).catch(fail);

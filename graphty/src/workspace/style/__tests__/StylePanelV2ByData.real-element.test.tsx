@@ -13,7 +13,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { findValuePicker, screen, waitFor, within } from "../../../test/test-utils";
-import { LABEL_RUBRIC, varyingFields } from "../v2/labelRubric";
+import { flatOf, LABEL_RUBRIC, varyingFields } from "../v2/labelRubric";
 import { showKind } from "./kindTab";
 import { openGraph, openStyle, picture, pixelsApart, sectionOf } from "./v2Harness";
 
@@ -44,17 +44,44 @@ const TEXT_KINDS = [
  * @param session - the session.
  * @param channel - the channel.
  * @param field - a field of it (a label style's), when not the whole value.
+ * @param side - nodes or edges.
  * @returns the values.
  */
-function painted(session: GraphSession, channel: string, field?: string): Set<string> {
+function painted(session: GraphSession, channel: string, field?: string, side: "node" | "edge" = "node"): Set<string> {
+    const targets =
+        side === "node"
+            ? session.data.nodes().map((n) => ({ node: n.id }))
+            : session.data.edges().map((e) => ({ edge: e.id }));
     return new Set(
-        session.data.nodes().map((n) => {
-            const value = (session.styles.explain({ node: n.id }).merged as Record<string, unknown>)[channel];
+        targets.map((target) => {
+            const value = (session.styles.explain(target).merged as Record<string, unknown>)[channel];
             return JSON.stringify(
                 field === undefined ? value : (value as Record<string, unknown> | undefined)?.[field],
             );
         }),
     );
+}
+
+/**
+ * Asserts every line reading a column draws `GLYPHS.link` (lucide's link-2) in its glyph slot, the glyph every
+ * bound value carries (design 2.4, E674), and never the detach glyph.
+ * @param root - where the lines are.
+ * @param column - the column the bound lines read.
+ * @param count - how many lines read it.
+ */
+function assertBoundLinks(root: HTMLElement, column: string, count: number): void {
+    const rows = [
+        ...new Set(
+            within(root)
+                .queryAllByText(column)
+                .map((each) => each.closest<HTMLElement>(".ws-row")),
+        ),
+    ].filter((each) => each !== null);
+    assert.lengthOf(rows, count, `${String(count)} lines read ${column}`);
+    for (const row of rows) {
+        assert.isNotNull(row.querySelector("svg.lucide-link-2"), `${row.dataset.line ?? ""} draws the link glyph`);
+        assert.isNull(row.querySelector("svg.lucide-unlink-2"), `${row.dataset.line ?? ""} draws no detach glyph`);
+    }
 }
 
 /**
@@ -123,11 +150,16 @@ describe("Style panel v2's by-data links", () => {
             );
         });
         assert.isAbove(pixelsApart(before, await picture(element)), 0, "the labels drew at their new sizes");
+        assertBoundLinks(screen.getByTestId("style-tab"), "Degree", 2);
     });
 
     for (const kind of TEXT_KINDS) {
-        it(`every ${kind.style} line whose field has its own channel carries its by-data link`, async () => {
-            const { session, nodes, edges } = await openGraph();
+        it(`every ${kind.style} line whose field has its own channel carries its by-data link, and one binds its channel`, async () => {
+            const { session, element, nodes, edges } = await openGraph();
+            // A path a - b - c - d: its nodes' degrees and its edges' betweenness differ.
+            await session.data.addNodes([{ id: "d" }]);
+            await session.data.addEdges([{ source: "c", target: "d" }]);
+            const { runId } = await session.runs.start(kind.side === "node" ? "degree" : "edge-betweenness");
             const layer = kind.side === "node" ? nodes : edges;
             await session.styles.update(layer, { set: { ...session.styles.get(layer)?.set, ...kind.set } });
             await session.styles.settled();
@@ -199,6 +231,38 @@ describe("Style panel v2's by-data links", () => {
                 }
             }
             assert.sameMembers([...met], [...varying], "every varying field's line was met with its link");
+
+            // One field bound through its link with real clicks lands on its own flat channel and paints.
+            const field = varying.has("color") ? "color" : [...varying][0];
+            const flat = flatOf(kind.side, kind.style, field);
+            assert.isDefined(flat, `${field} has a flat channel`);
+            const [line] = [pop, row]
+                .map((root) => root.querySelector<HTMLElement>(`.ws-row[data-line="${kind.style}.${field}"]`))
+                .filter((each) => each !== null);
+            assert.isDefined(line, `${kind.style}.${field}'s line`);
+            const before = await picture(element);
+            await userEvent.click(within(line).getByRole("button", { name: / by attribute$/ }));
+            const column = kind.side === "node" ? /^Degree(,|$)/ : /betweenness(,|$)/i;
+            const option = within(await findValuePicker()).getByRole("option", { name: column });
+            const columnName = option.textContent.split(",")[0];
+            await userEvent.click(option);
+            await waitFor(() => {
+                const encode = session.styles.get(layer)?.encode as
+                    Record<string, { by?: string } | undefined> | undefined;
+                assert.equal(encode?.[flat ?? ""]?.by, session.results.path(runId), `${flat ?? ""} is bound`);
+                // The canvas draws the field from its label style, or (an external label's) from the flat channel.
+                const drawn = Math.max(
+                    painted(session, kind.style, field, kind.side).size,
+                    painted(session, flat ?? "", undefined, kind.side).size,
+                );
+                assert.isAbove(drawn, 1, `${kind.style}.${field} differs across ${kind.side}s`);
+            });
+            if (kind.thing !== "tooltip") {
+                assert.isAbove(pixelsApart(before, await picture(element)), 0, `${kind.style}.${field} drew`);
+            }
+            await waitFor(() => {
+                assert.isNotEmpty(within(row).queryAllByText(columnName), "the row's line reads the column");
+            });
         });
     }
 
@@ -240,8 +304,28 @@ describe("Style panel v2's by-data links", () => {
             assert.isNotNull(within(bound).queryByText("Degree"), "the line reads its column");
         });
         assert.isAbove(pixelsApart(before, await picture(element)), 0, "the second labels drew in new colors");
-        // Its minus stops it varying.
-        const bound = row.querySelector<HTMLElement>(`.ws-row[data-line="${address}"]`);
+        assertBoundLinks(row, "Degree", 1);
+        // An address holds a plain value as a literal encoding, so "bound" is an encoding naming a column.
+        const boundAt = (): string | undefined =>
+            (session.styles.get(nodes)?.encode as Record<string, { by?: string } | undefined> | undefined)?.[address]
+                ?.by;
+        // Its link glyph stops it varying, back to one value.
+        await userEvent.click(within(row).getByRole("button", { name: /^Stop varying .* by data$/ }));
+        await waitFor(() => {
+            assert.isUndefined(boundAt(), "Stop varying takes the binding off");
+            assert.isNull(within(row).queryByText("Degree"), "the line holds one value again");
+        });
+        // Bound again, its minus stops it varying too.
+        await bindToDegree(row, "Node label color by attribute");
+        await waitFor(() => {
+            assert.isDefined(boundAt(), "bound again");
+        });
+        const bound = await waitFor(() => {
+            const found = row.querySelector<HTMLElement>(`.ws-row[data-line="${address}"]`);
+            assert.isNotNull(found);
+            assert.isNotNull(within(found).queryByText("Degree"));
+            return found;
+        });
         assert.isNotNull(bound);
         await userEvent.click(within(bound).getByRole("button", { name: /^Remove / }));
         await waitFor(() => {

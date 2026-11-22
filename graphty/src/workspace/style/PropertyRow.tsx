@@ -1041,6 +1041,55 @@ function TextValue({
     );
 }
 
+/**
+ * A bound value's Stop varying, where its vary glyph sat (Figma's detach on a variable field). It is the one
+ * way back to a single value, so its words say what it does. Style panel v2 draws it as `GLYPHS.link`, the
+ * glyph every bound value carries (design 2.4, E674); the first panel keeps the detach glyph.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.descriptor - the bound property
+ * @param props.name - its name
+ * @param props.to - where it is bound, for focus
+ * @param props.onStop - writes the one value and returns it
+ * @returns The button
+ */
+export function StopVarying({
+    ctx,
+    descriptor,
+    name,
+    to,
+    onStop,
+}: Readonly<{
+    ctx: RowContext;
+    descriptor: ChannelDescriptor;
+    name: string;
+    to: EncodeKey;
+    onStop: () => ChannelValue;
+}>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const stop = `Stop varying ${name.toLowerCase()} by data`;
+    const Glyph = ctx.namesOnly === true ? GLYPHS.link : GLYPHS.unlink;
+    return (
+        <Tooltip label={stop}>
+            <ActionIcon
+                variant="subtle"
+                size="sm"
+                aria-label={stop}
+                onClick={() => {
+                    // Focus stays on the property: its field, now holding the one value.
+                    focusLineNext(ctx.session, to, "fixed");
+                    const value = onStop();
+                    store.set({
+                        announcement: `${name} no longer varies by data, now ${valueWords(descriptor, value)}`,
+                    });
+                }}
+            >
+                <Glyph size={14} aria-hidden />
+            </ActionIcon>
+        </Tooltip>
+    );
+}
+
 /** What a property row's vary column needs. */
 interface VarySlotProps {
     readonly ctx: RowContext;
@@ -1068,30 +1117,20 @@ function varySlotOf(props: VarySlotProps): React.ReactNode {
     const { own, spread } = lines;
     const { channel } = descriptor;
     if (own?.binding !== undefined) {
-        // A bound field's Stop varying sits where its vary glyph sat (Figma's detach on a variable
-        // field). It is the one way back to a single value, so its words say what it does.
-        const stop = `Stop varying ${name.toLowerCase()} by data`;
         const { binding } = own;
         return (
-            <Tooltip label={stop}>
-                <ActionIcon
-                    variant="subtle"
-                    size="sm"
-                    aria-label={stop}
-                    onClick={() => {
-                        // A property set for a few groups goes back to the one value the rest have.
-                        const value = binding.otherwise ?? startingValue(descriptor, ctx.session, own.layer.selector);
-                        // Focus stays on the property: its field, now holding the one value.
-                        focusLineNext(ctx.session, channel, "fixed");
-                        store.set({
-                            announcement: `${name} no longer varies by data, now ${valueWords(descriptor, value)}`,
-                        });
-                        write({ value });
-                    }}
-                >
-                    <GLYPHS.unlink size={14} aria-hidden />
-                </ActionIcon>
-            </Tooltip>
+            <StopVarying
+                ctx={ctx}
+                descriptor={descriptor}
+                name={name}
+                to={channel}
+                onStop={() => {
+                    // A property set for a few groups goes back to the one value the rest have.
+                    const value = binding.otherwise ?? startingValue(descriptor, ctx.session, own.layer.selector);
+                    write({ value });
+                    return value;
+                }}
+            />
         );
     }
     if (spread !== undefined) {

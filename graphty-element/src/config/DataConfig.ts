@@ -67,7 +67,8 @@ const GraphKnownFields = z.strictObject({
     /**
      * The key that holds each node's whole location (coordinates or a place name), for the
      * location map layout. Absent or `null`: the layout finds a location column by name or by its
-     * values. While set, the per-kind location keys below are ignored.
+     * values. While set, `nodeCoordinatesPath`, `nodeCountryPath`, `nodeRegionPath` and
+     * `nodeCityPath` are ignored.
      */
     nodeLocationPath: z.string().or(z.null()).optional(),
     /** The key that holds each node's latitude, used with `nodeLongitudePath` by the location map. */
@@ -78,8 +79,8 @@ const GraphKnownFields = z.strictObject({
      * How the location is read. `"auto"` (or absent, or `null`) reads coordinates first, then place
      * names; `"coords"` only coordinates; `"country"`, `"region"` or `"city"` read
      * `nodeLocationPath` as place names of that kind (looked up in the location map's place
-     * list); `"none"` reads no location at all, and finds none by name or
-     * value.
+     * list); `"none"` reads none of these keys and finds no location by name or
+     * value; only columns named in the location map layout's own options are read.
      */
     nodeLocationRole: z.enum(["auto", "coords", "country", "region", "city", "none"]).or(z.null()).optional(),
     /**
@@ -144,7 +145,8 @@ const GraphKnownFields = z.strictObject({
     // "value" fallback goes away only once nothing ships a "value" key.
     /**
      * The key that holds each edge's weight. Default `"weight"`. An edge without a number under this
-     * key (or every edge, when it is `null`) is read from `value` instead, and weighs 1 without one.
+     * key (or every edge, when it is `null`) is read from `value` instead, unless the load named
+     * its weight column, and weighs 1 without one.
      */
     edgeWeightPath: z.string().or(z.null()).default("weight"),
     /**

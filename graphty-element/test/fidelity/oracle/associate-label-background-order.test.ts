@@ -6,7 +6,9 @@
  * group, drawn as a node (yed-graphml-specimen-groups group-closed), had its band read as nothing. A head drawn over
  * part of a label that has a tighter box of its own is no box behind it (cx2-syn-mappings 423: the square head of
  * 408->423 was its background, the real one a stray), and words graphty draws as a text of their own are no label of
- * the unlabelled box they lie in (cx2-wp1449-tlr's "Peptidoglycan(G+)" over group box 136935).
+ * the unlabelled box they lie in (cx2-wp1449-tlr's "Peptidoglycan(G+)" over group box 136935). A tilted strip thinner
+ * than the words are tall, drawn before them, is no box behind them (xgmml-syn-mappings: the T-bar head of
+ * 1269915->1269931 across edge 1269937->1269927's "e0").
  */
 import { assert, describe, it } from "vitest";
 
@@ -177,5 +179,28 @@ describe("a label's background box", () => {
             scene.texts.map((x) => x.content),
             "Peptidoglycan(G+)",
         );
+    });
+
+    it("is not a tilted strip thinner than the words, drawn across them", () => {
+        index = 0;
+        const body = { x0: 500, y0: 300, x1: 560, y1: 340 };
+        const t = words("e0", { x0: 594, y0: 233.5, x1: 601, y1: 240 });
+        // a 2 x 20 bar turned 12.8 degrees, its box covering most of the words' box
+        const turn = (12.8 * Math.PI) / 180;
+        const at = (u: number, v: number): Pt => [
+            596.5 + u * Math.cos(turn) - v * Math.sin(turn),
+            237.5 + u * Math.sin(turn) + v * Math.cos(turn),
+        ];
+        const bar: Pt[] = [at(-1, -10), at(1, -10), at(1, 10), at(-1, 10), at(-1, -10)];
+        const prims = [
+            ...anchors.map(([, b]) => shape(b, { fill: paint("#c0c0c0") })),
+            shape(body, { fill: paint("#e5bdc2") }),
+            shape(boxOfPoints(bar), { tag: "path", points: bar, fill: paint("#999999") }),
+            text(t),
+        ];
+        const { scene } = associate(prims, 1200, 900, guideOf([node("m20", body, { ...t, sizePx: 6.5 })]));
+        const label = scene.nodes.find((n) => n.id === "m20")?.label;
+        assert.strictEqual(label?.content, "e0");
+        assert.isNotOk(label?.background);
     });
 });

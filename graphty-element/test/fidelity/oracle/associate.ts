@@ -5106,6 +5106,8 @@ function doubles(outer: Prim, inner: Prim): boolean {
 /**
  * Whether a shape is the box drawn behind a label: it holds the label's middle and most of its words, and reaches past
  * them by no more than two font sizes on any side (a node's body or a group box round a label reaches much further).
+ * A turned strip thinner than the words are tall is no box behind them, however much of their box its own box covers
+ * (Cytoscape desktop's T-bar head of xgmml-syn-mappings 1269915->1269931, tilted across edge 1269937->1269927's "e0").
  * @param p - the shape
  * @param t - the label
  * @returns true for a label background
@@ -5129,11 +5131,32 @@ function backsText(p: Prim, t: PText): boolean {
         (p.fill !== null || p.stroke !== null) &&
         inside([cx(t.box), cy(t.box)], b) &&
         (covered >= 0.6 || disc) &&
+        (disc || thicknessOf(p) >= THINNEST_BACKGROUND * t.sizePx) &&
         b.x0 >= t.box.x0 - reach &&
         b.y0 >= t.box.y0 - reach &&
         b.x1 <= t.box.x1 + reach &&
         b.y1 <= t.box.y1 + reach
     );
+}
+
+/** The thinnest a box behind words is, in font sizes: a box at least as tall as the words is half of one or more. */
+const THINNEST_BACKGROUND = 0.4;
+
+/**
+ * How thick a closed outline is: twice its area over its perimeter, a rectangle's w * h / (w + h), its shorter side's
+ * for a long strip. An outline with no area (an open path, too few points) counts as thick: nothing is told from it.
+ * @param p - the shape
+ * @returns its thickness, in pixels
+ */
+function thicknessOf(p: Prim): number {
+    const pts = p.points;
+    if (!p.closed || pts.length < 3) {
+        return Infinity;
+    }
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    const perimeter = pathLength(pts) + Math.hypot(first[0] - last[0], first[1] - last[1]);
+    return perimeter > 0 ? (2 * polygonArea(pts)) / perimeter : Infinity;
 }
 
 /**

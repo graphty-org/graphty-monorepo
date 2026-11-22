@@ -17,12 +17,14 @@
  *   config key is reported. A `label`
  *   role is not written as a style layer. Issue fixes and declarations of a column no type carries
  *   are reported.
+ * - Algorithm names. A run keeps the key version 1 wrote (`scc`); the version 2 read upgrades a
+ *   former key or option name to the current one (spec 10.1 rule 2, `src/session/document2/algorithmNames.ts`).
  * - Runs. Every run becomes a view run record under the namespace `session` (element-minted) or
  *   `reader`, so style paths name it by `as`; its outputs go to results. A run over the selection
  *   or the visible graph is written over the whole graph and `"replayable": false`, reported; a
- *   filter- or window-narrowed run is `"replayable": false`. `engine` names the file's generator
- *   for graphty-element and `unknown` for the algorithms and the layout; a caveat member version 1
- *   lacks takes a stated default; `shape`, `measured` and `sample` are dropped.
+ *   filter- or window-narrowed run is `"replayable": false`. `engine` lists only the file's
+ *   generator, at its version, with no accelerator (a seeded run record carries it too); a caveat
+ *   member version 1 lacks takes a stated default; `shape`, `measured` and `sample` are dropped.
  * - Sets. Every set goes to the view; an element-minted `set_<slug>` id becomes `set_` plus a ULID
  *   derived from it, and every `set` member naming it is rewritten.
  * - Visibility. Filter steps are reported and not written; `windowRaw` is not written.
@@ -31,19 +33,23 @@
  *   and `styleVersion` and `recipeVersion` are left out and reported `W_MEMBER_LEFT_OUT`.
  * - Style. Edges a version 1 `ids` selector named (session edge ids) are dropped; built-in palettes
  *   are not carried (that needs the catalog); the style tree is not carried.
- * - Cameras. A saved view's camera has no `fov` in version 1 and takes the view codec's default.
+ * - Cameras. A saved view's camera is written as the neutral pose (spec 4.7 rule 2), with no
+ *   `fov` when version 1 had none.
  * - Bare members. A version 1 notes, results, arrangement, view-state, sources or assets member
  *   alone has no data to bind to and is not migrated; neither is a version 1 notes, results or
  *   view section met inside a version 2 file. A version 1 recipe snapshot (`session.recipe()`)
  *   keeps only its style. A session member gives no recipe: opening restores the view.
  */
 
+import { layoutAlias, layoutDescriptor, layoutIdForEngine, savedLayoutOptions } from "../../catalog/layouts";
 import { withParentIds } from "../parentIds";
-import { ENGINE_VERSIONS } from "../runs/engine";
+import { ELEMENT_VERSION } from "../runs/engine";
 import { rewriteOldPaths } from "../styles/fileStyles/oldLooks";
+import { renameRunInPath, v1Expression } from "../styles/predicate";
 import { addedColumns, canonicalJson, READER } from "./codecs/dataRefs";
-import { asName } from "./codecs/recipeCommands";
+import { asName, PATH_MEMBERS, renameRuns, runsRead } from "./codecs/recipeCommands";
 import { ROLE_FIELDS } from "./codecs/roles";
+import { NOT_SETTINGS, SETTINGS } from "./codecs/settings";
 import { cameraJson } from "./codecs/viewParts";
 import {
     decodeColumn,
@@ -172,26 +178,53 @@ function runKey(id: string, derived: boolean): { namespace: string; as: string }
     return { namespace: nsFits ? namespace : "reader", as: asFits ? as : asName(as) };
 }
 
+/** The roots a version 2 path starts with (spec 4.8.1 rule 1). */
+const PATH_ROOT = /^(data|results|graphty|_source)\./;
+
+/** The members holding an algorithm's or a layout's own options, whose names are not path members. */
+const OPTION_MEMBERS = new Set(["params", "options", "userData"]);
+
 /**
- * Every string in a value with each `results.<run>` path renamed.
+ * A version 1 value with its paths written as version 2 writes them (spec 9.1): every expression
+ * rewritten (`v1Expression`), and every rootless path member given `data.`, which version 1 read
+ * as a column. A layer source's `by` (its parent holds `runId`, `template` or `plugin`) says what
+ * made the layer and is no path; a text leaf's `reads: "id"` reads the node's id.
  * @param value - The value.
- * @param rename - From a version 1 run id to the name the section names it by.
+ * @param member - The member it is held under.
  * @returns A copy.
  */
-function renameRuns<T>(value: T, rename: (id: string) => string): T {
-    if (typeof value === "string") {
-        return value.replaceAll(/results\.([A-Za-z0-9_-]+)/g, (_, id: string) => `results.${rename(id)}`) as T;
-    }
-
+function v1Paths<T>(value: T, member = ""): T {
     if (Array.isArray(value)) {
-        return value.map((entry: unknown) => renameRuns(entry, rename)) as T;
+        return value.map((entry: unknown) => v1Paths(entry)) as T;
     }
 
-    if (isObject(value)) {
-        return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, renameRuns(entry, rename)])) as T;
+    if (!isObject(value)) {
+        return value;
     }
 
-    return value;
+    const isSource = member === "source" || "runId" in value || "template" in value || "plugin" in value;
+    return Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => {
+            if (OPTION_MEMBERS.has(key)) {
+                return [key, entry];
+            }
+
+            if (typeof entry !== "string") {
+                return [key, v1Paths(entry, key)];
+            }
+
+            if (key === "where") {
+                return [key, v1Expression(entry)];
+            }
+
+            const path =
+                PATH_MEMBERS.has(key) &&
+                !PATH_ROOT.test(entry) &&
+                !(key === "by" && isSource) &&
+                !(key === "reads" && entry === "id");
+            return [key, path ? `data.${entry}` : entry];
+        }),
+    ) as T;
 }
 
 /**
@@ -444,7 +477,7 @@ function migrateStyle(
     // A layer that read an older load's looks reads the columns they are carried into.
     const paths = data?.lookPaths ?? new Map<string, string>();
     objectsOf(style.layers).forEach((read, at) => {
-        const layer = rewriteOldPaths(read, paths);
+        const layer = v1Paths(rewriteOldPaths(read, paths));
         let id = typeof layer.id === "string" && layer.id !== "" ? layer.id : `layer-${String(at + 1)}`;
         while (used.has(id)) {
             id = `${id}-${String(at + 1)}`;
@@ -468,9 +501,7 @@ function migrateStyle(
             context,
         );
         if (!named) {
-            for (const match of JSON.stringify([v2.selector, v2.encode]).matchAll(/results\.([a-z][a-z0-9_]*)/g)) {
-                results.add(match[1]);
-            }
+            runsRead([v2.selector, v2.encode]).forEach((run) => results.add(run));
 
             layers.push(v2);
             order.push(id);
@@ -503,7 +534,7 @@ function migrateStyle(
         }
 
         if (path.startsWith("results.")) {
-            return [{ path: renameRuns(path, asName), value, label: label.label }];
+            return [{ path: renameRunInPath(path, asName), value, label: label.label }];
         }
 
         problems.push(leftOut("graphty-session", `/valueLabels/${String(at)}`));
@@ -573,7 +604,7 @@ function migrateSets(context: Context, data: MigratedData): JsonObject[] {
         return {
             id: context.setId(id),
             name: typeof set.name === "string" ? set.name : "",
-            definition: renameSets(definitionOf(definition, data, reading), context),
+            definition: renameSets(definitionOf(v1Paths(definition), data, reading), context),
         };
     });
 }
@@ -638,7 +669,8 @@ function migrateRuns(runs: readonly JsonObject[], context: Context, data: Migrat
         }
 
         const seed = Number.isInteger(run.seed) ? run.seed : caveats.seed;
-        const scope = run.scope === undefined || bare ? "graph" : renameSets(boundScope(run.scope, data), context);
+        const scope =
+            run.scope === undefined || bare ? "graph" : renameSets(boundScope(v1Paths(run.scope), data), context);
         return {
             id: `${namespace}__${as}`,
             namespace,
@@ -646,7 +678,7 @@ function migrateRuns(runs: readonly JsonObject[], context: Context, data: Migrat
             ...(typeof run.name === "string" ? { name: run.name } : {}),
             algorithm: run.algorithm,
             ...(isObject(run.params) && Object.keys(run.params).length > 0 ? { params: run.params } : {}),
-            ...(Number.isInteger(seed) && (seed as number) >= 0 ? { seed } : {}),
+            ...(Number.isInteger(seed) && (seed as number) >= 0 ? { seed, engine: engineOf(context) } : {}),
             scope,
             ...(narrowed ? { replayable: false } : {}),
         };
@@ -704,25 +736,27 @@ const CAVEAT_DEFAULTS: JsonObject = {
 };
 
 /**
- * A version 1 run's caveats as version 2 writes them: without `notes`, `partialReason` and `seed`
- * (the run's own `seed` holds it), a
+ * A version 1 run's caveats as version 2 writes them: without `notes`, `partialReason`, `seed` and
+ * `accelerator` (the run's own `seed` and `engine` hold them), a
  * required member it lacks at its default.
  * @param caveats - The version 1 caveats.
  * @returns The caveats.
  */
 function caveatsOf(caveats: JsonObject): JsonObject {
-    const { notes: _notes, partialReason: _reason, seed: _seed, ...rest } = caveats;
+    const { notes: _notes, partialReason: _reason, seed: _seed, accelerator: _accelerator, ...rest } = caveats;
     return { ...CAVEAT_DEFAULTS, ...rest };
 }
 
 /**
- * The engine versions of a migrated run: the release that saved the file for graphty-element; a
- * version 1 file records none for the algorithms and the layout.
+ * The engine of a migrated record (spec 4.5 rule 6): only the package that saved the file, at its
+ * version. A version 1 file records no other package's version, nor the accelerator or the method,
+ * and a version is never written that nothing read.
  * @param context - The file.
- * @returns graphty-element's `EngineVersions`.
+ * @returns The engine.
  */
 function engineOf(context: Context): JsonObject {
-    return { element: String(context.generator.version), algorithms: "unknown", layout: "unknown" };
+    const { name, version } = context.generator;
+    return { packages: { [name === "graphty-element" ? "@graphty/graphty-element" : String(name)]: String(version) } };
 }
 
 /**
@@ -890,8 +924,8 @@ function migrateNotes(notes: JsonObject, context: Context, data: MigratedData): 
 // settings (4.4) and view (4.7) from the session member
 // ---------------------------------------------------------------------------------------------
 
-/** Config keys a settings section never holds (spec 4.4), or that the view holds. */
-const NOT_SETTINGS = new Set(["author", "name", "startingRows", "editableBase", "viewRotation", "framing"]);
+/** Each settings name (spec 4.4 rule 1), by the version 1 config path it is read from. */
+const NAME_OF: ReadonlyMap<string, string> = new Map(SETTINGS.map(([name, path]) => [path, name]));
 
 /** The `data` config keys the data section's mapping carries (migrationParts.ts `mappingOf`). */
 const MAPPED_FIELDS = new Set(
@@ -908,9 +942,6 @@ const MAPPED_FIELDS = new Set(
 function leftOut(kind: string, pointer: string): DocumentProblem {
     return { code: "W_MEMBER_LEFT_OUT", params: { kind, pointer } };
 }
-
-/** Config keys whose value is one object, written whole. */
-const OBJECT_SETTINGS = new Set(["background", "selectionStyle", "pinnedStyle", "layoutTransition"]);
 
 /** The timeline playback members (spec 4.4). */
 const PLAYBACK_MEMBERS = ["mode", "step", "missing", "timeZone", "ageFade", "results"];
@@ -1006,9 +1037,9 @@ function outsideWindowMembers(members: ReadonlyMap<string, JsonObject>): Readonl
 }
 
 /**
- * The settings section: the session's config written flat, and the timeline playback. No `data.`
- * key is a setting: the known fields the data's mapping carries are left out quietly, the rest
- * reported.
+ * The settings section: the session's config under the settings names (spec 4.4 rule 1), and the
+ * timeline playback. No `data.` key is a setting: the known fields the data's mapping carries are
+ * left out quietly, the rest reported, as is any other config value the table has no name for.
  * @param session - The session member.
  * @param context - The file.
  * @returns The section.
@@ -1016,12 +1047,15 @@ function outsideWindowMembers(members: ReadonlyMap<string, JsonObject>): Readonl
 function migrateSettings(session: JsonObject, context: Context): JsonObject {
     const settings: JsonObject = {};
     const flatten = (prefix: string, value: unknown): void => {
-        if (isObject(value) && !OBJECT_SETTINGS.has(prefix)) {
+        const name = NAME_OF.get(prefix);
+        if (value === undefined) {
+            return;
+        } else if (name !== undefined) {
+            settings[name] = value;
+        } else if (isObject(value)) {
             for (const [key, entry] of Object.entries(value)) {
                 flatten(`${prefix}.${key}`, entry);
             }
-        } else if (value === undefined) {
-            return;
         } else if (prefix.startsWith("data.")) {
             if (!(
                 context.data?.carried.has(prefix.slice("data.knownFields.".length)) === true &&
@@ -1030,7 +1064,7 @@ function migrateSettings(session: JsonObject, context: Context): JsonObject {
                 context.problems.push(leftOut("graphty-session", `/config/${prefix.replaceAll(".", "/")}`));
             }
         } else {
-            settings[prefix] = value;
+            context.problems.push(leftOut("graphty-session", `/config/${prefix.replaceAll(".", "/")}`));
         }
     };
     for (const [key, value] of Object.entries(isObject(session.config) ? session.config : {})) {
@@ -1045,8 +1079,42 @@ function migrateSettings(session: JsonObject, context: Context): JsonObject {
 }
 
 /**
- * The layout in force, as view's layout record: version 1's `{ id, engine, options, dimension }`,
- * the layout's name in `algorithm` and `engine` graphty-element's EngineVersions.
+ * A version 1 layout as a version 2 layout record (spec 5 rule 9): an engine name or a deprecated
+ * name in `id` is read as the arrangement it draws, the engine goes in `drawnBy`, and the options
+ * the arrangement does not list go with it. Nothing is resolved: the record carries what version 1
+ * held. A layout naming no engine writes no `drawnBy` and keeps every option.
+ * @param id - Version 1's `id`.
+ * @param engine - Version 1's `engine`, if any.
+ * @param options - Version 1's `options`, if any.
+ * @returns `{ id, options?, drawnBy? }`.
+ */
+function layoutFromVersion1(id: string, engine: unknown, options: unknown): JsonObject {
+    const alias = layoutAlias(id);
+    const arrangement = alias?.id ?? (layoutDescriptor(id) === undefined ? (layoutIdForEngine(id) ?? id) : id);
+    const drawnEngine =
+        typeof engine === "string" && engine !== "" ? engine : (alias?.engine ?? (arrangement === id ? undefined : id));
+    const given = isObject(options) ? options : {};
+    if (drawnEngine === undefined) {
+        return { id: arrangement, ...(Object.keys(given).length === 0 ? {} : { options: given }) };
+    }
+
+    const saved = new Set(savedLayoutOptions(arrangement));
+    const own: JsonObject = {};
+    const engines: JsonObject = {};
+    for (const [key, value] of Object.entries(given)) {
+        (saved.has(key) ? own : engines)[key] = value;
+    }
+
+    return {
+        id: arrangement,
+        ...(Object.keys(own).length === 0 ? {} : { options: own }),
+        drawnBy: { engine: drawnEngine, ...(Object.keys(engines).length === 0 ? {} : { options: engines }) },
+    };
+}
+
+/**
+ * The layout in force, as view's layout record: version 1's `{ id, engine, options, dimension }`
+ * as 5 rule 9 writes it, and `engine` the release that saved the file (spec 4.5 rule 6).
  * @param session - The session member, if any.
  * @param context - The file.
  * @returns The layout record, or undefined for none.
@@ -1058,11 +1126,8 @@ function layoutOf(session: JsonObject | undefined, context: Context): JsonObject
     }
 
     return {
-        id: layout.id,
-        // Version 1 may name only the catalog id, which a registered engine name is read as.
-        algorithm: typeof layout.engine === "string" && layout.engine !== "" ? layout.engine : layout.id,
+        ...layoutFromVersion1(layout.id, layout.engine, layout.options),
         dimension: layout.dimension === "2d" || layout.dimension === 2 ? 2 : 3,
-        ...(isObject(layout.options) && Object.keys(layout.options).length > 0 ? { options: layout.options } : {}),
         engine: engineOf(context),
     };
 }
@@ -1116,7 +1181,7 @@ function placedOf(arrangement: JsonObject | undefined, data: MigratedData): Plac
  */
 function visibilityOf(visibility: JsonObject, context: Context, data: MigratedData): JsonObject {
     const conditions = (isObject(visibility.conditions) ? objectsOf(visibility.conditions.list) : []).map((condition) =>
-        renameSets({ ...condition, rule: boundRule(condition.rule, data) }, context),
+        renameSets({ ...condition, rule: boundRule(v1Paths(condition.rule), data) }, context),
     );
     if (Array.isArray(visibility.steps) && visibility.steps.length > 0) {
         context.problems.push(leftOut("graphty-session", "/visibility/steps"));
@@ -1124,11 +1189,11 @@ function visibilityOf(visibility: JsonObject, context: Context, data: MigratedDa
 
     const window =
         isObject(visibility.window) && typeof visibility.window.attribute === "string"
-            ? (({ raw: _raw, ...rest }) => rest)(visibility.window)
+            ? v1Paths((({ raw: _raw, ...rest }) => rest)(visibility.window))
             : undefined;
     const hidden = nodeRefs(visibility.hidden, data);
     return {
-        filter: filterOf(visibility.filter, context, data),
+        filter: filterOf(v1Paths(visibility.filter), context, data),
         ...(window === undefined ? {} : { window }),
         ...(typeof visibility.showContext === "boolean" ? { showContext: visibility.showContext } : {}),
         ...(conditions.length === 0 ? {} : { conditions }),
@@ -1316,17 +1381,23 @@ function migrateRecipe1(recipe: JsonObject, context: Context): JsonObject | unde
         return undefined;
     }
 
-    const commands = objectsOf(recipe.commands).map((command) => {
+    const commands = objectsOf(recipe.commands).map((read) => {
+        const command = v1Paths(read);
         if (command.op === "algo.run") {
             return { ...command, style: command.style ?? true };
         }
 
         if (command.op === "layout.set") {
-            // Version 2 names the layout `algorithm`: a recipe says what to run, not what ran.
-            const { dimension, engine, ...rest } = command;
+            // Version 2 names the arrangement in `id` and the engine only as provenance (spec 5 rule 9).
+            const { dimension, description } = command;
             return {
-                ...rest,
-                ...(typeof engine === "string" ? { algorithm: engine } : {}),
+                op: command.op,
+                ...(description === undefined ? {} : { description }),
+                ...layoutFromVersion1(
+                    typeof command.id === "string" ? command.id : "",
+                    command.engine,
+                    command.options,
+                ),
                 dimension: dimension === 2 || dimension === "2d" ? 2 : 3,
             };
         }
@@ -1411,7 +1482,7 @@ function generatorOf(value: JsonObject): JsonObject {
     const { generator } = value;
     return isObject(generator) && typeof generator.name === "string" && typeof generator.version === "string"
         ? { name: generator.name, version: generator.version }
-        : { name: "graphty-element", version: ENGINE_VERSIONS.element };
+        : { name: "graphty-element", version: ELEMENT_VERSION };
 }
 
 /**

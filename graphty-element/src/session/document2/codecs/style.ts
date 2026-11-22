@@ -21,7 +21,7 @@ import { isGraphtyError } from "../../../errors/GraphtyError";
 import { assetsMember, restoreAssets, withAcceptedAssetIds } from "../../assets/projectMember";
 import { dispatcherOf } from "../../dispatchers";
 import { channelDescriptor, isEnumCount } from "../../styles/channels";
-import { renamePaths } from "../../styles/predicate";
+import { quotePath, renamePaths, renameRunInPath } from "../../styles/predicate";
 import type { GraphSession } from "../../types";
 import { valueLabelOf } from "../../valueLabels";
 import { projectMemory } from "../memory";
@@ -44,6 +44,9 @@ import {
     dataColumnsIn,
     isNamespace,
     namespaceFromId,
+    PATH_MEMBERS,
+    renameRuns,
+    runsRead,
     splitRunId,
     unansweredPath,
 } from "./recipeCommands";
@@ -166,11 +169,6 @@ const LAYER_MEMBERS = new Set([
 /** A shader parameter's address, `<target>.shaders.<id>.<param>`, which is a channel of its own. */
 const SHADER_ADDRESS = /^(node|edge)\.shaders\.[^.]+\..+$/;
 
-/** A run named in a path or an expression: `results.<run>`. */
-// ponytail: a regular expression over the text, so a quoted path or a string literal holding
-// `results.x` is read as a path too; parse the expression when that matters.
-const RESULT_PATH = /(?<![\w."])results\.([A-Za-z_]\w*)/g;
-
 /**
  * Whether a value is a plain JSON object.
  * @param value - The value.
@@ -200,47 +198,6 @@ export function runName(id: string): string {
 }
 
 /**
- * Every string in a value with each `results.<run>` renamed.
- * @param value - The value.
- * @param rename - From the name written to the name wanted.
- * @returns A copy, keys in the same order.
- */
-function renameRuns<T>(value: T, rename: (run: string) => string): T {
-    if (typeof value === "string") {
-        return value.replaceAll(RESULT_PATH, (_match, run: string) => `results.${rename(run)}`) as T;
-    }
-
-    if (Array.isArray(value)) {
-        return value.map((each: unknown) => renameRuns(each, rename)) as T;
-    }
-
-    return isObject(value)
-        ? (Object.fromEntries(Object.entries(value).map(([key, each]) => [key, renameRuns(each, rename)])) as T)
-        : value;
-}
-
-/**
- * Every match of a pattern's first group in the strings of a value.
- * @param value - The value.
- * @param pattern - A global pattern.
- * @param into - Where to collect, in order of first appearance.
- */
-function collect(value: unknown, pattern: RegExp, into: Set<string>): void {
-    if (typeof value === "string") {
-        for (const match of value.matchAll(pattern)) {
-            into.add(match[1]);
-        }
-    } else if (Array.isArray(value) || isObject(value)) {
-        for (const each of Object.values(value)) {
-            collect(each, pattern, into);
-        }
-    }
-}
-
-/** The members whose text is one path, never an expression: a selector's `path`, a binding's `by`. */
-const PATH_MEMBERS = new Set(["path", "by"]);
-
-/**
  * Collect every column a value's paths and expressions read: a path member's whole rest after
  * `data.`, and each `data.` path an expression names.
  * @param value - The value.
@@ -266,17 +223,8 @@ function collectColumns(value: unknown, into: Set<string>, member = ""): void {
 }
 
 /**
- * A `data.` path naming a column, quoted when the name is not a plain dotted name.
- * @param column - The column.
- * @returns The path.
- */
-function dataPath(column: string): string {
-    return /^[A-Za-z_][\w.]*$/.test(column) ? `data.${column}` : `data.${JSON.stringify(column)}`;
-}
-
-/**
  * A value with every column it reads renamed, as `collectColumns` finds them: a path member's
- * `data.<column>` (or a `by`'s bare column), and each `data.` path an expression names.
+ * `data.<column>`, and each `data.` path an expression names.
  * @param value - The value.
  * @param renamed - The open data's column, by the column the section names.
  * @param member - The member the value is held under.
@@ -284,7 +232,7 @@ function dataPath(column: string): string {
  */
 function renameColumns(value: unknown, renamed: ReadonlyMap<string, string>, member = ""): unknown {
     if (typeof value === "string") {
-        return PATH_MEMBERS.has(member) ? renamePath(value, renamed, member === "by") : renameIn(value, renamed);
+        return PATH_MEMBERS.has(member) ? renamePath(value, renamed) : renameIn(value, renamed);
     }
 
     if (Array.isArray(value)) {
@@ -297,19 +245,14 @@ function renameColumns(value: unknown, renamed: ReadonlyMap<string, string>, mem
 }
 
 /**
- * One path member renamed: its `data.<column>`, or a binding's bare column.
+ * One path member renamed: its `data.<column>`, written raw (spec 4.8.1 rule 2).
  * @param path - The path.
  * @param renamed - The open data's column, by the column the section names.
- * @param binding - Whether it is a binding's `by`, where a bare name is a column.
  * @returns The path.
  */
-function renamePath(path: string, renamed: ReadonlyMap<string, string>, binding: boolean): string {
-    if (binding && !/^(data|results)\./.test(path)) {
-        return renamed.get(path) ?? path;
-    }
-
+function renamePath(path: string, renamed: ReadonlyMap<string, string>): string {
     const to = path.startsWith("data.") ? renamed.get(path.slice("data.".length)) : undefined;
-    return to === undefined ? path : dataPath(to);
+    return to === undefined ? path : `data.${to}`;
 }
 
 /**
@@ -326,7 +269,7 @@ function renameIn(text: string, renamed: ReadonlyMap<string, string>): string {
     try {
         return renamePaths(text, (path) => {
             const to = path.startsWith("data.") ? renamed.get(path.slice("data.".length)) : undefined;
-            return to === undefined ? undefined : dataPath(to);
+            return to === undefined ? undefined : quotePath(`data.${to}`);
         });
     } catch {
         return text; // Words, not an expression.
@@ -503,13 +446,7 @@ function readsOf(layer: JsonObject, columns: Set<string>, runs: Set<string>, typ
     const kind = layer.target === "edge" ? "edge" : "node";
     const names = new Set<string>();
     collectColumns([layer.selector, layer.encode], names);
-    collect([layer.selector, layer.encode], RESULT_PATH, runs);
-    // A `by` with no prefix reads a column (style.md, "Paths" rule 1).
-    for (const binding of Object.values(isObject(layer.encode) ? layer.encode : {})) {
-        if (isObject(binding) && typeof binding.by === "string" && !/^(data|results)\./.test(binding.by)) {
-            names.add(binding.by);
-        }
-    }
+    runsRead([layer.selector, layer.encode]).forEach((run) => runs.add(run));
 
     names.forEach((name) => columns.add(`${kind}:${name}`));
     if (isObject(layer.selector) && layer.selector.match === "type" && Array.isArray(layer.selector.types)) {
@@ -652,7 +589,7 @@ function compose(session: GraphSession, problems: DocumentProblem[], toView = fa
 
     const valueLabels = [...dispatcherOf(session).state.valueLabels].map(([key, label]) => {
         const { path, value } = valueLabelOf(key);
-        return { path: renameRuns(path, runName), value, label };
+        return { path: renameRunInPath(path, runName), value, label };
     });
     const assets = assetsMember(session).member?.assets as JsonObject[] | undefined;
     const body: JsonObject = {
@@ -1272,7 +1209,7 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
     for (const entry of Array.isArray(body.valueLabels) ? body.valueLabels : []) {
         if (isObject(entry) && typeof entry.path === "string" && typeof entry.label === "string") {
             const { value } = entry;
-            const path = renameRuns(entry.path, (run) => reading.rename(run) ?? run);
+            const path = renameRunInPath(entry.path, (run) => reading.rename(run) ?? run);
             if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
                 await context.tx.data.setValueLabel(path, value, entry.label);
             }

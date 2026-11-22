@@ -28,11 +28,13 @@ import { REGISTRATIONS } from "./registrations";
 import { cardPalette } from "./selection/cardPalette";
 import { readAuthor, readPreference, TIMELINE_STYLE } from "./settings/preferences";
 import { SettingsDialog } from "./settings/SettingsDialog";
+import { DraftOpenDialog } from "./source-steps/DraftOpenDialog";
 import { openAgain, useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
 import {
     createWorkspaceStore,
+    keepLayout,
     keepPlace,
     keptBlank,
     keptEntry,
@@ -303,8 +305,19 @@ export function Workspace({
             live = false;
         };
     }, [store, checking]);
-    // The reader's place is kept for a reload of this tab while autosave keeps the work.
-    useEffect(() => (store.get().autosave ? keepPlace(store) : undefined), [store]);
+    // The reader's place is kept for a reload of this tab while autosave keeps the work, and the
+    // panel sizes, table dock and legend switch for the next visit.
+    useEffect(() => {
+        if (!store.get().autosave) {
+            return undefined;
+        }
+        const stops = [keepPlace(store), keepLayout(store)];
+        return () => {
+            stops.forEach((stop) => {
+                stop();
+            });
+        };
+    }, [store]);
     // The entry the project's work is written to, so a reload can tell work never written.
     useEffect(() => {
         const host = element.element;
@@ -461,6 +474,7 @@ export function Workspace({
                 {usageAnalytics ? <SurveyCard /> : null}
             </div>
             <ProjectDialogs />
+            <DraftOpenDialog />
             {/* The one status line, outside the start screen, the frame and every surface the Data
                 page hides, so it is on the page, empty, before anything is written to it and a
                 message is spoken once, politely, as it happens. Each write puts in a new text node,

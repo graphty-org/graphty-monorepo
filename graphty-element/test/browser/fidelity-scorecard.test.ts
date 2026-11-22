@@ -134,7 +134,11 @@ describe("style fidelity scorecard: what graphty-element draws", () => {
             }
             const worst = result.properties[p as keyof typeof result.properties].worst
                 .slice(0, 3)
-                .map((w) => `${w.id} (reference ${JSON.stringify(w.ref)}, drawn ${JSON.stringify(w.got)})`);
+                // What the style asked for tells a style that missed the element from a draw that missed the style.
+                .map(
+                    (w) =>
+                        `${w.id} (reference ${JSON.stringify(w.ref)}, drawn ${JSON.stringify(w.got)}, requested ${JSON.stringify(w.requested ?? null)})`,
+                );
             return [
                 `${id} ${p}: ${rate === undefined ? "no longer judged" : rate.toFixed(4)} < floor ${floor.toFixed(4)}; worst: ${worst.join("; ") || "none listed"}`,
             ];

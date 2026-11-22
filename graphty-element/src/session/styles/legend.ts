@@ -36,6 +36,7 @@
 import type { AlgorithmKey, Binding, Channel, LayerId, PaletteId, Path, RunId } from "../../catalog/types";
 import { RESULT_ROOT } from "../results/types";
 import type { CodedFact } from "../shared";
+import { DRAFT_MARKS, DRAFT_PATH } from "../sources/steps/paths";
 import { asColorValue } from "./channels";
 import type { EncodedValue, PreparedBinding } from "./encoding";
 import type { Layer } from "./Layer";
@@ -477,6 +478,16 @@ export interface LegendSources {
      * @returns The categories, or undefined to keep every row.
      */
     readonly shown?: (layerId: LayerId, channel: Channel) => ReadonlySet<string> | undefined;
+    /**
+     * How many of the elements one layer selects carry each value of a path, keyed as the legend
+     * spells a category.
+     *
+     * Absent, a layer that reads what a shown source draft does keys no rows.
+     * @param layerId - The layer.
+     * @param path - The path.
+     * @returns The counts by value.
+     */
+    readonly carried?: (layerId: LayerId, path: Path) => ReadonlyMap<string, number>;
 }
 
 /** What one category of a layer's binding reaches; see {@link LegendSources.reach}. */
@@ -1191,12 +1202,48 @@ export function buildLegend(sources: LegendSources): readonly LegendBlock[] {
         // ponytail: one count per layer per read, a walk over that layer's elements; memoize by
         // the counts' revision if legend reads ever show up in a profile.
         const painted = prepared.length === 0 ? undefined : sources.painted?.(layer.id);
-        for (const binding of prepared) {
-            blocks.push(buildBlock(layer, binding, layers, at, sources, painted));
-        }
+        const own = prepared.map((binding) => buildBlock(layer, binding, layers, at, sources, painted));
+        blocks.push(...(own.some((block) => block.field?.path === DRAFT_PATH) ? draftKey(own, sources) : own));
     }
 
     return blocks.length === 0 ? NO_BLOCKS : Object.freeze(foldCopies(blocks, layers, sources.reached));
+}
+
+/**
+ * A layer that reads what a shown source draft does ({@link DRAFT_PATH}) keys that, not the sizes
+ * and opacities it draws it with: one categorical block of the values its elements carry, each
+ * counted and drawn in the layer's own color, or none while no element carries one.
+ * @param own - The layer's blocks.
+ * @param sources - Where the counts come from.
+ * @returns The layer's one block, or none.
+ */
+function draftKey(own: readonly LegendBlock[], sources: LegendSources): LegendBlock[] {
+    const keyed = own.find((block) => block.field?.path === DRAFT_PATH);
+    if (keyed === undefined) {
+        return [];
+    }
+    const colored = own.find((block) => block.kind === "literal" && block.swatches[0]?.color !== undefined);
+    const color = colored?.swatches[0]?.color;
+    const held = sources.carried?.(keyed.layerId, DRAFT_PATH);
+    const swatches = DRAFT_MARKS.flatMap((mark) => {
+        const count = held?.get(mark) ?? 0;
+        return count === 0 ? [] : [{ value: mark, count, ...(color === undefined ? {} : { color }) }];
+    });
+    if (swatches.length === 0) {
+        return [];
+    }
+    const base = colored ?? keyed;
+    const block: LegendBlock = {
+        channel: base.channel,
+        layerId: base.layerId,
+        ...(base.runId === undefined ? {} : { runId: base.runId }),
+        kind: "categorical",
+        ...(keyed.field === undefined ? {} : { field: keyed.field }),
+        swatches: Object.freeze(swatches),
+        ...(base.painted === undefined ? {} : { painted: base.painted }),
+        facts: Object.freeze([]),
+    };
+    return [Object.freeze(block)];
 }
 
 /**

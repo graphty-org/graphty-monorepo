@@ -669,18 +669,19 @@ export class ApiKeyManager {
     constructor(options?: ApiKeyManagerOptions);
     clear(): void;
     disablePersistence(clearStorage?: boolean): void;
-    enablePersistence(config?: PersistenceConfig): void;
+    enablePersistence(config?: PersistenceConfig): Promise<void>;
     enablePersistenceWithPassphrase(passphrase: string, config?: PassphrasePersistenceConfig): Promise<void>;
-    forgetKey(provider: ProviderType): void;
-    forgetKeys(): void;
+    forgetKey(provider: ProviderType): Promise<void>;
+    forgetKeys(): Promise<void>;
     getConfiguredProviders(): ProviderType[];
     getDefaultProvider(): ProviderType | null;
     getKey(provider: ProviderType): string | undefined;
     getStoredItem(name: string): unknown;
     hasKey(provider: ProviderType): boolean;
     isPersistenceEnabled(): boolean;
+    ready(): Promise<void>;
     removeKey(provider: ProviderType): void;
-    retireOtherStorage(): void;
+    retireOtherStorage(): Promise<void>;
     setDefaultProvider(provider: ProviderType | null): void;
     setKey(provider: ProviderType, key: string): void;
     setStoredItem(name: string, value: unknown): void;
@@ -980,7 +981,7 @@ export const sampleData: GraphCommand;
 
 // @public
 export class SchemaExtractor {
-    constructor(graph: Graph, options?: SchemaExtractorOptions);
+    constructor(graph: Graph | GraphSession, options?: SchemaExtractorOptions);
     extract(): SchemaSummary;
 }
 
@@ -996,7 +997,7 @@ export interface SchemaExtractorOptions {
 
 // @public
 export class SchemaManager {
-    constructor(graph: Graph, options?: SchemaExtractorOptions);
+    constructor(graph: Graph | GraphSession, options?: SchemaExtractorOptions);
     extract(): SchemaSummary;
     getFormattedSchema(): string;
     getSchema(): SchemaSummary | null;

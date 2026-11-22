@@ -246,7 +246,7 @@ export type AiEventType = AiEvent["type"];
 
 // @public
 abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<string, unknown>> {
-    constructor(g: Graph, options?: Partial<TOptions>);
+    constructor(g: AlgorithmHost | GraphSession, options?: Partial<TOptions>);
     protected accelerated(capability: string, mode: AlgorithmGraphMode, options?: {
         accelerable?: boolean;
         sources?: number;
@@ -254,15 +254,16 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     }): AcceleratedAlgorithmRun;
     // @deprecated
     protected algorithmGraph(mode: AlgorithmGraphMode): Graph_2;
-    static get(g: Graph, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
+    // @internal
+    protected forgetReachedAccelerator(): void;
+    static get(g: AlgorithmHost | GraphSession, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
     static getClass(namespace: string, type: string): (AlgorithmClass & AlgorithmStatics) | null;
     // @deprecated
     static getOptionsSchema(): OptionsSchema_2;
     static getRegisteredAlgorithms(namespace?: string): string[];
     static getRegisteredTypes(): string[];
     static getZodOptionsSchema(): OptionsSchema;
-    // (undocumented)
-    protected graph: Graph;
+    protected graph: AlgorithmHost;
     // @deprecated
     static hasOptions(): boolean;
     static hasZodOptions(): boolean;
@@ -283,10 +284,12 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     // @internal
     static parallelEdges?: SimplifyPolicy;
     publishResult(_context: RunControls, runId: string, _fields?: readonly FieldDescriptor[]): Promise<RunResult | undefined>;
+    // @internal
+    reachedAccelerator: GraphAccelerator | null;
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
     // (undocumented)
-    abstract run(g: Graph): Promise<void>;
+    abstract run(g: AlgorithmHost): Promise<void>;
     protected get schemaOptions(): TOptions;
     protected _schemaOptions: TOptions;
     static scopeInput?: ScopeInputDeclaration;
@@ -317,7 +320,7 @@ export class AlgorithmManager implements Manager {
     runLegacy(command: AlgoLegacyCommand, ctx: UndoableContext): Promise<void>;
 }
 
-// @public (undocumented)
+// @public
 export const AlgorithmOnLoad: z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
     algorithm: z.ZodString;
     params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
@@ -328,7 +331,7 @@ export const AlgorithmOnLoad: z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
     as: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>]>;
 
-// @public (undocumented)
+// @public
 export type AlgorithmOnLoad = z.infer<typeof AlgorithmOnLoad>;
 
 // @public
@@ -1069,7 +1072,7 @@ export interface DocumentBindFacts {
 }
 
 // @beta
-export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_OPTION_NOT_SAVED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_ENGINE_CHANGED" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED" | "W_LAYOUT_ENGINE_UNAVAILABLE" | "W_LAYOUT_OPTION_NOT_APPLIED" | "W_NAME_UPGRADED";
 
 // @beta
 export interface DocumentHeldFacts {
@@ -1149,6 +1152,8 @@ export class Edge {
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     // @internal
+    batchEndRow(end: "source" | "target"): number;
+    // @internal
     columnEnd(end: "source" | "target"): ColumnRow | undefined;
     get data(): AdHocData;
     dispose(): void;
@@ -1184,6 +1189,8 @@ export class Edge {
     readonly dstId: NodeIdType;
     get dstNode(): Node_2;
     set dstNode(node: Node_2);
+    // @internal
+    endDrawnAsGroup(end: "source" | "target"): boolean;
     // @internal
     endRow(end: "source" | "target"): number;
     // @internal
@@ -2052,6 +2059,7 @@ export const EdgeStyle: z.ZodObject<{
         animationSpeed: z.ZodOptional<z.ZodNumber>;
         width: z.ZodOptional<z.ZodNumber>;
         minScreenWidth: z.ZodOptional<z.ZodNumber>;
+        drawOrder: z.ZodOptional<z.ZodNumber>;
         patternCount: z.ZodOptional<z.ZodNumber>;
         waveAmplitude: z.ZodOptional<z.ZodNumber>;
         wavePeriod: z.ZodOptional<z.ZodNumber>;
@@ -2720,7 +2728,7 @@ export class EventManager implements Manager {
     emitGraphDataLoaded(graph: Graph | GraphContext, chunksLoaded: number, dataSourceType: string, report: ImportReport, loadId?: number): void;
     emitGraphError(graph: Graph | GraphContext | null, error: Error, context: GraphErrorEvent["context"], details?: Record<string, unknown>): void;
     // @deprecated
-    emitGraphEvent(type: string, data: Record<string, unknown>): void;
+    emitGraphEvent(type: EmittableEventType, data: Record<string, unknown>): void;
     emitGraphSettled(graph: Graph): void;
     emitLayoutInitialized(layoutType: string, shouldZoomToFit: boolean): void;
     emitNodeEvent(type: NodeEvent["type"], eventData: object): void;
@@ -3374,6 +3382,10 @@ export interface GraphAccelerator {
         reason: string;
     }>;
     readonly name: string;
+    readonly package?: {
+        readonly name: string;
+        readonly version: string;
+    };
     readonly precision?: AccelerationPrecision;
     verify?(): Promise<void>;
 }
@@ -3484,7 +3496,7 @@ export interface GraphErrorEvent {
 }
 
 // @public
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public
 export type GraphEventType = GraphEvent["type"];
@@ -5407,13 +5419,9 @@ export const GREENS_COLORS: readonly ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b"
 
 // @public
 export interface GroupOutlineAtResult {
-    // (undocumented)
     readonly group: string | number | boolean | null;
-    // (undocumented)
     readonly kind: "group-outline";
-    // (undocumented)
     readonly layer: LayerId;
-    // (undocumented)
     readonly shader: string;
 }
 
@@ -5438,6 +5446,12 @@ export { ImageData_2 as ImageData }
 
 // @public
 export const INFERNO_COLORS: readonly ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d"];
+
+// @public
+export interface InputBookkeepingEvent {
+    [key: string]: unknown;
+    type: "input-initialized" | "input-config-updated" | "input-pointer-lock-changed" | "input-recording-started" | "input-recording-stopped" | "input-playback-completed";
+}
 
 // @public
 export interface InputEnabledChangedEvent {
@@ -5613,6 +5627,8 @@ export abstract class LayoutEngine {
     protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     // @internal
     publishedBounds(): Readonly<Float64Array> | null;
+    // @internal
+    protected publishLeavesRow(lane: ElementPositions, row: number, x: number, y: number, z: number): boolean;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal
@@ -5629,7 +5645,7 @@ export abstract class LayoutEngine {
         x: number;
         y: number;
         z: number;
-    }): boolean;
+    }, lane?: ElementPositions): boolean;
     static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T;
     // @internal
     protected releasePublishScratch(): void;
@@ -5656,6 +5672,8 @@ export abstract class LayoutEngine {
     updatePositions(_nodes: readonly Node_2[]): void;
     // @internal
     wakeForClusters(): boolean;
+    // @internal
+    wakeForLift(): boolean;
     // @internal
     wakeForResize(): boolean;
     // @internal
@@ -5730,6 +5748,8 @@ export class LayoutManager implements Manager {
     stepBatch(): void;
     // @internal
     steppedPublishes: number;
+    // @internal
+    takeFrameHold(): boolean;
     updatePositions(nodes: Node_2[]): Promise<void>;
     updateStyles(styles: Styles): void;
     // @internal
@@ -5738,6 +5758,12 @@ export class LayoutManager implements Manager {
 
 // @public
 export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
+
+// @public
+export interface LayoutUpdatedEvent {
+    nodeCount: number;
+    type: "layout-updated";
+}
 
 // @public
 export interface LayoutWarningEvent {
@@ -5928,6 +5954,8 @@ class Node_2 implements ModelUser {
     get borderReach(): number;
     // @internal
     borderReachAlong(dir: Xyz): number;
+    // @internal
+    static closedForm(shape: string | undefined, rotation: number | undefined): boolean;
     get data(): AdHocData<string | number>;
     // @internal
     get decorationPieces(): readonly NodeDecorationPiece[];
@@ -8889,7 +8917,7 @@ export { SourceDescriptor }
 export { SourceEdgeRecord }
 
 // @beta
-export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind";
+export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind" | "options";
 
 export { sourceEndpoint }
 
@@ -9085,7 +9113,7 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
 export type SourceStorage = "embedded" | "referenced";
 
 // @beta
-export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind";
+export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind" | "copy-form" | "options" | "ledger";
 
 export { SourceValidators }
 
@@ -9327,6 +9355,8 @@ export class UpdateManager implements Manager {
     markViewSized(node: Node_2, on: boolean): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    // @internal
+    nodeRowSelected(row: number): boolean;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;

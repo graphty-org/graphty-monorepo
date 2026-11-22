@@ -188,6 +188,15 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
                 handler.onPointerMove();
             }
 
+            // A NODE HELD BY THE POINTER KEEPS THE HOVER until it is let go: no other node is hovered
+            // under a drag. The pick on the batched path answers from a frame drawn before the
+            // dragged node caught up with the pointer, so it found the node beside it and hovered
+            // that one mid-drag (issue #9514); the "objects" path, picking synchronously, found the
+            // dragged node. Skipping the pick gives both paths the same answer.
+            if (roster.engaged.size > 0) {
+                break;
+            }
+
             // Picked AFTER the drags above have moved their nodes, so the hover reads where things
             // are now. On the batched path the answer is read from the node ID target and comes
             // later. An answer is dropped only when a newer move's answer was already heard: a
@@ -224,7 +233,8 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
  * @param pick - The node under the pointer at that move, if any, and where the pick found it drawn.
  */
 function hearHover(roster: NodePointerRoster, move: number, pick: HoverPick): void {
-    if (move > roster.heard) {
+    // An answer to a move made before a press lands while the press holds a node: dropped, as above.
+    if (move > roster.heard && roster.engaged.size === 0) {
         roster.heard = move;
         deliverHover(roster, pick);
     }

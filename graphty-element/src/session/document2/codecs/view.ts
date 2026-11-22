@@ -17,13 +17,14 @@ import type { AlgorithmKey, LayerSpec, NodeId, RuleTree, ScopeInput } from "../.
 import { isGraphtyError } from "../../../errors/GraphtyError";
 import { dispatcherOf } from "../../dispatchers";
 import { expandedGraph, type GroupValue, type SavedCollapse } from "../../groups";
-import { ENGINE_VERSIONS } from "../../runs/engine";
 import type { Run } from "../../runs/types";
 import type { Layer } from "../../styles/Layer";
 import type { GraphSession, SavedView, SavedViewInput, TransactionScope } from "../../types";
 import type { TimeWindow } from "../../visibility/filter";
 import type { SessionVisibilityApi } from "../../visibility/VisibilityApi";
+import { markUpgraded, upgradeRun, wasUpgraded } from "../algorithmNames";
 import { canonicalText as canonical } from "../framing";
+import { layoutRecordJson, layoutRequest } from "../layoutRecord";
 import type {
     DocumentProblem,
     ElementRefs,
@@ -36,8 +37,9 @@ import type {
 import { addedValues } from "./data";
 import { addedColumns, edgeRefOf, elementRefsOf, READER, rememberReaderEdge, savedEdgeId, typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
-import { filterRule, unansweredPath } from "./recipeCommands";
-import { markRecipeRun, recipeRunName, restoredPositions } from "./results";
+import { reportEngineChanges } from "./engine";
+import { filterRule, refusedIn, unansweredPath } from "./recipeCommands";
+import { engineInForce, layoutEngineInForce, markRecipeRun, recipeRunName, restoredPositions } from "./results";
 import { heldTypeSelector } from "./style";
 import {
     cameraJson,
@@ -50,12 +52,16 @@ import {
     type RefMapper,
     rerunsOnOpen,
     resetMemory,
+    resolvedLayoutOptions,
     type ViewMemory,
     writeMapper,
 } from "./viewParts";
 
 /** The section name, as every report names it. */
 const SECTION = "view";
+
+/** The members that name algorithms, which an open may read under former names (spec 10.1). */
+const UPGRADABLE = new Set(["runs", "layers"]);
 
 /**
  * The body members, in the order they are written, each with whether it is read from the live
@@ -275,7 +281,8 @@ function runJson(w: Writer, run: Run, pointer: string): JsonObject {
         ...(name === null ? {} : { name }),
         algorithm: run.algorithm,
         ...(Object.keys(params).length === 0 ? {} : { params }),
-        ...(Number.isInteger(seed) && (seed ?? -1) >= 0 ? { seed } : {}),
+        // A seed reproduces a result only under the code it was given to (spec 4.5 rule 6).
+        ...(Number.isInteger(seed) && (seed ?? -1) >= 0 ? { seed, engine: engineInForce(w, run) } : {}),
         scope: scopeJson(w, run),
         ...(w.isDerived(run.id) ? { derived: true } : {}),
         ...(narrowed ? { replayable: false } : {}),
@@ -487,18 +494,15 @@ function groupsJson(w: Writer): JsonObject[] {
 }
 
 /**
- * The `layout` member: the layout in force.
+ * The `layout` member: the layout in force, and the engine that drew the positions in force.
  * @param session - The session.
  * @returns The record.
  */
 function layoutJson(session: GraphSession): JsonObject {
-    const { id, engine, options, dimension } = session.layout;
     return {
-        id,
-        algorithm: engine,
-        options: { ...options },
-        dimension: dimension === "2d" ? 2 : 3,
-        engine: { ...ENGINE_VERSIONS },
+        ...layoutRecordJson(session, session.layout),
+        dimension: session.layout.dimension === "2d" ? 2 : 3,
+        engine: layoutEngineInForce({ session }),
     };
 }
 
@@ -912,6 +916,48 @@ function filterIn(filter: unknown): RuleTree | null {
 }
 
 /**
+ * Whether a holder (a filter, a condition, a window, a set, a layer, a run) can be applied: one
+ * reading a readable path this release does not compute, or the reserved `graphty.types` (spec 4.2
+ * rule 4), or holding an expression or a rule tree leaf this release refuses (spec 4.8.2 rule 6), is
+ * not applied, and is reported `W_UNKNOWN_MEMBER`; the open writes it back as read.
+ * @param r - The reader.
+ * @param value - The holder.
+ * @param pointer - Its pointer.
+ * @returns True when it can be applied.
+ */
+function keepsHolder(r: Reader, value: unknown, pointer: string): boolean {
+    if (unansweredPath(value) !== undefined) {
+        r.context.problems.push({
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: SECTION, pointer, reason: "E_UNKNOWN_ATTRIBUTE" },
+        });
+        return false;
+    }
+
+    return !refusedHolder(r, value, pointer);
+}
+
+/**
+ * Whether a holder holds an expression or a rule tree leaf this release refuses (spec 4.8.2 rule
+ * 6), reported `W_UNKNOWN_MEMBER` with the pointer of what is refused.
+ * @param r - The reader.
+ * @param value - The holder.
+ * @param pointer - Its pointer.
+ * @returns True when it is refused.
+ */
+function refusedHolder(r: Reader, value: unknown, pointer: string): boolean {
+    const refused = refusedIn(value, pointer);
+    if (refused !== undefined) {
+        r.context.problems.push({
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: SECTION, pointer: refused, reason: "E_BAD_SELECTOR" },
+        });
+    }
+
+    return refused !== undefined;
+}
+
+/**
  * Apply the visibility member.
  * @param r - The reader.
  * @param visibility - The member.
@@ -923,17 +969,7 @@ async function readVisibility(r: Reader, visibility: JsonObject): Promise<void> 
     // reserved `graphty.types`, is not applied (spec 4.7 rule 4); the rest of the member is. The
     // member is written back as read while the session holds what was applied (rememberRead).
     const at = `${r.section.pointer}/visibility`;
-    const answered = (value: unknown, pointer: string): boolean => {
-        if (unansweredPath(value) === undefined) {
-            return true;
-        }
-
-        r.context.problems.push({
-            code: "W_UNKNOWN_MEMBER",
-            params: { section: SECTION, pointer, reason: "E_UNKNOWN_ATTRIBUTE" },
-        });
-        return false;
-    };
+    const answered = (value: unknown, pointer: string): boolean => keepsHolder(r, value, pointer);
     const read = mapRefs(visibility, r.mapper, at) as JsonObject;
     const conditions = Array.isArray(read.conditions)
         ? read.conditions.filter((condition, n) => isObject(condition) && answered(condition, `${at}/conditions/${n}`))
@@ -1067,18 +1103,6 @@ async function readCameraAndSettings(r: Reader, body: Readonly<JsonObject>): Pro
         });
     }
 
-    const live = body.camera === undefined ? undefined : cameraRead(r, body.camera);
-    if (live?.position !== undefined && live.target !== undefined) {
-        try {
-            await tx.execute({ op: "view.camera", position: live.position, target: live.target });
-        } catch (error) {
-            // A session that draws nothing has no camera to move; the camera is kept for the next save.
-            if (!isGraphtyError(error) || error.code !== "E_UNSUPPORTED") {
-                refused(r, error, "camera");
-            }
-        }
-    }
-
     const { viewRotation, framing } = body;
     if (typeof viewRotation === "number" || isObject(framing)) {
         await attempt(r, "framing", () =>
@@ -1087,6 +1111,19 @@ async function readCameraAndSettings(r: Reader, body: Readonly<JsonObject>): Pro
                 ...(isObject(framing) ? { framing: framing as never } : {}),
             }),
         );
+    }
+
+    // After viewRotation: in 2D the camera's own turn is the one the file opens at (spec 4.7 rule 2).
+    const live = body.camera === undefined ? undefined : cameraRead(r, body.camera);
+    if (live !== undefined) {
+        try {
+            await tx.execute({ op: "view.camera", camera: live });
+        } catch (error) {
+            // A session that draws nothing has no camera to move; the camera is kept for the next save.
+            if (!isGraphtyError(error) || error.code !== "E_UNSUPPORTED") {
+                refused(r, error, "camera");
+            }
+        }
     }
 
     if (Array.isArray(body.hiddenColumns)) {
@@ -1105,16 +1142,27 @@ async function readLayout(r: Reader, layout: JsonObject): Promise<void> {
     const { tx } = r.context;
     const now = tx.layout;
     const dimension = layout.dimension === 2 ? "2d" : "3d";
-    const options = isObject(layout.options) ? layout.options : {};
-    // The layout's own name is `algorithm`; `engine` is the EngineVersions record, not read back.
-    const engine = typeof layout.algorithm === "string" ? layout.algorithm : undefined;
+    const request = layoutRequest(layout, (code, params) => {
+        r.context.problems.push({ code, params: { section: SECTION, ...params } });
+    });
+    // Compared resolved, so a file that spells out the defaults in force adds no layout step.
     const same =
-        now.id === layout.id &&
-        (engine === undefined || now.engine === engine) &&
-        canonical(now.options) === canonical(options);
+        now.id === request?.id &&
+        (request.engine === undefined || now.engine === request.engine) &&
+        canonical(resolvedLayoutOptions(r.context.session, now)) ===
+            canonical(
+                resolvedLayoutOptions(r.context.session, {
+                    id: request.id,
+                    engine: request.engine ?? now.engine,
+                    options: request.options,
+                }),
+            );
     try {
-        if (!same && typeof layout.id === "string") {
-            await tx.layout.set(layout.id, { ...(engine === undefined ? {} : { engine }), options });
+        if (!same && request !== undefined) {
+            await tx.layout.set(request.id, {
+                ...(request.engine === undefined ? {} : { engine: request.engine }),
+                options: request.options,
+            });
         }
 
         if (now.dimension !== dimension) {
@@ -1130,7 +1178,67 @@ async function readLayout(r: Reader, layout: JsonObject): Promise<void> {
     const placed = restoredPositions(r.context.session);
     if (placed !== undefined) {
         await attempt(r, "layout", () => tx.positions.set(placed));
+    } else {
+        compareLayoutEngine(r, layout);
     }
+}
+
+/**
+ * Report `W_ENGINE_CHANGED` for a seeded layout that runs again rather than being put back, for
+ * each way the code that draws it differs from the code its record names: a seed draws the same
+ * only under the same engine (spec 8.2 rule 3). It is compared as it starts, before any hardware
+ * is known, so the accelerator is not compared.
+ * @param r - The reader.
+ * @param layout - The record.
+ */
+function compareLayoutEngine(r: Reader, layout: JsonObject): void {
+    const { tx } = r.context;
+    const seed = isObject(layout.options) ? layout.options.seed : undefined;
+    if (!isObject(layout.engine) || !Number.isInteger(seed)) {
+        return;
+    }
+
+    const drawnBy = isObject(layout.drawnBy) ? layout.drawnBy.engine : undefined;
+    reportEngineChanges(r.context, "layout", layout.engine, tx.layout.provenance, {
+        accelerator: false,
+        named: { ...(typeof drawnBy === "string" ? { was: drawnBy } : {}), now: tx.layout.engine },
+    });
+}
+
+/**
+ * Report `W_ENGINE_CHANGED` once a seeded run the view reruns has ended, for each way the code
+ * that reran it differs from the code its record names (spec 8.2 rule 3).
+ * @param r - The reader.
+ * @param id - The run.
+ * @param record - The run record.
+ * @param reruns - Whether the view reruns it; a restored run is not compared.
+ * @returns A function that stops waiting, for a run that never starts, or undefined when there is
+ *     nothing to compare: the run is not rerun, or its record holds no seed or no engine.
+ */
+function compareEngineWhenEnded(r: Reader, id: string, record: JsonObject, reruns: boolean): (() => void) | undefined {
+    const { context } = r;
+    if (!reruns || !Number.isInteger(record.seed) || !isObject(record.engine)) {
+        return undefined;
+    }
+
+    const results = context.other("results")?.body.runs;
+    const entry = isObject(results) ? results[id] : undefined;
+    const saved = isObject(entry) && isObject(entry.caveats) ? entry.caveats.method : undefined;
+    const stop = context.session.on("run:changed", ({ run, phase }) => {
+        const ended = context.session.runs.get(id);
+        if (run.id !== id || phase !== "end" || ended === undefined) {
+            return;
+        }
+
+        stop();
+        const now = ended.record.caveats.method;
+        reportEngineChanges(context, id, record.engine, ended.record.engine, {
+            accelerator: true,
+            // A view record holds no caveats: the method it names is the results entry's, if any.
+            named: { was: typeof saved === "string" ? saved : now, now },
+        });
+    });
+    return stop;
 }
 
 /**
@@ -1163,6 +1271,56 @@ function scopeIn(r: Reader, scope: unknown, pointer: string): ScopeInput | undef
 }
 
 /**
+ * Whether a run record reads only paths this release answers (spec 4.7 rule 5) and holds no scope
+ * it refuses (spec 4.8.2 rule 6), reporting the refused one.
+ * @param r - The reader.
+ * @param record - The run record.
+ * @param pointer - Its pointer.
+ * @returns True when it can run.
+ */
+function runAnswered(r: Reader, record: JsonObject, pointer: string): boolean {
+    return (
+        unansweredPath({ params: record.params, scope: record.scope }) === undefined &&
+        !refusedHolder(r, { scope: record.scope }, pointer)
+    );
+}
+
+/**
+ * A run record under its current algorithm key and option names (spec 10.1 rule 2), each upgrade
+ * reported: the record is kept, and written back, under them.
+ * @param r - The reader.
+ * @param record - The run record.
+ * @param pointer - Its pointer.
+ * @returns The record, as read when its algorithm is one this reader does not know.
+ */
+function currentRecord(r: Reader, record: unknown, pointer: string): unknown {
+    if (!isObject(record) || typeof record.algorithm !== "string") {
+        return record;
+    }
+
+    const { context } = r;
+    const upgraded = upgradeRun(
+        context.tx.catalog.algorithms(),
+        record.algorithm,
+        record.params,
+        pointer,
+        SECTION,
+        context.problems,
+    );
+    if (upgraded === undefined) {
+        return record;
+    }
+
+    if (upgraded.renamed) {
+        markUpgraded(r.section.body);
+    }
+
+    const { params } = upgraded;
+    const writesParams = record.params !== undefined || Object.keys(params).length > 0;
+    return { ...record, algorithm: upgraded.key, ...(writesParams ? { params } : {}) };
+}
+
+/**
  * Rerun or restore one view run, or report it not run and keep it.
  * @param r - The reader.
  * @param record - The run record.
@@ -1181,43 +1339,45 @@ async function readRun(r: Reader, record: unknown, at: number): Promise<void> {
         markRecipeRun(context.session, id);
     }
 
+    const current = currentRecord(r, record, pointer);
     const notRun = (): void => {
         context.problems.push({ code: "W_RUN_NOT_RUN", params: { run: id } });
-        r.memory.notRun.set(id, record);
+        r.memory.notRun.set(id, current);
     };
-    if (!isObject(record) || typeof record.algorithm !== "string") {
+    if (!isObject(current) || typeof current.algorithm !== "string") {
         notRun();
         return;
     }
 
     const { params, bound } = mapParams(
         context.tx,
-        record.algorithm,
-        isObject(record.params) ? record.params : {},
+        current.algorithm,
+        isObject(current.params) ? current.params : {},
         r.mapper,
         `${pointer}/params`,
     );
-    const scope = scopeIn(r, record.scope, `${pointer}/scope`);
-    const reruns = rerunsOnOpen(context, id, record);
+    const scope = scopeIn(r, current.scope, `${pointer}/scope`);
+    const reruns = rerunsOnOpen(context, id, current);
     // A run reading a path this release cannot answer is kept, not run (spec 4.7 rule 5).
-    const answered = unansweredPath({ params: record.params, scope: record.scope }) === undefined;
+    const answered = runAnswered(r, current, pointer);
     if (!bound || !answered || scope === undefined || (!reruns && !context.canned.has(id))) {
         notRun();
         return;
     }
 
+    const stop = compareEngineWhenEnded(r, id, current, reruns);
     try {
-        await context.tx.runs.start(record.algorithm, params, {
+        await context.tx.runs.start(current.algorithm, params, {
             as: id,
             style: false,
             scope,
-            ...(typeof record.seed === "number" ? { seed: record.seed } : {}),
+            ...(typeof current.seed === "number" ? { seed: current.seed } : {}),
         });
-        if (typeof record.name === "string") {
-            await context.tx.runs.rename(id, record.name);
+        if (typeof current.name === "string") {
+            await context.tx.runs.rename(id, current.name);
         }
 
-        if (record.derived === true) {
+        if (current.derived === true) {
             context.restoreDerived(id);
             r.derived.add(id);
         }
@@ -1228,6 +1388,7 @@ async function readRun(r: Reader, record: unknown, at: number): Promise<void> {
             throw error;
         }
 
+        stop?.();
         notRun();
     }
 }
@@ -1384,8 +1545,8 @@ async function readGroups(r: Reader, groups: readonly unknown[]): Promise<void> 
 
 /**
  * Keep a view layer that reads a readable path this release does not compute, or the reserved
- * `graphty.types`: it would paint nothing, so it is kept as read and written back in its place
- * (spec 4.2 rule 4), reported `W_UNKNOWN_MEMBER`.
+ * `graphty.types` (it would paint nothing, spec 4.2 rule 4), or whose selector this release refuses
+ * (spec 4.8.2 rule 6): it is kept as read and written back in its place, reported `W_UNKNOWN_MEMBER`.
  * @param r - The reader.
  * @param layers - The layers, bottom first.
  * @param n - The layer's place.
@@ -1394,14 +1555,19 @@ async function readGroups(r: Reader, groups: readonly unknown[]): Promise<void> 
  */
 function keptLayer(r: Reader, layers: readonly unknown[], n: number, pointer: string): boolean {
     const entry = layers[n];
-    if (!isObject(entry) || unansweredPath({ selector: entry.selector, encode: entry.encode }) === undefined) {
+    if (!isObject(entry)) {
         return false;
     }
 
-    r.context.problems.push({
-        code: "W_UNKNOWN_MEMBER",
-        params: { section: SECTION, pointer, reason: "E_UNKNOWN_ATTRIBUTE" },
-    });
+    if (unansweredPath({ selector: entry.selector, encode: entry.encode }) !== undefined) {
+        r.context.problems.push({
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: SECTION, pointer, reason: "E_UNKNOWN_ATTRIBUTE" },
+        });
+    } else if (!refusedHolder(r, entry.selector, `${pointer}/selector`)) {
+        return false;
+    }
+
     const previous = n === 0 ? undefined : layers[n - 1];
     r.memory.keptLayers.push({
         layer: entry,
@@ -1470,14 +1636,30 @@ function readLayer(r: Reader, layers: readonly unknown[], n: number): ReadLayer[
 
     const { id, source, hidden, row, ...rest } = entry;
     const spec = mapRefs(rest, r.mapper, pointer) as LayerSpec;
+    const upgraded =
+        isObject(source) && source.by === "run" && typeof source.algorithm === "string"
+            ? upgradeRun(
+                  r.context.tx.catalog.algorithms(),
+                  source.algorithm,
+                  source.params,
+                  `${pointer}/source`,
+                  SECTION,
+                  r.context.problems,
+              )
+            : undefined;
+    if (upgraded?.renamed === true) {
+        markUpgraded(r.section.body);
+    }
+
     const readSource =
         isObject(source) && source.by === "run" && typeof source.algorithm === "string"
             ? {
                   ...source,
+                  algorithm: upgraded?.key ?? source.algorithm,
                   params: mapParams(
                       r.context.tx,
-                      source.algorithm,
-                      isObject(source.params) ? source.params : {},
+                      upgraded?.key ?? source.algorithm,
+                      upgraded?.params ?? (isObject(source.params) ? source.params : {}),
                       r.mapper,
                       `${pointer}/source/params`,
                   ).params,
@@ -1569,22 +1751,6 @@ async function readOrder(r: Reader, order: readonly unknown[], own: readonly str
 }
 
 /**
- * A member the session holds no state for, as it is written back: the camera without `type`,
- * which overlaps its controller, the authority (spec 4.7 rule 2).
- * @param name - The member.
- * @param value - Its value as read.
- * @returns The value to write back.
- */
-function heldValue(name: string, value: unknown): unknown {
-    if (name !== "camera" || !isObject(value)) {
-        return value;
-    }
-
-    const { type: _type, ...camera } = value;
-    return camera;
-}
-
-/**
  * Remember, for each member read, what the session now gives back, so an unchanged member is
  * written back as read.
  * @param r - The reader.
@@ -1598,9 +1764,14 @@ function rememberRead(r: Reader, body: Readonly<JsonObject>): void {
             continue;
         }
 
-        const original = heldValue(name, body[name]);
+        const original = body[name];
         if (HELD_ONLY.has(name)) {
             memory.heldOnly.set(name, original);
+        }
+
+        // A member read under a former name is written from the session, under current names.
+        if (UPGRADABLE.has(name) && wasUpgraded(body)) {
+            continue;
         }
 
         const now = withHeld(name, fresh, memory);
@@ -1628,7 +1799,9 @@ async function readView(section: ReadSection, context: ReadContext): Promise<voi
     };
     const { body } = section;
     const savedSets = (Array.isArray(body.sets) ? body.sets : []).flatMap((set: unknown, at) =>
-        isObject(set) ? [[set, at] as const] : [],
+        isObject(set) && !refusedHolder(r, set.definition, `${section.pointer}/sets/${at}/definition`)
+            ? [[set, at] as const]
+            : [],
     );
     const waiting = createSets(r, savedSets);
     await readPinned(r, body);
@@ -1683,4 +1856,7 @@ export const viewCodec: SectionCodec = {
         return Promise.resolve({ body: keptBody(fresh, memory) });
     },
     read: readView,
+    standsAsRead(section) {
+        return !wasUpgraded(section.body);
+    },
 };

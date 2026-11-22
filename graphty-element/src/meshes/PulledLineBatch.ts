@@ -40,7 +40,8 @@ import { CURVE_STRIDE, curveShape, type CurveSpan } from "./pulledCurve";
  * of its own, handed out and freed exactly as the object path's line batch hands out its slots, so the pieces draw
  * in the object path's order; the SLOT TABLE (`edgeSlots`, a name a slot) says which entry and which of its 16
  * pieces a slot draws. The shader works out piece j's place along the cut path from the two rows' places and the span
- * (`meshes/pulledCurve.ts`); a piece past its own curve's draws nothing. An entry per 16 pieces and four bytes a
+ * (`meshes/pulledCurve.ts`); a piece past its own curve's draws nothing. A curve batch draws the join template indexed,
+ * an instance a slot, as the object path's batch draws it: 14 vertex shader runs a piece, not 30 (#9486). An entry per 16 pieces and four bytes a
  * piece, not four texels, keep a million long curves (64 pieces each) to 4096 x 4096 tables (#9160).
  *
  * A curve batch also keeps a ROUTE TABLE (`edgeRoutes`) for lines through bends (`line.bends`): an edge's
@@ -206,6 +207,9 @@ interface WidthGroup {
 /** Draw slots (in the draw order table, a float each) or hidden flags (in the hidden table, a byte each) a texel holds. */
 const FLAGS_PER_TEXEL = 4;
 
+/** The draw order a piece with none sorts at: above every `edge.drawOrder`, which is at most 100. */
+const UNORDERED = 101;
+
 /** A row number no row has: the piece draws nothing. */
 export const NO_ROW = -1;
 
@@ -282,6 +286,13 @@ export class PulledLineBatch {
     private readonly groups = new Map<number, WidthGroup>();
     private readonly ranked: WidthGroup[] = [];
 
+    /**
+     * Each piece's `edge.drawOrder`, which draws it after every piece of a lower one and before every piece with none
+     * ({@link UNORDERED}), ahead of its key; null until a piece is given one, so a graph that sets none keeps the
+     * draw order it always had.
+     */
+    private orders: number[] | null = null;
+
     /** Whether a piece took a key out of draw order since the draw order was last built. */
     private reorder = false;
 
@@ -341,6 +352,7 @@ export class PulledLineBatch {
     private entryHighWater = 0;
     private readonly freeEntries: number[] = [];
     private readonly entryWidths: number[] = [];
+    private readonly entryOrders: (number | undefined)[] = [];
 
     /** Each entry's slots, `CURVE_STRIDE` an entry, -1 for none yet: taken as its pieces are first needed. */
     private entrySlots: Int32Array<ArrayBuffer> = new Int32Array(0);
@@ -375,7 +387,7 @@ export class PulledLineBatch {
         mesh: Mesh,
         private readonly scene: Scene,
         private readonly rowPositions: () => BaseTexture,
-        curve = false,
+        private readonly curve = false,
         private readonly template: { readonly indices: readonly number[]; readonly vertices: number } = JOIN_TEMPLATE,
         switches = false,
         private readonly rowShapes: PulledRowShapes | null = null,
@@ -387,7 +399,8 @@ export class PulledLineBatch {
         mesh.isPickable = false;
         mesh.doNotSyncBoundingInfo = true;
         mesh.alwaysSelectAsActiveMesh = true;
-        mesh.isUnIndexed = true;
+        // a curve batch draws the template indexed, an instance a slot (`setCount`)
+        mesh.isUnIndexed = !curve;
         const first = this.shape(TABLE_WIDTH);
         this.tableWidth = first.width;
         this.rows = this.emptyTable(first.texels / texels);
@@ -470,11 +483,14 @@ export class PulledLineBatch {
      * {@link PulledLineBatch.setRows}.
      * @param width - The width {@link PulledLineBatch.setLook} will give it, which places it in draw order as the
      *     object path's batch of that width would draw it.
+     * @param drawOrder - Its `edge.drawOrder`: a piece of a higher one is drawn after, so over, every piece of a
+     *     lower one, and a piece with none after every piece with one, as the object path's batches are drawn
+     *     (`stackByDrawOrder`). Undefined for none.
      * @returns The piece.
      */
-    acquire(width = 0): number {
+    acquire(width = 0, drawOrder?: number): number {
         if (this.slots === null) {
-            return this.takeSlot(width);
+            return this.takeSlot(width, drawOrder);
         }
 
         let entry = this.freeEntries.pop();
@@ -487,6 +503,7 @@ export class PulledLineBatch {
         }
 
         this.entryWidths[entry] = width;
+        this.entryOrders[entry] = drawOrder;
         this.slotsFor(entry, 1);
         return entry;
     }
@@ -508,7 +525,7 @@ export class PulledLineBatch {
                 continue;
             }
 
-            const slot = this.takeSlot(this.entryWidths[entry] ?? 0);
+            const slot = this.takeSlot(this.entryWidths[entry] ?? 0, this.entryOrders[entry]);
             this.entrySlots[entry * CURVE_STRIDE + j] = slot;
             this.nameSlot(slot, NAME_BASE + entry * CURVE_STRIDE + j);
         }
@@ -549,9 +566,10 @@ export class PulledLineBatch {
     /**
      * Hand out a draw slot, keyed into draw order by its width.
      * @param width - Its width.
+     * @param drawOrder - Its draw order ({@link PulledLineBatch.acquire}).
      * @returns The slot.
      */
-    private takeSlot(width: number): number {
+    private takeSlot(width: number, drawOrder: number | undefined): number {
         let piece = this.free.pop();
         if (piece === undefined) {
             if (this.highWater === this.slotCapacity) {
@@ -584,6 +602,14 @@ export class PulledLineBatch {
         if (keys !== null) {
             this.reorder ||= keys[piece] !== key;
             keys[piece] = key;
+        }
+
+        if (drawOrder !== undefined || this.orders !== null) {
+            this.orders ??= [];
+            this.orders[piece] = drawOrder ?? UNORDERED;
+            // ponytail: any piece taken re-sorts while orders are on (at most once a frame); a new piece at the high
+            // water mark would otherwise draw last whatever its order
+            this.reorder = true;
         }
 
         return piece;
@@ -1147,12 +1173,16 @@ export class PulledLineBatch {
         }
 
         const { keys, highWater } = this;
-        const ordered = keys !== null && this.ranked.length > 1;
+        const { orders } = this;
+        const ordered = (keys !== null && this.ranked.length > 1) || orders !== null;
         if (ordered) {
             // ponytail: sorts every handed-out piece, at most once a frame and only while widths interleave; give
             // each group its own slot range if a large mixed-width load shows it
             const drawn = Uint32Array.from({ length: highWater }, (_, piece) => piece).sort(
-                (a, b) => (keys[a] ?? 0) - (keys[b] ?? 0) || a - b,
+                (a, b) =>
+                    (orders?.[a] ?? UNORDERED) - (orders?.[b] ?? UNORDERED) ||
+                    (keys?.[a] ?? a) - (keys?.[b] ?? b) ||
+                    a - b,
             );
             const shape = this.flagShape(capacity);
             this.orderWidth = shape.width;
@@ -1216,8 +1246,17 @@ export class PulledLineBatch {
         this.setCount();
     }
 
-    /** Draw only the pieces handed out, a vertex a corner. */
+    /**
+     * Draw only the pieces handed out: a straight batch a vertex a corner, unindexed; a curve batch an instance a slot,
+     * the join template indexed, so the vertex stage runs each of its vertices once, not each of its corners (#9486).
+     * With no slot handed out it draws one instance, slot 0, which names nothing and draws nothing.
+     */
     private setCount(): void {
+        if (this.curve) {
+            this.mesh.forcedInstanceCount = this.highWater;
+            return;
+        }
+
         const [subMesh] = this.mesh.subMeshes;
         subMesh.verticesStart = 0;
         const corners = this.lean ? LEAN_TEMPLATE.indices.length : this.template.indices.length;

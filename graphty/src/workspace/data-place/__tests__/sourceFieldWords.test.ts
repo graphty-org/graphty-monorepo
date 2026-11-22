@@ -85,6 +85,9 @@ describe("the Data place's words", () => {
                 "Country",
                 "Region",
                 "City",
+                "X",
+                "Y",
+                "Z",
             ],
         );
         assert.deepEqual(

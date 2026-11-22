@@ -49,7 +49,12 @@ function assertSameAsPick(build: (scene: Scene) => Mesh): void {
             index: row,
         };
     });
-    const scan = new RowScan(scene, { rows: rows.length, rowBounds }, (row) => rows[row], null);
+    const scan = new RowScan(
+        scene,
+        { rows: rows.length, rowBounds, centerOf: (row) => Vector3.FromArray(rowBounds, row * 4) },
+        (row) => rows[row],
+        null,
+    );
     let hits = 0;
     for (let x = 0; x < 400; x += 7) {
         for (let y = 0; y < 300; y += 7) {

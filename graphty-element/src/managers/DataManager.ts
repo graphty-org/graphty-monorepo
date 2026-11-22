@@ -28,6 +28,7 @@ import { isEdgeLineBatchMesh } from "../meshes/EdgeLineBatch";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
+import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { SupportPoints } from "../meshes/supportPoints";
 import {
@@ -2795,6 +2796,12 @@ export class DataManager implements Manager {
         // a mesh rebuilt outside a bulk teardown costs a pass over every scene list.
         const rowPaint = late?.paint ?? null;
         const look = late?.look ?? null;
+        // A row stored earlier arrived then, not now: a node a layer's style pass builds plays no
+        // entrance for that layer's add (design/rendering/shader-styles.md section 3.2, issue #9447).
+        // With no drawing yet, the row arrived before there was one, so it arrived into none.
+        const arrivedAt = announce
+            ? undefined
+            : (NodeShaderDrawing.peek(this.graphContext.getScene())?.rowArrivalOf(nodeId) ?? Number.NEGATIVE_INFINITY);
         const n = new Node(
             this.graphContext,
             nodeId,
@@ -2802,6 +2809,7 @@ export class DataManager implements Manager {
             node as AdHocData,
             {
                 pinOnDrag: this.graphContext.getConfig().pinOnDrag,
+                ...(arrivedAt === undefined ? {} : { arrivedAt }),
             },
         );
         if (look !== null) {
@@ -2882,6 +2890,10 @@ export class DataManager implements Manager {
         this.graphContext?.getNodeBatches?.()?.prepareSource(bootstrapNodePaint());
         this.unbuilt.set(index, { id, record: fromColumns(record) ? IN_SLICE : record });
         this.unbuiltIds.set(id, index);
+        if (this.graphContext !== null) {
+            NodeShaderDrawing.peek(this.graphContext.getScene())?.rowArrived(id);
+        }
+
         this.arrivedRows.push(id);
         this.builtUnpainted(`n:${JSON.stringify(id)}`, "node", index);
         this.nodeVersion++;
@@ -2944,7 +2956,10 @@ export class DataManager implements Manager {
         // paint keeps that source; under a paint that does not (a restyle that borders it) it is
         // built from that paint, which keeps the mesh: built from the old source, the paint would
         // rebuild it at once, and each such rebuild is a pass over every scene list.
-        const rowPaint = this.graphContext?.getStylePainter?.()?.nodePaint(index) ?? null;
+        //
+        // Not while a pass is painting (`StylePainter.settledNodePaint`): the row is queued, so the
+        // frame after the pass draws it; until then the `Node` keeps the look the batch drew it with.
+        const rowPaint = this.graphContext?.getStylePainter?.()?.settledNodePaint(index) ?? null;
         const drawn = batches?.lookOf(index) ?? null;
         const look = rowPaint !== null && batches?.keepsLook(index, rowPaint) === false ? null : drawn;
         batches?.unpaintRow(index);

@@ -186,6 +186,10 @@ const INVENTORY: Record<string, Covered> = {
         count: 1,
         reason: "the legend drawn into a screenshot, never onto the canvas",
     },
+    "src/screenshot/figurePdf.ts": {
+        count: 1,
+        reason: "a picture arrowhead's pixels read for a PDF figure, never onto the canvas",
+    },
     "src/ai/commands/CaptureCommands.ts": {
         count: 1,
         reason: "a capture read back for the AI; it never reaches the canvas",
@@ -228,10 +232,6 @@ const INVENTORY: Record<string, Covered> = {
     },
     "src/ai/voice/SpeechInput.ts": { count: 2, reason: "the microphone's level meter frames; they draw nothing" },
     "src/ai/voice/VoiceSession.ts": { count: 2, reason: "the voice modules; they draw nothing" },
-    "src/ai/keys/encryptStorage.ts": {
-        count: 1,
-        reason: "encrypt-storage, the optional peer that persists API keys; it draws nothing",
-    },
     "src/layout/graphviz/loader.ts": {
         count: 1,
         reason: "the Graphviz package, loaded inside the layout Worker; the layout's own run is what draws",

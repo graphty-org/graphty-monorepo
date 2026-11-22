@@ -311,6 +311,10 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         "node.xlabelOffsetX",
                         "node.xlabelOffsetY",
                         "node.xlabelTextAlign",
+                        "node.xlabelColor",
+                        "node.xlabelFont",
+                        "node.xlabelWeight",
+                        "node.xlabelItalic",
                     ],
                 },
                 {
@@ -405,6 +409,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                     tail: [
                         "edge.colorFrom",
                         "edge.minScreenWidth",
+                        "edge.drawOrder",
                         "edge.patternCount",
                         "edge.animationSpeed",
                         "edge.waveAmplitude",
@@ -710,6 +715,7 @@ export const NOT_OFFERED: Readonly<Partial<Record<Channel, string>>> = {
 export const PART_WORDS: Readonly<Partial<Record<Channel, string>>> = {
     "node.outerBorderCount": "Ring count",
     "node.drawOrder": "Draw order",
+    "edge.drawOrder": "Draw order",
     "node.zIndex": "Stacking",
     "node.cornerRadius": "Corner",
     "edge.arrowHead": "Target",

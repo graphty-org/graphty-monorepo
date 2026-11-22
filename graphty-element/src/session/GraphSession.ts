@@ -82,7 +82,13 @@ import {
     type MachineCalibration,
 } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
-import { dispatcherOf, registerDispatcher, registerSessionData, registerSessionRuns } from "./dispatchers";
+import {
+    dispatcherOf,
+    registerDispatcher,
+    registerSessionData,
+    registerSessionPlacement,
+    registerSessionRuns,
+} from "./dispatchers";
 import { FILES_API, type FilesApi } from "./files/kindOf";
 import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
@@ -144,10 +150,12 @@ import {
     type Caveats,
     createLocalRunQueue,
     createRunsApi,
-    ENGINE_VERSIONS,
+    type EngineVersions,
+    LAYOUT_ENGINE,
     ManagedRun,
     type ResolvedScope,
     type Run,
+    RUN_ENGINE,
     type RunExecutionContext,
     type RunExecutor,
     type RunOptions,
@@ -155,6 +163,7 @@ import {
     type RunReader,
     type RunsApi,
     type SessionRunsApi,
+    withAcceleratorPackage,
 } from "./runs";
 import { canonicalize, freezeScope, frozenSelection, type LiveKeyword } from "./runs/runId";
 import type { RunLiveScope } from "./runs/types";
@@ -277,6 +286,7 @@ import type {
     SessionTours,
     SessionViews,
     SettingEffect,
+    SourceDraftChange,
     StartingCamera,
     TransactionOptions,
     TransactionScope,
@@ -522,8 +532,8 @@ interface SessionParts {
 }
 
 /**
- * What the element's own tests hand a session besides its options: the clock of the coalescing
- * window and the repaint's slices, and the queue queued commands take their turn on, so a random
+ * What the element's own tests hand a session besides its options: the clock of how long a
+ * command ran and the repaint's slices, and the queue queued commands take their turn on, so a random
  * sequence can drive both.
  */
 interface SessionInternals {
@@ -558,9 +568,10 @@ type Watchers = Map<keyof SessionEventMap, Set<(detail: never) => void>>;
  * The executor a session that was handed none runs on.
  *
  * It refuses rather than doing nothing, because a run that resolved with an empty result would
- * publish a graph-wide answer of "nothing" that a style layer would happily paint. Every algorithm
- * this package ships is built from the renderer's `Graph`, so a session with no renderer behind it
- * genuinely cannot run one -- and saying so with a code is the honest form of that.
+ * publish a graph-wide answer of "nothing" that a style layer would happily paint. The run
+ * machinery that queues and publishes an algorithm is the element's, so a session with no element
+ * behind it and no executor handed in cannot run one -- and saying so with a code is the honest
+ * form of that.
  * @param context - What the run handed the work.
  * @returns Never; it always rejects.
  */
@@ -841,6 +852,7 @@ class Session implements ElementSession {
         };
         registerDispatcher(this, this.dispatcher);
         LANES.set(this, this.store);
+        registerSessionPlacement(this, this.store, this.controller);
         registerSessionRuns(this, this.sessionRuns);
         registerSessionData(this, parts.data);
         this.history = historyOf(this.dispatcher, () => version);
@@ -867,6 +879,8 @@ class Session implements ElementSession {
                 this.dispatcher.arrangement.rest();
             },
             headless: () => this.dispatcher.services.layout === undefined && !this.disposed,
+            nodeValues: (path) => this.planning.nodeValues?.(path) ?? null,
+            knownFields: () => this.planning.locationDesignation?.() ?? {},
         });
         // A renderer replaces it with its own layout engine.
         this.dispatcher.arrangement.engine = this.runner;
@@ -1629,6 +1643,15 @@ class Session implements ElementSession {
     private layoutDrive(): LayoutDrive {
         return {
             motion: () => this.motion,
+            provenance: () => {
+                const service = this.dispatcher.services.layout;
+                return service === undefined
+                    ? this.runner.provenance
+                    : {
+                          ...withAcceleratorPackage(LAYOUT_ENGINE, this.controller.accelerator ?? null),
+                          accelerator: service.accelerator?.() ?? "cpu",
+                      };
+            },
             steps: () => this.runner.steps,
             runner: () => (this.dispatcher.services.layout === undefined ? this.runner : null),
             rested: () =>
@@ -2065,6 +2088,8 @@ function restoredEntries(saved: { readonly order: readonly NodeId[]; readonly xy
 /** What the layout verbs reach besides the dispatcher. */
 interface LayoutDrive {
     motion(): LayoutMotion;
+    /** The code that draws the layout in force. */
+    provenance(): EngineVersions;
     steps(): number;
     /** The runner while no renderer draws; null once one does. */
     runner(): LayoutRunner | null;
@@ -2110,6 +2135,9 @@ function layoutOf(
         },
         get arrangedDimension() {
             return arrangedDimension(choice());
+        },
+        get provenance() {
+            return drive.provenance();
         },
         get motion() {
             return drive.motion();
@@ -3236,6 +3264,11 @@ function fieldWordsOf(
             }
         }
 
+        // What a shown source draft does to each element (source-steps).
+        if (path === DRAFT_PATH) {
+            return { plainName: "Draft", technicalName: "draft" };
+        }
+
         // The values graphty-element keeps itself: a node's degrees.
         const structure = target === "node" ? STRUCTURE_VALUES.find((each) => each.path === path) : undefined;
         return structure === undefined
@@ -3671,6 +3704,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let stopAfter = (): void => undefined;
     // Settles once the graph draws what the open source draft shows.
     let draftDrawn = (): Promise<void> => Promise.resolve();
+    // The draft events waiting for the graph to draw what they say, published in order.
+    let draftEvents: Promise<void> | null = null;
     // True while a drawn draft's After dispatches its own writes, which the open draft lets through.
     let drawingAfter = false;
     // True while a draft's After is drawn: the graph is the draft's, and a reader's command that
@@ -3697,6 +3732,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         inputs.tick.advance();
     };
     const acceleration = resolveAcceleration(options.acceleration, policy, minNodes);
+    /**
+     * The code a run reports when the host names none: the element, the algorithms and the
+     * attached accelerator's package.
+     * @returns The engine.
+     */
+    const runEngine = (): EngineVersions =>
+        withAcceleratorPackage(RUN_ENGINE, acceleration.controller.accelerator ?? null);
     const snapshot = (): WholeSnapshot => wholeGraph(store.store);
     const dataRevision = dataRevisionOf(snapshot, inputs);
     dispatcher.arrangement.bind({
@@ -3785,10 +3827,32 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
             send: (command, stamp) => dispatcher.dispatch(command, stamp),
             emit: (event, detail) => {
-                if (event === "data:draft-changed") {
-                    redrawDraft();
+                if (event !== "data:draft-changed") {
+                    publish(watchers, event, detail);
+                    return;
                 }
-                publish(watchers, event, detail);
+                // Drawn before or after the redraw: either way the graph changes under the listener.
+                const wasDrawn = afterDrawn;
+                redrawDraft();
+                const drawn = wasDrawn || afterDrawn;
+                const change = detail as SourceDraftChange;
+                // A change to a drawn After is told once the graph draws it, so a listener reading the
+                // graph counts what it shows; the events after it wait their turn, in order.
+                const redrawn = drawn && (change.reason === "changed" || change.reason === "displayed");
+                if (draftEvents === null && !redrawn) {
+                    publish(watchers, "data:draft-changed", change);
+                    return;
+                }
+                const next: Promise<void> = (draftEvents ?? Promise.resolve()).then(async () => {
+                    if (redrawn) {
+                        await draftDrawn();
+                    }
+                    publish(watchers, "data:draft-changed", change);
+                    if (draftEvents === next) {
+                        draftEvents = null;
+                    }
+                });
+                draftEvents = next;
             },
             readers: () => ({
                 styles: dispatcher.state.styles,
@@ -3796,7 +3860,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 visibility: dispatcher.state.visibility,
             }),
             drawing: {
-                drawn: () => draftDrawn(),
+                // Once drawn and the events saying so are out, so a caller's next act comes after them.
+                drawn: async () => {
+                    await draftDrawn();
+                    await draftEvents;
+                },
                 stop: () => {
                     stopAfter();
                 },
@@ -4299,7 +4367,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             snapshot,
             () => dispatcher.state.graph.token,
         ),
-        engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        // Read when a run is defined, so a run records the accelerator attached when it ran.
+        engine: runsOptions.engine ?? runEngine,
         defaultScope,
         onExecution: advanceTick,
         onRemoved: (id: RunId) => {
@@ -4508,7 +4577,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The journal, published as `session.journal`: every command that finishes writes one entry,
     // before its promise resolves, so a run reports its entry by the time it reports done.
     const journal = createJournal({
-        engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        engine: runsOptions.engine ?? runEngine(),
         onAppend: (entry) => {
             publish(watchers, "journal:appended", { entry });
         },
@@ -4805,7 +4874,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // so the history never holds it, and a save takes it off while it writes. While it is on,
     // statistics, the legend and a count read the draft's graph, and a reader's command that would
     // measure or name its elements (a run, a pin, a note) is refused. `marks` is what it was drawn for.
-    let after: { readonly marks: object; readonly abort: () => void; readonly landed: Promise<void> } | null = null;
+    let after: { readonly marks: object; readonly abort: () => void; readonly ended: Promise<void> } | null = null;
+    // Settles once the graph draws what the draft shows now: After landed, or taken off again.
+    let drawing: Promise<void> = Promise.resolve();
     /**
      * Dispatch one of After's writes through its transaction, past the open draft's refusal.
      * @param tx - The transaction.
@@ -4827,6 +4898,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return;
         }
         const { diff, idPath } = drawn;
+        // The After taken off for this one is still rolling back: its rollback lands first, or the
+        // two interleave and leave neither graph drawn.
+        const prior = drawing;
         let abort = (): void => undefined;
         let land = (): void => undefined;
         const landed = new Promise<void>((resolve) => {
@@ -4838,6 +4912,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 abort = (): void => {
                     dispatcher.abort(tx);
                 };
+                await prior;
+                if (signal.aborted) {
+                    return;
+                }
                 const writes: DataMutation[] = [];
                 removeAndPatch(diff, (mutation) => writes.push(mutation));
                 if (diff.addNodes.length > 0) {
@@ -4878,29 +4956,38 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             { moves: true, unlisted: true },
         );
         // Aborting it is how it ends; a waiter on the drawing is never left waiting.
-        held.catch(() => undefined).finally(land);
+        const ended = held.catch(() => undefined).finally(land);
         afterDrawn = true;
+        drawing = landed;
         after = {
             marks,
             abort: () => {
                 abort();
             },
-            landed,
+            ended,
         };
     };
     stopAfter = (): void => {
         if (after === null) {
             return;
         }
-        const { abort } = after;
+        const { abort, ended } = after;
         after = null;
+        drawing = ended;
         afterDrawn = false;
         data.drawnAfter(null);
         abort();
         // The abort queues the arrangement it began from for the next pass; a save made now reads it.
         dispatcher.arrangement.flush();
     };
-    draftDrawn = (): Promise<void> => after?.landed ?? Promise.resolve();
+    // A drawing begun while the last one was landing is waited for too.
+    draftDrawn = async (): Promise<void> => {
+        let waited: Promise<void> | null = null;
+        while (waited !== drawing) {
+            waited = drawing;
+            await waited;
+        }
+    };
     let draftShown = false;
     redrawDraft = (): void => {
         const shown = data.shownDraft();
@@ -5197,7 +5284,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // stack draws it (Outside: Ghost), never a held condition's ghosts.
         drawn: () =>
             visibility.outsideWindowBytes() !== null && drawsOutsideWindow(dispatcher.state.styles) ? drawnRows : null,
-        engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        engine: runsOptions.engine ?? runEngine(),
         inputRevision: () => inputs.tick.value,
         stateRevision: () => stateRevision,
         onChange: (change) => {

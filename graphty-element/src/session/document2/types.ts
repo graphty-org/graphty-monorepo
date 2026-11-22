@@ -66,19 +66,31 @@ export type SourceStorage = "embedded" | "referenced";
  * @experimental save-files-v2
  * @beta
  */
-export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind";
+export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind" | "options";
 
 /**
  * Why a referenced source supplied nothing on open (`W_SOURCE_UNAVAILABLE` `params.reason`): the
  * source is held until `data.refresh`. `not-found` (its fetch failed), `needs-file` (no location to
  * read it from), `read` (unreadable), `too-large` (over the open's size limit), `needs-permission`
  * (a fetch the caller did not allow), `copy-changed` (its bytes changed since the save, `params.size`
- * the new byte count; a network source always), `kind` (no open reads its kind again). OPEN UNION.
+ * the new byte count; a network source always), `kind` (no open reads its kind again, or this
+ * release does not know it), `copy-form` (an embedded copy in a form this release cannot read; its
+ * record and copy are written back as read), `options` (a parse option this release does not
+ * read), `ledger` (a network request history this release cannot read). OPEN UNION.
  * @experimental save-files-v2
  * @beta
  */
 export type SourceUnavailableReason =
-    "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind";
+    | "not-found"
+    | "needs-file"
+    | "read"
+    | "too-large"
+    | "needs-permission"
+    | "copy-changed"
+    | "kind"
+    | "copy-form"
+    | "options"
+    | "ledger";
 
 /** A JSON object as read from or written to a document. */
 export type JsonObject = Record<string, unknown>;
@@ -101,6 +113,7 @@ export type DocumentCode =
     | "W_SOURCE_NO_PATH"
     | "W_SOURCE_UNAVAILABLE"
     | "W_SOURCE_EMBEDDED"
+    | "W_OPTION_NOT_SAVED"
     | "W_REFERENCE_UNBOUND"
     | "W_DATA_CHANGED"
     | "W_DATA_MISMATCH"
@@ -108,6 +121,7 @@ export type DocumentCode =
     | "W_CAMERA_CONTROLLER_UNKNOWN"
     | "W_RUN_NOT_RUN"
     | "W_RESULTS_DIFFER"
+    | "W_ENGINE_CHANGED"
     | "W_EDGE_MATCH_AMBIGUOUS"
     | "W_SOURCE_UNKEYED"
     | "W_NODE_NAMED_ONLY"
@@ -117,7 +131,10 @@ export type DocumentCode =
     | "W_CLASH_RULE_TYPE"
     | "W_COLUMN_WIDENED"
     | "W_MEMBER_LEFT_OUT"
-    | "W_RECIPE_NOT_APPLIED";
+    | "W_RECIPE_NOT_APPLIED"
+    | "W_LAYOUT_ENGINE_UNAVAILABLE"
+    | "W_LAYOUT_OPTION_NOT_APPLIED"
+    | "W_NAME_UPGRADED";
 
 /**
  * One report entry of a version 2 save or open: a code and plain values (spec 13). A reference
@@ -200,7 +217,8 @@ export interface NodeRef {
 
 /**
  * An edge reference (spec 6.2): `load` the source whose row made the edge, `key` its edge-id value,
- * a reader-added edge's edge-id value or, with none, a minted ULID, or `<copy id>#<row from 0>` for a keyless row.
+ * a reader-added edge's edge-id value or, with none, a minted ULID, or `<from>|<to>#<n>` for a keyless row
+ * (spec 6.1), with `<part>/` in front for a `join.edges` step.
  */
 export interface EdgeRef {
     readonly load: string;

@@ -5,8 +5,8 @@
 
 import { z } from "zod";
 
-import { layoutEntry, layoutIdForEngine } from "../../../catalog/layouts";
-import type { LayoutDescriptor, OptionDescriptor } from "../../../catalog/types";
+import { engineOptionsOf, layoutEntry, layoutIdForEngine } from "../../../catalog/layouts";
+import type { LayoutDescriptor } from "../../../catalog/types";
 import { idsOf, MAX_ITEMS, MAX_STRING, requireTarget, scopeOf, targetFields, text } from "../fields";
 import { inputKind } from "../inputs";
 import { checkOptions } from "../optionSchema";
@@ -22,20 +22,6 @@ import { coded, nameField, ok } from "./common";
 export function enginesOf(descriptor: LayoutDescriptor): string[] {
     const entry = layoutEntry(descriptor.id);
     return entry === undefined ? [descriptor.engine] : entry.implementations.map((each) => each.engine);
-}
-
-/**
- * The options a layout takes on one of its engines: each engine has its own vocabulary.
- * @param descriptor - The layout.
- * @param engine - The engine, or its default when absent.
- * @returns The engine's options.
- */
-export function engineOptionsOf(descriptor: LayoutDescriptor, engine?: string): readonly OptionDescriptor[] {
-    const wanted = engine ?? descriptor.engine;
-    return (
-        layoutEntry(descriptor.id)?.implementations.find((each) => each.engine === wanted)?.options ??
-        descriptor.options
-    );
 }
 
 /**

@@ -128,35 +128,35 @@ Tool values are elements drawn with the writing program's default.
 | dot/fidelity/real-siblings.gv | ok | 200 | 284 | 7 | 2 | 157 | 0% | 0% | 0 | 4356 | 0 |  |
 | dot/fidelity/real-softmaint.gv | ok | 213 | 269 | 6 | 3 | 202 | 0% | 0% | 0 | 3654 | 0 |  |
 | dot/fidelity/synth-edges-clusters.gv | ok | 80 | 102 | 11 | 7 | 155 | 70% | 23% | 0 | 1151 | 0 | W_STYLE_COLOR_LIST, W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_RECORD_LABEL |
-| dot/fidelity/synth-nodes.gv | ok | 106 | 109 | 4 | 3 | 218 | 100% | 0% | 0 | 1474 | 0 | W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_RECORD_LABEL, W_STYLE_UNFILLED, W_STYLE_UNKNOWN_VALUE |
+| dot/fidelity/synth-nodes.gv | ok | 106 | 109 | 4 | 4 | 222 | 98% | 0% | 0 | 1474 | 0 | W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_RECORD_LABEL, W_STYLE_UNFILLED, W_STYLE_UNKNOWN_VALUE |
 | dot/generated/clusters-200.gv | ok | 1200 | 0 | 5 | 1 | 995 | 0% | 0% | 0 | 13000 | 0 |  |
 | dot/generated/clusters-40.gv | ok | 160 | 39 | 4 | 2 | 117 | 0% | 0% | 0 | 2071 | 0 |  |
 | dot/generated/colors-and-scopes.gv | ok | 33 | 3 | 4 | 5 | 51 | 100% | 2% | 0 | 318 | 0 | W_STYLE_BAD_VALUE, W_STYLE_COLOR_LIST, W_STYLE_GRADIENT, W_STYLE_HTML_LABEL |
-| dot/generated/graphty-written.gv | ok | 75 | 131 | 6 | 7 | 277 | 9% | 0% | 0 | 75 | 0 |  |
+| dot/generated/graphty-written.gv | ok | 75 | 131 | 6 | 8 | 277 | 9% | 0% | 0 | 75 | 0 |  |
 | dot/generated/random-100.gv | ok | 100 | 100 | 4 | 6 | 502 | 90% | 0% | 0 | 1381 | 0 |  |
 | dot/generated/random-1000.gv | ok | 1000 | 1000 | 4 | 6 | 5209 | 90% | 0% | 0 | 13805 | 0 |  |
 | dot/generated/random-10000.gv.gz | ok | 10000 | 10000 | 4 | 6 | 52057 | 90% | 0% | 0 | 137999 | 0 |  |
 | dot/generated/random-10000.gv.gz (cut) | ok | 300 | 153 | 4 | 6 | 1197 | 93% | 0% | 0 | 3263 | 0 |  |
-| dot/generated/tamper-block-truncated.gv | ok | 75 | 131 | 6 | 7 | 153 | 3% | 0% | 0 | 1553 | 0 | W_STYLE_BLOCK_IGNORED |
-| dot/generated/tamper-native-edited.gv | ok | 75 | 131 | 7 | 7 | 277 | 9% | 0% | 0 | 75 | 0 |  |
-| dot/generated/tamper-node-added.gv | ok | 76 | 131 | 6 | 7 | 153 | 3% | 0% | 0 | 1565 | 0 | W_STYLE_BLOCK_IGNORED |
+| dot/generated/tamper-block-truncated.gv | ok | 75 | 131 | 6 | 8 | 153 | 3% | 0% | 0 | 1553 | 0 | W_STYLE_BLOCK_IGNORED |
+| dot/generated/tamper-native-edited.gv | ok | 75 | 131 | 7 | 8 | 277 | 9% | 0% | 0 | 75 | 0 |  |
+| dot/generated/tamper-node-added.gv | ok | 76 | 131 | 6 | 8 | 153 | 3% | 0% | 0 | 1565 | 0 | W_STYLE_BLOCK_IGNORED |
 | dot/graphviz-gallery-directed-bazel.gv | ok | 8 | 15 | 3 | 3 | 0 | - | - | 0 | 200 | 0 |  |
 | dot/graphviz-gallery-directed-go-package.gv | ok | 20 | 49 | 5 | 3 | 0 | - | - | 0 | 592 | 0 |  |
 | dot/graphviz-gallery-directed-lion_share.gv | ok | 47 | 51 | 8 | 4 | 82 | 1% | 1% | 0 | 618 | 0 |  |
 | dot/graphviz-gallery-directed-neural-network.gv | ok | 10 | 9 | 5 | 3 | 25 | 100% | 0% | 0 | 142 | 0 | W_STYLE_RECORD_LABEL |
 | dot/graphviz-gallery-directed-ninja.gv | ok | 125 | 131 | 5 | 7 | 12 | 0% | 0% | 0 | 1651 | 0 |  |
 | dot/graphviz-gallery-directed-profile.gv | ok | 61 | 85 | 4 | 4 | 42 | 0% | 0% | 0 | 1145 | 0 |  |
-| dot/graphviz-gallery-directed-sdh.gv | ok | 75 | 131 | 6 | 7 | 174 | 2% | 0% | 0 | 1532 | 0 |  |
+| dot/graphviz-gallery-directed-sdh.gv | ok | 75 | 131 | 6 | 8 | 174 | 2% | 0% | 0 | 1532 | 0 |  |
 | dot/graphviz-gallery-gradient-colors.gv | ok | 28 | 3 | 6 | 3 | 64 | 100% | 0% | 0 | 264 | 0 | W_STYLE_GRADIENT |
 | dot/graphviz-gallery-gradient-g_c_n.gv | ok | 2 | 0 | 5 | 1 | 3 | 100% | 0% | 0 | 15 | 0 | W_STYLE_GRADIENT |
 | dot/graphviz-gallery-neato-colors.gv | ok | 13 | 21 | 4 | 5 | 28 | 43% | 0% | 0 | 177 | 0 |  |
 | dot/graphviz-gallery-neato-philo.gv | ok | 21 | 27 | 6 | 3 | 9 | 0% | 0% | 0 | 402 | 0 |  |
 | dot/graphviz-gallery-neato-traffic_lights.gv | ok | 14 | 16 | 6 | 3 | 6 | 33% | 33% | 0 | 252 | 0 |  |
 | dot/graphviz-gallery-neato-transparency.gv | ok | 6 | 6 | 5 | 1 | 10 | 100% | 0% | 0 | 90 | 0 | W_STYLE_ALPHA_DROPPED |
-| dot/graphviz-gallery-twopi-networkmap_twopi.gv.gz | ok | 426 | 425 | 8 | 2 | 7 | 86% | 86% | 0 | 5530 | 0 | W_STYLE_HTML_LABEL |
-| dot/graphviz-gallery-twopi-twopi2.gv | ok | 1090 | 1118 | 5 | 7 | 1691 | 23% | 23% | 0 | 15574 | 0 |  |
+| dot/graphviz-gallery-twopi-networkmap_twopi.gv.gz | ok | 426 | 425 | 8 | 3 | 7 | 86% | 86% | 0 | 5530 | 0 | W_STYLE_HTML_LABEL |
+| dot/graphviz-gallery-twopi-twopi2.gv | ok | 1090 | 1118 | 5 | 9 | 1729 | 23% | 23% | 0 | 15574 | 0 |  |
 | dot/graphviz-gallery-undirected-gd_1994_2007.gv | ok | 506 | 1380 | 6 | 2 | 667 | 100% | 0% | 0 | 16468 | 0 |  |
-| dot/graphviz-gallery-undirected-root.gv | ok | 1054 | 1083 | 6 | 7 | 1637 | 23% | 23% | 0 | 13043 | 0 |  |
+| dot/graphviz-gallery-undirected-root.gv | ok | 1054 | 1083 | 6 | 9 | 1675 | 23% | 23% | 0 | 13043 | 0 |  |
 | dot/raphael-group_machina__T_seed9_mut1.dot | ok | 79 | 78 | 6 | 5 | 141 | 5% | 0% | 0 | 1257 | 0 | W_STYLE_COLOR_LIST |
 | dot/vivek3141_super-mario-neat__Digraph.gv | ok | 281 | 878 | 5 | 8 | 1837 | 48% | 0% | 0 | 7235 | 0 |  |
 | dot/zjunlp_KnowledgeCircuits__graph.gv | ok | 95 | 452 | 5 | 5 | 867 | 54% | 0% | 0 | 3639 | 0 | W_STYLE_ALPHA_DROPPED |
@@ -238,7 +238,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 675 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 4 | 6 | 69 | 46% | 0% | 0 | 479 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 354 | 100% | 0% | 0 | 893 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 3 | 366 | 100% | 0% | 0 | 481 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 3 | 366 | 100% | 0% | 0 | 481 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/generated/fill-oddities.graphml | ok | 15 | 3 | 4 | 2 | 19 | 100% | 11% | 0 | 165 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NO_FILL |
 | graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 400 | 0 |  |
 | graphml/generated/labels-multi.graphml | ok | 6 | 0 | 3 | 1 | 0 | - | - | 0 | 49 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_EXTRA_LABELS |
@@ -357,11 +357,11 @@ Tool values are elements drawn with the writing program's default.
 | json/fidelity/cyjs-graphmaker.json | ok | 211 | 271 | 4 | 6 | 115 | 0% | 0% | 0 | 10068 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/cyjs-perf.json.gz | ok | 500 | 1000 | 2 | 6 | 1960 | 0% | 0% | 0 | 35000 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/cyjs-sbgn-sciluna.json | ok | 52 | 53 | 10 | 4 | 177 | 30% | 0% | 0 | 2184 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| json/fidelity/cyjs-synth-edges-saved.json | ok | 101 | 58 | 7 | 14 | 66 | 15% | 2% | 0 | 3319 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
-| json/fidelity/cyjs-synth-edges.json | ok | 101 | 58 | 7 | 14 | 66 | 15% | 2% | 0 | 3319 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/cyjs-synth-edges-saved.json | ok | 101 | 58 | 7 | 14 | 123 | 54% | 1% | 0 | 3319 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/cyjs-synth-edges.json | ok | 101 | 58 | 7 | 14 | 123 | 54% | 1% | 0 | 3319 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/cyjs-synth-nodes.json | ok | 110 | 0 | 13 | 1 | 335 | 40% | 6% | 0 | 2049 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/cyjs-tokyo.json.gz | ok | 943 | 860 | 2 | 5 | 410 | 0% | 0% | 0 | 35034 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
-| json/fidelity/cyjs-winecheese.json.gz | ok | 369 | 1333 | 7 | 5 | 2131 | 0% | 0% | 0 | 36564 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
+| json/fidelity/cyjs-winecheese.json.gz | ok | 369 | 1333 | 7 | 6 | 3450 | 38% | 0% | 0 | 36564 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/gephi-worldcup.json.gz | ok | 736 | 9228 | 4 | 3 | 9645 | 90% | 0% | 716 | 61992 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/fidelity/graphology-synth.json | ok | 100 | 270 | 3 | 3 | 584 | 54% | 0% | 0 | 2717 | 0 |  |
 | json/fidelity/sigma-lesmis.json | ok | 77 | 254 | 3 | 2 | 227 | 69% | 0% | 110 | 2471 | 0 | W_STYLE_RAMP_ROUNDED |

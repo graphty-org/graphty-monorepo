@@ -148,6 +148,35 @@ interface SectionProps {
 }
 
 /**
+ * The color lines of a section whose field is too narrow to draw its opacity box: compact-mantine
+ * drops the box below its own width, which only the drawn field knows, so it is read off the page
+ * each time the section changes size or gains a line.
+ * @returns the ref for the section, and the color channels whose opacity box is not drawn.
+ */
+function useHiddenOpacityBoxes(): [(element: HTMLElement | null) => void, readonly string[]] {
+    const [element, ref] = useState<HTMLElement | null>(null);
+    const [hidden, setHidden] = useState<readonly string[]>([]);
+    useEffect(() => {
+        if (element === null) {
+            return undefined;
+        }
+        const read = (): void => {
+            const now = [...element.querySelectorAll<HTMLElement>(".ws-row[data-line]")].flatMap((row) => {
+                const box = row.querySelector(".cm-paint-opacity");
+                return box !== null && getComputedStyle(box).display === "none" ? [row.dataset.line ?? ""] : [];
+            });
+            setHidden((was) => (was.join() === now.join() ? was : now));
+        };
+        const observer = new ResizeObserver(read);
+        observer.observe(element);
+        return () => {
+            observer.disconnect();
+        };
+    }, [element]);
+    return [ref, hidden];
+}
+
+/**
  * A section of properties: see {@link Section}.
  * @param props - Component props
  * @param props.ctx - the row and kind
@@ -176,9 +205,15 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
         (d) => !set.includes(d) && (waiting.includes(d.channel) || (joined && together.includes(d.channel))),
     );
     // Opacity is set in the color's own box, so "+" never offers it, and a color line set to a
-    // value carries it; a row that sets opacity alone, or varies it by data, keeps its own line.
+    // value carries it; a row that sets opacity alone, or varies it by data, keeps its own line,
+    // and so does one whose color field is too narrow to draw the box (#9295).
+    const [measured, narrowColors] = useHiddenOpacityBoxes();
     const folded = new Set(
-        set.flatMap((d) => (OPACITY_OF[d.channel] === undefined ? [] : (carriedOpacity(ctx, d.channel) ?? []))),
+        set.flatMap((d) =>
+            OPACITY_OF[d.channel] === undefined || narrowColors.includes(d.channel)
+                ? []
+                : (carriedOpacity(ctx, d.channel) ?? []),
+        ),
     );
     const boxed = new Set(Object.values(OPACITY_OF));
     const unset = descriptors.filter(
@@ -316,7 +351,7 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
     return (
         // The section is the group, named by its title, a heading so a screen reader moves from
         // section to section; a wrapper group named "Node shape" read the name twice.
-        <div data-section={`${ctx.side}-${spec.id}`} className="ws-section">
+        <div ref={measured} data-section={`${ctx.side}-${spec.id}`} className="ws-section">
             <ControlSection
                 label={spec.title}
                 headingLevel={3}

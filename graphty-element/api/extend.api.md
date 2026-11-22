@@ -188,7 +188,7 @@ export type AdHocData<KeyType extends string | number = string> = Record<KeyType
 
 // @public
 abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<string, unknown>> {
-    constructor(g: Graph, options?: Partial<TOptions>);
+    constructor(g: AlgorithmHost | GraphSession, options?: Partial<TOptions>);
     protected accelerated(capability: string, mode: AlgorithmGraphMode, options?: {
         accelerable?: boolean;
         sources?: number;
@@ -196,15 +196,16 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     }): AcceleratedAlgorithmRun;
     // @deprecated
     protected algorithmGraph(mode: AlgorithmGraphMode): Graph_2;
-    static get(g: Graph, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
+    // @internal
+    protected forgetReachedAccelerator(): void;
+    static get(g: AlgorithmHost | GraphSession, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
     static getClass(namespace: string, type: string): (AlgorithmClass & AlgorithmStatics) | null;
     // @deprecated
     static getOptionsSchema(): OptionsSchema;
     static getRegisteredAlgorithms(namespace?: string): string[];
     static getRegisteredTypes(): string[];
     static getZodOptionsSchema(): OptionsSchema_2;
-    // (undocumented)
-    protected graph: Graph;
+    protected graph: AlgorithmHost;
     // @deprecated
     static hasOptions(): boolean;
     static hasZodOptions(): boolean;
@@ -225,10 +226,12 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     // @internal
     static parallelEdges?: SimplifyPolicy;
     publishResult(_context: RunControls, runId: string, _fields?: readonly FieldDescriptor[]): Promise<RunResult | undefined>;
+    // @internal
+    reachedAccelerator: GraphAccelerator | null;
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
     // (undocumented)
-    abstract run(g: Graph): Promise<void>;
+    abstract run(g: AlgorithmHost): Promise<void>;
     protected get schemaOptions(): TOptions;
     protected _schemaOptions: TOptions;
     static scopeInput?: ScopeInputDeclaration;
@@ -256,38 +259,44 @@ export interface AlgorithmContext<V> {
 }
 
 // @public
+export interface AlgorithmData {
+    getNode(id: NodeId_2): {
+        readonly data: Readonly<Record<string, unknown>>;
+    } | undefined;
+    getSnapshot(): GraphSnapshot;
+    readonly lastImport: {
+        readonly weights: {
+            readonly attribute: string | null;
+        };
+    } | null;
+    undirected(snapshot: GraphSnapshot): DerivedGraph;
+}
+
+// @public
 export type AlgorithmDefinition<O extends OptionsShorthand> = NodeScoreDefinition<O> | EdgeScoreDefinition<O> | WholeGraphScoreDefinition<O> | GroupingDefinition<O>;
 
 // @public
 export interface AlgorithmDescriptor {
-    // (undocumented)
     approximable?: {
         method: string;
         plainName: string;
         defaultSample: number;
         seeded: boolean;
     };
-    // (undocumented)
     category: "centrality" | "community" | "path" | "flow" | "structure" | "prediction" | (string & {});
-    // (undocumented)
     complexity: string;
     cost?: (n: number, m: number) => number;
-    // (undocumented)
     costClass: CostClass;
     // @deprecated
     description: string;
     descriptionId?: string;
-    // (undocumented)
     fields: readonly FieldDescriptor[];
-    // (undocumented)
+    formerKeys?: readonly LegacyAlgorithmKey[];
     key: AlgorithmKey;
     // @beta
     keywords?: readonly string[];
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
-    // (undocumented)
     requires?: {
         directed?: boolean;
         weighted?: boolean;
@@ -295,9 +304,7 @@ export interface AlgorithmDescriptor {
         connected?: boolean;
     };
     scopeInput?: "none" | "subgraph";
-    // (undocumented)
     shape: ResultShape;
-    // (undocumented)
     technicalName: string;
     weightMeaning?: "strength" | "distance" | "capacity" | null;
 }
@@ -307,6 +314,20 @@ export type AlgorithmGraphMode = "directed" | "undirected";
 
 // @public @deprecated
 export type AlgorithmGraphView = Graph_2;
+
+// @public
+export interface AlgorithmHost {
+    readonly acceleration: Pick<AccelerationController, "run" | "policy" | "accelerator">;
+    getDataManager(): AlgorithmData;
+    getSession(): GraphSession;
+    readonly styles?: {
+        readonly config: {
+            readonly data: {
+                readonly knownFields: AlgorithmKnownFields;
+            };
+        };
+    };
+}
 
 // @public
 export type AlgorithmKey = KnownAlgorithm | (string & {});
@@ -429,12 +450,9 @@ export interface CameraDescriptor {
     // @deprecated
     description: string;
     descriptionId?: string;
-    // (undocumented)
     id: CameraId;
     modes: readonly DrawingMode[];
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
 }
 
@@ -511,6 +529,7 @@ export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iter
 
 // @public
 export interface Caveats {
+    readonly accelerator?: ComputeBackend;
     readonly componentScope?: "all" | "largest";
     readonly converged?: boolean;
     readonly direction: RunDirection;
@@ -784,6 +803,8 @@ export class Edge {
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     // @internal
+    batchEndRow(end: "source" | "target"): number;
+    // @internal
     columnEnd(end: "source" | "target"): ColumnRow | undefined;
     get data(): AdHocData;
     dispose(): void;
@@ -819,6 +840,8 @@ export class Edge {
     readonly dstId: NodeIdType;
     get dstNode(): Node_2;
     set dstNode(node: Node_2);
+    // @internal
+    endDrawnAsGroup(end: "source" | "target"): boolean;
     // @internal
     endRow(end: "source" | "target"): number;
     // @internal
@@ -1011,28 +1034,20 @@ export interface FieldDescriptor {
         readonly max: number;
     };
     interpretation?: FieldInterpretation;
-    // (undocumented)
     kind: "node" | "edge" | "graph";
     measurement?: Measurement;
     // @beta
     missing?: "unreached" | "unmeasured" | (string & {});
-    // (undocumented)
     name: string;
-    // (undocumented)
     normalization?: string;
     // @beta
     order?: readonly (string | number)[];
-    // (undocumented)
     path: Path;
-    // (undocumented)
     plainName: string;
     // @beta
     polarity?: "higher" | "lower";
-    // (undocumented)
     technicalName: string;
-    // (undocumented)
     type: "number" | "integer" | "boolean" | "string" | "table";
-    // (undocumented)
     unit?: string;
     // @beta
     unstable?: true;
@@ -1044,22 +1059,16 @@ export function forEachChunked<T>(context: RunControls, phase: string, items: re
 // @public
 export interface FormatDescriptor {
     binary?: boolean;
-    // (undocumented)
     canExport: boolean;
-    // (undocumented)
     canImport: boolean;
     // @deprecated
     description?: string;
     descriptionId?: string;
     exportVariants?: readonly FormatExportVariant[];
-    // (undocumented)
     extensions: readonly string[];
-    // (undocumented)
     id: FormatId;
-    // (undocumented)
     mimeTypes: readonly string[];
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
     styles?: FormatStyles;
     writerOptions?: readonly OptionDescriptor[];
@@ -1067,13 +1076,10 @@ export interface FormatDescriptor {
 
 // @public
 export interface FormatExportVariant {
-    // (undocumented)
     extensions: readonly string[];
     id: string;
-    // (undocumented)
     mimeTypes: readonly string[];
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
     preset: Readonly<Record<string, unknown>>;
 }
@@ -1098,6 +1104,10 @@ export interface GraphAccelerator {
         reason: string;
     }>;
     readonly name: string;
+    readonly package?: {
+        readonly name: string;
+        readonly version: string;
+    };
     readonly precision?: AccelerationPrecision;
     verify?(): Promise<void>;
 }
@@ -2163,7 +2173,7 @@ export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "f
 export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "xlsx", "graphty"];
 
 // @public
-export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random", "location-map"];
+export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random", "location-map", "geographic"];
 
 // @public
 export const KNOWN_LOG_SINK_IDS: readonly ["console", "remote"];
@@ -2197,28 +2207,19 @@ export interface LayoutDescriptor {
     description: string;
     descriptionId?: string;
     engine: string;
-    // (undocumented)
     family: string;
     honorsWeights: boolean;
     // @deprecated
     honoursWeights: boolean;
-    // (undocumented)
     id: LayoutId;
-    // (undocumented)
     kind: "live" | "batch";
-    // (undocumented)
     maxDimensions: 2 | 3;
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
     requires?: LayoutRequirements;
     scoped: boolean;
-    // (undocumented)
     sizeRating: "any" | 10000 | 2000 | 500;
-    // (undocumented)
     structuralInputs: readonly ("node" | "partition" | "ordering")[];
-    // (undocumented)
     technicalName: string;
 }
 
@@ -2285,6 +2286,8 @@ export abstract class LayoutEngine {
     protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     // @internal
     publishedBounds(): Readonly<Float64Array> | null;
+    // @internal
+    protected publishLeavesRow(lane: ElementPositions, row: number, x: number, y: number, z: number): boolean;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal
@@ -2301,7 +2304,7 @@ export abstract class LayoutEngine {
         x: number;
         y: number;
         z: number;
-    }): boolean;
+    }, lane?: ElementPositions): boolean;
     static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T;
     // @internal
     protected releasePublishScratch(): void;
@@ -2328,6 +2331,8 @@ export abstract class LayoutEngine {
     updatePositions(_nodes: readonly Node_2[]): void;
     // @internal
     wakeForClusters(): boolean;
+    // @internal
+    wakeForLift(): boolean;
     // @internal
     wakeForResize(): boolean;
     // @internal
@@ -2381,11 +2386,8 @@ export interface LogSinkDescriptor {
     // @deprecated
     description: string;
     descriptionId?: string;
-    // (undocumented)
     id: LogSinkId;
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
 }
 
@@ -2423,6 +2425,8 @@ class Node_2 implements ModelUser {
     get borderReach(): number;
     // @internal
     borderReachAlong(dir: Xyz): number;
+    // @internal
+    static closedForm(shape: string | undefined, rotation: number | undefined): boolean;
     get data(): AdHocData<string | number>;
     // @internal
     get decorationPieces(): readonly NodeDecorationPiece[];
@@ -2656,7 +2660,6 @@ export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "
 
 // @public
 export interface OptionBound {
-    // (undocumented)
     from: (typeof OPTION_BOUND_SOURCES)[number] | (string & {});
 }
 
@@ -2668,7 +2671,6 @@ export interface OptionChoice {
         readonly runId: RunId;
         readonly field: string;
     };
-    // (undocumented)
     value: string;
 }
 
@@ -2695,35 +2697,23 @@ export interface OptionDefinition<T = unknown> {
 
 // @public
 export interface OptionDescriptor extends OptionDescriptorDomain {
-    // (undocumented)
     advanced?: boolean;
-    // (undocumented)
     attributeType?: AttributeType;
-    // (undocumented)
     default?: unknown;
     // @deprecated
     description?: string;
     descriptionId?: string;
-    // (undocumented)
+    formerNames?: readonly string[];
     group?: string;
-    // (undocumented)
     internal?: boolean;
-    // (undocumented)
     max?: number | string | OptionBound;
-    // (undocumented)
     min?: number | string | OptionBound;
-    // (undocumented)
     name: string;
-    // (undocumented)
     plainName: string;
-    // (undocumented)
     step?: number;
-    // (undocumented)
     technicalName?: string;
-    // (undocumented)
     type: OptionType;
     unsupported?: OptionUnsupported;
-    // (undocumented)
     values?: readonly OptionChoice[];
 }
 
@@ -2769,9 +2759,7 @@ export type OptionUiMeta = OptionsSchema_2[string]["meta"];
 
 // @public
 export interface OptionUnsupported {
-    // (undocumented)
     readonly code: OptionUnsupportedCode;
-    // (undocumented)
     readonly params: {
         readonly types?: readonly string[];
     };
@@ -2807,15 +2795,10 @@ export interface PaletteDefinition {
 // @public
 export interface PaletteDescriptor {
     capacity: number | null;
-    // (undocumented)
     colorblindSafe: readonly ("deuteranopia" | "protanopia" | "tritanopia")[];
-    // (undocumented)
     colors: readonly string[];
-    // (undocumented)
     id: PaletteId;
-    // (undocumented)
     kind: "sequential" | "diverging" | "categorical";
-    // (undocumented)
     plainName: string;
 }
 
@@ -3497,17 +3480,13 @@ export { SourceValidators }
 
 // @public
 export interface SuggestedName {
-    // (undocumented)
     readonly id: string;
-    // (undocumented)
     readonly label: string;
 }
 
 // @beta
 export interface TimeField {
-    // (undocumented)
     readonly edges?: TimeSource;
-    // (undocumented)
     readonly nodes?: TimeSource;
 }
 

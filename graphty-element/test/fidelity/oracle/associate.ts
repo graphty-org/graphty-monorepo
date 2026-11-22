@@ -817,7 +817,7 @@ export function measureArrow(
     }
     dx /= len;
     dy /= len;
-    [dx, dy] = capAxis(outline, pts, [dx, dy]);
+    [dx, dy] = stubAxis(outline, pts, [dx, dy]) ?? capAxis(outline, pts, [dx, dy]);
     const along = outline.map(([x, y]) => x * dx + y * dy);
     const across = outline.map(([x, y]) => -x * dy + y * dx);
     const at = areaCentroid(outline) ?? [cx(box), cy(box)];
@@ -889,6 +889,42 @@ function shapeAlong(outline: readonly Pt[], pieces: readonly (readonly Pt[])[] |
 
 /** The least distance a line's end direction is read over: past a coordinate's rounding. */
 const END_RUN = 1;
+
+/** How far a point of a cap may lie from its mirror image across an axis for the cap to be symmetric about it, px. */
+const MIRROR_PX = 0.5;
+
+/**
+ * The direction of a line's last step when that step is shorter than END_RUN and turns across the run before it, and the
+ * cap on the end lies behind the end and mirrors itself across the step: yEd clips a line at its node's outline and
+ * aims the head along the line's last leg into the node, so a route run along the node's border and then into it
+ * leaves only a hair of that leg (gml-synthetic-coverage 27->28: along the bottom of v26, then 0.02 px up into it, the
+ * convex head under it pointing up). Read along the run before it, the head is lopsided.
+ * @param outline - the cap's points
+ * @param pts - the line, its end last
+ * @param dir - the line's unit end direction over its run
+ * @returns the step's unit direction, or null where the cap is read along the run
+ */
+function stubAxis(outline: readonly Pt[], pts: readonly Pt[], dir: Pt): Pt | null {
+    const end = pts.at(-1);
+    const from = [...pts].reverse().find((q) => end !== undefined && (q[0] !== end[0] || q[1] !== end[1]));
+    if (end === undefined || from === undefined || outline.length < 3) {
+        return null;
+    }
+    const step = Math.hypot(end[0] - from[0], end[1] - from[1]);
+    const axis: Pt = [(end[0] - from[0]) / step, (end[1] - from[1]) / step];
+    // a turn of under 45 degrees is the run's own direction, read well enough along the run; one of over 135 is a step
+    // back, a rounding of where a curve ends (dot-real-depcruise: 0.0006 px back along a Graphviz spline)
+    if (step >= END_RUN || Math.abs(axis[0] * dir[0] + axis[1] * dir[1]) > Math.SQRT1_2) {
+        return null;
+    }
+    const behind = outline.every(([x, y]) => (x - end[0]) * axis[0] + (y - end[1]) * axis[1] <= ON_LINE_PX);
+    const mirrored = outline.every(([x, y]) => {
+        const off = -(x - end[0]) * axis[1] + (y - end[1]) * axis[0];
+        const [mx, my] = [x + 2 * off * axis[1], y - 2 * off * axis[0]];
+        return outline.some(([u, v]) => Math.hypot(u - mx, v - my) <= MIRROR_PX);
+    });
+    return behind && mirrored ? axis : null;
+}
 
 /**
  * The centroid of a closed outline's area (shoelace), which a point repeated or a side sampled more finely than
@@ -2865,6 +2901,55 @@ const HEAD_MOST = 0.5;
 /** The arrowheads drawn with a line, by the end each caps: its source's, its target's. */
 type OwnHeads = readonly [readonly Prim[], readonly Prim[]];
 
+/**
+ * A line drawn in whole pieces of its pattern (Cytoscape desktop's arrows and slashes) stops where its last whole piece
+ * ends, up to a piece short of where the line itself ends (cx2-syn-mappings 327->333: eight arrows 18.7 px apart stop
+ * 8.6 px short of node 333, so its route and its label's place along it were read against a shorter line). An end with
+ * no arrowhead of its own is carried on along the line to its node's box where that lies within one piece; an end
+ * capped by an arrowhead stops at the head, and an end whose node lies farther off stays as read.
+ * @param points - the band's route
+ * @param nodes - the nodes it runs between
+ * @param own - the arrowheads drawn with it, at its first end and at its last
+ * @param piece - how far apart its pieces are, or undefined for a band of one outline
+ * @returns the route, each such end carried to its node
+ */
+function carriedToNodes(
+    points: readonly Pt[],
+    nodes: readonly [PNode, PNode],
+    own: OwnHeads,
+    piece: number | undefined,
+): Pt[] {
+    const out = [...points];
+    if (piece === undefined || !(piece > 0) || out.length < 2) {
+        return out;
+    }
+    const boxOf = (n: PNode): PBox => ({
+        x0: n.cx - n.w / 2,
+        y0: n.cy - n.h / 2,
+        x1: n.cx + n.w / 2,
+        y1: n.cy + n.h / 2,
+    });
+    const carry = (end: Pt, from: Pt, heads: readonly Prim[]): Pt => {
+        const d = Math.hypot(end[0] - from[0], end[1] - from[1]);
+        // the node at this end: the one whose box lies nearer it
+        const node = nodes.map((n) => ({ n, d: toBox(end, boxOf(n)) })).sort((a, b) => a.d - b.d)[0].n;
+        if (heads.length > 0 || d === 0 || inside(end, boxOf(node))) {
+            return end;
+        }
+        const [ux, uy] = [(end[0] - from[0]) / d, (end[1] - from[1]) / d];
+        for (let s = 0.25; s <= piece; s += 0.25) {
+            const q: Pt = [end[0] + ux * s, end[1] + uy * s];
+            if (inside(q, boxOf(node))) {
+                return q;
+            }
+        }
+        return end;
+    };
+    out[0] = carry(out[0], out[1], own[0]);
+    out[out.length - 1] = carry(out[out.length - 1], out[out.length - 2], own[1]);
+    return out;
+}
+
 /** What else places a line's ends: its own arrowheads, and how much farther than a line's end may lie from its node. */
 interface EndsBy {
     own?: OwnHeads;
@@ -3953,7 +4038,7 @@ export function associate(
             ...p,
             kind: "path",
             closed: false,
-            points: band.route ?? band.ends,
+            points: carriedToNodes(band.route ?? band.ends, ends, own, band.piece),
             fill: null,
             stroke: {
                 color: p.fill.color,
@@ -4912,12 +4997,17 @@ export function associate(
         }
         const framed = guideAnnotations(n, t);
         const words = wordsFrom(t);
+        // a node's label and its external label read as one text: a box behind one of them, where graphty draws its
+        // label with one too (graphml-synthetic-nodes label-corners-sw: "corners:sw" boxed, "second label" not)
+        const guided = n !== undefined && (guideById.get(n.id)?.label?.background ?? null) !== null;
+        const lines = guided && (t.lines?.length ?? 0) > 1 ? (t.lines ?? []) : [];
+        const backsLine = (p: Prim): boolean => lines.some((line) => backsText(p, { ...t, box: line }));
         const backs = free()
             .filter(
                 (p) =>
                     p.kind === "shape" &&
                     (p.index < words || p.fill === null) &&
-                    (backsText(p, t) || (group !== undefined && bandsGroup(p, t, group))) &&
+                    (backsText(p, t) || backsLine(p) || (group !== undefined && bandsGroup(p, t, group))) &&
                     !framed.some((b) => boxIoU(b, p.box) >= 0.5),
             )
             .sort((a, b) => area(a.box) - area(b.box) || a.index - b.index);

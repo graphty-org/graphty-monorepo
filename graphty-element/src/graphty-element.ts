@@ -7854,31 +7854,57 @@ declare global {
     // on every element names nothing a page could already be using, and
     // `element.addEventListener("graphty-run-change", (e) => e.detail)` type-checks without a cast.
     interface HTMLElementEventMap {
+        /** Emitted when an algorithm run starts, progresses, finishes or fails, with the run as it stands now. */
         "graphty-run-change": CustomEvent<GraphtyRunChangeDetail>;
+        /** Emitted while a load, a prepare or a run makes progress, and once when it stops. */
         "graphty-progress-change": CustomEvent<ProgressChange>;
+        /** Emitted when the selection changes, with what was added and removed. */
         "graphty-selection-change": CustomEvent<SelectionDelta>;
+        /** Emitted when a filter, a time window or the context flag changes what is visible. */
         "graphty-visibility-change": CustomEvent<VisibilityChange>;
+        /** Emitted when the undo history changes: what an undo and a redo would now do. */
         "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
+        /** Emitted when a note is created, updated or removed, including by undo, redo and opening a project. */
         "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
+        /** Emitted when a 3D model a style layer names changes state, once per model and state. */
         "graphty-model-change": CustomEvent<GraphtyModelChangeDetail>;
+        /** Emitted when the project's name or its unsaved-changes flag changes. Nothing is emitted at startup. */
         "graphty-project-status": CustomEvent<ProjectStatus>;
+        /** Emitted when `session.capabilities` changes, such as what acceleration is in use. */
         "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
+        /** Emitted when a node is clicked, with the node's id. */
         "graphty-node-click": CustomEvent<NodeEventDetail>;
+        /** Emitted when the pointer moves onto a node, with the node's id. */
         "graphty-node-hover": CustomEvent<NodeEventDetail>;
+        /** Emitted when a node starts being dragged, with the node's id. */
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
+        /** Emitted when a dragged node is let go, with the node's id. */
         "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
+        /** Emitted when how many node labels are drawn, or hidden and why, changes. */
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
+        /** Emitted once the element has started, with the experiments it switched on and the ids it did not recognize. */
         "graphty-features": CustomEvent<EnabledFeatures>;
+        /** Emitted when expanding nodes from their data source begins, with the seed node ids. */
         "graphty-source-expand-start": CustomEvent<SourceExpandStart>;
+        /** Emitted when expanding nodes from their data source has added their neighbors. */
         "graphty-source-expanded": CustomEvent<SourceExpanded>;
+        /** Emitted when expanding nodes from their data source failed, with a code and its facts. */
         "graphty-source-expand-failed": CustomEvent<SourceExpandFailed>;
+        /** Emitted when a load added a data source, or replaced one in place: which source, where it came from and how it was loaded. */
         "graphty-source-loaded": CustomEvent<SourceLoaded>;
+        /** Emitted when where autosave stands changes. */
         "graphty-autosave-status": CustomEvent<AutosaveStatus>;
+        /** Emitted when autosave restored the project automatically, with what it brought back. */
         "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
+        /** Emitted when an autosaved project could be restored but was not restored automatically, and why. */
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
+        /** Emitted once when the browser may delete this site's storage while unsaved work is only in autosave (`W_AUTOSAVE_ORIGIN_EPHEMERAL`). */
         "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
+        /** Emitted for a notice that stops nothing, as a code and its facts. */
         "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
+        /** Emitted when a new skybox image has loaded. */
         "graphty-skybox-loaded": CustomEvent<GraphtySkyboxLoadedDetail>;
+        /** Emitted when a skybox image could not be loaded (`E_IMAGE_LOAD`, with its `url`). */
         "graphty-skybox-failed": CustomEvent<CodedFact<"E_IMAGE_LOAD">>;
     }
 

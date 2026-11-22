@@ -21,7 +21,7 @@ import type { StylePatchCommand } from "../commands/style";
 import type { Dispatcher } from "../project/Dispatcher";
 import { RevisionCache } from "../revision";
 import type { Run } from "../runs";
-import { ManagedRun } from "../runs/Run";
+import type { ManagedRun } from "../runs/Run";
 import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
 import type { CodedFact } from "../shared";
@@ -132,7 +132,9 @@ export interface TimeSource {
  * @beta
  */
 export interface TimeField {
+    /** The nodes' time column; absent when nodes carry no designated time. */
     readonly nodes?: TimeSource;
+    /** The edges' time column; absent when edges carry no designated time. */
     readonly edges?: TimeSource;
 }
 
@@ -173,8 +175,11 @@ export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.uni
  * @beta
  */
 export interface TimeFieldResult {
+    /** The field now designated; null when none is. */
     readonly field: TimeField | null;
+    /** How many nodes have a usable time; absent when the field is not on nodes. */
     readonly nodes?: TimeCounts;
+    /** How many edges have a usable time; absent when the field is not on edges. */
     readonly edges?: TimeCounts;
     /**
      * `time.unparsed` (`{ path, count, examples }`; in a column mostly of date text, a bare number
@@ -193,9 +198,13 @@ export interface TimeFieldResult {
  * @beta
  */
 export interface TimeExtent {
+    /** The first instant, in milliseconds since the epoch (or ordinal units for ordinal time). */
     readonly from: number;
+    /** Just past the last instant, in the same units as `from`. */
     readonly to: number;
+    /** How many nodes have a usable time. */
     readonly nodes: TimeCounts;
+    /** How many edges have a usable time. */
     readonly edges: TimeCounts;
 }
 
@@ -205,9 +214,13 @@ export interface TimeExtent {
  * @beta
  */
 export interface TimeBin {
+    /** Where the bar starts, inclusive, in the units of {@link TimeExtent.from}. */
     readonly start: number;
+    /** Where the bar ends, exclusive. */
     readonly end: number;
+    /** How many nodes count in the bar. */
     readonly nodes: number;
+    /** How many edges count in the bar. */
     readonly edges: number;
     /** The bins' width, when they were made by a step or a `maxCount` budget. */
     readonly step?: TimeStep;
@@ -243,8 +256,11 @@ export interface TimeBinsOptions {
      * edges at the given nodes count too, so a node selection over edge time shows its edges' activity.
      */
     readonly of?: {
+        /** The nodes to count. */
         readonly nodes?: readonly NodeId[];
+        /** The edges to count. */
         readonly edges?: readonly EdgeId[];
+        /** Whether the edges at the given nodes count too. */
         readonly incident?: boolean;
     };
     /** The IANA zone calendar bins align in; default the current window's, else the setting's. */
@@ -256,7 +272,9 @@ export interface TimeBinsOptions {
  * @beta
  */
 export interface TimeIds {
+    /** The node ids. */
     readonly nodes: readonly NodeId[];
+    /** The edge ids. */
     readonly edges: readonly EdgeId[];
 }
 
@@ -265,7 +283,9 @@ export interface TimeIds {
  * @beta
  */
 export interface TimeChanges {
+    /** What came into the window. */
     readonly entered: TimeIds;
+    /** What went out of the window. */
     readonly left: TimeIds;
 }
 
@@ -274,7 +294,9 @@ export interface TimeChanges {
  * @beta
  */
 export interface TimeCountPair {
+    /** How many nodes. */
     readonly nodes: number;
+    /** How many edges. */
     readonly edges: number;
 }
 
@@ -285,11 +307,15 @@ export interface TimeCountPair {
 export interface TimeStepEvent {
     /** Step number from the start of the data, by the window's step. */
     readonly index: number;
+    /** Where the window now starts, inclusive, in the units of {@link TimeExtent.from}. */
     readonly from: number;
+    /** Where the window now ends, exclusive. */
     readonly to: number;
     /** What every filter keeps inside the window: what is drawn as in it, never a visibility count. */
     readonly visible: TimeCountPair;
+    /** How many came into the window on this move. */
     readonly entered: TimeCountPair;
+    /** How many went out of the window on this move. */
     readonly left: TimeCountPair;
     /** Elements of a timed kind with no usable time: kept in every window unless `missing` is `"outside"`. */
     readonly untimed: TimeCountPair;
@@ -308,8 +334,11 @@ export interface TimeStepEvent {
  * @beta
  */
 export type TimeWindowInput = Omit<TimeWindow, "attribute" | "from" | "to"> & {
+    /** The attribute carrying the instant; absent, the designated field's. */
     readonly attribute?: Path;
+    /** The first instant inside the window: a number, or a string `Date.parse` understands. */
     readonly from?: number | string;
+    /** The first instant past the window, in the same form as `from`. */
     readonly to?: number | string;
 };
 
@@ -486,7 +515,12 @@ export interface TimeApi {
         readonly nodes?: readonly NodeId[];
         readonly edges?: readonly EdgeId[];
         readonly incident?: boolean;
-    }): { readonly from: number; readonly to: number } | null;
+    }): {
+        /** Where the span starts, inclusive. */
+        readonly from: number;
+        /** Just past where the span ends. */
+        readonly to: number;
+    } | null;
     /**
      * The ids that entered and left the visible graph on the last move made through this API.
      * @returns The ids; empty before the first move.
@@ -625,7 +659,7 @@ export interface TimeSources {
     readonly columns: () => readonly { readonly kind: "node" | "edge"; readonly name: string }[];
     readonly dispatcher: Dispatcher;
     readonly visibility: SessionVisibilityApi;
-    readonly runs: () => readonly Run[];
+    readonly runs: () => readonly ManagedRun[];
     readonly digestOf: (spec: Scope) => string;
     readonly emit: <K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]) => void;
     /**
@@ -2223,6 +2257,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     /** One playback step, then the next one on the timer. */
     const tick = async (): Promise<void> => {
         timer = null;
+        // A `time:play` listener can pause or dispose the play before `play()` arms this timer.
         if (!playing || disposed) {
             return;
         }
@@ -2383,23 +2418,29 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * per finished re-run, never once per step.
      * @param runs - The runs.
      */
-    const rerunAll = (runs: readonly Run[]): void => {
+    const rerunAll = (runs: readonly ManagedRun[]): void => {
         if (rerunning) {
             rerunAgain = true;
             return;
         }
 
         rerunning = true;
-        const rerunOne = async (run: Run): Promise<void> => {
+        const rerunOne = async (run: ManagedRun): Promise<void> => {
             try {
                 // Marked as the session's own re-run, so `run:changed` says the window did it.
-                await (run instanceof ManagedRun ? run.rerun("time-window") : run.rerun());
+                await run.rerun("time-window");
             } catch (error) {
+                // A cancel is not a failure (`RunStatus`): the run reports it as "canceled".
+                if (error instanceof Error && error.name === "AbortError") {
+                    return;
+                }
+
                 sources.emit("time:rerun-failed", {
                     run: run.id,
                     error: isGraphtyError(error)
                         ? { code: error.code, params: (error.details ?? {}) as CodedFact["params"] }
-                        : { code: "E_INTERNAL", params: {} },
+                        : // A re-run canceled while it runs rejects with an AbortError.
+                          { code: "E_INTERNAL", params: {} },
                 });
             }
         };
@@ -2424,7 +2465,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * The runs over the visible graph that a filter or window move left out of date.
      * @returns The runs.
      */
-    const movedRuns = (): readonly Run[] =>
+    const movedRuns = (): readonly ManagedRun[] =>
         sources.runs().filter((run) => run.stale?.reason === "scope-changed" || run.stale?.reason === "window-moved");
 
     /**

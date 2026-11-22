@@ -28,7 +28,7 @@ describe("session.journal", () => {
         assert.strictEqual(entry.command.op, "algo.run");
         assert.match(entry.at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
         assert.isAtLeast(entry.durationMs, 0);
-        assert.containsAllKeys(entry.engine, ["element", "algorithms", "layout"]);
+        assert.containsAllKeys(entry.engine.packages, ["@graphty/graphty-element", "@graphty/algorithms"]);
         assert.isTrue(Object.isFrozen(entry));
         assert.strictEqual(session.journal.entries.at(-1), entry);
         session.dispose();

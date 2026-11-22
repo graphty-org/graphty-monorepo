@@ -44,7 +44,7 @@ async function renamedAndStaged(): Promise<{ session: GraphSession; t: string; a
 async function two(): Promise<{ session: GraphSession; a: string; b: string }> {
     const session = createGraphSession({ features: ["source-steps"] });
     await session.data.import(csv("crm.csv", "id,name,amt\np1,Ann,10\np2,Bo,20"), { key: "id", type: "person" });
-    const a = session.data.sources()[0]?.key ?? "";
+    const a = session.data.sources({ staged: true })[0]?.key ?? "";
     const b = await session.data.stage(csv("erp.csv", "id,name,amt\np1,Anne,30\np2,Bo,40"), {
         key: "id",
         type: "person",
@@ -114,11 +114,11 @@ describe("source-steps drafts: acts on a copy", () => {
         await d.commit();
         assert.isFalse(d.open);
         assert.lengthOf(session.history.steps, history + 1);
-        assert.strictEqual(session.data.sources().find((s) => s.key === a)?.state, "built");
+        assert.strictEqual(session.data.sources({ staged: true }).find((s) => s.key === a)?.state, "built");
         assert.strictEqual(session.data.store.getSnapshot().ids.size, nodes + 1, "A-9 is a new account");
         assert.strictEqual(session.data.node("A-2")?.holder, "Bo", "keep: the held value stays");
         await session.undo();
-        assert.strictEqual(session.data.sources().find((s) => s.key === a)?.state, "staged");
+        assert.strictEqual(session.data.sources({ staged: true }).find((s) => s.key === a)?.state, "staged");
         assert.strictEqual(session.data.store.getSnapshot().ids.size, nodes);
         await session.redo();
         assert.strictEqual(session.data.store.getSnapshot().ids.size, nodes + 1);
@@ -223,6 +223,32 @@ describe("source-steps drafts: acts on a copy", () => {
         session.dispose();
     });
 
+    it("a merge counts the keys source 2's rows repeat, folds the first by default and the last when asked", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "badge,dept\nB1,Ops\nB2,Lab"), { key: "badge", type: "person" });
+        const people = session.data.sources()[0]?.key ?? "";
+        // Two alerts name B1, with different departments.
+        const hr = await session.data.stage(csv("hr.csv", "badge,dept\nB1,Operations\nB1,Research\nB2,Lab"), {
+            key: "badge",
+        });
+        const merged = async (repeated?: "last"): Promise<unknown> => {
+            const d = session.data.draft();
+            d.merge({ from: { source: hr, field: "badge" }, into: { source: people } });
+            const merge = d.steps().find((s) => s.op === "join.merge")?.index ?? -1;
+            const row = d.preview().steps.find((s) => s.index === merge)?.buckets;
+            assert.strictEqual(row?.repeated2, 1, "B1 is held by two of hr.csv's rows");
+            assert.strictEqual(row?.keptNew, 0, "every hr.csv node meets its person");
+            d.editStep(merge, { clash: { dept: "overwrite" }, ...(repeated === undefined ? {} : { repeated }) });
+            await d.commit();
+            const dept = session.data.node("B1")?.dept;
+            await session.undo();
+            return dept;
+        };
+        assert.strictEqual(await merged(), "Operations", "the first row by default");
+        assert.strictEqual(await merged("last"), "Research", "the last row once asked");
+        session.dispose();
+    });
+
     it("editStep sets a step's choices and takes them off again; setMapping refuses a reserved space", async () => {
         const { session, a } = await renamedAndStaged();
         const d = session.data.draft();
@@ -295,7 +321,7 @@ describe("source-steps drafts: acts on a copy", () => {
         };
         await del("join.merge");
         await del("join.add");
-        assert.strictEqual(session.data.sources().find((s) => s.key === a2)?.state, "staged");
+        assert.strictEqual(session.data.sources({ staged: true }).find((s) => s.key === a2)?.state, "staged");
         await session.data.add(a2);
         assert.strictEqual(accounts(session), expected);
         session.dispose();
@@ -304,7 +330,7 @@ describe("source-steps drafts: acts on a copy", () => {
     it("4.4 + 3.10: renaming a column in every source keeps its conflict rule, through save and reopen", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await session.data.import(csv("crm.csv", "id,amt\np1,10"), { key: "id", type: "person" });
-        const a = session.data.sources()[0]?.key ?? "";
+        const a = session.data.sources({ staged: true })[0]?.key ?? "";
         const b = await session.data.stage(csv("erp.csv", "id,amt\np1,30"), { key: "id", type: "person" });
         await session.data.add(b, { overlap: "merge" });
         const d = session.data.draft();
@@ -330,7 +356,7 @@ describe("source-steps drafts: acts on a copy", () => {
             key: "id",
             type: "payment",
         });
-        const s = session.data.sources()[0]?.key ?? "";
+        const s = session.data.sources({ staged: true })[0]?.key ?? "";
         const before = (await session.project.save()).text;
         const d = session.data.draft();
         const details = await refused(
@@ -376,7 +402,7 @@ describe("source-steps drafts: acts on a copy", () => {
         d.removeSource(a);
         await d.commit();
         assert.notInclude(
-            session.data.sources().map((s) => s.key),
+            session.data.sources({ staged: true }).map((s) => s.key),
             a,
         );
         assert.lengthOf(
@@ -387,7 +413,7 @@ describe("source-steps drafts: acts on a copy", () => {
         assert.notInclude((await session.project.save()).text, a);
         await session.undo();
         assert.include(
-            session.data.sources().map((s) => s.key),
+            session.data.sources({ staged: true }).map((s) => s.key),
             a,
         );
         assert.lengthOf(

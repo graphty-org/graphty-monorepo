@@ -34,13 +34,13 @@
 //   node tools/test-rotation.mjs t4 record --state <record.json> --selection <selection.json> --report <test-results dir> --out <record.json>
 //       env SHA, RUN_URL, COMPLETE (false: a red step skipped later tests); reads the JUnit reports every vitest run writes in CI (vitest.ci-junit.mjs)
 //   node --test tools/test-rotation.test.mjs
-import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 
 import { AI_PATHS } from "./bisect-ci.mjs";
+import { git as runGit } from "./lib/git.mjs";
 import { parseJunit } from "./test-ledger.mjs";
 
 export const DEFAULT_SLICES = 4;
@@ -202,7 +202,7 @@ export function nextState({ prev, selection, results, sha, run, complete = true 
     };
 }
 
-const git = (...args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+const git = (...args) => runGit(args, { stdio: ["ignore", "pipe", "ignore"], trim: false });
 
 /**
  * The paths changed between a commit and HEAD, fetching the commit when the checkout lacks it.

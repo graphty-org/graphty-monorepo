@@ -20,7 +20,7 @@ import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport, LoadReport } from "../data/report";
 import { RowEdges, RowIdRecords } from "../data/RowMap";
-import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
+import { adoptEdgeRecord, Edge, edgeBuildSerial, placeEdgeRow, setEdgeBuildSerial } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
 import { type EdgeRow, type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
@@ -614,9 +614,6 @@ function lazyArray<K, V>(built: V[], ids: readonly K[], make: (id: K) => V | und
     });
 }
 
-/** Where each `Edge` stands in its manager's edge map, oldest first; see `DataManager.noteBuilt`. */
-const buildOrder = new WeakMap<Edge, number>();
-
 /**
  * One key for a pair of node ids, the same either way round.
  * @param a - One id.
@@ -988,7 +985,7 @@ export class DataManager implements Manager {
      */
     edgeVersion = 0;
 
-    /** How many `Edge`s were ever put in the edge map: {@link buildOrder}'s counter. */
+    /** How many `Edge`s were ever put in the edge map: the counter of {@link edgeBuildSerial}. */
     private builtSerial = 0;
 
     /**
@@ -998,7 +995,7 @@ export class DataManager implements Manager {
      */
     private noteBuilt(edge: Edge): void {
         const prior = this.edgeMap.builtOf(edge.id);
-        buildOrder.set(edge, prior === undefined ? ++this.builtSerial : (buildOrder.get(prior) ?? ++this.builtSerial));
+        setEdgeBuildSerial(edge, prior === undefined ? ++this.builtSerial : edgeBuildSerial(prior));
     }
 
     /** The pairs each tracked {@link edgeVersion} change touched. */
@@ -3228,13 +3225,22 @@ export class DataManager implements Manager {
      * @param edge - The edge.
      */
     private indexBuiltEdge(edge: Edge): void {
-        for (const end of [edge.srcId, edge.dstId]) {
-            let at = this.builtEdgesAt.get(end);
-            if (at === undefined) {
-                at = new Set();
-                this.builtEdgesAt.set(end, at);
-            }
+        // Each end by itself, with no list of the two made for it: half a million edges built by one restyle
+        // under "batched" each paid for one.
+        this.indexBuiltEdgeAt(edge.srcId, edge);
+        this.indexBuiltEdgeAt(edge.dstId, edge);
+    }
 
+    /**
+     * File a built `Edge` under one of its ends.
+     * @param end - The end's id.
+     * @param edge - The edge.
+     */
+    private indexBuiltEdgeAt(end: NodeIdType, edge: Edge): void {
+        const at = this.builtEdgesAt.get(end);
+        if (at === undefined) {
+            this.builtEdgesAt.set(end, new Set([edge]));
+        } else {
             at.add(edge);
         }
     }
@@ -3869,7 +3875,7 @@ export class DataManager implements Manager {
         unbuilt.sort((x, y) => x - y);
 
         // The whole pass meets the built edges in the order the map holds them, the order they were built.
-        built.sort((x, y) => (buildOrder.get(x) ?? 0) - (buildOrder.get(y) ?? 0));
+        built.sort((x, y) => edgeBuildSerial(x) - edgeBuildSerial(y));
         return [...built, ...unbuilt];
     }
 

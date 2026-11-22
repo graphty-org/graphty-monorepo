@@ -621,6 +621,31 @@ export function placeEdgeRow(edge: Edge, row: number, renumbering: RowRenumberin
     writeEdgeRow(edge, row, renumbering);
 }
 
+/** Reads and writes an edge's build serial; see {@link edgeBuildSerial}. */
+let buildSerialOf: { get(edge: Edge): number; set(edge: Edge, serial: number): void };
+
+/**
+ * Where an edge stands in its data manager's edge map, oldest first; 0 before the manager has put it there. Kept
+ * on the edge, not in a WeakMap: a curve restyle under "batched" builds an `Edge` for each stored row, and an
+ * entry in a WeakMap for each of half a million made the restyle slower, in the setting and in the collector.
+ * @param edge - The edge.
+ * @returns Its serial.
+ * @internal
+ */
+export function edgeBuildSerial(edge: Edge): number {
+    return buildSerialOf.get(edge);
+}
+
+/**
+ * Record where an edge stands in its data manager's edge map; see {@link edgeBuildSerial}.
+ * @param edge - The edge.
+ * @param serial - Its serial.
+ * @internal
+ */
+export function setEdgeBuildSerial(edge: Edge, serial: number): void {
+    buildSerialOf.set(edge, serial);
+}
+
 /** Writes an edge's record; see {@link adoptEdgeRecord}. */
 let writeRecord: (edge: Edge, record: AdHocData) => void;
 
@@ -825,11 +850,20 @@ export class Edge {
     /** The renumbering epoch {@link Edge.row} was read at. */
     private readAt = 0;
 
+    /** Where it stands in its data manager's edge map; see {@link edgeBuildSerial}. */
+    private buildSerial = 0;
+
     static {
         writeEdgeRow = (edge, row, renumbering) => {
             edge.row = row;
             edge.renumbering = renumbering;
             edge.readAt = renumbering?.epoch ?? 0;
+        };
+        buildSerialOf = {
+            get: (edge) => edge.buildSerial,
+            set: (edge, serial) => {
+                edge.buildSerial = serial;
+            },
         };
         edgeInternals.drawn = (edge) => ({
             lineBatch: edge.lineBatch,

@@ -358,6 +358,23 @@ function useFocusOnRemoval(box: React.RefObject<HTMLElement | null>): void {
  */
 let kept: { readonly element: HTMLElement; readonly line: string; readonly label: string | null } | null = null;
 
+/**
+ * Forgets the kept control once focus lands outside its line (a pop-over's field, a menu, another project's
+ * tab): a control kept as it left the page with no next focus (a pop-over's settings button as its tab closed)
+ * would otherwise pull focus back to its line the next time focus falls to the page, out of whatever the reader
+ * is typing in (E495: a pop-over field tabbed past jumped to the sidebar's first line).
+ * @param event - the focus that arrived.
+ */
+function forgetKept(event: FocusEvent): void {
+    const line = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-line]") : null;
+    if (kept !== null && line?.dataset.line !== kept.line) {
+        kept = null;
+    }
+}
+if (typeof document !== "undefined") {
+    document.addEventListener("focusin", forgetKept, true);
+}
+
 /** What can take keyboard focus inside a line. */
 const LINE_CONTROL = "button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex='-1'])";
 

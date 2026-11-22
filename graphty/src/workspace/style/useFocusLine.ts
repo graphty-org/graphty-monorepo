@@ -177,6 +177,8 @@ export function focusSectionNext(session: GraphSession, from: Element, channel: 
 export function useFocusLine<T extends HTMLElement>(session: GraphSession, panel: string): RefObject<T | null> {
     const scope = useRef<T>(null);
     const handed = useRef<Ask | null>(null);
+    // The focus decisions waiting for their frame; a tab that goes away cancels them, so none moves focus later.
+    const deferred = useRef(new Set<number>());
     // No dependency list: the line appears on whatever render the element's change causes.
     useEffect(() => {
         const node = scope.current;
@@ -203,11 +205,14 @@ export function useFocusLine<T extends HTMLElement>(session: GraphSession, panel
             // Judged once the event that drew this render is over: a value a Tab commits on blur draws while focus is
             // between the field it left and the one it goes to, on the page for that moment, and taking focus then
             // pulled it out of a settings pop-over onto the sidebar's copy of the line (E495, a Frame side).
-            requestAnimationFrame(() => {
+            // Each render's decision runs (a later render that changed nothing must not drop an earlier one's line).
+            const frame = requestAnimationFrame(() => {
+                deferred.current.delete(frame);
                 if (free()) {
                     controlForChange(node, was.lines, now)?.focus();
                 }
             });
+            deferred.current.add(frame);
         }
         if (asked === null) {
             return;
@@ -233,7 +238,11 @@ export function useFocusLine<T extends HTMLElement>(session: GraphSession, panel
     // A layout cleanup runs before the tab's nodes leave the page, while focus is still in them.
     useLayoutEffect(() => {
         const node = scope.current;
+        const frames = deferred.current;
         return () => {
+            for (const frame of frames) {
+                cancelAnimationFrame(frame);
+            }
             const asked = handed.current;
             const line = asked === null ? null : node?.querySelector(asked.selector);
             if (pending === null && line?.contains(document.activeElement) === true) {

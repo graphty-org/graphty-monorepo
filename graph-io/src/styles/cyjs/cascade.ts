@@ -1964,8 +1964,8 @@ function combineParts(
             values.labelWrapAnywhere = wrap.map((w, i) => (w === "wrap" && overflow[i] === "anywhere" ? true : null));
         }
     }
+    combineDrawOrder(n, words.get("_zIndex"), values);
     if (kind === "node") {
-        combineDrawOrder(n, words.get("_zIndex"), values);
         combineFace(n, words, values);
         combineBackgroundGradient(n, words, values, notes);
     } else {
@@ -1979,12 +1979,12 @@ function combineParts(
 }
 
 /**
- * Each node's draw order, 0 to 100, as Cytoscape.js stacks nodes: by `z-index`, higher on top, and in element order
- * among equal ones, a later node on top (cytoscape.js 3.34.3 `zIndexSort`). Left unset when every node has the same
- * z-index, as the element order alone is then the order.
+ * Each node's or edge's draw order, 0 to 100, as Cytoscape.js stacks nodes, and edges among edges: by `z-index`,
+ * higher on top, and in element order among equal ones, a later element on top (cytoscape.js 3.34.3 `zIndexSort`).
+ * Left unset when every element has the same z-index, as the element order alone is then the order.
  * ponytail: `z-compound-depth` (a compound parent beneath its children) is left out
  * @param n - the element count
- * @param zIndex - each node's `z-index`, or undefined when no rule sets one
+ * @param zIndex - each element's `z-index`, or undefined when no rule sets one
  * @param values - the values; changed in place
  */
 function combineDrawOrder(

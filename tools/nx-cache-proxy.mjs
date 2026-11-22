@@ -50,10 +50,11 @@ async function readBody(response, controller) {
 async function forward(req) {
     const controller = new AbortController();
     const put = req.method === "PUT";
-    const body = put ? await readAll(req) : undefined;
     // A PUT is limited as a whole; a GET until its headers, then per body chunk.
     const timer = setTimeout(() => controller.abort(), limit);
     try {
+        // Inside the try: nx resetting a PUT mid-body rejects here, and uncaught that ended the proxy (#9560).
+        const body = put ? await readAll(req) : undefined;
         const response = await fetch(upstream + req.url, {
             method: req.method,
             headers: { authorization: req.headers.authorization ?? "", "content-type": "application/octet-stream" },
@@ -71,9 +72,14 @@ async function forward(req) {
     }
 }
 
+// Every answer closes its connection: nx's client pools connections, and a request it sends on one this server is
+// closing as idle (Node's 5 s keep-alive) fails with the same "error sending request" that fails the task.
 const server = createServer(async (req, res) => {
     const { status, body } = await forward(req);
     if (status !== 200 && status !== 404) log(`${req.method} ${req.url}: ${status}`);
-    res.writeHead(status, { "content-type": "application/octet-stream" }).end(body);
+    if (!res.destroyed)
+        res.writeHead(status, { "content-type": "application/octet-stream", connection: "close" }).end(body);
 });
+// A dead proxy fails every later nx task in the job, so no error may end it: log it and keep serving.
+process.on("uncaughtException", (error) => log(`uncaught: ${error.stack ?? error}`));
 server.listen(0, "127.0.0.1", () => console.log(`http://127.0.0.1:${server.address().port}`));

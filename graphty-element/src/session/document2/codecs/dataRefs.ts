@@ -1270,7 +1270,8 @@ function suppliersOf(
  */
 function dataModelOf(session: GraphSession): DataModel {
     const memory = memoryOf(session);
-    const loads = session.data.sources();
+    // A staged source is saved with the rest, though no part of the graph yet.
+    const loads = session.data.sources({ staged: true });
     const byKey = new Map<string, ModelSource>();
     const sources: ModelSource[] = loads.map((load) => {
         const source: ModelSource = { id: sourceIdOf(load.key, memory), load, nodes: [], edges: [] };

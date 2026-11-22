@@ -96,7 +96,14 @@ describe("source-steps: clash rules per column (3.10)", () => {
         const name = row?.valuesDiffer.find((each) => each.params.column === "name");
         assert.deepStrictEqual(name, {
             code: "W_VALUES_DIFFER",
-            params: { step, column: "name", count: 1, decided: 0, rule: "keep" },
+            params: {
+                step,
+                column: "name",
+                count: 1,
+                decided: 0,
+                rule: "keep",
+                rules: ["keep", "overwrite", "both", "vote"],
+            },
         });
         assert.strictEqual(row?.valuesDiffer.find((each) => each.params.column === "amt")?.params.count, 2);
         for (const key of ["p1", "p2"]) {
@@ -104,6 +111,39 @@ describe("source-steps: clash rules per column (3.10)", () => {
         }
         const amt = session.data.steps()[step]?.valuesDiffer.find((each) => each.params.column === "amt");
         assert.strictEqual(amt?.params.decided, 2);
+        session.dispose();
+    });
+
+    it("lists the rules each column takes, as editStep takes them: min, max and mean only where every value meeting is a number", async () => {
+        // floor: B2 meets 5 and x, so min, max and mean cannot order it although erp's own floor
+        // column is all numbers; amt is numbers on both sides.
+        const { session, b } = await people(
+            "id,amt,floor\np1,10,1\np2,20,x",
+            "id,amt,floor\np1,30,1\np2,40,5\np3,50,6",
+        );
+        const draft = session.data.draft();
+        draft.merge({ from: { source: b, field: "id" }, into: { space: "person" } });
+        const step = draft.steps().find((each) => each.op === "join.merge")?.index ?? -1;
+        const rulesOf = (column: string): readonly string[] | undefined =>
+            draft
+                .preview()
+                .steps.find((each) => each.index === step)
+                ?.valuesDiffer.find((each) => each.params.column === column)?.params.rules;
+        assert.deepStrictEqual(rulesOf("amt"), ["keep", "overwrite", "both", "min", "max", "mean", "vote"]);
+        assert.deepStrictEqual(rulesOf("floor"), ["keep", "overwrite", "both", "vote"]);
+        // p3 meets no person: Only 2 Keep leaves it as a new node, Drop leaves it out.
+        const keptNew = (): number | undefined =>
+            draft.preview().steps.find((each) => each.index === step)?.buckets?.keptNew;
+        for (const rule of ["min", "max", "mean"] as const) {
+            draft.editStep(step, { clash: { amt: rule } });
+            await refused(() => Promise.resolve(draft.editStep(step, { clash: { floor: rule } })), "E_CLASH_RULE_TYPE");
+        }
+        const pv = draft.preview();
+        assert.strictEqual(keptNew(), pv.after.nodes - pv.before.nodes);
+        assert.strictEqual(keptNew(), 1);
+        draft.editStep(step, { unmatchedFrom: "drop" });
+        assert.strictEqual(keptNew(), 0);
+        draft.dispose();
         session.dispose();
     });
 

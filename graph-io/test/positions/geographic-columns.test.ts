@@ -6,6 +6,7 @@ import { coordinateSystemOf, type GraphSnapshot } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
 import { checkExport, exportGraphToString, importGraph } from "../../src/index.js";
+import { geographicColumnNames } from "../../src/positions/index.js";
 
 const csv = async (text: string): Promise<GraphSnapshot> =>
     (await importGraph(text, { format: "csv", table: "nodes" })).snapshot;
@@ -104,5 +105,26 @@ describe("latitude and longitude columns", () => {
         const note = checkExport(plain, "json").find((n) => n.code === "W_ROLE_ASSUMED");
         assert.strictEqual(note?.column, "position");
         assert.strictEqual(note?.count, 1);
+    });
+});
+
+describe("geographicColumnNames", () => {
+    it("finds one latitude and one longitude name in any case, with an altitude", () => {
+        assert.deepEqual(geographicColumnNames(["id", "Lat", "lng"]), {
+            latitude: "Lat",
+            longitude: "lng",
+            altitude: null,
+        });
+        assert.deepEqual(geographicColumnNames(["latitude", "longitude", "alt"]), {
+            latitude: "latitude",
+            longitude: "longitude",
+            altitude: "alt",
+        });
+    });
+
+    it("reads none when an axis is missing or named twice, and never reads long", () => {
+        assert.isNull(geographicColumnNames(["lat"]));
+        assert.isNull(geographicColumnNames(["lat", "long"]));
+        assert.isNull(geographicColumnNames(["lat", "latitude", "lon"]));
     });
 });

@@ -61,6 +61,23 @@ describe("the geographic layout", () => {
         near(xy[1][0], 100 * ((10 * Math.PI) / 180));
     });
 
+    it("reads `lat` and `lon` (or `lng`) by graph-io's name rule with no options", () => {
+        const xy = layOut([
+            { Lat: 45, lon: 90 },
+            { Lat: -30, lon: -60 },
+        ]);
+        near(xy[0][0], 100 * (Math.PI / 2));
+        near(xy[0][1], 100 * (Math.PI / 4));
+        const lng = layOut([{ lat: 0, lng: 90 }]);
+        near(lng[0][0], 100 * (Math.PI / 2));
+    });
+
+    it("reads the attributes it is given over ones the name rule would find", () => {
+        const xy = layOut([{ lat: 0, lon: 0, y: 45, x: 90 }], { latitude: "y", longitude: "x" });
+        near(xy[0][0], 100 * (Math.PI / 2));
+        near(xy[0][1], 100 * (Math.PI / 4));
+    });
+
     it("places a node with no coordinates at the origin", () => {
         const xy = layOut([{ latitude: 10, longitude: 10 }, { name: "nowhere" }]);
         assert.deepEqual(xy[1], [0, 0]);

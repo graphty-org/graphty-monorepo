@@ -464,8 +464,18 @@ function aggregateFor(step: Step, column: string): JoinReduce | undefined {
 }
 
 type Held = [origin: string, value: Value];
-const isNumber = (v: Value | undefined): boolean => !isEmpty(v) && !Array.isArray(v) && !Number.isNaN(Number(v));
-const isDate = (v: Value | undefined): boolean => typeof v === "string" && parseTime(v) !== null;
+/**
+ * Whether a cell reads as a number, as the numeric clash rules read it.
+ * @param v - The cell.
+ * @returns True when it does.
+ */
+export const isNumber = (v: Value | undefined): boolean => !isEmpty(v) && !Array.isArray(v) && !Number.isNaN(Number(v));
+/**
+ * Whether a cell reads as a date, as `min` and `max` order it.
+ * @param v - The cell.
+ * @returns True when it does.
+ */
+export const isDate = (v: Value | undefined): boolean => typeof v === "string" && parseTime(v) !== null;
 /**
  * Whether a numeric clash rule fits these values (3.10): `mean` needs numbers, `min` and `max`
  * numbers or dates.
@@ -540,6 +550,7 @@ function newStats(step: Step, si: number): StepStats {
         merged: 0,
         typeDiffers: 0,
         untouched: 0,
+        keptNew: 0,
         groups: [],
         selfLoops: 0,
         emptyKey: 0,
@@ -588,22 +599,27 @@ function repeats(values: Iterable<readonly [string, DrillUnit]>): Map<string, Dr
 }
 
 /**
- * The key values a merge's node 2s fold by: each one's first row of the source, unless the step
- * leaves the row out or its key is empty.
+ * The key values a merge's node 2s fold by: one per row of the source each node 2 was made from,
+ * so a key two rows share (and the step's `repeated` settles) repeats, unless the step leaves the
+ * row out or its key is empty.
  * @param s - The merge.
  * @param node2s - Its node 2s.
- * @returns The keys, one per node 2, each with the node 2 and its row.
+ * @returns The keys, one per row, each with the node 2 and its row.
  */
 function mergeKeys(s: MergeStep, node2s: readonly BuiltNode[]): (readonly [string, DrillUnit])[] {
-    return node2s.flatMap((n2) => {
-        const t = n2.touch.find((t) => t.source === s.source && t.table === "nodes");
-        const r = t?.cells;
-        const v = r?.[s.read.key];
-        const out = r === undefined || isEmpty(v) || (s.except !== undefined && listed(s.except, r));
-        return out || t === undefined || (s.rows !== undefined && !listed(s.rows, r))
-            ? []
-            : [[text(v), { table: "nodes", row: t.row, element: n2.id }] as const];
-    });
+    return node2s.flatMap((n2) =>
+        n2.touch.flatMap((t) => {
+            if (t.source !== s.source || t.table !== "nodes") {
+                return [];
+            }
+            const r = t.cells;
+            const v = r[s.read.key];
+            const out = isEmpty(v) || (s.except !== undefined && listed(s.except, r));
+            return out || (s.rows !== undefined && !listed(s.rows, r))
+                ? []
+                : [[text(v), { table: "nodes", row: t.row, element: n2.id }] as const];
+        }),
+    );
 }
 
 const supply = (el: BuiltElement, src: string): void => {
@@ -1339,7 +1355,13 @@ class Builder {
             this.fate(s.source, "nodes", i, "left-out:empty-key");
             return;
         }
-        const n = this.node(nodeSpace(src), text(key), { source: s.source }, r, st) as BuiltNode;
+        const space = nodeSpace(src);
+        const met = this.resolve(space, text(key));
+        // A row whose key names a node an earlier step built meets it, as an edge end does.
+        if (met !== undefined && !at.seen.has(met)) {
+            this.end(st, space, met, { table: "nodes", row: i });
+        }
+        const n = this.node(space, text(key), { source: s.source }, r, st) as BuiltNode;
         const repeat = at.seen.has(n.id);
         at.seen.add(n.id);
         this.touch(n, s, si, "nodes", r, i);
@@ -1554,7 +1576,11 @@ class Builder {
                 roles: src.mapping[table] ?? {},
                 read: rd,
                 table,
-                ends: { source: rd.source, target: rd.target },
+                // a row whose two ends read one column (a key met by the same column) keeps them apart
+                ends:
+                    rd.source === rd.target
+                        ? { source: "source", target: "target" }
+                        : { source: rd.source, target: rd.target },
                 repeated: s.repeated,
             });
             this.mark(st, "matched", { ...here, element: made });
@@ -1799,6 +1825,14 @@ class Builder {
             }
         }
         this.settleKept(st, space, kept);
+        // What the merge leaves of source 2 as nodes of their own: neither folded nor dropped.
+        const live = new Set(this.nodes.values());
+        for (const n2 of node2s) {
+            if (live.has(n2)) {
+                st.keptNew++;
+                this.mark(st, "keptNew", { element: n2.id, key: n2.key });
+            }
+        }
         const untouched = before.filter((id) => !reached.has(id) && this.nodes.has(id));
         for (const id of untouched) {
             this.mark(st, "untouched", { element: id });

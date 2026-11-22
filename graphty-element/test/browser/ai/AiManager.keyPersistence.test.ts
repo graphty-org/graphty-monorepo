@@ -6,19 +6,26 @@
 // encrypt-storage, as the ./ai and ./credentials entry points register it
 import "../../../src/ai/keys/withEncryptStorage";
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 
 import { AiManager } from "../../../src/ai/AiManager";
 import { ApiKeyManager } from "../../../src/ai/keys";
 import type { Graph } from "../../../src/Graph";
-import { createMockGraphContext } from "../../helpers/mock-graph-context";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 
 describe("AiManager key persistence", () => {
-    let mockGraph: Graph;
+    let graph: Graph;
     let testPrefix: string;
 
+    beforeAll(async () => {
+        graph = await createTestGraph();
+    });
+
+    afterAll(() => {
+        cleanupTestGraph(graph);
+    });
+
     beforeEach(() => {
-        mockGraph = createMockGraphContext({ nodeCount: 10, edgeCount: 15 });
         // Generate unique prefix for each test
         testPrefix = `@graphty-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         // Clear any existing test data
@@ -35,7 +42,7 @@ describe("AiManager key persistence", () => {
     describe("default behavior", () => {
         it("should not enable persistence by default", () => {
             const manager = new AiManager();
-            manager.init(mockGraph, { provider: "mock" });
+            manager.init(graph, { provider: "mock" });
 
             const keyManager = manager.getApiKeyManager();
             assert.strictEqual(keyManager.isPersistenceEnabled(), false);
@@ -47,7 +54,7 @@ describe("AiManager key persistence", () => {
     describe("persistence configuration", () => {
         it("should enable persistence when configured", () => {
             const manager = new AiManager();
-            manager.init(mockGraph, {
+            manager.init(graph, {
                 provider: "mock",
                 keyPersistence: {
                     enabled: true,
@@ -64,7 +71,7 @@ describe("AiManager key persistence", () => {
 
         it("should persist API key when persistence enabled", () => {
             const manager = new AiManager();
-            manager.init(mockGraph, {
+            manager.init(graph, {
                 provider: "openai",
                 apiKey: "sk-test-key-12345",
                 keyPersistence: {
@@ -84,7 +91,7 @@ describe("AiManager key persistence", () => {
 
         it("should use sessionStorage when specified", () => {
             const manager = new AiManager();
-            manager.init(mockGraph, {
+            manager.init(graph, {
                 provider: "openai",
                 apiKey: "sk-session-test",
                 keyPersistence: {
@@ -109,7 +116,7 @@ describe("AiManager key persistence", () => {
         it("should use custom storage prefix", () => {
             const customPrefix = "@my-custom-app-prefix";
             const manager = new AiManager();
-            manager.init(mockGraph, {
+            manager.init(graph, {
                 provider: "openai",
                 apiKey: "sk-prefixed-key",
                 keyPersistence: {
@@ -128,7 +135,7 @@ describe("AiManager key persistence", () => {
 
         it("should not enable persistence when enabled is false", () => {
             const manager = new AiManager();
-            manager.init(mockGraph, {
+            manager.init(graph, {
                 provider: "mock",
                 keyPersistence: {
                     enabled: false,
@@ -148,7 +155,7 @@ describe("AiManager key persistence", () => {
         it("should load persisted keys on re-init", () => {
             // First init with persistence - save a key
             const manager1 = new AiManager();
-            manager1.init(mockGraph, {
+            manager1.init(graph, {
                 provider: "openai",
                 apiKey: "sk-persisted-key",
                 keyPersistence: {
@@ -161,7 +168,7 @@ describe("AiManager key persistence", () => {
 
             // Second init should load persisted key (without providing apiKey)
             const manager2 = new AiManager();
-            manager2.init(mockGraph, {
+            manager2.init(graph, {
                 provider: "openai",
                 keyPersistence: {
                     enabled: true,
@@ -179,7 +186,7 @@ describe("AiManager key persistence", () => {
         it("should not decrypt with wrong encryption key", () => {
             // Save with one key
             const manager1 = new AiManager();
-            manager1.init(mockGraph, {
+            manager1.init(graph, {
                 provider: "openai",
                 apiKey: "sk-secret-key-value",
                 keyPersistence: {
@@ -192,7 +199,7 @@ describe("AiManager key persistence", () => {
 
             // Try to load with wrong key
             const manager2 = new AiManager();
-            manager2.init(mockGraph, {
+            manager2.init(graph, {
                 provider: "openai",
                 keyPersistence: {
                     enabled: true,
@@ -212,7 +219,7 @@ describe("AiManager key persistence", () => {
     describe("getApiKeyManager method", () => {
         it("should expose ApiKeyManager via getter", () => {
             const manager = new AiManager();
-            manager.init(mockGraph, { provider: "mock" });
+            manager.init(graph, { provider: "mock" });
 
             const keyManager = manager.getApiKeyManager();
             assert.ok(keyManager instanceof ApiKeyManager);
@@ -222,7 +229,7 @@ describe("AiManager key persistence", () => {
 
         it("should return the same instance on multiple calls", () => {
             const manager = new AiManager();
-            manager.init(mockGraph, { provider: "mock" });
+            manager.init(graph, { provider: "mock" });
 
             const keyManager1 = manager.getApiKeyManager();
             const keyManager2 = manager.getApiKeyManager();

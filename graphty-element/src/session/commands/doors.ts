@@ -2877,10 +2877,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // writes are refused with E_FEATURE_OFF on every session these rows run on, and with the
             // experiment on dispatch data.steps-set (GESTURE_DOORS).
             steps: READ,
+            staged: READ,
             spaces: READ,
             types: READ,
             edits: READ,
             ref: READ,
+            nodeRef: READ,
             stage: SOURCE_STEPS_WRITE,
             declareType: SOURCE_STEPS_WRITE,
             removeEdit: SOURCE_STEPS_WRITE,
@@ -2902,6 +2904,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             currentDraft: READ,
             matchCounts: READ,
             matchValues: READ,
+            sourceTable: READ,
+            profile: READ,
+            setMapping: SOURCE_STEPS_WRITE,
             lineage: READ,
             values: READ,
             cell: READ,
@@ -3673,6 +3678,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             use: DRAFT_ACT,
             editStep: DRAFT_ACT,
             removeStep: DRAFT_ACT,
+            moveStep: DRAFT_ACT,
             removeSource: DRAFT_ACT,
             removeEdit: DRAFT_ACT,
             setMapping: DRAFT_ACT,
@@ -3682,6 +3688,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edits: READ,
             matchCounts: READ,
             matchValues: READ,
+            sourceTable: READ,
+            profile: READ,
             preview: READ,
             pickAll: DRAFT_ACT,
             clearPicks: DRAFT_ACT,
@@ -3697,6 +3705,17 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             show: exempt(
                 "Experimental (source-steps): picks the side of the commit a drawn draft shows, view state no project file saves.",
             ),
+        },
+    },
+    {
+        // Returned by data.sourceTable() and SourceDraft.sourceTable(): reads of a source's rows as read.
+        name: "SourceTable",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            source: READ,
+            summary: READ,
+            profile: READ,
         },
     },
     {
@@ -4448,6 +4467,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             holdMask: READ,
             // A node's drawn size changed, so a layout keeping nodes apart by it starts again.
             wakeForResize: TRANSPORT,
+            // A 2D drawing rising into 3D was moved a step, so the engine steps from it again.
+            wakeForLift: TRANSPORT,
             // Whether the engine keeps nodes apart by their drawn size (`nodeGap`).
             spacesBySize: READ,
             // Reads a `clusterBy` path over the snapshot; the layout manager fills it in when it starts the engine.
@@ -4763,7 +4784,7 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
         "Every data door that changes the graph (import, generate, loadDataset, loadExample, importColumns, a " +
         "draft's load and join, editJoin, addNodes and the other direct edits, stage, declareType, removeEdit, merge, " +
         "connect, extract, moveColumns, a renameColumn naming a source, pick, use, removeStep, setStepOff, add, " +
-        "removeSource, replaceSource, reloadSource, a network refresh, settleEdit, resolveStep, a source draft's " +
+        "setMapping, removeSource, replaceSource, reloadSource, a network refresh, settleEdit, resolveStep, a source draft's " +
         "commit) while the " +
         "source-steps " +
         "experiment is on; the door rows here run with it off. Checked by test/session/source-steps/*.test.ts.",

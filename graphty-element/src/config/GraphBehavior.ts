@@ -49,7 +49,9 @@ const NodeBehaviorShape = z.strictObject({
  * @returns It, without the old key.
  */
 function migrateDepthIndependent(value: z.input<typeof NodeBehaviorShape>): unknown {
-    if (typeof value !== "object" || value === null || !("depthIndependentSize" in value)) {
+    // A preprocess step is handed whatever was given, whatever its type says.
+    const given: unknown = value;
+    if (typeof given !== "object" || given === null || !("depthIndependentSize" in given)) {
         return value;
     }
 

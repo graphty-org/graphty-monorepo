@@ -812,7 +812,8 @@ export abstract class LayoutEngine {
      */
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null {
         // An engine driven without an element has edges whose parent answers none of this.
-        const data = edges[0]?.parentGraph?.getDataManager?.();
+        const host: { getDataManager?: () => Parameters<typeof wholeGraph>[0] } | undefined = edges.at(0)?.parentGraph;
+        const data = host?.getDataManager?.();
         const weights = data === undefined ? null : (wholeGraph(data).edgeList().weights ?? null);
         if (weights === null) {
             return null;
@@ -1475,7 +1476,9 @@ export abstract class LayoutEngine {
         if (!this.positionArrayAttached) {
             // A node built by hand for a unit test, or one belonging to a host that keeps no
             // position array, answers nothing here and the engine keeps its own.
-            const owned = n instanceof ElementPositions ? n : writableLane(n.parentGraph?.getDataManager?.());
+            const host: { getDataManager?: () => object } | undefined =
+                n instanceof ElementPositions ? undefined : n.parentGraph;
+            const owned = n instanceof ElementPositions ? n : writableLane(host?.getDataManager?.());
             if (owned !== undefined) {
                 this.positionArray = owned;
             }
@@ -2663,6 +2666,15 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * filled: every reader below goes through here first, which is why a node added after the last
      * read still gets a row before anything asks for its coordinates.
      */
+    /**
+     * The arrangement the last run produced. A method, so a read after doLayout() is not pinned by
+     * narrowing to the null refresh() set before it.
+     * @returns The result, or null while none is computed.
+     */
+    #laidResult(): LayoutResult | null {
+        return this.result;
+    }
+
     protected refresh(): void {
         if (!this.stale) {
             return;
@@ -2694,7 +2706,9 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         // An arrangement still being computed has nothing to publish yet. The rows an add keeps and
         // the graph it was laid out for are left for the run that publishes the answer, so that a
         // node added meanwhile is laid out with the rest instead of being held unplaced.
-        if (this.result === null && simpleLayoutInternals.waiting.has(this)) {
+        // Read off a local: doLayout() above set it, which narrowing from the reset cannot see.
+        const result = this.#laidResult();
+        if (result === null && simpleLayoutInternals.waiting.has(this)) {
             this.#column = new Float32Array(0);
             this.#waitingFor = (this.#loaded as LoadedGraph | null)?.element ?? null;
             return;
@@ -2704,9 +2718,9 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
 
         const loaded = this.#loaded as LoadedGraph | null;
         this.#column =
-            this.result === null || loaded === null
+            result === null || loaded === null
                 ? new Float32Array(0)
-                : toPositionColumn(this.result, this.scalingFactor, null);
+                : toPositionColumn(result, this.scalingFactor, null);
         this.#laidOut = loaded?.element ?? null;
 
         this.#dropKept(loaded);
@@ -2768,8 +2782,10 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         // Reached the way `positionsFor` reaches the coordinate array: an engine driven directly,
         // by a test or by a host that keeps no graph, has nodes whose parent answers none of this.
         // Every node, not only those the run takes: a run that takes none still reads the element's graph.
-        const manager =
-            compact(this.#nodes, this.#goneNodes)[0]?.parentGraph?.getDataManager?.() ?? this.#rowSource() ?? undefined;
+        const host: { getDataManager?: () => object } | undefined = compact(this.#nodes, this.#goneNodes).at(
+            0,
+        )?.parentGraph;
+        const manager = host?.getDataManager?.() ?? this.#rowSource() ?? undefined;
         const source = manager as Partial<GraphSource> | undefined;
         if (typeof source?.getSnapshot === "function" && typeof source.undirected === "function") {
             const store = wholeGraph(source as GraphSource);

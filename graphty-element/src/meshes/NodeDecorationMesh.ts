@@ -557,7 +557,8 @@ function buildImage(
      * @param standsFor - When the first source is a picture redrawn by {@link redraw}, the URL it was drawn from.
      */
     const load = (sources: readonly string[], failed?: string, standsFor?: string): void => {
-        const [src, ...rest] = sources;
+        const src = sources.at(0);
+        const rest = sources.slice(1);
         if (src === undefined) {
             mat.diffuseTexture = null;
             shape(null);

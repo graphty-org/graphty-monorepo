@@ -296,7 +296,7 @@ function cut(data: VertexData, range: [number, number], kept: readonly number[])
     const copy = new VertexData();
     for (const kind of PER_VERTEX) {
         const from = data[kind];
-        if (from === null || from === undefined || count === 0) {
+        if (from === null || count === 0) {
             continue;
         }
         const stride = from.length / count;

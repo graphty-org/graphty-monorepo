@@ -30,7 +30,9 @@ function digestOf(value: unknown): string {
         text = canonicalize(value);
     } catch {
         // A value with no canonical form (a class instance): its JSON, key order and all.
-        text = JSON.stringify(value) ?? "undefined";
+        // JSON.stringify gives undefined for a value JSON has no form for, whatever the lib types say.
+        const { stringify }: { readonly stringify: (value: unknown) => string | undefined } = JSON;
+        text = stringify(value) ?? "undefined";
     }
 
     return stableDigest(text);
@@ -147,7 +149,7 @@ export function navigationFacts(): { wasDiscarded: boolean | null; navigationTyp
     const wasDiscarded = typeof doc?.wasDiscarded === "boolean" ? doc.wasDiscarded : null;
     let navigationType: string | null = null;
     try {
-        const [entry] = globalThis.performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+        const entry = (globalThis.performance.getEntriesByType("navigation") as PerformanceNavigationTiming[]).at(0);
         navigationType = typeof entry?.type === "string" ? entry.type : null;
     } catch {
         // No navigation timing here (Node): unknown.

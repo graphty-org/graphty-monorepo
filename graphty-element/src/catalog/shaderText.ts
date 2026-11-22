@@ -1232,10 +1232,10 @@ export function retypeShaderParam(
     labels: readonly string[] = [],
 ): ShaderTextDraft {
     const params = draft.params ?? [];
-    const row = params[index];
-    if (row === undefined) {
+    if (index < 0 || index >= params.length) {
         return draft;
     }
+    const row = params[index];
 
     const next: Record<string, unknown> = {
         ...draft,
@@ -1367,7 +1367,7 @@ function carryParamReferences(draft: ShaderTextDraft, from: string, to: string |
 export function renameShaderParam(draft: ShaderTextDraft, from: string, to: string, index?: number): ShaderTextDraft {
     const params = draft.params ?? [];
     const at = index ?? params.map((row) => row.name).lastIndexOf(from);
-    if (params[at] === undefined || from === to) {
+    if (at < 0 || at >= params.length || from === to) {
         return draft;
     }
 
@@ -1387,7 +1387,7 @@ export function renameShaderParam(draft: ShaderTextDraft, from: string, to: stri
 export function removeShaderParam(draft: ShaderTextDraft, name: string, index?: number): ShaderTextDraft {
     const params = draft.params ?? [];
     const at = index ?? params.map((row) => row.name).lastIndexOf(name);
-    if (params[at] === undefined) {
+    if (at < 0 || at >= params.length) {
         return draft;
     }
 

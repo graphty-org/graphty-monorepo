@@ -489,7 +489,7 @@ function labelText(
         return undefined;
     }
     const lines = label.textRuns.map((runs) => runs.map((run) => run.text).join(""));
-    const first = label.textRuns[0]?.[0]?.style;
+    const first = label.textRuns.at(0)?.at(0)?.style;
     const size = label.screenFontPx(camera) * css;
     if (first === undefined || size <= 0 || lines.every((line) => line === "")) {
         return undefined;
@@ -1042,8 +1042,10 @@ function figureDrawing(graph: Graph, options: FigureOptions = {}): FigureDrawing
  */
 export async function exportFigure(graph: Graph, options: FigureOptions = {}): Promise<FigureResult> {
     const format = options.format ?? "svg";
-    if (format !== "svg" && format !== "pdf") {
-        throw captureError("E_BAD_COMMAND", "Unknown figure format", { field: "format", value: String(format) });
+    // A JavaScript caller can pass anything.
+    const given: string = format;
+    if (given !== "svg" && given !== "pdf") {
+        throw captureError("E_BAD_COMMAND", "Unknown figure format", { field: "format", value: format });
     }
     const drawing = figureDrawing(graph, options);
     const key = legendMarks(drawing.legend, drawing.width, drawing.height);

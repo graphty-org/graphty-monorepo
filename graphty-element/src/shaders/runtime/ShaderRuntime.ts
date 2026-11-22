@@ -137,8 +137,13 @@ export class ShaderRuntime {
         this.lostObserver = this.engine.onContextLostObservable.add(() => {
             this.contextLost();
         });
-        globalThis.document?.addEventListener("visibilitychange", this.onVisibility);
-        globalThis.addEventListener?.("pagehide", this.onPageHide);
+        // A worker or Node has no page and no page events.
+        if (typeof document !== "undefined") {
+            document.addEventListener("visibilitychange", this.onVisibility);
+        }
+        if (typeof globalThis.addEventListener === "function") {
+            globalThis.addEventListener("pagehide", this.onPageHide);
+        }
     }
 
     /**
@@ -238,8 +243,12 @@ export class ShaderRuntime {
         this.abandoned.catch(() => undefined);
         this.abandon(disposedError());
         this.engine.onContextLostObservable.remove(this.lostObserver);
-        globalThis.document?.removeEventListener("visibilitychange", this.onVisibility);
-        globalThis.removeEventListener?.("pagehide", this.onPageHide);
+        if (typeof document !== "undefined") {
+            document.removeEventListener("visibilitychange", this.onVisibility);
+        }
+        if (typeof globalThis.removeEventListener === "function") {
+            globalThis.removeEventListener("pagehide", this.onPageHide);
+        }
         this.releaseMarks([...this.marked]);
         this.lostListeners.clear();
         // The engine may already be gone (a graph that switched renderers disposes the old one
@@ -559,7 +568,8 @@ export class ShaderRuntime {
      */
     private contextLost(): void {
         const now = performance.now();
-        const visible = globalThis.document?.visibilityState !== "hidden" && now >= this.hiddenUntil;
+        const visible =
+            (typeof document === "undefined" || document.visibilityState !== "hidden") && now >= this.hiddenUntil;
         // The programs are gone with the context; they compile again when asked.
         for (const hash of [...this.effects.keys()]) {
             this.forget(hash);

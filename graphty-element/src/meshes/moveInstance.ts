@@ -35,9 +35,12 @@ export function moveInstance(instance: InstancedMesh, to: Mesh): void {
     instance._unIndexed = to._unIndexed;
     // An instanced buffer the new source registered and the old one did not starts at the
     // source's value, as Babylon's own factory starts every new instance.
-    if (to.instancedBuffers) {
-        instance.instancedBuffers ??= {};
-        for (const kind of Object.keys(to.instancedBuffers)) {
+    // Babylon types both buffer tables as always there; a mesh that registered none has none.
+    const toView: { readonly instancedBuffers?: Mesh["instancedBuffers"] } = to;
+    const instanceView: { instancedBuffers?: InstancedMesh["instancedBuffers"] } = instance;
+    if (toView.instancedBuffers) {
+        instance.instancedBuffers = instanceView.instancedBuffers ?? {};
+        for (const kind of Object.keys(toView.instancedBuffers)) {
             if (!(kind in instance.instancedBuffers)) {
                 instance.instancedBuffers[kind] = to.instancedBuffers[kind] as unknown;
             }

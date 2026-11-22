@@ -66,7 +66,6 @@ import type { EdgeId, FormatId, NodeId, Rgba, RuleTree, ScopeInput, SetId } from
 import {
     catalogFormatDescriptors,
     COMMON_WRITER_OPTIONS,
-    type FormatWriterRegistration,
     registeredFormatWriter,
     withCommonWriterOptions,
 } from "../catalog/writerRegistry";
@@ -271,7 +270,7 @@ interface ExportViewState {
 type AnyExporter = GraphExporter<Record<string, unknown> & CommonExportOptions>;
 
 /** The graph-io exporter behind each built-in format. */
-const BUILT_IN_WRITERS: Readonly<Record<string, AnyExporter>> = {
+const BUILT_IN_WRITERS: Readonly<Partial<Record<string, AnyExporter>>> = {
     json: jsonExporter,
     csv: csvExporter,
     graphml: graphmlExporter,
@@ -1083,7 +1082,8 @@ interface ChosenWriter {
 function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter {
     const builtIn = BUILT_IN_WRITERS[format];
     const registered = builtIn === undefined ? registeredFormatWriter(format) : undefined;
-    if (builtIn === undefined && registered === undefined) {
+    const exporter = builtIn ?? registered?.exporter;
+    if (exporter === undefined) {
         throw new GraphtyError({
             code: "E_UNKNOWN_FORMAT",
             message: `nothing writes the format "${format}"`,
@@ -1114,7 +1114,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     });
     if (format !== "csv") {
         return {
-            exporter: builtIn ?? (registered as FormatWriterRegistration).exporter,
+            exporter,
             options: resolved,
             build: { format, notes: notes === true, groupRanks: groupRanks === true, styles: styles === true },
         };
@@ -1130,7 +1130,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
         delete rest.header;
     }
     return {
-        exporter: neo4j ? neo4jExporter : builtIn,
+        exporter: neo4j ? neo4jExporter : exporter,
         options: rest,
         build: {
             format,

@@ -168,16 +168,19 @@ function webLocks(locks: LockManager): PageLocks {
     // "who holds it?" until their page hides, so the two can be told apart.
     const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(LOCKS_CHANNEL);
     let leaving = false;
-    globalThis.addEventListener?.("pagehide", () => {
-        leaving = true;
-    });
-    globalThis.addEventListener?.("pageshow", () => {
-        leaving = false;
-    });
+    // A worker or Node has no page events.
+    if (typeof globalThis.addEventListener === "function") {
+        globalThis.addEventListener("pagehide", () => {
+            leaving = true;
+        });
+        globalThis.addEventListener("pageshow", () => {
+            leaving = false;
+        });
+    }
     channel?.addEventListener("message", (event: MessageEvent<{ ask?: string }>) => {
         const name = event.data.ask;
         if (!leaving && name !== undefined && (mine.has(name) || parked.has(name))) {
-            channel?.postMessage({ held: name });
+            channel.postMessage({ held: name });
         }
     });
     const handoff = (name: string): Promise<void> => {
@@ -288,8 +291,9 @@ export function browserEnvironment(): AutosaveEnvironment {
         return browser;
     }
 
-    const nav = globalThis.navigator as
-        (Navigator & { userActivation?: { hasBeenActive?: boolean }; locks?: LockManager }) | undefined;
+    const nav = globalThis.navigator as (Navigator & { locks?: LockManager }) | undefined;
+    // Missing in browsers that predate User Activation v2, whatever the DOM types say.
+    const activation: { readonly hasBeenActive?: boolean } | undefined = nav?.userActivation;
     const locks: PageLocks =
         nav?.locks === undefined
             ? { ...noLocks, wait: () => Promise.resolve(), own: () => Promise.resolve(true) }
@@ -301,7 +305,7 @@ export function browserEnvironment(): AutosaveEnvironment {
         sessionStorage: () => globalThis.sessionStorage,
         locks,
         clock: realClock,
-        userActivated: () => nav?.userActivation?.hasBeenActive === true,
+        userActivated: () => activation?.hasBeenActive === true,
         thirdParty: () => {
             if (globalThis.top === globalThis.self) {
                 return false;
@@ -315,7 +319,7 @@ export function browserEnvironment(): AutosaveEnvironment {
             }
         },
         defaultStore: () => (typeof indexedDB === "undefined" ? undefined : indexedDbAutosaveStore()),
-        ...(globalThis.document === undefined ? {} : { tab: globalThis as unknown as { name: string } }),
+        ...(typeof document === "undefined" ? {} : { tab: globalThis as unknown as { name: string } }),
         navigationType: () => navigationFacts().navigationType,
     };
     return browser;
@@ -798,6 +802,15 @@ export class ElementAutosave {
     }
 
     /**
+     * Whether the element left the page. A method, so a read after an await is not pinned by
+     * narrowing to what it was before.
+     * @returns True once it left.
+     */
+    #hasDeparted(): boolean {
+        return this.#departed;
+    }
+
+    /**
      * Settles once the restore is decided (or autosave stopped).
      * @returns The `ready` promise.
      */
@@ -918,8 +931,8 @@ export class ElementAutosave {
             restore: options.restore ?? start.restore,
             pageConfig: start.pageConfig,
         };
-        const restored = this.#departed ? null : await saver.recover(recover);
-        if (this.#departed) {
+        const restored = this.#hasDeparted() ? null : await saver.recover(recover);
+        if (this.#hasDeparted()) {
             this.#finish(null);
             return;
         }

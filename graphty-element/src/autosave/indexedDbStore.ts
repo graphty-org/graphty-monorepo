@@ -188,7 +188,7 @@ type Step = <T>(req: IDBRequest<T>) => Promise<T>;
  */
 async function newestSeq(entries: IDBObjectStore, key: string, step: Step): Promise<number> {
     const newest = await step(entries.index("keySeq").openKeyCursor(seqsOf(key), "prev"));
-    return newest === null ? 0 : ((newest.key as [string, number])[1] ?? 0);
+    return newest === null ? 0 : (newest.key as [string, number])[1];
 }
 
 /** What a commit reads before it writes. */
@@ -346,7 +346,7 @@ export function indexedDbAutosaveStore(options: IndexedDbAutosaveStoreOptions = 
             db.onclose = forget;
         };
         const opening = new Promise<IDBDatabase>((resolve, reject) => {
-            const factory = options.factory ?? globalThis.indexedDB;
+            const factory = options.factory ?? (typeof indexedDB === "undefined" ? undefined : indexedDB);
             if (factory === undefined) {
                 reject(new DOMException("IndexedDB is not available", "NotSupportedError"));
                 return;

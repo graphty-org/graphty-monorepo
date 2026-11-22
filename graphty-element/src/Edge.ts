@@ -817,7 +817,7 @@ export class Edge {
                 return inWorld(edge, curve);
             }
 
-            const slot = edge.lineSlots[0];
+            const slot = edge.lineSlots.at(0);
             if (edge.lineBatch !== null && slot !== undefined) {
                 return inWorld(edge, edge.lineBatch.endsOf(slot));
             }
@@ -3024,7 +3024,7 @@ export class Edge {
         const frame = scene.getFrameId();
         let rule = liftRule.get(scene);
         if (rule?.frame !== frame) {
-            const layout = this.context.getSession?.()?.layout;
+            const layout = this.context.getSession?.().layout;
             rule = { frame, draws: layout?.dimension === "3d" && layout.arrangedDimension === "2d" };
             liftRule.set(scene, rule);
         }

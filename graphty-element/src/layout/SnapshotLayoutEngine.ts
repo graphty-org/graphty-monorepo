@@ -626,7 +626,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     protected positionScale(): number {
         return (
             this.#host?.positionScale?.() ??
-            this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ??
+            this._nodes.at(0)?.parentGraph.getStyles().config.data.knownFields.positionScale ??
             1
         );
     }
@@ -638,7 +638,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
      */
     protected rankSets(): readonly RankSet[] {
         const graph: { getDataManager?: () => { readonly rankSets: readonly RankSet[] } } | undefined =
-            this._nodes[0]?.parentGraph;
+            this._nodes.at(0)?.parentGraph;
         return this.#host?.rankSets?.() ?? graph?.getDataManager?.().rankSets ?? [];
     }
 

@@ -500,7 +500,7 @@ function spaceAfter(
     anywhere: boolean,
     skipEnd: boolean,
 ): number {
-    const next = pieces[i + 1];
+    const next = pieces.at(i + 1);
     if (next !== undefined && SPACES.test(next.text)) {
         return measure(next.text, next.style);
     }

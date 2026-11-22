@@ -59,7 +59,7 @@ export interface GlyphLabelEntry {
 }
 
 // The canvas calls that put ink down, and the style each one inks with.
-const INK_CALLS: Record<string, "fillStyle" | "strokeStyle" | "both"> = {
+const INK_CALLS: Partial<Record<string, "fillStyle" | "strokeStyle" | "both">> = {
     fill: "fillStyle",
     fillRect: "fillStyle",
     stroke: "strokeStyle",
@@ -102,7 +102,8 @@ function scratchContext(scene: Scene): CanvasRenderingContext2D {
 export function recordRuns(scene: Scene, paint: (ctx: CanvasRenderingContext2D) => void): Run[] | null {
     const target = scratchContext(scene);
     const runs: Run[] = [];
-    let plain = true;
+    // Cleared by the recorder's calls, so read off an object narrowing cannot pin.
+    const seen = { plain: true };
     target.save();
     const recorder = new Proxy(target, {
         get(t, name: string) {
@@ -114,7 +115,7 @@ export function recordRuns(scene: Scene, paint: (ctx: CanvasRenderingContext2D) 
             if (inks !== undefined) {
                 // A path filled or stroked with nothing (a transparent panel) is still plain.
                 if (inks === "both" || !clear(t[inks]) || !clear(t.shadowColor)) {
-                    plain = false;
+                    seen.plain = false;
                 }
                 return () => undefined;
             }
@@ -122,11 +123,11 @@ export function recordRuns(scene: Scene, paint: (ctx: CanvasRenderingContext2D) 
                 return (text: string, x: number, y: number) => {
                     // A shadow or a see-through canvas would be drawn by canvas alone.
                     if (!clear(t.shadowColor) || t.globalAlpha !== 1 || t.globalCompositeOperation !== "source-over") {
-                        plain = false;
+                        seen.plain = false;
                     }
                     // A gradient or pattern is not a color: the canvas draws that run.
                     if (typeof t.fillStyle !== "string") {
-                        plain = false;
+                        seen.plain = false;
                     }
                     runs.push({ text, x, y, font: t.font, color: typeof t.fillStyle === "string" ? t.fillStyle : "" });
                 };
@@ -139,7 +140,7 @@ export function recordRuns(scene: Scene, paint: (ctx: CanvasRenderingContext2D) 
     });
     paint(recorder);
     target.restore();
-    return plain ? runs : null;
+    return seen.plain ? runs : null;
 }
 
 /**

@@ -140,7 +140,7 @@ const DATA_MIN_SPAN = 0.01;
  * @returns The box, or null for none.
  */
 function dataBounds(placed: readonly LatLon[]): GeoBounds | null {
-    const first = placed[0];
+    const first = placed.at(0);
     const onePlace = first !== undefined && placed.every((p) => p.lat === first.lat && p.lon === first.lon);
     return boundsOf(placed, { minSpan: onePlace ? ONE_PLACE_SPAN : DATA_MIN_SPAN });
 }

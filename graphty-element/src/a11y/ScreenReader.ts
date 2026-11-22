@@ -317,7 +317,7 @@ export class ScreenReader {
 
         const { selection } = this.#host.session();
         this.#ids.forEach((id, index) => {
-            list.children[index]?.setAttribute("aria-selected", String(selection.has(id)));
+            list.children.item(index)?.setAttribute("aria-selected", String(selection.has(id)));
         });
     }
 

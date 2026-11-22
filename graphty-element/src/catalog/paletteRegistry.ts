@@ -91,7 +91,9 @@ export function registerPalette(descriptor: PaletteRegistration, options?: Regis
         refuse("", "descriptor", "registerPalette takes a palette descriptor");
     }
 
-    if (descriptor.plainName === undefined || descriptor.plainName === "") {
+    // A JavaScript caller can leave the plain name out or misspell the kind.
+    const named: Partial<PaletteRegistration> = descriptor;
+    if (named.plainName === undefined || named.plainName === "") {
         refuse(
             descriptor.id,
             "plainName",
@@ -99,7 +101,8 @@ export function registerPalette(descriptor: PaletteRegistration, options?: Regis
         );
     }
 
-    if (descriptor.kind !== "sequential" && descriptor.kind !== "diverging" && descriptor.kind !== "categorical") {
+    const kinds: readonly string[] = ["sequential", "diverging", "categorical"];
+    if (!kinds.includes(descriptor.kind)) {
         refuse(
             descriptor.id,
             "kind",

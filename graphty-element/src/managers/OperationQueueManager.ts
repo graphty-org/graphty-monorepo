@@ -890,7 +890,7 @@ export class OperationQueueManager implements Manager {
      * @returns How many operations are left, and the running one's category and percent.
      */
     pendingWork(): PendingWorkProgress {
-        const [running] = this.runningOperations.values();
+        const running = this.runningOperations.values().next().value;
         return {
             code: "PENDING_WORK",
             params: {

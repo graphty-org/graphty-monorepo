@@ -414,6 +414,16 @@ function isAbort(error: unknown): boolean {
     return (error as { name?: unknown } | null)?.name === "AbortError";
 }
 
+/**
+ * Whether a signal is aborted, read afresh: after an await, narrowing would pin `signal.aborted`
+ * to what an earlier check saw.
+ * @param signal - The signal.
+ * @returns True once it is aborted.
+ */
+function isAborted(signal: AbortSignal): boolean {
+    return signal.aborted;
+}
+
 /** A 2D camera's frustum edges, as a camera state names them. */
 const ORTHO_EDGES = ["orthoLeft", "orthoRight", "orthoTop", "orthoBottom"] as const;
 
@@ -531,11 +541,11 @@ function parseRenderSettings(settings: Record<string, unknown>): GraphBehaviorCo
 
     const parsed = RenderSettingsOpts.partial().safeParse(settings);
     if (!parsed.success) {
-        const [issue] = parsed.error.issues;
+        const issue = parsed.error.issues.at(0);
         const option = String(issue?.path[0]);
         throw new GraphtyError({
             code: "E_OPTION_RANGE",
-            message: `the render setting "${option}" was refused: ${issue?.message}`,
+            message: `the render setting "${option}" was refused: ${issue?.message ?? ""}`,
             source: "view",
             details: { option, value: settings[option] },
             cause: parsed.error,
@@ -3198,7 +3208,7 @@ export class Graph implements GraphContext {
             // Under the queued build's signal, so a layout the consumer has already asked for still
             // replaces the default before it is built. See `openingSignalFor`.
             await this.buildOpeningLayout(this.#openingSignal);
-            if (this.#teardown.signal.aborted) {
+            if (isAborted(this.#teardown.signal)) {
                 return;
             }
 
@@ -3209,7 +3219,7 @@ export class Graph implements GraphContext {
             // Initialize all managers through lifecycle manager
             await this.lifecycleManager.init();
             // Shut down while the managers were initializing: they are disposed, so nothing starts.
-            if (this.#teardown.signal.aborted) {
+            if (isAborted(this.#teardown.signal)) {
                 return;
             }
 
@@ -4289,7 +4299,7 @@ export class Graph implements GraphContext {
                 options: { ...(opts as Record<string, unknown>) },
                 ...(scope === undefined ? {} : { scope: this.canonicalLayoutScope(scope) }),
             },
-            options?.skipQueue === true ? { beside: true } : undefined,
+            options.skipQueue === true ? { beside: true } : undefined,
         );
     }
 
@@ -5287,7 +5297,7 @@ export class Graph implements GraphContext {
                 report: () => undefined,
             });
         } catch (error: unknown) {
-            if (stop.aborted) {
+            if (isAborted(stop)) {
                 return false;
             }
 
@@ -5415,8 +5425,10 @@ export class Graph implements GraphContext {
      * @param path - The path.
      */
     setRenderPath(path: RenderPath): void {
-        if (path !== "objects" && path !== "batched") {
-            throw new Error(`unknown render path "${String(path)}"`);
+        // A JavaScript caller can pass anything.
+        const given: string = path;
+        if (given !== "objects" && given !== "batched") {
+            throw new Error(`unknown render path "${path}"`);
         }
 
         if (path === "objects" && this.#renderPath === "batched") {
@@ -5578,7 +5590,7 @@ export class Graph implements GraphContext {
                     repaint: (rows) => {
                         const painter = this.getStylePainter();
                         for (const row of rows) {
-                            painter?.queue("node", row);
+                            painter.queue("node", row);
                         }
 
                         this.renderManager.requestFrame();
@@ -6001,7 +6013,7 @@ export class Graph implements GraphContext {
                 this.scene.doNotHandleCursors ||
                 (buttons ?? 0) !== 0 ||
                 canvas.style.cursor === this.scene.hoverCursor ||
-                (this.scene.metadata as GraphSceneMetadata | null)?.xrHelper?.baseExperience?.state === WebXRState.IN_XR
+                (this.scene.metadata as GraphSceneMetadata | null)?.xrHelper?.baseExperience.state === WebXRState.IN_XR
             ) {
                 return;
             }
@@ -6669,8 +6681,10 @@ export class Graph implements GraphContext {
      * @since 3.58.0
      */
     setColorScheme(scheme: ColorScheme): void {
-        if (scheme !== "light" && scheme !== "dark" && scheme !== "auto") {
-            throw new TypeError(`colorScheme must be "light", "dark" or "auto", not ${JSON.stringify(scheme)}`);
+        // A JavaScript caller can pass anything.
+        const given: string = scheme;
+        if (given !== "light" && given !== "dark" && given !== "auto") {
+            throw new TypeError(`colorScheme must be "light", "dark" or "auto", not ${JSON.stringify(given)}`);
         }
 
         this.#colorScheme = scheme;
@@ -8052,7 +8066,7 @@ export class Graph implements GraphContext {
                       code: "E_MODEL_FORMAT_UNSUPPORTED",
                       params: { format: record.format, fileName: record.path ?? "", assetKind: "image" },
                   }
-                : record.problems[0];
+                : record.problems.at(0);
         const standIn =
             standInMissing && record.state !== "accepted"
                 ? (assets as AssetsApiInternal).standIn(record.id)
@@ -8289,7 +8303,7 @@ export class Graph implements GraphContext {
 
             return {
                 drawable: false,
-                failure: { code: error.code, params: (error.details ?? {}) as CodedFact["params"] },
+                failure: { code: error.code, params: error.details as CodedFact["params"] },
             };
         };
         const found = await this.#drawableModel(ref, options.standInMissing === true).catch(failed);
@@ -8552,7 +8566,8 @@ export class Graph implements GraphContext {
         };
         const timed = options.duration !== undefined;
         const easing = options.easing ?? flown.easing ?? "easeInOut";
-        let tourFinished = false;
+        // Set from the flight's callback, so read off an object narrowing cannot pin.
+        const flightDone = { finished: false };
         let flight: Promise<void> | undefined;
         let stopClock = (): void => undefined;
 
@@ -8573,7 +8588,7 @@ export class Graph implements GraphContext {
                         if (handle.ended) {
                             return;
                         }
-                        tourFinished = true;
+                        flightDone.finished = true;
                         // The whole tour is recorded: a press or camera move in a longer
                         // duration's trailing hold ends the hold, never the recording.
                         handle.onEnd = undefined;
@@ -8605,7 +8620,7 @@ export class Graph implements GraphContext {
                 }
             }
             // A recording that ended before its tour (a shorter duration, a failure) cancels it.
-            this.#finishTour(handle, tourFinished ? "finished" : "cancelled");
+            this.#finishTour(handle, flightDone.finished ? "finished" : "cancelled");
             await flight;
         }
     }
@@ -8851,6 +8866,7 @@ export class Graph implements GraphContext {
                 await this.#applyTourCamera(state, 0);
             }
 
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- a press or #endTour sets it while the flight above is awaited; TypeScript keeps the loop-top narrowing across await
             if (tour.ended) {
                 return;
             }

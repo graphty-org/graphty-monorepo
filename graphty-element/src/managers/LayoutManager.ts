@@ -88,6 +88,16 @@ const MAX_ITERATIONS_PER_STEP_CHUNK = 256;
 const MAX_UNSEEN_STEPS = 600;
 
 /**
+ * Whether an engine is settled, read afresh: a step changes it, which narrowing from a check
+ * before the step cannot see.
+ * @param engine - The engine.
+ * @returns True once it is settled.
+ */
+function settledNow(engine: LayoutEngine): boolean {
+    return engine.isSettled;
+}
+
+/**
  * The published option schema each simulation type is configured through.
  *
  * ONE DECLARATION, not two. Each of the three engines used to carry a second, stricter Zod object
@@ -3509,7 +3519,8 @@ export class LayoutManager implements Manager {
         }
 
         this.runPreStepsOnceThereIsSomethingToStep();
-        if (this.preStepsInFlight || (this.preStepsOwed && this.dataManager.nodes.size > 0)) {
+        // The count, not the getter checked above: the call just made can have started a chunk.
+        if (this.#chunksInFlight > 0 || (this.preStepsOwed && this.dataManager.nodes.size > 0)) {
             // The payment just started has its first chunk on the device, or it waits for sizes.
             return;
         }
@@ -3523,7 +3534,7 @@ export class LayoutManager implements Manager {
         if (engine && this.running && !engine.isSettled) {
             engine.step();
             // Under reduced motion the layout runs unseen and is drawn once, settled.
-            if (this.reducedMotion && !engine.isSettled && ++this.#unseenSteps < MAX_UNSEEN_STEPS) {
+            if (this.reducedMotion && !settledNow(engine) && ++this.#unseenSteps < MAX_UNSEEN_STEPS) {
                 return;
             }
 

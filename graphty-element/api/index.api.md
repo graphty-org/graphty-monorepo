@@ -3591,7 +3591,7 @@ export class Graphty extends LitElement {
     batchOperations(fn: (tx: TransactionScope_2) => Promise<void> | void, label?: string): Promise<void>;
     get cameraPlaced(): boolean;
     get cameraTransitionDuration(): number | undefined;
-    set cameraTransitionDuration(value: number | undefined);
+    set cameraTransitionDuration(value: number | null | undefined);
     canCaptureScreenshot(options?: ScreenshotOptions): Promise<CapabilityCheck>;
     cancelAiCommand(): void;
     cancelAnimationCapture(): boolean;
@@ -3615,11 +3615,11 @@ export class Graphty extends LitElement {
     get dataSource(): string | undefined;
     set dataSource(value: string | undefined);
     get dataSourceConfig(): Record<string, unknown> | undefined;
-    set dataSourceConfig(value: Record<string, unknown> | undefined);
+    set dataSourceConfig(value: Record<string, unknown> | null | undefined);
     deleteAiConversation(id: string): Promise<void>;
     deselectNode(): void;
     get directed(): boolean | "auto" | undefined;
-    set directed(value: boolean | "auto" | undefined);
+    set directed(value: boolean | "auto" | null | undefined);
     disableAiControl(): void;
     disconnectedCallback(): void;
     downloadGraph(format: FormatId, options?: ExportGraphOptions & {
@@ -3646,7 +3646,7 @@ export class Graphty extends LitElement {
     set edgeTimePath(value: string | undefined);
     // @beta
     get edgeTimeUnit(): string | undefined;
-    set edgeTimeUnit(value: string | undefined);
+    set edgeTimeUnit(value: string | null | undefined);
     get edgeWeightPath(): string | undefined;
     set edgeWeightPath(value: string | undefined);
     elementAt(point: {
@@ -3715,7 +3715,7 @@ export class Graphty extends LitElement {
     getXRConfig(): XRConfig | undefined;
     getXRSessionManager(): XRSessionManager | undefined;
     get globeLook(): GlobeLook;
-    set globeLook(value: GlobeLook);
+    set globeLook(value: GlobeLook | null);
     get graph(): Graph;
     groupOutlineAt(point: {
         x: number;
@@ -3762,7 +3762,7 @@ export class Graphty extends LitElement {
     get legendPosition(): ScreenshotLegendPosition;
     set legendPosition(value: ScreenshotLegendPosition);
     get lighting(): Lighting;
-    set lighting(value: Lighting);
+    set lighting(value: Lighting | null);
     get limits(): Readonly<LimitsOption>;
     set limits(value: LimitsOption);
     listAiConversations(options?: {
@@ -3811,7 +3811,7 @@ export class Graphty extends LitElement {
     set nodeTimePath(value: string | undefined);
     // @beta
     get nodeTimeUnit(): string | undefined;
-    set nodeTimeUnit(value: string | undefined);
+    set nodeTimeUnit(value: string | null | undefined);
     static get observedAttributes(): string[];
     on(type: EventType, callback: EventCallbackType): void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
@@ -3829,7 +3829,7 @@ export class Graphty extends LitElement {
         reason: TourEndReason;
     }>;
     get positionScale(): number | undefined;
-    set positionScale(value: number | undefined);
+    set positionScale(value: number | null | undefined);
     get preserveDrawingBuffer(): boolean;
     set preserveDrawingBuffer(value: boolean);
     get reducedMotion(): boolean | "auto";
@@ -3853,7 +3853,7 @@ export class Graphty extends LitElement {
     set renderPath(value: RenderPath);
     get renderQuality(): RenderQuality;
     get repeatedEdges(): DuplicatePolicy | undefined;
-    set repeatedEdges(value: DuplicatePolicy | undefined);
+    set repeatedEdges(value: DuplicatePolicy | null | undefined);
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
     resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;
     resolveCameraPreset(preset: string, options?: {

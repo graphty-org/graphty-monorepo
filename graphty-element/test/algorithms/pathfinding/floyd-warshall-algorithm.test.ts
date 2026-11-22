@@ -2,17 +2,17 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { FloydWarshallAlgorithm } from "../../../src/algorithms/FloydWarshallAlgorithm";
-import { createMockGraph, type MockGraph } from "../../helpers/mockGraph";
+import { createSessionGraph, type SessionGraph } from "../../helpers/session-graph";
 
-const mockGraph = createMockGraph;
+const mockGraph = createSessionGraph;
 
 /**
  * A small graph for testing Floyd-Warshall, which is O(n^3): A -- B -- C -- D.
  * @returns the mock graph
  */
 
-async function mockSmallGraph(): Promise<MockGraph> {
-    return createMockGraph({
+async function mockSmallGraph(): Promise<SessionGraph> {
+    return createSessionGraph({
         nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
         edges: [
             { srcId: "A", dstId: "B", value: 1 },

@@ -58,7 +58,6 @@ uniform sampler2D graphty_image;
 uniform float graphty_hasImage;
 uniform float graphty_imageFlat;
 uniform vec4 graphty_imageFit;
-${[...TINT_UNIFORMS, ...TINT_COLOR_UNIFORMS].map((name) => `uniform vec4 ${name};`).join("\n")}
 varying vec2 vUV;
 ${paramDeclarations(params)}
 #line 1
@@ -114,8 +113,6 @@ ${clockAssignments(params, new Set<string>())}
             "graphty_hasImage",
             "graphty_imageFlat",
             "graphty_imageFit",
-            ...TINT_UNIFORMS,
-            ...TINT_COLOR_UNIFORMS,
             ...params.map((param) => `graphty_p_${param.name}`),
         ],
         uniformBuffers: [SCENE_BLOCK],

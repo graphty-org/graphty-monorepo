@@ -3153,7 +3153,7 @@ function prepareListItemBinding(item: ListItemTarget, options: PrepareBindingOpt
     const { binding } = options;
     let prepared: PreparedBinding;
     if ("template" in binding) {
-        prepared = prepareTemplateBinding(descriptor, binding.template, options);
+        prepared = prepareTemplateBinding(descriptor, binding, options);
     } else if ("value" in binding) {
         prepared = prepareLiteral(descriptor, binding);
     } else {

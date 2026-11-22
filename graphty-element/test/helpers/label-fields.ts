@@ -44,6 +44,11 @@ export const WORDS = "Alpha beta gamma delta \nepsilon 12345 ";
 
 const BACKGROUND = { background: "#ffee00" };
 
+/** A small solid picture for the label image fields. */
+const LABEL_PICTURE = `data:image/svg+xml;utf8,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#0000ff"/></svg>',
+)}`;
+
 /**
  * What every field is drawn with. `size: 3` makes the label readable at the fitted camera (the catalog's `start`).
  */
@@ -81,6 +86,12 @@ export const FIELD_CASES: Readonly<Record<keyof LabelStyle, FieldCase>> = {
     lineBox: { value: "glyphs", base: BACKGROUND },
     borderAlign: { value: "center", base: { borderWidth: 6 } },
     backgroundShape: { value: "circle", base: BACKGROUND },
+    borderStyle: { value: "double", base: { borderWidth: 8 } },
+    image: { value: LABEL_PICTURE },
+    imageWidth: { value: 3, base: { image: LABEL_PICTURE } },
+    imageHeight: { value: 3, base: { image: LABEL_PICTURE } },
+    imageOffsetX: { value: 2, base: { image: LABEL_PICTURE } },
+    imageOffsetY: { value: 2, base: { image: LABEL_PICTURE } },
     minScreenSize: { value: 200 },
     declutter: { value: "size", everyOne: true, base: { size: 8 } },
     minNodeScreenSize: { value: 2000 },

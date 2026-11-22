@@ -238,12 +238,12 @@ describe.each(
     it("keeps every node and edge drawn while the pointer hovers one", async () => {
         const element = await ring(path, view, edges, rows);
         assertLazy(element, path, edges);
-        // The default Hovered row sets nothing; a halo is what takes a row off its batch, as Selected's does.
+        // The default Hovered row sets nothing; a ring is what takes a row off its batch, as Selected's does.
         await element.session.styles.add({
-            name: "Hover halo",
+            name: "Hover ring",
             target: "node",
             selector: { match: "state", state: "hovered" },
-            set: { "node.haloColor": "#20c020" },
+            set: { "node.outerBorderColor": "#20c020", "node.outerBorderWidth": 0.2 },
         });
         await settle(element);
         await hover(element, nodePoint(element, "0"));
@@ -251,17 +251,17 @@ describe.each(
         await assertAllDrawn(element, "while the pointer is on node 0");
     });
 
-    it("keeps every node and edge drawn when a style gives one node a halo, which no batch draws", async () => {
+    it("keeps every node and edge drawn when a style gives one node a ring", async () => {
         const element = await ring(path, view, edges, rows);
         assertLazy(element, path, edges);
         await element.session.styles.add({
-            name: "Halo on 0",
+            name: "Ring on 0",
             target: "node",
             selector: { match: "ids", nodes: ["0"] },
-            set: { "node.haloColor": "#20c020" },
+            set: { "node.outerBorderColor": "#20c020", "node.outerBorderWidth": 0.2 },
         });
         await settle(element);
-        await assertAllDrawn(element, "after a halo on node 0");
+        await assertAllDrawn(element, "after a ring on node 0");
     });
 
     // #9223: a switch between 2D and 3D on the batched path left plain edges in disposed batches.

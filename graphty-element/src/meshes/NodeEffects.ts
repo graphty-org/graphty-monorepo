@@ -12,6 +12,7 @@ import { Scene } from "@babylonjs/core/scene.js";
 import type { NodeStyleConfig } from "../config";
 import { GraphtyLogger, type Logger } from "../logging";
 import { DEFAULT_GLOW_COLOR } from "../session/styles/channels";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { readColor } from "./readColor";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "meshes", "effects"]);

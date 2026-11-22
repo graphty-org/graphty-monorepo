@@ -714,7 +714,7 @@ export function checkStaticValue(
         case "labelStyle":
             return checkLabelStyle(descriptor, value, path, carried);
         case "labelEntries":
-            return checkLabelEntries(descriptor, value, path);
+            return checkLabelEntries(descriptor, value, path, carried);
         default:
             return {
                 code: "E_UNSUPPORTED",
@@ -770,9 +770,15 @@ const LABEL_ENTRY_KEYS: ReadonlySet<string> = new Set(["id", "text", "style", "o
  * @param descriptor - The channel.
  * @param value - The value.
  * @param path - Where it sits in the specification.
+ * @param carried - What an opened file carried, for a label look this build lacks.
  * @returns The first problem, or null.
  */
-function checkLabelEntries(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
+function checkLabelEntries(
+    descriptor: ChannelDescriptor,
+    value: ChannelValue,
+    path: string,
+    carried: CarriedLooks,
+): LayerProblem | null {
     const shape = `${descriptor.plainName} takes a list of labels, such as [{ id: "top", text: "Top" }].`;
     if (!Array.isArray(value)) {
         return { code: "E_BAD_LAYER", message: shape, path };
@@ -806,7 +812,7 @@ function checkLabelEntries(descriptor: ChannelDescriptor, value: ChannelValue, p
 
         seen.add(entry.id);
         if (entry.style !== undefined) {
-            const problem = checkLabelStyle(descriptor, entry.style as ChannelValue, `${where}.style`);
+            const problem = checkLabelStyle(descriptor, entry.style as ChannelValue, `${where}.style`, carried);
             if (problem !== null) {
                 return problem;
             }

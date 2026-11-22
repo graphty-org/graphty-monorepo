@@ -200,6 +200,9 @@ const draft = visibility.draftOf("c1") ?? visibility.draft("c1");
 const unwritten = visibility.openDrafts().filter((each) => !visibility.conditions.some((c) => c.id === each.id));
 ```
 
+A draft that cannot be opened again (the condition it edited is gone) is dropped, and the restore's
+report lists it as `W_FILTER_DRAFT_DROPPED` with the condition's `id`.
+
 ## The entries
 
 ```javascript

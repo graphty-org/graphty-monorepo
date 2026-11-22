@@ -1,6 +1,6 @@
 /**
- * The screen-state-declared rule: every useState and useReducer says what a reload does to it, and
- * graphty/src holds no undeclared call beyond the per-file counts in screen-state-baseline.json, with
+ * The screen-state-declared rule: every piece of component state says what a reload does to it, and
+ * graphty/src holds no undeclared state beyond the names screen-state-baseline.json excuses, with
  * inline comments off so an eslint-disable hides nothing (issue #9655).
  */
 
@@ -21,6 +21,12 @@ RuleTester.itOnly = it.only;
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const KINDS = ["request", "in flight", "notice", "read", "derived", "pointer"];
 
+/**
+ * The most `// on reload: gap #N` declarations graphty/src may hold: state the reader made that a
+ * reload drops, each tracked by its issue. Only lower it.
+ */
+const MAX_COMPONENT_GAPS = 8;
+
 const tester = new RuleTester({
     languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },
 });
@@ -39,10 +45,25 @@ describe("screen-state-declared", () => {
             "// The menu.\n// on reload: fresh: request: cleared by its reader\nconst [x] = useState(0);",
             "const ref = useRef(null);",
             "const value = useMemo(() => 1, []);",
+            "// on reload: fresh: read: the browser's width\nconst width = useSyncExternalStore(on, read);",
+            '<input\n    // on reload: gap #9702: typed text\n    defaultValue="a"\n/>',
+            "<input value={text} />",
         ],
         invalid: [
             { code: "const [open, setOpen] = useState(false);", errors: [{ messageId: "undeclared" }] },
             { code: "const [s, d] = React.useReducer(reduce, 0);", errors: [{ messageId: "undeclared" }] },
+            {
+                code: 'import { useState as useLocal } from "react";\nconst [note, setNote] = useLocal("");',
+                errors: [{ messageId: "undeclared", data: { hook: "useState", name: "note" } }],
+            },
+            { code: "const width = useSyncExternalStore(on, read);", errors: [{ messageId: "undeclared" }] },
+            { code: '<TextInput defaultValue="a" />', errors: [{ messageId: "undeclared" }] },
+            { code: "const [opened, handlers] = useDisclosure(false);", errors: [{ messageId: "undeclared" }] },
+            {
+                code: 'class Old extends Component {\n    state = { draft: "" };\n}',
+                errors: [{ messageId: "undeclared", data: { hook: "class state", name: "state" } }],
+            },
+            { code: '<input type="checkbox" defaultChecked />', errors: [{ messageId: "undeclared" }] },
             {
                 code: "// on reload: fresh: the menu\nconst [open, setOpen] = useState(false);",
                 errors: [{ messageId: "undeclared" }],
@@ -59,27 +80,50 @@ describe("screen-state-declared", () => {
     });
 
     tester.run(
-        "excuses the calls a file's baseline counts, in order, and no more",
+        "excuses the state a file's baseline names, wherever it is, and no other",
         createRule(
-            () => ({ "file.tsx": 1 }),
+            () => ({ "file.tsx": ["a"] }),
             () => KINDS,
         ),
         {
-            valid: [{ code: "const [a] = useState(0);", filename: `${ROOT}file.tsx` }],
+            valid: [
+                { code: "const [a] = useState(0);", filename: `${ROOT}file.tsx` },
+                {
+                    code: "const [b] = useState(1);",
+                    filename: `${ROOT}file.tsx`,
+                    options: [{ baseline: { "file.tsx": ["b"] } }],
+                },
+            ],
             invalid: [
                 {
-                    code: "const [a] = useState(0);\nconst [b] = useState(1);",
+                    code: "const [b] = useState(1);\nconst [a] = useState(0);",
                     filename: `${ROOT}file.tsx`,
-                    errors: [{ messageId: "undeclared", line: 2 }],
+                    errors: [{ messageId: "undeclared", line: 1 }],
+                },
+                {
+                    // The old one removed and a new one added: the count is the same, the name is not.
+                    code: "const [draft] = useState(1);",
+                    filename: `${ROOT}file.tsx`,
+                    errors: [{ messageId: "undeclared", data: { hook: "useState", name: "draft" } }],
+                },
+                {
+                    code: "const [a] = useState(0);\nconst [a2] = useState(0);",
+                    filename: `${ROOT}file.tsx`,
+                    options: [{ baseline: {} }],
+                    errors: [{ messageId: "undeclared" }, { messageId: "undeclared" }],
                 },
             ],
         },
     );
 
-    it("finds no undeclared state in graphty/src beyond the baseline, and no stale baseline count", async () => {
+    it("finds no undeclared state in graphty/src beyond the baseline, no stale baseline name, and no new gap", async () => {
+        const heard: Record<string, string[]> = {};
         const counted = createRule(
             () => ({}),
             () => Object.keys(JSON.parse(readFileSync(`${ROOT}src/workspace/state/fresh-kinds.json`, "utf8"))),
+            (file, name) => {
+                (heard[file] ??= []).push(name);
+            },
         );
         const eslint = new ESLint({
             cwd: ROOT,
@@ -102,25 +146,41 @@ describe("screen-state-declared", () => {
             ],
         });
         const results = await eslint.lintFiles(["src/**/*.{ts,tsx}"]);
-        const found: Record<string, number> = {};
         const refused: string[] = [];
+        let gaps = 0;
         for (const result of results) {
             const file = relative(ROOT, result.filePath).replaceAll("\\", "/");
+            gaps += (readFileSync(result.filePath, "utf8").match(/on reload:\s*gap #\d+/g) ?? []).length;
             for (const message of result.messages) {
-                if (message.ruleId === "local/screen-state-declared" && message.messageId === "undeclared") {
-                    found[file] = (found[file] ?? 0) + 1;
-                } else {
+                if (message.ruleId !== "local/screen-state-declared" || message.messageId !== "undeclared") {
                     refused.push(`${file}:${String(message.line)} ${message.message}`);
                 }
             }
         }
         const baseline = (
-            JSON.parse(readFileSync(`${ROOT}screen-state-baseline.json`, "utf8")) as { files: Record<string, number> }
+            JSON.parse(readFileSync(`${ROOT}screen-state-baseline.json`, "utf8")) as {
+                files: Record<string, string[]>;
+            }
         ).files;
         assert.deepStrictEqual(refused, []);
-        const over = Object.entries(found).filter(([file, count]) => count > (baseline[file] ?? 0));
-        assert.deepStrictEqual(over, [], "undeclared useState or useReducer past the baseline: declare them");
-        const stale = Object.entries(baseline).filter(([file, count]) => (found[file] ?? 0) < count);
-        assert.deepStrictEqual(stale, [], "a baseline count is higher than the file's undeclared calls: lower it");
+        // Each heard name takes one of its file's baseline names; what is left over either way is wrong.
+        const over: string[] = [];
+        const stale: string[] = [];
+        for (const file of new Set([...Object.keys(heard), ...Object.keys(baseline)])) {
+            const left = [...(baseline[file] ?? [])];
+            for (const name of heard[file] ?? []) {
+                const at = left.indexOf(name);
+                if (at === -1) {
+                    over.push(`${file}: ${name}`);
+                } else {
+                    left.splice(at, 1);
+                }
+            }
+            stale.push(...left.map((name) => `${file}: ${name}`));
+        }
+        assert.deepStrictEqual(over, [], "undeclared component state the baseline does not name: declare it");
+        assert.deepStrictEqual(stale, [], "a baseline name is no longer undeclared in its file: remove it");
+        assert.isAtMost(gaps, MAX_COMPONENT_GAPS, "a new gap #N declaration: keep the state instead");
+        assert.strictEqual(gaps, MAX_COMPONENT_GAPS, "fewer gaps than MAX_COMPONENT_GAPS: lower it");
     });
 });

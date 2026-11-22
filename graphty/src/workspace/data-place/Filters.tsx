@@ -258,10 +258,11 @@ export function FiltersSection({
     // A new card: its value picker opens at once, or on a field, that field's step card.
     const open = (side: Side, field?: CardField, from: Element | null = document.activeElement): void => {
         openedFrom.current = from instanceof HTMLElement && from.matches(OPENS_FILTERS) ? from : null;
-        const id = newConditionId(
-            session?.visibility.conditions ?? [],
-            drafts.map((each) => each.id),
-        );
+        // Not the id of a draft graphty-element holds (one its autosave reopened, in any section).
+        const id = newConditionId(session?.visibility.conditions ?? [], [
+            ...drafts.map((each) => each.id),
+            ...(session?.visibility.openDrafts() ?? []).map((each) => each.id),
+        ]);
         setDrafts((now) => [...now, { id, side, ...(field === undefined ? {} : { field }) }]);
         setOpenId(id);
     };
@@ -651,7 +652,10 @@ function FilterCard({
                       group: "edit" as const,
                       key: "Mod+D",
                       onRun: () => {
-                          const copy = newConditionId(session.visibility.conditions);
+                          const copy = newConditionId(
+                              session.visibility.conditions,
+                              session.visibility.openDrafts().map((each) => each.id),
+                          );
                           const { id: _id, ...rest } = condition;
                           void writeCondition(store, () => session.visibility.addCondition({ ...rest, id: copy })).then(
                               () => {

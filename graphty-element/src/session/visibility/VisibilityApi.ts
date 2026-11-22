@@ -1276,21 +1276,26 @@ export function filterDraftHooks(visibility: object): FilterDraftHooks | undefin
  * taken by now, is dropped.
  * @param visibility - The model.
  * @param saved - The drafts.
+ * @returns The ids of the conditions whose drafts were dropped.
  */
-export function reopenFilterDrafts(visibility: VisibilityApi, saved: readonly SavedFilterDraft[]): void {
+export function reopenFilterDrafts(visibility: VisibilityApi, saved: readonly SavedFilterDraft[]): string[] {
+    const dropped: string[] = [];
     for (const each of saved) {
+        const id = "id" in each ? each.id : each.condition.id;
         try {
+            if (visibility.draftOf(id) !== null) {
+                continue;
+            }
             if ("id" in each) {
-                if (visibility.draftOf(each.id) === null) {
-                    visibility.draft(each.id).update(each.edits);
-                }
-            } else if (visibility.draftOf(each.condition.id) === null) {
+                visibility.draft(each.id).update(each.edits);
+            } else {
                 visibility.draft(each.condition);
             }
         } catch {
-            // ponytail: a draft that no longer fits the conditions is dropped silently, as Cancel would.
+            dropped.push(id);
         }
     }
+    return dropped;
 }
 
 /**

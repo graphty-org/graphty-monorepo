@@ -8,6 +8,7 @@ import { assert, it } from "vitest";
 
 import { Autosaver } from "../../src/autosave/Autosaver";
 import { memoryAutosaveStore } from "../../src/autosave/memoryStore";
+import { reopenFilterDrafts } from "../../src/session/visibility/VisibilityApi";
 import { baseSession } from "../helpers/project-session";
 import { FakeClock, FakeLocks } from "./fakes";
 
@@ -71,4 +72,18 @@ it("open drafts come back after a restore, uncommitted, and commit as the reader
     assert.deepStrictEqual(visibility.openDrafts(), []);
     reader.stop();
     second.dispose();
+});
+
+it("a kept draft that cannot be opened again is named, not dropped silently", async () => {
+    const session = await baseSession();
+    const dropped = reopenFilterDrafts(session.visibility, [
+        { id: "gone", edits: { name: "x" } },
+        { condition: { id: "new", effect: "keep", rule: { kind: "degree", min: 1 }, on: true } },
+    ]);
+    assert.deepStrictEqual(dropped, ["gone"]);
+    assert.deepStrictEqual(
+        session.visibility.openDrafts().map((each) => each.id),
+        ["new"],
+    );
+    session.dispose();
 });

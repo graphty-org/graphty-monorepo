@@ -83,12 +83,24 @@ function nameOf(element: Element): string {
             .join(" ")
             .trim();
     }
+    if (
+        element instanceof HTMLInputElement ||
+        element instanceof HTMLTextAreaElement ||
+        element instanceof HTMLSelectElement
+    ) {
+        return element.labels?.[0]?.textContent?.trim() ?? "";
+    }
     return element.textContent?.trim() ?? "";
 }
 
+/** The form controls whose value the reader set, inside what is open. */
+const CONTROLS = "input:not([type=hidden]):not([type=file]), textarea, select";
+
 /**
  * What the reader sees open: each open dialog, each named region and each pressed toolbar button,
- * by role and name ("region: Timeline", "pressed: Table").
+ * by role and name ("region: Timeline", "pressed: Table"); and inside the open dialogs and regions,
+ * each selected tab ("tab: Values"), each named field's value ("value: Name = Hub") and each ticked
+ * box ("checked: Show labels"), so a surface that comes back with its fields emptied is caught.
  * @returns the list, sorted, each once.
  */
 export function screenNow(): string[] {
@@ -111,6 +123,23 @@ export function screenNow(): string[] {
         });
     document.querySelectorAll('[role="toolbar"] [aria-pressed="true"]').forEach((each) => {
         add("pressed", each);
+    });
+    const open = '[role="dialog"], dialog[open], [role="region"], section[aria-label], section[aria-labelledby]';
+    document.querySelectorAll(`:is(${open}) [role="tab"][aria-selected="true"]`).forEach((each) => {
+        add("tab", each);
+    });
+    document.querySelectorAll<HTMLInputElement>(`:is(${open}) :is(${CONTROLS})`).forEach((each) => {
+        const name = nameOf(each);
+        if (name === "") {
+            return;
+        }
+        if (each.type === "checkbox" || each.type === "radio") {
+            if (each.checked) {
+                seen.add(`checked: ${name}`);
+            }
+        } else if (each.value !== "") {
+            seen.add(`value: ${name} = ${each.value}`);
+        }
     });
     return [...seen].sort();
 }

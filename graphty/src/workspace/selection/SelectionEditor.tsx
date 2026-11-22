@@ -314,7 +314,7 @@ export function SelectionEditor({
     const escaped = useRef(false);
     // `open`: its value picker is open; `back`: the row that was selected before, selected again
     // if the step is not added.
-    // on reload: fresh: pointer: a step being added, its value picker open
+    // on reload: gap #9702: a step being added, its value picker open
     const [adding, setAdding] = useState<{
         branch: string;
         op: Verb;
@@ -330,7 +330,7 @@ export function SelectionEditor({
     // on reload: gap #9662: the selection renamed in place
     const [renamingTitle, setRenamingTitle] = useState(false);
     // The cards folded to their header line; a new group folds every card before it.
-    // on reload: fresh: pointer: cards folded for a look
+    // on reload: gap #9702: cards the reader folded
     const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
     const fold = (id: string, to: boolean): void => {
         setFolded((was) => {
@@ -343,9 +343,9 @@ export function SelectionEditor({
             return next;
         });
     };
-    // on reload: fresh: pointer: a view switch for this visit
+    // on reload: gap #9702: the reader's group colors switch
     const [colors, setColors] = useState(groupColors[host]);
-    // on reload: fresh: pointer: a view switch for this visit
+    // on reload: gap #9702: the reader's strip switch
     const [strip, setStrip] = useState(stripShown[host]);
     // Where the workspace lies over the frame, once measured (below).
     // on reload: fresh: derived: measured from the frame
@@ -1959,7 +1959,7 @@ function NewStepPane({
     // on reload: fresh: pointer: a value picker open
     const [open, setOpen] = useState(openAtFirst);
     // A letter typed on the closed field opens the picker with it in the search (ws-polish 3).
-    // on reload: fresh: pointer: a letter typed to open the picker
+    // on reload: gap #9702: a letter typed to open the picker
     const [seed, setSeed] = useState("");
     const picked = useRef(false);
     // A press on the field itself closes the open list as a click outside it does; the step stays,

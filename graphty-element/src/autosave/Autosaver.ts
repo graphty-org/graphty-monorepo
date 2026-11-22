@@ -1676,7 +1676,16 @@ export class Autosaver {
         }
 
         // After the restore's own commit, so the drafts' write is an ordinary one of the restored entry.
-        reopenFilterDrafts(this.#session.visibility, drafts);
+        const dropped = reopenFilterDrafts(this.#session.visibility, drafts);
+        if (dropped.length > 0) {
+            report = {
+                ...report,
+                problems: [
+                    ...report.problems,
+                    ...dropped.map((id) => ({ code: "W_FILTER_DRAFT_DROPPED" as const, params: { id } })),
+                ],
+            };
+        }
 
         this.#absorb = current;
         if (report.problems.some((problem) => problem.code === "shader.unknown")) {

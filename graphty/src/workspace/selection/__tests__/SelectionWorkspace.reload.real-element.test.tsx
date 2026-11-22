@@ -12,7 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { forgetAutosave, openAutosaved, reload } from "../../../test/reload";
+import { forgetAutosave, openAutosaved, reload, screenNow } from "../../../test/reload";
 import { screen, waitFor, within } from "../../../test/test-utils";
 
 /** Starts with nothing kept: no autosaved work and nothing in this tab's session storage. */
@@ -178,6 +178,26 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             await waitFor(() => {
                 assert.isBelow(reopened.visibility.nodes.size, 77, "the filter now hides nodes");
             });
+            after.view.unmount();
+        });
+
+        it("a new filter with nothing picked yet closes on reload, and leaves the panels usable", async () => {
+            const before = await openAutosaved("Les Miserables");
+            await openDataPlace();
+            const was = screenNow();
+            await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+            await ws();
+            await screen.findByRole("region", { name: "Matches" });
+            // The empty card holds nothing graphty-element could keep: its workspace goes with it.
+            const workspace = screenNow().filter((each) => !was.includes(each));
+
+            const after = await reload(before, { lostSession, lost: workspace });
+            await waitFor(() => {
+                assert.isNull(document.querySelector(".sel-ws"), "no workspace without its card");
+                assert.isNull(document.querySelector("[inert]"), "nothing is left inert");
+            });
+            await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+            await ws();
             after.view.unmount();
         });
 

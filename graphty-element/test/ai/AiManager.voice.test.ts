@@ -18,9 +18,6 @@ import { type FakeSpeech, flushMicrotasks, installFakeSpeech } from "../helpers/
 import { HOSTS, KEYS, providerApiFixture, TRANSCRIPT } from "./engine/providerApiFixtures";
 import { redNodes } from "./llm-regression/red";
 
-// The key store's encryption library reads a browser global at load; no case persists a key.
-vi.mock("encrypt-storage", () => ({ EncryptStorage: vi.fn() }));
-
 afterEach(() => {
     vi.unstubAllGlobals();
 });

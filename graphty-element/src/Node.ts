@@ -50,7 +50,7 @@ import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { imageAspectExtent, labelFitExtent } from "./meshes/labelFit";
-import { layoutLabelTable, readLabelTable } from "./meshes/labelTable";
+import { layoutLabelTable, readLabelTable, roundedBoxOutline } from "./meshes/labelTable";
 import { drawLast, moveInstance } from "./meshes/moveInstance";
 import type { PieceBox } from "./meshes/nodeDecoration";
 import {
@@ -245,19 +245,20 @@ const TABLE_FIT_SLACK = 1e-3;
  * @param drawn - the laid-out table
  * @param drawn.width - its width
  * @param drawn.height - its height
+ * @param drawn.radius - how round its corners are
  * @param width - the node's width
  * @param height - its height
  * @returns the frame, or none
  */
 function tableOutlineFrame(
     border: number | undefined,
-    drawn: { width: number; height: number },
+    drawn: { width: number; height: number; radius: number },
     width: number,
     height: number,
-): { x: number; y: number; width: number; height: number; border: number }[] {
+): { x: number; y: number; width: number; height: number; border: number; radius: number }[] {
     const inside = drawn.width < width - TABLE_FIT_SLACK || drawn.height < height - TABLE_FIT_SLACK;
     return border !== undefined && border > 0 && inside
-        ? [{ x: 0, y: 0, width: drawn.width, height: drawn.height, border }]
+        ? [{ x: 0, y: 0, width: drawn.width, height: drawn.height, border, radius: drawn.radius }]
         : [];
 }
 
@@ -3011,8 +3012,18 @@ export class Node implements ModelUser {
             });
             // ponytail: one picture per node, the first cell's; a mesh per picture when a file has several
             const [picture] = drawn.images;
+            // a rounded background is drawn as its outline, a gradient one with its colors' ends
             const decoration: TableDecoration = {
-                fills: drawn.fills.map((f) => ({ box: box(f), color: f.color })),
+                fills: drawn.fills.map((f) => ({
+                    box: box(f),
+                    color: f.color,
+                    ...(f.gradient === undefined ? {} : { gradient: f.gradient }),
+                    ...(f.radius === undefined
+                        ? {}
+                        : {
+                              outline: roundedBoxOutline(f, f.radius).map(([x, y]): [number, number] => [fx(x), fy(y)]),
+                          }),
+                })),
                 image:
                     picture === undefined
                         ? null
@@ -3030,8 +3041,9 @@ export class Node implements ModelUser {
             const lines = [
                 ...[...outline, ...drawn.frames].map((f) => {
                     const i = f.border / 2;
-                    const [x0, x1, y0, y1] = [fx(f.x + i), fx(f.x + f.width - i), fy(f.y + i), fy(f.y + f.height - i)];
-                    return `${x0},${y0} ${x1},${y0} ${x1},${y1} ${x0},${y1} ${x0},${y0}`;
+                    const inner = { x: f.x + i, y: f.y + i, width: f.width - f.border, height: f.height - f.border };
+                    const points = roundedBoxOutline(inner, f.radius ?? 0);
+                    return [...points, points[0]].map(([x, y]) => `${fx(x)},${fy(y)}`).join(" ");
                 }),
                 ...drawn.rules.map(([x0, y0, x1, y1]) => `${fx(x0)},${fy(y0)} ${fx(x1)},${fy(y1)}`),
             ];

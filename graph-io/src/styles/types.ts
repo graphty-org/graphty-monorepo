@@ -485,21 +485,25 @@ export interface NodeStyleValues {
     readonly labelRuns: string;
     /**
      * The label laid out as a table of cells (Graphviz's HTML-like `<TABLE>`), as JSON: `{ "border", "cellBorder",
-     * "cellSpacing", "cellPadding", "width"?, "height"?, "fixedSize"?, "align"?, "valign"?, "fill"?, "lineHeight"?,
+     * "cellSpacing", "cellPadding", "width"?, "height"?, "fixedSize"?, "align"?, "valign"?, "fill"?, "fillGradient"?,
+     * "fillGradientAngle"?, "radius"?, "lineHeight"?,
      * "textPixel"?, "baseline"?, "imagePixel"?, "rows" }`,
      * lengths in the unit of `width`. `border` is the table's outline width, `cellBorder` and `cellPadding` every
      * cell's own unless the cell gives one, `cellSpacing` the room between cells and round them, `width` and
      * `height` a least size (exact with `fixedSize`), `align` (`left`, `right`) and `valign` (`top`, `bottom`) where
-     * the table sits in a cell larger than it, `fill` its background color, `lineHeight` how tall a text line is (a multiple of its font size, or
+     * the table sits in a cell larger than it, `fill` its background color (of a gradient, its first color),
+     * `fillGradient` the color a gradient background runs to and `fillGradientAngle` which way (degrees clockwise on
+     * screen from left to right, as `fillGradientAngle` of a node), `radius` how round its corners are
+     * (`STYLE="rounded"`, capped by whoever draws it at a third of its shorter side), `lineHeight` how tall a text line is (a multiple of its font size, or
      * `"font"`: its font's ascent plus descent, each rounded up to whole `textPixel`s when that is given), `baseline`
      * how far a line's baseline sits below its top as a multiple of its font size (unset, its words centered in it),
      * `imagePixel` how long each of a picture's own pixels is when its cell is sized by it (unset, as it is drawn).
      * Each row is `{ "cells", "rule"? }` (`rule`: a line between it and the row above); each cell
      * `{ "lines"?, "table"?, "image"?, "colspan"?, "rowspan"?, "width"?, "height"?, "fixedSize"?, "align"?, "valign"?,
-     * "balign"?, "border"?, "padding"?, "fill"?, "rule"?, "hidden"? }`: its text as lines `{ "runs", "align"? }` (runs as in
+     * "balign"?, "border"?, "padding"?, "fill"?, "fillGradient"?, "fillGradientAngle"?, "rule"?, "hidden"? }`: its text as lines `{ "runs", "align"? }` (runs as in
      * `labelRuns`), a table of its own, or a picture `{ "src", "scale"? }` (its file as written; `scale` unset draws it
      * at its own size, `true` keeps its proportions inside the cell's padding, `both` stretches it there, `width` or
-     * `height` stretches that side only); `fill` is its background color; `align` is also `text` (the lines line up across the whole cell),
+     * `height` stretches that side only); `fill`, `fillGradient` and `fillGradientAngle` are its background, as the table's are; `align` is also `text` (the lines line up across the whole cell),
      * `balign` lines up the lines that give no `align`, `rule` is a line between it and the cell on its left, `hidden`
      * keeps the cell's room and draws nothing in it (Graphviz's `STYLE="invis"`). The
      * table's size, with `labelPaddingX` and `labelPaddingY` round it, is the label's box when the node grows to

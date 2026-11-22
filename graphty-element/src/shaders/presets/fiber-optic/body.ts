@@ -39,8 +39,9 @@ vec4 shade(EdgeInput e) {
     // A sheen down one side, as light catches a glass rod; thin lines skip it.
     c += vec3(exp(-pow((e.side + 0.45) * 5.0, 2.0)) * 0.12 * g * (1.0 - light) * smoothstep(2.0, 6.0, e.widthPx));
     // A line a few pixels wide cannot show a rim and a core without aliasing into a stipple, so it
-    // fades to the glass's average color.
-    vec3 thin = mix(e.color.rgb * 0.6 + tint * 0.4, mix(canvasColor, tint, 0.75), light);
+    // fades to the glass's average color: dark glass lit by its rim on a dark canvas, pale glass on a
+    // light one, never the line's own color, so a thin fiber still reads as glass.
+    vec3 thin = mix(e.color.rgb * 0.12 + tint * 0.45, mix(canvasColor, tint, 0.5), light);
     c = mix(thin, c, smoothstep(1.5, 5.0, e.widthPx));
     float lit = max(max(e.selected, e.hovered), max(e.sourceSelected, e.targetSelected));
     c = mix(c, min(c * 1.8, vec3(1.0)), lit);

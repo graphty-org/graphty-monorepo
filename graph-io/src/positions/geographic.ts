@@ -19,20 +19,10 @@ import {
 
 import { ROLE_ASSUMED_CODE } from "../common/codes.js";
 import type { CommonExportOptions, GraphExporter, LossNote } from "../types.js";
+import { GEOGRAPHIC_AXES as AXES } from "./geographic-names.js";
 
 /** The name of the position column added. */
 const POSITION = "position";
-
-/** The axis each recognized column name reads as. */
-const AXES: Readonly<Partial<Record<string, "lat" | "lon" | "alt">>> = {
-    lat: "lat",
-    latitude: "lat",
-    lon: "lon",
-    lng: "lon",
-    longitude: "lon",
-    alt: "alt",
-    altitude: "alt",
-};
 
 /** The largest magnitude of each angle, in degrees. */
 const LIMIT = { lat: 90, lon: 180 } as const;

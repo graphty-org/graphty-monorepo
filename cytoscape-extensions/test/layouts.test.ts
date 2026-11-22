@@ -192,6 +192,35 @@ describe("static layouts", () => {
         expectPlaced(cy);
     });
 
+    it("graphty-geographic reads lat / lon fields by graph-io's name rule with no options", async () => {
+        const cy = cytoscape({
+            headless: true,
+            elements: [
+                { data: { id: "west", lat: 0, Lon: -60 } },
+                { data: { id: "east", lat: 0, Lon: 60 } },
+                { data: { id: "north", lat: 50, Lon: 0 } },
+            ],
+        });
+        await run(cy, { name: "graphty-geographic" });
+        const p = positions(cy);
+        expect(p.get("east")?.x).toBeGreaterThan(p.get("west")?.x ?? Infinity);
+        // Cytoscape's y grows down
+        expect(p.get("north")?.y).toBeLessThan(p.get("west")?.y ?? -Infinity);
+    });
+
+    it("graphty-geographic reads the fields it is given over ones the name rule would find", async () => {
+        const cy = cytoscape({
+            headless: true,
+            elements: [
+                { data: { id: "a", lat: 0, lon: -60, y: 0, x: 60 } },
+                { data: { id: "b", lat: 0, lon: 60, y: 0, x: -60 } },
+            ],
+        });
+        await run(cy, { name: "graphty-geographic", latitude: "y", longitude: "x" });
+        const p = positions(cy);
+        expect(p.get("a")?.x).toBeGreaterThan(p.get("b")?.x ?? Infinity);
+    });
+
     it("graphty-spectral brings a grid's columns and rows back", async () => {
         // the 3 x 4 grid's two smallest nonzero Laplacian eigenvectors run along its 4 columns and its 3 rows, so
         // each column shares one x and each row one y, and no two columns or rows share it

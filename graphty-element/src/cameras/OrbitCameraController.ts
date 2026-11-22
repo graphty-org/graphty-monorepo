@@ -498,6 +498,16 @@ export class OrbitCameraController {
                 : this.camera.position.length() + this.pivot.position.length() + this.farReach.radius;
         this.camera.maxZ = Math.max(DEFAULT_FAR_PLANE, this.cameraDistance + this.#sceneRadius * 2, reach);
         this.camera.minZ = this.#nearPlane();
+
+        // A turn made between frames (a held arrow, A or D turns the pivot in the update pass) must
+        // reach the camera's view matrix before the next frame, or the render loop, which reads it
+        // to tell whether anything moved, rests on the old picture: Babylon hands out the pivot's
+        // matrix as computed for the current render id, and a loop at rest draws no new render. The
+        // camera then moved only when a key's auto-repeat asked for a frame (issue #9620). Rebuilt
+        // only when the pivot changed, so a still scene still reads as still.
+        if (!this.pivot.isSynchronized()) {
+            this.pivot.computeWorldMatrix(true);
+        }
     }
 
     /**

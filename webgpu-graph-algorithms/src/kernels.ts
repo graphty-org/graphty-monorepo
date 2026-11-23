@@ -217,12 +217,12 @@ export const FILL_PARAMS: UniformBlock = UniformBlock.define("FillParams", [
     ["pad0", "u32"],
 ]);
 
-/** `DrawnParams` (uniform, 48 B; the drawn ring, design/rendering/row-renderer.md 4.5): `n` @0, `dim` @4, `scale` @8, the center the scene is measured from @16, the target it is drawn about @32. */
+/** `DrawnParams` (uniform, 48 B; the drawn ring, design/rendering/row-renderer.md 4.5): `n` @0, `dim` @4, `scale` @8, `fit` @12 (positive: fit the batch's own envelope to it, see `DrawnTransform.fit`), the center the scene is measured from @16, the target it is drawn about @32. */
 export const DRAWN_PARAMS: UniformBlock = UniformBlock.define("DrawnParams", [
     ["n", "u32"],
     ["dim", "u32"],
     ["scale", "f32"],
-    ["pad0", "u32"],
+    ["fit", "f32"],
     ["cx", "f32"],
     ["cy", "f32"],
     ["cz", "f32"],
@@ -1237,7 +1237,7 @@ const COLLIDE_APPLY: KernelEntry = {
     phase: "P4",
 };
 
-/** `to-drawn` (design/rendering/row-renderer.md 4.5): the scene array into one slot of the drawn ring, skipping the owner's rows and keeping w. */
+/** `to-drawn` (design/rendering/row-renderer.md 4.5): the scene array into one slot of the drawn ring, skipping the owner's rows and keeping w; with `fit`, about the batch's own envelope (`env`, which `envelope` wrote first). */
 const TO_DRAWN: KernelEntry = {
     id: "to-drawn",
     body: toDrawnWgsl,
@@ -1246,6 +1246,7 @@ const TO_DRAWN: KernelEntry = {
         decl(1, 0, "scene", "storage-ro", "array<f32>"),
         decl(1, 1, "skip", "storage-ro", "array<u32>"),
         decl(1, 2, "drawn", "storage", "array<vec4f>"),
+        decl(1, 3, "env", "storage", "array<vec4f>"),
         decl(2, 0, "P", "uniform", "DrawnParams"),
     ],
     overrideDecls: [],
@@ -1255,7 +1256,7 @@ const TO_DRAWN: KernelEntry = {
     phase: "P4",
 };
 
-/** `envelope` (issue #8801): the count, sum, box and furthest squared distance from the mean of the scene array's finite rows, in four modes (see the body). */
+/** `envelope` (issue #8801): the count, sum, box and furthest squared distance from the mean of the scene array's finite rows, and the mean and furthest distance `to-drawn` fits with, in four modes (see the body). */
 const ENVELOPE: KernelEntry = {
     id: "envelope",
     body: envelopeWgsl,

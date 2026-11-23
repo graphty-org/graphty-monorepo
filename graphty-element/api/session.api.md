@@ -4349,9 +4349,7 @@ export type NetworkPolicy = "ask" | "allow";
 
 // @public
 export interface NetworkRequest {
-    // (undocumented)
     readonly code: Extract<GraphtyWarningCode, "W_URL_NEEDS_APPROVAL">;
-    // (undocumented)
     readonly params: {
         readonly id: string;
         readonly url: string;

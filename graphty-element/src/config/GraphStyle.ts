@@ -43,6 +43,7 @@ const GraphBackgroundShaderLook = z.strictObject({
 });
 
 const GraphBackgroundColor = z.strictObject({
+    /** `"color"`: the graph is drawn against a flat color. */
     backgroundType: z.literal("color"),
     /** Absent, the element draws {@link DEFAULT_BACKGROUND_COLOR}. */
     color: ColorStyle.optional(),
@@ -56,7 +57,9 @@ const GraphBackgroundColor = z.strictObject({
 });
 
 const GraphBackgroundSkybox = z.strictObject({
+    /** `"skybox"`: the graph is drawn against an image. */
     backgroundType: z.literal("skybox"),
+    /** The image: a URL, or a base64-encoded PNG. */
     data: ImageData,
     /**
      * How the image is drawn: `"dome"` wraps the graph in it, turning with the camera; `"flat"`

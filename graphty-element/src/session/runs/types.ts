@@ -911,7 +911,7 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     /** Whether the total is knowable, so a consumer can choose a bar or a spinner. */
     readonly determinate: boolean;
     /** Whether it can be stopped. Distinct from whether it HAS been stopped. */
-    readonly cancellable: boolean;
+    readonly cancelable: boolean;
     /** Its place in the queue, counting from 0, or null when it is not waiting. */
     readonly queuePosition: number | null;
     /** When it started, as an ISO 8601 timestamp, or null while it is still queued. */

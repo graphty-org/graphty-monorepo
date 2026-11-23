@@ -16089,7 +16089,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.94,
             "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.93
+            "raster.nodeOutline": 0.94
         },
         "dot-specimen-labels-p2@matched": {
             "node.present": 1,
@@ -16163,8 +16163,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.94,
-            "raster.nodeBody": 0.95,
+            "raster.label": 0.95,
+            "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.94
         },
         "dot-specimen-labels-p3@matched": {
@@ -27726,7 +27726,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.988,
-            "edge.route": 0.962,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -27735,14 +27735,14 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.983,
-            "edge.arrowShape": 0.98,
+            "edge.arrow": 0.996,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.99,
-            "edge.arrowColor": 0.989,
-            "edge.arrowLength": 0.99,
-            "edge.arrowWidth": 0.98,
+            "edge.arrowFill": 1,
+            "edge.arrowColor": 1,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "group.present": 1,
@@ -27802,7 +27802,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.988,
-            "edge.route": 0.962,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -27811,14 +27811,14 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.983,
-            "edge.arrowShape": 0.98,
+            "edge.arrow": 0.996,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.99,
-            "edge.arrowColor": 0.989,
-            "edge.arrowLength": 0.99,
-            "edge.arrowWidth": 0.98,
+            "edge.arrowFill": 1,
+            "edge.arrowColor": 1,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "group.present": 1,
@@ -38940,7 +38940,7 @@
             "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
-            "label.background": 0.992,
+            "label.background": 1,
             "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
@@ -38953,7 +38953,7 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.998,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -39006,7 +39006,7 @@
             "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
-            "label.background": 0.992,
+            "label.background": 1,
             "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
@@ -39019,7 +39019,7 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.998,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -56329,34 +56329,6 @@
                 "to": 0.917,
                 "reason": "comparator (#8198): a label box is now measured along its border's middle on both sides, as the oracle's box is its stroked path; Gephi's 'label=entities' box (57.7 wide at its outline's middle) is 17% wider than graphty's (47.8), which measuring graphty's outer edge had hidden at a 0.854 ratio",
                 "date": "2026-11-18"
-            }
-        },
-        "gml-synthetic-coverage": {
-            "edge.arrowLength": {
-                "floor": 0.99,
-                "to": 0.96,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
-            },
-            "edge.arrowWidth": {
-                "floor": 0.98,
-                "to": 0.95,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
-            }
-        },
-        "gml-synthetic-coverage@matched": {
-            "edge.arrowLength": {
-                "floor": 0.99,
-                "to": 0.96,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
-            },
-            "edge.arrowWidth": {
-                "floor": 0.98,
-                "to": 0.95,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
             }
         },
         "graphml-yfiles-html-ss13-tree": {

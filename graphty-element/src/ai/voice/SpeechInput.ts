@@ -65,7 +65,7 @@ export interface SpeechInput {
      * staying under speech level for `silenceMs`.
      */
     endOnSilence(): void;
-    /** Throw the press away: close the microphone, end with `AI_CANCELLED`. */
+    /** Throw the press away: close the microphone, end with `AI_CANCELED`. */
     cancel(): void;
     /** Close the microphone and end without reporting anything more. */
     dispose(): void;
@@ -312,7 +312,7 @@ export function startSpeechInput(
             silenceEnds = true;
         },
         cancel() {
-            fail({ code: "AI_CANCELLED", params: {}, text: "" });
+            fail({ code: "AI_CANCELED", params: {}, text: "" });
         },
         dispose() {
             ended = true;

@@ -8,16 +8,15 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { describeProperty } from "../../../src/ai/commands/SchemaCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockGraphContext } from "../../helpers/mock-graph-context";
-import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 
 describe("describeProperty command", () => {
     let graph: Graph;
     let context: CommandContext;
 
-    beforeEach(() => {
-        graph = createMockTestGraph({ nodes: 25, edges: 40 });
-        context = createMockContext(graph);
+    beforeEach(async () => {
+        graph = await createCommandGraph({ nodeCount: 25, edgeCount: 40 });
+        context = createCommandContext(graph);
     });
 
     describe("string properties", () => {
@@ -52,7 +51,7 @@ describe("describeProperty command", () => {
 
         it("respects limit parameter for unique values", async () => {
             // Create a graph with many unique string values
-            const customGraph = createMockGraphContext({
+            const customGraph = await createCommandGraph({
                 nodeCount: 50,
                 nodeData: (index) => ({
                     category: `category-${index}`,
@@ -106,7 +105,7 @@ describe("describeProperty command", () => {
         });
 
         it("handles integer and float numbers", async () => {
-            const customGraph = createMockGraphContext({
+            const customGraph = await createCommandGraph({
                 nodeCount: 20,
                 nodeData: (index) => ({
                     intValue: index,
@@ -138,7 +137,7 @@ describe("describeProperty command", () => {
 
     describe("boolean properties", () => {
         it("returns true/false counts for boolean properties", async () => {
-            const customGraph = createMockGraphContext({
+            const customGraph = await createCommandGraph({
                 nodeCount: 20,
                 nodeData: (index) => ({
                     isActive: index % 2 === 0,
@@ -163,7 +162,7 @@ describe("describeProperty command", () => {
         });
 
         it("includes percentages for boolean values", async () => {
-            const customGraph = createMockGraphContext({
+            const customGraph = await createCommandGraph({
                 nodeCount: 20,
                 nodeData: (index) => ({
                     isActive: index % 4 === 0, // 25% true, 75% false
@@ -194,7 +193,7 @@ describe("describeProperty command", () => {
 
     describe("array properties", () => {
         it("returns unique values for array items", async () => {
-            const customGraph = createMockGraphContext({
+            const customGraph = await createCommandGraph({
                 nodeCount: 10,
                 nodeData: () => ({
                     tags: ["tag1", "tag2", "tag3"],
@@ -214,7 +213,7 @@ describe("describeProperty command", () => {
         });
 
         it("includes array length statistics", async () => {
-            const customGraph = createMockGraphContext({
+            const customGraph = await createCommandGraph({
                 nodeCount: 10,
                 nodeData: (index) => ({
                     tags: Array.from({ length: (index % 5) + 1 }, (_, i) => `tag${i}`),
@@ -261,7 +260,7 @@ describe("describeProperty command", () => {
         });
 
         it("handles mixed type properties", async () => {
-            const customGraph = createMockGraphContext({
+            const customGraph = await createCommandGraph({
                 nodeCount: 10,
                 nodeData: (index) => ({
                     mixedValue: index % 2 === 0 ? "string" : 123,
@@ -279,7 +278,7 @@ describe("describeProperty command", () => {
         });
 
         it("handles null values in property analysis", async () => {
-            const customGraph = createMockGraphContext({
+            const customGraph = await createCommandGraph({
                 nodeCount: 10,
                 nodeData: (index) => ({
                     nullableValue: index % 3 === 0 ? null : `value-${index}`,

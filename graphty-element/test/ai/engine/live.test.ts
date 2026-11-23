@@ -179,13 +179,13 @@ describe("live on each provider", () => {
         assert.lengthOf(network.sent, 0);
     });
 
-    it("answers a cancelled opening with AI_CANCELLED", async () => {
+    it("answers a canceled opening with AI_CANCELED", async () => {
         installNetwork();
         installFakeLiveTransport();
         const controller = new AbortController();
         controller.abort();
         const opened = await engine("openai").openLive?.({ instructions: INSTRUCTIONS, tools: [] }, controller.signal);
-        assert.strictEqual(opened?.code, "AI_CANCELLED");
+        assert.strictEqual(opened?.code, "AI_CANCELED");
     });
 
     for (const provider of ["openai", "google"] as const) {

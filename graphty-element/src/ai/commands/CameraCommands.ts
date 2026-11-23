@@ -222,7 +222,7 @@ export const zoomToNodes: GraphCommand = {
                 description: `Zooming to fit ${scoped ? "matching nodes" : "all nodes"}`,
             });
 
-            const nodeCount = scoped ? matchingIds.length : graph.getNodeCount();
+            const nodeCount = scoped ? matchingIds.length : graph.getSession().status.counts.nodes;
             const matching = scoped ? ` matching "${selector}"` : "";
             return {
                 success: true,

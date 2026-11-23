@@ -654,7 +654,7 @@ describe("a third party's camera view", () => {
             assert.closeTo(state.position.z, destination.z, PLACE_TOLERANCE);
         });
 
-        it("settles rather than failing when the animation is cancelled part way", async () => {
+        it("settles rather than failing when the animation is canceled part way", async () => {
             const { center, maxDimension } = graphBox();
             const offset = maxDimension * 2;
             const destination = { x: center.x + offset, y: center.y + offset, z: center.z + offset };

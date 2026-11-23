@@ -256,8 +256,8 @@ afterEach(() => {
  * @param body - the file, for its Content-Length (four times its size, so it never finishes).
  * @returns the push, once the download has started, and whether it was canceled.
  */
-function slowFetch(url: string, body: Uint8Array): { push?: (chunk: Uint8Array) => void; cancelled: boolean } {
-    const state: { push?: (chunk: Uint8Array) => void; cancelled: boolean } = { cancelled: false };
+function slowFetch(url: string, body: Uint8Array): { push?: (chunk: Uint8Array) => void; canceled: boolean } {
+    const state: { push?: (chunk: Uint8Array) => void; canceled: boolean } = { canceled: false };
     const original = globalThis.fetch.bind(globalThis);
     vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
         const to = input instanceof Request ? input.url : String(input);
@@ -271,11 +271,11 @@ function slowFetch(url: string, body: Uint8Array): { push?: (chunk: Uint8Array) 
                 };
             },
             cancel() {
-                state.cancelled = true;
+                state.canceled = true;
             },
         });
         init?.signal?.addEventListener("abort", () => {
-            state.cancelled = true;
+            state.canceled = true;
         });
         return Promise.resolve(
             new Response(stream, { status: 200, headers: { "content-length": String(body.byteLength * 4) } }),
@@ -1487,7 +1487,7 @@ describe("the Load custom model dialog, on the real element", () => {
             );
         });
         await waitFor(() => {
-            assert.isTrue(slow.cancelled, "the download stopped");
+            assert.isTrue(slow.canceled, "the download stopped");
         });
         assert.isUndefined(written(session, "node.model"));
     });
@@ -1511,7 +1511,7 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.lengthOf(asked, 1, "one download");
         await userEvent.click(within(dialog).getByRole("button", { name: "Cancel load" }));
         await waitFor(() => {
-            assert.isTrue(slow.cancelled, "the download stopped");
+            assert.isTrue(slow.canceled, "the download stopped");
         });
     });
 
@@ -1697,7 +1697,7 @@ describe("the Load custom model dialog, on the real element", () => {
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
         await waitFor(() => {
-            assert.isTrue(slow.cancelled, "the download stopped");
+            assert.isTrue(slow.canceled, "the download stopped");
         });
     });
 
@@ -1847,7 +1847,7 @@ describe("the Load custom model dialog, on the real element", () => {
         dropOn(within(dialog).getByTestId("custom-model"), [quadFile()]);
         await previewOf(dialog, "quad");
         await waitFor(() => {
-            assert.isTrue(slow.cancelled, "the first download stopped");
+            assert.isTrue(slow.canceled, "the first download stopped");
         });
     });
 

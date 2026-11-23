@@ -507,7 +507,6 @@ export class EventManager implements Manager {
             case "operation-obsoleted":
             case "animation-progress":
             case "animation-canceled":
-            case "animation-cancelled":
             case "screenshot-enhancing":
             case "screenshot-ready":
             case "style-changed":
@@ -530,7 +529,6 @@ export class EventManager implements Manager {
             case "render-lost":
             case "render-restored":
             case "operation-canceled":
-            case "operation-cancelled":
             case "stats-update":
             case "input-enabled-changed":
             case "input-initialized":
@@ -564,7 +562,6 @@ export class EventManager implements Manager {
             case "ai-command-complete":
             case "ai-command-error":
             case "ai-command-canceled":
-            case "ai-command-cancelled":
             case "ai-stream-chunk":
             case "ai-stream-tool-call":
             case "ai-stream-tool-result":

@@ -16,7 +16,7 @@ function gate(): { promise: Promise<void>; open: () => void } {
 function untilAborted(context: OperationContext): Promise<void> {
     return new Promise<void>((_resolve, reject) => {
         context.signal.addEventListener("abort", () => {
-            const error = new Error("Cancelled");
+            const error = new Error("Canceled");
             error.name = "AbortError";
             reject(error);
         });
@@ -26,7 +26,7 @@ function untilAborted(context: OperationContext): Promise<void> {
 describe("Operation Cancellation", () => {
     let eventManager: EventManager;
     let queueManager: OperationQueueManager;
-    let cancelledEvents: { id: string; code: string }[];
+    let canceledEvents: { id: string; code: string }[];
     let obsoletedEvents: string[];
     let startEvents: string[];
     let completeEvents: string[];
@@ -34,14 +34,14 @@ describe("Operation Cancellation", () => {
     beforeEach(() => {
         eventManager = new EventManager();
         queueManager = new OperationQueueManager(eventManager);
-        cancelledEvents = [];
+        canceledEvents = [];
         obsoletedEvents = [];
         startEvents = [];
         completeEvents = [];
 
         eventManager.onGraphEvent.add((event) => {
-            if (event.type === "operation-cancelled") {
-                cancelledEvents.push({ id: event.id, code: event.code });
+            if (event.type === "operation-canceled") {
+                canceledEvents.push({ id: event.id, code: event.code });
             } else if (event.type === "operation-obsoleted") {
                 obsoletedEvents.push((event as Record<string, unknown>).id as string);
             } else if (event.type === "operation-start") {
@@ -87,11 +87,11 @@ describe("Operation Cancellation", () => {
         await queueManager.waitForCompletion();
 
         assert.deepEqual(seen, [false, false], "not aborted before or during its work");
-        assert.deepEqual(cancelledEvents, []);
+        assert.deepEqual(canceledEvents, []);
         assert.lengthOf(completeEvents, 1);
     });
 
-    it("should cleanup cancelled operations properly", async () => {
+    it("should cleanup canceled operations properly", async () => {
         const started = gate();
         const ids = [
             queueManager.queueOperation("data-add", async (context) => {
@@ -109,7 +109,7 @@ describe("Operation Cancellation", () => {
         assert.deepEqual(startEvents, [ids[0]], "the queued operations never started");
         assert.deepEqual(completeEvents, []);
         assert.deepEqual(
-            cancelledEvents,
+            canceledEvents,
             ids.map((id) => ({ id, code: "queue-cleared" })),
         );
 
@@ -118,7 +118,7 @@ describe("Operation Cancellation", () => {
         assert.equal(stats.size, 0);
     });
 
-    it("should report a cleared operation as cancelled, not obsoleted", async () => {
+    it("should report a cleared operation as canceled, not obsoleted", async () => {
         const started = gate();
         const id = queueManager.queueOperation("camera-update", async (context) => {
             started.open();
@@ -129,11 +129,11 @@ describe("Operation Cancellation", () => {
         queueManager.clear();
         await queueManager.waitForCompletion();
 
-        assert.deepEqual(cancelledEvents, [{ id, code: "queue-cleared" }]);
+        assert.deepEqual(canceledEvents, [{ id, code: "queue-cleared" }]);
         assert.deepEqual(obsoletedEvents, []);
     });
 
-    it("should call every abort listener when the operation is cancelled", async () => {
+    it("should call every abort listener when the operation is canceled", async () => {
         const started = gate();
         const abortCallbacks: number[] = [];
 
@@ -157,7 +157,7 @@ describe("Operation Cancellation", () => {
         assert.deepEqual(abortCallbacks, [1, 2, 3]);
     });
 
-    it("should not report the AbortError of a cancelled operation as a graph error", async () => {
+    it("should not report the AbortError of a canceled operation as a graph error", async () => {
         const started = gate();
         const graphErrors: unknown[] = [];
         eventManager.addListener("error", (event) => {
@@ -174,7 +174,7 @@ describe("Operation Cancellation", () => {
         await queueManager.waitForCompletion();
 
         assert.deepEqual(graphErrors, []);
-        assert.deepEqual(cancelledEvents, [{ id, code: "cancelled" }]);
+        assert.deepEqual(canceledEvents, [{ id, code: "canceled" }]);
     });
 
     it("should support cancellation of specific operations", async () => {
@@ -208,11 +208,11 @@ describe("Operation Cancellation", () => {
         await queueManager.waitForCompletion();
 
         assert.deepEqual(results, ["op1", "op3"]);
-        assert.notInclude(startEvents, op2, "the cancelled operation never started");
-        assert.deepEqual(cancelledEvents, [{ id: op2, code: "cancelled" }]);
+        assert.notInclude(startEvents, op2, "the canceled operation never started");
+        assert.deepEqual(canceledEvents, [{ id: op2, code: "canceled" }]);
     });
 
-    it("should answer whoever awaits an operation cancelled before it started", async () => {
+    it("should answer whoever awaits an operation canceled before it started", async () => {
         const started = gate();
         const release = gate();
 
@@ -233,7 +233,7 @@ describe("Operation Cancellation", () => {
 
         release.open();
         await queueManager.waitForCompletion();
-        assert.equal(queueManager.getStats().size, 0, "the cancelled operation is not left in the queue");
+        assert.equal(queueManager.getStats().size, 0, "the canceled operation is not left in the queue");
     });
 
     it("should cancel a running operation by its category", async () => {
@@ -266,18 +266,18 @@ describe("Operation Cancellation", () => {
 
         assert.deepEqual(completed, ["instant"]);
         assert.deepEqual(completeEvents, [id]);
-        assert.deepEqual(cancelledEvents, [], "a finished operation is not reported as cancelled");
-        assert.isFalse(queueManager.cancelOperation(id), "a finished operation cannot be cancelled");
+        assert.deepEqual(canceledEvents, [], "a finished operation is not reported as canceled");
+        assert.isFalse(queueManager.cancelOperation(id), "a finished operation cannot be canceled");
 
         const stats = queueManager.getStats();
         assert.equal(stats.pending, 0);
         assert.equal(stats.size, 0);
     });
 
-    it("names each cancellation operation-canceled first, then by its deprecated British name", async () => {
+    it("names each cancellation operation-canceled, with its code", async () => {
         const named: [string, string, string][] = [];
         eventManager.onGraphEvent.add((event) => {
-            if (event.type === "operation-canceled" || event.type === "operation-cancelled") {
+            if (event.type === "operation-canceled") {
                 named.push([event.type, event.id, event.code]);
             }
         });
@@ -300,9 +300,7 @@ describe("Operation Cancellation", () => {
 
         assert.deepEqual(named, [
             ["operation-canceled", one, "canceled"],
-            ["operation-cancelled", one, "cancelled"],
             ["operation-canceled", two, "queue-cleared"],
-            ["operation-cancelled", two, "queue-cleared"],
         ]);
     });
 });

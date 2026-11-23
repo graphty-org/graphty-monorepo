@@ -1896,7 +1896,7 @@ const SCENARIOS = [
     ["drag: by the grip, up then down", dragBothWays],
     ["fold: adding a card folds the others and keeps ticks", addFolds],
     ["table: a Degree column, and no actions before a test", degreeColumn],
-    ["cancel: a cancelled visit leaves nothing, the next one works", cancelThenDone],
+    ["cancel: a canceled visit leaves nothing, the next one works", cancelThenDone],
     ["columns: category and number, Add", dataColumns("add")],
     ["columns: category and number, Keep", dataColumns("keep")],
     ["columns: category and number, Except", dataColumns("except")],

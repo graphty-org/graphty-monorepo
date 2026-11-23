@@ -390,7 +390,7 @@ says how many frames to expect and whether the machine is likely to drop some.
 
 | Call                                | When canceled                                     | The camera afterwards                                                                                |
 | ----------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `playTour`                          | Resolves `{ reason: "cancelled" }`                | Stays where the tour left it; with `restoreCamera: true` (default false) put back when it finishes   |
+| `playTour`                          | Resolves `{ reason: "canceled" }`                 | Stays where the tour left it; with `restoreCamera: true` (default false) put back when it finishes   |
 | `captureAnimation` with a `tour`    | Rejects with a `GraphtyError`, code `E_CANCELED`  | Always put back, except after the reader's own move, an outside camera move or a drawing mode switch |
 | `captureScreenshot` with a `camera` | Rejects with the signal's reason, an `AbortError` | Always put back                                                                                      |
 
@@ -497,7 +497,7 @@ Add a screenshot button to your UI:
             const { blob, metadata } = await capturePromise;
             downloadBlob(blob, `recording.${metadata.format}`);
         } catch (error) {
-            // Stop cancels the recording: a cancelled recording keeps no video
+            // Stop cancels the recording: a canceled recording keeps no video
             if (error.code !== "E_CANCELED") {
                 throw error;
             }

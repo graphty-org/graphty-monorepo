@@ -18,6 +18,10 @@ interface RenderOptions {
     textOutlineColor: string;
     textOutlineWidth: number;
     textOutlineJoin: CanvasLineJoin;
+    /** A line under the words, in their color. */
+    textUnderline?: boolean;
+    /** A line through the words, in their color. */
+    textStrikethrough?: boolean;
     runAlign?: RunAlign;
     lineBox?: LineBox;
 }
@@ -124,7 +128,17 @@ export class RichTextRenderer {
             ctx.fillStyle = style.color;
             ctx.fillText(segment.text, currentX, baselineY);
 
-            currentX += ctx.measureText(segment.text).width;
+            const { width } = ctx.measureText(segment.text);
+            // Underline just below the baseline, strikethrough through the middle of the lowercase letters.
+            const thickness = Math.max(1, style.size / 14);
+            if (this.options.textUnderline === true) {
+                ctx.fillRect(currentX, baselineY + style.size * 0.12, width, thickness);
+            }
+            if (this.options.textStrikethrough === true) {
+                ctx.fillRect(currentX, baselineY - style.size * 0.3, width, thickness);
+            }
+
+            currentX += width;
         }
     }
 

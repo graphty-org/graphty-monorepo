@@ -537,6 +537,8 @@ export const EdgeStyle: z.ZodObject<{
             onTop: z.ZodOptional<z.ZodBoolean>;
             pickable: z.ZodOptional<z.ZodBoolean>;
             textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+            textUnderline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+            textStrikethrough: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
@@ -840,6 +842,8 @@ export const EdgeStyle: z.ZodObject<{
             onTop: z.ZodOptional<z.ZodBoolean>;
             pickable: z.ZodOptional<z.ZodBoolean>;
             textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+            textUnderline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+            textStrikethrough: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
@@ -1306,6 +1310,8 @@ export const EdgeStyle: z.ZodObject<{
         onTop: z.ZodOptional<z.ZodBoolean>;
         pickable: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textUnderline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textStrikethrough: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
@@ -1555,6 +1561,8 @@ export const EdgeStyle: z.ZodObject<{
         onTop: z.ZodOptional<z.ZodBoolean>;
         pickable: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textUnderline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textStrikethrough: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
@@ -1804,6 +1812,8 @@ export const EdgeStyle: z.ZodObject<{
         onTop: z.ZodOptional<z.ZodBoolean>;
         pickable: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textUnderline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textStrikethrough: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
@@ -2100,7 +2110,9 @@ export interface LabelStyle {
     sizeMode?: LabelSizeMode;
     sizePx?: number;
     smartOverflow?: boolean;
+    strikethrough?: boolean;
     textAlign?: LabelTextAlign;
+    underline?: boolean;
     weight?: number | "normal" | "bold";
     wrapAnywhere?: boolean;
     wrapEllipsis?: boolean;
@@ -2930,6 +2942,8 @@ export const NodeStyle: z.ZodObject<{
         onTop: z.ZodOptional<z.ZodBoolean>;
         pickable: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textUnderline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textStrikethrough: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
@@ -3179,6 +3193,8 @@ export const NodeStyle: z.ZodObject<{
         onTop: z.ZodOptional<z.ZodBoolean>;
         pickable: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textUnderline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textStrikethrough: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
@@ -3428,6 +3444,8 @@ export const NodeStyle: z.ZodObject<{
         onTop: z.ZodOptional<z.ZodBoolean>;
         pickable: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textUnderline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textStrikethrough: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
@@ -3770,6 +3788,8 @@ export const RichTextStyle: z.ZodObject<{
     onTop: z.ZodOptional<z.ZodBoolean>;
     pickable: z.ZodOptional<z.ZodBoolean>;
     textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+    textUnderline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+    textStrikethrough: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
     textOutlineOpacity: z.ZodOptional<z.ZodNumber>;

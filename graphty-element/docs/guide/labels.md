@@ -152,8 +152,8 @@ element.layoutBehavior = { labels: { labelText: "glyphs" } }; // "canvas" by def
 - Its letters are drawn from a distance field, so their edges differ slightly from the canvas's.
   Where each glyph sits, and how lines wrap and align, are the same.
 - A label the atlas cannot draw is drawn on its own canvas as before, label by label: one with a
-  panel, border, pointer, badge, table, close button, shadow, outline, animation, depth fade or
-  `onTop`; words in a right-to-left or Indic script, emoji or combining marks; a pair its font
+  panel, border, pointer, badge, table, close button, shadow, outline, underline, strikethrough,
+  animation, depth fade or `onTop`; words in a right-to-left or Indic script, emoji or combining marks; a pair its font
   draws as a ligature (such as "fi" in DejaVu Sans); a glyph that no longer fits in the atlas; or a
   web font that has not loaded yet.
 - `declutter`, `avoidNodesAndEdges` and `sampleCell` work on glyph labels as on any other.
@@ -168,6 +168,19 @@ negative is above), the line growing to hold it. `<nudge='60%'>` moves a run the
 the line where it was, as superscripts do. Where runs of different sizes meet on one line is the label style's `runAlign`
 (`node.labelRunAlign`): on their alphabetic baselines (the default), on their hanging baselines so
 their tops line up, or on their middles.
+
+The whole label's letters take the label style's `weight` (`"normal"`, `"bold"` or a number),
+`italic`, `underline` and `strikethrough`; the last two draw a line under or through the words in
+the letters' color:
+
+```typescript
+await element.session.styles.add({
+    name: "Underlined names",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.label": "{id}", "node.labelStyle": { weight: "bold", underline: true } },
+});
+```
 
 ## Long labels
 

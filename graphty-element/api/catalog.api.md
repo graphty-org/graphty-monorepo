@@ -2160,7 +2160,9 @@ export interface LabelStyle {
     sizeMode?: LabelSizeMode;
     sizePx?: number;
     smartOverflow?: boolean;
+    strikethrough?: boolean;
     textAlign?: LabelTextAlign;
+    underline?: boolean;
     weight?: number | "normal" | "bold";
     wrapAnywhere?: boolean;
     wrapEllipsis?: boolean;

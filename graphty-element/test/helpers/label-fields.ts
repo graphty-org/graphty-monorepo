@@ -63,6 +63,8 @@ export const FIELD_CASES: Readonly<Record<keyof LabelStyle, FieldCase>> = {
     weight: { value: "bold" },
     color: { value: "#ff0000" },
     italic: { value: true },
+    underline: { value: true },
+    strikethrough: { value: true },
     wrapWidth: { value: 3 },
     wrapTrailingSpace: { value: true, text: SHORT_WORDS, bases: WRAP_SWEEP.map((wrapWidth) => ({ wrapWidth })) },
     wrapSkipEndSpace: {

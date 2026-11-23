@@ -285,6 +285,10 @@ export const RichTextStyle = z.strictObject({
 
     /** Whether the words are outlined. Default false. */
     textOutline: z.boolean().default(false).optional(),
+    /** Whether a line is drawn under the words, in their color. Default false. */
+    textUnderline: z.boolean().default(false).optional(),
+    /** Whether a line is drawn through the words, in their color. Default false. */
+    textStrikethrough: z.boolean().default(false).optional(),
     /** The outline's width, in texture pixels. Default 2. */
     textOutlineWidth: z.number().default(2).optional(),
     /** The outline's color. Default "#000000". */

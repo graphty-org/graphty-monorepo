@@ -789,6 +789,8 @@ export class RichTextLabel {
             textOutlineColor: "black",
             textOutlineWidth: 2,
             textOutlineJoin: "round",
+            textUnderline: false,
+            textStrikethrough: false,
             pointer: false,
             pointerDirection: "bottom",
             pointerWidth: 20,
@@ -919,6 +921,8 @@ export class RichTextLabel {
             textOutlineColor: this.options.textOutlineColor,
             textOutlineWidth: this.options.textOutlineWidth,
             textOutlineJoin: this.options.textOutlineJoin,
+            textUnderline: this.options.textUnderline,
+            textStrikethrough: this.options.textStrikethrough,
             runAlign: this.options.runAlign,
             lineBox: this.options.lineBox,
         });

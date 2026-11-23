@@ -478,7 +478,7 @@ export const captureTool: ToolDefinition = {
             reaches: [{ door: "Graph.cancelAnimationCapture" }],
             run: (context) =>
                 Promise.resolve(
-                    ok(undefined, { cancelled: capturer(context, "cancelAnimationCapture").cancelAnimationCapture() }),
+                    ok(undefined, { canceled: capturer(context, "cancelAnimationCapture").cancelAnimationCapture() }),
                 ),
         },
         {

@@ -114,7 +114,7 @@ describe("asking for a view and asking for a layout", () => {
             element.graph.getViewMode(),
             "2d",
             "the element was asked for the 2d view and then for a layout, and the graph came to rest in " +
-                "another view. The layout cancelled the view-mode switch: see the `view-mode` category in " +
+                "another view. The layout canceled the view-mode switch: see the `view-mode` category in " +
                 "src/managers/OperationQueueManager.ts.",
         );
         assert.equal(

@@ -160,11 +160,14 @@ function readout(dock: HTMLElement): string {
     return within(dock).getByTestId("time-readout").textContent ?? "";
 }
 
-describe("the timeline on the real element", () => {
-    beforeAll(async () => {
-        await page.viewport(1366, 768);
-    });
+// Both blocks: in Vitest's default 414 x 896 frame the side panels leave the canvas no width and cover
+// the canvas toolbar's Timeline button, so a test of the second block run alone (-t) never landed its
+// click (#9650, #9677).
+beforeAll(async () => {
+    await page.viewport(1366, 768);
+});
 
+describe("the timeline on the real element", () => {
     it("designates the time field from the Data place's Fields, and the dock shows the data's span", async () => {
         const { session } = await open();
         assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
@@ -984,5 +987,38 @@ describe("the Overview and the import of time", () => {
 
         const reads = (readsAt.get(12) ?? 0) - (readsAt.get(4) ?? 0);
         assert.isBelow(reads, 8, `the columns were read ${String(reads)} times in 8 frames`);
+    });
+});
+
+// #9677: in a 1200 x 900 window with both side panels open, every canvas toolbar button lies inside
+// the canvas the panels leave, and nothing covers it: Timeline's click lands and opens the dock.
+describe("the canvas toolbar in a 1200 x 900 window with the side panels open", () => {
+    beforeAll(async () => {
+        await page.viewport(1200, 900);
+    });
+
+    it("leaves every toolbar button uncovered, and Timeline opens the dock", async () => {
+        const { session } = await open(MARVEL, "graph");
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        await userEvent.click(await inspector.findByRole("button", { name: "Set in Data" }));
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "released" } });
+        });
+        assert.isAbove(screen.getByRole("complementary", { name: "Left panel" }).clientWidth, 0);
+        const canvas = screen.getByTestId("canvas").getBoundingClientRect();
+        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+        const buttons = within(toolbar).getAllByRole("button");
+        assert.isNotEmpty(buttons);
+        for (const button of buttons) {
+            const box = button.getBoundingClientRect();
+            const name = button.getAttribute("aria-label") ?? button.textContent ?? "";
+            assert.isAtLeast(box.left, canvas.left, `${name} starts inside the canvas`);
+            assert.isAtMost(box.right, canvas.right, `${name} ends inside the canvas`);
+            const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+            assert.isTrue(button.contains(top), `nothing lies over ${name}`);
+        }
+
+        await userEvent.click(screen.getByRole("button", { name: "Timeline" }));
+        await screen.findByRole("region", { name: "Timeline" });
     });
 });

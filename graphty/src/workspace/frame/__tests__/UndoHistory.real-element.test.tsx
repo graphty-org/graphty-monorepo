@@ -78,7 +78,7 @@ describe("Undo from the reader's keys", () => {
             await userEvent.keyboard("{Control>}z{/Control}");
             release();
             const session = await opening;
-            assert.isNull(store.get().notice, "the open was not cancelled");
+            assert.isNull(store.get().notice, "the open was not canceled");
             assert.equal(session.data.statistics().nodeCount, NODES);
             assert.isFalse(session.canUndo, "opening is not a change to undo");
         } finally {

@@ -1,7 +1,7 @@
 import { assert, test } from "vitest";
 
 import * as entry from "../../index.js";
-import { AnimationCancelledError } from "../../index.js";
+import { AnimationCanceledError } from "../../index.js";
 
 test("captures report GraphtyError codes, so there is no second screenshot error family", () => {
     assert.notProperty(entry, "ScreenshotError");
@@ -10,9 +10,9 @@ test("captures report GraphtyError codes, so there is no second screenshot error
     assert.include(entry.GRAPHTY_ERROR_CODES, "E_NOT_SETTLED");
 });
 
-test("AnimationCancelledError is exported and can be instantiated", () => {
-    const error = new AnimationCancelledError();
+test("AnimationCanceledError is exported and can be instantiated", () => {
+    const error = new AnimationCanceledError();
 
-    assert.equal(error.name, "AnimationCancelledError");
+    assert.equal(error.name, "AnimationCanceledError");
     assert.ok(error.message.includes("cancel"), "Error message should mention cancellation");
 });

@@ -86,7 +86,7 @@ describe("the queued lane", () => {
         assert.lengthOf(dispatcher.history.steps, 3);
     });
 
-    it("treats a slot the queue obsoletes before it starts as cancelled: nothing runs or records", async () => {
+    it("treats a slot the queue obsoletes before it starts as canceled: nothing runs or records", async () => {
         const { dispatcher, queue } = setup();
 
         const done = outcome(dispatcher.dispatch({ op: "fake.run", id: "r" }));

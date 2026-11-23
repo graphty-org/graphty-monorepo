@@ -13,5 +13,13 @@
         "stories",
         "all-checks"
     ],
-    "advisory": []
+    "advisory": [
+        {
+            "job": "lint",
+            "step": "Smoke check the built app",
+            "added": "2026-11-22",
+            "enforce": "2026-12-13",
+            "issue": 9633
+        }
+    ]
 }

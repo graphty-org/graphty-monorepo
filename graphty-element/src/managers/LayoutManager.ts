@@ -532,8 +532,8 @@ function sameArrangement(a: LayoutChoice, b: LayoutChoice): boolean {
  * canceled the build already knows.
  * @returns The error.
  */
-function cancelledBuild(): Error {
-    const error = new Error("The layout was cancelled or replaced before it finished building.");
+function canceledBuild(): Error {
+    const error = new Error("The layout was canceled or replaced before it finished building.");
     error.name = "AbortError";
     return error;
 }
@@ -1559,7 +1559,7 @@ export class LayoutManager implements Manager {
             this.holdBeforeInit(engine, members);
             await engine.init();
             if (!how.live()) {
-                throw cancelledBuild();
+                throw canceledBuild();
             }
 
             this.addLateArrivals(engine, nodeArray, edgeArray, edgeRows);
@@ -1615,7 +1615,7 @@ export class LayoutManager implements Manager {
 
             // Canceled or overtaken is not a failure: nothing is reported.
             if (!how.live()) {
-                throw cancelledBuild();
+                throw canceledBuild();
             }
 
             throw this.reportLayoutFailure(type, error, "initialised");
@@ -1783,7 +1783,7 @@ export class LayoutManager implements Manager {
                 // engine exists, which is why it belongs in this try and not the next one.
                 await this.acceleration.ready();
                 if (!how.live()) {
-                    throw cancelledBuild();
+                    throw canceledBuild();
                 }
 
                 const init: SimulationEngineInit = {
@@ -1814,7 +1814,7 @@ export class LayoutManager implements Manager {
             }
         } catch (error) {
             if (!how.live()) {
-                throw cancelledBuild();
+                throw canceledBuild();
             }
 
             throw this.reportLayoutFailure(type, optionRefusal(type, error, layoutOpts) ?? error, "built");
@@ -2220,7 +2220,7 @@ export class LayoutManager implements Manager {
             } else if (this.sizesToCome(engine)) {
                 this.preStepsOwed = true;
             } else if (!(await this.spendPreSteps(engine, how.live))) {
-                throw cancelledBuild();
+                throw canceledBuild();
             }
 
             // PUBLISHING IS THE ELEMENT'S JOB. An engine's coordinates reach
@@ -2512,7 +2512,7 @@ export class LayoutManager implements Manager {
         const { signal, restoring } = options;
         const live = (): boolean => signal?.aborted !== true && (restoring || this.#generation === generation);
         if (!live()) {
-            throw cancelledBuild();
+            throw canceledBuild();
         }
 
         const built = this.#built;

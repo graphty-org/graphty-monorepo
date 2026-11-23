@@ -76,8 +76,7 @@ export const runAlgorithm: GraphCommand = {
 
         try {
             // Check if algorithm exists
-            const alg = Algorithm.get(graph, namespace, type);
-            if (!alg) {
+            if (!Algorithm.getClass(namespace, type)) {
                 const available = Algorithm.getRegisteredAlgorithms(namespace);
                 const errorMessage =
                     available.length > 0
@@ -110,7 +109,7 @@ export const runAlgorithm: GraphCommand = {
                 return {
                     success: true,
                     message: `Successfully ran ${namespace}:${type} algorithm. Results are now available in node data.`,
-                    data: { namespace, type, nodeCount: graph.getNodeCount() },
+                    data: { namespace, type, nodeCount: graph.getSession().status.counts.nodes },
                 };
             }
 

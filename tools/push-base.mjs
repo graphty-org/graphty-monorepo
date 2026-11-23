@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// The branch a push will be merged into, for every pre-push step that judges "what this push
-// changes": the duplicate code check (tools/duplicates-check.mjs), the affected packages and test
-// shards (tools/prepush.sh) and the secret scan (.husky/pre-push). Measured against origin/master, a
+// The branch a push will be merged into, for every check that judges "what this push changes": the
+// duplicate code check (tools/duplicates-check.mjs), the release dry run (tools/release-dry-run.mjs),
+// the commit checks (tools/check-*.mjs) and the secret scan (.husky/pre-push). Measured against origin/master, a
 // branch stacked on another pull request's
 // branch counts the whole parent branch as its own change (#2546).
 //

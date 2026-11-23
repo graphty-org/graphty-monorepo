@@ -24,8 +24,7 @@
 // - not locked;
 // - not named by a `taken` marker (tmp/pipeline-round and tmp/issue-round state) and its branch not
 //   reverted from golden (a fix is due on it);
-// - no push-queue ticket runs from it, no process has its cwd or an open file inside it, and no live
-//   Claude session (~/.claude/sessions) has its cwd there;
+// - no process has its cwd or an open file inside it, and no live Claude session (~/.claude/sessions) has its cwd there;
 // - no git activity (index, HEAD, HEAD reflog) in the last --recent hours;
 // - every commit on its HEAD is on a remote;
 // - `git status --porcelain` is empty. Ignored build output does not count, judged by the branch's
@@ -63,7 +62,6 @@ export const KEEP = {
     tool: "live tool or server worktree",
     locked: "locked",
     held: "taken marker or reverted from golden",
-    ticket: "in the push queue",
     process: "a live process or session inside",
     recent: "git activity in the last hours",
     unpushed: "commits not on a remote",
@@ -180,22 +178,20 @@ const alive = (pid) => {
 };
 
 /**
- * The candidate directories some process has its cwd or an open file in, or a live push-queue ticket
- * or Claude session names. ponytail: cwd, fds, tickets and session cwds; a process running a file
- * mapped from a worktree with its cwd elsewhere is missed. Read /proc/<pid>/maps if that ever bites.
+ * The candidate directories some process has its cwd or an open file in, or a live Claude session
+ * names. ponytail: cwd, fds and session cwds; a process running a file mapped from a worktree with its
+ * cwd elsewhere is missed. Read /proc/<pid>/maps if that ever bites.
  * @param dirs the candidate directories
- * @param root the main checkout (its push-queue tickets)
  * @param home the home directory (Claude's session files)
  * @param procDir the proc file system
  * @returns the busy directories, each with its reason
  */
-function busyDirs(dirs, root, home, procDir) {
+function busyDirs(dirs, home, procDir) {
     const busy = new Map();
     const mark = (p, why) => {
         const d = holderOf(p, dirs);
         if (d && !busy.has(d)) busy.set(d, why);
     };
-    markTickets(join(root, "tmp/push-queue"), mark);
     markSessions(join(home, ".claude/sessions"), mark);
     for (const pid of readdirSync(procDir)) {
         if (/^\d+$/.test(pid)) markProcess(join(procDir, pid), mark);
@@ -204,22 +200,6 @@ function busyDirs(dirs, root, home, procDir) {
 }
 
 const listDir = (dir) => (existsSync(dir) ? readdirSync(dir) : []);
-
-/**
- * Marks the directory each live push-queue ticket names.
- * @param tickets the ticket directory
- * @param mark marks a path busy for a reason
- */
-function markTickets(tickets, mark) {
-    for (const name of listDir(tickets)) {
-        if (!alive(Number(name.split("-").at(-1)))) continue;
-        try {
-            mark(readFileSync(join(tickets, name), "utf8").split(" :: ")[0].trim(), "ticket");
-        } catch {
-            // The push ended while read.
-        }
-    }
-}
 
 /**
  * Marks the working directory of each live Claude session.
@@ -544,7 +524,7 @@ export function cleanup(o) {
 
     const dirs = new Set(finished.map((t) => t.dir));
     const prot = [...new Set(protectedDirs(root, home))];
-    const busy = busyDirs(dirs, root, home, o.procDir ?? "/proc");
+    const busy = busyDirs(dirs, home, o.procDir ?? "/proc");
     const held = heldBranches(root, env);
     const recentMs = recentHours * 3600e3;
     const kept = {};

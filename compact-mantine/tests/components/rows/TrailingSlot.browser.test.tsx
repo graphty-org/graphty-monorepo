@@ -1,4 +1,4 @@
-import { DirectionProvider, MantineProvider } from "@mantine/core";
+import { MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import React, { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -8,28 +8,7 @@ import { type ActivationEvent, compactTheme } from "../../../src";
 import { AdvancedButton, holdsSomething, ResetButton, TrailingSlot } from "../../../src/components/rows/TrailingSlot";
 import { LabelsProvider } from "../../../src/i18n";
 import { UI_GLYPH_NAMES, UiGlyph } from "../../../src/icons";
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderSlot(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
-
-/**
- * Render right to left, which is what Mantine's DirectionProvider switches.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRtl(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(
-        <DirectionProvider initialDirection="rtl" detectDirection={false}>
-            <MantineProvider theme={compactTheme}>{ui}</MantineProvider>
-        </DirectionProvider>,
-    );
-}
+import { renderCompact as renderSlot, renderRtl } from "../../harness/render";
 
 describe("TrailingSlot", () => {
     it("renders its child", () => {

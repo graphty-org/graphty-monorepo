@@ -7,31 +7,10 @@ import { Button, Menu, Select } from "@mantine/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { contrast, over } from "../harness/contrast";
 import { drive, expectMeasured, part, renderThemed, resetHarness } from "../harness/measure";
 
 afterEach(resetHarness);
-
-/** WCAG relative luminance of an opaque rgb() color. */
-function luminance(color: string): number {
-    const [r, g, b] = (color.match(/[\d.]+/g) ?? []).slice(0, 3).map((c) => {
-        const v = Number(c) / 255;
-        return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/** WCAG contrast of two opaque colors. */
-function contrast(a: string, b: string): number {
-    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
-}
-
-/** Composite a translucent text color over an opaque ground, as the eye sees it. */
-function over(text: string, ground: string): string {
-    const [r, g, b, a = 1] = (text.match(/[\d.]+/g) ?? []).map(Number);
-    const [gr, gg, gb] = (ground.match(/[\d.]+/g) ?? []).map(Number);
-    return `rgb(${r * a + gr * (1 - a)}, ${g * a + gg * (1 - a)}, ${b * a + gb * (1 - a)})`;
-}
 
 function TestMenu({ variant }: { variant?: string }): React.JSX.Element {
     return (

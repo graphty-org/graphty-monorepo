@@ -53,6 +53,12 @@ interface NodeMeshOptions {
     styleId: string;
     is2D: boolean;
     size: number;
+    /**
+     * The shortest one width of a dashed, dotted or dash-dot border's pattern is drawn, in scene units (a screen pixel
+     * at the node's zoom, `borderRing`); unset, the pattern is measured in the border's own width. The style id
+     * names it, since the ring is cached under that id.
+     */
+    dashUnit?: number;
 }
 
 interface NodeMeshCreateOptions {
@@ -798,7 +804,8 @@ export class NodeMesh {
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
-            const piecesOf = (round: Point2[]): RingPiece[] => borderRing(round, width, border?.style ?? "solid", wave);
+            const piecesOf = (round: Point2[]): RingPiece[] =>
+                borderRing(round, width, border?.style ?? "solid", wave, options.dashUnit);
             const color = border?.color ?? "#000000";
 
             const ring = { outline, depth, piecesOf, flat, color, opacity };
@@ -860,7 +867,7 @@ export class NodeMesh {
                     const at = gap + i * step;
                     // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
                     const base = at > 0 ? mitredEdges(round, [at])[0] : round;
-                    return borderRing(base, width, outerBorder?.style ?? "solid");
+                    return borderRing(base, width, outerBorder?.style ?? "solid", undefined, options.dashUnit);
                 }).flat();
             const color = outerBorder?.color ?? "#000000";
             const ring = { outline, depth, piecesOf, flat, color, opacity };
@@ -1054,6 +1061,7 @@ export class NodeMesh {
      * @param extents.z - Its depth.
      * @param is2D - Whether the view is 2D.
      * @param scene - The scene.
+     * @param dashUnit - The shortest one width of a patterned border is drawn, in scene units ({@link borderRing}).
      * @returns The ring, or null when the style draws no border.
      */
     static createGroupBorder(
@@ -1061,6 +1069,7 @@ export class NodeMesh {
         extents: { x: number; y: number; z: number },
         is2D: boolean,
         scene?: Scene,
+        dashUnit?: number,
     ): Mesh | null {
         const { border, shape } = createOptions;
         const width = (border?.width ?? 0) * this.extentPerSize(shape);
@@ -1069,7 +1078,12 @@ export class NodeMesh {
         }
 
         const outline = this.flatOutline(shape, { across: Math.max(extents.x, extents.y), ...extents });
-        const mesh = ringSlab("node-border", borderRing(outline, width, border?.style ?? "solid"), extents.z, scene);
+        const mesh = ringSlab(
+            "node-border",
+            borderRing(outline, width, border?.style ?? "solid", undefined, dashUnit),
+            extents.z,
+            scene,
+        );
         placeByZIndex(mesh, shape, is2D);
         mesh.isPickable = false;
 

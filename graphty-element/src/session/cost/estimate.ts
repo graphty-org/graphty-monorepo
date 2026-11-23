@@ -1622,6 +1622,14 @@ export function gateRun(input: CostInput, options: CostGateOptions = {}): CostGa
         });
     }
 
+    if ((options.sample ?? input.sample) !== undefined && descriptor.approximable === undefined) {
+        return refuse(
+            "E_BAD_COMMAND",
+            `A sample was asked for, and "${input.algorithm}" has no approximate method to sample with.`,
+            { fields: ["sample"], algorithm: input.algorithm, approximable: false },
+        );
+    }
+
     const overflow = structuralOverflow(nodes, edges);
     if (overflow !== undefined) {
         return refuse(

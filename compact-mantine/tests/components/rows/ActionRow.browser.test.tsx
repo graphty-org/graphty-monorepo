@@ -1,5 +1,5 @@
-import { DirectionProvider, MantineProvider, UnstyledButton } from "@mantine/core";
-import { act, render, screen } from "@testing-library/react";
+import { MantineProvider, UnstyledButton } from "@mantine/core";
+import { act, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
@@ -8,30 +8,8 @@ import { compactTheme } from "../../../src";
 import { ActionRow } from "../../../src/components/rows/ActionRow";
 import { PANEL_GRID } from "../../../src/constants/panel";
 import { UiGlyph } from "../../../src/icons";
+import { renderCompact as renderRow, renderRtl } from "../../harness/render";
 import { tap } from "../../harness/touch";
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRow(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
-
-/**
- * Render with the text direction reversed, the way a consumer of an
- * Arabic or Hebrew interface consumes it.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRtl(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(
-        <DirectionProvider initialDirection="rtl" detectDirection={false}>
-            <MantineProvider theme={compactTheme}>{ui}</MantineProvider>
-        </DirectionProvider>,
-    );
-}
 
 /**
  * Answer the "(hover: none)" query the way a touch screen (true) or a mouse (false) does, leaving

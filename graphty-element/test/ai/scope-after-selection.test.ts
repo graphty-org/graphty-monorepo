@@ -15,7 +15,7 @@ const LINE = "Earlier messages in this conversation were about a selection.";
  * @returns The newest facts of each request.
  */
 async function factsOf(...scopes: ("selection" | "graph")[]): Promise<string[]> {
-    const session = await assistantSession(undefined, ["assistant"]);
+    const session = await assistantSession();
     await session.selection.apply({ ids: ["a", "b"] });
     const assistant = new ScriptedAssistant(session, { gate: false, history: "memory" });
     const facts: string[] = [];

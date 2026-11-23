@@ -792,7 +792,6 @@ export type AiResultParams = Readonly<Record<string, string | number>>;
  * {@link AiRule}), so an application can word it from its own names for columns and values.
  *
  * OPEN UNION: codes may be added in a minor release.
- * @experimental assistant
  */
 export const AI_EFFECT_CODES = Object.freeze([
     "AI_EFFECT_STYLE",
@@ -811,7 +810,6 @@ export const AI_EFFECT_CODES = Object.freeze([
 
 /**
  * One effect code; see {@link AI_EFFECT_CODES}.
- * @experimental assistant
  */
 export type AiEffectCode = (typeof AI_EFFECT_CODES)[number];
 
@@ -821,7 +819,6 @@ export type AiEffectCode = (typeof AI_EFFECT_CODES)[number];
  * as it is now. A rule or a reference, so it stays exact at any graph size; `ids` appears only when
  * ids are what the call named. A target whose rule, layer or run is gone counts zero or is refused
  * (`E_UNKNOWN_LAYER`, `E_UNKNOWN_RUN`).
- * @experimental assistant
  */
 export type AiTarget =
     | {
@@ -867,7 +864,6 @@ export type AiTarget =
 
 /**
  * What a tool call did, for an application to word and to point at.
- * @experimental assistant
  */
 export interface AiEffect {
     /** What happened; see {@link AI_EFFECT_CODES}. */
@@ -886,7 +882,6 @@ export interface AiEffect {
 /**
  * One comparison of a rule: a column, how it compares, and the values it compares with. `values`
  * holds more than one value only for `==` (any of them) and `!=` (none of them).
- * @experimental assistant
  */
 export interface AiRuleTerm {
     /** The column, as the rule names it: a bare column name (`weight`) or a path (`results.r1.community`). */
@@ -900,7 +895,6 @@ export interface AiRuleTerm {
 /**
  * A rule in parts: its comparisons, and whether an element must pass all of them or any. `a == 1
  * || a == 2` is one term on `a` with the values 1 and 2.
- * @experimental assistant
  */
 export interface AiRule {
     /** `"all"` for `&&`, `"any"` for `||`; a rule of one term is `"all"`. */
@@ -925,7 +919,6 @@ export interface AiRule {
  * - `other` -- anything else (an options object, coordinates); no formatter is expected.
  *
  * OPEN UNION: kinds may be added in a minor release; treat a kind you do not know as `other`.
- * @experimental assistant
  */
 export const AI_INPUT_KINDS = Object.freeze([
     "rule",
@@ -947,13 +940,11 @@ export const AI_INPUT_KINDS = Object.freeze([
 
 /**
  * One input kind; see {@link AI_INPUT_KINDS}.
- * @experimental assistant
  */
 export type AiInputKind = (typeof AI_INPUT_KINDS)[number];
 
 /**
  * One argument a model passed a tool, read against the tool's own parameter schema.
- * @experimental assistant
  */
 export interface AiCallInput {
     /** The argument's name in the tool's schema. */
@@ -970,7 +961,6 @@ export interface AiCallInput {
 
 /**
  * What a message was about (`AiCommandOptions.scope`), read when it was sent.
- * @experimental assistant
  */
 export interface AiMessageScope {
     /** `"selection"`: the selected elements; `"graph"`: the whole graph, whatever was selected. */

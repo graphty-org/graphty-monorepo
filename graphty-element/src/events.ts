@@ -1307,7 +1307,6 @@ export interface AiVoiceTranscriptEvent {
     /**
      * What the reader pointed at during the press, on a press's final transcript under
      * `AiVoiceOptions.review`, to pass on as `aiCommand(transcript, { via: "voice", pointing })`.
-     * @experimental assistant
      */
     pointing?: AiPointing;
 }
@@ -1540,8 +1539,7 @@ export interface AiApprovalPreview {
     readonly costUsd?: number;
     /**
      * Every element a `large` change would touch, for `session.selection.peek(target)`, where `ids`
-     * stops at ten. Under the generated tools with the `assistant` experiment on.
-     * @experimental assistant
+     * stops at ten. Under the generated tools.
      */
     readonly target?: AiTarget;
 }

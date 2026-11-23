@@ -18,6 +18,7 @@ import {
     type TreeMove,
     type TreeNodeData,
 } from "../../../src/components/tree";
+import { contrast } from "../../harness/contrast";
 import { renderThemed, resetHarness } from "../../harness/measure";
 import { moveBy, moveTo, press, release } from "../../harness/mouse";
 import { touchEnd, touchMoveBy, touchMoveTo, touchStart } from "../../harness/touch";
@@ -1513,24 +1514,6 @@ describe("ResultRow", () => {
     });
 });
 
-/**
- * The WCAG contrast ratio of two opaque `rgb()` colors.
- * @param a - one computed color
- * @param b - the other
- * @returns the ratio, 1 or more
- */
-function contrastOf(a: string, b: string): number {
-    const lum = (color: string): number => {
-        const [r, g, bl] = (color.match(/[\d.]+/g) ?? []).slice(0, 3).map((c) => {
-            const v = Number(c) / 255;
-            return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-        });
-        return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
-    };
-    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
-}
-
 describe("Tree: a selected parent stands apart from its children", () => {
     for (const scheme of ["light", "dark"] as const) {
         // Figma's tints differ by 1.05:1 light and 1.2:1 dark; the AA option swaps them.
@@ -1545,7 +1528,7 @@ describe("Tree: a selected parent stands apart from its children", () => {
             expect(child.getAttribute("data-tint")).toMatch(/^child/);
             const parentFill = getComputedStyle(parent, "::after").backgroundColor;
             const band = getComputedStyle(child, "::before").backgroundColor;
-            expect(contrastOf(parentFill, band)).toBeGreaterThanOrEqual(1.25);
+            expect(contrast(parentFill, band)).toBeGreaterThanOrEqual(1.25);
         });
     }
 });

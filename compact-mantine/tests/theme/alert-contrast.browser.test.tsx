@@ -7,39 +7,10 @@
 import { Alert } from "@mantine/core";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { contrast, over } from "../harness/contrast";
 import { part, renderThemed, resetHarness } from "../harness/measure";
 
 afterEach(resetHarness);
-
-/** The rgba channels of a computed color. */
-function channels(color: string): number[] {
-    const [r, g, b, a = 1] = (color.match(/[\d.]+/g) ?? []).map(Number);
-    return [r, g, b, a];
-}
-
-/** Composite a translucent color over an opaque ground. */
-function over(color: string, ground: string): string {
-    const [r, g, b, a] = channels(color);
-    const [gr, gg, gb] = channels(ground);
-    return `rgb(${r * a + gr * (1 - a)}, ${g * a + gg * (1 - a)}, ${b * a + gb * (1 - a)})`;
-}
-
-/** WCAG relative luminance of an opaque rgb() color. */
-function luminance(color: string): number {
-    const [r, g, b] = channels(color)
-        .slice(0, 3)
-        .map((c) => {
-            const v = c / 255;
-            return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-        });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/** WCAG contrast of two opaque colors. */
-function contrast(a: string, b: string): number {
-    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
-}
 
 describe("Alert", () => {
     for (const scheme of ["light", "dark"] as const) {

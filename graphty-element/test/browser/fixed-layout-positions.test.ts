@@ -135,4 +135,35 @@ describe("the fixed layout", () => {
             { layoutType: "fixed", code: "W_ROUTES_NOT_LAID", params: { reason: "graphviz.unavailable" } },
         ]);
     });
+
+    it("draws every node at its Z again after an edit and a switch to 2D and back to 3D", async () => {
+        await placeFixed([
+            { id: "a", position: { x: 0, y: 0, z: 30 } },
+            { id: "b", position: { x: 100, y: 0, z: -20 } },
+            { id: "c", position: { x: 50, y: 100, z: 10 } },
+        ]);
+        // An edit leaves the frame following only the rows the lane logs.
+        await graph.updateNodes([{ id: "a", kind: "edited" }]);
+        await operationQueueOf(graph).waitForCompletion();
+        graph.update();
+
+        await graph.setViewMode("2d");
+        await operationQueueOf(graph).waitForCompletion();
+        graph.update();
+        await graph.setViewMode("3d");
+        await operationQueueOf(graph).waitForCompletion();
+        graph.update();
+
+        // The 2D view flattened the meshes in place, which no lane write records: the redraw walks every node.
+        const drawnZ = (id: string): number => {
+            const node = graph.getNode(id);
+            assert.isDefined(node);
+            return node.drawnPosition.z;
+        };
+        assert.deepStrictEqual(
+            ["a", "b", "c"].map((id) => drawnZ(id) - at(id).z),
+            [0, 0, 0],
+        );
+        assert.notStrictEqual(drawnZ("a"), drawnZ("b"));
+    });
 });

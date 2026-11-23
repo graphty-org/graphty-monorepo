@@ -17,7 +17,12 @@
     ],
     "entryPointStrategy": "resolve",
     "out": "./docs/api/generated",
-    "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme", "./scripts/typedoc-zod-enum-plugin.mjs"],
+    "plugin": [
+        "typedoc-plugin-markdown",
+        "typedoc-vitepress-theme",
+        "./scripts/typedoc-zod-enum-plugin.mjs",
+        "./scripts/typedoc-relative-anchor-plugin.mjs"
+    ],
     "readme": "none",
     "excludePrivate": true,
     "excludeProtected": true,
@@ -30,7 +35,6 @@
     "kindSortOrder": ["Class", "Interface", "TypeAlias", "Function", "Variable"],
     "docsRoot": "./docs",
     "blockTags": [
-        "@alias",
         "@defaultValue",
         "@deprecated",
         "@example",

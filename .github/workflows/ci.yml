@@ -1231,6 +1231,35 @@ jobs:
               if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty')
               run: pnpm --filter @graphty/graphty run size
 
+            # The built app loads its landing page, draws its graph, opens a sample and draws it, with no page
+            # error, console error or failed request (graphty/acceptance/smoke.mjs, #9633): a build threw "nn is
+            # not a function" on its landing page and every test passed (#9616). Here because this job already
+            # has the built app: built above on a pull request, downloaded with the package builds on master and
+            # the full run. Chromium draws in software; no GPU is needed.
+            - uses: ./.github/actions/drop-microsoft-apt-source
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+
+            - name: Install Playwright system packages
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              uses: ./.github/actions/playwright-system-deps
+
+            - name: Install Chromium for the app's smoke check
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              run: pnpm exec playwright install --only-shell chromium
+
+            - name: Smoke check the built app
+              id: app-smoke
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              continue-on-error: ${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'lint/Smoke check the built app') }}
+              # a few seconds when the app loads; a page that stalls fails the step, not the whole Lint job
+              timeout-minutes: 5
+              run: node graphty/acceptance/smoke.mjs --dist graphty/dist
+
+            - name: Warn that the app's smoke check failed
+              if: ${{ steps.app-smoke.outcome == 'failure' }}
+              continue-on-error: true
+              run: echo "::warning::advisory check lint/Smoke check the built app failed"
+
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -1249,10 +1278,12 @@ jobs:
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 20
-        # issues and pull requests: read, for the style fidelity known failures' tracking issues below
+        # issues and pull requests: read, for the style fidelity known failures' tracking issues below;
+        # id-token: write is the results store's credential (the CI workflow tests' record, tools/results/run-group.mjs)
         permissions:
             contents: read
             checks: write
+            id-token: write
             issues: read
             pull-requests: read
         steps:
@@ -1298,9 +1329,15 @@ jobs:
 
             # The shard groups and the conditions that decide what a pull request, master and a full run do.
             # The files run side by side, one per core (tools/run-ci-workflow-tests.mjs): about 1 minute, not 3.5.
+            # Recorded in the results store like every test job; RESULTS_RECORD_ONLY: run once, exit code untouched
+            # (node:test files with no JUnit report, so the record holds the outcome and the time only).
             - name: CI workflow tests
               if: needs.packages.outputs.light != 'true'
-              run: pnpm run test:ci-workflows
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  RESULTS_RECORD_ONLY: "1"
+              run: node tools/results/run-group.mjs ci-workflows "pnpm run test:ci-workflows"
 
             # Every job that has a budget in ci-budgets.json has the timeout it asks for (a job with none is a
             # warning), and no build step reads a secret or depends on the event (tools/ci-budgets.mjs).
@@ -2539,6 +2576,11 @@ jobs:
         if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && needs.packages.outputs.reuse-run == '' && needs.packages.outputs.cost-accuracy == 'true'
         runs-on: ubuntu-24.04
         timeout-minutes: 10
+        # id-token: write is the results store's credential (tools/results/run-group.mjs posts the test's record)
+        permissions:
+            contents: read
+            checks: write
+            id-token: write
         steps:
             - uses: actions/checkout@v7
               with:
@@ -2578,11 +2620,16 @@ jobs:
                   name: build-packages
                   path: .
 
+            # Recorded in the results store; RESULTS_RECORD_ONLY: run once, no retry (a retry would hide an estimate
+            # at its tolerance edge), exit code untouched
             - name: Time the estimates against real runs
-              working-directory: graphty-element
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  RESULTS_RECORD_ONLY: "1"
               run: |
                   set -o pipefail
-                  COST_GUARD_VERBOSE=1 npm run test:cost 2>&1 | tee "$RUNNER_TEMP/cost.log"
+                  node tools/results/run-group.mjs cost-accuracy "cd graphty-element && COST_GUARD_VERBOSE=1 npm run test:cost" 2>&1 | tee "$RUNNER_TEMP/cost.log"
 
             - name: Write the ratios to the job summary
               if: ${{ !cancelled() }}

@@ -203,7 +203,7 @@ describe("a visibility edit in the history", () => {
         assert.isTrue(Object.isFrozen(session.visibility.filter));
     });
 
-    it("writes nothing when its signal is already aborted, and keeps the edit when cancelled later", async () => {
+    it("writes nothing when its signal is already aborted, and keeps the edit when canceled later", async () => {
         const { session } = clocked();
         const controller = new AbortController();
         controller.abort();

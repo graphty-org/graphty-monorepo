@@ -1076,6 +1076,34 @@ describe("AccelerationController: device loss", () => {
         controller.dispose();
     });
 
+    it("comes back from a device lost during the probe's self-check, rather than settling on the CPU", async () => {
+        // a GPU process crash that lands on the probe (issue #9731): the same loss a second later recovers
+        const registry = new AcceleratorRegistry();
+        let built = 0;
+        registry.register({
+            name: "fake",
+            factory: () => {
+                built += 1;
+                return Promise.resolve(
+                    createFakeAccelerator({
+                        name: `try ${String(built)}`,
+                        verify: built === 1 ? "E_DEVICE_LOST" : "ok",
+                    }),
+                );
+            },
+        });
+        const controller = new AccelerationController({ registry });
+
+        const status = await controller.start();
+
+        assert.strictEqual(status.state, "error");
+        assert.strictEqual(status.code, "E_DEVICE_LOST");
+        await vi.waitUntil(() => controller.accelerator !== null);
+        assert.strictEqual(controller.accelerator?.name, "try 2");
+        assert.strictEqual(controller.state, "idle");
+        controller.dispose();
+    });
+
     it("stays in error, not unavailable, when it cannot come back", async () => {
         const lost = deferred<{ reason: string }>();
         const first = fakeAccelerator({ name: "first", lost: lost.promise });

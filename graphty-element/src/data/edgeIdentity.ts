@@ -15,6 +15,7 @@ import { type DuplicatePolicy, type GraphSnapshot, INVALID_INDEX } from "@grapht
 import { compareIds } from "../catalog/sets/canonical";
 import { hashEdgeEnds, hashEdgeMember, hashNodeId, type LanePair } from "../catalog/sets/hash";
 import type { EdgeId, EdgeMember, NodeId } from "../catalog/types";
+import { GraphtyError } from "../errors";
 import { RowMap } from "./RowMap";
 
 /**
@@ -289,6 +290,26 @@ export function decideRepeat(policy: DuplicatePolicy, survivorWeight: number, re
             // color the group's color.
             return { kind: "merge", weight: repeatWeight, replaceRecord: true };
     }
+}
+
+/**
+ * The error a load refuses a repeated edge with under the `"error"` repeat policy.
+ * @param source - The repeat's source node id.
+ * @param target - The repeat's target node id.
+ * @param repeat - The repeating record.
+ * @param existing - The index of the edge already present, when the graph holds it.
+ * @returns A `GraphtyError` with `E_DUPLICATE_EDGE`.
+ */
+export function duplicateEdgeError(source: unknown, target: unknown, repeat: unknown, existing?: number): GraphtyError {
+    return new GraphtyError({
+        code: "E_DUPLICATE_EDGE",
+        source: "data",
+        message:
+            `Two edges run from ${JSON.stringify(source)} to ${JSON.stringify(target)}, and ` +
+            `data.knownFields.repeatedEdges is "error". Set it to "keep" to hold both, or to ` +
+            `"first", "last", "sum", "min" or "max" to fold them into one.`,
+        details: { source, target, ...(existing === undefined ? {} : { existing }), repeat },
+    });
 }
 
 /** The element-assigned edge counter column. Its value, printed, is `Edge.id`. */

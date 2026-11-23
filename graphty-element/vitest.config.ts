@@ -801,6 +801,7 @@ const config = defineConfig({
                         "test/fidelity/fidelity.test.ts",
                         "test/fidelity/oracle-report.test.ts",
                         "test/fidelity/mutants.test.ts",
+                        "test/fidelity/curves-come-to-rest.test.ts",
                         // Interaction tests require browser environment
                         "test/interactions/**/*.test.ts",
                         // Performance tests need DOM and should run in browser
@@ -1126,7 +1127,8 @@ const config = defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "gpu-loss",
-                    setupFiles: ["./test/setup.ts"],
+                    // fresh-gpu-process.ts restarts the GPU process before each test (issue #9731)
+                    setupFiles: ["./test/setup.ts", "./test/gpu-loss/fresh-gpu-process.ts"],
                     include: ["test/gpu-loss/**/*.test.ts"],
                     fileParallelism: false,
                     browser: {
@@ -1389,6 +1391,7 @@ const config = defineConfig({
                         "test/fidelity/fidelity.test.ts",
                         "test/fidelity/oracle-report.test.ts",
                         "test/fidelity/mutants.test.ts",
+                        "test/fidelity/curves-come-to-rest.test.ts",
                     ],
                     fileParallelism: false,
                     browser: {

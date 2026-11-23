@@ -163,17 +163,15 @@ export default defineConfig(({ mode }) => {
             // build (.github/workflows/ci.yml, "Upload graphty's source maps to Sentry").
             ...(process.env.SENTRY_RELEASE ? { __SENTRY_RELEASE__: JSON.stringify(process.env.SENTRY_RELEASE) } : {}),
         },
-        // A dependency the dev server first meets after the page is up -- graphty-element's
-        // credential store loading encrypt-storage, or the model loaders, fflate and the PBR material
-        // loaded with the first model -- is optimized then, and the page reloads under the reader:
-        // a chosen model file seemed to do nothing. graphty-element is reached through an import
+        // A dependency the dev server first meets after the page is up -- the model loaders, fflate
+        // and the PBR material loaded with the first model -- is optimized then, and the page
+        // reloads under the reader: a chosen model file seemed to do nothing. graphty-element is reached through an import
         // the scan does not follow, so its entry points and babylonjs-models are scanned too, and
         // everything they can load is optimized at startup. Dev server only.
         optimizeDeps: {
             entries: ["index.html", "../graphty-element/src/**/*.ts", "!**/*.d.ts", "!**/*.test.ts"],
             // babylonjs-models imports Babylon's FBX and USD loaders when such a model first loads.
             include: [
-                "encrypt-storage",
                 "@babylonjs/loaders/FBX/fbxFileLoader.pure.js",
                 "@babylonjs/loaders/USD/usdFileLoader.pure.js",
                 "@babylonjs/core/Meshes/Builders/tubeBuilder.js",

@@ -1,6 +1,6 @@
 /**
  * Opening files that are not a saved project, on the REAL graphty-element: Locate... from Recent
- * projects with a data file, a file nothing can read, a cancelled or refused picker; and, inside an
+ * projects with a data file, a file nothing can read, a canceled or refused picker; and, inside an
  * open project, Open project or file... with a saved style.
  */
 

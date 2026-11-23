@@ -81,7 +81,7 @@ export interface AlgorithmStatics {
      * every algorithm this package ships does.
      *
      * Prefer {@link costUnits}: seconds written on one machine are wrong on every other, and no
-     * calibration can scale them, so an estimate from this hook always reports "modelled".
+     * calibration can scale them, so an estimate from this hook always reports "modeled".
      */
     cost?: (n: number, m: number) => number;
     /**

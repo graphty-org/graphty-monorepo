@@ -369,7 +369,7 @@ const RUN_FACTS = [
     "scope",
     "status",
     "progress",
-    "cancellable",
+    "cancelable",
     "queuePosition",
     "startedAt",
     "durationMs",

@@ -918,6 +918,21 @@ describe("ci.yml", () => {
         assert.ok(parseJobs(ci)["all-checks"].needs.includes("cost-accuracy"));
     });
 
+    it("loads the built app in a browser wherever it is built or affected, in a required job (#9633)", () => {
+        const steps = parseYaml(ci).jobs.lint.steps;
+        const smoke = steps.find((s) => s.name === "Smoke check the built app");
+        assert.equal(smoke.run, "node graphty/acceptance/smoke.mjs --dist graphty/dist");
+        assert.equal(
+            smoke.if,
+            "needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')",
+        );
+        // after the app is built (a pull request) and before the early verdict
+        const at = (name) => steps.findIndex((s) => s.name === name);
+        assert.ok(at("Build the graphty app (PR, when affected)") < steps.indexOf(smoke));
+        assert.ok(steps.indexOf(smoke) < at("Fail the summary checks now"));
+        assert.ok(parseJobs(ci)["all-checks"].needs.includes("lint"));
+    });
+
     it("reports flaky screenshots after the story tests without gating anything on them", () => {
         const jobs = parseJobs(ci);
         assert.deepEqual(jobs["visual-flaky"].needs, ["story-tests", "story-tests-merge"]);
@@ -1687,6 +1702,15 @@ describe("verification runs of ci.yml", () => {
         // Through the results store like every test shard, and judged against the committed quarantine list.
         assert.match(job(ci, "story-tests"), /node tools\/results\/run-group\.mjs "\$SHARD"/);
         assert.match(job(ci, "story-tests"), /id-token: write/);
+        // the Checks job's CI workflow tests and Cost Estimate Accuracy are recorded too, once, verdict untouched (#3429)
+        for (const [name, group] of [
+            ["checks", "ci-workflows"],
+            ["cost-accuracy", "cost-accuracy"],
+        ]) {
+            assert.match(job(ci, name), new RegExp(`node tools/results/run-group\\.mjs ${group} "`));
+            assert.match(job(ci, name), /RESULTS_RECORD_ONLY: "1"/);
+            assert.match(job(ci, name), /id-token: write/);
+        }
         // the combine step judges by the very list the run step judged by, which the run step writes
         assert.match(
             job(ci, "story-tests"),

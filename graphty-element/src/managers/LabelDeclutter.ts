@@ -75,7 +75,16 @@ export interface NodeLabel {
      * `closeButton`, when the label is not drawn, or when it is behind the camera.
      * @since 3.29.0
      */
-    readonly closeRect?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+    readonly closeRect?: {
+        /** The left edge, in CSS pixels from the canvas's left side. */
+        readonly x: number;
+        /** The top edge, in CSS pixels from the canvas's top. */
+        readonly y: number;
+        /** The width, in CSS pixels. */
+        readonly width: number;
+        /** The height, in CSS pixels. */
+        readonly height: number;
+    };
 }
 
 /** The counts before any label is drawn. */

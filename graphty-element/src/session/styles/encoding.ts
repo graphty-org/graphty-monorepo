@@ -1073,7 +1073,7 @@ function authoredEnum(descriptor: ChannelDescriptor, value: ChannelValue, what: 
  * @returns The value in the form a repaint reads, which for a color means its components.
  * @throws A `GraphtyError` with code `E_BAD_LAYER`, `E_OPTION_RANGE` or `E_UNSUPPORTED`.
  */
-function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
+export function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
     const { accepts } = descriptor;
     const wrongKind = (expected: string): GraphtyError =>
         badBinding(`${what} is ${expected}.`, { channel: descriptor.channel, value });
@@ -1252,13 +1252,42 @@ function combineFactor(value: ChannelValue, what: string): number {
  * switch takes the value as it is, because there is nothing between "gene" and a shape to
  * interpolate. A binding that names its values with `map` takes them as they are on every
  * channel: a map is a list of categories, not a measurement, and reading it through `"linear"`
- * painted the map's colors while the legend described a ramp nobody drew.
+ * painted the map's colors while the legend described a ramp nobody drew. A color or a number
+ * over a column of text reads its values as groups (`"ordinal"`): text has no order to ramp over,
+ * and `"linear"` would place none of it (issue #9622). A column with any value that reads as a
+ * number keeps the ramp, so a stray `"N/A"` among numbers does not turn every number into a group.
  * @param kind - The kind of value the channel accepts.
  * @param binding - The binding, read for `map`.
+ * @param column - Every value the bound path carries, when the caller has it. Absent, the column
+ *   is read as numbers.
  * @returns The scale's name.
  */
-export function defaultScaleFor(kind: ChannelValueKind, binding: RuleBinding): string {
-    return binding.map === undefined && (kind === "color" || kind === "number") ? "linear" : "passthrough";
+export function defaultScaleFor(kind: ChannelValueKind, binding: RuleBinding, column?: Iterable<unknown>): string {
+    if (binding.map !== undefined || (kind !== "color" && kind !== "number")) {
+        return "passthrough";
+    }
+
+    return column !== undefined && isTextColumn(column) ? "ordinal" : "linear";
+}
+
+/**
+ * Whether a column holds values and none of them reads as a number.
+ * @param column - The column.
+ * @returns True for a column of text (or of switches).
+ */
+function isTextColumn(column: Iterable<unknown>): boolean {
+    let present = false;
+    for (const value of column) {
+        if (value === undefined || value === null) {
+            continue;
+        }
+        if (!Number.isNaN(readNumber(value))) {
+            return false;
+        }
+        present = true;
+    }
+
+    return present;
 }
 
 /**
@@ -1550,7 +1579,7 @@ function rangeFor(
  * @throws A `GraphtyError` with code `E_BAD_LAYER` or `E_OPTION_RANGE` when the value is not one
  *   the channel carries.
  */
-function missingValue(descriptor: ChannelDescriptor, binding: RuleBinding): EncodedValue | undefined {
+export function missingValue(descriptor: ChannelDescriptor, binding: RuleBinding): EncodedValue | undefined {
     const { missing } = binding;
     if (missing === undefined || missing === "skip") {
         return undefined;
@@ -1987,7 +2016,7 @@ function prepareRule(
         return prepareStops(descriptor, binding, options);
     }
 
-    const scale = binding.scale ?? defaultScaleFor(descriptor.accepts, binding);
+    const scale = binding.scale ?? defaultScaleFor(descriptor.accepts, binding, options.column);
     const map = options.scales.require(scale);
     const described = options.scales.describe(scale);
     if (described === undefined) {

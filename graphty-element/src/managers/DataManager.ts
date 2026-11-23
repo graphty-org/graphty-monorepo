@@ -506,6 +506,8 @@ export const dataManagerInternals = {} as {
      * the row or none is stored there.
      */
     unbuiltEdgeEnds(manager: DataManager, row: number): readonly [number, number] | undefined;
+    /** The id of an edge stored with no `Edge`, building none; undefined when an `Edge` draws the row or none is stored there. */
+    unbuiltEdgeId(manager: DataManager, row: number): EdgeId | undefined;
     /**
      * Build the `Edge` of an edge row stored with no `Edge` yet, and hand it back; its paint is queued
      * unless the caller paints it now (`paintingNow`).
@@ -898,6 +900,10 @@ export class DataManager implements Manager {
         };
         dataManagerInternals.storeEdgesUnbuilt = (manager, on) => {
             manager.edgesUnbuilt = on;
+        };
+        dataManagerInternals.unbuiltEdgeId = (manager, row) => {
+            const counter = manager.unbuiltEdges.edgeIdAt(row);
+            return counter === undefined ? undefined : edgeIdOf(counter);
         };
         dataManagerInternals.unbuiltEdgeEnds = (manager, row) => {
             const edges = manager.unbuiltEdges;
@@ -3071,8 +3077,15 @@ export class DataManager implements Manager {
         //
         // Not while a pass is painting (`StylePainter.settledNodePaint`): the row is queued, so the
         // frame after the pass draws it; until then the `Node` keeps the look the batch drew it with.
-        const rowPaint = this.graphContext?.getStylePainter?.()?.settledNodePaint(index) ?? null;
+        //
+        // Nor for a row no frame has drawn yet whose paint is waiting for one: it is built from the defaults, as the
+        // objects path built it, and that frame paints it among the other rows, in row order. Painted at once, it made
+        // its look's meshes before every other look's, and drew under them where the objects path draws it over
+        // (issue #9185).
+        const painter = this.graphContext?.getStylePainter?.();
         const drawn = batches?.lookOf(index) ?? null;
+        const undrawn = drawn === null && painter?.isNodePending(index) === true;
+        const rowPaint = undrawn ? null : (painter?.settledNodePaint(index) ?? null);
         const look = rowPaint !== null && batches?.keepsLook(index, rowPaint) === false ? null : drawn;
         batches?.unpaintRow(index);
         const before = this.nodeVersion;
@@ -3081,6 +3094,12 @@ export class DataManager implements Manager {
         // see one: what that paint would have told the layout and the node's edges is told here.
         if (drawn !== null && look === null && rowPaint !== null) {
             nodeResizedFrom(node, drawn.paint.style, rowPaint.style);
+        }
+
+        // Not painted yet, but placed: paintBuilt places a node it paints, and with no paint nothing else put this one
+        // where its layout has it before the frames that paint it, which left it at the mesh template's place.
+        if (undrawn) {
+            node.update();
         }
 
         this.lateNodeVersions += this.nodeVersion - before;

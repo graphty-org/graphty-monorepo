@@ -18,7 +18,7 @@ import { z } from "zod";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
 import { resolveLayoutWeight } from "../algorithms/input/weight";
-import { LAYOUT_DESCRIPTORS, layoutAlias, layoutDescriptor } from "../catalog/layouts";
+import { layoutAlias, layoutDescriptor } from "../catalog/layouts";
 import { resolveOptionValues } from "../catalog/options";
 import type { AuthoredLayoutDescriptor, Scope, ScopeInput } from "../catalog/types";
 import type { GraphLayoutBehavior } from "../config/GraphBehavior";
@@ -58,6 +58,7 @@ import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
 import type { RowExtent as TableExtent } from "../render/RowTable";
+import { unknownLayout } from "../session/commands/layout";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
 import type { LayoutMotion } from "../session/types";
@@ -444,28 +445,6 @@ function ignoredOptions(
     return options.length > 0 ? { options, available } : undefined;
 }
 
-/**
- * The refusal for a layout name nothing answers to.
- *
- * It used to be a bare `TypeError` whose message a consumer had to read to find out what had gone
- * wrong, and which said nothing about what could have been asked for instead.
- * @param type - The name that was asked for.
- * @returns The error to throw.
- */
-function unknownLayout(type: string): GraphtyError {
-    return new GraphtyError({
-        code: "E_UNKNOWN_LAYOUT",
-        message: `no layout named "${type}" is registered`,
-        source: "layout",
-        details: {
-            layout: type,
-            available: [
-                ...new Set([...LayoutEngine.getRegisteredTypes(), ...LAYOUT_DESCRIPTORS.map((entry) => entry.id)]),
-            ],
-        },
-    });
-}
-
 /** How one engine build is carried out. */
 interface BuildOptions {
     /** 2 or 3: the dimension options the engine is built with. */
@@ -532,8 +511,8 @@ function sameArrangement(a: LayoutChoice, b: LayoutChoice): boolean {
  * canceled the build already knows.
  * @returns The error.
  */
-function cancelledBuild(): Error {
-    const error = new Error("The layout was cancelled or replaced before it finished building.");
+function canceledBuild(): Error {
+    const error = new Error("The layout was canceled or replaced before it finished building.");
     error.name = "AbortError";
     return error;
 }
@@ -1513,6 +1492,7 @@ export class LayoutManager implements Manager {
         );
 
         const engine = await this.buildEngine(type, driver, driverClass, layoutOpts, how);
+        this.continueFixed(engine, how);
 
         this.drawPaintForSizes(layoutOpts);
 
@@ -1563,7 +1543,7 @@ export class LayoutManager implements Manager {
             this.holdBeforeInit(engine, members);
             await engine.init();
             if (!how.live()) {
-                throw cancelledBuild();
+                throw canceledBuild();
             }
 
             this.addLateArrivals(engine, nodeArray, edgeArray, edgeRows);
@@ -1619,10 +1599,27 @@ export class LayoutManager implements Manager {
 
             // Canceled or overtaken is not a failure: nothing is reported.
             if (!how.live()) {
-                throw cancelledBuild();
+                throw canceledBuild();
             }
 
             throw this.reportLayoutFailure(type, error, "initialised");
+        }
+    }
+
+    /**
+     * The same fixed layout, rebuilt for the other dimension, keeps every node where it is drawn:
+     * a switch put each node moved by `positions.set` or a drag back at its data position (#9637).
+     * @param engine - The engine just built, not yet initialized.
+     * @param how - The build; only a 2D/3D switch of the same layout continues.
+     */
+    private continueFixed(engine: LayoutEngine, how: BuildOptions): void {
+        const previous = this.layoutEngine;
+        if (
+            (how.lift === true || how.flatten === true) &&
+            engine instanceof FixedLayout &&
+            previous instanceof FixedLayout
+        ) {
+            engine.continueFrom(previous, how.lift === true);
         }
     }
 
@@ -1787,7 +1784,7 @@ export class LayoutManager implements Manager {
                 // engine exists, which is why it belongs in this try and not the next one.
                 await this.acceleration.ready();
                 if (!how.live()) {
-                    throw cancelledBuild();
+                    throw canceledBuild();
                 }
 
                 const init: SimulationEngineInit = {
@@ -1818,7 +1815,7 @@ export class LayoutManager implements Manager {
             }
         } catch (error) {
             if (!how.live()) {
-                throw cancelledBuild();
+                throw canceledBuild();
             }
 
             throw this.reportLayoutFailure(type, optionRefusal(type, error, layoutOpts) ?? error, "built");
@@ -2210,17 +2207,21 @@ export class LayoutManager implements Manager {
             // Under renderPath "batched" a row with no Node is something to step as well.
             const batched = this.dataManager.renderLimits?.batched() ?? false;
             const nothingToStep = batched ? this.dataManager.nodes.size === 0 : nodeArray.length === 0;
-            if (nothingToStep || this.sizesToCome(engine)) {
+            if (nothingToStep) {
                 // Owed even on a switch to 2D: an empty graph has no arrangement to keep.
                 this.preStepsOwed = true;
             } else if (this.flattens(engine, how)) {
                 // The arrangement it starts from is already laid out: stepping it before the first
                 // frame would move every node away from where the reader just saw it. Nor does the
-                // first frame step it: that frame draws the flattened arrangement as it is.
+                // first frame step it: that frame draws the flattened arrangement as it is. Not owed
+                // either while a node size is still to come: the engine takes the new size as it
+                // steps afterwards, and pre-steps paid then moved every node off its flattened spot.
                 this.preStepsOwed = false;
                 this.#holdOneFrame = true;
+            } else if (this.sizesToCome(engine)) {
+                this.preStepsOwed = true;
             } else if (!(await this.spendPreSteps(engine, how.live))) {
-                throw cancelledBuild();
+                throw canceledBuild();
             }
 
             // PUBLISHING IS THE ELEMENT'S JOB. An engine's coordinates reach
@@ -2512,7 +2513,7 @@ export class LayoutManager implements Manager {
         const { signal, restoring } = options;
         const live = (): boolean => signal?.aborted !== true && (restoring || this.#generation === generation);
         if (!live()) {
-            throw cancelledBuild();
+            throw canceledBuild();
         }
 
         const built = this.#built;
@@ -2567,6 +2568,8 @@ export class LayoutManager implements Manager {
                     dimension === 3,
                 // Only the dimension changed, to 2D: `sameLayout` fell through because the engine
                 // redraws. Not to 3D, where a force engine started flat has no force out of the plane.
+                // Seeded too: the reader sees the drawing they just had, flattened (#9279), not the
+                // seed's own 2D picture.
                 flatten: sameLayout && !restoring && dimension === 2,
                 // A first layout, a restore and a 2D/3D switch place the nodes in one frame.
                 transition:

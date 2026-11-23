@@ -21,7 +21,7 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
  * Throw if the queue canceled this operation, as a real operation body does after an await.
  * @param context - The operation's context.
  */
-function stopIfCancelled(context: OperationContext): void {
+function stopIfCanceled(context: OperationContext): void {
     if (context.signal.aborted) {
         throw new Error("AbortError");
     }
@@ -79,7 +79,7 @@ describe("Obsolescence Scenarios", () => {
                 queueManager.queueOperation(
                     "layout-update",
                     (context) => {
-                        stopIfCancelled(context);
+                        stopIfCanceled(context);
                         executedLayouts.push(`layout-${i}`);
                     },
                     { description: `Layout for batch ${i}` },
@@ -120,7 +120,7 @@ describe("Obsolescence Scenarios", () => {
                 context.progress.setProgress(95);
                 progressReached.resolve();
                 await releaseLayout.promise;
-                stopIfCancelled(context);
+                stopIfCanceled(context);
                 results.push("layout-completed");
             },
             { description: "Nearly complete layout" },
@@ -164,7 +164,7 @@ describe("Obsolescence Scenarios", () => {
                 context.progress.setProgress(50);
                 progressReached.resolve();
                 await releaseLayout.promise;
-                stopIfCancelled(context);
+                stopIfCanceled(context);
                 results.push("layout-completed");
             },
             { description: "Half-done layout" },
@@ -203,7 +203,7 @@ describe("Obsolescence Scenarios", () => {
             async (context) => {
                 dataStarted.resolve();
                 await releaseData.promise;
-                stopIfCancelled(context);
+                stopIfCanceled(context);
                 executed.push("data");
             },
             { description: "Add initial data", skipTriggers: true },
@@ -219,7 +219,7 @@ describe("Obsolescence Scenarios", () => {
             queueManager.queueOperation(
                 category,
                 (context) => {
-                    stopIfCancelled(context);
+                    stopIfCanceled(context);
                     executed.push(name);
                 },
                 { description: name },
@@ -257,7 +257,7 @@ describe("Obsolescence Scenarios", () => {
         const renderId = queueManager.queueOperation(
             "render-update",
             (context) => {
-                stopIfCancelled(context);
+                stopIfCanceled(context);
                 results.push("render");
             },
             { description: "Low priority render" },
@@ -307,7 +307,7 @@ describe("Obsolescence Scenarios", () => {
                             await releaseFirst.promise;
                         }
 
-                        stopIfCancelled(context);
+                        stopIfCanceled(context);
                         completed.push(`algo-${i}`);
                     },
                     {
@@ -348,7 +348,7 @@ describe("Obsolescence Scenarios", () => {
         const layoutId = queueManager.queueOperation(
             "layout-update",
             (context) => {
-                stopIfCancelled(context);
+                stopIfCanceled(context);
                 results.push("batch1-layout");
             },
             { description: "Batch 1 layout" },
@@ -356,7 +356,7 @@ describe("Obsolescence Scenarios", () => {
         const renderId = queueManager.queueOperation(
             "render-update",
             (context) => {
-                stopIfCancelled(context);
+                stopIfCanceled(context);
                 results.push("batch1-render");
             },
             { description: "Batch 1 render" },

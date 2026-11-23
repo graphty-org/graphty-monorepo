@@ -1912,7 +1912,9 @@ class Runs implements SessionRunsApi {
             this.launches.set(existing.id, launch);
             existing.rerun(this.startingTrigger);
         } else if (
-            (launch.command.applySuggestedStyles === true || launch.command.restoreLayer === true) &&
+            (launch.command.applySuggestedStyles === true ||
+                launch.command.restoreLayer === true ||
+                this.lostAllLayers(this.dispatcher.state.styles, existing.id)) &&
             !this.adopting
         ) {
             // Nothing to compute, but its layers were asked for: the command still goes through,
@@ -2118,7 +2120,10 @@ class Runs implements SessionRunsApi {
                 this.applySuggested(ctx.draft, run);
             }
 
-            if (command.restoreLayer === true && run.status === "succeeded") {
+            if (
+                (command.restoreLayer === true || this.lostAllLayers(ctx.draft.styles, run.id)) &&
+                run.status === "succeeded"
+            ) {
                 this.restoreMissing(ctx.draft, run.id, this.dispatcher.state.runs.get(run.id)?.result);
             }
 
@@ -2136,7 +2141,7 @@ class Runs implements SessionRunsApi {
                     this.dropped.add(run.id);
                 }
 
-                run.cancel(`Run "${run.id}" was cancelled (${reason ?? "cancel"}).`);
+                run.cancel(`Run "${run.id}" was canceled (${reason ?? "cancel"}).`);
             },
             { once: true },
         );
@@ -2208,6 +2213,8 @@ class Runs implements SessionRunsApi {
         const prior = ctx.state.runs.get(run.id);
         const hold = this.holds.get(run.id);
         this.holds.delete(run.id);
+        // A re-run whose painted layers were all removed paints them again, as a first run would.
+        const repaint = prior !== undefined && this.lostAllLayers(draft.styles, run.id);
         const decision = this.options.styling?.completed(run, prior?.painted === true, hold) ?? {
             painted: prior?.painted === true,
             paint: [],
@@ -2255,7 +2262,7 @@ class Runs implements SessionRunsApi {
                 this.applySuggested(draft, run);
             }
 
-            if (command.restoreLayer === true) {
+            if (command.restoreLayer === true || repaint) {
                 this.restoreMissing(draft, run.id, entry.result);
             }
         } catch (error) {
@@ -2628,6 +2635,20 @@ class Runs implements SessionRunsApi {
     }
 
     /**
+     * Whether a run painted layers on its first completion and the stack holds none reading it
+     * now: asking for the run again then paints them again, as `restoreLayer` would.
+     * @param stack - The layers, as the draft or the session holds them.
+     * @param runId - The run.
+     * @returns True when every layer the run painted is gone.
+     */
+    private lostAllLayers(stack: readonly { readonly layer: Layer }[], runId: RunId): boolean {
+        return (
+            !stack.some(({ layer }) => layer.source.by === "run" && layer.source.runId === runId) &&
+            this.missingOf(stack, this.dispatcher.state.runs.get(runId)?.painting, runId).length > 0
+        );
+    }
+
+    /**
      * Put back what {@link missingOf} finds, into the run's step, where the run's first completion
      * put it (beneath the reader's own layers when the project places runs there).
      * @param draft - The draft.
@@ -2710,7 +2731,7 @@ class Runs implements SessionRunsApi {
         const { layerIds } = removal;
         const run = this.runs.get(id);
 
-        if (run?.cancellable) {
+        if (run?.cancelable) {
             this.dropped.add(id);
             run.cancel(`Run "${id}" was removed.`);
         }
@@ -2891,7 +2912,7 @@ class Runs implements SessionRunsApi {
      */
     private cancelSiblings(algorithm: AlgorithmKey, keep: RunId): void {
         for (const run of this.runs.values()) {
-            if (run.algorithm === algorithm && run.id !== keep && run.cancellable) {
+            if (run.algorithm === algorithm && run.id !== keep && run.cancelable) {
                 run.cancel(`Replaced by a newer "${algorithm}" run.`);
             }
         }

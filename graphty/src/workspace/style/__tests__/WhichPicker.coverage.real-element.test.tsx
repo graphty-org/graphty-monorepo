@@ -5,7 +5,8 @@
  * and Delete on its Remove button takes it off; the last finished card removed beside an unfinished
  * one is said with an Undo that puts it back where it was; Done drops two unfinished cards with one
  * word for both; a card added to two layers that leaves one of them with nothing names that one;
- * and the Ends card on the Edge tab switches between both ends and either end.
+ * the Ends card on the Edge tab switches between both ends and either end; nodes picked by hand name
+ * the first five on Remove; and a node attribute searched on the Edge tab points to the Node tab.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -293,5 +294,40 @@ describe("the Which picker's side paths", () => {
         await waitFor(async () => {
             assert.strictEqual(await matched(), both);
         });
+    });
+
+    it("nodes picked by hand say the first five by name and how many more on Remove", async () => {
+        const session = await openMiserables();
+        const ids = session.data
+            .nodes()
+            .slice(0, 7)
+            .map((node) => String(node.id));
+        await addLayer(session, "Seven", { match: "ids", nodes: ids, edges: [] });
+        await pickRow("Seven");
+        const region = await openWhich();
+        const names = ids.slice(0, 5).map((id) => session.data.nodeName(id).name);
+        const remove = within(region).getByRole("button", { name: /^Remove Picked by hand/ });
+        assert.include(await tooltipOf(remove), `${names.join(", ")}, +2`);
+    });
+
+    it("a node attribute searched on the Edge tab points to the Node tab", async () => {
+        const session = await openMiserables();
+        const layer = await addLayer(session, "Thenardiers", {
+            match: "rule",
+            where: { kind: "text", reads: "data.name", mode: "substring", text: "Thenardier" },
+        });
+        await selectWithTwin(session, "Thenardiers");
+        await userEvent.click(
+            within(await screen.findByRole("tablist", { name: "Style for" })).getByRole("tab", { name: /^Edge/ }),
+        );
+        await userEvent.click(screen.getByRole("checkbox", { name: "Style edges" }));
+        await waitFor(() => {
+            assert.isDefined(session.styles.parts(layer.id)?.edge, "an edge part");
+        });
+        const region = await openWhich("edges");
+        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await screen.findByRole("combobox", { name: "Find an attribute" });
+        await userEvent.keyboard("name");
+        await screen.findByText("name is a node attribute; it is on the Node tab");
     });
 });

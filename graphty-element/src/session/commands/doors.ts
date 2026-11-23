@@ -1195,6 +1195,8 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     stepCounts: READ,
     // Opening a draft writes nothing; its commit is `addCondition` or `updateCondition`.
     draft: READ,
+    draftOf: READ,
+    openDrafts: READ,
 };
 
 /**

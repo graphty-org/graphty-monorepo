@@ -54,6 +54,10 @@ shipped.
 - `timeline`: the [Timeline](./timeline) is a normal feature. `session.time` and the time
   attributes work with no `features` set, and `features="timeline"` is accepted and changes
   nothing.
+- `assistant`: the [AI assistant](./ai-assistant) is a normal feature. A message's `scope`,
+  `session.selection.peek`, `voice.review` and what a message did (effects, targets, durations,
+  provenance) work with no `features` set, and `features="assistant"` is accepted and changes
+  nothing.
 
 ## The experiments in this build
 

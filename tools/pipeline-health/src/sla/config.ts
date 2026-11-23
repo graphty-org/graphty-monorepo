@@ -13,7 +13,7 @@ export type Threshold = [Op, number];
  */
 export type MemberWindow = "1h" | "1h+6h" | "now" | "slow" | "info";
 
-export type EngineMeasure = "sources_not_ok" | "sources_thin" | "collector_age" | "write_budget";
+export type EngineMeasure = "sources_not_ok" | "sources_thin" | "collector_age" | "write_budget" | "read_budget";
 
 export type Measure =
     | { type: "rate"; metric: string; scale?: number } // sum / n
@@ -116,6 +116,8 @@ export interface SlaConfig {
     runnerLimits: Record<string, number>;
     prBudgetsMin: Record<string, number>;
     dailyRowLimit: number;
+    /** The public reads' daily budget in read request units (DAILY_READ_LIMIT in src/model/items.ts). */
+    dailyReadLimit: number;
     members: MemberConfig[];
 }
 

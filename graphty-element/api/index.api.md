@@ -2793,7 +2793,7 @@ export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
+export type FeatureId = "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
 
 // @public
 export interface FigureOptions {
@@ -5102,6 +5102,13 @@ export type GraphtyWarningCode =
 * Since 3.32.0.
 */
 | "W_FILTER_STEPS_DIFFER"
+/**
+* A filter draft autosave kept could not be opened again after a restore (the condition it
+* edited is gone, or its new condition's id is taken), so it was dropped. In an autosave
+* restore's report; `params.id` is the condition's id.
+* Since 3.40.0.
+*/
+| "W_FILTER_DRAFT_DROPPED"
 /**
 * A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
 * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or

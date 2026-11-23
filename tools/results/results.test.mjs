@@ -210,6 +210,11 @@ describe("client", () => {
             answers(404, 200);
             assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: false, why: "HTTP 404" });
             assert.equal(globalThis.fetch.mock.callCount(), 1);
+            mock.restoreAll();
+            // the store's daily D1 cap (#9784): unavailable until the next UTC day, so never asked again now
+            answers(429, 200);
+            assert.deepEqual(await call(cfg, "POST", "/v1/invocations", {}), { ok: false, why: "HTTP 429" });
+            assert.equal(globalThis.fetch.mock.callCount(), 1);
         } finally {
             mock.restoreAll();
         }

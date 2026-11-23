@@ -12,8 +12,6 @@ import { withInputs } from "../../src/ai/tools/inputs";
 import { ruleParts } from "../../src/session/styles/predicate";
 import { assistantSession, ScriptedAssistant } from "../helpers/assistant";
 
-const ON = ["assistant"];
-
 type Reply = Extract<AiConversationMessage, { role: "assistant" }>;
 
 /**
@@ -29,7 +27,7 @@ function callsOf(assistant: ScriptedAssistant): Reply["calls"][number][] {
 
 describe("intent", () => {
     it("every generated tool asks for it, and the call keeps it as the model gave it", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         for (const tool of assistant.registry.getAll()) {
             const schema = (tool as { jsonSchema?: { required?: string[] } }).jsonSchema;
@@ -59,7 +57,7 @@ describe("intent", () => {
     });
 
     it("a call without it still runs, and its record has none", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("color the servers", [
             { tool: "style", args: { action: "add", where: "data.type == 'server'", values: { "node.color": "red" } } },
@@ -70,7 +68,7 @@ describe("intent", () => {
     });
 
     it("the small profile's call takes it beside or inside the arguments", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory", toolProfile: "small" });
         await assistant.say("color the servers", [
             {
@@ -104,7 +102,7 @@ describe("intent", () => {
 
 describe("inputs", () => {
     it("names each argument's kind and default name from the tool's schema", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("color the servers", [
             {
@@ -139,7 +137,7 @@ describe("inputs", () => {
 
 describe("effects", () => {
     it("a look-up that names nothing says what it read", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("list the layers", [{ tool: "style", args: { action: "list" } }]);
         const [call] = callsOf(assistant);
@@ -147,7 +145,7 @@ describe("effects", () => {
     });
 
     it("a style effect names its layer and states the rule it painted by in parts", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("color", [
             {

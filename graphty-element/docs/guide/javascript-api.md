@@ -807,7 +807,7 @@ const provider = keys.getDefaultProvider() ?? keys.getConfiguredProviders()[0];
 
 keys.disablePersistence(); // forget them on the next load (they stay in memory)
 
-await keys.forgetKey("anthropic"); // out of memory and both storages, wherever it was kept (experimental)
+await keys.forgetKey("anthropic"); // out of memory and both storages, wherever it was kept
 ```
 
 Keys saved by graphty-element before Web Crypto (with the `encrypt-storage` package) still load:

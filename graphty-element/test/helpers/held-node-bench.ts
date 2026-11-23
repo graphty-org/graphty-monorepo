@@ -3,7 +3,19 @@
  */
 import type { Graphty } from "../../index.js";
 
-const FRAMES = 120;
+/** The GPU flag set the run asked for; empty on the software renderer, as in CI. */
+export const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
+
+/**
+ * Frames timed per case. `scene.render` only hands the frame to the GPU process; on the software
+ * renderer that process then draws every queued frame, about 0.05 s each here and 0.3 s on CI's
+ * runner, and the next test's first frame waits for all of them (#9767). So the software renderer
+ * times a few frames, whose numbers mean little there anyway.
+ */
+const FRAMES = ADAPTER === "" ? 3 : 120;
+
+/** The most nodes a case loads on the software renderer, for the same reason. */
+export const SOFTWARE_NODES = 2_000;
 
 let element: Graphty | null = null;
 

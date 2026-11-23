@@ -969,7 +969,15 @@ export class AccelerationController {
 
         this.#probeSettled = true;
 
-        if (!attached) {
+        if (!attached && this.#code === "E_DEVICE_LOST") {
+            // The device was lost while it was being built or checked: a GPU reset that happened to land on the probe,
+            // not a missing GPU. It recovers as a loss after attaching does, rather than leaving the graph on the CPU
+            // for the rest of the page's life (issue #9731).
+            const sentence = this.#reason ?? "the accelerator's device was lost while it was being probed";
+            this.#transition("error", sentence, "E_DEVICE_LOST", this.#params);
+            this.#failure = { sentence, code: "E_DEVICE_LOST" };
+            this.#retryRecovery();
+        } else if (!attached) {
             this.#transition("unavailable", this.#reason, this.#code, this.#params);
             reportUnavailable(this.#code, this.#reason);
         }

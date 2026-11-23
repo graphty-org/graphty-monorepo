@@ -12,6 +12,7 @@ import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Graph } from "../../src/Graph";
 import {
     adapterSays,
+    assertCanLand,
     landed,
     layoutOf,
     nextFrame,
@@ -31,6 +32,7 @@ async function uploadedLanding(graph: Graph): Promise<void> {
     assert.isNotNull(table);
     const before = table.landedUploads;
     while (table.landedUploads <= before) {
+        assertCanLand(graph);
         await nextFrame();
     }
 }

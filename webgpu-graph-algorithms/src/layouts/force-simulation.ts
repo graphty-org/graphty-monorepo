@@ -583,6 +583,22 @@ function envelopeOf(bytes: ArrayBuffer, offset: number): LandedEnvelope {
 }
 
 /**
+ * The transform a batch drew with: the one it was sent with, or for a fitted one the center and scale `to-drawn`
+ * took from the batch's own envelope, as the device wrote them.
+ * @param sent - the transform the batch was sent with
+ * @param bytes - the batch's readback
+ * @param offset - where the envelope sits in it
+ * @returns the transform
+ */
+function drewWith(sent: DrawnTransform, bytes: ArrayBuffer, offset: number): DrawnTransform {
+    if (sent.fit === undefined || sent.fit <= 0) {
+        return sent;
+    }
+    const f = new Float32Array(bytes, offset + 80, 4);
+    return { center: [f[0], f[1], f[2]], scale: f[3], target: sent.target };
+}
+
+/**
  * A pending record whose promise the simulation settles.
  * @param k - iterations of the batch
  * @param generation - the generation at the step() call
@@ -1648,7 +1664,15 @@ export class ForceSimulation<
         if (!Number.isFinite(transform.scale)) {
             throw invalidArgument("scale", transform.scale, "a finite number", "setDrawnTransform: scale");
         }
-        this.drawnTransform = { center: [...transform.center], scale: transform.scale, target: [...transform.target] };
+        if (transform.fit !== undefined && !Number.isFinite(transform.fit)) {
+            throw invalidArgument("fit", transform.fit, "a finite number", "setDrawnTransform: fit");
+        }
+        this.drawnTransform = {
+            center: [...transform.center],
+            scale: transform.scale,
+            target: [...transform.target],
+            ...(transform.fit === undefined ? {} : { fit: transform.fit }),
+        };
         this.drawnStage?.transform(this.drawnTransform);
     }
 
@@ -1839,7 +1863,8 @@ export class ForceSimulation<
             this.copyScene(owner, bytes, record);
             this.landedEnvelopeValue = measured ? envelopeOf(bytes, record.envelopeOffset) : null;
             this.landedDrawnValue = record.drawn?.buffer ?? null;
-            this.landedDrawnTransformValue = record.drawn?.transform ?? null;
+            this.landedDrawnTransformValue =
+                record.drawn === null ? null : drewWith(record.drawn.transform, bytes, record.envelopeOffset);
             this.landedDrawnRowsValue =
                 record.drawnOffset < 0 ? null : new Float32Array(bytes, record.drawnOffset, 4 * n);
             const keep = this.landedDrawnRowsValue === null ? null : bytes;

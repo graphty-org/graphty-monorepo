@@ -413,6 +413,62 @@ describe("session.time: bins", () => {
         harness.session.dispose();
     });
 
+    for (const mode of ["sliding", "cumulative"] as const) {
+        it(`open one step at a given from with no window yet (${mode})`, async () => {
+            const harness = emails();
+            const { time } = harness.session;
+            await time.setField({ edges: { start: "sent" } });
+            await time.window({ from: T0 + DAY, step: "day", mode });
+            assert.deepInclude(time.current, { from: T0 + DAY, to: T0 + 2 * DAY });
+            harness.session.dispose();
+        });
+
+        it(`start at the data with only to and no window yet (${mode})`, async () => {
+            const harness = emails();
+            const { time } = harness.session;
+            await time.setField({ edges: { start: "sent" } });
+            await time.window({ to: T0 + 3 * DAY, step: "day", mode });
+            assert.deepInclude(time.current, { from: T0, to: T0 + 3 * DAY });
+            await time.window({ from: T0 + DAY, to: T0 + 2 * DAY, step: "day", mode });
+            assert.deepInclude(time.current, { from: T0 + DAY, to: T0 + 2 * DAY });
+            harness.session.dispose();
+        });
+    }
+
+    for (const patch of [{ missing: "outside" }, { timeZone: "UTC" }, { results: "keep" }] as const) {
+        it(`keep the window's own step when settings change ${Object.keys(patch)[0]} alone`, async () => {
+            const harness = emails();
+            const { time } = harness.session;
+            await time.setField({ edges: { start: "sent" } });
+            await time.window({ from: T0, to: T0 + DAY, step: "day" });
+            await time.setSettings(patch);
+            assert.deepInclude(time.committed, { from: T0, to: T0 + DAY, step: "day" });
+            harness.session.dispose();
+        });
+    }
+
+    it("keep a one-day window one day wide under a new time zone", async () => {
+        const harness = emails();
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "sent" } });
+        await time.window({ from: T0, to: T0 + DAY, step: "day" });
+        await time.setSettings({ timeZone: "America/New_York" });
+        const window = time.committed;
+        assert.strictEqual(window?.step, "day");
+        assert.strictEqual(Number(window?.to) - Number(window?.from), DAY);
+        harness.session.dispose();
+    });
+
+    it("keep the current window's to when only from is given", async () => {
+        const harness = emails();
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "sent" } });
+        await time.window({ from: T0, to: T0 + 3 * DAY, step: "day" });
+        await time.window({ from: T0 + DAY });
+        assert.deepInclude(time.current, { from: T0 + DAY, to: T0 + 3 * DAY });
+        harness.session.dispose();
+    });
+
     it("start a first calendar window on the step's boundary", async () => {
         const harness = makeSession();
         harness.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b", sent: "2026-01-01T08:05:00Z" }]);

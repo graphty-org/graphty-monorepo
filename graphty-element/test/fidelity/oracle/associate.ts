@@ -2901,7 +2901,11 @@ export function hiddenShapes(prims: readonly Prim[], candidates: readonly Prim[]
 /** How far off a box's outline a piece of that box's own drawing may run (`outlinePiece` in `associate`). */
 const OUTLINE_PX = 1.5;
 
-/** How far a line's end may lie from where a node graphty draws nothing for sits (`undrawnEnds`). */
+/**
+ * How far a line's end may lie from where a node graphty draws nothing for sits (`undrawnEnds`), past the longest
+ * arrowhead graphty draws at it: graphty runs its line on to the head's tip, where a program may stop its line at the
+ * head's back (gml-synthetic-coverage 49 -> 60, yEd's crow's foot at a node it draws nothing for).
+ */
 const UNDRAWN_END_REACH = 4;
 
 /**
@@ -2915,22 +2919,25 @@ const UNDRAWN_END_REACH = 4;
  * @param guide - graphty's drawing
  * @param nodes - the oracle's nodes found so far, by id
  * @param fit - graphty's drawing carried into the oracle's (`guideFrame`)
- * @returns the undrawn ends, as nodes
+ * @returns the undrawn ends, as nodes, each with how far a line's end may lie from it
  */
-function undrawnEnds(guide: PScene, nodes: ReadonlyMap<string, PNode>, fit: Similarity | null): PNode[] {
+function undrawnEnds(guide: PScene, nodes: ReadonlyMap<string, PNode>, fit: Similarity | null): Map<PNode, number> {
     if (fit === null) {
-        return [];
+        return new Map();
     }
     const drawn = new Set([...guide.nodes.map((n) => n.id), ...guide.groups.map((g) => g.id), ...nodes.keys()]);
     const at = new Map<string, Pt[]>();
+    const headAt = new Map<string, number>();
     for (const e of guide.edges) {
-        const ends: [string, Pt | undefined][] = [
-            [e.source, e.points[0]],
-            [e.target, e.points.at(-1)],
+        const ends: [string, Pt | undefined, "source" | "target"][] = [
+            [e.source, e.points[0], "source"],
+            [e.target, e.points.at(-1), "target"],
         ];
-        for (const [id, q] of ends) {
+        for (const [id, q, end] of ends) {
             if (q !== undefined && !drawn.has(id)) {
                 at.set(id, [...(at.get(id) ?? []), apply(fit, q)]);
+                const head = Math.max(0, ...e.arrows.filter((a) => a.end === end).map((a) => a.length));
+                headAt.set(id, Math.max(headAt.get(id) ?? 0, head * fit.scale));
             }
         }
     }
@@ -2942,19 +2949,24 @@ function undrawnEnds(guide: PScene, nodes: ReadonlyMap<string, PNode>, fit: Simi
             n.id,
             carryBox(fit, { x0: n.cx - n.w / 2, y0: n.cy - n.h / 2, x1: n.cx + n.w / 2, y1: n.cy + n.h / 2 }),
         ]);
-    return [...[...at].map(([id, pts]): [string, PBox] => [id, boxOfPoints(pts)]), ...bodiless].map(([id, box]) => {
-        return {
-            id,
-            cx: cx(box),
-            cy: cy(box),
-            w: bw(box),
-            h: bh(box),
-            shape: null,
-            fill: null,
-            stroke: null,
-            label: null,
-        };
-    });
+    return new Map(
+        [...[...at].map(([id, pts]): [string, PBox] => [id, boxOfPoints(pts)]), ...bodiless].map(
+            ([id, box]): [PNode, number] => [
+                {
+                    id,
+                    cx: cx(box),
+                    cy: cy(box),
+                    w: bw(box),
+                    h: bh(box),
+                    shape: null,
+                    fill: null,
+                    stroke: null,
+                    label: null,
+                },
+                UNDRAWN_END_REACH + (headAt.get(id) ?? 0),
+            ],
+        ),
+    );
 }
 
 /**
@@ -3763,13 +3775,15 @@ export function associate(
     }
     const nodeList = [...nodes.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
     const nodeBox = boxOfNode;
-    const undrawn = undrawnEnds(guide, nodes, frame);
+    const undrawnReach = undrawnEnds(guide, nodes, frame);
+    const undrawn = [...undrawnReach.keys()];
     // How far from a node's box a path's end still lands on it: past a thick border too, which a line ends at the
     // outer edge of (Cytoscape's mapped widths run to 7 px, its dots and zigzags are drawn outside the node's
     // outline); a border of a pixel or so is inside the slack already.
     const endReach = (n: PNode): number => {
-        if (undrawn.includes(n)) {
-            return UNDRAWN_END_REACH;
+        const reach = undrawnReach.get(n);
+        if (reach !== undefined) {
+            return reach;
         }
         const border = n.stroke !== null && Number.isFinite(n.stroke.width) ? n.stroke.width : 0;
         return Math.max(15, 0.5 * Math.max(n.w, n.h)) + (border >= 2 ? border : 0);
@@ -4503,7 +4517,24 @@ export function associate(
             all.reduce((m, q) => (along(q) < along(m) ? q : m)),
             all.reduce((m, q) => (along(q) > along(m) ? q : m)),
         ];
-        const lone = capped1 === b ? probe : reversedOf(probe);
+        // a lone head drawn across its line, its far side off the line between its nodes' middles (a tee's bar:
+        // cx-radiation-bibliography 776->6, 5.45 px across and 0.55 px thick), runs along that line through its middle,
+        // as far as the head reaches along it: read along the bar, the tee was a head 5.5 px long and 1.1 px wide
+        const chordLength = Math.hypot(dir[0], dir[1]);
+        const unitDir: Pt = chordLength > 1e-9 ? [dir[0] / chordLength, dir[1] / chordLength] : [1, 0];
+        const axisLength = Math.hypot(tip[0] - mids[0][0], tip[1] - mids[0][1]);
+        const acrossLine =
+            !paired &&
+            axisLength > 1e-9 &&
+            Math.abs((tip[0] - mids[0][0]) * unitDir[0] + (tip[1] - mids[0][1]) * unitDir[1]) / axisLength <
+                Math.cos(Math.PI / 3);
+        const reach = Math.max(along(across[1]) - along(across[0]), 0) / Math.max(chordLength, 1e-9);
+        const barPath: Pt[] = [
+            [mids[0][0] - (unitDir[0] * reach) / 2, mids[0][1] - (unitDir[1] * reach) / 2],
+            [mids[0][0] + (unitDir[0] * reach) / 2, mids[0][1] + (unitDir[1] * reach) / 2],
+        ];
+        const aimed = capped1 === b ? probe : reversedOf(probe);
+        const lone = acrossLine ? barPath : aimed;
         // two heads unlike each other run along the line between their nodes' middles, from where the source head's tip
         // is to where the target head's is: a half head's barb, off to the line's side, starts a third of its length off
         // its node

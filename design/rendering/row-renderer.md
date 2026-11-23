@@ -169,6 +169,12 @@ and syncs the node with `NodeBatches`; `batchableIn` answers false while the fla
 the next flush and stays one, through repaints and render-path changes. Setting `mesh` does not set the flag. Its source
 group then leaves the batch, since hiding is still all or nothing per source until the proxies go. Tests that look at
 internals read `drawnPickMesh`, which does not set it.
+Later (issue #9185): a held row keeps its mesh on its look's shared source, which the batch hides, and stays in its slot.
+Each camera's frame, `NodeBatches.mirror` writes that slot's matrix from the mesh's world matrix (zero scale while the
+mesh is hidden or disabled), and the slot's `graphtyRow` is written `-row - 2`, which the row-pull shader reads as "drawn
+from its own matrix; only the table's hidden flag applies". So a read row draws in its objects-path place among its look
+in the look's one draw call, a scattered read costs one matrix and no mesh or draw, and what a consumer does to the mesh
+shows. It still counts as an object row in `rowCounts`.
 The `local/node-mesh-funnel` lint rule covers `stories/**` and `test/helpers/*.ts` too, so no play function or shared
 helper sets the flag and turns a batched render-parity or forced-batched run into an objects one. Individual files under
 `test/browser` and `test/interactions` still read `Node.mesh` (365 reads in 109 files when this was written); each such test

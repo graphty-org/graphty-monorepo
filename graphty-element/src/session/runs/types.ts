@@ -1277,7 +1277,8 @@ export interface RunsApi {
      * suggestion the run made.
      *
      * Readable as soon as `await run` returns. A re-run keeps the first decision, because a
-     * re-run does not repaint. `"added"` means the layers went on the stack, not that they show:
+     * re-run does not repaint, unless every layer the run added was removed: then it puts them
+     * back. `"added"` means the layers went on the stack, not that they show:
      * a layer added later may cover it, which `styles.legend()` shows.
      * @param id - The run id.
      * @returns The decision, or undefined when this session holds no run with that id.

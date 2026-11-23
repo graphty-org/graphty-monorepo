@@ -21,7 +21,6 @@ import {
 } from "../catalog/ai";
 import type { NodeId } from "../catalog/types";
 import type { XRAiConfig } from "../config/XRConfig";
-import { GraphtyError } from "../errors";
 import type { AiApprovalRequest, AiQuestionRequest, NodeHoverEvent } from "../events";
 import type { Graph } from "../Graph";
 import { type AiAgentsSetting, AiConfigError, type AiToolOptions } from "./agents";
@@ -67,7 +66,6 @@ export interface KeyPersistenceConfig {
     /**
      * Encryption key for AES encryption (min 10 characters). Default: a built-in key, public in
      * this package's source, so keys saved with it are obscured, not encrypted.
-     * @experimental assistant
      */
     encryptionKey?: string;
     /** Storage backend (default: "localStorage") */
@@ -130,8 +128,7 @@ export interface AiVoiceOptions {
      * carries the text and the pointing, for the application to show and then send with
      * `aiCommand(transcript, { via: "voice", pointing })`. Default false: a press sends on release.
      * In an immersive (XR) session a press always sends on release, as the page is out of sight.
-     * Needs `mode: "turns"` and the `assistant` experiment.
-     * @experimental assistant
+     * Needs `mode: "turns"`.
      */
     review?: boolean;
     /** `"hold"` (the default): talk while `aiTalk(true)` holds. `"toggle"`: each `aiTalk(true)` starts or ends. */
@@ -308,7 +305,6 @@ export interface AiManagerConfig {
     /**
      * Text added to the system prompt, under `toolset: "generated"`: what the host wants the model
      * to do or never do.
-     * @experimental assistant
      */
     instructions?: string;
     /**
@@ -513,7 +509,7 @@ export class AiManager {
         // A configuration that cannot run is rejected before anything is built.
         checkAiConfig(config);
         if (config.voice?.review === true) {
-            this.checkReview(graph, config.voice);
+            this.checkReview(config.voice);
         }
 
         this.graph = graph;
@@ -781,21 +777,10 @@ export class AiManager {
 
     /**
      * Refuse a reviewed transcript that cannot be had.
-     * @param graph - The graph, whose session says which experiments are on.
      * @param voice - The assistant's `voice`.
-     * @throws A `GraphtyError` coded `E_FEATURE_OFF` while the `assistant` experiment is off; an
-     * `AiConfigError` for a live conversation, whose words reach the model as they are said.
+     * @throws An `AiConfigError` for a live conversation, whose words reach the model as they are said.
      */
-    private checkReview(graph: Graph, voice: AiVoiceOptions): void {
-        if (!graph.getSession().features.has("assistant")) {
-            throw new GraphtyError({
-                code: "E_FEATURE_OFF",
-                message: `Reviewing a transcript needs the "assistant" experiment.`,
-                source: "config",
-                details: { feature: "assistant", key: "voice.review" },
-            });
-        }
-
+    private checkReview(voice: AiVoiceOptions): void {
         if (voice.mode === "live") {
             throw new AiConfigError({ field: "voice.review", reason: "needs-turns" });
         }

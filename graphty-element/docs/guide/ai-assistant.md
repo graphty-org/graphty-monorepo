@@ -433,13 +433,9 @@ element.addEventListener("ai-conversation-changed", () => {
 
 ## What a message did
 
-_Experimental: everything in this section needs the `assistant` experiment (the element's `features`
-property) and `toolset: "generated"`, and may change in a minor release. A call that needs the
-experiment while it is off is refused with `E_FEATURE_OFF` `{ feature, key }`, and nothing is
-substituted._
+Everything in this section needs `toolset: "generated"`.
 
 ```typescript
-element.features = ["assistant"];
 await element.enableAiControl({ provider: "google", apiKey: myKey, toolset: "generated", history: "browser" });
 ```
 
@@ -1065,8 +1061,6 @@ else is a new message, which ends what was waiting, as a typed message does.
 `stopAiSpeech()`. `disableAiControl()` closes the microphone and stops speaking.
 
 ### Reviewing a transcript before it is sent
-
-_Experimental: needs the `assistant` experiment._
 
 With `review: true` a finished press sends nothing. Its one final `ai-voice-transcript` carries the
 text and what the reader pointed at, so you can show it and send it when the reader says so:

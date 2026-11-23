@@ -846,6 +846,7 @@ export const READ_ONLY: readonly string[] = [
     "Graph.zoomToFit",
     "Graph.zoomToNodes",
     "Graph.zoomToSelection",
+    "GraphAccelerator.calibrate",
     "GraphAccelerator.dispose",
     "GraphAccelerator.verify",
     "GraphContext.getAcceleration",

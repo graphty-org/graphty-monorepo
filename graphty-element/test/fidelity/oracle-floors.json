@@ -26899,7 +26899,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeOutline": 0.95,
             "raster.canvas": 0.99,
             "stray.extra": 1
         },

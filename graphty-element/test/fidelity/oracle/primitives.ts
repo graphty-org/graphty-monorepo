@@ -678,7 +678,10 @@ export function dashClassOf(dash: readonly number[] | null, width: number, cap =
     // line's last element is cut short by its end
     const sorted = [...on].sort((x, y) => x - y);
     const alternate = sorted[Math.floor(0.75 * sorted.length)] >= 2 * sorted[Math.floor(0.25 * sorted.length)];
-    if (on.every((d) => d <= dot)) {
+    // a ring of dots round a sharp-cornered shape has one dot per corner that takes the corner's mitre and measures one
+    // and a half to two dots (#9768): dots by the typical piece, while no piece is twice it (a dash is three dots)
+    const typical = sorted[Math.floor(0.5 * sorted.length)];
+    if (on.every((d) => d <= dot) || (typical <= dot && sorted[sorted.length - 1] < 2 * typical)) {
         // under the floor every dash is a dot, but a hairline's dash and dot still differ (cx-syn-mappings 342->360)
         return alternate ? "dash-dot" : "dotted";
     }

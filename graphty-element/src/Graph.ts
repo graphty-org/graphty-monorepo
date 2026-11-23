@@ -8464,6 +8464,9 @@ export class Graph implements GraphContext {
                 this.renderManager.requestFrame();
             },
             () => this.session.styles.legend(),
+            () => {
+                this.renderManager.drawNow();
+            },
         );
         // Under antialias "at-rest" a screenshot is the multisampled picture, moving or not.
         const release = this.renderManager.holdSmooth();

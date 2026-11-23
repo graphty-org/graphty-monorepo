@@ -1127,7 +1127,8 @@ const config = defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "gpu-loss",
-                    setupFiles: ["./test/setup.ts"],
+                    // fresh-gpu-process.ts restarts the GPU process before each test (issue #9731)
+                    setupFiles: ["./test/setup.ts", "./test/gpu-loss/fresh-gpu-process.ts"],
                     include: ["test/gpu-loss/**/*.test.ts"],
                     fileParallelism: false,
                     browser: {

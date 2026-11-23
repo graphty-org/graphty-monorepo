@@ -146,7 +146,15 @@ async function screenshot(graph: Graph, name: string): Promise<Uint8ClampedArray
     const { CreateScreenshotAsync } = await vi.importActual<typeof import("@babylonjs/core")>("@babylonjs/core");
     const camera = graph.scene.activeCamera;
     assert.isNotNull(camera);
-    const dataUrl = await CreateScreenshotAsync(graph.engine, camera, { width: WIDTH, height: HEIGHT });
+    // Babylon copies the canvas at the end of the next frame, and a WebGPU canvas holds a picture
+    // only in a frame that drew one. A tick the loop skips -- for the GPU, three frames behind on
+    // SwiftShader -- still ends a frame, and the copy taken there is transparent: so the copy is
+    // asked for from inside a frame that drew, and taken at that frame's end.
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+        graph.scene.onAfterRenderObservable.addOnce(() => {
+            CreateScreenshotAsync(graph.engine, camera, { width: WIDTH, height: HEIGHT }).then(resolve, reject);
+        });
+    });
     await commands.writeFile(`tmp/webgpu-renderer/${name}.png`, dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
 
     const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob());

@@ -269,6 +269,17 @@ rounds had closed 161 low bugs and 160 high ones in 7 days while 13 of 20 open c
       reason one of owner-only, needs-decision, `waits on #<m>` or `file collision with #<m>`. Only when no critical
       or high issue is startable may medium and low jobs start; idle slots go first to diagnoses of the blocked
       critical and high issues (step 1).
+- [ ] An `unjustified blocks:` line from `jobs` names critical or high issues the scan blocked with no `due` time
+      and none of those reasons (nor in flight, an X-exclusion, a tracker or a dependency on an open #m; a wait for
+      a recurrence needs a `due`): give each a diagnosis job this round. An `open-ended waits:` line names critical or
+      high issues a ledger wait with no `due` holds: check its branch or pull request still moves, then `wait` again
+      with `--due` or release it.
+- [ ] `issue-queue.mjs list` ends with `critical/high open N: in the queue Q, in progress W, alarms A, held H` and
+      `owner-rule candidates N undecided` (critical or high issues behind `ux-owner` or `needs-decision` with no
+      `issue-round: stays owner's` comment yet). Release every candidate a standing rule decides (below), and on
+      the rest write once `issue-round: stays owner's -- <reason>`; the tool then stops listing it. The round's last
+      line copies both lines' counts; `alarms` (ci-budget and alarm titles, which tools file and close) are never
+      counted as critical or high work, but the open total is the owner's label count.
 
 A load-sensitive failure (critical by the owner's rule, 2026-10-22) keeps its label: never lower it, and its job
 reproduces it under `taskset -c 0`, names the mechanism and never fixes it with a longer wait. Never lower a priority
@@ -364,7 +375,9 @@ issues: [<n>...], members: [{ n, test, with, class, why, points }], files: [<pat
 prs: [<n>...], group, reason }] }`, listing each job's issues lead first (its `test` is `lead`) and so that every
 member's `with` comes before it: `test` is the rubric test that holds, `with` the member it holds against, `class` docs, tests or source, and `why` that
 member's own reason (never the job's `why`; a member without one is not grouped). Every issue of the queue is in a
-job or in `blocked` (a reason such as owner-only or needs-decision with no pull request is fine)." followed by the
+job or in `blocked` (a reason such as owner-only or needs-decision with no pull request is fine). A block that waits
+for a measurement, a recurrence, a number of merges or a date also carries `due: <ISO time>`, when to look again;
+past it the tools offer the issue again." followed by the
 read-only rules paragraph from step 1. When the scan reports, run `node tools/issue-groups.mjs import-scan`: its jobs
 replace the ledger's proposed groups (a job over the cap is cut into consecutive groups).
 

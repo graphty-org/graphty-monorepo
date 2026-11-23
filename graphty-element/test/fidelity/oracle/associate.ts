@@ -3879,9 +3879,17 @@ export function associate(
     /** The widths graphty draws each pair's edges at, carried into the oracle's frame. */
     const guideWidths = new Map<string, number[]>();
     const guideWays = new Set<string>();
+    /** The pairs graphty draws a head on, and the nodes it caps on some edge of each: `pair` and `pair NUL node`. */
+    const guideCaps = new Set<string>();
     for (const e of guide.edges) {
         const k = pairOf(e.source, e.target);
         guideWays.add(`${e.source}\u0000${e.target}`);
+        for (const x of e.arrows) {
+            if (x.end !== "middle") {
+                guideCaps.add(k);
+                guideCaps.add(`${k}\u0000${x.end === "source" ? e.source : e.target}`);
+            }
+        }
         guidePairs.set(k, (guidePairs.get(k) ?? 0) + 1);
         guideColors.set(k, (guideColors.get(k) ?? new Set()).add(e.stroke?.color ?? ""));
         if (frame !== null && e.stroke !== null && Number.isFinite(e.stroke.width)) {
@@ -4275,12 +4283,20 @@ export function associate(
         drawnAt.set(edge, p.index);
         if (box === undefined && !(a === b && !guideLoops.has(a.id))) {
             edges.push(edge);
-            // the arrowheads drawn with its line cap its ends, whatever line of a neighbor's ends nearer them
+            // the arrowheads drawn with its line cap its ends, whatever line of a neighbor's ends nearer them -- an end
+            // the file caps on no edge between its nodes, where it caps another end of them, excepted: the head drawn
+            // next there is another edge's (cx-radiation-bibliography: the head of 403->142, drawn with no line between
+            // nodes 1.5 px apart, right after 403->202's line and target head, was read as 403->202's source head); a
+            // dot no wider than the line is still the line's own end
             for (const [i, hs] of own.entries()) {
                 const end = i === 0 ? "source" : "target";
-                hs.filter((h) => !runsThroughNode(h.points, edge, end, end === "source" ? a : b)).forEach((h) =>
-                    ownCaps.set(h, { e: edge, end }),
-                );
+                const tip = end === "source" ? p.points[0] : (p.points.at(-1) ?? p.points[0]);
+                const capped = !guideCaps.has(pk) || guideCaps.has(`${pk}\u0000${end === "source" ? a.id : b.id}`);
+                hs.filter(
+                    (h) =>
+                        (capped || lineEndPiece(h, edge, tip)) &&
+                        !runsThroughNode(h.points, edge, end, end === "source" ? a : b),
+                ).forEach((h) => ownCaps.set(h, { e: edge, end }));
             }
         } else if (
             box === undefined &&

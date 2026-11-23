@@ -394,12 +394,13 @@ describe("the layout filling the row table on a shared device", () => {
                     .map((other) => Math.hypot(other.x - node.x, other.y - node.y)),
             );
         const target = shown.reduce((best, node) => (gap(node) > gap(best) ? node : best)).id;
-        await graph.zoomToNodes(target, { extent: "drawn" });
-        await copied(graph);
-        // textureDiff stops the frames, so the node stands where the card shows it while the pointer
-        // travels; the layout is still mid-run, with its batch in flight
+        // textureDiff stops the frames, so the node stands where the card shows it while the camera
+        // frames it and the pointer travels; the layout is still mid-run, with its batch in flight. Framed
+        // before the frames stop, the next landing moved the node out of a frame one node wide: a fitted
+        // landing is copied from the run's first batch, while the arrangement still collapses (issue #9665).
         assert.isBelow((await textureDiff(graph)).worst, 1e-5);
         assert.isFalse(layoutOf(graph).isSettled);
+        await graph.zoomToNodes(target, { extent: "drawn" });
         const at = graph.nodeScreenPosition(target);
         assert.isTrue(at?.visible);
         assert.isNull(graph.getSelectedNode());

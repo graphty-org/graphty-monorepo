@@ -151,6 +151,12 @@ export interface AcceleratorDeviceInfo {
 }
 
 // @public
+export interface AcceleratorExactMaxNodes {
+    readonly basis: ExactMaxNodesBasis;
+    readonly value: number;
+}
+
+// @public
 export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promise<GraphAccelerator | null>;
 
 // @public
@@ -960,6 +966,9 @@ export interface ErrorSummary {
 }
 
 // @public
+export type ExactMaxNodesBasis = "measured" | "default" | "configured";
+
+// @public
 export interface ExpandBehavior {
     readonly depth?: number;
     readonly direction?: "out" | "in" | "both";
@@ -1092,8 +1101,10 @@ export interface FormatWriterRegistration {
 export interface GraphAccelerator {
     [algorithmOrLayout: string]: unknown;
     readonly backend: "webgpu" | (string & {});
+    calibrate?(): Promise<void>;
     readonly device?: AcceleratorDeviceInfo;
     dispose?(): void;
+    readonly exactMaxNodes?: AcceleratorExactMaxNodes;
     readonly lost?: Promise<{
         reason: string;
     }>;

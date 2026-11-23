@@ -32,7 +32,15 @@ vi.mock("@aws-sdk/lib-dynamodb", () => ({
         }
     },
 }));
-vi.mock("../src/dynamo.ts", () => ({ dynamoStore: () => mem }));
+let readUnits = 0;
+vi.mock("../src/dynamo.ts", () => ({
+    dynamoStore: () => mem,
+    takeReadUnits: () => {
+        const n = readUnits;
+        readUnits = 0;
+        return n;
+    },
+}));
 
 const TOKEN = "s3cret";
 const NOW = Date.UTC(2026, 9, 26, 1, 2, 3);
@@ -87,6 +95,7 @@ beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
     mem = new MemoryStore();
+    readUnits = 0;
     ssmSend.mockReset();
     ssmSend.mockResolvedValue({ Parameter: { Value: createHash("sha256").update(TOKEN).digest("hex") } });
 });
@@ -637,6 +646,36 @@ describe("ingest: what it stores", () => {
         const rows = Array.from({ length: 5001 }, (_, i) => ({ id: `local.wait.x.${i}`, end: NOW, ms: 1 }));
         const res = await (await ingest())(event("/v1/local/waits", { rows }, { auth: TOKEN }));
         expect(res.statusCode).toBe(413);
+    });
+});
+
+describe("the daily read budget", () => {
+    it("answers 429 on the public reads once the day's read units are spent", async () => {
+        const { DAILY_READ_LIMIT, quotaKey } = await import("../src/model/items.ts");
+        mem.items.set(`${quotaKey(NOW).pk}\u0000-`, { ...quotaKey(NOW), rows: 0, reads: DAILY_READ_LIMIT });
+        const { handler: read } = await import("../src/handlers/read.ts");
+        const page = await read(event("/v1/page/overview", "", {}));
+        expect(page.statusCode).toBe(429);
+        expect(JSON.parse(page.body!)).toEqual({ code: "read_budget" });
+        expect((await read(event("/v1/health", "", {}))).statusCode).toBe(200);
+        const { handler: results } = await import("../src/handlers/results.ts");
+        const plan = await results({ rawPath: "/v1/quarantine", rawQueryString: "" } as never);
+        expect(plan.statusCode).toBe(429);
+    });
+
+    it("charges what a read spent to the day's count, once a minute rather than per request", async () => {
+        const { quotaKey } = await import("../src/model/items.ts");
+        const { handler: read } = await import("../src/handlers/read.ts");
+        const reads = () => mem.items.get(`${quotaKey(NOW).pk}\u0000-`)?.reads;
+        readUnits = 3;
+        await read(event("/v1/page/overview", "", {}));
+        expect(reads()).toBeUndefined();
+        const { writes } = mem;
+        readUnits = 2;
+        vi.setSystemTime(NOW + 61_000);
+        await read(event("/v1/page/overview", "", {}));
+        expect(reads()).toBe(5);
+        expect(mem.writes - writes).toBe(1);
     });
 });
 

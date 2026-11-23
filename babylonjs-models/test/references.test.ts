@@ -139,4 +139,38 @@ describe("unzipping", () => {
         assert.strictEqual((await unzipFact(zipSync({ "inner.zip": BYTES }))).params.reason, "nested");
         assert.strictEqual((await unzipFact(zipSync({ "A.glb": BYTES, "a.glb": BYTES }))).params.reason, "duplicate");
     });
+
+    it("refuses more than 1,024 entries and a name longer than 512 characters", async () => {
+        const many = Object.fromEntries(Array.from({ length: 1025 }, (_, i) => [`p${i}.bin`, BYTES]));
+        assert.deepStrictEqual(await unzipFact(zipSync(many)), {
+            code: "E_MODEL_ZIP",
+            params: { reason: "entries", limit: 1024 },
+        });
+        assert.deepStrictEqual(await unzipFact(zipSync({ [`${"n".repeat(513)}.bin`]: BYTES })), {
+            code: "E_MODEL_ZIP",
+            params: { reason: "name", limit: 512 },
+        });
+    });
+
+    it("tells a zip inside the zip by its bytes, except a .usdz package", async () => {
+        const inner = zipSync({ "a.glb": BYTES });
+        assert.strictEqual((await unzipFact(zipSync({ "inner.bin": inner }, { level: 0 }))).params.reason, "nested");
+        const kit = await unzipModel(zipSync({ "scene.usdz": inner }, { level: 0 }), 1024 * 1024);
+        assert.deepStrictEqual([...(kit.get("scene.usdz") ?? [])], [...inner]);
+    });
+
+    it("refuses an entry in a compression method it cannot read as corrupt", async () => {
+        const zip = zipSync({ "a.bin": Uint8Array.from({ length: 64 }, (_, i) => i) }, { level: 0 });
+        // The local header's compression method, at offset 8: 99 is WinZip's AES encryption.
+        zip[8] = 99;
+        assert.deepStrictEqual(await unzipFact(zip), { code: "E_MODEL_ZIP", params: { reason: "corrupt" } });
+    });
+
+    it("joins an entry that arrives in several slices back into its bytes", async () => {
+        const data = Uint8Array.from({ length: 200_000 }, (_, i) => (i * 31) % 256);
+        const files = await unzipModel(zipSync({ "big.bin": data }, { level: 0 }), 1024 * 1024);
+        const out = files.get("big.bin") ?? new Uint8Array();
+        assert.strictEqual(out.length, data.length);
+        assert.isTrue(out.every((b, i) => b === data[i]));
+    });
 });

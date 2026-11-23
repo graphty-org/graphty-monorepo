@@ -119,6 +119,8 @@ export interface AccelerationStatus {
     readonly backend?: "webgpu" | (string & {});
     readonly code?: AccelerationErrorCode;
     readonly device?: string;
+    readonly exactMaxNodes?: number;
+    readonly exactMaxNodesBasis?: ExactMaxNodesBasis;
     readonly params?: Readonly<Record<string, CodedFactParam>>;
     readonly policy: AccelerationPolicy;
     readonly reason?: string;
@@ -131,6 +133,12 @@ export interface AcceleratorDeviceInfo {
     readonly architecture: string;
     readonly description: string;
     readonly vendor: string;
+}
+
+// @public
+export interface AcceleratorExactMaxNodes {
+    readonly basis: ExactMaxNodesBasis;
+    readonly value: number;
 }
 
 // @public
@@ -1303,6 +1311,9 @@ export interface EngineVersions {
 export type EstimateRefusalCode = "algorithm.unknown" | "algorithm.needs-directed" | "algorithm.needs-undirected" | "algorithm.needs-weighted" | "algorithm.needs-connected" | "algorithm.needs-accelerator" | "estimate.not-costed" | "estimate.scope-unresolved" | "layout.unknown" | "layout.needs-accelerator" | "layout.not-planar" | "layout.needs-node" | "layout.node-missing" | "layout.needs-grouping" | "layout.grouping-absent" | "layout.needs-two-groups" | "layout.needs-location";
 
 // @public
+export type ExactMaxNodesBasis = "measured" | "default" | "configured";
+
+// @public
 export interface ExpandBehavior {
     readonly depth?: number;
     readonly direction?: "out" | "in" | "both";
@@ -1344,7 +1355,7 @@ export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
+export type FeatureId = "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
 
 // @public
 export interface FieldBand {
@@ -1744,8 +1755,10 @@ export interface FixResult {
 export interface GraphAccelerator {
     [algorithmOrLayout: string]: unknown;
     readonly backend: "webgpu" | (string & {});
+    calibrate?(): Promise<void>;
     readonly device?: AcceleratorDeviceInfo;
     dispose?(): void;
+    readonly exactMaxNodes?: AcceleratorExactMaxNodes;
     readonly lost?: Promise<{
         reason: string;
     }>;
@@ -2945,6 +2958,13 @@ export type GraphtyWarningCode =
 * Since 3.32.0.
 */
 | "W_FILTER_STEPS_DIFFER"
+/**
+* A filter draft autosave kept could not be opened again after a restore (the condition it
+* edited is gone, or its new condition's id is taken), so it was dropped. In an autosave
+* restore's report; `params.id` is the condition's id.
+* Since 3.40.0.
+*/
+| "W_FILTER_DRAFT_DROPPED"
 /**
 * A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
 * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
@@ -6218,10 +6238,8 @@ export type RunStyle = boolean | {
 export interface RunWindow {
     readonly attribute: string;
     readonly edges: number;
-    // (undocumented)
     readonly from: number;
     readonly nodes: number;
-    // (undocumented)
     readonly to: number;
 }
 
@@ -7069,6 +7087,10 @@ export interface SessionEventMap {
         readonly names: readonly string[];
     };
     "visibility:changed": VisibilityChange;
+    // @beta
+    "visibility:draft-changed": {
+        readonly open: readonly string[];
+    };
     // @beta
     "visibility:not-drawn-changed": {
         readonly notDrawn: readonly HiddenNotDrawn[];
@@ -9711,6 +9733,8 @@ export interface VisibilityApi {
     readonly conditions: readonly FilterCondition[];
     // @beta
     draft(target: FilterConditionInput | string): FilterDraft;
+    // @beta
+    draftOf(conditionId: string): FilterDraft | null;
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;
@@ -9722,6 +9746,8 @@ export interface VisibilityApi {
     readonly nodes: ReadonlySet<NodeId>;
     // @beta
     readonly notDrawn: readonly HiddenNotDrawn[];
+    // @beta
+    openDrafts(): readonly FilterCondition[];
     // @beta
     removeCondition(id: string, options?: RunOptions): Run<FilterResult>;
     set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;

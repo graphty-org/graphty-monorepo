@@ -19,6 +19,22 @@
         "cloudflare": { "usd": 5 },
         "sentry": null
     },
+    "cloudflareUsage": {
+        "$comment": "Cloudflare past the Workers Paid plan, by measured usage metric (src/collector/usage.ts): included per month and USD per million past it; a stock in bytes is included in GB-months and priced per GB-month. Workers CPU time and D1 storage are not priced. https://developers.cloudflare.com/workers/platform/pricing/ and /r2/pricing/. Checked 2026-11-23 against the Oct 25 to Nov 23 bill (D1 rows read 30.91 USD, rows written 12.00 USD).",
+        "cf_requests": { "included": 10000000, "usd": 0.3 },
+        "cf_d1_rows_read": { "included": 25000000000, "usd": 0.001 },
+        "cf_d1_rows_written": { "included": 50000000, "usd": 1 },
+        "cf_r2_class_a": { "included": 1000000, "usd": 4.5 },
+        "cf_r2_class_b": { "included": 10000000, "usd": 0.36 },
+        "cf_r2_storage_bytes": { "included": 10, "usd": 0.015, "stock": true }
+    },
+    "awsUsage": {
+        "$comment": "Each AWS usage metric's daily allowance, its share of the 40 USD AWS target (src/collector/usage.ts): DynamoDB on demand at 0.625 USD per million write units and 0.125 per million read units (16 and 4 USD a month), Lambda at 0.20 USD per million invocations plus duration, the HTTP API at 1 USD per million requests. Set 2026-11-23.",
+        "aws_dynamo_write_units": { "perDay": 850000 },
+        "aws_dynamo_read_units": { "perDay": 1000000 },
+        "aws_lambda_invocations": { "perDay": 100000 },
+        "aws_api_requests": { "perDay": 100000 }
+    },
     "actionsListPrice": {
         "$comment": "List-price value of Actions minutes, never money (free for this public repository). Checked 2026-10-25.",
         "usdPerMin": { "linux": 0.006, "windows": 0.01, "macos": 0.062 }

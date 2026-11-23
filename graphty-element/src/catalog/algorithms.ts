@@ -1351,7 +1351,6 @@ export function algorithmKeyOf(
  * @param tool - The call's tool.
  * @param args - The call's arguments.
  * @returns The descriptor, or undefined when the call runs none.
- * @experimental assistant
  */
 export function calledAlgorithm(
     tool: string,
@@ -1364,6 +1363,7 @@ export function calledAlgorithm(
 
 /** Where a 1.10 key ended up: the descriptor that replaced it, and the parameters it needs. */
 export interface LegacyAlgorithmMapping {
+    /** The built-in algorithm that replaced the 1.10 key; run it by its `key`. */
     descriptor: BuiltInAlgorithmDescriptor;
     /** The parameters that reproduce the 1.10 behavior. Empty when only the key changed. */
     params: Readonly<Record<string, unknown>>;

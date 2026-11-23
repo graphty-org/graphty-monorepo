@@ -1,10 +1,12 @@
 /**
  * The Which picker's less traveled paths on the REAL graphty-element and Les Miserables, driven by
  * real clicks and keys: a rule the cards cannot draw that keeps no node says so on Done's tooltip,
+ * as do two conditions that keep some each but none together, or name the one that keeps none alone,
  * and Delete on its Remove button takes it off; the last finished card removed beside an unfinished
  * one is said with an Undo that puts it back where it was; Done drops two unfinished cards with one
  * word for both; a card added to two layers that leaves one of them with nothing names that one;
- * and the Ends card on the Edge tab switches between both ends and either end.
+ * the Ends card on the Edge tab switches between both ends and either end; nodes picked by hand name
+ * the first five on Remove; and a node attribute searched on the Edge tab points to the Node tab.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -140,6 +142,46 @@ describe("the Which picker's side paths", () => {
         assert.isNull(within(region).queryByRole("button", { name: /^Remove / }), "the card is gone");
     });
 
+    it("two conditions that each keep some but together none say so on Done", async () => {
+        const session = await openMiserables();
+        await session.data.updateNodes(
+            session.data.nodes().map((node) => ({
+                id: node.id,
+                values: { madame: String(session.data.name(node.id)).includes("Mme") },
+            })),
+        );
+        // A rule the cards cannot draw keeps Valjean alone; a new true/false card keeps the madames.
+        await addLayer(session, "Valjean", { match: "expression", where: "data.name == 'Valjean'" });
+        await pickRow("Valjean");
+        const region = await openWhich();
+        const done = within(region).getByRole("button", { name: "Done" });
+        await waitFor(async () => {
+            assert.match(await tooltipOf(done), /^1 of 77 nodes$/);
+        });
+        await addField(region, "madame");
+        await waitFor(async () => {
+            assert.match(await tooltipOf(done), /^0 of 77 nodes, Each condition leaves some; together none$/);
+        });
+    });
+
+    it("of two conditions that together keep no node, Done names the one that keeps none alone", async () => {
+        const session = await openMiserables();
+        await session.data.updateNodes(
+            session.data.nodes().map((node) => ({
+                id: node.id,
+                values: { madame: String(session.data.name(node.id)).includes("Mme") },
+            })),
+        );
+        await addLayer(session, "Nobody", { match: "expression", where: "data.name == 'Nobody'" });
+        await pickRow("Nobody");
+        const region = await openWhich();
+        const done = within(region).getByRole("button", { name: "Done" });
+        await addField(region, "madame");
+        await waitFor(async () => {
+            assert.match(await tooltipOf(done), /^0 of 77 nodes, The rule leaves none$/);
+        });
+    });
+
     it("Undo after the last finished card goes puts it back beside the unfinished one", async () => {
         const session = await openMiserables();
         const cosette = session.data.nodes().find((node) => node.name === "Cosette")?.id;
@@ -252,5 +294,40 @@ describe("the Which picker's side paths", () => {
         await waitFor(async () => {
             assert.strictEqual(await matched(), both);
         });
+    });
+
+    it("nodes picked by hand say the first five by name and how many more on Remove", async () => {
+        const session = await openMiserables();
+        const ids = session.data
+            .nodes()
+            .slice(0, 7)
+            .map((node) => String(node.id));
+        await addLayer(session, "Seven", { match: "ids", nodes: ids, edges: [] });
+        await pickRow("Seven");
+        const region = await openWhich();
+        const names = ids.slice(0, 5).map((id) => session.data.nodeName(id).name);
+        const remove = within(region).getByRole("button", { name: /^Remove Picked by hand/ });
+        assert.include(await tooltipOf(remove), `${names.join(", ")}, +2`);
+    });
+
+    it("a node attribute searched on the Edge tab points to the Node tab", async () => {
+        const session = await openMiserables();
+        const layer = await addLayer(session, "Thenardiers", {
+            match: "rule",
+            where: { kind: "text", reads: "data.name", mode: "substring", text: "Thenardier" },
+        });
+        await selectWithTwin(session, "Thenardiers");
+        await userEvent.click(
+            within(await screen.findByRole("tablist", { name: "Style for" })).getByRole("tab", { name: /^Edge/ }),
+        );
+        await userEvent.click(screen.getByRole("checkbox", { name: "Style edges" }));
+        await waitFor(() => {
+            assert.isDefined(session.styles.parts(layer.id)?.edge, "an edge part");
+        });
+        const region = await openWhich("edges");
+        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await screen.findByRole("combobox", { name: "Find an attribute" });
+        await userEvent.keyboard("name");
+        await screen.findByText("name is a node attribute; it is on the Node tab");
     });
 });

@@ -27,6 +27,13 @@ vi.mock("@aws-sdk/client-cost-explorer", () => ({
     },
     GetCostAndUsageCommand: command("GetCostAndUsage"),
 }));
+const cwSend = vi.fn();
+vi.mock("@aws-sdk/client-cloudwatch", () => ({
+    CloudWatchClient: class {
+        send = cwSend;
+    },
+    GetMetricDataCommand: command("GetMetricData"),
+}));
 vi.mock("@aws-sdk/lib-dynamodb", () => ({
     DynamoDBDocumentClient: { from: () => ({ send: docSend }) },
     GetCommand: command("Get"),
@@ -46,6 +53,9 @@ describe("collector handler", () => {
             .mockReset()
             .mockResolvedValue({ Parameters: [], InvalidParameters: ["/graphty-health/github-app/app-id"] });
         docSend.mockReset().mockResolvedValue({});
+        cwSend.mockReset().mockResolvedValue({
+            MetricDataResults: [{ Id: "w", Timestamps: [new Date("2026-10-25T00:00:00Z")], Values: [1200] }],
+        });
         ceSend.mockReset().mockResolvedValue({
             ResultsByTime: [{ TimePeriod: { Start: "2026-10-01" }, Total: { UnblendedCost: { Amount: "0.5" } } }],
         });
@@ -73,6 +83,9 @@ describe("collector handler", () => {
         // Coverage and billing are collected without the App; the GitHub sources are left unwritten.
         expect(mem.items.has("META#source#coverage\u0000-")).toBe(true);
         expect(mem.items.has("META#source#collector\u0000-")).toBe(false);
+        // CloudWatch's usage is read without any parameter; Cloudflare's waits for its token.
+        expect(cwSend).toHaveBeenCalledTimes(1);
+        expect(mem.items.has("META#source#cloudflare-token\u0000-")).toBe(false);
         // Then the rollups and page items are recomputed.
         expect([...mem.items.keys()].some((k) => k.startsWith("PAGE#status"))).toBe(true);
     });

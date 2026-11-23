@@ -73,7 +73,14 @@ import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { pixelsPerUnit } from "./meshes/screenSize";
-import { drawnAgainstBox, isFlatShape, type Point2, shapeTexts } from "./meshes/shapeOutlines";
+import {
+    drawnAgainstBox,
+    isFlatShape,
+    isPatternedBorder,
+    PATTERN_UNIT_FLOOR_PX,
+    type Point2,
+    shapeTexts,
+} from "./meshes/shapeOutlines";
 import type { TemplateAnimation } from "./models/animateTemplate";
 import { loadedChunk } from "./models/loadModel";
 import {
@@ -899,9 +906,16 @@ export class Node implements ModelUser {
      * What the border was last built from: the mesh key and style, and for a border in screen
      * pixels (`border.screenWidth`) the screen pixels one scene unit was drawn as then, rounded to
      * a step of 1/16 of a doubling, so a zoom that changes the border on screen rebuilds it and one
-     * that does not leaves it alone. Null scale for a border in scene units.
+     * that does not leaves it alone. Null scale for a border in scene units. `dashScale` is the same rounded scale
+     * for a dashed, dotted or dash-dot border (or outer border) too thin for its pattern at that zoom
+     * ({@link Node.dashFloorScale}), null for any other.
      */
-    private borderBuilt: { meshKey: string; style: NodeStyleConfig; scale: number | null } | null = null;
+    private borderBuilt: {
+        meshKey: string;
+        style: NodeStyleConfig;
+        scale: number | null;
+        dashScale: number | null;
+    } | null = null;
 
     /** The mesh {@link Node.roundRadius} was last measured from, so a reshape re-measures. */
     private roundRadiusMesh: TransformNode | null = null;
@@ -1306,6 +1320,62 @@ export class Node implements ModelUser {
     }
 
     /**
+     * What a border is built from at the current zoom: the screen scale of a screen-pixel border, the dash floor's
+     * scale ({@link Node.dashFloorScale}), the border in scene units, its mesh key and its drawn width.
+     * @param meshKey - The source mesh key the node is drawn under.
+     * @param style - The resolved style.
+     * @returns The plan.
+     */
+    private borderPlan(
+        meshKey: string,
+        style: NodeStyleConfig,
+    ): {
+        scale: number | null;
+        dashScale: number | null;
+        border: NodeStyleConfig["border"];
+        key: string;
+        width: number;
+    } {
+        const scale = this.screenScale(style);
+        const perSize = NodeMesh.extentPerSize(style.shape);
+        const { border, key } = this.scaledBorder(meshKey, style.border, scale, perSize);
+        const width = this.drawnBorderWidth(style, border, perSize);
+        const outerWidth = (style.outerBorder?.width ?? 0) * perSize;
+        return { scale, dashScale: this.dashFloorScale(style, width, outerWidth), border, key, width };
+    }
+
+    /**
+     * The shortest one width of the built border's pattern is drawn, in scene units: the floor in screen pixels at
+     * the zoom it was built for, or undefined when its pattern is not floored.
+     * @returns The unit, or undefined.
+     */
+    private get dashUnit(): number | undefined {
+        const dashScale = this.borderBuilt?.dashScale ?? null;
+        return dashScale === null ? undefined : PATTERN_UNIT_FLOOR_PX / dashScale;
+    }
+
+    /**
+     * The screen pixels one scene unit is drawn as here (rounded as {@link Node.screenScale} rounds it) when a dashed,
+     * dotted or dash-dot border or outer border is narrower than {@link PATTERN_UNIT_FLOOR_PX} on screen, so its
+     * pattern is measured in that floor rather than in its width; null when no pattern is that thin.
+     * @param style - The resolved style.
+     * @param width - The border's drawn width, in scene units.
+     * @param outerWidth - The outer border's width, in scene units.
+     * @returns The rounded scale, or null.
+     */
+    private dashFloorScale(style: NodeStyleConfig, width: number, outerWidth: number): number | null {
+        const widths = [
+            isPatternedBorder(style.border?.style) ? width : 0,
+            isPatternedBorder(style.outerBorder?.style) ? outerWidth : 0,
+        ].filter((w) => w > 0);
+        if (widths.length === 0) {
+            return null;
+        }
+        const ppu = this.roundedPixelsPerUnit();
+        return Math.min(...widths) * ppu < PATTERN_UNIT_FLOOR_PX ? ppu : null;
+    }
+
+    /**
      * Build this node's border from its style, as a child of its mesh so it moves, hides and is
      * disposed with the node. Called after every new mesh: the old border went with the old mesh.
      * @param meshKey - The source mesh key the node is drawn under.
@@ -1314,15 +1384,15 @@ export class Node implements ModelUser {
     private syncBorder(meshKey: string, style: NodeStyleConfig): void {
         this.groupBorderSource?.dispose();
         this.groupBorderSource = null;
-        const scale = this.screenScale(style);
-        const perSize = NodeMesh.extentPerSize(style.shape);
-        const { border, key } = this.scaledBorder(meshKey, style.border, scale, perSize);
-
-        this.borderBuilt = { meshKey, style, scale };
-        this.borderWidth = this.drawnBorderWidth(style, border, perSize);
+        const { scale, dashScale, border, key, width } = this.borderPlan(meshKey, style);
+        // a patterned ring drawn with its pattern floored is cached per zoom step, as a screen-pixel border is
+        const styleId = dashScale === null ? key : `${key}|dash${String(dashScale)}`;
+        this.borderBuilt = { meshKey, style, scale, dashScale };
+        const { dashUnit } = this;
+        this.borderWidth = width;
         this.border = NodeMesh.createBorder(
             this.context.getMeshCache(),
-            { styleId: key, is2D: this.context.is2D(), size: this.size },
+            { styleId, is2D: this.context.is2D(), size: this.size, dashUnit },
             { shape: style.shape, border },
             this.#anchor as AbstractMesh,
             this.context.getScene(),
@@ -1339,7 +1409,7 @@ export class Node implements ModelUser {
 
         this.outerBorder = NodeMesh.createOuterBorder(
             this.context.getMeshCache(),
-            { styleId: key, is2D: this.context.is2D(), size: this.size },
+            { styleId, is2D: this.context.is2D(), size: this.size, dashUnit },
             { shape: style.shape, border, outerBorder: style.outerBorder },
             this.#anchor as AbstractMesh,
             this.context.getScene(),
@@ -1444,10 +1514,14 @@ export class Node implements ModelUser {
      * @returns The rounded scale, or null.
      */
     private screenScale(style: NodeStyleConfig): number | null {
-        if (style.border?.screenWidth === undefined) {
-            return null;
-        }
+        return style.border?.screenWidth === undefined ? null : this.roundedPixelsPerUnit();
+    }
 
+    /**
+     * The screen pixels one scene unit is drawn as where this node is, rounded to 1/16 of a doubling.
+     * @returns The rounded scale; 1 with no camera.
+     */
+    private roundedPixelsPerUnit(): number {
         const camera = this.context.getScene().activeCamera;
         // In CSS pixels, as a program drawing on a page counts them: a render pixel is a fraction
         // of one on a high-density screen.
@@ -1462,8 +1536,9 @@ export class Node implements ModelUser {
 
     /**
      * Rebuild a border drawn in screen pixels when the camera now draws it at another width on
-     * screen. Called by the update loop on a frame the camera moved; does nothing for a node
-     * whose border is in scene units.
+     * screen, and a dashed, dotted or dash-dot border whose pattern the zoom took under or over its
+     * floor in screen pixels ({@link Node.dashFloorScale}). Called by the update loop on a frame the
+     * camera moved; does nothing for a node with neither.
      *
      * The ring's reach is where this node's edges end, so the caller re-trims them when this
      * answers true (#3532). A layout is not woken: it spaces nodes by `layoutRadius`,
@@ -1473,17 +1548,25 @@ export class Node implements ModelUser {
      */
     refreshScreenBorder(): boolean {
         const built = this.borderBuilt;
-        if (typeof built?.scale !== "number" || this.#anchor.isDisposed()) {
+        const patterned =
+            isPatternedBorder(built?.style.border?.style) || isPatternedBorder(built?.style.outerBorder?.style);
+        if (built === null || (built.scale === null && !patterned) || this.#anchor.isDisposed()) {
             return false;
         }
 
-        if (this.screenScale(built.style) === built.scale) {
+        const plan = this.borderPlan(built.meshKey, built.style);
+        if (plan.scale === built.scale && plan.dashScale === built.dashScale) {
             return false;
         }
 
         const before = this.borderReach;
         this.border?.dispose();
         this.syncBorder(built.meshKey, built.style);
+        // a group's ring is drawn at its box's size (fitGroupChildren), which the new border is not yet
+        const box = this.drawnAsGroup ? this.context.getLayoutManager().groupBox(this.id) : undefined;
+        if (box !== undefined) {
+            this.drawAsGroup(box);
+        }
         return this.borderReach !== before;
     }
 
@@ -1740,6 +1823,7 @@ export class Node implements ModelUser {
                       { x: width, y: height, z: depth },
                       this.context.is2D(),
                       this.context.getScene(),
+                      this.dashUnit,
                   );
         if (old !== null && ring !== null) {
             // The cached border's material, shared: the ring's own disposal never takes it. The
@@ -2004,12 +2088,15 @@ export class Node implements ModelUser {
 
     /**
      * Drop the memos keyed on a mesh or anchor the batch handover just disposed: they would keep
-     * it, and through it its scene data, alive (issue #3247). The next read measures again.
+     * it, and through it its scene data, alive (issue #3247). The next unbatched read measures again.
+     * The measured values stay: a batched read takes them over the row table's 32-bit copy, and a zeroed one made
+     * a batched node's width the rounded copy and its height the double until the next measure (#6287).
      */
     private forgetMeasuredMesh(): void {
         this.roundRadiusMesh = null;
         this.halfExtentsMesh = null;
-        this.halfExtentsValue.x = 0;
+        // a scale nothing equals, so the next unbatched read measures again
+        this.halfExtentsScale.x = Number.NaN;
     }
 
     /**

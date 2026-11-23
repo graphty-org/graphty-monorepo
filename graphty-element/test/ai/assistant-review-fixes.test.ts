@@ -17,7 +17,6 @@ import { pickedChoices } from "../../src/ai/questions";
 import type { AiQuestionRequest } from "../../src/events";
 import { assistantSession, callsTurn, ScriptedAssistant, textTurn } from "../helpers/assistant";
 
-const ON = ["assistant"];
 const ADD_NODE = { tool: "edit_data", args: { action: "add_nodes", records: [{ id: "f" }] } };
 const PAINT = { tool: "style", args: { action: "add", where: "all", values: { "node.color": "#ff0000" } } };
 const TWO_NODES = {
@@ -139,7 +138,7 @@ describe("an undone message", () => {
     }
 
     it("says so, through a later edit that drops its steps, and stops saying so when redone", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("paint it", [PAINT]);
         assert.isUndefined(undoneOf(assistant));
@@ -168,7 +167,7 @@ describe("an undone message", () => {
         store: MemoryStore;
         left: string;
     }> {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const store = new MemoryStore();
         const assistant = new ScriptedAssistant(session, { history: "memory", store });
         await assistant.say("paint it", [PAINT]);
@@ -198,7 +197,7 @@ describe("an undone message", () => {
     });
 
     it("stops saying so when reopened, redone while another conversation showed", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("paint it", [PAINT]);
         const left = assistant.controller.getConversation()?.id ?? "";
@@ -215,7 +214,7 @@ describe("an undone message", () => {
 
 describe("a message bound to a selection", () => {
     it("encodes only the selection", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         await session.selection.apply({ ids: ["a"] });
         const assistant = new ScriptedAssistant(session);
         assistant.engine.push(
@@ -234,7 +233,7 @@ describe("a message bound to a selection", () => {
     });
 
     it("writes only the records it holds, and says how many it left", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         await session.selection.apply({ ids: ["a"] });
         const assistant = new ScriptedAssistant(session);
         const records = [
@@ -255,7 +254,7 @@ describe("a message bound to a selection", () => {
     });
 
     it("refuses what can only reach the whole graph", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         await session.selection.apply({ ids: ["a"] });
         const before = session.status.counts.nodes;
         const assistant = new ScriptedAssistant(session, { gate: false });

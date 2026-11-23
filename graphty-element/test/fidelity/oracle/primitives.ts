@@ -678,7 +678,10 @@ export function dashClassOf(dash: readonly number[] | null, width: number, cap =
     // line's last element is cut short by its end
     const sorted = [...on].sort((x, y) => x - y);
     const alternate = sorted[Math.floor(0.75 * sorted.length)] >= 2 * sorted[Math.floor(0.25 * sorted.length)];
-    if (on.every((d) => d <= dot)) {
+    // a ring of dots round a sharp-cornered shape has one dot per corner that takes the corner's mitre and measures one
+    // and a half to two dots (#9768): dots by the typical piece, while no piece is twice it (a dash is three dots)
+    const typical = sorted[Math.floor(0.5 * sorted.length)];
+    if (on.every((d) => d <= dot) || (typical <= dot && sorted[sorted.length - 1] < 2 * typical)) {
         // under the floor every dash is a dot, but a hairline's dash and dot still differ (cx-syn-mappings 342->360)
         return alternate ? "dash-dot" : "dotted";
     }
@@ -989,22 +992,26 @@ function piecesPattern(
     // row of arrows touching one another is drawn square on the line.
     {
         // round a ring, a piece across the seam of the angle reaches all the way round less its widest gap
-        const covered = subpaths.reduce((sum, q) => {
+        const spans = subpaths.map((q) => {
             const a = q.map(run.along).sort((x, y) => x - y);
             const span = (a.at(-1) ?? 0) - (a[0] ?? 0);
             if (run.circular !== true) {
-                return sum + span;
+                return span;
             }
             const widest = Math.max(run.length - span, ...a.slice(1).map((x, i) => x - a[i]));
-            return sum + run.length - widest;
-        }, 0);
+            return run.length - widest;
+        });
+        const covered = spans.reduce((a, b) => a + b, 0);
+        // a wave drawn in whole periods leaves up to one period undrawn where the next would not fit: round a small
+        // node that is more than a tenth of the way (cx2-syn-mappings 222, six periods round a hexagon, 89% covered)
+        const reachesRound = covered >= Math.min(0.9 * run.length, run.length - median(spans));
         const thin = median(subpaths.map((q) => (2 * Math.abs(signedArea(q))) / Math.max(lengthOf(q), 1e-9)));
         const reach = median(pieces.map((p) => p.short));
         // a period of a wave (Cytoscape desktop's sine wave is a crest and a trough a piece) or a lobe of one lies off
         // its own mirror image by half its thickness or more (a wide one's period, cys-syn-mappings 432->450: 1.3 px off
         // at 1.4 thick); an arrow drawn square on the line is its own mirror image, a fraction of a pixel off
         const lopsided = median(subpaths.map((q) => mirrorGap(q, run.mirror))) > 0.5 * thin;
-        if (covered >= 0.9 * run.length && reach > 4 * thin && lopsided) {
+        if (reachesRound && reach > 4 * thin && lopsided) {
             const straight = subpaths.reduce((sum, q) => sum + straightShare(q), 0) / subpaths.length;
             return { dashClass: straight > 0.5 ? "zigzag" : "sinewave", width: thin };
         }

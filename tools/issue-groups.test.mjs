@@ -477,6 +477,30 @@ describe("route", () => {
         applyFix(l, found[0], later);
         assert.match(l.waits[0].ended, /due .* passed$/);
     });
+
+    it("sets a due time and why on a live wait it already holds (#9743)", () => {
+        const l = fresh();
+        addWait(l, { n: 3, on: "#8667", why: "same file", now: NOW });
+        assert.match(addWait(l, { n: 3, on: "#8667", why: "again", now: NOW }), /already waits/);
+        const due = new Date(NOW + HOUR).toISOString();
+        assert.equal(
+            addWait(l, { n: 3, on: "#8667", due, why: "re-check", now: NOW }),
+            `#3 waits on #8667 until ${due}`,
+        );
+        assert.equal(l.waits.length, 1);
+        assert.equal(l.waits[0].due, due);
+        assert.equal(l.waits[0].why, "re-check");
+        assert.deepEqual(ledgerJobs(l, q([3, "high"]), NOW + 2 * HOUR).rescan, [3], "the new due time holds");
+    });
+
+    it("ends a stand-alone wait with --end (#9743)", () => {
+        const l = fresh();
+        assert.throws(() => addWait(l, { n: 3, on: "#8667", end: true, why: "dead", now: NOW }), /no live wait/);
+        addWait(l, { n: 3, on: "#8667", why: "same file", now: NOW });
+        assert.match(addWait(l, { n: 3, on: "#8667", end: true, why: "base abandoned", now: NOW }), /no longer waits/);
+        assert.match(l.waits[0].ended, /base abandoned$/);
+        assert.deepEqual(ledgerJobs(l, q([3, "high"]), NOW).rescan, [3], "released");
+    });
 });
 
 describe("fetchFacts", () => {

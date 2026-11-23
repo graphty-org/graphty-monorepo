@@ -119,6 +119,8 @@ export interface AccelerationStatus {
     readonly backend?: "webgpu" | (string & {});
     readonly code?: AccelerationErrorCode;
     readonly device?: string;
+    readonly exactMaxNodes?: number;
+    readonly exactMaxNodesBasis?: ExactMaxNodesBasis;
     readonly params?: Readonly<Record<string, CodedFactParam>>;
     readonly policy: AccelerationPolicy;
     readonly reason?: string;
@@ -131,6 +133,12 @@ export interface AcceleratorDeviceInfo {
     readonly architecture: string;
     readonly description: string;
     readonly vendor: string;
+}
+
+// @public
+export interface AcceleratorExactMaxNodes {
+    readonly basis: ExactMaxNodesBasis;
+    readonly value: number;
 }
 
 // @public
@@ -294,7 +302,7 @@ export interface AttributeDescriptor {
 export type AttributeLeafNodes = "all" | "ends" | "none";
 
 // @public
-export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city" | "x" | "y" | "z";
+export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId" | "kind" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city" | "x" | "y" | "z";
 
 // @public
 export type AttributeUse = {
@@ -1138,6 +1146,12 @@ export interface DraftTable {
     readonly weightCandidate?: string;
 }
 
+// @beta
+export interface DraftView {
+    readonly merged: string;
+    readonly new: string;
+}
+
 // @public
 export type DrawnAnnotation = GraphAnnotation | ImageAnnotation;
 
@@ -1202,6 +1216,11 @@ export type EdgeRecordInput = Readonly<Record<string, unknown>>;
 
 // @public
 export type EdgeRef = EdgeId | EdgeMember;
+
+// @public
+export interface ElementKinds extends ValueCounts {
+    readonly column: string;
+}
 
 // @public
 export interface ElementLayerSpec extends LayerSpec {
@@ -1301,6 +1320,9 @@ export interface EngineVersions {
 
 // @public
 export type EstimateRefusalCode = "algorithm.unknown" | "algorithm.needs-directed" | "algorithm.needs-undirected" | "algorithm.needs-weighted" | "algorithm.needs-connected" | "algorithm.needs-accelerator" | "estimate.not-costed" | "estimate.scope-unresolved" | "layout.unknown" | "layout.needs-accelerator" | "layout.not-planar" | "layout.needs-node" | "layout.node-missing" | "layout.needs-grouping" | "layout.grouping-absent" | "layout.needs-two-groups" | "layout.needs-location";
+
+// @public
+export type ExactMaxNodesBasis = "measured" | "default" | "configured";
 
 // @public
 export interface ExpandBehavior {
@@ -1744,8 +1766,10 @@ export interface FixResult {
 export interface GraphAccelerator {
     [algorithmOrLayout: string]: unknown;
     readonly backend: "webgpu" | (string & {});
+    calibrate?(): Promise<void>;
     readonly device?: AcceleratorDeviceInfo;
     dispose?(): void;
+    readonly exactMaxNodes?: AcceleratorExactMaxNodes;
     readonly lost?: Promise<{
         reason: string;
     }>;
@@ -1766,6 +1790,12 @@ export interface GraphFraming {
     };
     readonly extent: "drawn" | "centers";
     readonly padding?: number;
+}
+
+// @public
+export interface GraphKinds {
+    readonly edges: ElementKinds | null;
+    readonly nodes: ElementKinds | null;
 }
 
 // @public
@@ -4517,6 +4547,7 @@ export interface NotesApi {
     list(options?: NoteListOptions): readonly Note[];
     mergeDocument(document: unknown, options?: NoteMergeOptions): NotesReport;
     remove(id: NoteId): void;
+    savedTarget(target: NoteTargetInput): NoteTarget | undefined;
     status(id: NoteId): NoteStatus;
     // (undocumented)
     tags(): readonly string[];
@@ -6837,6 +6868,7 @@ export interface SessionDataApi {
         readonly source?: SourceKey;
     }): readonly DataIssue[];
     joins(): readonly JoinRecord[];
+    kinds(): GraphKinds;
     lastImport(): LoadReport | null;
     lineage(ref: SourceElementRef): SourceLineage | null;
     listSource(source: SourceInput, query?: Omit<SourceListQuery<Record<string, unknown>>, "params">, options?: SourceLoadOptions): Promise<SourceListing>;
@@ -9052,6 +9084,10 @@ export interface StylesApi {
     showBranches(view: BranchesView): {
         end(): void;
         readonly notDrawn: readonly HiddenNotDrawn[];
+    };
+    // @beta
+    showDraft(view: DraftView): {
+        end(): void;
     };
     // @beta
     readonly showingBranches: boolean;

@@ -805,6 +805,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #owedTransform: DrawnTransform | null = null;
     /** `#landed` when the publish was owed: a later landing has rewritten the simulation's rows. */
     #owedLanded = -1;
+    /** `#landed` when its slot was last copied into the row table, or -1: see `#publishDrawn`. */
+    #copiedLanded = -1;
 
     /**
      * One row as the owed publish writes it (`#writeRows` for that row alone), so a frame that draws
@@ -1725,7 +1727,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#fitEnvelope(snapshot, simPositions);
         if (mayOwe && drawn !== null && viaCard !== null) {
             drawn.stepped = true;
-            if (!this.#publishDrawn(drawn, landed)) {
+            if (!this.#publishDrawn(drawn, landed, true)) {
                 // Not copied after all (the texture is not on the card yet, or the ring failed): written now.
                 this.#publish(false);
                 return;
@@ -1935,6 +1937,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
             },
         };
         this.#drawn = run;
+        this.#copiedLanded = -1;
         target.table.drawnMirror = run.mirror;
         this.#sendDrawnTransform(run);
     }
@@ -1986,24 +1989,35 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * After a publish on the card (with the transform the landed batch drew with, which a batch's
      * commands recorded across awaits make unknowable here): the rows the ring must leave as the element wrote them, the copy of
      * the landed slot, and the transform the next batches draw with.
+     *
+     * A LANDING IS COPIED ONCE. A frame on which no batch landed publishes the landing already copied: the texture
+     * holds it, with every row written since sent over it, so copying it again sent nothing new but the rows told to
+     * the ring, every frame until the next batch landed. While a software adapter's queue ran behind the page that
+     * was an upload a frame for a landing already on the card (issue #9806).
      * @param run - The run.
      * @param landed - The landed slot to copy (its rows when read back from another device), or null when
      * this publish goes up by upload.
-     * @returns True when the landed slot was copied.
+     * @param owing - True when the lane is owed this publish rather than written now: a landing already copied is
+     * then not copied again. The publish written now copies it, since the texture must follow the lane's rows.
+     * @returns True when the landed slot was copied, now or by an earlier publish of the same landing.
      */
-    #publishDrawn(run: DrawnRun, landed: GPUBuffer | Float32Array | null): boolean {
+    #publishDrawn(run: DrawnRun, landed: GPUBuffer | Float32Array | null, owing = false): boolean {
         const simulation = this.#simulation;
         let copied = false;
         try {
             this.#sendDrawnSkip(run);
             if (landed === null) {
+                this.#copiedLanded = -1;
                 run.target.table.dropCopy();
+            } else if (owing && this.#copiedLanded === this.#landed) {
+                copied = true;
             } else {
                 const { table, device } = run.target;
                 copied =
                     landed instanceof Float32Array
                         ? table.uploadLanded(landed, run.n)
                         : device !== null && table.copyLanded(device, landed, run.n);
+                this.#copiedLanded = copied ? this.#landed : -1;
                 this.#resendTold(run);
             }
 

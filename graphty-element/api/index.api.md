@@ -180,6 +180,8 @@ export interface AccelerationStatus {
     readonly backend?: "webgpu" | (string & {});
     readonly code?: AccelerationErrorCode;
     readonly device?: string;
+    readonly exactMaxNodes?: number;
+    readonly exactMaxNodesBasis?: ExactMaxNodesBasis;
     readonly params?: Readonly<Record<string, CodedFactParam>>;
     readonly policy: AccelerationPolicy;
     readonly reason?: string;
@@ -192,6 +194,12 @@ export interface AcceleratorDeviceInfo {
     readonly architecture: string;
     readonly description: string;
     readonly vendor: string;
+}
+
+// @public
+export interface AcceleratorExactMaxNodes {
+    readonly basis: ExactMaxNodesBasis;
+    readonly value: number;
 }
 
 // @public
@@ -865,6 +873,12 @@ export class DataManager implements Manager {
         loading(active: boolean): void;
         removing(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void;
     }): void;
+    // @internal
+    builtEdgesOfPairs(pairs: Iterable<readonly [NodeIdType, NodeIdType]>, freeze: boolean): {
+        readonly a: NodeIdType;
+        readonly b: NodeIdType;
+        readonly edges: Edge[];
+    }[] | null;
     clear(): void;
     get directed(): boolean;
     get directionSettledBy(): DirectionProvenance;
@@ -876,6 +890,8 @@ export class DataManager implements Manager {
     edgeDirected(row: number): boolean;
     get edges(): ReadonlyMap<string, Edge>;
     get edgesByIndex(): readonly (Edge | undefined)[];
+    // @internal
+    edgeSetChangesSince(version: number): readonly (readonly [NodeIdType, NodeIdType])[] | null;
     edgeVersion: number;
     getEdge(edgeId: string): Edge | undefined;
     getEdgesBetween(srcNodeId: NodeIdType, dstNodeId: NodeIdType): readonly Edge[];
@@ -2735,6 +2751,9 @@ export class EventManager implements Manager {
 export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEventType;
 
 // @public
+export type ExactMaxNodesBasis = "measured" | "default" | "configured";
+
+// @public
 export interface ExpandBehavior {
     readonly depth?: number;
     readonly direction?: "out" | "in" | "both";
@@ -3361,8 +3380,10 @@ export class Graph implements GraphContext {
 export interface GraphAccelerator {
     [algorithmOrLayout: string]: unknown;
     readonly backend: "webgpu" | (string & {});
+    calibrate?(): Promise<void>;
     readonly device?: AcceleratorDeviceInfo;
     dispose?(): void;
+    readonly exactMaxNodes?: AcceleratorExactMaxNodes;
     readonly lost?: Promise<{
         reason: string;
     }>;
@@ -5570,6 +5591,8 @@ export abstract class LayoutEngine {
     protected config?: Record<string, unknown>;
     static descriptor?: AuthoredLayoutDescriptor;
     dispose(): void;
+    // @internal
+    get edgeCount(): number;
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
     abstract get edges(): Iterable<Edge>;
     protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
@@ -5706,7 +5729,7 @@ export class LayoutManager implements Manager {
     get isSettled(): boolean;
     get layoutEngine(): LayoutEngine | undefined;
     get layoutType(): string | undefined;
-    loadArrangement(restoring: boolean, wrote?: boolean, byReader?: boolean): void;
+    loadArrangement(restoring: boolean, wrote?: boolean, byReader?: boolean): boolean;
     get motion(): LayoutMotion;
     get nodes(): Iterable<Node_2>;
     onMotion: ((motion: LayoutMotion) => void) | null;
@@ -5714,6 +5737,8 @@ export class LayoutManager implements Manager {
     placeGroups(): void;
     // @internal
     get preStepsInFlight(): boolean;
+    // @internal
+    publishOrReport(): boolean;
     reducedMotion: boolean;
     // @internal
     releaseDetachedScope(): void;
@@ -7636,6 +7661,7 @@ export interface NotesApi {
     list(options?: NoteListOptions): readonly Note[];
     mergeDocument(document: unknown, options?: NoteMergeOptions): NotesReport;
     remove(id: NoteId): void;
+    savedTarget(target: NoteTargetInput): NoteTarget | undefined;
     status(id: NoteId): NoteStatus;
     // (undocumented)
     tags(): readonly string[];
@@ -9347,11 +9373,17 @@ export class UpdateManager implements Manager {
     meshesShownOrHidden(): void;
     // @internal
     nodeRowSelected(row: number): boolean;
+    // @internal
+    nodeRowsMoved(remap: ArrayLike<number>): void;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
     readonly pending: PendingWork;
     picturesLoading: (() => boolean) | null;
+    // @internal
+    placeBuiltNode(node: Node_2): void;
+    // @internal
+    placeEdgesOfNode(node: Node_2): void;
     // @internal
     plainLabelRows(): {
         row: number;

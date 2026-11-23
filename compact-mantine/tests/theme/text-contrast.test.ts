@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { compactColors } from "../../src/theme/colors";
 import { CM_COLORS, CM_HIGH_CONTRAST } from "../../src/theme/tokens";
+import { contrast } from "../harness/contrast";
 
 /**
  * WCAG 1.4.3 (AA): body text needs 4.5:1 against what it is drawn on. With the AA option
@@ -10,30 +11,6 @@ import { CM_COLORS, CM_HIGH_CONTRAST } from "../../src/theme/tokens";
  * held to this (tests/constants/panel.test.ts records where it misses). Mantine's dimmed text
  * follows the secondary ink in the AA mode, so it is covered by text-secondary.
  */
-
-function rgba(color: string): [number, number, number, number] {
-    const h = color.slice(1);
-    const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
-    const a = h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1;
-    return [r, g, b, a];
-}
-
-function luminance(rgb: number[]): number {
-    const [r, g, b] = rgb.map((c) => {
-        const s = c / 255;
-        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/** The contrast of a (possibly translucent) text color over an opaque surface. */
-function contrast(text: string, surface: string): number {
-    const [fr, fg, fb, a] = rgba(text);
-    const bg = rgba(surface);
-    const fg2 = [fr * a + bg[0] * (1 - a), fg * a + bg[1] * (1 - a), fb * a + bg[2] * (1 - a)];
-    const [hi, lo] = [luminance(fg2), luminance(bg)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
-}
 
 type Scheme = "light" | "dark";
 const tok = (name: keyof typeof CM_COLORS, scheme: Scheme): string =>

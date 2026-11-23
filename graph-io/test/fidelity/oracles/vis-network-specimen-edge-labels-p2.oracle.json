@@ -3,7 +3,7 @@
     "program": "vis-network",
     "version": "vis-network 9.1.9 (standalone), svgcanvas 2.6.0",
     "command": "new vis.Network(<div 1200x900>, { nodes: file.nodes, edges: file.edges }, file.options); net.renderer._redraw() onto an svgcanvas Context",
-    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
+    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed (with the paths added to it), a clip keeps its evenodd rule, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. A destination-out stroke over the ring just stroked on the same path (a Cytoscape.js double border or outline) is recorded as a mask on that ring; no other globalCompositeOperation is recorded. Not recorded: a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
     "svgKind": "vector",
     "canvas": {
         "width": 1200,
@@ -29,6 +29,258 @@
             "x": 600,
             "y": 450
         }
+    },
+    "drawn": {
+        "about": "vis-network's own account of where it drew each node, for naming the SVG's shapes: each node's id, its center (net.getPositions() through net.canvasToDOM) and its bounding box's width and height and its corners (box: net.getBoundingBox through net.canvasToDOM; the box holds a label drawn below the shape, so it is not centered on the node), in the SVG's pixels",
+        "nodes": [
+            {
+                "id": "anchor-nw",
+                "x": 57.352253235615194,
+                "y": 47.692187743645775,
+                "w": 5.613597380321224,
+                "h": 5.613597380321224,
+                "box": {
+                    "x0": 54.54545454545459,
+                    "y0": 44.88538905348517,
+                    "x1": 60.15905192577581,
+                    "y1": 50.498986433806394
+                }
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1142.647746764385,
+                "y": 47.692187743645775,
+                "w": 5.613597380321153,
+                "h": 5.613597380321224,
+                "box": {
+                    "x0": 1139.8409480742243,
+                    "y0": 44.88538905348517,
+                    "x1": 1145.4545454545455,
+                    "y1": 50.498986433806394
+                }
+            },
+            {
+                "id": "anchor-sw",
+                "x": 57.352253235615194,
+                "y": 852.3078122563543,
+                "w": 5.613597380321224,
+                "h": 5.613597380321153,
+                "box": {
+                    "x0": 54.54545454545459,
+                    "y0": 849.5010135661937,
+                    "x1": 60.15905192577581,
+                    "y1": 855.1146109465149
+                }
+            },
+            {
+                "id": "anchor-se",
+                "x": 1142.647746764385,
+                "y": 852.3078122563543,
+                "w": 5.613597380321153,
+                "h": 5.613597380321153,
+                "box": {
+                    "x0": 1139.8409480742243,
+                    "y0": 849.5010135661937,
+                    "x1": 1145.4545454545455,
+                    "y1": 855.1146109465149
+                }
+            },
+            {
+                "id": "cap-default",
+                "x": 180.8513956026821,
+                "y": 474.32558864805867,
+                "w": 50.20807344456571,
+                "h": 17.776391704350544,
+                "box": {
+                    "x0": 155.74735888039922,
+                    "y0": 465.4373927958834,
+                    "x1": 205.95543232496493,
+                    "y1": 483.21378450023394
+                }
+            },
+            {
+                "id": "default-s",
+                "x": 145.298612193981,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 141.5562139404335,
+                    "y0": 433.15920785903637,
+                    "x1": 149.0410104475285,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "default-t",
+                "x": 216.40417901138315,
+                "y": 436.90160611258386,
+                "w": 7.484796507094956,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 212.6617807578357,
+                    "y0": 433.15920785903637,
+                    "x1": 220.14657726493064,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "cap-font-bold-shorthand",
+                "x": 390.425697801341,
+                "y": 474.32558864805867,
+                "w": 96.20366467526895,
+                "h": 26.196787774832387,
+                "box": {
+                    "x0": 342.32386546370657,
+                    "y0": 461.2271947606425,
+                    "x1": 438.5275301389755,
+                    "y1": 487.42398253547486
+                }
+            },
+            {
+                "id": "font-bold-shorthand-s",
+                "x": 354.87291439264,
+                "y": 436.90160611258386,
+                "w": 7.484796507094927,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 351.1305161390925,
+                    "y0": 433.15920785903637,
+                    "x1": 358.6153126461874,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "font-bold-shorthand-t",
+                "x": 425.9784812100421,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 422.2360829564946,
+                    "y0": 433.15920785903637,
+                    "x1": 429.7208794635896,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "cap-font-ital-shorthand",
+                "x": 600,
+                "y": 474.32558864805867,
+                "w": 91.16293929323251,
+                "h": 26.196787774832387,
+                "box": {
+                    "x0": 554.4185303533837,
+                    "y0": 461.2271947606425,
+                    "x1": 645.5814696466163,
+                    "y1": 487.42398253547486
+                }
+            },
+            {
+                "id": "font-ital-shorthand-s",
+                "x": 564.4472165912989,
+                "y": 436.90160611258386,
+                "w": 7.48479650709487,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 560.7048183377515,
+                    "y0": 433.15920785903637,
+                    "x1": 568.1896148448463,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "font-ital-shorthand-t",
+                "x": 635.5527834087011,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 631.8103851551535,
+                    "y0": 433.15920785903637,
+                    "x1": 639.2951816622485,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "cap-font-boldital-shorthand",
+                "x": 809.574302198659,
+                "y": 474.32558864805867,
+                "w": 88.20675532122254,
+                "h": 26.196787774832387,
+                "box": {
+                    "x0": 765.4709245380477,
+                    "y0": 461.2271947606425,
+                    "x1": 853.6776798592703,
+                    "y1": 487.42398253547486
+                }
+            },
+            {
+                "id": "font-boldital-shorthand-s",
+                "x": 774.0215187899579,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 770.2791205364103,
+                    "y0": 433.15920785903637,
+                    "x1": 777.7639170435053,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "font-boldital-shorthand-t",
+                "x": 845.1270856073601,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 841.3846873538125,
+                    "y0": 433.15920785903637,
+                    "x1": 848.8694838609075,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "cap-font-mono-shorthand",
+                "x": 1019.1486043973179,
+                "y": 474.32558864805867,
+                "w": 80.72789767854351,
+                "h": 26.196787774832387,
+                "box": {
+                    "x0": 978.7846555580461,
+                    "y0": 461.2271947606425,
+                    "x1": 1059.5125532365896,
+                    "y1": 487.42398253547486
+                }
+            },
+            {
+                "id": "font-mono-shorthand-s",
+                "x": 983.5958209886169,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 979.8534227350693,
+                    "y0": 433.15920785903637,
+                    "x1": 987.3382192421643,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "font-mono-shorthand-t",
+                "x": 1054.7013878060188,
+                "y": 436.90160611258386,
+                "w": 7.484796507095098,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 1050.9589895524714,
+                    "y0": 433.15920785903637,
+                    "x1": 1058.4437860595665,
+                    "y1": 440.6440043661313
+                }
+            }
+        ]
     },
     "pageErrors": []
 }

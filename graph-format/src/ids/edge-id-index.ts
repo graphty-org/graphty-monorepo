@@ -101,6 +101,70 @@ export function buildEdgeIdMap(column: Column): Map<EdgeId, number> {
     return map;
 }
 
+/** What {@link EdgeIdIndex} looks ids up in while they rise in row order: the column itself. */
+const RISING = "rising";
+
+/**
+ * A scalar numeric column's values when every row is set and each is greater than the one before.
+ * @param column - the id column
+ * @returns the values, or null
+ */
+function risingValues(column: Column): ArrayLike<number> | null {
+    switch (column.dtype) {
+        case "f32":
+        case "f64":
+        case "i32":
+        case "u32":
+        case "u8":
+            break;
+        default:
+            return null;
+    }
+    if (column.meta.components !== 1) {
+        return null;
+    }
+    const { data } = column;
+    let last = -Infinity;
+    for (let row = 0; row < column.length; row++) {
+        const value = data[row];
+        // NaN goes to the map, which finds NaN by SameValueZero.
+        if (!column.isSet(row) || Number.isNaN(value) || value <= last) {
+            return null;
+        }
+        last = value;
+    }
+    return data;
+}
+
+/**
+ * The row of an id among rising values, by binary search; a non-number never matches, as a Map
+ * keyed by numbers never matches one.
+ * @param values - the rising values
+ * @param length - how many of them are rows
+ * @param id - the id
+ * @returns the row, or INVALID_INDEX
+ */
+function searchRising(values: ArrayLike<number>, length: number, id: EdgeId): number {
+    if (typeof id !== "number") {
+        return INVALID_INDEX;
+    }
+    let low = 0;
+    let high = length - 1;
+    while (low <= high) {
+        const middle = (low + high) >>> 1;
+        const value = values[middle];
+        if (value === id) {
+            return middle;
+        }
+        if (value < id) {
+            low = middle + 1;
+        } else {
+            high = middle - 1;
+        }
+    }
+    return INVALID_INDEX;
+}
+
 /**
  * The lazily built index behind `snapshot.edgeIndexOf(id)` (design section 4.6): a Map from id to
  * logical edge index over the set rows of the role "id" edge column, built on the first lookup and
@@ -112,6 +176,12 @@ export class EdgeIdIndex {
 
     /** The map, or null before the first lookup. */
     private map: Map<EdgeId, number> | null;
+
+    /**
+     * The column's values when every row is set and they rise strictly in row order (a counter
+     * stamped in row order): looked up by binary search, with no map built. Null otherwise.
+     */
+    private rising: ArrayLike<number> | null = null;
 
     /** column.version when the map was built. */
     private builtVersion: number;
@@ -134,7 +204,7 @@ export class EdgeIdIndex {
      * @returns true when the next lookup will not build
      */
     get built(): boolean {
-        return this.map !== null && this.builtVersion === this.column.version;
+        return (this.map !== null || this.rising !== null) && this.builtVersion === this.column.version;
     }
 
     /**
@@ -142,7 +212,8 @@ export class EdgeIdIndex {
      * @returns the id count
      */
     get size(): number {
-        return this.ensure().size;
+        const lookup = this.ensure();
+        return lookup === RISING ? this.column.length : lookup.size;
     }
 
     /**
@@ -151,7 +222,11 @@ export class EdgeIdIndex {
      * @returns the edge index, or INVALID_INDEX on a miss
      */
     indexOf(id: EdgeId): number {
-        const index = this.ensure().get(id);
+        const lookup = this.ensure();
+        if (lookup === RISING) {
+            return searchRising(this.rising as ArrayLike<number>, this.column.length, id);
+        }
+        const index = lookup.get(id);
         return index === undefined ? INVALID_INDEX : index;
     }
 
@@ -161,19 +236,21 @@ export class EdgeIdIndex {
      * @returns true when some set row holds it
      */
     has(id: EdgeId): boolean {
-        return this.ensure().has(id);
+        return this.indexOf(id) !== INVALID_INDEX;
     }
 
     /**
-     * The map, built on first use and rebuilt after the column's version changed.
-     * @returns the id -> edge index map
+     * The lookup, settled on first use and again after the column's version changed: the rising
+     * values when they rise (one pass over the array, no map), else the map.
+     * @returns RISING, or the id -> edge index map
      */
-    private ensure(): Map<EdgeId, number> {
+    private ensure(): Map<EdgeId, number> | typeof RISING {
         const { version } = this.column;
-        if (this.map === null || this.builtVersion !== version) {
-            this.map = buildEdgeIdMap(this.column);
+        if (this.builtVersion !== version) {
+            this.rising = risingValues(this.column);
+            this.map = this.rising === null ? buildEdgeIdMap(this.column) : null;
             this.builtVersion = version;
         }
-        return this.map;
+        return this.map ?? RISING;
     }
 }

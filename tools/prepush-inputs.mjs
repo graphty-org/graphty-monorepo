@@ -8,15 +8,13 @@
  * passes instead of running them again (design/ci/fast-pipeline.md, section 5.3).
  *
  * - The fingerprint of the whole checkout: HEAD and the content of every file git does not ignore
- *   (tracked or not). tools/push-queue.sh uses it to refuse a commit whose gate already failed.
+ *   (tracked or not).
  * - The gate key of a checkout: the content of every file git does not ignore (not HEAD), the
  *   installed lockfile (node_modules/.pnpm/lock.yaml), the gate's own version (the content of the
  *   gate's tools/ and .husky/, which is .worktrees/gate-live for a push through the queue), the Node
  *   version, the environment that chooses lanes (GRAPHTY_*, VK_*, PREPUSH_ALL) and the branch the push
  *   is measured from when that is not master or golden (a stacked branch's parent).
- *   tools/prepush-source-checks.sh records a pass of the source-only checks under it, and
- *   tools/prepush.sh a pass of the whole gate; tools/push-queue.sh lets a push whose whole gate already
- *   passed skip the source-only checks and the wait for a gate slot.
+ *   The retired pre-push gate recorded its passes under it.
  * - The input key of a test shard: the shard's definition, the Node version, the GRAPHTY_ and VK_
  *   environment, the installed lockfile, the gate's rule for judging a shard's run
  *   (tools/shard-verdict.mjs), every file outside the workspace packages (root configs, the lockfile,
@@ -202,7 +200,7 @@ const CHECKED_BASES = new Set(["origin/master", "origin/golden", "origin/golden-
  * merge base with HEAD. A branch stacked on an unlanded branch tests only its own commits, so its pass
  * must not cover a push measured from master or golden, which also holds the parent's commits.
  * @param root the checkout
- * @param env the environment (PUSH_BASE_REF, which the push queue and the gate export once asked)
+ * @param env the environment (PUSH_BASE_REF, which the pre-push hook exports once asked)
  * @returns "checked", or "<ref>@<merge base>"
  */
 export function keyBase(root, env = process.env) {

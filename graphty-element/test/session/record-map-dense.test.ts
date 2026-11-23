@@ -83,11 +83,26 @@ describe("record arrays keep no Map entry per row", () => {
         assert.strictEqual(map.mapEntries(), 0);
         assert.deepStrictEqual([...map.entries()], [...plain.entries()]);
         assert.deepStrictEqual([map.has(5), map.get(5), map.size], [false, undefined, plain.size]);
-        // A key before the run, or a deleted one put back, goes last as a Map puts it.
+        // The last id taken off and put back (an undo and a redo of an add) is last either way: it
+        // stays in the run rather than spilling every row into the Map (issue #9164).
+        both((m) => m.delete(12));
+        both((m) => m.set(12, record(12)));
+        assert.strictEqual(map.mapEntries(), 0);
+        assert.deepStrictEqual([...map.entries()], [...plain.entries()]);
+        // A key before the run, or a deleted one put back, goes last as a Map puts it: into the Map
+        // alone, leaving the run where it is (an undo of a removal wrote an entry per row; issue #9164).
         both((m) => m.set(5, record(5)));
         both((m) => m.set(1, record(1)));
         assert.deepStrictEqual([...map.entries()], [...plain.entries()]);
-        assert.strictEqual(map.mapEntries(), plain.size);
+        assert.strictEqual(map.mapEntries(), 2);
+        // While the Map holds anything, a new last id goes after it, as a Map puts it.
+        both((m) => m.set(13, record(13)));
+        both((m) => m.set(4, record(44)));
+        both((m) => m.delete(1));
+        assert.deepStrictEqual([...map.entries()], [...plain.entries()]);
+        assert.deepStrictEqual([...map.keys()], [...plain.keys()]);
+        assert.deepStrictEqual([...map.values()], [...plain.values()]);
+        assert.deepStrictEqual([map.size, map.has(1), map.has(13), map.get(13)], [plain.size, false, true, record(13)]);
         both((m) => m.clear());
         assert.strictEqual(map.size, 0);
         map.put(0, record(0), true);

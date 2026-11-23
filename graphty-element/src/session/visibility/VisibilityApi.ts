@@ -1449,19 +1449,22 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      */
     const evaluate = (graph: GraphSnapshot, filter: RuleTree | null, window: TimeWindow | null): void => {
         slideCounters.full++;
-        nodeMaskValue.grow(graph.nodeCount);
-        edgeMaskValue.grow(graph.edgeCount);
-        nodeMaskValue.clear();
-        edgeMaskValue.clear();
-
         if (filter === null && window === null) {
-            nodeMaskValue.fill();
-            edgeMaskValue.fill();
+            // Every row shown, saying which rows entered: clearing and filling moves the version with
+            // no row to say, and the renderer then reads every element of a million-edge graph
+            // again after each edit and undo (issue #9164).
+            nodeMaskValue.fillAll(graph.nodeCount);
+            edgeMaskValue.fillAll(graph.edgeCount);
             unresolvedValue = NO_PATHS;
             lastCompiled = null;
 
             return;
         }
+
+        nodeMaskValue.grow(graph.nodeCount);
+        edgeMaskValue.grow(graph.edgeCount);
+        nodeMaskValue.clear();
+        edgeMaskValue.clear();
 
         const compiled = compileVisibility(graph, filter, window, passSources(graph));
         runPass({ compiled, edges: edgeMaskValue, graph, nodes: nodeMaskValue });
@@ -2030,7 +2033,12 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         const nodeRows = inNodes.changedSince(outsideCache.key[0] as number);
         const edgeRows = inEdges.changedSince(outsideCache.key[1] as number);
         const { node, edge } = outsideCache.bytes;
-        if (nodeRows === null || edgeRows === null || node.length !== graph.nodeCount) {
+        if (
+            nodeRows === null ||
+            edgeRows === null ||
+            node.length !== graph.nodeCount ||
+            edge.length !== graph.edgeCount
+        ) {
             return null;
         }
 

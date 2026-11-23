@@ -13,6 +13,16 @@ export const INSPECTOR_EVENTS = [
     "source:copy",
 ] as const;
 
+/**
+ * The element's event after which a view that reads the hovered node, or a hovered layer's
+ * counts, reads the session again; kept apart from `INSPECTOR_EVENTS` since it fires each time
+ * the pointer moves onto another node.
+ */
+export const HOVER_EVENTS = ["selection:hover-changed"] as const;
+
+/** No events: for a caller of `useSessionEvents` that follows none for now. */
+export const NO_EVENTS = [] as const;
+
 /** The element's events that change what the Graph place reads, undo and redo included. */
 export const GRAPH_PLACE_EVENTS = [
     "project:changed",

@@ -106,6 +106,12 @@ describe("normalizeConfig", () => {
             { approvals: "visual-baselines/approvals", projects: { a: { storybook: "s" } } },
             /approvals must be a directory outside/,
         ],
+        [{ projects: { a: null } }, /projects\.a must be an object/],
+        [{ projects: { a: { storybook: "s", build: 1 } } }, /build must be a shell command/],
+        [
+            { projects: { a: { storybook: "s", seedFromDefaultBranch: "yes" } } },
+            /seedFromDefaultBranch must be true or false/,
+        ],
         [{ projects: { a: { storybook: "s", workers: 0 } } }, /workers/],
         [{ projects: { a: { storybook: "s", gate: false } } }, /gate is not a setting/],
         [{ projects: { a: { storybook: "s", waitFor: { selector: "x" } } } }, /waitFor needs/],

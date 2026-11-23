@@ -3,7 +3,7 @@ import { assert, describe, it } from "vitest";
 
 import { CAPACITY_COLUMN } from "../../src/data/GraphStore";
 import { WRITABLE_LANE } from "../../src/data/lane";
-import type { Edge } from "../../src/Edge";
+import { Edge, placeEdgeRow } from "../../src/Edge";
 import type { GraphEvent } from "../../src/events";
 import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
@@ -39,17 +39,19 @@ function nodeStub(id: string, index: number): Node {
  * @returns the stand-in
  */
 function registerEdgeStub(dm: DataManager, srcId: string, dstId: string, index: number): Edge {
-    const edge = {
+    // On Edge's prototype, so its row follows a compacting freeze as a real edge's does: an edge reads
+    // a renumbering when its row is next read.
+    const edge = Object.create(Edge.prototype, {
         // The element-assigned counter, as a string. The store row and the counter are the same
         // number for every edge these cases build, because nothing has been removed yet.
-        id: String(index),
-        index,
-        srcId,
-        dstId,
-        srcNode: { id: srcId },
-        dstNode: { id: dstId },
-        dispose: () => undefined,
-    } as unknown as Edge;
+        id: { value: String(index) },
+        srcId: { value: srcId },
+        dstId: { value: dstId },
+        srcNode: { value: { id: srcId } },
+        dstNode: { value: { id: dstId } },
+        dispose: { value: () => undefined },
+    }) as Edge;
+    placeEdgeRow(edge, index);
     dataManagerInternals.adoptEdge(dm, edge);
     return edge;
 }

@@ -3981,8 +3981,11 @@ export function associate(
             // is on another node's outline: a line stopped at its head's base (Cytoscape desktop's) whose base lies on a
             // node drawn over the one its head points at is that one's (cx2-signor-aml: a curved 38 -> 50, its base on
             // 27's outline and its tip on 50's, was read as a second 92 -> 27)
-            if ((direct[0]?.d ?? Infinity) <= 2) {
-                return tip.length > 0 && tip[0].d <= 2 && tip[0].n !== direct[0].n
+            // -- and where end and tip both lie on one node drawn over the line (a stub and its head under a third node's
+            // border), the others are as near as the head's tip comes too, read below (cx-radiation-bibliography
+            // 190 -> 209: a 3 px line and its head under 151's outline, the tip 0.8 px off 209, the line's end 6 px)
+            if ((direct[0]?.d ?? Infinity) <= 2 && tip[0]?.n !== direct[0].n) {
+                return tip.length > 0 && tip[0].d <= 2
                     ? [...tip, ...direct.filter((x) => !tip.some((y) => y.n === x.n))]
                     : nodesAt(q, false, slack);
             }

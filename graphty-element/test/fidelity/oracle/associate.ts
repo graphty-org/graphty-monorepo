@@ -975,6 +975,10 @@ function capRun(pts: readonly Pt[], outline: readonly Pt[]): [Pt, Pt] | undefine
         return [near, end];
     }
     const box = boxOfPoints(outline);
+    const corner = lastLegUnder(pts, box);
+    if (corner !== undefined) {
+        return [corner, end];
+    }
     const half = Math.max(bw(box), bh(box), END_RUN) / 2;
     const mid = areaCentroid(outline) ?? [cx(box), cy(box)];
     const gap = pts.map(([x, y]) => Math.hypot(x - mid[0], y - mid[1]));
@@ -982,6 +986,59 @@ function capRun(pts: readonly Pt[], outline: readonly Pt[]): [Pt, Pt] | undefine
     const before = endBack(pts.slice(0, at + 1), half) ?? pts[0];
     const after = endBack([...pts.slice(at)].reverse(), half) ?? end;
     return [before, after];
+}
+
+/** The most a straight leg's steps may turn off its last step, in radians: a coordinate's rounding along it. */
+const LEG_TURN = Math.PI / 18;
+
+/** The least a line turns under a cap, in radians, into the leg it ends on, for that leg to aim the cap. */
+const CORNER_TURN = Math.PI / 4;
+
+/**
+ * Where the straight leg a line ends on starts, when the line turns a corner under a cap on its end into that leg and
+ * the leg is at least END_RUN long: a program aims a head along the line's last leg however short it is (yEd's white
+ * diamond on gml-synthetic-coverage 39->50, its line turning down into the node 1 px before its end, under the head's
+ * middle; graphty's head on 19->30, past a corner rounded in steps of a few degrees), where a chord across the cap
+ * would run along the leg before the corner. A curve that bends gently under its cap has no such corner.
+ * @param pts - the line, its end last
+ * @param box - the cap's box
+ * @returns the leg's start, or undefined for no corner under the cap
+ */
+function lastLegUnder(pts: readonly Pt[], box: PBox): Pt | undefined {
+    // the points that differ from the one after them, so a point repeated (yEd's doubled bends) makes no step of its own
+    const at = pts.filter((q, i) => i === pts.length - 1 || q[0] !== pts[i + 1][0] || q[1] !== pts[i + 1][1]);
+    const end = at.at(-1);
+    const last = at.at(-2);
+    if (end === undefined || last === undefined) {
+        return undefined;
+    }
+    const unit = (u: Pt, v: Pt): Pt => {
+        const len = Math.hypot(v[0] - u[0], v[1] - u[1]);
+        return [(v[0] - u[0]) / len, (v[1] - u[1]) / len];
+    };
+    const dir = unit(last, end);
+    let i = at.length - 2;
+    while (i > 0) {
+        const step = unit(at[i - 1], at[i]);
+        if (step[0] * dir[0] + step[1] * dir[1] < Math.cos(LEG_TURN)) {
+            break;
+        }
+        i--;
+    }
+    const start = at[i];
+    if (i === 0 || Math.hypot(end[0] - start[0], end[1] - start[1]) < END_RUN || !inside(start, box, ON_LINE_PX)) {
+        return undefined;
+    }
+    // the line where it comes out from under the cap, or its first point
+    let j = i - 1;
+    while (j > 0 && inside(at[j], box, ON_LINE_PX)) {
+        j--;
+    }
+    // a turn of over 135 degrees is a step back, a rounding of where a curve ends under its cap (graphty's dot on a
+    // curved vis-network edge steps back to the dot's middle), not a leg the cap is aimed along
+    const into = unit(at[j], start);
+    const turn = into[0] * dir[0] + into[1] * dir[1];
+    return turn < Math.cos(CORNER_TURN) && turn > -Math.SQRT1_2 ? start : undefined;
 }
 
 /**
@@ -2440,6 +2497,23 @@ export function arrowheadEdge(
 }
 
 /**
+ * Whether a primitive is a small open stroke in a line's own color by one of its ends: an arm of a head a program draws
+ * in strokes (yEd's concave and convex arrows, two quadratic arms drawn right after the line).
+ * @param q - the primitive
+ * @param line - the line
+ * @param ends - the line's two ends
+ * @returns true for such an arm
+ */
+function strokedArm(q: Prim, line: Prim, ends: readonly [Pt, Pt]): boolean {
+    return (
+        openStroke(q) &&
+        q.stroke?.color === line.stroke?.color &&
+        Math.max(bw(q.box), bh(q.box)) <= 3 * OWN_HEAD_REACH &&
+        ends.some((end) => toBox(end, q.box) <= OWN_HEAD_REACH)
+    );
+}
+
+/**
  * Whether a primitive is a stroke with no fill, open at its ends.
  * @param p - the primitive
  * @returns true for one
@@ -2827,7 +2901,11 @@ export function hiddenShapes(prims: readonly Prim[], candidates: readonly Prim[]
 /** How far off a box's outline a piece of that box's own drawing may run (`outlinePiece` in `associate`). */
 const OUTLINE_PX = 1.5;
 
-/** How far a line's end may lie from where a node graphty draws nothing for sits (`undrawnEnds`). */
+/**
+ * How far a line's end may lie from where a node graphty draws nothing for sits (`undrawnEnds`), past the longest
+ * arrowhead graphty draws at it: graphty runs its line on to the head's tip, where a program may stop its line at the
+ * head's back (gml-synthetic-coverage 49 -> 60, yEd's crow's foot at a node it draws nothing for).
+ */
 const UNDRAWN_END_REACH = 4;
 
 /**
@@ -2841,22 +2919,25 @@ const UNDRAWN_END_REACH = 4;
  * @param guide - graphty's drawing
  * @param nodes - the oracle's nodes found so far, by id
  * @param fit - graphty's drawing carried into the oracle's (`guideFrame`)
- * @returns the undrawn ends, as nodes
+ * @returns the undrawn ends, as nodes, each with how far a line's end may lie from it
  */
-function undrawnEnds(guide: PScene, nodes: ReadonlyMap<string, PNode>, fit: Similarity | null): PNode[] {
+function undrawnEnds(guide: PScene, nodes: ReadonlyMap<string, PNode>, fit: Similarity | null): Map<PNode, number> {
     if (fit === null) {
-        return [];
+        return new Map();
     }
     const drawn = new Set([...guide.nodes.map((n) => n.id), ...guide.groups.map((g) => g.id), ...nodes.keys()]);
     const at = new Map<string, Pt[]>();
+    const headAt = new Map<string, number>();
     for (const e of guide.edges) {
-        const ends: [string, Pt | undefined][] = [
-            [e.source, e.points[0]],
-            [e.target, e.points.at(-1)],
+        const ends: [string, Pt | undefined, "source" | "target"][] = [
+            [e.source, e.points[0], "source"],
+            [e.target, e.points.at(-1), "target"],
         ];
-        for (const [id, q] of ends) {
+        for (const [id, q, end] of ends) {
             if (q !== undefined && !drawn.has(id)) {
                 at.set(id, [...(at.get(id) ?? []), apply(fit, q)]);
+                const head = Math.max(0, ...e.arrows.filter((a) => a.end === end).map((a) => a.length));
+                headAt.set(id, Math.max(headAt.get(id) ?? 0, head * fit.scale));
             }
         }
     }
@@ -2868,19 +2949,24 @@ function undrawnEnds(guide: PScene, nodes: ReadonlyMap<string, PNode>, fit: Simi
             n.id,
             carryBox(fit, { x0: n.cx - n.w / 2, y0: n.cy - n.h / 2, x1: n.cx + n.w / 2, y1: n.cy + n.h / 2 }),
         ]);
-    return [...[...at].map(([id, pts]): [string, PBox] => [id, boxOfPoints(pts)]), ...bodiless].map(([id, box]) => {
-        return {
-            id,
-            cx: cx(box),
-            cy: cy(box),
-            w: bw(box),
-            h: bh(box),
-            shape: null,
-            fill: null,
-            stroke: null,
-            label: null,
-        };
-    });
+    return new Map(
+        [...[...at].map(([id, pts]): [string, PBox] => [id, boxOfPoints(pts)]), ...bodiless].map(
+            ([id, box]): [PNode, number] => [
+                {
+                    id,
+                    cx: cx(box),
+                    cy: cy(box),
+                    w: bw(box),
+                    h: bh(box),
+                    shape: null,
+                    fill: null,
+                    stroke: null,
+                    label: null,
+                },
+                UNDRAWN_END_REACH + (headAt.get(id) ?? 0),
+            ],
+        ),
+    );
 }
 
 /**
@@ -3689,13 +3775,15 @@ export function associate(
     }
     const nodeList = [...nodes.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
     const nodeBox = boxOfNode;
-    const undrawn = undrawnEnds(guide, nodes, frame);
+    const undrawnReach = undrawnEnds(guide, nodes, frame);
+    const undrawn = [...undrawnReach.keys()];
     // How far from a node's box a path's end still lands on it: past a thick border too, which a line ends at the
     // outer edge of (Cytoscape's mapped widths run to 7 px, its dots and zigzags are drawn outside the node's
     // outline); a border of a pixel or so is inside the slack already.
     const endReach = (n: PNode): number => {
-        if (undrawn.includes(n)) {
-            return UNDRAWN_END_REACH;
+        const reach = undrawnReach.get(n);
+        if (reach !== undefined) {
+            return reach;
         }
         const border = n.stroke !== null && Number.isFinite(n.stroke.width) ? n.stroke.width : 0;
         return Math.max(15, 0.5 * Math.max(n.w, n.h)) + (border >= 2 ? border : 0);
@@ -4001,6 +4089,12 @@ export function associate(
         let caps = 0;
         for (let q = byIndex.get(p.index + 1); q !== undefined && caps < 2; q = byIndex.get(q.index + 1)) {
             const end = lineEndPiece(q, p, toBox(a, q.box) <= toBox(b, q.box) ? a : b);
+            // an arm of a head drawn in strokes at one end, in the line's color, is passed over to the cap after it,
+            // read with the stroked heads (gml-synthetic-coverage 23->33: yEd's convex source arms, then the target's
+            // filled head, which a line ending under it at the same node took)
+            if (!end && strokedArm(q, p, [a, b])) {
+                continue;
+            }
             if (!end && !headSet.has(q)) {
                 break;
             }
@@ -5106,6 +5200,8 @@ function doubles(outer: Prim, inner: Prim): boolean {
 /**
  * Whether a shape is the box drawn behind a label: it holds the label's middle and most of its words, and reaches past
  * them by no more than two font sizes on any side (a node's body or a group box round a label reaches much further).
+ * A turned strip thinner than the words are tall is no box behind them, however much of their box its own box covers
+ * (Cytoscape desktop's T-bar head of xgmml-syn-mappings 1269915->1269931, tilted across edge 1269937->1269927's "e0").
  * @param p - the shape
  * @param t - the label
  * @returns true for a label background
@@ -5129,11 +5225,32 @@ function backsText(p: Prim, t: PText): boolean {
         (p.fill !== null || p.stroke !== null) &&
         inside([cx(t.box), cy(t.box)], b) &&
         (covered >= 0.6 || disc) &&
+        (disc || thicknessOf(p) >= THINNEST_BACKGROUND * t.sizePx) &&
         b.x0 >= t.box.x0 - reach &&
         b.y0 >= t.box.y0 - reach &&
         b.x1 <= t.box.x1 + reach &&
         b.y1 <= t.box.y1 + reach
     );
+}
+
+/** The thinnest a box behind words is, in font sizes: a box at least as tall as the words is half of one or more. */
+const THINNEST_BACKGROUND = 0.4;
+
+/**
+ * How thick a closed outline is: twice its area over its perimeter, a rectangle's w * h / (w + h), its shorter side's
+ * for a long strip. An outline with no area (an open path, too few points) counts as thick: nothing is told from it.
+ * @param p - the shape
+ * @returns its thickness, in pixels
+ */
+function thicknessOf(p: Prim): number {
+    const pts = p.points;
+    if (!p.closed || pts.length < 3) {
+        return Infinity;
+    }
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    const perimeter = pathLength(pts) + Math.hypot(first[0] - last[0], first[1] - last[1]);
+    return perimeter > 0 ? (2 * polygonArea(pts)) / perimeter : Infinity;
 }
 
 /**

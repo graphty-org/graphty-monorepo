@@ -237,4 +237,20 @@ describe("folders, several rows and the draft on the real element", () => {
             );
         });
     });
+
+    it("two rows that each style only nodes keep the Style nodes switch on, saying why (#9685)", async () => {
+        const { session, key, degree } = await openProject();
+        await userEvent.click(await row("Key people"));
+        await userEvent.keyboard("{Control>}");
+        await userEvent.click(await row("Degree"));
+        await userEvent.keyboard("{/Control}");
+        await screen.findByRole("heading", { level: 2, name: "2 layers" });
+
+        const nodes = await screen.findByRole("checkbox", { name: "Style nodes" });
+        assert.isTrue((nodes as HTMLInputElement).checked);
+        assert.isTrue((nodes as HTMLInputElement).disabled, "no layer can drop its only kind");
+        assert.equal(nodes.getAttribute("aria-description"), "Stays on: style edges first to stop styling nodes");
+        assert.isDefined(session.styles.parts(key)?.node);
+        assert.isDefined(session.styles.parts(degree)?.node);
+    });
 });

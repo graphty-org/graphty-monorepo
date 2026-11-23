@@ -10,6 +10,7 @@
  */
 
 import type { EdgeId } from "../../catalog/types";
+import { duplicateEdgeError } from "../../data/edgeIdentity";
 import type { LoadReport } from "../../data/report";
 import { featureOff } from "../../features/resolve";
 import type { HistoryCode, JoinChoices, JoinRecord, LoadedSource } from "../../session/types";
@@ -27,6 +28,7 @@ import {
     diffGraph,
     EMPTY_STEPS,
     type GraphDiff,
+    nodeIdsOf,
     openedAsBuilt,
     projectBuild,
     type ProjectedEdge,
@@ -40,7 +42,7 @@ import {
     type StepsEdit,
     type StepsSource,
 } from "../sources/steps/project";
-import { READER_SOURCE } from "../sources/steps/types";
+import { type BuildResult, READER_SOURCE } from "../sources/steps/types";
 import { type DataMutation, serviceOf, SOURCE_VALUE, SOURCES_VALUE } from "./data";
 import { refreshDerivedAfter } from "./derive";
 
@@ -548,10 +550,11 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         const priorCopies = valueOf<Copies>(ctx, SOURCE_COPIES_VALUE, {});
         const edgeIds = valueOf<Readonly<Record<string, EdgeId>>>(ctx, SOURCE_EDGE_IDS_VALUE, {});
         const all = command.copies === undefined ? priorCopies : { ...priorCopies, ...command.copies };
-        const edited = applyEdit(prior, command.edit, all);
+        const known = ctx.services.config?.().data.knownFields;
+        const edited = withRepeated(applyEdit(prior, command.edit, all), known?.repeatedEdges);
         const copies = copiesOf(edited, all);
-        const idPath = ctx.services.config?.().data.knownFields.nodeIdPath ?? "id";
-        const after = projectBuild(buildOf(edited, copies), edited, idPath);
+        const idPath = known?.nodeIdPath ?? "id";
+        const after = projectBuild(refusingDuplicates(buildOf(edited, copies)), edited, idPath);
         const { edit } = command;
         // A restore starts from the graph a project file embedded, matched to the build; every
         // other edit from the build of the value it found.
@@ -603,6 +606,33 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         refreshDerivedAfter(ctx);
     },
 };
+
+/**
+ * A build, refused when it holds a repeated edge under `repeatedEdges` "error", as a load without the
+ * experiment refuses it.
+ * @param result - The build.
+ * @returns The build.
+ * @throws A `GraphtyError` with `E_DUPLICATE_EDGE` when it holds such a repeat.
+ */
+function refusingDuplicates(result: BuildResult): BuildResult {
+    if (result.duplicate !== undefined) {
+        const ids = nodeIdsOf(result);
+        const { from, to, repeat } = result.duplicate;
+        throw duplicateEdgeError(ids.get(from), ids.get(to), repeat);
+    }
+    return result;
+}
+
+/**
+ * The value carrying the graph's `repeatedEdges`, which the build reduces repeated edges by, as a load
+ * without the experiment does.
+ * @param value - The edited value.
+ * @param repeatedEdges - The setting.
+ * @returns The value, the same one when it already carries the setting.
+ */
+function withRepeated(value: SourceSteps, repeatedEdges: SourceSteps["repeatedEdges"]): SourceSteps {
+    return value.repeatedEdges === repeatedEdges ? value : { ...value, repeatedEdges };
+}
 
 /**
  * The direction declared by the first source a step reads now that none read before.

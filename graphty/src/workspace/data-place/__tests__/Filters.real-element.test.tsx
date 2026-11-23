@@ -301,4 +301,28 @@ describe("Filter cards on the real element", () => {
         });
         await screen.findByRole("list", { name: "Filters" });
     });
+
+    it("a mouse click on a new card's Edges leaves focus on Edges, and Tab moves on from there (issue #9567)", async () => {
+        await openWithGraph();
+        // The "+" found before the load's own section is drawn is the no-load one, gone at the next render.
+        await waitFor(() => {
+            assert.isNotNull(document.querySelector(".dp-source-sections [data-filters-plus]"), "the load's Filters");
+        });
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await userEvent.click(within(await workspace()).getByText("Edges"));
+        // The switch draws a new editor: its Edges radio, checked.
+        const edges = await waitFor(() => {
+            const radio = within(document.querySelector<HTMLElement>(".sel-ws") ?? document.body).getByRole("radio", {
+                name: "Edges",
+            });
+            assert.isTrue((radio as HTMLInputElement).checked, "the side switched");
+            return radio;
+        });
+        // Focus moves during the press itself, so it has settled once the click is done.
+        assert.strictEqual(document.activeElement, edges, "focus is on Edges");
+        await userEvent.keyboard("{Tab}");
+        const at = document.activeElement;
+        assert.notStrictEqual(at, edges, "Tab moved on");
+        assert.isTrue(await workspace().then((ws) => ws.contains(at)), "Tab moved on inside the workspace");
+    });
 });

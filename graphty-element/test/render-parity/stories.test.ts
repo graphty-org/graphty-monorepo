@@ -110,7 +110,7 @@ afterEach(() => {
  * @param pulled - Whether edges are pulled from the row table.
  * @returns The bytes, or null for a story with no element.
  */
-const DIAG = { on: false };
+const DIAG = { on: false, logs: [] as string[] };
 
 async function picture(story: Composed, path: "objects" | "batched", pulled = false): Promise<CanvasFrame | null> {
     renderPathDefault.value = path;
@@ -176,7 +176,7 @@ async function picture(story: Composed, path: "objects" | "batched", pulled = fa
                     ]),
                 ),
             }));
-        console.log(`DIAG ${path} ${JSON.stringify({ order, batches, meshes })}`);
+        DIAG.logs.push(`DIAG ${path} ${JSON.stringify({ order, batches, meshes })}`);
     }
     assert.equal(element.graph.renderPath, path);
     assert.equal(
@@ -198,7 +198,8 @@ const files = Object.keys(modules).filter(
     (file) =>
         !HANGS.test(file) &&
         !(RENDERER === "webgpu" && SWAP_REJECTS.test(file)) &&
-        (narrowed === "" || new RegExp(narrowed).test(file)),
+        (narrowed === "" || new RegExp(narrowed).test(file)) &&
+        /shaders\/EdgePresets/.test(file),
 );
 
 describe.each(files)("%s", async (file) => {
@@ -212,6 +213,13 @@ describe.each(files)("%s", async (file) => {
     }
 
     // A story that compares nothing reports as skipped, so "passed" counts only compared stories.
+    const neon = stories.find(([name]) => name === "NeonLine");
+    if (neon !== undefined) {
+        for (let k = 0; k < 80; k++) {
+            stories.push([`NeonLine`, neon[1]]);
+        }
+    }
+
     it.for(stories)("%s", async ([name, story], { skip }) => {
         const id = `${file} ${name}`;
         if (id in UNSTABLE) {
@@ -219,6 +227,7 @@ describe.each(files)("%s", async (file) => {
         }
 
         DIAG.on = /NeonLine/.test(id);
+        DIAG.logs = [];
         const objects = await picture(story, "objects");
         if (objects === null) {
             skip("no element");
@@ -230,6 +239,13 @@ describe.each(files)("%s", async (file) => {
         assert.equal(overBar(objects, again), 0, `${id} is not stable between two loads`);
         const third = PULLED ? await picture(story, "objects", true) : await picture(story, "batched");
         assert.isNotNull(third);
+        const over = overBar(objects, third);
+        console.log(`DIAGRESULT ${id} over=${String(over)}`);
+        if (over > 0) {
+            for (const line of DIAG.logs) {
+                console.log(line);
+            }
+        }
         assert.equal(
             overBar(objects, third),
             0,

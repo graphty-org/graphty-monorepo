@@ -640,13 +640,20 @@ export function SelectionEditor({
         }
         wasOpen.current = open;
     }, [open]);
-    // Leaving the place unmounts the editor: the workspace closes with it, as Done.
+    // Leaving the place unmounts the editor: the workspace closes with it, as Done. Decided a
+    // microtask later: StrictMode's development-only rerun mounts the editor again first, and a
+    // workspace a reload kept stays open (issue #9655).
     useEffect(
         () => () => {
-            endVisit("done");
-            if (store.get().selectionWorkspace?.owner === owner) {
-                store.set({ selectionWorkspace: null });
-            }
+            queueMicrotask(() => {
+                if (mounted.current) {
+                    return;
+                }
+                endVisit("done");
+                if (store.get().selectionWorkspace?.owner === owner) {
+                    store.set({ selectionWorkspace: null });
+                }
+            });
         },
         [store, owner],
     );

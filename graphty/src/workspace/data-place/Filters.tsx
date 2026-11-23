@@ -208,12 +208,15 @@ export function FiltersSection({
     useEffect(() => {
         const found = reopenedNow.current;
         if (found.length > 0) {
+            // Each once: StrictMode's development-only rerun runs this effect twice.
             setDrafts((now) => [
                 ...now,
-                ...found.map((each): Draft => ({
-                    id: each.id,
-                    side: each.rule.kind === "union" ? sideOf(each.rule) : "node",
-                })),
+                ...found
+                    .filter((each) => !now.some((draft) => draft.id === each.id))
+                    .map((each): Draft => ({
+                        id: each.id,
+                        side: each.rule.kind === "union" ? sideOf(each.rule) : "node",
+                    })),
             ]);
         }
     }, [reopenedIds]);

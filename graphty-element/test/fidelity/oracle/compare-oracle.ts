@@ -2411,14 +2411,9 @@ export function compareOracle(
                     gWidth,
                 );
             }
-            j.add(
-                "node.strokeDash",
-                "node",
-                id,
-                sameLine(os.dashClass, gs.dashClass) ? 0 : 1,
-                os.dashClass,
-                gs.dashClass,
-            );
+            // a ring cut into pieces is read by the pieces it drew, at the oracle's scale (`lineClassAt`)
+            const gDash = lineClassAt(gs, strokeScale);
+            j.add("node.strokeDash", "node", id, sameLine(os.dashClass, gDash) ? 0 : 1, os.dashClass, gDash);
         }
         judgeRing(j, id, o.ring ?? null, g.ring ?? null, lengthScale);
         const outerBox = (n: PNode, w: number, h: number): PBox => ({
@@ -3308,14 +3303,8 @@ export function compareOracle(
                 [os.color, os.opacity],
                 [gs.color, R(gs.opacity)],
             );
-            j.add(
-                "group.strokeDash",
-                "group",
-                o.id,
-                sameLine(os.dashClass, gs.dashClass) ? 0 : 1,
-                os.dashClass,
-                gs.dashClass,
-            );
+            const gDash = lineClassAt(gs, lengthScale);
+            j.add("group.strokeDash", "group", o.id, sameLine(os.dashClass, gDash) ? 0 : 1, os.dashClass, gDash);
             if (Number.isFinite(os.width)) {
                 j.add(
                     "group.strokeWidth",

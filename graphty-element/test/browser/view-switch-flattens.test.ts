@@ -180,3 +180,82 @@ describe.each([
         }
     });
 });
+
+/**
+ * A 400 by 400 element in 3D holding the 40-node tree under a force layout.
+ * @param options - The force layout's options.
+ * @returns The element, its layout built.
+ */
+async function openTree(options: Record<string, unknown>): Promise<Graphty> {
+    const element: Graphty = document.createElement("graphty-element");
+    element.renderer = "webgl";
+    element.style.display = "block";
+    element.style.width = "400px";
+    element.style.height = "400px";
+    document.body.appendChild(element);
+    await element.updateComplete;
+    await element.setViewMode("3d");
+    await element.session.data.addNodes(IDS.map((id) => ({ id })));
+    await element.session.data.addEdges(EDGES);
+    await element.graph.setLayout("ngraph", options);
+    await operationQueueOf(element.graph).waitForCompletion();
+    return element;
+}
+
+describe("a seeded 3D to 2D switch with nodeGap while a node size is still painting", () => {
+    it("draws every node at its flattened 3D position on the first 2D frame", async () => {
+        const element = await openTree({ seed: 7, nodeGap: 2 });
+        // Owed pre-steps a size change would pay on the first frame with every size drawn.
+        element.layoutBehavior = { layout: { preSteps: 500 } };
+        await element.waitForStableFrame();
+        const settled = new Map(IDS.map((id) => [id, element.session.positions.get(id)]));
+
+        const scene = element.graph.getScene();
+        const frames: Map<string, { x: number; y: number }>[] = [];
+        const expected = new Map<string, { x: number; y: number }>();
+        const observer = scene.onAfterRenderObservable.add(() => {
+            if (!element.graph.is2D()) {
+                return;
+            }
+
+            if (expected.size === 0) {
+                for (const id of IDS) {
+                    const at = settled.get(id) ?? { x: 0, y: 0, z: 0 };
+                    expected.set(id, element.worldToScreen({ x: at.x, y: at.y, z: 0 }));
+                }
+            }
+
+            frames.push(
+                new Map(
+                    IDS.map((id) => [
+                        id,
+                        element.worldToScreen({ ...(element.session.positions.get(id) ?? { x: 0, y: 0, z: 0 }), z: 0 }),
+                    ]),
+                ),
+            );
+        });
+        try {
+            // A size change still painting as the switch builds the 2D engine.
+            const sized = element.session.styles.add({
+                name: "Bigger",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 3 },
+            });
+            await element.setViewMode("2d");
+            await sized;
+            await element.waitForStableFrame();
+        } finally {
+            scene.onAfterRenderObservable.remove(observer);
+        }
+
+        const [first] = frames;
+        assert.isDefined(first, "a frame was drawn in 2D");
+        const misplaced = IDS.filter((id) => {
+            const drawn = first.get(id);
+            const want = expected.get(id);
+            return drawn === undefined || want === undefined || Math.hypot(drawn.x - want.x, drawn.y - want.y) > REACH;
+        });
+        assert.deepEqual(misplaced, [], "nodes moved off their flattened 3D position on the first 2D frame");
+    });
+});

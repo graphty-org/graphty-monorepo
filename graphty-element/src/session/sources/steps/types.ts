@@ -518,6 +518,11 @@ export interface BuildResult {
     readonly edgeAliases: Map<string, string>;
     readonly stats: StepStats[];
     readonly issues: BuildIssue[];
+    /**
+     * The first row that repeats an end pair under `repeatedEdges` "error", by the internal ids of its
+     * ends; a commit refuses the build with `E_DUPLICATE_EDGE`, as a load without the experiment does.
+     */
+    readonly duplicate?: { readonly from: string; readonly to: string; readonly repeat: Row };
     /** Per source, per `<table>#<row>`. */
     readonly fates: Map<string, Map<string, RowFate>>;
     /** Each reader operation, in order, and whether it applied. */

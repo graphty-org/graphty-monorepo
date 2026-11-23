@@ -11,6 +11,7 @@
  * gave it, so a test can walk them and read a result back by id.
  */
 import { AccelerationController, AcceleratorRegistry } from "../../src/acceleration";
+import type { CommandContext } from "../../src/ai/commands/types";
 import { type AlgorithmData, type AlgorithmHost, algorithmHostOf } from "../../src/algorithms/host";
 import type { Graph } from "../../src/Graph";
 import { StylePainter } from "../../src/managers/StylePainter";
@@ -176,7 +177,8 @@ export interface CommandGraphOpts {
      * Renderer members a command calls that a headless session has no counterpart for: the camera
      * (`setCameraState`, `applyCameraView`) and XR (`getXRHelper`, `exitImmersiveMode`). Nothing
      * draws in a node test, so a test that reaches them hands in its own; the real ones run on a
-     * real element in test/browser/ai/commands-e2e.test.ts.
+     * real element in test/browser/ai/commands-e2e.test.ts. A screenshot (`captureScreenshot`)
+     * needs a canvas too.
      */
     renderer?: Record<string, unknown>;
 }
@@ -205,6 +207,22 @@ export async function createCommandGraph(opts: CommandGraphOpts = {}): Promise<G
     const painter = new StylePainter();
     painter.bind((session as ElementSession).paint);
     return { ...renderer, getSession: () => session, getStylePainter: () => painter } as unknown as Graph;
+}
+
+/**
+ * The context a command runs in, over a graph: the graph's session as `tx`, and event and status
+ * sinks that drop what they are given.
+ * @param graph - The graph, from `createCommandGraph`.
+ * @returns The context.
+ */
+export function createCommandContext(graph: Graph): CommandContext {
+    return {
+        graph,
+        tx: graph.getSession(),
+        abortSignal: new AbortController().signal,
+        emitEvent: () => undefined,
+        updateStatus: () => undefined,
+    };
 }
 
 /**

@@ -712,6 +712,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "showDraft",
                 "showingBranches",
                 "shownBranches",
+                "shownDraft",
             ],
             reason: "panel-state",
             kind: BY_DESIGN,

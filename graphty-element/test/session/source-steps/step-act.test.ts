@@ -86,6 +86,7 @@ describe("source-steps: a join step's act", () => {
                 ignoreSpaces: false,
                 repeated: null,
                 aggregate: null,
+                unmatched: "skip",
             });
         }
     });

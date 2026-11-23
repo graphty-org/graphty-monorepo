@@ -1373,6 +1373,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     showDraft: exempt("a preview view: it suspends the stack's picture while a source draft is drawn, never the stack"),
     showingBranches: READ,
     shownBranches: READ,
+    shownDraft: READ,
     list: READ,
     get: READ,
     validate: READ,
@@ -3894,7 +3895,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                             { name: "door naming" },
                         );
                         sets.remove("set_door-kept");
-                        return Promise.resolve(() => Promise.resolve());
+                        return () => Promise.resolve();
                     },
                 },
                 expect: [{ op: "set.restore", id: "set_door-kept" }],

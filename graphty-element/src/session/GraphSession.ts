@@ -5308,6 +5308,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         holdCondition: (id, all) => {
             visibility.hold(id, all);
         },
+        draftIds: (query) => data.drawnDraftIds(query),
         disposed: teardown.signal,
     });
 

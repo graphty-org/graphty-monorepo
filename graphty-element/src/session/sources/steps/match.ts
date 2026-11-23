@@ -365,3 +365,67 @@ export function matchValues(
     const offset = Math.max(0, o.offset ?? 0);
     return { total: all.length, values: all.slice(offset, offset + Math.max(0, o.limit ?? all.length)) };
 }
+
+/** One join `suggestMatches` proposes. */
+export interface MatchSuggestion {
+    readonly result: "merge" | "connect";
+    readonly matches: readonly MatchPair[];
+    readonly confident: boolean;
+}
+
+/** The share of a field's values that must meet to call a suggestion confident. */
+const CONFIDENT_SHARE = 0.8;
+
+/**
+ * The joins a source most likely makes onto the graph, best first: each node column of the source
+ * against the keys of each id space other than its own, ranked by the share of its values that
+ * meet. A column whose values are the space's keys merges; any other connects.
+ * @param value - The sources and steps.
+ * @param copies - The rows as read.
+ * @param source - The source.
+ * @param columns - The source's node columns.
+ * @param spaces - The id spaces with nodes, and the source's own space.
+ * @param spaces.all - Every space holding nodes.
+ * @param spaces.own - The space the source's rows land in, which it never joins onto.
+ * @param key - The source's key column, if any.
+ * @returns The suggestions; none when no value meets.
+ */
+export function suggestMatches(
+    value: SourceSteps,
+    copies: Copies,
+    source: string,
+    columns: readonly string[],
+    spaces: { readonly all: readonly string[]; readonly own: string | undefined },
+    key: string | undefined,
+): MatchSuggestion[] {
+    const out: { share: number; suggestion: MatchSuggestion }[] = [];
+    for (const space of spaces.all) {
+        if (space === spaces.own) {
+            continue;
+        }
+        for (const field of columns) {
+            const pair: MatchPair = { from: { source, field }, into: { space } };
+            let counts: MatchCounts;
+            try {
+                counts = matchCounts(value, copies, pair);
+            } catch {
+                continue;
+            }
+            const held = counts.matched + counts.only2;
+            if (counts.matched === 0 || held === 0) {
+                continue;
+            }
+            const share = counts.matched / held;
+            out.push({
+                share,
+                suggestion: Object.freeze({
+                    result: field === key ? "merge" : "connect",
+                    matches: Object.freeze([Object.freeze(pair)]),
+                    confident: share >= CONFIDENT_SHARE,
+                }),
+            });
+        }
+    }
+    out.sort((a, b) => b.share - a.share);
+    return out.map((each) => each.suggestion);
+}

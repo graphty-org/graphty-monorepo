@@ -1039,6 +1039,7 @@ interface StepAct {
     readonly repeated: "first" | "last" | "both" | null;
     readonly aggregate: Aggregate | null;
     readonly unmatchedFrom?: "keep" | "drop";
+    readonly unmatched?: "skip" | "add";
 }
 
 /**
@@ -1094,6 +1095,7 @@ function stepAct(value: SourceSteps, step: Step): StepAct | null {
         ...shared,
         repeated: step.repeated ?? null,
         aggregate: step.aggregate ?? null,
+        unmatched: step.unmatchedRows === "add" ? "add" : "skip",
     };
 }
 

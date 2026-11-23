@@ -4807,6 +4807,46 @@ export interface SourceDraftPreview {
      * @returns How many cells the filter keeps, and the page.
      */
     cells(query: SourceDraftCellsQuery): SourceDraftCells;
+    /**
+     * How many elements of the side drawn now the draft marks: nodes and edges the commit adds
+     * (`new`), nodes it merges another into (`merged`), and nodes of a space a step joins into that
+     * no row of the step reached (`untouched`, each counted once and never also merged or new).
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly marks: SourceDraftMarkCounts;
+    /**
+     * The session ids of draft elements, on the side drawn now: what `element.zoomToNodes` frames
+     * and `selection` selects. An element not drawn on that side is left out.
+     * @param query - A step's count, as `elements` takes it, or element references.
+     * @returns The node ids and edge ids.
+     * @beta
+     */
+    ids(query: SourceDraftElementsQuery | { readonly refs: readonly SourceElementRef[] }): SourceDraftIds;
+}
+
+/**
+ * How many elements a draft marks, as `preview.marks` counts them.
+ * @experimental source-steps
+ */
+export interface SourceDraftMarkCounts {
+    /** Nodes the commit merges another node into. */
+    readonly merged: number;
+    /** Nodes and edges the commit adds. */
+    readonly new: number;
+    /** Nodes of a space a step joins into that no row of the step reached. */
+    readonly untouched: number;
+}
+
+/**
+ * The session ids of some draft elements, as `preview.ids` returns them.
+ * @experimental source-steps
+ */
+export interface SourceDraftIds {
+    /** The nodes. */
+    readonly nodes: readonly NodeId[];
+    /** The edges. */
+    readonly edges: readonly EdgeId[];
 }
 
 /**
@@ -5043,6 +5083,8 @@ export interface SourceStepAct {
     readonly aggregate: Readonly<Record<string, JoinReduce>> | null;
     /** Merge: what becomes of source 2's rows that meet no node 1. */
     readonly unmatchedFrom?: "keep" | "drop";
+    /** Make an edge: what becomes of a row whose field names no node, as `connect` takes it. */
+    readonly unmatched?: "skip" | "add";
 }
 
 /**
@@ -5271,6 +5313,19 @@ export interface SourceMatchPair {
 }
 
 /**
+ * One join `draft.suggestMatches` proposes.
+ * @experimental source-steps
+ */
+export interface SourceMatchSuggestion {
+    /** Merge the source's rows into the nodes they match, or connect them by edges. */
+    readonly result: "merge" | "connect";
+    /** The fields to match. */
+    readonly matches: readonly SourceMatchPair[];
+    /** Whether most of the field's values meet. */
+    readonly confident: boolean;
+}
+
+/**
  * How the keys of `data.matchCounts` compare. Both default to false.
  * @experimental source-steps
  */
@@ -5424,6 +5479,13 @@ export interface SourceConnectOptions {
     readonly ignoreCase?: boolean;
     /** Match keys ignoring spaces, so `" B1"` meets `B1`. */
     readonly ignoreSpaces?: boolean;
+    /** One edge per pair of ends, however many rows name the pair; default false, one per row. */
+    readonly perPair?: boolean;
+    /**
+     * A row whose field names no node: `"skip"` (default) makes no edge, `"add"` makes the node it
+     * names and the edge to it.
+     */
+    readonly unmatched?: "skip" | "add";
 }
 
 /**
@@ -5958,6 +6020,24 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      * @returns False when there was none.
      */
     undo(): boolean;
+    /**
+     * Make several acts as one: `undo()` takes them all back at once. A refusal inside takes back
+     * the acts made before it and is thrown again, so the draft is as it was.
+     * @param acts - Makes the acts on this draft.
+     * @returns What `acts` returns.
+     * @beta
+     */
+    batch<T>(acts: () => T): T;
+    /**
+     * The joins a source most likely makes onto the draft's graph, best first: each of its node
+     * columns against the keys of each id space other than its own, ranked by how many of its
+     * values meet. A column that is the source's key proposes `"merge"`, any other `"connect"`.
+     * What an app shows as a guess; nothing is applied.
+     * @param source - The source.
+     * @returns The suggestions; empty when no value meets.
+     * @beta
+     */
+    suggestMatches(source: SourceKey): readonly SourceMatchSuggestion[];
     /**
      * Every step of the draft, with its counts in the draft's build.
      * @returns The steps.

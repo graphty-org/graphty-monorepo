@@ -8,7 +8,7 @@
  * the DOM.
  */
 
-import type { SourceKey } from "../catalog/types";
+import type { EdgeId, SourceKey } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { ColumnRef } from "./shared";
 import type { StepsAct } from "./sources/steps/acts";
@@ -24,8 +24,16 @@ import {
     openQuestions,
     stepEdit,
 } from "./sources/steps/draft";
+import {
+    type DrawnIds,
+    idsOfRefs,
+    markCounts,
+    type StepBuckets,
+    stepRefs,
+    untouchedNodes,
+} from "./sources/steps/drawnIds";
 import { clearPicksEdit, drillCells, drillElements, drillRows, exceptOf, pickAllEdit } from "./sources/steps/drill";
-import { matchCounts, matchValues } from "./sources/steps/match";
+import { matchCounts, matchValues, suggestMatches } from "./sources/steps/match";
 import { contextIssues, type PreviewContext, previewOf } from "./sources/steps/preview";
 import { spaceProfile, tableHandle } from "./sources/steps/profile";
 import {
@@ -33,6 +41,7 @@ import {
     type Copies,
     editRows,
     mintEditId,
+    spaceRows,
     stepRows,
     type StepsEdit,
     type StepsSource,
@@ -55,6 +64,7 @@ import type {
     SourceMatchCounts,
     SourceMatchOptions,
     SourceMatchPair,
+    SourceMatchSuggestion,
     SourceMatchValues,
     SourceMatchValuesOptions,
     SourceMergeOptions,
@@ -99,6 +109,12 @@ export interface SourceDraftHost {
     /** Draw what the draft shows again: a commit that failed reopens it. */
     redraw(): void;
     /**
+     * The session id of each built edge drawn on one side.
+     * @param side - Before or After.
+     * @returns The ids by built edge id.
+     */
+    edgeIds(side: "before" | "after"): Readonly<Record<string, EdgeId>>;
+    /**
      * Publish `data:draft-changed`.
      * @param change - The change.
      */
@@ -112,6 +128,8 @@ export class SourceDraftHandle implements SourceDraft {
     private readonly base: DraftState;
     private readonly history: DraftState[] = [];
     private closed = false;
+    // The state a batch started from while one runs, so it records one undo entry.
+    private batchFrom: DraftState | null = null;
     // Whether the draft is drawn, and which side of its commit.
     private shown: { readonly on: boolean; readonly side: "before" | "after" } = { on: false, side: "after" };
     // The marks of the current state, kept until an act or an undo changes it.
@@ -231,7 +249,9 @@ export class SourceDraftHandle implements SourceDraft {
     private act(verb: string, next: (state: DraftState) => DraftState): void {
         this.live(verb);
         const after = built(next(this.state));
-        this.history.push(this.state);
+        if (this.batchFrom === null) {
+            this.history.push(this.state);
+        }
         this.state = after;
         this.host.emit({ draft: this.id, reason: "changed" });
     }
@@ -455,6 +475,62 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
+    batch<T>(acts: () => T): T {
+        this.live("batch");
+        if (this.batchFrom !== null) {
+            return acts();
+        }
+        const from = this.state;
+        this.batchFrom = from;
+        try {
+            const out = acts();
+            if (this.state !== from) {
+                this.history.push(from);
+            }
+            return out;
+        } catch (error) {
+            if (this.state !== from) {
+                this.state = from;
+                this.host.emit({ draft: this.id, reason: "changed" });
+            }
+            throw error;
+        } finally {
+            this.batchFrom = null;
+        }
+    }
+
+    /**
+     * The session ids of draft elements on the side drawn now, while the draft is open and drawn.
+     * @param query - Element references, some counts of one step, or the untouched nodes.
+     * @returns The ids, or null.
+     */
+    drawnIds(
+        query: { readonly refs: readonly SourceElementRef[] } | StepBuckets | { readonly untouched: true },
+    ): DrawnIds | null {
+        if (this.closed || !this.shown.on) {
+            return null;
+        }
+        if ("untouched" in query) {
+            const marks = this.marks();
+            if (marks === null || this.shown.side !== "after") {
+                return { nodes: [], edges: [] };
+            }
+            return { nodes: [...untouchedNodes(this.state, marks)], edges: [] };
+        }
+        return this.idsOf("refs" in query ? query.refs : stepRefs(this.state, query));
+    }
+
+    /**
+     * The session ids of element references on the side drawn now.
+     * @param refs - The references.
+     * @returns The ids.
+     */
+    private idsOf(refs: readonly SourceElementRef[]): DrawnIds {
+        const { side } = this.shown;
+        return idsOfRefs(side === "after" ? this.state : this.base, refs, this.host.edgeIds(side));
+    }
+
+    /** @inheritdoc */
     undo(): boolean {
         this.live("undo");
         const prior = this.history.pop();
@@ -507,6 +583,21 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
+    suggestMatches(source: SourceKey): readonly SourceMatchSuggestion[] {
+        this.live("suggestMatches");
+        const facts = this.sourceTable(source).summary();
+        const nodes = facts.tables.find((each) => each.table === "nodes");
+        if (nodes === undefined) {
+            return [];
+        }
+        const { value, copies } = this.state;
+        const rows = spaceRows(buildOf(value, copies));
+        const all = rows.filter((row) => row.nodes > 0).map((row) => row.space);
+        const own = facts.mapping.space ?? rows.find((row) => row.ownedBy === source)?.space;
+        return Object.freeze(suggestMatches(value, copies, source, nodes.columns, { all, own }, facts.mapping.key));
+    }
+
+    /** @inheritdoc */
     preview(): SourceDraftPreview {
         this.live("preview");
         const context = this.host.previewContext();
@@ -526,6 +617,11 @@ export class SourceDraftHandle implements SourceDraft {
                     rows: { value: (q: DrillQueryArg) => drillRows(base, state, q) },
                     elements: { value: (q: DrillQueryArg) => drillElements(state, q) },
                     cells: { value: (q: CellQueryArg) => drillCells(state, q) },
+                    marks: { value: Object.freeze(markCounts(state, draftMarks(base, state))), enumerable: true },
+                    ids: {
+                        value: (q: DrillQueryArg | { readonly refs: readonly SourceElementRef[] }) =>
+                            this.idsOf("refs" in q ? q.refs : drillElements(state, q)),
+                    },
                 },
             ) as unknown as SourceDraftPreview;
             this.previewed = { state: this.state, context: read, preview };

@@ -1140,8 +1140,19 @@ export interface DraftTable {
 
 // @beta
 export interface DraftView {
+    readonly mark?: {
+        readonly step: number;
+    } | {
+        readonly refs: readonly SourceElementRef[];
+    };
     readonly merged: string;
     readonly new: string;
+    readonly rest?: "faint" | "plain";
+    readonly steps?: readonly {
+        readonly step: number;
+        readonly color: string;
+    }[];
+    readonly untouched?: string;
 }
 
 // @public
@@ -7692,6 +7703,8 @@ export interface SourceConnectOptions {
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
     readonly into: SourceJoinInto;
+    readonly perPair?: boolean;
+    readonly unmatched?: "skip" | "add";
 }
 
 export { SourceContext }
@@ -7738,6 +7751,8 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
         readonly overlap?: "separate" | "merge";
     }): void;
     answerOverlap(source: SourceKey, answer: "merge" | "separate"): void;
+    // @beta
+    batch<T>(acts: () => T): T;
     clearPicks(options: SourceClearPicksOptions): number;
     commit(): Promise<void>;
     connect(options: SourceConnectOptions): number;
@@ -7774,6 +7789,8 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     readonly side: "before" | "after";
     stage(source: DataSourceInput, options?: StageOptions): Promise<string>;
     steps(): readonly SourceStepRow[];
+    // @beta
+    suggestMatches(source: SourceKey): readonly SourceMatchSuggestion[];
     types(): readonly SourceTypeEntry[];
     undo(): boolean;
     use(ref: SourceElementRef, column: string, source: SourceKey): void;
@@ -7816,6 +7833,19 @@ export interface SourceDraftElementsQuery {
 }
 
 // @public
+export interface SourceDraftIds {
+    readonly edges: readonly EdgeId[];
+    readonly nodes: readonly NodeId_2[];
+}
+
+// @public
+export interface SourceDraftMarkCounts {
+    readonly merged: number;
+    readonly new: number;
+    readonly untouched: number;
+}
+
+// @public
 export interface SourceDraftOptions {
     readonly askOverlap?: boolean;
 }
@@ -7829,7 +7859,13 @@ export interface SourceDraftPreview {
     readonly edges: SourceDraftPreviewChanges;
     readonly edits: readonly ReaderEditRow[];
     elements(query: SourceDraftElementsQuery): readonly SourceElementRef[];
+    // @beta
+    ids(query: SourceDraftElementsQuery | {
+        readonly refs: readonly SourceElementRef[];
+    }): SourceDraftIds;
     readonly issues: readonly SourceDraftPreviewIssue[];
+    // @beta
+    readonly marks: SourceDraftMarkCounts;
     readonly nodes: SourceDraftPreviewChanges;
     readonly questions: readonly SourceOverlapQuestion[];
     rows(query: SourceDraftRowsQuery): SourceDraftRows;
@@ -8251,6 +8287,13 @@ export interface SourceMatchPair {
 }
 
 // @public
+export interface SourceMatchSuggestion {
+    readonly confident: boolean;
+    readonly matches: readonly SourceMatchPair[];
+    readonly result: "merge" | "connect";
+}
+
+// @public
 export interface SourceMatchValue {
     readonly count1: number;
     readonly count2: number;
@@ -8501,6 +8544,7 @@ export interface SourceStepAct {
         readonly space: SourceSpaceName;
     };
     readonly repeated: "first" | "last" | "both" | null;
+    readonly unmatched?: "skip" | "add";
     readonly unmatchedFrom?: "keep" | "drop";
 }
 
@@ -9067,6 +9111,8 @@ export interface StylesApi {
     readonly showingBranches: boolean;
     // @beta
     readonly shownBranches: BranchesView | null;
+    // @beta
+    readonly shownDraft: DraftView | null;
     toDocument(): StyleDocument;
     toFile(): StyleFileDocument;
     tree(): readonly StyleRow[];

@@ -70,6 +70,8 @@ interface ConnectAct {
     readonly edgeType?: string;
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
+    readonly perPair?: boolean;
+    readonly unmatched?: "skip" | "add";
 }
 
 /** Extract (4.3): one column of an edge source becomes nodes, joined to one end by new edges. */
@@ -484,8 +486,9 @@ function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps
             edgeId: k2,
             weight: null,
         },
-        unmatchedRows: "leave-out",
+        unmatchedRows: o.unmatched === "add" ? "add" : "leave-out",
         columns: [],
+        ...(o.perPair === true ? { repeated: "first" as const } : {}),
         ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces }),
         ...(n1.isKey || n1.keyCol === undefined
             ? {}

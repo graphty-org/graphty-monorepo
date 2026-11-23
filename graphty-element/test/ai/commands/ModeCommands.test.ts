@@ -8,15 +8,25 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { setImmersiveMode } from "../../../src/ai/commands/ModeCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 
 describe("ModeCommands", () => {
     let graph: Graph;
     let context: CommandContext;
 
-    beforeEach(() => {
-        graph = createMockTestGraph();
-        context = createMockContext(graph);
+    /** The XR helper the graph answers with: none until a test gives one. */
+    let xrHelper: { enterVR: () => Promise<void>; enterAR: () => Promise<void> } | null;
+
+    beforeEach(async () => {
+        xrHelper = null;
+        // A headless session has no XR, so its helper is the test's; a real element answers
+        // these commands in test/browser/ai/commands-e2e.test.ts.
+        graph = await createCommandGraph({
+            nodeCount: 25,
+            edgeCount: 40,
+            renderer: { getXRHelper: () => xrHelper, exitImmersiveMode: () => undefined },
+        });
+        context = createCommandContext(graph);
     });
 
     describe("setImmersiveMode", () => {
@@ -62,11 +72,7 @@ describe("ModeCommands", () => {
                 enterAR: (): Promise<void> => Promise.resolve(),
             };
 
-            // Set mock XR helper on graph
-            const testGraph = graph as Graph & {
-                __testSetXRHelper: (helper: typeof mockXRHelper) => void;
-            };
-            testGraph.__testSetXRHelper(mockXRHelper);
+            xrHelper = mockXRHelper;
 
             const result = await setImmersiveMode.execute(graph, { mode: "vr" }, context);
 
@@ -87,11 +93,7 @@ describe("ModeCommands", () => {
                 },
             };
 
-            // Set mock XR helper on graph
-            const testGraph = graph as Graph & {
-                __testSetXRHelper: (helper: typeof mockXRHelper) => void;
-            };
-            testGraph.__testSetXRHelper(mockXRHelper);
+            xrHelper = mockXRHelper;
 
             const result = await setImmersiveMode.execute(graph, { mode: "ar" }, context);
 

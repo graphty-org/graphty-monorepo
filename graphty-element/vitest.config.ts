@@ -802,6 +802,7 @@ const config = defineConfig({
                         "test/fidelity/fidelity.test.ts",
                         "test/fidelity/oracle-report.test.ts",
                         "test/fidelity/mutants.test.ts",
+                        "test/fidelity/curves-come-to-rest.test.ts",
                         // Interaction tests require browser environment
                         "test/interactions/**/*.test.ts",
                         // Performance tests need DOM and should run in browser
@@ -1390,6 +1391,7 @@ const config = defineConfig({
                         "test/fidelity/fidelity.test.ts",
                         "test/fidelity/oracle-report.test.ts",
                         "test/fidelity/mutants.test.ts",
+                        "test/fidelity/curves-come-to-rest.test.ts",
                     ],
                     fileParallelism: false,
                     browser: {

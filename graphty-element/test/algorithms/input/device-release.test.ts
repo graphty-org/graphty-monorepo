@@ -16,13 +16,13 @@ import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
 import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedComponentsAlgorithm";
 import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { derivedInputsOf, type ResolvedInputScope, withRunInput } from "../../../src/algorithms/input/ScopedInput";
 import { KruskalAlgorithm } from "../../../src/algorithms/KruskalAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { detachedRunContext } from "../../../src/algorithms/results";
-import type { Graph } from "../../../src/Graph";
 import { createFakeAccelerator, type FakeAccelerator } from "../../../src/testing/fakeAccelerator";
-import { InputGraph } from "./harness";
+import { type InputGraph, inputGraph } from "./harness";
 
 /** A PageRank-shaped test algorithm that computes over its scope through `accelerated()`. */
 class ScopedRank extends Algorithm {
@@ -52,9 +52,9 @@ class ScopedRank extends Algorithm {
 }
 
 /** A ring of twelve, with a fake accelerator attached. */
-function setup(): { graph: InputGraph; fake: FakeAccelerator } {
+async function setup(): Promise<{ graph: InputGraph; fake: FakeAccelerator }> {
     const ids = Array.from({ length: 12 }, (_, index) => `n${String(index)}`);
-    const graph = new InputGraph(
+    const graph = await inputGraph(
         ids,
         ids.map((id, index) => [id, ids[(index + 1) % ids.length], 1] as const),
     );
@@ -76,7 +76,7 @@ function scopedRun(
     scope: () => ResolvedInputScope,
     during?: (snapshot: GraphSnapshot) => Promise<void> | void,
 ): Promise<GraphSnapshot> {
-    const algorithm = new ScopedRank(graph.asGraph());
+    const algorithm = new ScopedRank(graph);
 
     return withRunInput(algorithm, graph, scope, undefined, () => algorithm.rank(during));
 }
@@ -98,7 +98,7 @@ function assertBalanced(graph: InputGraph, fake: FakeAccelerator): void {
 
 describe("uploaded equals released", () => {
     it("across repeated scoped runs: one upload, served again from the cache", async () => {
-        const { graph, fake } = setup();
+        const { graph, fake } = await setup();
         const scope = graph.scope(["n0", "n1", "n2", "n3"]);
         for (let run = 0; run < 3; run++) {
             await scopedRun(graph, () => scope);
@@ -114,16 +114,16 @@ describe("uploaded equals released", () => {
     });
 
     it("across re-freezes: the input of a snapshot that has gone is released", async () => {
-        const { graph, fake } = setup();
+        const { graph, fake } = await setup();
         await scopedRun(graph, () => graph.scope(["n0", "n1", "n2"]));
         const first = fake.calls.uploaded[0];
 
-        graph.add([`x0`]);
+        await graph.add([`x0`]);
         derivedInputsOf(graph).freeze();
         assert.include(fake.calls.release, first, "released at the freeze");
 
         await scopedRun(graph, () => graph.scope(["n0", "n1", "n2"]));
-        graph.add([`x1`]);
+        await graph.add([`x1`]);
         // No freeze hook this time: the next run notices the snapshot moved.
         await scopedRun(graph, () => graph.scope(["n0", "n1", "n2"]));
 
@@ -132,7 +132,7 @@ describe("uploaded equals released", () => {
     });
 
     it("across two overlapping scoped runs", async () => {
-        const { graph, fake } = setup();
+        const { graph, fake } = await setup();
         let letGo = (): void => undefined;
         const gate = new Promise<void>((resolve) => {
             letGo = resolve;
@@ -165,12 +165,12 @@ describe("uploaded equals released", () => {
     });
 
     it("across a freeze during a run: released only once the run lets go", async () => {
-        const { graph, fake } = setup();
+        const { graph, fake } = await setup();
         const computed = await scopedRun(
             graph,
             () => graph.scope(["n0", "n1", "n2", "n3"]),
-            (snapshot) => {
-                graph.add(["late"]);
+            async (snapshot) => {
+                await graph.add(["late"]);
                 derivedInputsOf(graph).freeze();
                 assert.notInclude(fake.calls.release, snapshot, "the run still computes over it");
             },
@@ -211,7 +211,7 @@ function everyMember(): FakeAccelerator {
 }
 
 /** The five adapters that run through `accelerated()`, as a scoped run builds them. */
-const ADAPTERS: readonly (readonly [string, (graph: Graph) => Algorithm])[] = [
+const ADAPTERS: readonly (readonly [string, (graph: AlgorithmHost) => Algorithm])[] = [
     ["pagerank", (graph) => new PageRankAlgorithm(graph)],
     ["dijkstra", (graph) => new DijkstraAlgorithm(graph)],
     ["bfs", (graph) => new BFSAlgorithm(graph)],
@@ -223,14 +223,14 @@ describe("uploaded equals released, through the five real adapters", () => {
     for (const [name, build] of ADAPTERS) {
         it(`${name}: repeated scoped runs, a re-freeze, and teardown`, async () => {
             const ids = Array.from({ length: 12 }, (_, index) => `n${String(index)}`);
-            const graph = new InputGraph(
+            const graph = await inputGraph(
                 ids,
                 ids.map((id, index) => [id, ids[(index + 1) % ids.length], index + 1] as const),
             );
             const fake = everyMember();
             graph.acceleration.setAccelerator(fake);
             const run = async (): Promise<void> => {
-                const algorithm = build(graph.asGraph());
+                const algorithm = build(graph);
                 const scope = graph.scope(["n0", "n1", "n2", "n3"]);
                 await withRunInput(
                     algorithm,
@@ -250,7 +250,7 @@ describe("uploaded equals released, through the five real adapters", () => {
             );
             assert.strictEqual(fake.calls.uploaded[0].nodeCount, 4, "the scope's input, not the whole graph");
 
-            graph.add(["late"]);
+            await graph.add(["late"]);
             derivedInputsOf(graph).freeze();
             await run();
 

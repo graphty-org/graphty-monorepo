@@ -108,7 +108,12 @@ export interface PartitionComparison extends ComparisonBase {
     /** A grouping comparison. */
     readonly kind: "partition";
     /** How many groups each side has among the shared elements. */
-    readonly groups: { readonly a: number; readonly b: number };
+    readonly groups: {
+        /** How many groups side `a` has. */
+        readonly a: number;
+        /** How many groups side `b` has. */
+        readonly b: number;
+    };
     /**
      * How far the two groupings agree: the adjusted Rand index over the shared elements, 1 for the
      * same grouping whatever the groups are called, around 0 for chance agreement. Undefined with

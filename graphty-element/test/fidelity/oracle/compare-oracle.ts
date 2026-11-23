@@ -18,6 +18,7 @@ import {
     compareIds,
     type DashClass,
     dashClassOf,
+    figureOutlineDistance,
     insideFigure,
     isPattern,
     type PArrow,
@@ -2522,7 +2523,7 @@ export function compareOracle(
         (n.fill !== null || n.stroke !== null || (n.pictures?.length ?? 0) > 0);
     /**
      * An end's outline on each side, or none on either where one side draws none there. A figure (`PNode.figure`) cuts
-     * a line both sides draw it on and the oracle runs under it to its middle. Elsewhere both are cut at the ellipse
+     * a line both sides draw it on and the oracle runs under it to its middle or stops on its outline. Elsewhere both are cut at the ellipse
      * their boxes hold: where only one side draws a figure (Pajek draws its cross as an ellipse, graphty as a plus, a
      * shape judged apart as node.shape) the route is not judged on its node's shape, and a line the program stops at
      * the figure itself is not cut again (draw.io stops at a star's box, where graphty reaches its notch).
@@ -2559,7 +2560,12 @@ export function compareOracle(
                 { ...at, shape: "rect" },
             ];
         }
-        return at.figure !== undefined && runsToMiddle(on, end)
+        // a line the program stops on the figure's own outline is cut at the figures on both sides: graphty's, run to
+        // its middle, cut at the ellipse instead ended 5 px short of the corner both drawings stop at
+        // (xgmml-networkportal-nsoxphos -236 -> -348, at a vee's corner)
+        const stopsOnFigure =
+            on.figure !== undefined && end !== undefined && figureOutlineDistance(on.figure, on, end) <= pixel;
+        return at.figure !== undefined && (runsToMiddle(on, end) || stopsOnFigure)
             ? [on, at]
             : [
                   { ...on, figure: undefined },

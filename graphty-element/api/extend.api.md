@@ -2446,6 +2446,8 @@ class Node_2 implements ModelUser {
         z: number;
     }>;
     // @internal
+    get drawnHeld(): boolean;
+    // @internal
     get drawnInBatch(): boolean;
     // @internal
     get drawnInstanceColor(): Rgba | null;
@@ -2497,8 +2499,6 @@ class Node_2 implements ModelUser {
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
     hideTooltip(): void;
-    // @internal
-    holdOffBatch(): void;
     readonly id: NodeIdType;
     // @internal
     imageDrawn(): BaseTexture | null;

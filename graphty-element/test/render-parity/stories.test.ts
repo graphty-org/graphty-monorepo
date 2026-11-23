@@ -26,7 +26,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { renderPathDefault } from "../../src/meshes/NodeBatch";
 import { antialiasDefault, pulledEdgesDefault } from "../../src/meshes/PulledLineBatch";
-import { type CanvasFrame, pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
+import { assertSameFrame, type CanvasFrame, readCanvas } from "../helpers/whole-canvas";
 import unstable from "./unstable.json";
 import unstableWebgpu from "./unstable-webgpu.json";
 import unstableWebkit from "./unstable-webkit.json";
@@ -174,13 +174,9 @@ describe.each(files)("%s", async (file) => {
 
         const again = await picture(story, "objects");
         assert.isNotNull(again);
-        assert.equal(overBar(objects, again), 0, `${id} is not stable between two loads`);
+        assertSameFrame(objects, again, `${id} is not stable between two loads`);
         const third = PULLED ? await picture(story, "objects", true) : await picture(story, "batched");
         assert.isNotNull(third);
-        assert.equal(
-            overBar(objects, third),
-            0,
-            `${id} differs ${PULLED ? "with edges pulled" : "on the batched path"}`,
-        );
+        assertSameFrame(objects, third, `${id} differs ${PULLED ? "with edges pulled" : "on the batched path"}`);
     });
 });

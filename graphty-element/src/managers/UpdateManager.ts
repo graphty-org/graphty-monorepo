@@ -279,16 +279,25 @@ function growForLabel(box: FramingBox, labelMesh: Mesh | null | undefined): void
     // A center label slides onto its node's line of sight for the camera it is seen from; the framing is
     // about to move that camera, so it measures the plane before the slide (see withoutEyeLine).
     withoutEyeLine(labelMesh, () => {
-        const { minimumWorld, maximumWorld, vectorsWorld } = labelMesh.getBoundingInfo().boundingBox;
-        for (const corner of vectorsWorld) {
-            box.spots.push({ pos: corner.clone(), half: 0 });
-        }
-
-        for (const axis of ["x", "y", "z"] as const) {
-            box.min[axis] = Math.min(box.min[axis], minimumWorld[axis]);
-            box.max[axis] = Math.max(box.max[axis], maximumWorld[axis]);
-        }
+        growForMesh(box, labelMesh);
     });
+}
+
+/**
+ * Grow a box to take in a mesh's world bounding box, its corners as spots.
+ * @param box - The box to grow.
+ * @param mesh - The mesh.
+ */
+function growForMesh(box: FramingBox, mesh: Mesh): void {
+    const { minimumWorld, maximumWorld, vectorsWorld } = mesh.getBoundingInfo().boundingBox;
+    for (const corner of vectorsWorld) {
+        box.spots.push({ pos: corner.clone(), half: 0 });
+    }
+
+    for (const axis of ["x", "y", "z"] as const) {
+        box.min[axis] = Math.min(box.min[axis], minimumWorld[axis]);
+        box.max[axis] = Math.max(box.max[axis], maximumWorld[axis]);
+    }
 }
 
 /**
@@ -1992,33 +2001,58 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Take one batch of pending nodes and the paint each is to be drawn with.
+     * Take one batch of pending nodes and paint it, in row order.
+     *
+     * A row built here is painted at once; its rebuilt mesh goes with the batch's (#9184). A node
+     * that has its `Node` already is painted at its turn among them, not after them: a look's meshes
+     * are made when its first row is painted, and opaque looks at one depth draw in the order their
+     * meshes were made, so painting the built rows first drew a `Node` read before the frame (issue
+     * #9185) under looks the objects path draws it over.
      * @param painter - Where the paint is read from.
      * @param rows - Every node, by index.
      * @param size - The most nodes the batch takes.
-     * @returns Each node of the batch and its paint.
+     * @returns Each node of the batch and its paint, how many rows were taken, and what painting them resized and rebuilt.
      */
-    private takeNodeBatch(
+    private paintNodeBatch(
         painter: StylePainter,
         rows: ReadonlyMap<number, Node>,
         size: number,
-    ): { painted: [Node, NodePaint][]; taken: number } {
+    ): { painted: [Node, NodePaint][]; taken: number; resized: ReadonlySet<Node>; rebuilt: boolean } {
         const painted: [Node, NodePaint][] = [];
         const taken = painter.takeNodes(size);
-
-        // A row built here is painted at once; its rebuilt mesh goes with the batch's (#9184).
-        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
-            for (const index of taken) {
-                const node = rows.get(index) ?? this.unbuiltPainted(painter, index);
-                const paint = node === undefined ? null : painter.nodePaint(index);
-
-                if (node !== undefined && paint !== null) {
-                    painted.push([node, paint]);
-                }
+        const existing: [Node, NodePaint][] = [];
+        for (const index of taken) {
+            const node = rows.get(index);
+            const paint = node === undefined ? null : painter.nodePaint(index);
+            if (node !== undefined && paint !== null) {
+                existing.push([node, paint]);
             }
+        }
+
+        // one teardown for the whole batch, before any of it is painted (see `paintNodes`)
+        const rebuilt = releaseRebuiltMeshes(existing);
+        let resized: ReadonlySet<Node> = new Set();
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            resized = collectResizedNodes(() => {
+                for (const index of taken) {
+                    const own = rows.get(index);
+                    const node = own ?? this.unbuiltPainted(painter, index);
+                    const paint = node === undefined ? null : painter.nodePaint(index);
+                    if (node === undefined || paint === null) {
+                        continue;
+                    }
+
+                    painted.push([node, paint]);
+                    if (own !== undefined) {
+                        const toggles = own.togglesOwnMeshes();
+                        own.applySessionPaint(paint);
+                        this.ownMeshesPainted ||= toggles || own.togglesOwnMeshes();
+                    }
+                }
+            });
         });
 
-        return { painted, taken: taken.length };
+        return { painted, taken: taken.length, resized, rebuilt: rebuilt.length > 0 };
     }
 
     /**
@@ -2212,12 +2246,11 @@ export class UpdateManager implements Manager {
         // however large the graph. Labels the batch's rebuilds drop are released together too.
         const { resized, rebuilt } = disposeLabelsTogether(() => {
             const start = performance.now();
-            const { painted: batch, taken } = this.takeNodeBatch(
-                painter,
-                rows,
-                this.nodeBatchSize(deadline - start, this.dataManager.nodes.size),
-            );
-            const painted = this.paintNodes(batch);
+            const {
+                painted: batch,
+                taken,
+                ...painted
+            } = this.paintNodeBatch(painter, rows, this.nodeBatchSize(deadline - start, this.dataManager.nodes.size));
             if (painter.nodesFromBuildsOnly) {
                 for (const [node] of batch) {
                     this.builtNodesPainted.add(node);
@@ -2616,6 +2649,14 @@ export class UpdateManager implements Manager {
      * @internal
      */
     fitAnnotations: (() => void) | null = null;
+
+    /**
+     * The meshes a file's annotations are drawn on, which a fit frames with the nodes: Cytoscape desktop fits its
+     * annotations into the view too (cys-import-and-save: a picture beside the network takes half the canvas). Null
+     * when nothing draws annotations.
+     * @internal
+     */
+    annotationMeshes: (() => readonly Mesh[]) | null = null;
 
     /**
      * Whether an operation is queued or running, so the graph is about to change. Null when nothing queues
@@ -3691,8 +3732,33 @@ export class UpdateManager implements Manager {
         return (
             this.fixedFraming() ??
             this.envelopeFraming() ??
-            framingBox(this.layoutManager.nodes, this.layoutManager.edges, this.framing?.extent, this.columnFraming())
+            this.withAnnotations(
+                framingBox(
+                    this.layoutManager.nodes,
+                    this.layoutManager.edges,
+                    this.framing?.extent,
+                    this.columnFraming(),
+                ),
+            )
         );
+    }
+
+    /**
+     * Grow a framing box to take in the file's annotations, as a program that fits its drawing fits them; with node
+     * centers alone framed, nothing else is.
+     * @param box - The box of the nodes and their labels.
+     * @returns The box, grown in place.
+     */
+    private withAnnotations(box: FramingBox | undefined): FramingBox | undefined {
+        if (box !== undefined && this.framing?.extent !== "centers") {
+            for (const mesh of this.annotationMeshes?.() ?? []) {
+                // a mesh drawn since the last frame has not placed its box in the world yet
+                mesh.computeWorldMatrix(true);
+                growForMesh(box, mesh);
+            }
+        }
+
+        return box;
     }
 
     /**
@@ -3851,6 +3917,9 @@ export class UpdateManager implements Manager {
 
     /** The row table's `unplacedMoves` at the last walk of the node positions, or -1. */
     private lastUnplacedMoves = -1;
+
+    /** How many `Node`s had been built at the last walk of the node positions (`nodesBuilt`). */
+    private lastNodesBuilt = -1;
 
     /** Set by anything in this frame that changed what is drawn. See `settleActiveMeshFreeze`. */
     private sceneChanged = true;
@@ -4255,6 +4324,7 @@ export class UpdateManager implements Manager {
         const table = this.graphContext.getRowTable?.();
         this.lastRowMoves = table?.moves ?? -1;
         this.lastUnplacedMoves = table?.unplacedMoves ?? -1;
+        this.lastNodesBuilt = dataManagerInternals.nodesBuilt(this.dataManager);
         let highest = -1;
         for (const { index } of this.layoutManager.nodes) {
             highest = Math.max(highest, index === INVALID_INDEX ? -1 : index);
@@ -4343,8 +4413,13 @@ export class UpdateManager implements Manager {
     } {
         const table = this.graphContext.getRowTable?.();
         const moves = table?.moves ?? -1;
-        const rowsStill = moves !== -1 && moves === this.lastRowMoves;
+        // A Node built since the last walk is on no roster, and only a walk of every Node finds it and places its
+        // edges. Its build moved no row when it put its row where the row already was, so the table cannot say
+        // (#9739: every batched Node of a load was missed, and its edges kept the place they were first given).
+        const built = dataManagerInternals.nodesBuilt(this.dataManager);
+        const rowsStill = moves !== -1 && moves === this.lastRowMoves && built === this.lastNodesBuilt;
         this.lastRowMoves = moves;
+        this.lastNodesBuilt = built;
         // A drag places its Node's row alone: a row with no Node moved only by a write of the table's other kinds, so
         // a drag on a graph of rows with no Node visits the dragged node's edges, not every placed edge (issue #9166).
         const unplaced = table?.unplacedMoves ?? -1;
@@ -4712,6 +4787,58 @@ export class UpdateManager implements Manager {
      */
     meshesShownOrHidden(): void {
         this.sceneChanged = true;
+    }
+
+    /**
+     * The nodes whose mesh a consumer read (`Node.mesh`), with whether that mesh was shown at the last
+     * frame: a consumer shows or hides it through no method of ours, and a frozen scene drew a hidden
+     * one on (issue #9185).
+     */
+    private readonly heldMeshes = new Map<Node, boolean>();
+
+    /**
+     * A consumer read a node's mesh: from now on a frame that finds it shown or hidden since the last
+     * one re-reads what is drawn.
+     * @param node - The node.
+     * @internal
+     */
+    holdsMesh(node: Node): void {
+        this.heldMeshes.set(node, true);
+        this.sceneChanged = true;
+        // Before every render, a frame of the loop's or one drawn by hand: the loop's own pass does
+        // not run for a frame drawn by hand, and a consumer's change asks for no frame.
+        this.watchingHeld ??= this.graphContext.getScene().onBeforeRenderObservable.add(() => {
+            if (this.heldMeshesToggled()) {
+                this.sceneChanged = true;
+                this.thawActiveMeshes();
+            }
+        });
+    }
+
+    /** What watches the read meshes, once a mesh has been read ({@link UpdateManager.holdsMesh}). */
+    private watchingHeld: Nullable<Observer<Scene>> = null;
+
+    /**
+     * Whether a read mesh was shown or hidden since the last frame, and forget the nodes gone.
+     * @returns True when one was.
+     */
+    private heldMeshesToggled(): boolean {
+        let toggled = false;
+        for (const [node, shown] of this.heldMeshes) {
+            if (node.isDisposed()) {
+                this.heldMeshes.delete(node);
+                continue;
+            }
+
+            const mesh = node.drawnPickMesh;
+            const now = mesh !== null && mesh.isVisible && mesh.isEnabled();
+            if (now !== shown) {
+                this.heldMeshes.set(node, now);
+                toggled = true;
+            }
+        }
+
+        return toggled;
     }
 
     /**

@@ -3879,9 +3879,17 @@ export function associate(
     /** The widths graphty draws each pair's edges at, carried into the oracle's frame. */
     const guideWidths = new Map<string, number[]>();
     const guideWays = new Set<string>();
+    /** The pairs graphty draws a head on, and the nodes it caps on some edge of each: `pair` and `pair NUL node`. */
+    const guideCaps = new Set<string>();
     for (const e of guide.edges) {
         const k = pairOf(e.source, e.target);
         guideWays.add(`${e.source}\u0000${e.target}`);
+        for (const x of e.arrows) {
+            if (x.end !== "middle") {
+                guideCaps.add(k);
+                guideCaps.add(`${k}\u0000${x.end === "source" ? e.source : e.target}`);
+            }
+        }
         guidePairs.set(k, (guidePairs.get(k) ?? 0) + 1);
         guideColors.set(k, (guideColors.get(k) ?? new Set()).add(e.stroke?.color ?? ""));
         if (frame !== null && e.stroke !== null && Number.isFinite(e.stroke.width)) {
@@ -4275,12 +4283,20 @@ export function associate(
         drawnAt.set(edge, p.index);
         if (box === undefined && !(a === b && !guideLoops.has(a.id))) {
             edges.push(edge);
-            // the arrowheads drawn with its line cap its ends, whatever line of a neighbor's ends nearer them
+            // the arrowheads drawn with its line cap its ends, whatever line of a neighbor's ends nearer them -- an end
+            // the file caps on no edge between its nodes, where it caps another end of them, excepted: the head drawn
+            // next there is another edge's (cx-radiation-bibliography: the head of 403->142, drawn with no line between
+            // nodes 1.5 px apart, right after 403->202's line and target head, was read as 403->202's source head); a
+            // dot no wider than the line is still the line's own end
             for (const [i, hs] of own.entries()) {
                 const end = i === 0 ? "source" : "target";
-                hs.filter((h) => !runsThroughNode(h.points, edge, end, end === "source" ? a : b)).forEach((h) =>
-                    ownCaps.set(h, { e: edge, end }),
-                );
+                const tip = end === "source" ? p.points[0] : (p.points.at(-1) ?? p.points[0]);
+                const capped = !guideCaps.has(pk) || guideCaps.has(`${pk}\u0000${end === "source" ? a.id : b.id}`);
+                hs.filter(
+                    (h) =>
+                        (capped || lineEndPiece(h, edge, tip)) &&
+                        !runsThroughNode(h.points, edge, end, end === "source" ? a : b),
+                ).forEach((h) => ownCaps.set(h, { e: edge, end }));
             }
         } else if (
             box === undefined &&
@@ -4517,7 +4533,24 @@ export function associate(
             all.reduce((m, q) => (along(q) < along(m) ? q : m)),
             all.reduce((m, q) => (along(q) > along(m) ? q : m)),
         ];
-        const lone = capped1 === b ? probe : reversedOf(probe);
+        // a lone head drawn across its line, its far side off the line between its nodes' middles (a tee's bar:
+        // cx-radiation-bibliography 776->6, 5.45 px across and 0.55 px thick), runs along that line through its middle,
+        // as far as the head reaches along it: read along the bar, the tee was a head 5.5 px long and 1.1 px wide
+        const chordLength = Math.hypot(dir[0], dir[1]);
+        const unitDir: Pt = chordLength > 1e-9 ? [dir[0] / chordLength, dir[1] / chordLength] : [1, 0];
+        const axisLength = Math.hypot(tip[0] - mids[0][0], tip[1] - mids[0][1]);
+        const acrossLine =
+            !paired &&
+            axisLength > 1e-9 &&
+            Math.abs((tip[0] - mids[0][0]) * unitDir[0] + (tip[1] - mids[0][1]) * unitDir[1]) / axisLength <
+                Math.cos(Math.PI / 3);
+        const reach = Math.max(along(across[1]) - along(across[0]), 0) / Math.max(chordLength, 1e-9);
+        const barPath: Pt[] = [
+            [mids[0][0] - (unitDir[0] * reach) / 2, mids[0][1] - (unitDir[1] * reach) / 2],
+            [mids[0][0] + (unitDir[0] * reach) / 2, mids[0][1] + (unitDir[1] * reach) / 2],
+        ];
+        const aimed = capped1 === b ? probe : reversedOf(probe);
+        const lone = acrossLine ? barPath : aimed;
         // two heads unlike each other run along the line between their nodes' middles, from where the source head's tip
         // is to where the target head's is: a half head's barb, off to the line's side, starts a third of its length off
         // its node

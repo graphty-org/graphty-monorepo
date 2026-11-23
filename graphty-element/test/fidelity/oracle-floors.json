@@ -545,15 +545,15 @@
             "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
-            "edge.extra": 0.986,
+            "edge.extra": 0.99,
             "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.99,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.99,
-            "edge.arrowShape": 0.995,
+            "edge.arrow": 0.992,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
@@ -599,7 +599,7 @@
             "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
-            "edge.extra": 0.986,
+            "edge.extra": 0.99,
             "edge.route": 0.98,
             "edge.curve": 0.995,
             "edge.color": 1,
@@ -608,15 +608,15 @@
             "edge.dash": 0.99,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.995,
-            "edge.arrowShape": 0.995,
+            "edge.arrow": 0.997,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
-            "edge.arrowLength": 0.995,
-            "edge.arrowWidth": 0.995,
-            "edge.arrowToSpacing": 0.995,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
+            "edge.arrowToSpacing": 1,
             "stray.present": 0,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -8091,13 +8091,13 @@
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.9,
-            "raster.edge": 0.95,
-            "raster.label": 0.91,
+            "raster.canvas": 0.98,
+            "raster.edge": 0.96,
+            "raster.label": 0.93,
             "raster.nodeBody": 0.92,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "cys-import-and-save@matched": {
@@ -8145,7 +8145,7 @@
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
             "edge.wiggle": 1
         },
@@ -15445,7 +15445,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.95,
+            "raster.label": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.95,
             "stray.extra": 1
@@ -15525,7 +15525,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.96,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95,
+            "raster.nodeOutline": 0.96,
             "stray.extra": 1
         },
         "dot-specimen-groups-p5@matched": {
@@ -15677,7 +15677,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.96,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95,
+            "raster.nodeOutline": 0.96,
             "stray.extra": 1
         },
         "dot-specimen-groups-p7@matched": {
@@ -35711,7 +35711,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.989,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -35762,7 +35762,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.989,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -56179,20 +56179,6 @@
         }
     },
     "drops": {
-        "cx-radiation-bibliography": {
-            "edge.arrowLength": {
-                "floor": 1,
-                "to": 0.995,
-                "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
-                "date": "2026-11-01"
-            },
-            "edge.arrowWidth": {
-                "floor": 1,
-                "to": 0.995,
-                "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
-                "date": "2026-11-01"
-            }
-        },
         "cx2-signor-aml": {
             "edge.arrowShape": {
                 "floor": 0.997,

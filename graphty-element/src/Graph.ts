@@ -8817,6 +8817,8 @@ export class Graph implements GraphContext {
         const tour: TourHandle = {
             name,
             stops,
+            stop: 0,
+            played: false,
             ended: false,
             reason: undefined,
             wake: undefined,
@@ -8929,6 +8931,7 @@ export class Graph implements GraphContext {
      */
     async #flyTour(tour: TourHandle, flown: FlownTour, easing: EasingName, authored = false): Promise<void> {
         const progress = (stop: number, phase: TourProgressEvent["phase"]): void => {
+            tour.stop = stop;
             const view = flown.views[stop];
             this.eventManager.emit("tour-progress", {
                 tour: tour.name,
@@ -8939,7 +8942,9 @@ export class Graph implements GraphContext {
             } satisfies Omit<TourProgressEvent, "type">);
         };
 
-        for (const [index, state] of flown.states.entries()) {
+        // From the stop it starts at: the first unless a reload plays it on (`resumeTour`).
+        for (let index = tour.stop; index < flown.states.length; index++) {
+            const state = flown.states[index];
             const { duration, hold } = flown.plan.stops[index];
             if (tour.ended) {
                 return;
@@ -9042,6 +9047,36 @@ export class Graph implements GraphContext {
         tour: TourInput,
         options?: { easing?: EasingName; restoreCamera?: boolean; signal?: AbortSignal },
     ): Promise<{ /** How the tour ended. */ reason: TourEndReason }> {
+        return this.#playTour(tour, options, 0);
+    }
+
+    /**
+     * Where the tour playing now is, for autosave's `keepCamera`: a saved tour's name and the stop
+     * it is at; null when no tour plays, or it was given inline or is being recorded.
+     * @returns The tour's name and stop, or null.
+     * @internal
+     */
+    tourPlace(): { name: string; stop: number } | null {
+        const tour = this.#tour;
+        return tour?.played === true && tour.name !== null ? { name: tour.name, stop: tour.stop } : null;
+    }
+
+    /**
+     * Play a saved tour on from one of its stops, for autosave's `keepCamera` after a reload.
+     * @param name - The saved tour's name.
+     * @param stop - The stop to play on from.
+     * @returns How the tour ended.
+     * @internal
+     */
+    async resumeTour(name: string, stop: number): Promise<{ reason: TourEndReason }> {
+        return this.#playTour(name, undefined, stop);
+    }
+
+    async #playTour(
+        tour: TourInput,
+        options: { easing?: EasingName; restoreCamera?: boolean; signal?: AbortSignal } | undefined,
+        from: number,
+    ): Promise<{ reason: TourEndReason }> {
         const flown = this.#checkedTour(tour);
         const { signal } = options ?? {};
         if (signal?.aborted === true) {
@@ -9050,6 +9085,8 @@ export class Graph implements GraphContext {
 
         const before = options?.restoreCamera === true ? this.getCameraState() : undefined;
         const handle = this.#beginTour(flown.name, flown.states.length);
+        handle.played = true;
+        handle.stop = from;
         const onAbort = (): void => {
             this.#finishTour(handle, "canceled");
         };
@@ -12089,6 +12126,10 @@ interface TourHandle {
     readonly name: string | null;
     /** How many stops it has. */
     readonly stops: number;
+    /** The stop it is at; before it flies, the stop it starts from. */
+    stop: number;
+    /** Played by `playTour`, so a reload can play it on; a recording's tour is not. */
+    played: boolean;
     ended: boolean;
     reason: TourEndReason | undefined;
     /** Ends the hold the tour waits in, at once. */

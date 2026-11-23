@@ -228,6 +228,7 @@ el.addEventListener("graphty-autosave-status", (e) => {
     }
 });
 el.addEventListener("graphty-autosave-at-risk", (e) => report("at-risk", { params: e.detail.params }));
+el.addListener("tour-progress", (e) => report("tour", { tour: e.tour, stop: e.stop, phase: e.phase }));
 // Every entry not restored, and why: the ready report carries them, so a test reads the page's
 // whole decision from one report whatever order the reports arrive in.
 const available = [];
@@ -317,6 +318,12 @@ window.fixture = {
     status: () => el.autosaver.status,
     camera: () => el.getCameraState(),
     placeCamera: (state) => el.setCameraState(state, { animate: false }),
+    // Save a two-stop tour named "walk" whose second stop holds until it is ended, and play it.
+    async playWalk() {
+        await ready;
+        await el.session.tours.save([{ name: "walk", tour: { stops: [{ view: "fitToGraph", hold: 0 }, { view: "fitToGraph", duration: 0, hold: Number.MAX_SAFE_INTEGER }] } }]);
+        void el.playTour("walk");
+    },
     listed,
     async check() {
         await ready;

@@ -2064,6 +2064,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ...CAPTURE_DOORS,
             planTour: READ,
             replaceTour: CAMERA,
+            tourPlace: READ,
+            resumeTour: CAMERA,
             applyCaptureCamera: CAMERA,
             getCameraState: READ,
             setCameraState: CAMERA,

@@ -21,7 +21,10 @@
 //   start <group> <branch> | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged
 //   release <group> <n> --why <reason>     a member that turned out not to belong (never routed back there)
 //   wait <n> --on <group|branch|#pr> [--x9 <sha>] [--due <ISO time>] --why <reason>
-//                                          --due: past it the wait no longer holds the issue and check --fix ends it
+//                                          --due: past it the wait no longer holds the issue and check --fix ends it;
+//                                          on a live wait with the same target, --due sets its due time and why
+//   wait <n> --on <target> --end --why <reason>
+//                                          ends a live wait (one nothing else will end)
 //   archive                                moves groups closed or dissolved over 7 days ago to groups-archive.jsonl
 //   compact                                archive, plus drops stale proposals, settled waits and old history
 //   check [--fix] [--json]                 drift against GitHub: markers, labels, pull request states
@@ -802,19 +805,30 @@ export function release(ledger, id, n, why, now) {
 }
 
 /**
- * Records that an issue waits on another branch or pull request (rubric X6, X8 or X9).
+ * Records that an issue waits on another branch or pull request (rubric X6, X8 or X9). On a live wait with the same
+ * issue and target, a due time updates that wait's due time and why; `end` ends it instead.
  * @param ledger the ledger
- * @param spec `{ n, on, x9, why, now }`
+ * @param spec `{ n, on, x9, why, now, due, end }`
  * @returns one line
  */
 export function addWait(ledger, spec) {
-    const { n, on, x9, why, now, due } = spec;
+    const { n, on, x9, why, now, due, end } = spec;
     if (!on) throw new Refused("--on is required");
     if (!why?.trim()) throw new Refused("--why is required");
     if (due !== undefined && Number.isNaN(Date.parse(due))) throw new Refused(`--due ${due} is not a time`);
     const test = x9 ? `X9 ${x9}` : "X6";
     const at = new Date(now).toISOString();
-    if (liveWaits(ledger).some((w) => w.issue === n && w.on === on)) return `#${n} already waits on ${on}`;
+    const live = liveWaits(ledger).find((w) => w.issue === n && w.on === on);
+    if (end) {
+        if (!live) throw new Refused(`#${n} has no live wait on ${on}`);
+        live.ended = `${at} ${why}`;
+        return `#${n} no longer waits on ${on}`;
+    }
+    if (live && due) {
+        Object.assign(live, { due, why });
+        return `#${n} waits on ${on} until ${due}`;
+    }
+    if (live) return `#${n} already waits on ${on}`;
     ledger.waits.push({ issue: n, on, test, since: at, why, ...(due ? { due } : {}), ended: null, expired: null });
     const until = due ? ` until ${due}` : "";
     return `#${n} waits on ${on} (${test})${until}`;
@@ -2475,6 +2489,7 @@ const OPTIONS = {
     on: { type: "string" },
     x9: { type: "string" },
     due: { type: "string" },
+    end: { type: "boolean" },
     merged: { type: "boolean" },
     unmerged: { type: "boolean" },
     json: { type: "boolean" },
@@ -2488,7 +2503,7 @@ const OPTIONS = {
 };
 
 const USAGE =
-    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>[:<with>]...] --why <r> [--files <p>...] [--class <c>] | add <group> <n> --test <T#> [--with <n>] [--class <c>] | route <n> [--to <group> --test <T#> [--with <n>] [--join]] [--class <c>] [--why <r>] | import-scan [<file>] | start <group> <branch> <n>... | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] [--due <time>] --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | combine-plan [--link <a>:<b>:<T#>...] [--json] | metrics [--append] [--json] | idle [--json]";
+    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>[:<with>]...] --why <r> [--files <p>...] [--class <c>] | add <group> <n> --test <T#> [--with <n>] [--class <c>] | route <n> [--to <group> --test <T#> [--with <n>] [--join]] [--class <c>] [--why <r>] | import-scan [<file>] | start <group> <branch> <n>... | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] [--due <time>] --why <r> | wait <n> --on <target> --end --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | combine-plan [--link <a>:<b>:<T#>...] [--json] | metrics [--append] [--json] | idle [--json]";
 
 const num = (s) => {
     if (!/^#?\d+$/.test(s ?? "")) throw new Refused(`not an issue number: ${s}`);
@@ -2649,7 +2664,7 @@ const COMMANDS = {
         return c.change((ledger) => ok(`${release(ledger, c.pos[0], n, c.o.why, c.now).id} released #${n}`));
     },
     wait: (c) => {
-        const spec = { n: num(c.pos[0]), on: c.o.on, x9: c.o.x9, due: c.o.due, why: c.o.why, now: c.now };
+        const spec = { n: num(c.pos[0]), on: c.o.on, x9: c.o.x9, due: c.o.due, end: c.o.end, why: c.o.why, now: c.now };
         return c.change((ledger) => ok(addWait(ledger, spec)));
     },
     archive: (c) =>

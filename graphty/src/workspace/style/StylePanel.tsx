@@ -615,7 +615,8 @@ function KindSwitch({
         state.of > 1 && state.on > 0 && !all
             ? `Style ${words.many}, on in ${String(state.on)} of ${String(state.of)} layers`
             : `Style ${words.many}`;
-    const fixed = only && all && state.of === 1;
+    // Every layer styles this kind and none the other: a layer keeps its only kind, so none can drop it.
+    const fixed = only && all;
     const other = KIND_WORDS[side === "node" ? "edge" : "node"].many;
     // Why it cannot be cleared, in its tooltip and its description, not as lines on the panel.
     const reason = fixed ? `Stays on: style ${other} first to stop styling ${words.many}` : undefined;

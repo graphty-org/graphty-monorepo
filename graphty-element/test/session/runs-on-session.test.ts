@@ -156,6 +156,36 @@ describe("runs on the session", () => {
         harness.session.dispose();
     });
 
+    it("paints again when a run is asked for after every layer it painted was removed", async () => {
+        const { harness } = withRunner();
+        harness.add([{ id: "a" }, { id: "b" }, { id: "c" }], [{ src: "a", dst: "b" }]);
+        const { session } = harness;
+
+        const run = session.runs.start("degree");
+        await run;
+        await session.styles.settled();
+        const painted = session.runs.layers(run.id)?.present ?? [];
+        assert.isAbove(painted.length, 0, "the first completion paints");
+        for (const id of painted) {
+            await session.styles.remove(id);
+        }
+
+        // The same question under an unchanged graph: nothing is computed, the layers come back.
+        await session.runs.start("degree");
+        await session.styles.settled();
+        assert.isAbove(session.runs.layers(run.id)?.present.length ?? 0, 0, "the same question paints again");
+
+        for (const id of session.runs.layers(run.id)?.present ?? []) {
+            await session.styles.remove(id);
+        }
+        // The data moved: the run computes again, and paints again.
+        harness.add([{ id: "d" }], [{ src: "c", dst: "d" }]);
+        await session.runs.start("degree");
+        await session.styles.settled();
+        assert.isAbove(session.runs.layers(run.id)?.present.length ?? 0, 0, "a re-run on new data paints again");
+        session.dispose();
+    });
+
     it("tells a watcher about every run, whoever started it", async () => {
         const { harness } = withRunner();
         harness.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b" }]);

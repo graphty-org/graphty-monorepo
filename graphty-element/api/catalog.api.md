@@ -2131,7 +2131,6 @@ export interface LegacyAlgorithmKey {
 
 // @public
 export interface LegacyAlgorithmMapping {
-    // (undocumented)
     descriptor: BuiltInAlgorithmDescriptor;
     params: Readonly<Record<string, unknown>>;
 }

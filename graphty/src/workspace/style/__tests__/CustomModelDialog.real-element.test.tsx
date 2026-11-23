@@ -2037,4 +2037,59 @@ describe("the Load custom model dialog, on the real element", () => {
         });
         assert.isUndefined(session.assets.find(ref)?.defaults?.style["node.modelTint"], "and its settings");
     });
+
+    it("says a lone picture is not a model from the Main menu, offering no layer's picture", async () => {
+        await openShapes();
+        const dialog = await fromMenu();
+        dropOn(within(dialog).getByTestId("custom-model"), [new File([dotPng()], "colormap.png")]);
+        assert.isNotNull(await within(dialog).findByText(/^colormap is a picture, not a 3D model/));
+        assert.isNull(
+            within(dialog).queryByRole("button", { name: "Use colormap as picture" }),
+            "no layer opened the dialog, so none takes the picture",
+        );
+    });
+
+    it("keeps the reader's name for a model when its file is dropped on the dialog again", async () => {
+        const { session, tab, store } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [quadFile()]);
+        await previewOf(dialog, "quad");
+        const name = within(dialog).getByRole("textbox", { name: "Name" });
+        await userEvent.clear(name);
+        await userEvent.type(name, "Panel");
+        const said: string[] = [];
+        const stop = store.subscribe(() => {
+            said.push(store.get().announcement);
+        });
+        dropOn(within(dialog).getByTestId("custom-model"), [quadFile()]);
+        await waitFor(() => {
+            assert.include(said, "Loading quad.glb", "the drop loads again");
+            assert.equal(said.at(-1), "quad loaded", "and settles");
+        });
+        stop();
+        assert.equal(within(dialog).getByRole("textbox", { name: "Name" }).getAttribute("value"), "Panel");
+        await addModel(dialog);
+        assert.deepEqual(models(session), ["quad.glb"], "one model, not a second");
+        assert.equal(session.assets.find(String(written(session, "node.model")))?.plainName, "Panel");
+    });
+
+    it("takes back a layer setting set in Model settings with its x, writing nothing for it", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [quadFile()]);
+        await previewOf(dialog, "quad");
+        const rows = await openSettings(dialog);
+        await userEvent.click(within(rows).getByRole("combobox", { name: /^Wireframe, / }));
+        await userEvent.click(await screen.findByRole("option", { name: "On" }));
+        const remove = await within(rows).findByRole("button", { name: "Remove model wireframe" });
+        await userEvent.click(remove);
+        await waitFor(() => {
+            assert.isNull(within(rows).queryByRole("button", { name: "Remove model wireframe" }), "its x goes");
+        });
+        await addModel(dialog);
+        await waitFor(() => {
+            assert.match(String(written(session, "node.model")), /^asset:/);
+        });
+        assert.isUndefined(written(session, "node.wireframe"), "the layer gets no Wireframe");
+    });
 });

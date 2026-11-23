@@ -2946,6 +2946,13 @@ export type GraphtyWarningCode =
 */
 | "W_FILTER_STEPS_DIFFER"
 /**
+* A filter draft autosave kept could not be opened again after a restore (the condition it
+* edited is gone, or its new condition's id is taken), so it was dropped. In an autosave
+* restore's report; `params.id` is the condition's id.
+* Since 3.40.0.
+*/
+| "W_FILTER_DRAFT_DROPPED"
+/**
 * A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
 * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
 * `"edge"`, and `params.ids` the ids as the layer named them.
@@ -4349,9 +4356,7 @@ export type NetworkPolicy = "ask" | "allow";
 
 // @public
 export interface NetworkRequest {
-    // (undocumented)
     readonly code: Extract<GraphtyWarningCode, "W_URL_NEEDS_APPROVAL">;
-    // (undocumented)
     readonly params: {
         readonly id: string;
         readonly url: string;
@@ -6220,10 +6225,8 @@ export type RunStyle = boolean | {
 export interface RunWindow {
     readonly attribute: string;
     readonly edges: number;
-    // (undocumented)
     readonly from: number;
     readonly nodes: number;
-    // (undocumented)
     readonly to: number;
 }
 
@@ -7071,6 +7074,10 @@ export interface SessionEventMap {
         readonly names: readonly string[];
     };
     "visibility:changed": VisibilityChange;
+    // @beta
+    "visibility:draft-changed": {
+        readonly open: readonly string[];
+    };
     // @beta
     "visibility:not-drawn-changed": {
         readonly notDrawn: readonly HiddenNotDrawn[];
@@ -9713,6 +9720,8 @@ export interface VisibilityApi {
     readonly conditions: readonly FilterCondition[];
     // @beta
     draft(target: FilterConditionInput | string): FilterDraft;
+    // @beta
+    draftOf(conditionId: string): FilterDraft | null;
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;
@@ -9724,6 +9733,8 @@ export interface VisibilityApi {
     readonly nodes: ReadonlySet<NodeId>;
     // @beta
     readonly notDrawn: readonly HiddenNotDrawn[];
+    // @beta
+    openDrafts(): readonly FilterCondition[];
     // @beta
     removeCondition(id: string, options?: RunOptions): Run<FilterResult>;
     set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;

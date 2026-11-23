@@ -76,6 +76,7 @@ import {
     SELECTED_COLUMN,
     VIEW_POSITION_PREFIX,
 } from "./constants.js";
+import { SessionPictures } from "./pictures.js";
 import {
     elementsNamed,
     entryLabel,
@@ -576,7 +577,8 @@ async function fill3(
     const { doc, dialect } = parsed;
     const { graph } = choice;
     const members = membersOf(doc, graph);
-    const unmatched = await applyTables(prepared, choice, doc, nodes, edges);
+    const pictures = new SessionPictures(prepared.session, prepared.session.layout.pictures);
+    const unmatched = await applyTables(prepared, choice, doc, nodes, edges, pictures);
     if (unmatched > 0) {
         report.warning(
             "parse-error",
@@ -592,12 +594,16 @@ async function fill3(
         // the graphty.styles block of a session graphty wrote: a graph attribute, as in every other format
         graph.atts.push(textAtt(STYLE_BLOCK_NAME, block));
     }
-    const cyMeta = sessionMeta(prepared, {
-        collection: doc.root.label ?? choice.network.title,
-        network: choice.graphId,
-        parentNetwork: parentNetwork(graph, prepared.choices),
-        visualStyle,
-    });
+    const cyMeta = sessionMeta(
+        prepared,
+        {
+            collection: doc.root.label ?? choice.network.title,
+            network: choice.graphId,
+            parentNetwork: parentNetwork(graph, prepared.choices),
+            visualStyle,
+        },
+        pictures.read,
+    );
     const groups: { group: string; members: string[] }[] = [];
     cyMeta.groups = groups;
     const extras: EmitExtras = {
@@ -667,6 +673,8 @@ interface TableContext {
     readonly virtuals: readonly VirtualColumn[];
     readonly tableOf: (path: string) => Promise<CyTable | null>;
     readonly report: ImportReportBuilder;
+    /** The session's saved pictures, which a network's image annotations are given. */
+    readonly pictures: SessionPictures;
 }
 
 /**
@@ -676,6 +684,7 @@ interface TableContext {
  * @param doc - its network file
  * @param nodes - its node records by id
  * @param edges - its edge records by id
+ * @param pictures - the session's saved pictures
  * @returns the number of rows that name no element of the network
  */
 async function applyTables(
@@ -684,6 +693,7 @@ async function applyTables(
     doc: Parsed["doc"],
     nodes: ReadonlyMap<string, NodeRec>,
     edges: ReadonlyMap<string, EdgeRec>,
+    pictures: SessionPictures,
 ): Promise<number> {
     const { report, inner, session } = prepared;
     const { layout } = session;
@@ -718,6 +728,7 @@ async function applyTables(
         virtuals: layout.cytables === null ? [] : await readVirtuals(session, layout.cytables, report, inner),
         tableOf,
         report,
+        pictures,
     };
     let unmatched = 0;
     for (const entry of layout.tables.filter((t) => t.network === choice.graphId && t.element !== null)) {
@@ -782,7 +793,8 @@ async function applyTable(ctx: TableContext, entry: TableEntry, table: CyTable):
         return (entry.element === "node" ? ctx.nodes : ctx.edges).get(key)?.atts;
     };
     let unmatched = 0;
-    for (const [key, cells] of table.rows) {
+    const rows = entry.element === "network" ? await ctx.pictures.resolveRows(table, ctx.report) : table.rows;
+    for (const [key, cells] of rows) {
         const atts = target(key);
         if (atts !== undefined) {
             atts.push(...rowAtts(table, key, cells, namespace, hidden));
@@ -1545,14 +1557,17 @@ interface SessionMeta {
  * @param facts.network - the network's id
  * @param facts.parentNetwork - the network it was made from
  * @param facts.visualStyle - the style its view uses
+ * @param read - the entries of `skipped` this network read after all (the pictures its annotations show)
  * @returns the record
  */
 function sessionMeta(
     prepared: Prepared,
     facts: { collection: string | null; network: string; parentNetwork: string | null; visualStyle: string | null },
+    read: ReadonlySet<string> = new Set(),
 ): SessionMeta {
-    const { layout } = prepared.session;
     const { report } = prepared;
+    const layout = { ...prepared.session.layout };
+    layout.skipped = layout.skipped.filter((name) => !read.has(name));
     if (layout.styles.length > 0) {
         report.warning(
             "unsupported",

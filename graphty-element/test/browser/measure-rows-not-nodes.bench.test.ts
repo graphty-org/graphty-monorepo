@@ -14,6 +14,10 @@
  * The nodes are drawn at `meshDetail: "low"`, which changes nothing measured here and keeps each
  * software-rendered frame cheap.
  *
+ * Without a GPU (`GRAPHTY_BROWSER_GPU` unset, as in CI) it loads 200,000 nodes: a feature that builds
+ * a `Node` per row still fails both counts there, and a million cost CI's software renderer about
+ * 4.5 minutes, most of it drawing (#9773).
+ *
  * This file gates no push: it runs in the "browser-bench" project.
  */
 
@@ -24,7 +28,9 @@ import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 
-const NODES = 1_000_000;
+const GPU = ((import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "") !== "";
+/** A fifth of the nodes on the software renderer: see the file comment. */
+const NODES = GPU ? 1_000_000 : 200_000;
 /**
  * The most heap a feature may keep per row: a `Node` costs about 8,700 bytes, so a feature under
  * this builds nothing of the sort. The figure keeps its SVG text, about 100 bytes a node.
@@ -50,7 +56,7 @@ async function heap(): Promise<number> {
     return (performance as unknown as { memory: { usedJSHeapSize: number } }).memory.usedJSHeapSize;
 }
 
-describe("measuring rows on the batched path at a million nodes", () => {
+describe(`measuring rows on the batched path at ${String(NODES)} nodes`, () => {
     let element: Graphty;
     const built = (): number => dataManagerInternals.nodesBuilt(element.graph.getDataManager());
 

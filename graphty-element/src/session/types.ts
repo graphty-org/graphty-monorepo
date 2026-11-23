@@ -6900,6 +6900,18 @@ export interface SessionEventMap {
         readonly notDrawn: readonly HiddenNotDrawn[];
     };
     /**
+     * A filter draft opened, changed, was committed or canceled (`visibility.draft()`), or autosave
+     * opened again the drafts it kept after a restore: a view of the open drafts
+     * (`visibility.openDrafts()`, `visibility.draftOf()`) reads them again.
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.60.0
+     * @beta
+     */
+    "visibility:draft-changed": {
+        /** The ids of the conditions the open drafts hold. */
+        readonly open: readonly string[];
+    };
+    /**
      * The time window moved through `session.time`: where it is now and what entered and left.
      * @beta
      */
@@ -8125,7 +8137,8 @@ export interface SessionLayout {
      * @param options.engine - The engine that draws it, such as `"d3"`.
      * @param options.options - The engine's options.
      * @returns Settles once the step is recorded and the layout has taken its pre-steps.
-     * @throws A `GraphtyError` (as a rejection) with `E_UNKNOWN_LAYOUT`, `E_UNKNOWN_OPTION` or
+     * @throws A `GraphtyError` (as a rejection) with `E_UNKNOWN_LAYOUT` when no layout or engine
+     *     answers to the name, with or without a renderer, and `E_UNKNOWN_OPTION` or
      *     `E_OPTION_RANGE` when the renderer cannot build it; nothing is changed then.
      */
     set(

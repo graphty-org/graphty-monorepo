@@ -90,7 +90,7 @@ describe("a run says it painted", () => {
         assert.notProperty(runEffects(scripted)[0]?.params ?? {}, "painted");
     });
 
-    it("asking again after the reader removed the layer reports no painting", async () => {
+    it("asking again after the reader removed every layer paints it again and says so (#9638)", async () => {
         const scripted = await assistant();
         await scripted.say("rank them", [DEGREE]);
         const [layer] = scripted.session.runs.bindings("degree");
@@ -98,7 +98,9 @@ describe("a run says it painted", () => {
         await scripted.session.styles.remove(layer);
         await scripted.say("rank them again", [DEGREE]);
 
-        assert.notProperty(runEffects(scripted)[1]?.params ?? {}, "painted");
+        assert.strictEqual(runEffects(scripted)[1]?.params.painted, 1);
+        assert.strictEqual(lastData(scripted).painted, 1);
+        assert.lengthOf(scripted.session.runs.bindings("degree"), 1);
     });
 
     it("apply_suggestion reads as the run it painted, even when the run itself opted out", async () => {

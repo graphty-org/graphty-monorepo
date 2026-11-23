@@ -1198,3 +1198,211 @@ describe("camera pose math", () => {
         assert.strictEqual(pivotOfPose(position, target).z, 0);
     });
 });
+
+describe("view codec: what a hand-written or damaged section opens as", () => {
+    const at = (key: string): JsonObject => ({ space: SPACE, key });
+    const section = (body: JsonObject): JsonObject => ({ kind: "graphty-view", version: 1, ...body });
+    const camera = { dimension: 3, controller: "orbit", position: { x: 0, y: 0, z: 9 }, target: { x: 0, y: 0, z: 0 } };
+
+    it("opens only the saved views it can, and leaves out positions it cannot bind", async () => {
+        const opened = await sessionWithData();
+        const problems = await open(
+            opened,
+            section({
+                views: [
+                    "not a view",
+                    { camera },
+                    { name: "Nowhere" },
+                    { name: "Broken", camera, positions: { order: "a", xyz: [] } },
+                    {
+                        name: "Kept",
+                        camera,
+                        positions: { order: [at("a"), at("gone"), at("b")], xyz: [1, 2, 3, 0, 0, 0, 4, "x", 6] },
+                    },
+                ],
+            }),
+        );
+        assert.deepEqual(problems, [
+            {
+                code: "W_REFERENCE_UNBOUND",
+                params: {
+                    section: "view",
+                    pointer: "/sections/view/views/4/positions/order/1",
+                    ref: `{"key":"gone","space":"${SPACE}"}`,
+                },
+            },
+        ]);
+        assert.deepEqual([...opened.views.keys()], ["Broken", "Kept"]);
+        assert.isUndefined(opened.views.get("Broken")?.positions);
+        const positions = opened.views.get("Kept")?.positions;
+        assert.deepEqual(positions?.order, ["a", "b"]);
+        assert.deepEqual(positions?.xyz.slice(0, 4), [1, 2, 3, 4]);
+        assert.isNaN(positions?.xyz[4]);
+        assert.strictEqual(positions?.xyz[5], 6);
+    });
+
+    it("lists a run not run when its record has no algorithm, a scope it refuses, or a node it cannot bind", async () => {
+        const opened = await sessionWithData();
+        const runs = [
+            { algorithm: "degree" },
+            { id: "no-algorithm", scope: "graph" },
+            { id: "odd-scope", algorithm: "degree", scope: "everything" },
+            { id: "two-forms", algorithm: "degree", scope: { nodes: [], set: "x" } },
+            { id: "bad-types", algorithm: "degree", scope: { types: [1] } },
+            { id: "unbound", algorithm: "bfs", params: { source: at("gone") }, scope: "graph" },
+        ];
+        const problems = await open(opened, section({ runs }));
+        assert.deepEqual(
+            problems.filter((problem) => problem.code === "W_RUN_NOT_RUN").map((problem) => problem.params.run),
+            ["no-algorithm", "odd-scope", "two-forms", "bad-types", "unbound"],
+        );
+        assert.deepEqual(opened.runs.list(), []);
+        // Nothing ran, so the member is written back as read.
+        assert.deepEqual((await save(opened)).runs, runs);
+    });
+
+    it("reruns a run scoped to a selection of nodes, under its saved id and name", async () => {
+        const opened = await sessionWithData();
+        const problems = await open(
+            opened,
+            section({
+                runs: [{ id: "picked", name: "Picked", algorithm: "degree", scope: { nodes: [at("a"), at("b")] } }],
+            }),
+        );
+        assert.deepEqual(problems, []);
+        const run = opened.runs.get("picked");
+        assert.strictEqual(run?.record.name, "Picked");
+        assert.deepEqual([...(run?.scope.nodes ?? [])].sort(), ["a", "b"]);
+    });
+
+    it("reports a malformed pinned entry and a group it cannot collapse, and opens the rest", async () => {
+        const opened = await sessionWithData();
+        const problems = await open(
+            opened,
+            section({
+                pinned: ["not an entry", { node: at("a") }, { node: at("b"), position: { x: 1, y: 2, z: 3 } }],
+                groups: ["not a group", { groupBy: 1, group: "x" }, { groupBy: "group", group: { x: 1 } }],
+            }),
+        );
+        assert.deepEqual(problems, [
+            { code: "E_BAD_DOCUMENT", params: { section: "view", pointer: "/sections/view/groups/0" } },
+            { code: "E_BAD_DOCUMENT", params: { section: "view", pointer: "/sections/view/groups/1" } },
+            { code: "E_BAD_DOCUMENT", params: { section: "view", pointer: "/sections/view/groups/2" } },
+        ]);
+        assert.deepEqual([...opened.positions.pinned], ["b"]);
+        assert.deepEqual(opened.groups.list(), []);
+    });
+
+    it("collapses a group again pinned where it stood, and reports an added edge it cannot read", async () => {
+        const opened = await sessionWithData();
+        const problems = await open(
+            opened,
+            section({
+                groups: [
+                    {
+                        groupBy: "data.group",
+                        group: "x",
+                        position: { x: 5, y: 6, z: 7 },
+                        pinned: true,
+                        edges: ["not an edge", { edge: { load: "elsewhere", key: "k" }, from: at("e"), to: at("e") }],
+                    },
+                ],
+            }),
+        );
+        assert.deepEqual(problems, [
+            { code: "E_BAD_DOCUMENT", params: { section: "view", pointer: "/sections/view/groups/0/edges/0" } },
+            { code: "E_BAD_DOCUMENT", params: { section: "view", pointer: "/sections/view/groups/0/edges/1" } },
+        ]);
+        assert.strictEqual(opened.groups.list().length, 1);
+        assert.strictEqual(opened.positions.pinned.size, 1);
+        const [stand] = [...opened.positions.pinned];
+        assert.deepInclude(opened.positions.get(stand), { x: 5, y: 6, z: 7 });
+    });
+
+    it("skips a condition that is not an object, and creates a set with no name or id", async () => {
+        const opened = await sessionWithData();
+        const problems = await open(
+            opened,
+            section({
+                visibility: { showContext: false, conditions: ["not a condition"], hidden: [] },
+                sets: [{ definition: { kind: "fixed", nodes: [at("a")], reading: "induced" } }],
+            }),
+        );
+        assert.deepEqual(problems, []);
+        assert.deepEqual(opened.visibility.conditions, []);
+        const [set] = opened.sets.list();
+        assert.deepEqual(set.definition, { kind: "fixed", nodes: ["a"], reading: "induced" });
+    });
+
+    it("keeps a layer whose selector it refuses first in the stack, and orders only the ids it knows", async () => {
+        const opened = await sessionWithData();
+        const refusedLayer = { ...viewLayer("Odd"), selector: { match: "expression", where: "data.x ==" } };
+        const problems = await open(
+            opened,
+            section({ layers: [refusedLayer, viewLayer("Plain")], order: [7, "Plain", "Odd"] }),
+        );
+        assert.deepEqual(
+            problems.map((problem) => problem.code),
+            ["W_UNKNOWN_MEMBER"],
+        );
+        assert.deepEqual(layerNames(opened).slice(-1), ["Plain"]);
+        assert.deepEqual(
+            ((await save(opened)).layers as JsonObject[]).map((layer) => layer.id),
+            ["Odd", "Plain"],
+        );
+    });
+
+    it("opens a layout record in 2D", async () => {
+        const opened = await sessionWithData();
+        assert.deepEqual(await open(opened, section({ layout: { id: "force", dimension: 2 } })), []);
+        assert.strictEqual(opened.layout.dimension, "2d");
+        assert.strictEqual(((await save(opened)).layout as JsonObject).dimension, 2);
+    });
+});
+
+describe("view codec: writing what a session holds", () => {
+    it("writes a selection-scoped run as its nodes", async () => {
+        const session = await sessionWithData();
+        await session.selection.apply({ nodes: ["a", "b"], edges: [] });
+        await session.runs.start("degree", undefined, { style: false, scope: "selection" });
+        const problems: DocumentProblem[] = [];
+        const section = await save(session, problems);
+        assert.deepEqual(invalid(section), []);
+        assert.deepEqual(problems, []);
+        const [run] = section.runs as JsonObject[];
+        assert.deepEqual(run.scope, {
+            nodes: [
+                { space: SPACE, key: "a" },
+                { space: SPACE, key: "b" },
+            ],
+        });
+    });
+
+    it("writes a run scoped to the visible graph while a condition hides nodes as not replayable", async () => {
+        const session = await sessionWithData();
+        await session.hidden.add(["e"]);
+        await session.runs.start("degree", undefined, { style: false, scope: "visible" });
+        const problems: DocumentProblem[] = [];
+        const [run] = (await save(session, problems)).runs as JsonObject[];
+        assert.strictEqual(run.replayable, false);
+        assert.deepEqual(problems, [
+            { code: "W_MEMBER_LEFT_OUT", params: { section: "view", pointer: "/runs/0/scope" } },
+        ]);
+    });
+
+    it("writes a turned-off layer and its user data", async () => {
+        const session = await sessionWithData();
+        const layer = await session.styles.add({
+            name: "Off",
+            selector: { match: "ids", nodes: ["a"] },
+            set: { "node.color": "#123456" },
+            userData: { note: "kept" },
+        });
+        await session.styles.update(layer.id, { enabled: false });
+        const section = await save(session);
+        assert.deepEqual(invalid(section), []);
+        const written = (section.layers as JsonObject[]).find((each) => each.name === "Off");
+        assert.strictEqual(written?.enabled, false);
+        assert.deepEqual(written?.userData, { note: "kept" });
+    });
+});

@@ -502,8 +502,14 @@ export function RowStyle({
         if (kinds === undefined) {
             return;
         }
+        // Set before the write: the picker the new part draws reads it as it arrives.
+        if (on) {
+            setJustOn(side);
+        }
         await kinds.toggle(side, on);
-        setJustOn(on ? side : null);
+        if (!on) {
+            setJustOn(null);
+        }
         setTab(side);
     };
     const elsewhere = (side: Target): Elsewhere => ({

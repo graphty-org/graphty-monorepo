@@ -13,7 +13,7 @@ import {
     type RunInput,
     scopedInputCounters,
 } from "../../../src/algorithms/input/ScopedInput";
-import { edgesOf, idsOf, InputGraph } from "./harness";
+import { edgesOf, idsOf, type InputGraph, inputGraph } from "./harness";
 
 /**
  * A run over a scope, with its own cache.
@@ -26,8 +26,8 @@ function runOver(scope: ResolvedInputScope | null, inputs = new DerivedInputs())
 }
 
 /** a -> b -> c -> d -> e, plus a -> c and an isolated f. */
-function chain(): InputGraph {
-    return new InputGraph(
+function chain(): Promise<InputGraph> {
+    return inputGraph(
         ["a", "b", "c", "d", "e", "f"],
         [
             ["a", "b", 1],
@@ -44,8 +44,8 @@ beforeEach(() => {
 });
 
 describe("the derivation chain", () => {
-    it("induces on the node bitmap and stops there when the scope's edges are the induced ones", () => {
-        const graph = chain();
+    it("induces on the node bitmap and stops there when the scope's edges are the induced ones", async () => {
+        const graph = await chain();
         const input = createScopedInput(
             graph.getDataManager(),
             "declared",
@@ -59,8 +59,8 @@ describe("the derivation chain", () => {
         assert.strictEqual(scopedInputCounters.derivations, 1, "one pass: the induce");
     });
 
-    it("filters to the scope's edges only when they are fewer than the induced ones", () => {
-        const graph = chain();
+    it("filters to the scope's edges only when they are fewer than the induced ones", async () => {
+        const graph = await chain();
         const scope = graph.scope(["a", "b", "c"], (source, target) => !(source === "a" && target === "c"));
         const input = createScopedInput(graph.getDataManager(), "declared", undefined, runOver(scope));
 
@@ -69,8 +69,8 @@ describe("the derivation chain", () => {
         assert.strictEqual(input.edgeCount, 2);
     });
 
-    it("undirects after the scope, when asked", () => {
-        const graph = chain();
+    it("undirects after the scope, when asked", async () => {
+        const graph = await chain();
         const input = createScopedInput(
             graph.getDataManager(),
             "undirected",
@@ -83,8 +83,8 @@ describe("the derivation chain", () => {
         assert.strictEqual(scopedInputCounters.derivations, 2, "the induce, then the undirect");
     });
 
-    it("simplifies by the asked policy, and not at all under none", () => {
-        const graph = new InputGraph(
+    it("simplifies by the asked policy, and not at all under none", async () => {
+        const graph = await inputGraph(
             ["a", "b", "c"],
             [
                 ["a", "b", 1],
@@ -106,8 +106,8 @@ describe("the derivation chain", () => {
         assert.strictEqual(scopedInputCounters.derivations, 4, "one induce shared, one simplify per merging policy");
     });
 
-    it("keeps a scope's isolated nodes: the input is never induced on edge endpoints", () => {
-        const graph = chain();
+    it("keeps a scope's isolated nodes: the input is never induced on edge endpoints", async () => {
+        const graph = await chain();
         // Every node, and only the edges of weight below 3: e and f keep no edge.
         const scope = graph.scope(
             ["a", "b", "c", "d", "e", "f"],
@@ -119,8 +119,8 @@ describe("the derivation chain", () => {
         assert.deepStrictEqual(edgesOf(input.subgraph()).sort(), ["a>b:1", "b>c:2"]);
     });
 
-    it("gives the undirected input the weight of the half in scope, never the hidden half's", () => {
-        const graph = new InputGraph(
+    it("gives the undirected input the weight of the half in scope, never the hidden half's", async () => {
+        const graph = await inputGraph(
             ["a", "b"],
             [
                 ["a", "b", 0.1],
@@ -138,8 +138,8 @@ describe("the derivation chain", () => {
 });
 
 describe("the whole-graph shortcut", () => {
-    it("returns the snapshot unchanged, and the store's cached undirected view, with no derivation", () => {
-        const graph = chain();
+    it("returns the snapshot unchanged, and the store's cached undirected view, with no derivation", async () => {
+        const graph = await chain();
         const data = graph.getDataManager();
         const declared = graph.snapshot();
 
@@ -155,8 +155,8 @@ describe("the whole-graph shortcut", () => {
         assert.strictEqual(scopedInputCounters.derivations, 0);
     });
 
-    it("merges a multigraph's parallel edges by the asked policy, as every run did before scopes", () => {
-        const graph = new InputGraph(
+    it("merges a multigraph's parallel edges by the asked policy, as every run did before scopes", async () => {
+        const graph = await inputGraph(
             ["a", "b"],
             [
                 ["a", "b", 1],
@@ -172,11 +172,11 @@ describe("the whole-graph shortcut", () => {
 });
 
 describe("work: one CSR pass per derivation", () => {
-    it("derives each step once however often it is read, at two sizes", () => {
+    it("derives each step once however often it is read, at two sizes", async () => {
         const counts: number[] = [];
         for (const size of [8, 800]) {
             const ids = Array.from({ length: size }, (_, index) => `n${String(index)}`);
-            const graph = new InputGraph(
+            const graph = await inputGraph(
                 ids,
                 ids.slice(1).map((id, index) => [ids[index], id, 1] as const),
             );

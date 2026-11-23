@@ -14,7 +14,7 @@ import { Button, ColorSwatch, Text } from "@mantine/core";
 import React, { useState } from "react";
 
 import { findTreeRow } from "../graph-place/rows";
-import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
+import { HOVER_EVENTS, INSPECTOR_EVENTS, NO_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { everythingRow, sourceName, wholeGraphRow } from "../style/row";
 import { useStyleVersion } from "../style/useStyleVersion";
@@ -568,6 +568,19 @@ function rowLayersOf(session: GraphSession, rowId: string): Layer[] {
 }
 
 /**
+ * The layers a Values tab reads: those named, else the row's.
+ * @param session - the session.
+ * @param rowId - the row.
+ * @param layerIds - the layers to read instead of the row's, or undefined.
+ * @returns the layers.
+ */
+function layersOf(session: GraphSession, rowId: string, layerIds: readonly string[] | undefined): Layer[] {
+    return layerIds === undefined
+        ? rowLayersOf(session, rowId)
+        : layerIds.flatMap((layerId) => session.styles.get(layerId) ?? []);
+}
+
+/**
  * The Values tab of a layer row (tier3 design, section 2.4): information, never styling, built the
  * same way for every row, Everything included. Covers (what it matches); Where its look shows (per
  * property, and who covers it); Values read; then, per value, its histogram (numbers), its groups
@@ -585,13 +598,13 @@ export function LayerValues({
     const { session, element } = useWorkspace();
     const styleVersion = useStyleVersion(session, element);
     const sessionVersion = useSessionEvents(session, INSPECTOR_EVENTS);
+    const layers = session === null ? [] : layersOf(session, id, layerIds);
+    const states = layers.flatMap((layer) => selectorStates(layer.selector));
+    // Only a row that reads the hover (its Now section, its counts) follows the pointer (#9813).
+    const hoverVersion = useSessionEvents(session, states.includes("hovered") ? HOVER_EVENTS : NO_EVENTS);
     if (session === null) {
         return null;
     }
-    const layers =
-        layerIds === undefined
-            ? rowLayersOf(session, id)
-            : layerIds.flatMap((layerId) => session.styles.get(layerId) ?? []);
     if (layers.length === 0) {
         return (
             <Text size="xs" c="dimmed" p="md">
@@ -602,10 +615,9 @@ export function LayerValues({
     const counted = layers.map((layer) => ({ layer, counts: session.styles.counts(layer.id) }));
     const paths = [...new Set(counted.flatMap(({ counts }) => counts.reads))];
     const reads = paths.map((path) => valueRead(session, path));
-    const states = layers.flatMap((layer) => selectorStates(layer.selector));
     const readers = (path: Path): Layer[] =>
         counted.filter(({ counts }) => counts.reads.includes(path)).map(({ layer }) => layer);
-    const version = `${String(styleVersion)}:${String(sessionVersion)}`;
+    const version = `${String(styleVersion)}:${String(sessionVersion)}:${String(hoverVersion)}`;
 
     return (
         <>

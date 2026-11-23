@@ -3,7 +3,6 @@
 //    the lane environment -- never by the branch or the commit, so it is reused for an identical tree
 //    (another worktree, a commit that changes no file, golden's land commit) and never when any of those
 //    inputs changes;
-//  - a push whose whole gate already passed skips the source-only checks and the wait for a gate slot;
 //  - every wait for a slot or a lock is logged with who held it.
 // Each test works in throwaway git repositories.
 //
@@ -26,7 +25,6 @@ after(() => rmSync(TMP, { recursive: true, force: true }));
 isolateGit();
 
 const TOOLS = fileURLToPath(new URL(".", import.meta.url));
-const QUEUE = join(TOOLS, "push-queue.sh");
 let made = 0;
 // The environment without the base the gate running these tests may have exported.
 // The tests run inside the gate, so drop the gate's own settings (PREPUSH_LIGHT, PREPUSH_ALL, the hook's
@@ -41,10 +39,10 @@ const OUR_ENV = Object.fromEntries(
 // A checkout with the gate's tools in it: a source file, an ignored dist/ and tmp/, an installed lockfile.
 function repo() {
     const dir = join(TMP, `repo-${++made}`);
-    mkdirSync(join(dir, "tools"), { recursive: true });
+    mkdirSync(join(dir, "tools/lib"), { recursive: true });
     mkdirSync(join(dir, ".husky"));
     mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
-    for (const f of ["prepush-inputs.mjs", "push-base.mjs", "wait-log.mjs"])
+    for (const f of ["prepush-inputs.mjs", "push-base.mjs", "wait-log.mjs", "lib/git.mjs"])
         copyFileSync(join(TOOLS, f), join(dir, "tools", f));
     writeFileSync(join(dir, ".husky/pre-push"), "hook\n");
     writeFileSync(join(dir, ".gitignore"), "node_modules/\ndist/\ntmp/\n");
@@ -286,89 +284,6 @@ describe("pass records (prepush-inputs.mjs passed / record)", () => {
     });
 });
 
-describe("push-queue with a gate that already passed", () => {
-    // A checkout with stand-in source checks that log their run, and an origin to push to.
-    function pushRepo() {
-        const r = repo();
-        writeFileSync(join(r.dir, "tools/prepush-source-checks.sh"), `echo ran >> "${r.dir}/../source-ran-${made}"\n`);
-        r.git("add", ".");
-        r.git("commit", "-q", "-m", "checks");
-        const origin = join(TMP, `origin-${made}.git`);
-        spawnSync("git", ["init", "-q", "--bare", origin]);
-        r.git("remote", "add", "origin", origin);
-        const q = join(TMP, `queue-${made}`);
-        const env = Object.fromEntries(Object.entries(OUR_ENV).filter(([k]) => !k.startsWith("PUSH_QUEUE_")));
-        Object.assign(env, {
-            PUSH_QUEUE_DIR: join(q, "tickets"),
-            PUSH_QUEUE_LOG: join(q, "push-log.jsonl"),
-            PUSH_QUEUE_GATE: join(q, "no-gate-live"),
-            PUSH_QUEUE_POLL: "0.1",
-            PUSH_QUEUE_SLOTS: "1",
-            PUSH_BASE_REF: "origin/master",
-        });
-        delete env.PREPUSH_RERUN_ALL;
-        const ran = join(TMP, `source-ran-${made}`);
-        return { ...r, env, ran, tickets: env.PUSH_QUEUE_DIR };
-    }
-    // A live process holding the only gate slot for as long as the test needs it.
-    function holdSlot(tickets) {
-        mkdirSync(tickets, { recursive: true });
-        const holder = spawn("sleep", ["600"], { stdio: "ignore" });
-        writeFileSync(join(tickets, `0-1-${holder.pid}`), "another push\n");
-        return holder;
-    }
-
-    it("pushes at once, with no source checks and no gate slot, when the whole gate passed on these inputs", () => {
-        const r = pushRepo();
-        assert.equal(r.inputs("record", "gate", r.inputs("key").stdout.trim()).status, 0);
-        const holder = holdSlot(r.tickets);
-        try {
-            const p = spawnSync("bash", [QUEUE, "git", "push", "-q", "origin", "HEAD:feat/x"], {
-                cwd: r.dir,
-                encoding: "utf8",
-                env: r.env,
-            });
-            assert.equal(p.status, 0, p.stdout + p.stderr);
-            assert.match(p.stdout, /every check of the gate already passed on these inputs \(main at [0-9a-f]{12}/);
-            assert.equal(existsSync(r.ran), false, "the source-only checks did not run");
-        } finally {
-            holder.kill();
-        }
-    });
-
-    it("runs the source checks and waits for a slot, logging the wait, when anything differs", () => {
-        const r = pushRepo();
-        assert.equal(r.inputs("record", "gate", r.inputs("key").stdout.trim()).status, 0);
-        writeFileSync(join(r.dir, "a.ts"), "a change since the pass\n");
-        const holder = holdSlot(r.tickets);
-        const log = join(TMP, `waits-${made}.jsonl`);
-        // The push runs its source checks, then waits behind the holder; once it says so, the holder ends.
-        const push = spawn("bash", [QUEUE, "git", "push", "-q", "origin", "HEAD:feat/x"], {
-            cwd: r.dir,
-            env: { ...r.env, PIPELINE_WAIT_LOG: log },
-            stdio: ["ignore", "ignore", "pipe"],
-        });
-        let err = "";
-        const done = new Promise((resolve) => push.on("exit", resolve));
-        const waiting = new Promise((resolve) =>
-            push.stderr.on("data", (d) => {
-                err += d;
-                if (err.includes("push-queue: waiting for one of 1 gate slots")) resolve();
-            }),
-        );
-        return (async () => {
-            await waiting;
-            holder.kill();
-            assert.equal(await done, 0, err);
-            assert.equal(readFileSync(r.ran, "utf8"), "ran\n", "the source-only checks ran");
-            const [line] = readFileSync(log, "utf8").trim().split("\n").map(JSON.parse);
-            assert.equal(line.kind, "gate-slot");
-            assert.match(line.heldBy[0], new RegExp(`^pid ${holder.pid}: another push`));
-            assert.match(line.waiter, /git push -q origin HEAD:feat\/x/);
-        })();
-    });
-});
-
 describe("the wait log", () => {
     const read = (file) => readFileSync(file, "utf8").trim().split("\n").map(JSON.parse);
 
@@ -461,22 +376,78 @@ wait`,
         for (const h of fifth.heldBy) assert.match(h, /^\d+ \S+ .* :: sh -c touch held\.\d/);
     });
 
-    it("keeps a low-priority command (BROWSER_SLOT_PRIORITY=low) to slot 4; an ordinary one takes any", () => {
-        const dir = join(TMP, "low-lane");
+    it("names a browser slot holder that makes no progress to its waiter and once in the wait log, and never stops it", () => {
+        const dir = join(TMP, "stalled-holder");
         mkdirSync(dir, { recursive: true });
-        // The low holder takes slot 4; an ordinary command then takes slot 1 at once, and another low
-        // command waits for slot 4 although slots 2 and 3 are free.
+        const log = join(dir, "waits.jsonl");
+        // The holder blocks reading a fifo: no CPU, no output, as the hung app-perf.mjs did (#9046). The waiter
+        // reports it, the holder is left alone, and once the fifo is written the holder ends and the waiter runs.
         const r = spawnSync(
             "bash",
             [
                 "-c",
                 `set -u
-BROWSER_SLOT_PRIORITY=low "$GATE" sh -c "touch held.4; while [ ! -e go ]; do sleep 0.05; done" &
-until [ -e held.4 ]; do sleep 0.05; done
-"$GATE" sh -c "echo gate > gate"
-BROWSER_SLOT_PRIORITY=low "$GATE" sh -c "echo other > other" 2> other.err &
-until grep -q "waiting for one of 4 browser slots" other.err 2>/dev/null; do sleep 0.05; done
-[ ! -e other ] || exit 9
+mkfifo hang
+"$GATE" sh -c "touch held; read x < hang; touch holder-done" &
+until [ -e held ]; do sleep 0.05; done
+"$GATE" sh -c "echo waited > waited" 2> waiter.err &
+until [ "$(grep -c "STUCK? browser slot 1" waiter.err 2>/dev/null)" -ge 2 ]; do sleep 0.05; done
+[ ! -e holder-done ] || exit 9
+echo go > hang
+wait`,
+            ],
+            {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GATE: join(TOOLS, "with-browser.sh"),
+                    BROWSER_SLOT_PRIORITY: "",
+                    BROWSER_SLOTS: "1",
+                    BROWSER_SLOT_DIR: join(dir, "browser-slots"),
+                    BROWSER_SLOT_POLL: "0.1",
+                    BROWSER_SLOT_STALL: "1",
+                    BROWSER_SLOT_STALL_CHECK: "0",
+                    PIPELINE_WAIT_LOG: log,
+                },
+            },
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.ok(existsSync(join(dir, "holder-done")), "the holder ran to its end");
+        assert.equal(readFileSync(join(dir, "waited"), "utf8"), "waited\n");
+        const err = readFileSync(join(dir, "waiter.err"), "utf8");
+        assert.match(
+            err,
+            /STUCK\? browser slot 1 holder pid \d+ .* by .*stalled-holder :: sh -c touch held; read x < hang/,
+        );
+        const stalled = read(log).filter((l) => l.kind === "browser-slot-stalled");
+        assert.equal(stalled.length, 1, JSON.stringify(stalled));
+        assert.match(stalled[0].waiter, /:: sh -c touch held; read x < hang; touch holder-done$/);
+        assert.equal(stalled[0].slot, 1);
+    });
+
+    it("gives a low-priority command (BROWSER_SLOT_PRIORITY=low) slot 4 first, then a lower one no ordinary waiter wants", () => {
+        const dir = join(TMP, "low-lane");
+        mkdirSync(dir, { recursive: true });
+        // A low holder takes slot 4 and keeps it, as a hung holder would (#8930). A second low command waits
+        // while an ordinary command waits for any slot (a planted ticket of this shell), although slots 1 to 3
+        // are free, and takes slot 3 once that ticket is gone; an ordinary command still takes slot 1.
+        const r = spawnSync(
+            "bash",
+            [
+                "-c",
+                `set -u
+BROWSER_SLOT_PRIORITY=low "$GATE" sh -c 'echo $BROWSER_SLOT > a; while [ ! -e go ]; do sleep 0.05; done' &
+until [ -s a ]; do sleep 0.05; done
+mkdir -p browser-slots/queue
+echo 4 > browser-slots/queue/1-$$
+BROWSER_SLOT_PRIORITY=low "$GATE" sh -c 'echo $BROWSER_SLOT > b' 2> b.err &
+b=$!
+until grep -q "waiting for one of 4 browser slots" b.err 2>/dev/null; do sleep 0.05; done
+[ ! -e b ] || exit 9
+rm browser-slots/queue/1-$$
+wait $b || exit 8
+"$GATE" sh -c 'echo $BROWSER_SLOT > gate'
 touch go
 wait`,
             ],
@@ -494,25 +465,25 @@ wait`,
             },
         );
         assert.equal(r.status, 0, r.stdout + r.stderr);
-        assert.equal(readFileSync(join(dir, "gate"), "utf8"), "gate\n", "the ordinary command ran beside the holder");
-        assert.equal(
-            readFileSync(join(dir, "other"), "utf8"),
-            "other\n",
-            "the second low command ran once slot 4 was free",
-        );
+        assert.equal(readFileSync(join(dir, "a"), "utf8"), "4\n", "the first low command took slot 4");
+        assert.equal(readFileSync(join(dir, "b"), "utf8"), "3\n", "the second took slot 3 once no ordinary one waited");
+        assert.equal(readFileSync(join(dir, "gate"), "utf8"), "1\n", "an ordinary command took slot 1");
     });
 
     it("serves low-lane waiters in the order they began to wait, however often each one looks", () => {
         const dir = join(TMP, "low-lane-fifo");
         mkdirSync(dir, { recursive: true });
         // A holder keeps slot 4. A and B wait, looking every second; C waits last, looking every 0.02 s. When
-        // the slot frees, A takes it first, then B, then C.
+        // the slot frees, A takes it first, then B, then C. An ordinary waiter for slots 1 to 3 (a planted ticket of
+        // this shell) keeps the low lane off those.
         const r = spawnSync(
             "bash",
             [
                 "-c",
                 `set -u
 export BROWSER_SLOT_PRIORITY=low
+mkdir -p browser-slots/queue
+echo 3 > browser-slots/queue/1-$$
 "$GATE" sh -c "touch held; while [ ! -e go ]; do sleep 0.05; done" &
 until [ -e held ]; do sleep 0.05; done
 for w in A B; do

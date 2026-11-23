@@ -319,7 +319,7 @@ const config = defineConfig({
             // Only the root barrel and the template strings are excluded (spec 11.8): src/node/index.ts and
             // src/browser/index.ts carry logic and count.
             exclude: ["**/*.d.ts", "**/*.test.ts", "src/index.ts", "src/wgsl/**"],
-            thresholds: thresholdsActive ? { lines: 80, functions: 80, branches: 75, statements: 80 } : undefined,
+            thresholds: thresholdsActive ? { lines: 90, functions: 90, branches: 90, statements: 90 } : undefined,
         },
         projects: [
             {
@@ -342,7 +342,7 @@ const config = defineConfig({
                 test: {
                     // The files that hold the GPU for seconds per submission (GPU_ALONE_TESTS above): after every
                     // `node` file has finished (a higher groupOrder runs later), then one file at a time. Vitest 4
-                    // honours fileParallelism per project, so this does not serialise the `node` project.
+                    // honors fileParallelism per project, so this does not serialize the `node` project.
                     name: projectName("node-gpu-alone"),
                     globals: true,
                     environment: "node",

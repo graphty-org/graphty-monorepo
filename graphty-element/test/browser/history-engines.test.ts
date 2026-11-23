@@ -103,7 +103,7 @@ describe("undo and redo under the engines with a graph of their own", () => {
                     source: { type: "json", config: { data: imported } },
                     mode: "replace",
                 });
-                graph.getLayoutManager().running = true;
+                assert.isTrue(graph.getLayoutManager().running, "the import started the layout");
                 settle(graph);
                 throw new Error("The load failed on purpose.");
             })

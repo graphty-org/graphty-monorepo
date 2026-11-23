@@ -1,8 +1,9 @@
 import * as http from "http";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import type { AddressInfo } from "net";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { createDualServer, type DualServerResult } from "../../src/server/dual-server.js";
-import { injectScript, isValidProxyTarget } from "../../src/server/proxy.js";
+import { createProxy, injectScript, isValidProxyTarget } from "../../src/server/proxy.js";
 
 function httpGet(
     port: number,
@@ -390,5 +391,55 @@ describe("isValidProxyTarget", () => {
 
     test("rejects empty strings", () => {
         expect(isValidProxyTarget("")).toBe(false);
+    });
+});
+
+describe("proxy errors when not quiet", () => {
+    let front: http.Server;
+    let frontPort: number;
+    let upstream: http.Server;
+    let upstreamPort: number;
+    const proxy = createProxy("/proxy/", false, true);
+
+    beforeEach(async () => {
+        upstream = http.createServer((_req, res) => {
+            res.end("plain http");
+        });
+        await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+        upstreamPort = (upstream.address() as AddressInfo).port;
+
+        front = http.createServer((req, res) => {
+            const target = decodeURIComponent((req.url ?? "").substring("/proxy/".length));
+            proxy.handleRequest(req, res, target, "http", req.headers.host ?? "");
+        });
+        await new Promise<void>((resolve) => front.listen(0, "127.0.0.1", resolve));
+        frontPort = (front.address() as AddressInfo).port;
+    });
+
+    afterEach(async () => {
+        vi.restoreAllMocks();
+        front.closeAllConnections();
+        upstream.closeAllConnections();
+        await new Promise<void>((resolve) => front.close(() => resolve()));
+        await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    });
+
+    test("prints the upstream error and answers 502", async () => {
+        const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+        const res = await httpGet(frontPort, "/proxy/http://127.0.0.1:1/unreachable");
+
+        expect(res.status).toBe(502);
+        expect(err.mock.calls.some((c) => String(c[0]).startsWith("[proxy] Error:"))).toBe(true);
+    });
+
+    test("names a TLS failure as one when the target does not speak TLS", async () => {
+        const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+        const res = await httpGet(frontPort, `/proxy/https://127.0.0.1:${upstreamPort}/`);
+
+        expect(res.status).toBe(502);
+        expect((JSON.parse(res.body) as { message: string }).message).toMatch(/^TLS connection failed: /);
+        expect(err.mock.calls.some((c) => String(c[0]).startsWith("[proxy] Error: TLS connection failed"))).toBe(true);
     });
 });

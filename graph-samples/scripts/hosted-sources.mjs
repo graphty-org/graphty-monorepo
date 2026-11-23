@@ -58,13 +58,13 @@ export async function publishedCopy(url, sha256, fetchImpl = fetch) {
  */
 export const SOURCES = {
     roadNyArcs: {
-        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.gr.gz", // NOSONAR(S5332): the DIMACS host serves only http; every download is checked against the sha256 below
+        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.gr.gz", // eslint-disable-line sonarjs/no-clear-text-protocols -- the DIMACS host serves only http; every download is checked against the sha256 below
         sha256: "7b2446c7ffe6179efbc42af6812448e8cb782f12968ca2bb1d50d979343056d4",
         file: "USA-road-d.NY.gr.gz",
         redistribute: true,
     },
     roadNyCoordinates: {
-        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.co.gz", // NOSONAR(S5332): the DIMACS host serves only http; every download is checked against the sha256 below
+        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.co.gz", // eslint-disable-line sonarjs/no-clear-text-protocols -- the DIMACS host serves only http; every download is checked against the sha256 below
         sha256: "02547a628742164e02bd73f59e33a65d23dfac8fc54c09275c8b9169c38eafdf",
         file: "USA-road-d.NY.co.gz",
         redistribute: true,

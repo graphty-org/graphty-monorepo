@@ -4,7 +4,17 @@ import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { detachedRunContext } from "../../../src/algorithms/results";
 import { GraphtyError } from "../../../src/errors";
-import { createMockGraph } from "../../helpers/mockGraph";
+import type { Caveats } from "../../../src/session/runs/types";
+import { createSessionGraph } from "../../helpers/session-graph";
+
+/**
+ * The facts an algorithm's caveats carry, empty when its output states none.
+ * @param caveats - The caveats.
+ * @returns The facts.
+ */
+function factsOf(caveats: Caveats | Omit<Caveats, "facts">): Caveats["facts"] {
+    return "facts" in caveats ? caveats.facts : [];
+}
 
 const PATH = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
@@ -47,7 +57,7 @@ describe("MinCutAlgorithm", () => {
     describe("Source and sink", () => {
         for (const option of ["source", "sink"] as const) {
             it(`rejects a ${option} that is not in the graph with E_OPTION_RANGE`, async () => {
-                const graph = await createMockGraph(PATH);
+                const graph = await createSessionGraph(PATH);
                 const algo = new MinCutAlgorithm(graph, { source: "A", sink: "C", [option]: "nope" });
 
                 const error = await algo.compute(detachedRunContext()).then(
@@ -62,7 +72,7 @@ describe("MinCutAlgorithm", () => {
         }
 
         it("rejects a source and sink that are one node with E_OPTION_RANGE", async () => {
-            const graph = await createMockGraph(PATH);
+            const graph = await createSessionGraph(PATH);
             const algo = new MinCutAlgorithm(graph, { source: "B", sink: "B" });
 
             const error = await algo.compute(detachedRunContext()).then(
@@ -76,22 +86,28 @@ describe("MinCutAlgorithm", () => {
         });
 
         it("says how many nodes the cut puts on each side", async () => {
-            const graph = await createMockGraph(PATH);
+            const graph = await createSessionGraph(PATH);
             const output = await new MinCutAlgorithm(graph, { source: "A", sink: "C" }).compute(detachedRunContext());
 
             assert.ok(output);
             const first = (output.nodes ?? []).filter((node) => node.values.side === "1").length;
             assert.isAbove(first, 0);
             assert.isBelow(first, 3);
-            assert.include(output.caveats.notes, `The cut separates ${String(first)} nodes from ${String(3 - first)}.`);
+            assert.deepInclude(factsOf(output.caveats), {
+                code: "min-cut.sides",
+                params: { first, second: 3 - first },
+            });
         });
 
         it("says when one end was chosen automatically", async () => {
-            const graph = await createMockGraph(PATH);
+            const graph = await createSessionGraph(PATH);
             const output = await new MinCutAlgorithm(graph, { source: "A" }).compute(detachedRunContext());
 
             assert.ok(output);
-            assert.match(output.caveats.notes.join("\n"), /chosen automatically/);
+            assert.include(
+                factsOf(output.caveats).map((fact) => fact.code),
+                "min-cut.end-chosen",
+            );
         });
     });
 });

@@ -2,9 +2,11 @@ id: slider
 name: Slider
 category: control
 description: Numeric slider for selecting a value within a range. Supports single value and range selection modes.
-status: planned
+status: implemented
+notes: "Ships: Slider, compact-mantine/src/components/Slider.tsx."
 implements_capabilities: []
-used_in_workflows: []
+used_in_workflows:
+    - W22
 dependencies: []
 props:
     value: number | [number, number] - Current value(s)

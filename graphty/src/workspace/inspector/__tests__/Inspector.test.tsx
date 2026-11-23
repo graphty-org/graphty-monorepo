@@ -44,8 +44,9 @@ afterEach(() => {
  */
 async function renderInspector(
     execute?: (context: RunExecutionContext) => Promise<RunOutcome>,
+    workingGraph = false,
 ): Promise<{ session: GraphSession; store: WorkspaceStore }> {
-    const made = createGraphSession(execute === undefined ? undefined : { runs: { execute } });
+    const made = createGraphSession({ ...(execute === undefined ? {} : { runs: { execute } }), workingGraph });
     session = made;
     await made.data.addNodes(NODES);
     await made.data.addEdges(EDGES);
@@ -130,6 +131,35 @@ describe("the inspector", () => {
         });
         assert.isNull(screen.queryByRole("group", { name: "Edges showing" }));
         assert.isNull(screen.queryByText("Full graph"));
+    });
+
+    it("counts the whole graph under Full graph while the working graph is on, as the app has it", async () => {
+        const { session: on } = await renderInspector(undefined, true);
+        await act(async () => {
+            await on.visibility.setSteps([
+                { id: "s1", on: true, rule: { kind: "range", attribute: "data.shared", min: 5, nodes: "ends" } },
+            ]);
+        });
+        const { visibleNodes } = on.status.counts;
+        assert.isBelow(visibleNodes, 12);
+        const fullGraph = await screen.findByRole("group", { name: "Full graph" });
+        // The section is labeled the whole graph, so it reads the whole graph by name, never the view.
+        assert.include(within(fullGraph).getByRole("group", { name: "Nodes" }).textContent, "12");
+        assert.include(within(fullGraph).getByRole("group", { name: "Edges" }).textContent, "13");
+    });
+
+    it("names the degrees it reads among what is shown, outside the Full graph section", async () => {
+        const { session: on } = await renderInspector(undefined, true);
+        await act(async () => {
+            await on.visibility.setSteps([
+                { id: "s1", on: true, rule: { kind: "range", attribute: "data.shared", min: 5, nodes: "ends" } },
+            ]);
+        });
+        const fullGraph = await screen.findByRole("group", { name: "Full graph" });
+        // The degree section reads the working graph, so it says so, and is not under Full graph.
+        assert.isNotNull(screen.getByRole("heading", { name: "Degree showing" }));
+        assert.isNull(within(fullGraph).queryByRole("heading", { name: /^Degree/ }));
+        assert.isNull(screen.queryByRole("heading", { name: "Degree" }));
     });
 
     it("keeps the graph's tab, and always opens a single node on Values", async () => {
@@ -625,5 +655,52 @@ describe("the inspector", () => {
             const names = controlNames();
             assert.deepEqual(names, [...new Set(names)]);
         }
+    });
+
+    it("gives way to the selection when an open row names a run, layer, folder or rows the session does not hold", async () => {
+        const { session: on, store } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n2"] });
+        });
+        for (const gone of [
+            { kind: "run-row", id: "no-such-run" },
+            { kind: "measure-row", id: "no-such-run" },
+            { kind: "group-row", id: JSON.stringify(["no-such-run", 1]) },
+            { kind: "layer-row", id: "no-such-layer" },
+            { kind: "folder-row", id: "no-such-folder" },
+            { kind: "rows", id: JSON.stringify(["no-such-layer", "nor-this"]) },
+        ] as const) {
+            act(() => {
+                store.set({ inspected: gone });
+            });
+            await waitFor(() => {
+                assert.isNull(store.get().inspected, `${gone.kind} closes`);
+                assert.equal(document.querySelector("[data-inspected]")?.getAttribute("data-inspected"), "node");
+            });
+            assert.isNull(screen.queryByText("This row is gone"), gone.kind);
+        }
+    });
+
+    it("keeps a source row open while its load is unlisted, drawing the graph meanwhile", async () => {
+        const { store } = await renderInspector();
+        const source = { kind: "source", id: "source:no-such-load" } as const;
+        act(() => {
+            store.set({ inspected: source });
+        });
+        await waitFor(() => {
+            assert.equal(document.querySelector("[data-inspected]")?.getAttribute("data-inspected"), "graph");
+        });
+        assert.equal(screen.getByRole("heading", { level: 2 }).textContent, "Graph");
+        assert.deepEqual(store.get().inspected, source, "a Replace lists the load again under the same row");
+    });
+
+    it("draws a filter step as a gone row: its card is edited in the Filters section", async () => {
+        const { store } = await renderInspector();
+        act(() => {
+            store.set({ inspected: { kind: "filter-step", id: "step-1" } });
+        });
+        await screen.findByText("This row is gone");
+        assert.equal(screen.getByRole("heading", { level: 2 }).textContent, "Filter");
+        assert.isNull(screen.queryByRole("tab", { name: "Style" }), "one body, no tabs");
     });
 });

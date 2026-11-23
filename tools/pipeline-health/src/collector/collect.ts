@@ -124,6 +124,14 @@ import {
     supersededRuns,
     testSignatures,
 } from "./snapshots.js";
+import {
+    allowances,
+    cloudflareOverage,
+    mergeUsage,
+    type UsageDays,
+    usageObservations,
+    type UsageReader,
+} from "./usage.js";
 
 const WEEK = 7 * DAY;
 
@@ -136,6 +144,11 @@ export interface Deps {
     fetch: Fetch;
     /** Cost Explorer's daily cost, ISO days [from, to). Undefined: the AWS line is skipped. */
     awsCosts?: (from: string, to: string) => Promise<AwsCostDay[]>;
+    /**
+     * Measured usage by day (usage.ts), read hourly: Cloudflare's (undefined until its token is in SSM: the source
+     * cloudflare-token stays "not set up") and AWS's from CloudWatch (source aws-usage).
+     */
+    usage?: { cloudflare?: UsageReader; aws?: UsageReader };
     rates: Rates;
     limits: { linux_windows: number; macos: number };
     org: string;
@@ -481,10 +494,10 @@ async function repoRuns(c: Cycle, gh: GitHub, repo: string, out: Collected[]): P
 }
 
 /**
- * Cancel class and hangs of every cancelled run in `xs`, from one GraphQL query per 20 runs.
+ * Cancel class and hangs of every canceled run in `xs`, from one GraphQL query per 20 runs.
  * @param gh - the GitHub client
  * @param xs - the collected runs
- * @returns each cancelled run's cancel class and timed-out job names, by run id
+ * @returns each canceled run's cancel class and timed-out job names, by run id
  */
 async function classify(
     gh: GitHub,
@@ -515,7 +528,7 @@ async function classify(
  * @param c - the cycle
  * @param gh - the GitHub client
  * @param xs - the collected runs with their jobs
- * @param cancels - the cancel class and hangs of the cancelled runs
+ * @param cancels - the cancel class and hangs of the canceled runs
  */
 async function writeRuns(
     c: Cycle,
@@ -560,7 +573,7 @@ async function writeRuns(
  * @param r.run - the job's run
  * @param r.repo - owner/name of the repository
  * @param r.workflow - the run's workflow file
- * @param r.hung - true when the job timed out in a cancelled run
+ * @param r.hung - true when the job timed out in a canceled run
  * @param j - the job
  * @returns the job's items
  */
@@ -793,6 +806,8 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number): Promise<void
     c.o("ci.jobs_waiting_runner", use.queuedOver2);
     // Jobs our own workflows hold back (max-parallel) while runners are free: not GitHub's runner limit.
     c.o("ci.jobs_held_by_run", use.heldByRun);
+    // Runs GitHub left queued with no jobs while later work got runners: stuck, not runner wait (issue #8316).
+    c.o("ci.runs_stuck", use.stuck);
     c.o("ci.longest_queued_ms", use.longestQueuedMs);
     c.o("ci.saturated_ms", saturated ? elapsed : 0);
     c.o("ci.unassigned_ms", unassigned ? c.now - start : 0);
@@ -818,7 +833,7 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number): Promise<void
  * Master's state (4.1) from the newest ci.yml push runs on master.
  * @param c - the cycle
  * @param masterRuns - master's newest ci.yml push runs
- * @param cancels - the cancel class of the cancelled runs
+ * @param cancels - the cancel class of the canceled runs
  * @param elapsed - ms since the last cycle, at most 5 minutes
  */
 async function master(
@@ -1426,7 +1441,7 @@ const etags = new Map<string, { etag: string; time: Record<string, string> }>();
  * @returns the version-to-publish-time record, or undefined
  */
 async function npmTimes(f: Fetch, pkg: string): Promise<Record<string, string> | undefined> {
-    const url = `https://registry.npmjs.org/${pkg.replace("/", "%2F")}`;
+    const url = `https://registry.npmjs.org/${pkg.replaceAll("/", "%2F")}`;
     const old = etags.get(pkg);
     const res = await f(url, { headers: old ? { "if-none-match": old.etag } : {} });
     if (res.status === 304 && old) {
@@ -1586,8 +1601,62 @@ async function costs(c: Cycle): Promise<void> {
             });
         }
     }
+    // Cloudflare past its plan, priced from the measured usage the hourly usage part keeps.
+    const over = cloudflareOverage(
+        await c.json<UsageDays>("usage", {}),
+        c.d.rates.cloudflareUsage ?? {},
+        monthStart,
+        c.now,
+    );
+    for (const [d, usd] of Object.entries(over)) {
+        const line = lines.find((l) => l.line === "cloudflare" && l.id === `cloudflare#${d}`);
+        if (line) {
+            line.usd += usd;
+        } else {
+            lines.push({
+                kind: "cost",
+                id: `cloudflare#${d}`,
+                attempt: 1,
+                line: "cloudflare",
+                day: Date.parse(d),
+                usd,
+            });
+        }
+    }
     c.items.push(...lines);
     await recordSource(c.d.store, "billing", c.now, { ok: true });
+}
+
+/**
+ * Measured cloud usage (usage.ts): the last three days from each reader merged into the kept 36, then yesterday's
+ * value of every metric and its growth as observations.
+ * @param c - the cycle
+ */
+async function usage(c: Cycle): Promise<void> {
+    const readers = c.d.usage ?? {};
+    let days = await c.json<UsageDays>("usage", {});
+    const from = day(c.now - 2 * DAY);
+    const to = day(c.now);
+    for (const [name, source] of [
+        ["cloudflare", "cloudflare-token"],
+        ["aws", "aws-usage"],
+    ] as const) {
+        const read = readers[name];
+        if (!read) {
+            continue;
+        }
+        const ok = await c.part(`usage-${name}`, source, async () => {
+            days = mergeUsage(days, await read(from, to), c.now);
+        });
+        if (ok) {
+            await recordSource(c.d.store, source, c.now, { ok: true });
+        }
+    }
+    await c.setJson("usage", days);
+    const per = allowances(c.d.rates.cloudflareUsage, c.d.rates.awsUsage);
+    for (const [metric, value] of usageObservations(days, per, c.now)) {
+        c.o(metric, value);
+    }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1612,8 +1681,8 @@ async function changed(store: Store, items: RawItem[]): Promise<RawItem[]> {
 
 /**
  * The rolling screenshot slice dispatcher (slices.ts): records this cycle's runner sample and the runner-minutes of
- * slice runs that finished, decides, and makes at most one dispatch. The store is read only when nothing else stops
- * a slice.
+ * slice runs that finished, decides, and makes at most one dispatch. The store is read when nothing else stops a
+ * slice, and every 15 minutes, when an overdue set may start one anyway.
  * @param c - the cycle
  * @param xs - the collected runs with their jobs
  */
@@ -1653,7 +1722,8 @@ async function slices(c: Cycle, xs: Collected[]): Promise<void> {
         if (body) {
             await captureMetrics(c, body);
         }
-        if (needed) {
+        // Decide again with the store whenever it was read: an overdue set dispatches even when the pool is busy.
+        if (needed || body) {
             decision = decideSlice({ ...input, store: body && storeSummary(body, c.now) });
         }
         read = !!body;
@@ -1769,7 +1839,9 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
     const open = c.openPrs;
     if (open) {
         await c.part("flaky", PARTS, async () => {
-            for (const [metric, value] of Object.entries(await flakyMembers(d.store, gh, d.repo, open, c.now))) {
+            const { obs, untracked } = await flakyMembers(d.store, gh, d.repo, open, c.now);
+            await c.setJson("flaky-no-issue", untracked);
+            for (const [metric, value] of Object.entries(obs)) {
                 c.o(metric, value);
             }
         });
@@ -1819,6 +1891,7 @@ export async function collect(d: Deps): Promise<CycleReport> {
 
     if (hourly) {
         await c.part("coverage", "coverage", () => coverage(c));
+        await c.part("usage", undefined, () => usage(c));
     }
     if (daily) {
         await c.part("costs", "billing", () => costs(c));

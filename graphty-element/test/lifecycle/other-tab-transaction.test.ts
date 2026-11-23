@@ -2,7 +2,8 @@
  * A tab that holds a read-write transaction on the autosave database and never finishes it -- a tab
  * the browser suspended in the middle of a write, as Safari does to a tab in the background -- does
  * not stop another tab from starting: `listAutosaves`, which a start screen awaits before it shows
- * anything, still answers, with nothing to offer, instead of waiting behind that transaction forever.
+ * anything, still answers, refusing with `E_AUTOSAVE_STALLED`, instead of waiting behind that
+ * transaction forever.
  * A live tab's own write watchdog ends a stalled write; a suspended tab's cannot run.
  */
 
@@ -71,7 +72,9 @@ describe.each(ENGINES)("%s", (engine) => {
         const mark = fx.log.length;
         const b = await context.newPage();
         await b.goto(fx.url({ key, tab: `${key}.b`, list: 1 }), { waitUntil: "commit" });
-        const listed = (await report(`${key}.b`, "listed", mark)) as LogEvent & { entries: unknown[] };
-        assert.deepEqual(listed.entries, [], "nothing is offered while the database is held");
+        const listed = (await report(`${key}.b`, "listed", mark)) as LogEvent & { entries: unknown; code?: string };
+        // Answered, and refused: nothing is known about the kept work while the database is held.
+        assert.isNull(listed.entries, "nothing is offered while the database is held");
+        assert.strictEqual(listed.code, "E_AUTOSAVE_STALLED");
     });
 });

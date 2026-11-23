@@ -11,7 +11,7 @@
  * The honest failure is the important part. If the clock is too coarse, the budget runs out, or
  * a workload returns a time of zero, the calibration comes back with
  * `basis: "defaults"` and the built-in rates, and every estimate built on it reports confidence
- * `"modelled"` rather than `"calibrated"`. A calibration that quietly reported a fabricated rate
+ * `"modeled"` rather than `"calibrated"`. A calibration that quietly reported a fabricated rate
  * would be the same failure this whole module exists to prevent, one layer down.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM. The workloads are typed arrays and
@@ -48,8 +48,8 @@ const PROBE_DEGREE = 8;
  * The probe is tight typed-array arithmetic, and the real algorithms walk Maps of objects, so
  * the probe runs one to two hundred times faster than the work it stands for: on the fitting
  * machine the iterative probe retires about 1,250M elements/s where PageRank retires 3-5M. Using
- * the probe's throughput as the rate -- which this function did until 2026-09-23 -- made every
- * calibrated estimate optimistic by that factor, so a calibrated session waved through runs
+ * the probe's throughput as the rate would make every calibrated estimate optimistic by that
+ * factor, so a calibrated session waved through runs
  * that locked the frame for minutes. The probe is only good for the RATIO between two machines,
  * so a calibrated rate is the default rate scaled by this machine's probe over this one's.
  * `test/session/cost/estimate-against-measured-runs.test.ts` re-measures real runs against it.
@@ -89,9 +89,9 @@ const PROBE_ITERATIONS = 10;
 const PROBE_SOURCES = 16;
 
 /**
- * A value every workload folds its result into, so nothing it computes can be optimised away.
+ * A value every workload folds its result into, so nothing it computes can be optimized away.
  *
- * A probe whose result is never read is a probe an optimiser is entitled to delete, and a
+ * A probe whose result is never read is a probe an optimizer is entitled to delete, and a
  * deleted workload times as instant -- which would make this machine look infinitely fast. The
  * accumulator is read at the end of every calibration for exactly that reason.
  */
@@ -154,7 +154,7 @@ interface ProbeGraph {
  * Build the synthetic graph every workload walks.
  *
  * A fixed stride rather than a random one, because the probe is timing this machine's memory and
- * arithmetic rather than a particular graph's cache behaviour, and a random graph would make the
+ * arithmetic rather than a particular graph's cache behavior, and a random graph would make the
  * measurement depend on a seed nobody chose.
  * @returns The graph.
  */
@@ -177,7 +177,7 @@ function buildProbeGraph(): ProbeGraph {
 /**
  * One linear pass over every node and arc, which is what the "instant" class does.
  * @param graph - The synthetic graph to walk.
- * @returns A number derived from the walk, so the walk cannot be optimised away.
+ * @returns A number derived from the walk, so the walk cannot be optimized away.
  */
 function linearPass(graph: ProbeGraph): number {
     const { rowPtr, colIdx, nodes } = graph;
@@ -194,7 +194,7 @@ function linearPass(graph: ProbeGraph): number {
 /**
  * One power-iteration sweep with a fresh vector per iteration, as the "iterative" class does.
  * @param graph - The synthetic graph to walk.
- * @returns A number derived from the sweep, so the sweep cannot be optimised away.
+ * @returns A number derived from the sweep, so the sweep cannot be optimized away.
  */
 function iterativePass(graph: ProbeGraph): number {
     const { rowPtr, colIdx, nodes } = graph;
@@ -223,7 +223,7 @@ function iterativePass(graph: ProbeGraph): number {
 /**
  * A breadth-first sweep from several sources, which is the shape of the "heavy" class.
  * @param graph - The synthetic graph to walk.
- * @returns A number derived from the sweep, so the sweep cannot be optimised away.
+ * @returns A number derived from the sweep, so the sweep cannot be optimized away.
  */
 function heavyPass(graph: ProbeGraph): number {
     const { rowPtr, colIdx, nodes } = graph;
@@ -270,10 +270,10 @@ let memoryState = 1;
  *
  * The three workloads above walk a graph that stays in cache, so they time the cores and cannot
  * see the memory behind them. On a machine whose memory is shared with other load -- a cloud
- * runner with a busy neighbour -- those loops ran 3 to 6x slower while the cache-resident
+ * runner with a busy neighbor -- those loops ran 3 to 6x slower while the cache-resident
  * workloads moved 1.2 to 1.4x (issue #2032), so this probe is what lets an estimate see that.
  * @param table - The table to increment into.
- * @returns A number derived from the walk, so the walk cannot be optimised away.
+ * @returns A number derived from the walk, so the walk cannot be optimized away.
  */
 function memoryPass(table: Uint32Array): number {
     const mask = table.length - 1;
@@ -412,9 +412,9 @@ function defaultYield(): Promise<void> {
  * `basis: "defaults"` and carries `DEFAULT_COST_RATES`. That is the difference between a
  * calibration a consumer can trust and one that merely always succeeds.
  *
- * The cubic rate is not probed. No cubic algorithm has ever been timed here, so it is set to the
- * measured linear rate, which is the most optimistic honest placeholder and therefore the one
- * that makes a cubic estimate the most cautious of the four.
+ * The cubic rate is not probed. No cubic algorithm has ever been timed here, so the placeholder
+ * `DEFAULT_COST_RATES.cubicOperationsPerSecond` is scaled by the linear probe's speed ratio, the
+ * same factor the linear rate gets; see `DEFAULT_COST_RATES` for what that placeholder is.
  *
  * It also times random increments into a 64 MB table, which no cache holds, and reports the
  * result as {@link MachineCalibration.memorySpeed}. Memory that is too slow for that reading --

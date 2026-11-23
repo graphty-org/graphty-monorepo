@@ -1,5 +1,5 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
-import { headBytes } from "@graphty/graph-io";
+import { headBytes, requestedLayout } from "@graphty/graph-io";
 import { dotImporter } from "@graphty/graph-io/dot";
 
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
@@ -75,8 +75,8 @@ export class DOTDataSource extends DataSource {
         }
 
         this.declareGraphValues(graphValuesOf(snapshot));
-        this.declareFileLayout(imported.importer.layout?.(snapshot) ?? null);
-        const { nodes, edges } = toRecords(imported, withStatementPorts(snapshot), this);
+        this.declareRequestedLayout(requestedLayout(imported.importer.format, graphValuesOf(snapshot)));
+        const { nodes, edges } = toRecords(imported, withStatementPorts(snapshot), this, this.config.styles);
         yield* this.chunkData(nodes, edges);
     }
 }

@@ -4,8 +4,9 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, type FindHit, type GraphSession, isGraphtyError } from "../../session";
+import { createGraphSession, type FindHit, type GraphSession } from "../../session";
 import { lesMiserables } from "../helpers/les-miserables";
+import { rejectionCode } from "./helpers";
 
 /** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
 const LES_MISERABLES = await lesMiserables();
@@ -15,7 +16,7 @@ const LES_MISERABLES = await lesMiserables();
  * @returns The session, loaded.
  */
 async function cast(): Promise<GraphSession> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     await session.data.addNodes([
         { id: "n1", name: "Valjean", group: 2 },
         { id: "n2", name: "Javert", group: 2 },
@@ -29,21 +30,6 @@ async function cast(): Promise<GraphSession> {
     ]);
     await session.config.set({ data: { knownFields: { nodeLabelPath: "name" } } });
     return session;
-}
-
-/**
- * The refusal code a call throws.
- * @param call - The call.
- * @returns The code, or what was thrown.
- */
-function codeOf(call: () => unknown): unknown {
-    try {
-        call();
-    } catch (error) {
-        return isGraphtyError(error) ? error.code : error;
-    }
-
-    return "no error";
 }
 
 /**
@@ -167,7 +153,7 @@ describe("finding without selecting", () => {
         const WEIGHT = "shared_chapters";
         const sample = LES_MISERABLES;
         const ids = sample.ids ?? [];
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.addNodes(ids.map((id) => ({ id })));
         await session.data.addEdges(
             [...sample.src].map((src, e) => ({
@@ -276,7 +262,7 @@ describe("finding without selecting", () => {
     });
 
     it("ignores case and accents", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.addNodes([{ id: "a", city: "Montréal" }]);
 
         assert.deepEqual(session.find("MONTREAL").records.map(row), [["node", "a", "data.city"]]);
@@ -284,7 +270,7 @@ describe("finding without selecting", () => {
     });
 
     it("finds and selects numeric ids, and names a node by its id when no label column is set", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.addNodes([{ id: 1 }, { id: 10 }]);
 
         const found = session.find("1");
@@ -301,7 +287,7 @@ describe("finding without selecting", () => {
     });
 
     it("finds a column whose name holds spaces and dots by its literal key", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.addNodes([
             { id: "a", "shared chapters": "twelve" },
             { id: "b", "a.b": "twelve" },
@@ -327,15 +313,15 @@ describe("finding without selecting", () => {
         const session = await cast();
 
         assert.strictEqual(
-            codeOf(() => session.find("v", { limit: -1 })),
+            rejectionCode(() => session.find("v", { limit: -1 })),
             "E_OPTION_RANGE",
         );
         assert.strictEqual(
-            codeOf(() => session.find("v", { offset: 1.5 })),
+            rejectionCode(() => session.find("v", { offset: 1.5 })),
             "E_OPTION_RANGE",
         );
         assert.strictEqual(
-            codeOf(() => session.find("v", { kinds: ["value" as "node"] })),
+            rejectionCode(() => session.find("v", { kinds: ["value" as "node"] })),
             "E_OPTION_RANGE",
         );
         session.dispose();
@@ -353,7 +339,7 @@ describe("a typed number inside a number column's range", () => {
             |Park,Clinic,4|Clinic,Harbor,3|Library,Clinic,7|School,Stadium,5|Stadium,Harbor,6|Park,Museum,5
             |Museum,Clinic,2|Depot,Station,15|Station,Harbor,14|Station,Stadium,4|Museum,Library,4`;
         const links = csv.split("|").map((line) => line.trim().split(","));
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.addNodes([...new Set(links.flatMap(([from, to]) => [from, to]))].map((id) => ({ id })));
         await session.data.addEdges(
             links.map(([from, to, minutes]) => ({ source: from, target: to, minutes: Number(minutes) })),

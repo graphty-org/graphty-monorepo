@@ -1,0 +1,298 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-document/v2.json",
+    "kind": "graphty-document",
+    "version": 2,
+    "id": "fafa819be9071cd4da682c8459eeb272",
+    "created": "2026-11-20T12:00:00.000Z",
+    "modified": "2026-11-20T12:00:00.000Z",
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.39.0"
+    },
+    "sections": {
+        "data": {
+            "$schema": "https://graphty.app/schema/documents/graphty-data/v2.json",
+            "kind": "graphty-data",
+            "version": 2,
+            "id": "6a21bea6688b31dcf8b097f15cc6f2c8",
+            "created": "2026-11-20T12:00:00.000Z",
+            "modified": "2026-11-20T12:00:00.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.39.0"
+            },
+            "build": "01M7WD7TG0THN1PDX1TTPT9EMQ",
+            "directed": true,
+            "sources": [
+                {
+                    "id": "src_01M7WD7TG0THN1PDX1TTPT9EMP",
+                    "label": "friends.csv",
+                    "kind": "file",
+                    "format": "csv",
+                    "origin": {
+                        "copy": "sha256:305feccbaedab0ec1b2eb68d98f2fe6cf79708462a6c86ef7e53822815112d90",
+                        "size": 30
+                    },
+                    "mapping": {
+                        "edges": {
+                            "source": "source",
+                            "sourceSpace": "source:src_01M7WD7TG0THN1PDX1TTPT9EMP",
+                            "target": "target",
+                            "targetSpace": "source:src_01M7WD7TG0THN1PDX1TTPT9EMP"
+                        }
+                    },
+                    "settings": {
+                        "duplicateIds": "first",
+                        "unmatched": "add"
+                    },
+                    "copy": {
+                        "edges": {
+                            "source": ["a", "b", "c", "c"],
+                            "target": ["b", "c", "a", "d"]
+                        }
+                    },
+                    "columns": {
+                        "edges": {
+                            "source": {
+                                "name": "source",
+                                "dtype": "string",
+                                "nullable": false
+                            },
+                            "target": {
+                                "name": "target",
+                                "dtype": "string",
+                                "nullable": false
+                            }
+                        }
+                    },
+                    "loaded": "2026-11-20T12:00:00.000Z"
+                }
+            ],
+            "types": [],
+            "joins": [
+                {
+                    "op": "join.add",
+                    "source": "src_01M7WD7TG0THN1PDX1TTPT9EMP"
+                }
+            ],
+            "edgeIds": {
+                "src_01M7WD7TG0THN1PDX1TTPT9EMP": {
+                    "a|b#1": "0",
+                    "b|c#1": "1",
+                    "c|a#1": "2",
+                    "c|d#1": "3"
+                }
+            },
+            "graph": {
+                "directed": true,
+                "multigraph": false,
+                "graph": {},
+                "nodes": [
+                    {
+                        "id": 0,
+                        "graphty.space": "source:src_01M7WD7TG0THN1PDX1TTPT9EMP",
+                        "graphty.key": "a",
+                        "graphty.types": [],
+                        "_source.loads": ["src_01M7WD7TG0THN1PDX1TTPT9EMP"]
+                    },
+                    {
+                        "id": 1,
+                        "graphty.space": "source:src_01M7WD7TG0THN1PDX1TTPT9EMP",
+                        "graphty.key": "b",
+                        "graphty.types": [],
+                        "_source.loads": ["src_01M7WD7TG0THN1PDX1TTPT9EMP"]
+                    },
+                    {
+                        "id": 2,
+                        "graphty.space": "source:src_01M7WD7TG0THN1PDX1TTPT9EMP",
+                        "graphty.key": "c",
+                        "graphty.types": [],
+                        "_source.loads": ["src_01M7WD7TG0THN1PDX1TTPT9EMP"]
+                    },
+                    {
+                        "id": 3,
+                        "graphty.space": "source:src_01M7WD7TG0THN1PDX1TTPT9EMP",
+                        "graphty.key": "d",
+                        "graphty.types": [],
+                        "_source.loads": ["src_01M7WD7TG0THN1PDX1TTPT9EMP"]
+                    }
+                ],
+                "links": [
+                    {
+                        "source": 0,
+                        "target": 1,
+                        "graphty.load": "src_01M7WD7TG0THN1PDX1TTPT9EMP",
+                        "graphty.key": "a|b#1",
+                        "graphty.types": [],
+                        "_source.loads": ["src_01M7WD7TG0THN1PDX1TTPT9EMP"],
+                        "source (column)": "a",
+                        "target (column)": "b"
+                    },
+                    {
+                        "source": 1,
+                        "target": 2,
+                        "graphty.load": "src_01M7WD7TG0THN1PDX1TTPT9EMP",
+                        "graphty.key": "b|c#1",
+                        "graphty.types": [],
+                        "_source.loads": ["src_01M7WD7TG0THN1PDX1TTPT9EMP"],
+                        "source (column)": "b",
+                        "target (column)": "c"
+                    },
+                    {
+                        "source": 2,
+                        "target": 0,
+                        "graphty.load": "src_01M7WD7TG0THN1PDX1TTPT9EMP",
+                        "graphty.key": "c|a#1",
+                        "graphty.types": [],
+                        "_source.loads": ["src_01M7WD7TG0THN1PDX1TTPT9EMP"],
+                        "source (column)": "c",
+                        "target (column)": "a"
+                    },
+                    {
+                        "source": 2,
+                        "target": 3,
+                        "graphty.load": "src_01M7WD7TG0THN1PDX1TTPT9EMP",
+                        "graphty.key": "c|d#1",
+                        "graphty.types": [],
+                        "_source.loads": ["src_01M7WD7TG0THN1PDX1TTPT9EMP"],
+                        "source (column)": "c",
+                        "target (column)": "d"
+                    }
+                ]
+            }
+        },
+        "style": {
+            "$schema": "https://graphty.app/schema/documents/graphty-style/v2.json",
+            "kind": "graphty-style",
+            "version": 2,
+            "created": "2026-11-20T12:00:00.000Z",
+            "modified": "2026-11-20T12:00:00.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.39.0"
+            },
+            "layers": []
+        },
+        "recipe": {
+            "$schema": "https://graphty.app/schema/documents/graphty-recipe/v2.json",
+            "kind": "graphty-recipe",
+            "version": 2,
+            "created": "2026-11-20T12:00:00.000Z",
+            "modified": "2026-11-20T12:00:00.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.39.0"
+            },
+            "commands": [
+                {
+                    "op": "algo.run",
+                    "algorithm": "pagerank",
+                    "as": "rank",
+                    "params": {
+                        "dampingFactor": 0.85,
+                        "directed": true,
+                        "maxIterations": 100,
+                        "tolerance": 0.000001,
+                        "useDelta": true
+                    },
+                    "style": false
+                },
+                {
+                    "op": "layout.set",
+                    "id": "force",
+                    "options": {
+                        "clusterStrength": 1,
+                        "nodeGapFront": false,
+                        "seed": 7
+                    },
+                    "drawnBy": {
+                        "engine": "ngraph",
+                        "options": {
+                            "dragCoefficient": 0.9,
+                            "gravity": -12,
+                            "springCoefficient": 0.8,
+                            "springLength": 10,
+                            "theta": 0.8,
+                            "timeStep": 0.5
+                        }
+                    },
+                    "dimension": 3
+                }
+            ]
+        },
+        "view": {
+            "$schema": "https://graphty.app/schema/documents/graphty-view/v1.json",
+            "kind": "graphty-view",
+            "version": 1,
+            "created": "2026-11-20T12:00:00.000Z",
+            "modified": "2026-11-20T12:00:00.000Z",
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.39.0"
+            },
+            "bindsTo": {
+                "data": "6a21bea6688b31dcf8b097f15cc6f2c8"
+            },
+            "order": ["size-by-rank_1"],
+            "layers": [
+                {
+                    "id": "size-by-rank_1",
+                    "name": "Size by rank",
+                    "target": "node",
+                    "selector": {
+                        "match": "everything"
+                    },
+                    "encode": {
+                        "node.size": {
+                            "by": "results.rank.value",
+                            "scale": "linear",
+                            "range": [1, 3]
+                        }
+                    }
+                }
+            ],
+            "runs": [
+                {
+                    "id": "rank",
+                    "algorithm": "pagerank",
+                    "params": {
+                        "dampingFactor": 0.85,
+                        "directed": true,
+                        "maxIterations": 100,
+                        "tolerance": 0.000001,
+                        "useDelta": true
+                    },
+                    "scope": "graph"
+                }
+            ],
+            "layout": {
+                "id": "force",
+                "options": {
+                    "clusterStrength": 1,
+                    "nodeGapFront": false,
+                    "seed": 7
+                },
+                "drawnBy": {
+                    "engine": "ngraph",
+                    "options": {
+                        "dragCoefficient": 0.9,
+                        "gravity": -12,
+                        "springCoefficient": 0.8,
+                        "springLength": 10,
+                        "theta": 0.8,
+                        "timeStep": 0.5
+                    }
+                },
+                "dimension": 3,
+                "engine": {
+                    "packages": {
+                        "@graphty/graphty-element": "3.39.0",
+                        "@graphty/layout": "2.7.1"
+                    },
+                    "accelerator": "cpu",
+                    "method": "forceatlas2"
+                }
+            }
+        }
+    }
+}

@@ -300,6 +300,14 @@ describe("the missed-slot alarm (#5052)", () => {
         assert.match(stuck.cause, /hold on e87f65b is not reviewable \(red\)/);
         assert.match(stuck.detail, /nightly-abandon\.yml/);
     });
+    it("a verdict that could not read the hold names the store, never an unknown hold (#5597)", () => {
+        const a = missedSlot(ran({ state: "green-images", hold: "unknown", held: "unknown" }), STARTED);
+        assert.match(
+            a.cause,
+            /^the store did not say what is held: the green-images verdict on aaaaaaa decided nothing$/,
+        );
+        assert.match(a.detail, /release-rerun\.yml/);
+    });
     it("no new candidate, a failed pick, and a green-clean run that did not promote say so", () => {
         assert.match(
             missedSlot(ran({ release: "false", pickWhy: "c3 is judged" }), STARTED).cause,

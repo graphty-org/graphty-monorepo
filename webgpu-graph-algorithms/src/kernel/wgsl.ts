@@ -1,14 +1,14 @@
 /**
- * The WGSL composer (spec 3.5; contract 3.9, 4.2): ONE declaration per module (`WgslModuleSpec`) generates
+ * The WGSL composer: ONE declaration per module (`WgslModuleSpec`) generates
  * everything the host and the shader must agree on -- the `@group / @binding` block, the `override` lines, the
  * struct texts, the explicit bind-group layouts and the bind() record keys -- by string concatenation in the fixed
- * order of contract 4.2. Every disagreement that would otherwise be a GPUPipelineError on the first device that
+ * order. Every disagreement that would otherwise be a GPUPipelineError on the first device that
  * creates the variant is a compose-time `E_SHADER_COMPILE { stage: "compose" }` on every device.
  *
- * PLAN DECISION: this file imports `workgroupSizeFor` from `../device/caps.js` (one copy of the WG rule) and
- * `ShaderStage` from `../device/webgpu-constants.js` (spec 2.1 rule 1: the core never reads the `GPUShaderStage`
+ * This file imports `workgroupSizeFor` from `../device/caps.js` (one copy of the WG rule) and
+ * `ShaderStage` from `../device/webgpu-constants.js` (the core never reads the `GPUShaderStage`
  * global at module top level); `../constants.js` is not imported because every constant the composer emits reaches
- * it through `./prelude.js`. The layer rule (contract 2.4: device < context < memory < kernel) allows both edges.
+ * it through `./prelude.js`. The layer rule (device < context < memory < kernel) allows both edges.
  */
 
 import { workgroupSizeFor } from "../device/caps.js";
@@ -25,7 +25,7 @@ import {
 } from "./prelude.js";
 import { type UniformBlock } from "./struct-block.js";
 
-/** One storage or uniform binding of a module (spec 3.5). `wgslType` is the element / struct type text ("array<u32>", "array<vec4f>", "Fa2State"). */
+/** One storage or uniform binding of a module. `wgslType` is the element / struct type text ("array<u32>", "array<vec4f>", "Fa2State"). */
 export interface BindingDecl {
     readonly group: 0 | 1 | 2 | 3;
     readonly binding: number;
@@ -33,13 +33,13 @@ export interface BindingDecl {
     readonly kind: "storage" | "storage-ro" | "uniform";
     readonly wgslType: string;
 }
-/** One module-specific override (spec 3.5); the five standard ones (WG, USE_PERM, HAS_WEIGHTS, SUBGROUP_MIN, SUBGROUP_MAX) come from the prelude and are never listed here. */
+/** One module-specific override; the five standard ones (WG, USE_PERM, HAS_WEIGHTS, SUBGROUP_MIN, SUBGROUP_MAX) come from the prelude and are never listed here. */
 export interface OverrideDecl {
     readonly name: string;
     readonly type: "u32" | "bool" | "f32";
     readonly default: number | boolean;
 }
-/** Spec 3.5 WgslModuleSpec, verbatim. `needs: ["subgroups"]` means "this body calls a wg_reduce_* helper": the composer splices the subgroup helper block when the device has the feature and the workgroup-memory twin otherwise. */
+/** The declaration of one WGSL kernel module. `needs: ["subgroups"]` means "this body calls a wg_reduce_* helper": the composer splices the subgroup helper block when the device has the feature and the workgroup-memory twin otherwise. */
 export interface WgslModuleSpec {
     readonly id: string;
     readonly body: string;
@@ -62,7 +62,13 @@ export interface ComposedModule {
      * The subset of `overrides` the composed code REFERENCES outside its own declaration -- what the pipeline
      * descriptor's `constants` carries. WebKit (Safari) fails pipeline creation with "Compute library failed
      * creation" when a constant is supplied for an override the entry point never reads (HAS_WEIGHTS in `degree`,
-     * TIER in the thread-per-row tiers); Dawn tolerates it. The cache key still uses `overrides` (contract 3.9).
+     * TIER in the thread-per-row tiers); Dawn tolerates it. The cache key still uses `overrides`.
+     *
+     * WebKit also re-evaluates every override-expression at pipeline creation with an evaluator that has no
+     * `bitcast` (it is type-checked inline, not in WebKit's builtin overload table), so a statement whose value
+     * depends only on overrides and constants, or an override initializer, must not contain one: it fails with
+     * "Failed to evaluate override value" (#8215). Write the constant's bits as a hex literal instead;
+     * test/kernel/webkit-override-eval.test.ts checks every kernel.
      */
     readonly constants: Readonly<Record<string, number | boolean>>;
     readonly entryPoint: string;
@@ -78,7 +84,7 @@ const STANDARD_OVERRIDE_TYPES: Readonly<Record<(typeof STANDARD_OVERRIDES)[numbe
         SUBGROUP_MIN: "u32",
         SUBGROUP_MAX: "u32",
     });
-/** The only feature a body may need (spec 3.5). */
+/** The only feature a body may need. */
 const KNOWN_NEEDS: readonly string[] = Object.freeze(["subgroups"]);
 /** The smallest legal subgroup size; the scratch of 4.3 is sized by the MINIMUM size. */
 const SUBGROUP_FLOOR = 4;
@@ -104,7 +110,7 @@ const BUILTIN_TYPES: ReadonlySet<string> = new Set([
 ]);
 const TEMPLATED_BUILTIN = /^(vec[234]|mat[234]x[234]|atomic|array)</;
 const IDENTIFIER = /^[A-Za-z_]\w*$/;
-/** The `var<...>` form of each binding kind (contract 4.2). */
+/** The `var<...>` form of each binding kind. */
 const ADDRESS_SPACE: Readonly<Record<BindingDecl["kind"], string>> = Object.freeze({
     storage: "var<storage, read_write>",
     "storage-ro": "var<storage, read>",
@@ -118,7 +124,7 @@ const COMPUTE_ATTRIBUTE = /@compute\b/g;
 const ENTRY_FN = /\bfn\s+([A-Za-z_]\w*)/;
 
 /**
- * The compose-time error of contract 3.9.
+ * The compose-time error.
  * @param id - the module id
  * @param slot - what failed (`override:<key>`, `snippet:<key>`, `marker:<name>`, `body:<text>`, `binding:<name>`, `type:<name>`, `needs:<feature>`, `helper:<name>`, `reserved:<word>`, `entry`)
  * @param message - the human-readable reason
@@ -155,7 +161,7 @@ function structNameOf(wgslType: string): string | null {
 
 /**
  * Checks that an override value matches its declared type.
- * PLAN DECISION: a value of the wrong type (a number for a bool, a bool / negative / fractional for a u32) is a
+ * A value of the wrong type (a number for a bool, a bool / negative / fractional for a u32) is a
  * compose-time `E_SHADER_COMPILE { slot: "override:<name>" }` instead of a GPUPipelineError on the first device.
  * @param id - the module id
  * @param name - the override name
@@ -188,7 +194,7 @@ function overrideLiteral(decl: OverrideDecl): string {
 }
 
 /**
- * The `var<...>` declaration of one binding (contract 4.2).
+ * The `var<...>` declaration of one binding.
  * @param decl - the binding
  * @returns the declaration line
  */
@@ -214,7 +220,7 @@ function findEntryPoint(body: string): string | null {
 
 /**
  * The entry-point name of a body: the identifier after `fn` on the line following `@compute` (every body has exactly one entry point).
- * PLAN DECISION: a body without exactly one `@compute` entry point is `E_SHADER_COMPILE { stage: "compose", slot: "entry" }`.
+ * A body without exactly one `@compute` entry point is `E_SHADER_COMPILE { stage: "compose", slot: "entry" }`.
  * @param body - the kernel body
  * @returns the entry-point function name
  */
@@ -235,8 +241,8 @@ export function entryPointOf(body: string): string {
 }
 
 /**
- * The bind-group-layout descriptors derived from spec.bindings: one per group 0..maxGroup (empty groups get an empty entry list); uniform decls carry hasDynamicOffset true (spec 5.1).
- * PLAN DECISION: a uniform decl whose struct is one of `spec.uniforms` also carries `minBindingSize = block.byteLength`,
+ * The bind-group-layout descriptors derived from spec.bindings: one per group 0..maxGroup (empty groups get an empty entry list); uniform decls carry hasDynamicOffset true.
+ * A uniform decl whose struct is one of `spec.uniforms` also carries `minBindingSize = block.byteLength`,
  * so a wrong-size uniform binding fails at createBindGroup (synchronously, with the bind group's label in the message)
  * instead of at the first dispatch (verified on Dawn 0.4.0: without it the error names only the pipeline).
  * @param spec - the module
@@ -343,8 +349,8 @@ function validateBindings(spec: WgslModuleSpec): void {
 }
 
 /**
- * Validates `spec.needs`, `spec.overrideDecls`, `spec.overrides` and `spec.bindings` (contract 3.9's compose-time checks).
- * PLAN DECISION: an `overrideDecls` entry that redeclares a standard override, repeats a name or names a reserved
+ * Validates `spec.needs`, `spec.overrideDecls`, `spec.overrides` and `spec.bindings` (the compose-time checks).
+ * An `overrideDecls` entry that redeclares a standard override, repeats a name or names a reserved
  * word is `E_SHADER_COMPILE { slot: "override:<name>" }` (otherwise a duplicate-declaration error on the first device).
  * @param spec - the module
  */
@@ -395,7 +401,7 @@ function substituteSnippets(spec: WgslModuleSpec): string {
 
 /**
  * The textual checks on the substituted body: no `@group(`, no `override `, no reserved identifier, no helper call without `needs`.
- * PLAN DECISION: a body calling a `wg_reduce_*` helper without `needs: ["subgroups"]` is
+ * A body calling a `wg_reduce_*` helper without `needs: ["subgroups"]` is
  * `E_SHADER_COMPILE { slot: "helper:<name>" }` (otherwise an unresolved identifier on the first device).
  * @param spec - the module
  * @param body - the substituted body
@@ -416,11 +422,7 @@ function validateBody(spec: WgslModuleSpec, body: string): void {
     for (const match of stripped.matchAll(IDENTIFIER_TOKENS)) {
         const word = match[0];
         if (RESERVED.has(word)) {
-            throw composeError(
-                id,
-                `reserved:${word}`,
-                `"${word}" is a WGSL reserved word (spec 16.2) and cannot be an identifier`,
-            );
+            throw composeError(id, `reserved:${word}`, `"${word}" is a WGSL reserved word and cannot be an identifier`);
         }
         if (helpers.includes(word) && !spec.needs.includes("subgroups")) {
             throw composeError(id, `helper:${word}`, `the body calls ${word} but spec.needs does not list "subgroups"`);
@@ -429,7 +431,7 @@ function validateBody(spec: WgslModuleSpec, body: string): void {
 }
 
 /**
- * String concatenation of spec 3.5: prelude (constants, standard overrides, helpers), module overrides, struct texts, the bind declarations, then the body with snippets substituted (4.2 gives the exact emitted format).
+ * String concatenation: prelude (constants, standard overrides, helpers), module overrides, struct texts, the bind declarations, then the body with snippets substituted (4.2 gives the exact emitted format).
  * @param spec - the module
  * @param caps - the device capabilities (WG, the subgroup sizes and the feature set)
  * @returns the composed module

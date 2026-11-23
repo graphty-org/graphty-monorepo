@@ -14,9 +14,9 @@ import { createRegistry } from "../../src/registry.js";
 import {
     blockStyles,
     type ExtractedStyles,
-    extractStyles,
     featuresOf,
     parseStyleBlock,
+    readFileStyles,
     resolveStyles,
     styleFingerprint,
     type StyleProperty,
@@ -137,7 +137,7 @@ async function corpusSamples(): Promise<readonly (readonly [string, LoadedGraph,
         for (const input of inputs) {
             // a file that fails to import fails the suite: skipping it would swap the round trip onto another file
             const loaded = await input.load();
-            const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+            const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
             if (ex !== null && ex.styles.rules.length > 2 && loaded.snapshot.nodeCount > 2) {
                 out.push([input.name, loaded, ex]);
                 break;
@@ -153,8 +153,8 @@ describe("the built-in formats", () => {
         expect(styled.filter((f) => !writers.has(f))).toEqual([]);
     });
 
-    it("each one without a style writer is CSV, Neo4j CSV or OBO", () => {
-        expect([...unstyled].sort()).toEqual(["csv", "neo4j", "obo"]);
+    it("each one without a style writer is CSV, Neo4j CSV, OBO or SIF", () => {
+        expect([...unstyled].sort()).toEqual(["csv", "neo4j", "obo", "sif"]);
     });
 });
 
@@ -558,7 +558,7 @@ describe("a file graphty wrote whose block was set aside", () => {
     describe.each(files.map((f) => [f] as const))("%s", async (file) => {
         const { bytes, filename } = readCorpusFile(`${STYLE_CORPUS}/${file}`);
         const loaded = await fileInput(json, file, bytes, filename).load();
-        const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report) as ExtractedStyles;
+        const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report) as ExtractedStyles;
 
         // its old per-element style values are data now: the new ones replace them, so each writer reads back the
         // styles extracted now, not the old values

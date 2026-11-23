@@ -15,7 +15,16 @@ const EVENTS = "layoutstart layoutready layoutstop";
 function gridElements(): ElementDefinition[] {
     const els: ElementDefinition[] = [];
     for (let i = 0; i < 12; i++) {
-        els.push({ data: { id: `n${i}`, subset: i % 3, side: (Math.floor(i / 4) + (i % 4)) % 2 } });
+        els.push({
+            data: {
+                id: `n${i}`,
+                subset: i % 3,
+                side: (Math.floor(i / 4) + (i % 4)) % 2,
+                // for graphty-geographic
+                latitude: 10 * Math.floor(i / 4),
+                longitude: 10 * (i % 4),
+            },
+        });
     }
     for (let i = 0; i < 12; i++) {
         if (i % 4 < 3) {
@@ -82,8 +91,8 @@ beforeAll(() => {
 const runnable = LAYOUT_NAMES.filter((n) => n !== "spring-electrical");
 
 describe("every graphty layout", () => {
-    it("registers thirteen static layouts and three simulations", () => {
-        expect(LAYOUT_NAMES).toHaveLength(16);
+    it("registers fourteen static layouts and three simulations", () => {
+        expect(LAYOUT_NAMES).toHaveLength(17);
     });
 
     for (const name of runnable) {
@@ -135,7 +144,7 @@ describe("static layouts", () => {
         await run(cy, { name: "graphty-radial", root: "#n0" });
         const c = { x: BOX.x1 + BOX.w / 2, y: BOX.y1 + BOX.h / 2 };
         const p0 = cy.$("#n0").position();
-        // the root sits at the rings' centre: the mean of the placed nodes is not the centre, so compare distances
+        // the root sits at the rings' center: the mean of the placed nodes is not the center, so compare distances
         const d0 = Math.hypot(p0.x - c.x, p0.y - c.y);
         const far = cy.nodes().map((n) => Math.hypot(n.position().x - p0.x, n.position().y - p0.y));
         expect(Math.max(...far)).toBeGreaterThan(d0);
@@ -155,6 +164,61 @@ describe("static layouts", () => {
 
         await run(cy, { name: "graphty-bfs", root: "#n11" });
         expectPlaced(cy);
+    });
+
+    it("graphty-multipartite orders string layers alphabetically and leaves out nodes without the field", async () => {
+        const cy = makeCy();
+        const tiers = ["b", "a", "c"];
+        cy.nodes().forEach((n, i) => {
+            n.data("tier", i === 11 ? undefined : tiers[i % 3]);
+        });
+        await run(cy, { name: "graphty-multipartite", subsets: "tier" });
+        const x = (t: string): number[] => cy.nodes(`[tier = "${t}"]`).map((n) => n.position().x);
+        expect(new Set(x("a").map((v) => v.toFixed(3))).size).toBe(1);
+        expect(Math.max(...x("a"))).toBeLessThan(Math.min(...x("b")));
+        expect(Math.max(...x("b"))).toBeLessThan(Math.min(...x("c")));
+    });
+
+    it("take a bounding box given by its corners, as { x1, y1, x2, y2 }", async () => {
+        const cy = makeCy();
+        const corners = { x1: 100, y1: 50, x2: 300, y2: 150 };
+        await run(cy, { name: "graphty-circular", boundingBox: corners });
+        for (const p of positions(cy).values()) {
+            expect(p.x).toBeGreaterThanOrEqual(corners.x1 - 1e-6);
+            expect(p.x).toBeLessThanOrEqual(corners.x2 + 1e-6);
+            expect(p.y).toBeGreaterThanOrEqual(corners.y1 - 1e-6);
+            expect(p.y).toBeLessThanOrEqual(corners.y2 + 1e-6);
+        }
+        expectPlaced(cy);
+    });
+
+    it("graphty-geographic reads lat / lon fields by graph-io's name rule with no options", async () => {
+        const cy = cytoscape({
+            headless: true,
+            elements: [
+                { data: { id: "west", lat: 0, Lon: -60 } },
+                { data: { id: "east", lat: 0, Lon: 60 } },
+                { data: { id: "north", lat: 50, Lon: 0 } },
+            ],
+        });
+        await run(cy, { name: "graphty-geographic" });
+        const p = positions(cy);
+        expect(p.get("east")?.x).toBeGreaterThan(p.get("west")?.x ?? Infinity);
+        // Cytoscape's y grows down
+        expect(p.get("north")?.y).toBeLessThan(p.get("west")?.y ?? -Infinity);
+    });
+
+    it("graphty-geographic reads the fields it is given over ones the name rule would find", async () => {
+        const cy = cytoscape({
+            headless: true,
+            elements: [
+                { data: { id: "a", lat: 0, lon: -60, y: 0, x: 60 } },
+                { data: { id: "b", lat: 0, lon: 60, y: 0, x: -60 } },
+            ],
+        });
+        await run(cy, { name: "graphty-geographic", latitude: "y", longitude: "x" });
+        const p = positions(cy);
+        expect(p.get("a")?.x).toBeGreaterThan(p.get("b")?.x ?? Infinity);
     });
 
     it("graphty-spectral brings a grid's columns and rows back", async () => {
@@ -226,7 +290,7 @@ describe("simulations", () => {
                 const p = cy.$(`#${id}`).position();
                 return Math.hypot(p.x - anchor.x, p.y - anchor.y);
             };
-            // n0's neighbours are pulled toward it; the node farthest from it in the graph is not
+            // n0's neighbors are pulled toward it; the node farthest from it in the graph is not
             expect(Math.max(dist("n1"), dist("n4"))).toBeLessThan(dist("n11"));
         });
 

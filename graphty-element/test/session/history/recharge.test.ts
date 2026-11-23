@@ -30,7 +30,7 @@ vi.mock("../../../src/session/project/draft", async (importOriginal) => {
     };
 });
 
-/** Past the history's coalescing window, so the next edit is a step of its own. */
+/** A move of the history's clock, which changes nothing about which edits merge (#9488). */
 const PAST_COALESCING = 1001;
 
 /** The dispatcher's history steps and state, read where no public API reaches. */
@@ -210,7 +210,7 @@ async function act(
     }
 }
 
-/** Past the coalescing window. */
+/** A move of the history's clock. */
 const TICK: Action = { kind: "tick", at: 1 };
 
 /** A sequence for each way an older step's charge can change, before the random ones. */

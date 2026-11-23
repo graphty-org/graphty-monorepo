@@ -146,12 +146,12 @@ CREATE INDEX durations_key_time ON durations (key, run_kind, recorded_at);
   600 rows; a pull request run about 150). `GET /durations/medians?keys=...&kind=master&n=10`.
 - Volume: 4 full runs, about 15 master pushes and 30 pull request runs a day is about 16,000 rows,
   inside the Workers Paid plan the test records already need (results section 9).
-- 120 days of rows, pruned by the Worker's daily cron. Cancelled rows are excluded from medians.
+- 120 days of rows, pruned by the Worker's daily cron. Canceled rows are excluded from medians.
 
 ### 1.6 Trend alarms
 
 The Worker checks after every master or full-run `POST /durations` (`ci-budgets.mjs trend` runs the
-same code locally):
+same judgment locally and prints it):
 
 - For each key and run kind (master, full and pull request runs alike, each compared only within
   its kind): `recent` = median of the last 5 runs that ran that key, `earlier` = median of the 10 runs
@@ -160,16 +160,28 @@ same code locally):
 - Alarm when `recent > budget`, or when `recent > 1.3 x earlier` and `recent - earlier >= 60 s`.
 - Suspects: master's first-parent merges between the last run under the line and the first over it;
   each merge is one pull request with its issue.
-- A key that stops getting samples (its job or step was renamed or removed) is never judged again, so its
-  alarm cannot close by coming back under. The `POST /durations` answer's `lastSeen` names each key's last
-  sample and how many runs of its workflow and kind came after it; the posting `timings` job closes an open
-  alarm whose key missed the last 10 runs, or has no sample in 30 days, with a comment naming that sample.
-- ONE issue per key (`CI budget: <key> <earlier> -> <recent>`; labels `bug`, `ci-budget`,
-  `priority:high`, `effort:medium`, the owner label) listing runs, numbers and suspects; later alarms
-  comment on it. The Worker only computes the alarm in its answer to `POST /durations`; the `timings`
-  job of a master or full run that receives it files or updates the issue with its own `GITHUB_TOKEN`
-  (`issues: write`). A pull request's `timings` job only comments on its own pull request.
-- It closes on an event: the first check with `recent` back under both lines.
+- A key that stops getting samples (its job or step was renamed or removed) is never judged again, so it
+  cannot leave its list by coming back under. The `POST /durations` answer's `lastSeen` names each key's last
+  sample and how many runs of its workflow and kind came after it; the posting `timings` job strikes a listed
+  key that missed the last 10 runs, or has no sample in 30 days, as no longer running.
+- ONE issue per workflow, run kind and finding lists every key over its line, never one issue per key (#9273:
+  two full runs filed 16 per-key issues in 7 hours, most of them one shared slowdown):
+  `CI budget: <workflow> (<kind>) keys over the line` (labels `bug`, `ci-budget`, `priority:high`,
+  `effort:medium`, the owner label) for the keys a change may have slowed, and
+  `CI budget: <workflow> (<kind>) shared slowdown` (`infrastructure`, `ci-budget`, `priority:medium`,
+  `effort:medium`) for the keys a slowdown the whole run shares explains: queue keys (time waiting for a
+  runner), and, in a run whose keys of 2 minutes or more took a median 1.08 times their usual time or more,
+  a key slowed no more than 1.5 times the run. Full runs measured 0.96 to 1.06 before the runner contention
+  of 2026-11-20 and 1.09 to 1.13 during it. Which test files a range changed cannot tell the two apart: a
+  full run's range is 6 hours of master, hundreds of files. A shared key still alarming in a run that did
+  not slow as a whole moves to the keys over the line.
+- Each run rewrites the lists (the issue body holds them, with each key's numbers and suspects) and comments
+  when a key joins or leaves. The Worker only computes the alarm in its answer to `POST /durations`; the
+  `timings` job of a master or full run that receives it files or updates the issues with its own
+  `GITHUB_TOKEN` (`issues: write`). A pull request's `timings` job only comments on its own pull request.
+- A key leaves on an event: the first run whose own time is back under the closing line (0.9 times the
+  budget, and 1.1 times `earlier` or under 30 s slower) strikes it with that run as evidence, and an issue
+  with no key left closes itself. One that closed in the last 7 days reopens instead of a new one.
 
 Against the record: at about 15 master pushes a day the Build regression fills 3 of the last 5
 runs within about 5 hours, and `report` warns on the first slow run; it went four days. An alarm

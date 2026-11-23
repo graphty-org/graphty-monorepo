@@ -115,7 +115,6 @@ export interface TimeWindow {
      * when it starts before `to` and ends after `from`. A missing end is open; a missing start is
      * open when an end is present. Left out, `attribute` holds instants. `session.time` fills it in
      * from the designated field.
-     * @experimental timeline
      * @beta
      */
     readonly end?: Path;
@@ -123,7 +122,6 @@ export interface TimeWindow {
      * The attribute carrying a list of `{ start, end }`, `[start, end]` or bare instants, such as
      * `data.spells`: an element holding one is inside when any of them is, whatever `attribute` and
      * `end` hold. `session.time` fills it in from the designated field.
-     * @experimental timeline
      * @beta
      */
     readonly spells?: Path;
@@ -137,20 +135,17 @@ export interface TimeWindow {
      * Which nodes the window keeps when its attribute lives on edges. `"all"` (the default): the
      * window says nothing about nodes. `"ends"`: a node is kept only when an edge inside the
      * window, and passing the filter, ends at it, so nodes follow their edges.
-     * @experimental timeline
      * @beta
      */
     readonly nodes?: "all" | "ends";
     /**
      * Whether an element of a kind that carries the attribute, but has no usable value for it, is
      * kept: `"inside"` (the default) or `"outside"`.
-     * @experimental timeline
      * @beta
      */
     readonly missing?: "inside" | "outside";
     /**
      * How `session.time` plays the window: moving both ends (`"sliding"`, the default) or only the end.
-     * @experimental timeline
      * @beta
      */
     readonly mode?: "sliding" | "cumulative";
@@ -158,7 +153,6 @@ export interface TimeWindow {
      * The IANA zone `session.time`'s calendar steps and bins read in, such as `America/New_York`;
      * left out, {@link TimePlayback.timeZone}. Hours are absolute; a day and longer follow the
      * zone's clock, so a day across a clock change is 23 or 25 hours.
-     * @experimental timeline
      * @beta
      */
     readonly timeZone?: string;
@@ -168,7 +162,6 @@ export interface TimeWindow {
  * What a window move does to finished runs over the visible graph: `"stale"` (the default) marks
  * them out of date, `"keep"` keeps them current as they are, and `"rerun"` runs them again over the
  * new window. See {@link TimePlayback.results}.
- * @experimental timeline
  * @beta
  */
 export type TimeResultsPolicy = "keep" | "stale" | "rerun";
@@ -177,7 +170,6 @@ export type TimeResultsPolicy = "keep" | "stale" | "rerun";
  * How `session.time` moves windows, held with the designated field rather than on one window, so
  * clearing the window keeps them. Saved in the project as `visibility.playback`. Every member is
  * optional; one left out reads its default.
- * @experimental timeline
  * @beta
  */
 export interface TimePlayback {
@@ -193,10 +185,10 @@ export interface TimePlayback {
     /** Whether an element with no usable time is kept in every window; default `"inside"`. */
     readonly missing?: "inside" | "outside";
     /**
-     * What happens to elements outside the window: `"hide"` (the default) stops drawing them;
-     * `"ghost"` keeps them drawn and in the state `"ghosted"`, which a style layer selects with
-     * `{ match: "state", state: "ghosted" }`. Either way they are not visible: no count, run or
-     * export includes them.
+     * Read on load and never stored: how elements outside the window draw lives in the style
+     * layers selecting `{ match: "state", state: "outsideWindow" }` (see
+     * `session.time.settings.outside`). Either way they are not visible: no count, run or export
+     * includes them, and they keep their place in every layout.
      */
     readonly outside?: "hide" | "ghost";
     /** The IANA zone calendar steps and bins read in; default `"UTC"`. */
@@ -208,7 +200,6 @@ export interface TimePlayback {
      * (`time.age-fade-inactive`). A line drawn with `line.blending` false stays opaque, and so do
      * straight animated lines (`line.animationSpeed`) and patterned lines other than a dash or dot line that
      * bends or curves.
-     * @experimental timeline
      */
     readonly ageFade?: number;
 }
@@ -300,13 +291,11 @@ export interface FilterSources {
     readonly components?: () => ComponentLabels;
     /** Where to read attribute values. Absent refuses `range`, `categories` and a time window. */
     readonly values?: FilterValueSource;
-    /** Whether the timeline experiment is on; absent reads on. */
-    readonly timeline?: () => boolean;
     /**
      * Whether a window's bounds are instants of a time column's parsed values rather than values
-     * to compare as they stand: with the timeline on, or read from a project that saved them so.
+     * to compare as they stand.
      * @param window - The window.
-     * @returns True for instants. Absent, the answer is whether the timeline is on.
+     * @returns True for instants. Absent, true.
      */
     readonly holdsInstants?: (window: TimeWindow) => boolean;
     /**
@@ -366,6 +355,21 @@ export interface FilterSources {
         readonly nodes: ReadonlySet<NodeId>;
         readonly edges: ReadonlySet<EdgeId>;
     };
+    /**
+     * Under the source-steps experiment, one source's own values (design 3.8): what a filter
+     * condition naming that `source` reads, so it judges that source's value and only the elements
+     * that source gave a value for. Absent, or undefined for a source, a condition reads the shown
+     * value of every element the source supplied.
+     * @param source - The source.
+     * @returns Its values, or undefined.
+     */
+    readonly own?: (source: SourceKey) => FilterValueSource | undefined;
+    /**
+     * Whether the source-steps experiment is on. Under it, a `source` leaf with `side: "edges"`
+     * also keeps the ends of the listed sources' edges, or for sources that supplied no edges,
+     * their nodes and the edges between them (design 8.6). Absent reads off.
+     */
+    readonly sourceSteps?: () => boolean;
     /**
      * The hovered node, else a lone selected node: what a step's `"hovered-or-selected"` names.
      * Absent refuses that reference.
@@ -507,7 +511,7 @@ const TIME_STEPS: ReadonlySet<string> = new Set(["hour", "day", "week", "month",
 
 /**
  * The refusal a filter this session cannot evaluate gets, naming what would evaluate it.
- * @param kind - The filter kind that cannot be honoured.
+ * @param kind - The filter kind that cannot be honored.
  * @param needs - The capability whose absence is the reason.
  * @returns The error to throw.
  */
@@ -767,6 +771,17 @@ function assertFilter(filter: RuleTree): void {
             parseScope(filter.of);
 
             return;
+        case "threshold":
+            if (filter.within === "visible") {
+                throw malformed(
+                    'A filter\'s "threshold" ranks the full graph (within: "graph"): what is visible is what the filter computes.',
+                    { reason: "circular-scope", within: "visible" },
+                );
+            }
+
+            assertRuleTree(filter);
+
+            return;
         case "union":
             if ((filter as { within?: unknown }).within === "visible") {
                 throw malformed(
@@ -779,7 +794,6 @@ function assertFilter(filter: RuleTree): void {
 
             return;
         case "item":
-        case "threshold":
         case "text":
         case "state":
         case "hops":
@@ -797,7 +811,7 @@ function assertFilter(filter: RuleTree): void {
                 throw malformed(`An "${filter.kind}" filter needs a list of filters.`, { of: filter.of });
             }
 
-            for (const member of filter.of) {
+            for (const member of filter.of as readonly RuleTree[]) {
                 assertFilter(member);
             }
 
@@ -948,20 +962,6 @@ export function assertVisibility(
 }
 
 /**
- * Whether a window asks for what only the timeline experiment applies.
- * @param window - The window, or null for none.
- * @returns True when it names `nodes: "ends"`, `missing: "outside"`, an `end` or `spells`.
- */
-export function windowNeedsTimeline(window: TimeWindow | null): boolean {
-    return (
-        window?.nodes === "ends" ||
-        window?.missing === "outside" ||
-        window?.end !== undefined ||
-        window?.spells !== undefined
-    );
-}
-
-/**
  * Refuse a state leaf, alone or in a union's steps, where nothing follows the reader. A union's
  * other leaves are checked as it is read; a state never can be there.
  * @param rule - The leaf.
@@ -1008,8 +1008,7 @@ function assertStatesEvaluable(rule: RuleTree, sources: FilterSources): void {
  */
 export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | null, sources: FilterSources): void {
     assertVisibility(filter, window);
-    // With the timeline off a window's zone does nothing, so any value stays saved as it came.
-    if (window?.timeZone !== undefined && sources.timeline?.() !== false && !isTimeZone(window.timeZone)) {
+    if (window?.timeZone !== undefined && !isTimeZone(window.timeZone)) {
         throw malformed("A time window's timeZone is an IANA zone name, such as America/New_York.", {
             field: "timeZone",
             reason: "time-zone",
@@ -1017,8 +1016,7 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
         });
     }
 
-    // With the timeline off they are not read, so any value stays saved as it came.
-    if (window !== null && sources.timeline?.() !== false) {
+    if (window !== null) {
         for (const path of [window.end, window.spells]) {
             if (path !== undefined) {
                 assertPath(path, "window");
@@ -1271,10 +1269,51 @@ function sourceTests(context: CompileContext, keys: readonly SourceKey[], side: 
     const { nodes, edges } = supplied(keys);
     const { graph } = context;
     const space = edgeSpaceOf(graph);
+    if (side === "edges" && context.sources.sourceSteps?.() === true) {
+        return sourceEdgesSide(graph, space, nodes, edges);
+    }
     return {
         node: side === "edges" ? null : (index) => nodes.has(graph.ids.idOf(index)),
         edge: side === "nodes" ? null : (index) => edges.has(space.idOf(index)),
     };
+}
+
+/**
+ * Under source-steps, the Source scope's halves (design 8.6, the model's `scope()`): the listed
+ * edges and their end nodes; for sources that supplied no edges, their nodes and the edges between
+ * them.
+ * @param graph - The snapshot.
+ * @param space - Its edge id space.
+ * @param nodes - The nodes the sources supplied.
+ * @param edges - The edges the sources supplied.
+ * @returns The halves.
+ */
+function sourceEdgesSide(
+    graph: GraphSnapshot,
+    space: ReturnType<typeof edgeSpaceOf>,
+    nodes: ReadonlySet<NodeId>,
+    edges: ReadonlySet<EdgeId>,
+): CompiledHalves {
+    const ends = new Uint8Array(graph.nodeCount);
+    const kept = new Uint8Array(graph.edgeCount);
+    let any = false;
+    for (let edge = 0; edge < graph.edgeCount; edge++) {
+        if (edges.has(space.idOf(edge))) {
+            any = true;
+            kept[edge] = 1;
+            ends[graph.edgeSource(edge)] = 1;
+            ends[graph.edgeTarget(edge)] = 1;
+        }
+    }
+    if (!any) {
+        for (let node = 0; node < graph.nodeCount; node++) {
+            ends[node] = nodes.has(graph.ids.idOf(node)) ? 1 : 0;
+        }
+        for (let edge = 0; edge < graph.edgeCount; edge++) {
+            kept[edge] = ends[graph.edgeSource(edge)] === 1 && ends[graph.edgeTarget(edge)] === 1 ? 1 : 0;
+        }
+    }
+    return { node: (index) => ends[index] === 1, edge: (index) => kept[index] === 1 };
 }
 
 /**
@@ -1441,7 +1480,7 @@ function baseOf(context: CompileContext): { readonly node: Bytes; readonly edge:
 
 /**
  * Every node's degree (in, out, or both ways when `which` is absent), counted over the base's
- * edges inside a step, so a filtered-out neighbour is never counted; the snapshot's otherwise.
+ * edges inside a step, so a filtered-out neighbor is never counted; the snapshot's otherwise.
  * @param context - The compile context.
  * @param which - In, out, or both.
  * @returns The degrees.
@@ -1749,8 +1788,8 @@ function nextHop(
 /**
  * A test over the nodes within so many hops of a set of seeds.
  *
- * Hops are counted in BOTH directions even on a directed graph: a neighbourhood is what surrounds
- * a node, and a predecessor is as much a neighbour as a successor. A caller that wants only one
+ * Hops are counted in BOTH directions even on a directed graph: a neighborhood is what surrounds
+ * a node, and a predecessor is as much a neighbor as a successor. A caller that wants only one
  * direction wants a traversal, which is an algorithm and not a filter.
  * @param context - The compile context.
  * @param seeds - The nodes to start from; ones the graph does not hold are skipped.
@@ -1960,7 +1999,8 @@ function compileThreshold(context: CompileContext, filter: Extract<RuleTree, { k
     const { graph } = context;
     const mark = markFor(context, filter.path);
     const { node: readNode, edge: readEdge } = pathReaders(context, filter.path, "threshold");
-    const population = context.step?.population ?? { node: null, edge: null };
+    const population =
+        context.step?.population ?? (filter.within === "visible" ? visibleBase(context) : { node: null, edge: null });
     const nodes = readNode === null ? null : thresholdHalf(graph.nodeCount, readNode, filter, mark, population.node);
     const edges = readEdge === null ? null : thresholdHalf(graph.edgeCount, readEdge, filter, mark, population.edge);
     if (nodes === null && edges === null) {
@@ -2187,6 +2227,10 @@ function compileGroup(context: CompileContext, filter: Extract<RuleTree, { kind:
  * @returns Its halves.
  */
 function compileSourceScoped(context: CompileContext, scoped: SourceScopedRule): CompiledHalves {
+    const own = scoped.withinSources.length === 1 ? context.sources.own?.(scoped.withinSources[0]) : undefined;
+    if (own !== undefined) {
+        return compileOwnScoped(context, scoped, own);
+    }
     const inner = compileOne(scoped.of[0], context);
     const within = sourceTests(context, scoped.withinSources, undefined);
     const { outside } = scoped;
@@ -2194,6 +2238,114 @@ function compileSourceScoped(context: CompileContext, scoped: SourceScopedRule):
         test === null || mine === null ? test : (index) => (mine(index) ? test(index) : outside);
 
     return { node: half(inner.node, within.node), edge: half(inner.edge, within.edge) };
+}
+
+/**
+ * The value paths a rule's leaves read, however deep (`range`, `categories` and `text` leaves).
+ * @param rule - The rule.
+ * @returns The paths.
+ */
+export function valuePaths(rule: RuleTree): Path[] {
+    switch (rule.kind) {
+        case "range":
+        case "categories":
+            return [rule.attribute];
+        case "text":
+            return [rule.reads];
+        case "all":
+        case "any":
+            return rule.of.flatMap((each) => valuePaths(each));
+        case "not":
+            return valuePaths(rule.of);
+        default:
+            return [];
+    }
+}
+
+/**
+ * Under source-steps, the column a rule is held on (design 8.4, `W_FILTER_HELD`): when it reads
+ * values and no element carries any column it reads, it is held off and judges nothing, so it never
+ * hides every node. A source-scoped rule is judged against that source's own values.
+ * @param graph - The snapshot.
+ * @param rule - The rule, as one filter condition compiles to.
+ * @param sources - The compile sources.
+ * @returns The first column it reads when it is held, else null.
+ */
+export function heldColumn(graph: GraphSnapshot, rule: RuleTree, sources: FilterSources): Path | null {
+    if (isSourceScoped(rule)) {
+        const own = rule.withinSources.length === 1 ? sources.own?.(rule.withinSources[0]) : undefined;
+        return own === undefined ? null : heldColumn(graph, rule.of[0], { ...sources, values: own });
+    }
+    const { values } = sources;
+    const paths = valuePaths(rule);
+    if (values === undefined || paths.length === 0) {
+        return null;
+    }
+    for (const path of paths) {
+        const known = values.halvesOf?.(path);
+        if (
+            (known?.node ?? carries(graph.nodeCount, (index) => values.nodeValue(index, path))) ||
+            (known?.edge ?? carries(graph.edgeCount, (index) => values.edgeValue(index, path)))
+        ) {
+            return null;
+        }
+    }
+    return paths[0];
+}
+
+/**
+ * The filter with its held conditions left out (see {@link heldColumn}): each member of a
+ * top-level `all`, or the filter itself.
+ * @param graph - The snapshot.
+ * @param filter - The filter the masks evaluate.
+ * @param sources - The compile sources.
+ * @returns The filter, or null when all of it is held.
+ */
+function withoutHeld(graph: GraphSnapshot, filter: RuleTree, sources: FilterSources): RuleTree | null {
+    if (filter.kind === "all" && !isSourceScoped(filter)) {
+        const judged = filter.of.filter((member) => heldColumn(graph, member, sources) === null);
+        if (judged.length === filter.of.length) {
+            return filter;
+        }
+        return judged.length === 0 ? null : { kind: "all", of: judged };
+    }
+    return heldColumn(graph, filter, sources) === null ? filter : null;
+}
+
+/**
+ * A source-scoped rule over that source's own values (source-steps, design 3.8 and 8.4): it reads
+ * the source's own value, judges only the elements that carry one for a column it reads, and
+ * answers `outside` for every other element. A rule whose columns no element carries is held
+ * (`W_FILTER_HELD`): it judges nothing, so it never hides everything.
+ * @param context - The compile context.
+ * @param scoped - The scoped rule.
+ * @param own - The source's own values.
+ * @returns Its halves.
+ */
+function compileOwnScoped(context: CompileContext, scoped: SourceScopedRule, own: FilterValueSource): CompiledHalves {
+    const inner = compileOne(scoped.of[0], { ...context, sources: { ...context.sources, values: own } });
+    const paths = valuePaths(scoped.of[0]);
+    const { outside } = scoped;
+    const carries =
+        (read: (index: number, path: Path) => unknown): ElementTest =>
+        (index) =>
+            paths.some((path) => {
+                const v = read(index, path);
+                return v !== undefined && v !== null && v !== "";
+            });
+    const half = (test: ElementTest | null, mine: ElementTest): ElementTest | null =>
+        test === null ? null : (index) => (mine(index) ? test(index) : outside);
+
+    return {
+        node: half(
+            inner.node,
+            carries((index, path) => own.nodeValue(index, path)),
+        ),
+        edge: half(
+            inner.edge,
+            carries((index, path) => own.edgeValue(index, path)),
+        ),
+    };
 }
 
 /**
@@ -2244,6 +2396,37 @@ function referenceBytes(context: CompileContext, reference: StepReference | unde
 }
 
 /**
+ * What the filter and the time window leave shown, as bytes per element: an edge between two
+ * shown nodes is shown unless the scope says which edges are.
+ * @param context - The compile context.
+ * @param kind - The leaf reading it, for the refusal.
+ * @returns The node and edge bytes.
+ * @throws A `GraphtyError` with `E_UNSUPPORTED` when there is no scope resolver to read it from.
+ */
+function visibleBase(
+    context: CompileContext,
+    kind: "union" | "threshold" = "threshold",
+): { readonly node: Uint8Array; readonly edge: Uint8Array } {
+    const { graph, sources } = context;
+    if (sources.scope === undefined) {
+        throw unsupported(kind, "a scope resolver");
+    }
+
+    const leaf = sources.scope("visible");
+    const node = bytesOf((index) => maskTest(leaf.nodes, index), graph.nodeCount);
+    const { src, dst } = graph.edgeList();
+    const { edges } = leaf;
+    const edge = bytesOf(
+        edges === null
+            ? (index) => node[src[index]] === 1 && node[dst[index]] === 1
+            : (index) => maskTest(edges, index),
+        graph.edgeCount,
+    );
+
+    return { node, edge };
+}
+
+/**
  * What {@link readUnion} reads, over a compile context: the base from the scope resolver, each
  * step compiled in its frame by this compiler.
  * @param context - The compile context.
@@ -2252,28 +2435,10 @@ function referenceBytes(context: CompileContext, reference: StepReference | unde
  */
 function unionEnvOf(context: CompileContext, leaf: UnionLeaf): UnionEnv {
     const { graph, sources } = context;
-    const wholeOrVisible = (within: UnionLeaf["within"]): { node: Bytes; edge: Bytes } => {
-        if (within === "graph") {
-            return { node: new Uint8Array(graph.nodeCount).fill(1), edge: new Uint8Array(graph.edgeCount).fill(1) };
-        }
-
-        if (sources.scope === undefined) {
-            throw unsupported("union", "a scope resolver");
-        }
-
-        const leaf = sources.scope("visible");
-        const node = bytesOf((index) => maskTest(leaf.nodes, index), graph.nodeCount);
-        const { src, dst } = graph.edgeList();
-        const { edges } = leaf;
-        const edge = bytesOf(
-            edges === null
-                ? (index) => node[src[index]] === 1 && node[dst[index]] === 1
-                : (index) => maskTest(edges, index),
-            graph.edgeCount,
-        );
-
-        return { node, edge };
-    };
+    const wholeOrVisible = (within: UnionLeaf["within"]): { node: Bytes; edge: Bytes } =>
+        within === "graph"
+            ? { node: new Uint8Array(graph.nodeCount).fill(1), edge: new Uint8Array(graph.edgeCount).fill(1) }
+            : visibleBase(context, "union");
     // A leaf narrowed to some loads starts from theirs.
     const mine = leaf.sources === undefined ? null : sourceTests(context, leaf.sources, undefined);
     const narrow = (halves: { node: Bytes; edge: Bytes }): { node: Bytes; edge: Bytes } => {
@@ -2620,7 +2785,7 @@ export function windowReadsRecords(graph: GraphSnapshot, window: TimeWindow, sou
         return false;
     }
 
-    const paths = windowPaths(window, sources.timeline?.() !== false);
+    const paths = windowPaths(window);
 
     return (
         ((indexed?.node ?? null) === null &&
@@ -2633,13 +2798,12 @@ export function windowReadsRecords(graph: GraphSnapshot, window: TimeWindow, sou
 /**
  * The attributes a window reads of a record.
  * @param window - The window.
- * @param timeline - Whether the timeline is on: off, its `end` and `spells` stay saved, unread.
  * @returns The paths, `attribute` first.
  */
-function windowPaths(window: TimeWindow, timeline: boolean): readonly Path[] {
+function windowPaths(window: TimeWindow): readonly Path[] {
     const { attribute, end, spells } = window;
 
-    return timeline ? [attribute, ...[end, spells].filter((path) => path !== undefined)] : [attribute];
+    return [attribute, ...[end, spells].filter((path) => path !== undefined)];
 }
 
 /**
@@ -2651,7 +2815,7 @@ function windowPaths(window: TimeWindow, timeline: boolean): readonly Path[] {
  */
 export function windowInstants(window: TimeWindow, sources: FilterSources): ReturnType<WindowIndexReader> {
     const indexed = sources.instants?.(window.attribute) ?? null;
-    if (indexed === null || sources.timeline?.() === false) {
+    if (indexed === null) {
         return indexed;
     }
 
@@ -2743,12 +2907,10 @@ function compileWindow(window: TimeWindow, context: CompileContext, filterEdge: 
     const { graph } = context;
     const mark = markFor(context, window.attribute);
     const [from, to] = windowBounds(window, context.sources);
-    // With the timeline off a saved window's options stay saved and are not applied.
-    const timeline = context.sources.timeline?.() !== false;
-    const missingInside = !timeline || window.missing !== "outside";
-    const holdsInstants = context.sources.holdsInstants?.(window) ?? timeline;
+    const missingInside = window.missing !== "outside";
+    const holdsInstants = context.sources.holdsInstants?.(window) ?? true;
     const indexed = holdsInstants ? windowInstants(window, context.sources) : null;
-    const paths = windowPaths(window, timeline);
+    const paths = windowPaths(window);
 
     /**
      * The test of one kind: whether its instant falls inside the half-open window. An element
@@ -2805,7 +2967,7 @@ function compileWindow(window: TimeWindow, context: CompileContext, filterEdge: 
     const edge = half(indexed?.edge ?? null, graph.edgeCount, (index, path) => values.edgeValue(index, path));
     let node = half(indexed?.node ?? null, graph.nodeCount, (index, path) => values.nodeValue(index, path));
 
-    if (timeline && window.nodes === "ends") {
+    if (window.nodes === "ends") {
         const list = graph.edgeList();
         const ends = new Uint8Array(graph.nodeCount);
         // Saying nothing of edges leaves each with no time, which passes only under "inside".
@@ -2855,8 +3017,8 @@ function remembered(test: ElementTest | null, count: number): ElementTest | null
  * is visible when it passes both; either one on its own behaves exactly as it does with the other
  * set, and clearing one leaves the other's answer standing.
  *
- * The compilation itself does the work that cannot be done per element -- materialising a query's
- * matches, walking a neighbourhood, reading the degree view -- so it is O(n + m) before the pass
+ * The compilation itself does the work that cannot be done per element -- materializing a query's
+ * matches, walking a neighborhood, reading the degree view -- so it is O(n + m) before the pass
  * even starts, and it happens once per pass rather than once per element.
  * @param graph - The snapshot every test is written against.
  * @param filter - The filter, or null for none.
@@ -2872,6 +3034,7 @@ export function compileVisibility(
     sources: FilterSources,
 ): CompiledVisibility {
     assertVisibility(filter, window);
+    const judged = filter !== null && sources.sourceSteps?.() === true ? withoutHeld(graph, filter, sources) : filter;
 
     const context: CompileContext = {
         graph,
@@ -2881,10 +3044,10 @@ export function compileVisibility(
     };
 
     const halves: CompiledHalves[] = [];
-    const compiledFilter = filter === null ? null : compileOne(filter, context);
-    // Only a slide reads the answers again, so with the timeline off a pass runs the tests as they are.
+    const compiledFilter = judged === null ? null : compileOne(judged, context);
+    // Only a slide reads the answers again.
     const filtering =
-        window === null || compiledFilter === null || sources.timeline?.() !== true
+        window === null || compiledFilter === null
             ? compiledFilter
             : {
                   node: remembered(compiledFilter.node, graph.nodeCount),
@@ -3025,7 +3188,7 @@ export function runPass(pass: VisibilityPass): void {
  * @param signal - Aborted when the caller cancels; the pass throws the signal's reason.
  * @param report - Called with how many of the elements have been looked at.
  * @returns Nothing, once every element has been looked at.
- * @throws The abort signal's reason when the pass is cancelled part way through.
+ * @throws The abort signal's reason when the pass is canceled part way through.
  */
 export async function runPassInSlices(
     pass: VisibilityPass,
@@ -3053,14 +3216,14 @@ export async function runPassInSlices(
         });
 
         if (signal.aborted) {
-            throw signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
+            throw signal.reason as Error; // rethrows the abort signal's reason, as the platform does
         }
 
         deadline = performance.now() + SLICE_MS;
     };
 
     if (signal.aborted) {
-        throw signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
+        throw signal.reason as Error; // rethrows the abort signal's reason, as the platform does
     }
 
     for (let from = 0; from < nodeCount; from += CHUNK) {

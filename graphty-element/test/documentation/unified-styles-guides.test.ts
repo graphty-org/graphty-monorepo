@@ -54,8 +54,7 @@ const PAGES: readonly Page[] = [
     {
         file: "starting-rows.md",
         check: (session, printed) => {
-            const ghost = session.features.enabled.includes("timeline") ? ["Ghost top"] : [];
-            assert.deepEqual(printed, ["Everything bottom", ...ghost, "Selected top", "Hovered top", "1"]);
+            assert.deepEqual(printed, ["Everything bottom", "Selected top", "Hovered top", "1"]);
         },
     },
     {
@@ -205,7 +204,7 @@ async function run(file: string): Promise<{ session: GraphSession; printed: stri
     };
     const session = createGraphSession();
     // The constructor of every async function, this one included: it builds one from source text.
-    const AsyncFunction = Object.getPrototypeOf(run).constructor as new (
+    const AsyncFunction = run.constructor as new (
         ...args: string[]
     ) => (session: GraphSession, console: typeof quiet) => Promise<void>;
     await new AsyncFunction("session", "console", javascript)(session, quiet);

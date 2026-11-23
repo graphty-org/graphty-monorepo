@@ -5,8 +5,9 @@
  */
 
 export { POSITION_ISSUE, type PositionNoteCode } from "./codes.js";
-export { flipY, toFilePositions, writtenPositions } from "./convert.js";
+export { flipY, placeRecords, toFilePositions, writtenPositions } from "./convert.js";
 export { extractPositions } from "./extract.js";
+export { type GeographicColumnNames, geographicColumnNames } from "./geographic-names.js";
 export type {
     ExtractPositionsOptions,
     FilePositionGroup,
@@ -20,5 +21,6 @@ export type {
     PositionNote,
     PositionReadContext,
     ViewerFit,
+    ViewerFrame,
     YAxis,
 } from "./types.js";

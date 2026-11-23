@@ -21,7 +21,7 @@ export const exemptCannotWrite: ExemptDefinition<Select> = {
     lane: { kind: "immediate" },
     execute(_command, ctx) {
         // @ts-expect-error an exempt command's context has no draft
-        ctx.draft.styles = [];
+        ctx.draft = undefined;
         // @ts-expect-error project state is read-only outside a draft
         ctx.state.styles = [];
     },

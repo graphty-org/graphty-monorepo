@@ -1,5 +1,5 @@
 /**
- * Closeness centrality on the device (design 8.4, 3.3 line 810, 9.7): `score[s] = 1 / sumDist_s`, with `sumDist_s`
+ * Closeness centrality on the device: `score[s] = 1 / sumDist_s`, with `sumDist_s`
  * the exact sum of the finite distances from `s` to every OTHER node -- an unreached node adds nothing -- and `0` when
  * nothing is reached; or, with `harmonic`, `score[s] = sum of 1 / dist` over the same nodes (a zero distance adds
  * nothing). No reached factor and no Wasserman-Faust scaling: this is EXACTLY the legacy default (`normalized:
@@ -802,7 +802,7 @@ function chooseRoute(n: number, noAllPairs: boolean, weighted: boolean, tuning: 
  * @internal
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
- * @param options - `weighted`, `harmonic` and a sampled run's `sources` honoured, the placeholder `maxIterations` / `tolerance` refused when defined, plus dest / signal / onProgress
+ * @param options - `weighted`, `harmonic` and a sampled run's `sources` honored, the placeholder `maxIterations` / `tolerance` refused when defined, plus dest / signal / onProgress
  * @param tuning - the knobs
  * @returns the scores, the batches run, `converged: true`, `precision: "f32"` and `sourcesUsed`
  */
@@ -844,7 +844,7 @@ export async function closenessWithTuning(
 }
 
 /**
- * Closeness centrality on the device (spec 3.3 line 810, design 8.4, 9.7): `scores[s] = 1 / sumDist_s` over the finite
+ * Closeness centrality on the device: `scores[s] = 1 / sumDist_s` over the finite
  * distances from `s` to every other node, `0` when nothing is reached -- the legacy default of `@graphty/algorithms`'
  * `closenessCentrality` -- or, with `harmonic`, the sum of `1 / dist` over the same nodes. Small and weighted
  * graphs whose all-pairs matrix fits one binding run the all-pairs sweep and a row sum; other unweighted graphs run a

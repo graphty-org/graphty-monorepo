@@ -3,7 +3,7 @@
  */
 
 import { BipartiteMatchingAlgorithm } from "../../../src/algorithms/BipartiteMatchingAlgorithm";
-import type { Graph } from "../../../src/Graph";
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { describeScopedAdapter } from "./harness";
 
-describeScopedAdapter("bipartite-matching", (graph: Graph) => new BipartiteMatchingAlgorithm(graph));
+describeScopedAdapter("bipartite-matching", (graph: AlgorithmHost) => new BipartiteMatchingAlgorithm(graph));

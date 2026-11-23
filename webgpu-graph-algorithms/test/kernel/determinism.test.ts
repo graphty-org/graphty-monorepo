@@ -8,7 +8,6 @@
  */
 
 import { type F32, type U32 } from "@graphty/graph-format";
-import { type TestContext } from "vitest";
 
 import { type GpuContext } from "../../src/context.js";
 import { plan1d } from "../../src/kernel/dispatch.js";
@@ -18,7 +17,7 @@ import { bindingOf, readF32, readU32, withContext } from "../helpers/device.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { SEGMENTED_REDUCE_SNIPPETS } from "../helpers/override-matrix.js";
 import { runSegmentedReduce, testReduceScope, weightedRandom } from "../helpers/segmented-reduce.js";
-import { acquire, requireGpu } from "../setup/gpu.js";
+import { sharedContext } from "../setup/gpu.js";
 
 /** Seeded f32 values in [-1, 1) (mixed signs, so the summation order matters). */
 function makeValues(count: number, seed: number): F32 {
@@ -168,14 +167,7 @@ async function scanLanes(ctx: GpuContext, values: U32): Promise<[U32, U32]> {
 }
 
 describe("determinism (spec 11.9 item 4)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "determinism" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "determinism" });
 
     it("reduce f32 sum over 65,537 values: two runs bitwise on the subgroup twin and on the workgroup twin", async (t) => {
         const ctx = await context(t);

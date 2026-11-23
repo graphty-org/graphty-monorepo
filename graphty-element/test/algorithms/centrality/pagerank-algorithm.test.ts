@@ -1,15 +1,15 @@
 import { assert, describe, it } from "vitest";
 
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
-import { asNumber, createMockGraph, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
+import { asNumber, createSessionGraph, getGraphResult, getNodeResult } from "../../helpers/session-graph";
 
 describe("PageRankAlgorithm", () => {
     it("exists", async () => {
-        new PageRankAlgorithm(await createMockGraph());
+        new PageRankAlgorithm(await createSessionGraph());
     });
 
     it("calculates pagerank scores", async () => {
-        const graph = await createMockGraph({ dataPath: "./data4.json" });
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const pr = new PageRankAlgorithm(graph);
 
         await pr.run();
@@ -40,7 +40,7 @@ describe("PageRankAlgorithm", () => {
     });
 
     it("stores graph-level convergence info", async () => {
-        const graph = await createMockGraph({ dataPath: "./data4.json" });
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const pr = new PageRankAlgorithm(graph);
         await pr.run();
 
@@ -60,13 +60,16 @@ describe("PageRankAlgorithm", () => {
         assert.isNumber(maxRank);
         assert.isAtLeast(asNumber(maxRank), 0, "Max rank should be non-negative");
 
-        // The damping factor the run used is in the caveats' notes, which is where a reader is
+        // The damping factor the run used is in the caveats' facts, which is where a reader is
         // told what the numbers mean rather than handed a parameter back as a result.
-        assert.ok(pr.result?.summary().caveats.notes.some((note: string) => note.includes("0.85")));
+        assert.deepInclude(pr.result?.summary().caveats.facts ?? [], {
+            code: "pagerank.damping",
+            params: { dampingFactor: 0.85 },
+        });
     });
 
     it("handles empty graph gracefully", async () => {
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: [],
             edges: [],
         });

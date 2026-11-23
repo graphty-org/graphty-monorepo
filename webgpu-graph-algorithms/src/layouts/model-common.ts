@@ -1,10 +1,11 @@
 /**
- * The option and value helpers every force model's resolver and stats decoder share (P5 PD-7): moved verbatim
- * from src/layouts/forceatlas2.ts (P3-T2) so the Fruchterman-Reingold and spring-electrical models of P5 neither
- * copy them nor import a sibling model; and, since P4-T6, the K2 tier binding and dispatch the three models share
- * (`compileAttraction` / `bindAttraction` / `recordAttraction`, P4 PD-7), so every model's bind() / recordIteration()
+ * The option and value helpers every force model's resolver and stats decoder share, so the ForceAtlas2,
+ * Fruchterman-Reingold and spring-electrical models neither copy them nor import a sibling model; and the K2 tier
+ * binding and dispatch the three models share (`compileAttraction` / `bindAttraction` / `recordAttraction`), so every model's bind() / recordIteration()
  * calls one function instead of holding its own copy. Layout zone.
  */
+
+import { type GraphSnapshot, type NodeMask } from "@graphty/graph-format";
 
 import { MAX_ITERATIONS_PER_STEP } from "../constants.js";
 import { WebGpuGraphError } from "../errors.js";
@@ -37,7 +38,7 @@ export interface AttractionBindings {
 }
 
 /**
- * Compiles (through the cache) the `fa2-attraction` pipelines a load needs and plans their dispatches (P4 PD-7),
+ * Compiles (through the cache) the `fa2-attraction` pipelines a load needs and plans their dispatches,
  * creating no bind group: a model binds them with bindAttraction only after its superseded-bind check, so a bind
  * that a newer load() superseded leaves nothing in the kernel's bind-group cache. TIER 0 always; TIER 1 when a row
  * of degree 32..1023 exists (`[hiEnd, midEnd)` is non-empty); TIER 2 when a row of degree >= 1024 exists
@@ -155,7 +156,7 @@ function describeValue(value: unknown): string {
 }
 
 /**
- * The E_INVALID_ARGUMENT error of an option check (contract 3.1: { argument, value, expected }).
+ * The E_INVALID_ARGUMENT error of an option check (details { argument, value, expected }).
  * @param argument - the option name
  * @param value - the value given
  * @param expected - what was expected
@@ -403,8 +404,7 @@ export function vector(values: UniformValues, name: string): readonly number[] {
 }
 
 /**
- * The override record a kernel gets: its defaults overlaid with the values present in the merged set (contract 3.9:
- * a name a spec does not declare is rejected at compose time, so nothing else is passed through).
+ * The override record a kernel gets: its defaults overlaid with the values present in the merged set (a name a spec does not declare is rejected at compose time, so nothing else is passed through).
  * @param merged - the merged override set of the model (plus USE_PERM / HAS_WEIGHTS from the simulation)
  * @param defaults - the kernel's accepted names with their defaults
  * @returns the kernel's override record, every accepted name explicit
@@ -415,4 +415,75 @@ export function subset(merged: Overrides, defaults: Overrides): Overrides {
         out[name] = name in merged ? merged[name] : defaults[name];
     }
     return out;
+}
+
+/** A `fixed` option: a mask, the name of a bool node column, or null. */
+export type FixedSpec = NodeMask | string | null;
+
+/**
+ * The `fixed` option of a record: the given value, else the previous record's.
+ * @param given - the option as given (undefined: not given)
+ * @param fallback - the previous record's value
+ * @returns a NodeMask, the name of a bool node column, or null
+ */
+export function pickFixed(given: unknown, fallback: FixedSpec): FixedSpec {
+    const fixed: unknown = given === undefined ? fallback : given;
+    if (fixed !== null && typeof fixed !== "string" && !(fixed instanceof Uint32Array)) {
+        throw invalid("fixed", fixed, "a NodeMask (Uint32Array), the name of a bool node column, or null");
+    }
+    return fixed as FixedSpec;
+}
+
+/**
+ * Refuses a setParams patch that sets `fixed`: it is applied at load, and pins change through setFixed().
+ * @param patch - the setParams patch
+ * @param patch.fixed - the `fixed` it must not carry
+ */
+export function assertNoFixedPatch(patch: { readonly fixed?: unknown }): void {
+    if ("fixed" in patch) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", "setParams({ fixed }) is not a live option", {
+            argument: "fixed",
+            value: patch.fixed,
+            expected: "absent",
+            hint: "use setFixed(mask); fixed is applied at load()",
+        });
+    }
+}
+
+/**
+ * The fixed mask of a load (the rule of `layout/src/simulation/fruchterman-reingold.ts:576-606` minus its
+ * "previous pins" clause, which ForceSimulation.load() implements by keeping the words on a same-size reload): a
+ * string names a bool node column (E_INVALID_ARGUMENT when absent or not bool); a mask is copied; null takes the
+ * role-"fixed" bool column when present, else null (leave the words as they are).
+ * @param s - the snapshot being loaded
+ * @param spec - the resolved `fixed` option
+ * @returns the mask words to apply at load, or null
+ */
+export function resolveFixed(s: GraphSnapshot, spec: FixedSpec): NodeMask | null {
+    const words = Math.ceil(s.nodeCount / 32);
+    if (typeof spec === "string") {
+        const column = s.nodes.get(spec);
+        if (column === null) {
+            throw invalid(
+                "fixed",
+                spec,
+                `the name of a bool node column (the snapshot holds no node column "${spec}")`,
+            );
+        }
+        if (column.dtype !== "bool") {
+            throw invalid("fixed", spec, `the name of a bool node column ("${spec}" is ${column.dtype})`);
+        }
+        return new Uint32Array(column.data.subarray(0, words));
+    }
+    if (spec !== null) {
+        if (spec.length < words) {
+            throw invalid("fixed", spec.length, `a mask of at least ${words} words for ${s.nodeCount} nodes`);
+        }
+        return new Uint32Array(spec.subarray(0, words));
+    }
+    const byRole = s.nodes.byRole("fixed");
+    if (byRole !== null && byRole.dtype === "bool") {
+        return new Uint32Array(byRole.data.subarray(0, words));
+    }
+    return null;
 }

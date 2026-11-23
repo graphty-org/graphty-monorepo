@@ -58,7 +58,7 @@ fileInput.addEventListener("change", async (e) => {
 });
 ```
 
-## A File's Own Styles
+## A File's Own Styles {#a-files-own-styles}
 
 Many formats carry what the graph looks like as well as what it holds: Gephi's colors and sizes
 in GEXF, yEd's shapes in GraphML, a Cytoscape visual style, a Cytoscape.js stylesheet, Graphviz
@@ -128,7 +128,7 @@ what the file holds.
 `session.data.import` loads a file, a URL or inline text as one step that undo takes back whole.
 Name the format with `type`, or leave it out and the element detects it the same way
 `loadFromUrl` and `loadFromFile` do: from the file name or the URL's extension first, then from
-the first bytes, fetching a URL once when its name says nothing. Data no format recognises
+the first bytes, fetching a URL once when its name says nothing. Data no format recognizes
 rejects with `E_UNKNOWN_FORMAT`, and the error lists the formats the element reads.
 
 ```typescript
@@ -177,6 +177,27 @@ session.data.sources().map(({ name, added }) => [name, added]);
 A load that left out edge rows naming a node no node row held (`unmatched: "leave-out"`) keeps
 that count on its entry as `leftOut: { rows, values }`: the rows left out, and how many distinct
 names they gave. The field is there only when at least one row was left out.
+
+### Knowing which load finished
+
+Every load method takes a `callerKey`: any string you choose. The load does nothing with it but
+hand it back on the `source:loaded` event it publishes once it is in, and on the
+[journal](./journal) entries of the commands it ran, so you can tell your own loads apart. It is
+never saved with the project.
+
+```typescript
+session.on("source:loaded", ({ source, kind, callerKey }) => {
+    if (callerKey === "tutorial-graph") startTutorial(source);
+});
+await session.data.generate("cycle", { n: 12 }, { callerKey: "tutorial-graph" });
+```
+
+`import`, a prepared draft's `load()`, `loadExample`, `loadDataset`, `generate`, `replaceSource`
+and `reloadSource` all take it. A source replaced in place keeps its key, and its event says so with
+`replaced: "replaceSource"` or `replaced: "reloadSource"` (`remap` reads it again too).
+The element's own loads -- the `data-source` attribute, `loadFromFile`, `loadFromUrl` and
+`addDataFromSource` -- publish `source:loaded` too, with no `callerKey`.
+See [graphty-source-loaded](./events#graphty-source-loaded) for what the event carries.
 
 ### Loads that overlap
 
@@ -355,14 +376,15 @@ If that pair's load failed, assigning it again retries it.
 | CX                | `.cx`                                         | Version 1 of CX, read only                               |
 | Cytoscape Session | `.cys`                                        | A saved Cytoscape session, read only                     |
 | OBO               | `.obo`                                        | The Gene Ontology's ontology format, read only           |
+| Excel Workbook    | `.xlsx`, `.xlsm`                              | One sheet of a workbook read as a table, read only       |
 
 An OBO Graphs document (the JSON form of an ontology, such as `go-basic.json`) is JSON: it is
-recognised by its content and read with the `json` format.
+recognized by its content and read with the `json` format.
 
 ### Cytoscape and ontology files
 
 XGMML, CX, CX2, Cytoscape sessions and OBO are read by `@graphty/graph-io` with nothing to wire
-up: hand the element the file and it loads. The format is recognised from the file name or, failing
+up: hand the element the file and it loads. The format is recognized from the file name or, failing
 that, from the bytes:
 
 ```typescript
@@ -493,6 +515,65 @@ GML or Pajek turns y downward again (and puts Pajek's 0.5 back on a 3D drawing's
 see [Reading stored positions](https://graphty.app/docs/graph-io/guide/positions) in the
 graph-io guide.
 
+## Groups: Nodes Inside Other Nodes
+
+A file can nest nodes inside another node: a Cytoscape.js compound node (`parent`), a Graphviz
+cluster (`subgraph cluster_*`), a yEd group (a GraphML node holding a nested graph) or a GEXF
+hierarchy (`pid`). The element draws such a group as a box around the nodes it holds, padded and
+behind them, with its label; the box follows its members as they move, and a group inside a group
+is drawn inside it. A layout does not place the group as a node of its own: it pulls no edges and
+pushes no node, and only its members are laid out.
+
+```typescript
+const doc = {
+    elements: [
+        { data: { id: "team", label: "Team" } },
+        { data: { id: "ana", parent: "team" } },
+        { data: { id: "bo", parent: "team" } },
+        { data: { id: "cy", parent: "team" } },
+        { data: { id: "dee" } },
+        { data: { id: "e1", source: "ana", target: "bo" } },
+        { data: { id: "e2", source: "cy", target: "dee" } },
+    ],
+};
+await element.session.data.import({ type: "json", config: { data: JSON.stringify(doc) } });
+```
+
+`team` is drawn as a box around `ana`, `bo` and `cy`; `dee` is outside it.
+
+Node records you add yourself nest the same way: a `parent` key names the group a node is in.
+A node read from a file that nests (a Graphviz cluster, a GraphML or XGMML nested graph, a
+Cytoscape.js compound) carries the same key, holding its group's id, so `session.data.nodes()`
+shows which group each node is in.
+
+```typescript
+await element.session.data.addNodes([{ id: "team" }, { id: "ana", parent: "team" }, { id: "bo", parent: "team" }]);
+```
+
+To style the groups, select the nodes that hold others: `graphty.members` is how many nodes a
+group holds directly, and every other node has no value there.
+
+```typescript
+await element.session.styles.add({
+    name: "Groups",
+    target: "node",
+    selector: { match: "has", path: "graphty.members" },
+    set: { "node.color": "#dddddd" },
+});
+```
+
+A group the file stores a position for (a yEd group's geometry, a Graphviz cluster's `bb`) keeps
+it when the file is drawn where it was saved (`layout: "recommended"`, see
+[Drawing a file where it was saved](#drawing-a-file-where-it-was-saved)). With
+[the file's own styles](#a-files-own-styles) a group takes the fill, border and label the file
+gives it.
+
+To draw groups as ordinary nodes instead, laid out like any other:
+
+```typescript
+element.layoutBehavior = { layout: { groupsFollowMembers: false } };
+```
+
 ## Directed or Undirected
 
 Most graph formats state whether their edges point, and the importer reports what the file said.
@@ -585,7 +666,7 @@ an edge's endpoints): it goes on the record as `id#<attribute id>`, such as `id#
 attribute declared `id="att1"` or `id#d1` for a GraphML key declared `id="d1"`.
 
 The GEXF `label=` attribute is overridden by a declared attribute titled `label`, and the
-`viz:` position, colour and size override attributes titled `position`, `color` or `size`.
+`viz:` position, color and size override attributes titled `position`, `color` or `size`.
 
 A GEXF node's `viz:` color and size arrive on its record as `color` (`{ r, g, b, a }`) and `size`,
 and a yEd GraphML file's graphics as `width`, `height`, `color`, `borderColor`, `borderWidth` and
@@ -612,7 +693,7 @@ These are read by `@graphty/graph-io` too, and each record keeps the keys the fi
 - a GML node declared twice keeps its first declaration, as the element keeps the first record
   of a repeated id. A Pajek vertex written on two lines is one node: the first line's values win,
   and the later line fills in only what the first left out (`1 0.1 0.2` then `1 "z"` is a node at
-  0.1, 0.2 labelled `z`). A DOT node written in several statements has the attributes of all of
+  0.1, 0.2 labeled `z`). A DOT node written in several statements has the attributes of all of
   them, the later ones winning, as Graphviz draws it;
 - a DOT cluster subgraph is a node of its own, carrying the cluster's attributes (its `label`,
   `fillcolor` and so on). A node's `pos` stays the text the file wrote, and it and a cluster's `bb`
@@ -681,7 +762,7 @@ strings the file wrote:
 | several timed `<attvalue>`s for one attribute  | that attribute as a list of `{ value, start, end }` slices; an untimed `<attvalue>` among them comes first, as `{ value }` |
 
 An attribute with no timed `attvalue` keeps its plain value, so a static file reads as it always
-has. Timed `viz:*` elements (a position, colour or size that changes over time) are not read.
+has. Timed `viz:*` elements (a position, color or size that changes over time) are not read.
 
 ### JSON Format (Native)
 
@@ -721,6 +802,81 @@ c,a,1.5
 
 The column separator is worked out from the first line -- comma, tab, semicolon or pipe -- so a
 tab-separated or semicolon-separated file loads with no options. Pass `delimiter` to override it.
+
+## One Part of a JSON File
+
+A JSON file can hold several collections. Pass `pointer`, a
+[JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901) such as `/graph/people`, to read one of
+them. Load each collection as its own source from the same file:
+
+```typescript
+const config = { url: "org.json" };
+await session.data.import({ type: "json", config: { ...config, pointer: "/graph/people" } });
+await session.data.import({ type: "json", config: { ...config, pointer: "/graph/knows" } }, { mode: "merge" });
+```
+
+```json
+{
+    "graph": {
+        "people": [{ "id": "ava" }, { "id": "ben" }],
+        "knows": [{ "source": "ava", "target": "ben" }]
+    }
+}
+```
+
+What the pointer names decides how it is read:
+
+- An array is one table of rows. Its records are edges when they name their ends (`edgeSource` and
+  `edgeTarget`, else `data.knownFields.edgeSrcIdPath` and `edgeDstIdPath` when the records carry
+  them, else `source`/`target`, `src`/`dst` or `from`/`to`), and nodes otherwise, keyed by
+  `nodeIdPath`, else `id`, `name`, `key` or `label`. In `session.data.prepare` it is a `rows`
+  table you map like a CSV file's.
+- An object is read whole, as if it were the file.
+- Without `pointer`, an array at the top of the file is still read as a whole document: a Cytoscape
+  elements array, or records that `node.path` and `edge.path` select.
+- A pointer that names nothing, or names a number, string or other value, fails the load with
+  `E_OPTION_RANGE` (`details.option` is `"pointer"`).
+
+Two sources from one file share its bytes, so a project saved with them by reference reads the
+file once when it is opened again.
+
+## Placeholder Values
+
+Pass `missing`, a list of cell texts, to read placeholders such as `N/A` as unset values instead of
+text:
+
+```typescript
+await session.data.import({ type: "csv", config: { url: "people.csv", missing: ["N/A", "null"] } });
+```
+
+A cell matches only when its whole text equals an entry, after Unicode NFC normalization. Cells are
+never trimmed, so `" N/A"` stays text. In a CSV file (any delimiter) the match happens before
+columns are typed, so a number column holding `N/A` stays a number column, a placeholder id leaves
+its row out, and a placeholder end is a missing end. A Neo4j file refuses the option with
+`E_OPTION_RANGE`. In a JSON file only string values at the top level of each record are compared;
+numbers, `true`, `false`, `null` and nested values never are.
+
+## One Sheet of a Workbook
+
+An Excel workbook (`.xlsx` or `.xlsm`) is read one sheet at a time, as a table: the header row names
+the columns, and `source` and `target` columns make edges, an `id` column nodes, as a CSV file is
+read. Pass `sheet`, the name of the sheet, to read one other than the first:
+
+```typescript
+await session.data.import({ config: { url: "org.xlsx", sheet: "Links" } });
+```
+
+The name is matched exactly, after Unicode NFC normalization. Left out, the first sheet in tab order
+is read, and the load records its name (`session.data.sources()[n].config.sheet`), so a project
+saved with the file by reference reads the same sheet again even when the tabs are reordered. A
+name the workbook does not have fails the load with `E_SHEET_NOT_FOUND`, whose `details` are
+`{ format, sheet, available }`: the name asked for and every sheet's name in tab order. The
+catalog's `listGraphs` lists the sheets.
+
+Text cells stay text (`007` stays `007`), dates become ISO 8601 text, formulas are read as the
+value Excel saved, and error cells (`#N/A`) are unset. `missing` applies to workbook cells too. A
+legacy `.xls` file or a password-protected workbook fails with `E_PARSE_FAILED`; save it as `.xlsx`
+first. The workbook reader loads the first time a workbook is opened.
 
 ## Custom ID Paths
 
@@ -915,8 +1071,8 @@ Left unset -- the default -- a repeat is decided by the ordered endpoint pair al
 
 ## Large Dataset Tips
 
-The element holds at most `DEFAULT_LIMITS.renderCeiling` nodes (50,000) and
-`DEFAULT_LIMITS.edgesDrawn` edges (100,000), exported from `@graphty/graphty-element/session`. A
+The element holds at most `DEFAULT_LIMITS.renderCeiling` nodes (100,000) and
+`DEFAULT_LIMITS.edgesDrawn` edges (1,000,000), exported from `@graphty/graphty-element/session`. A
 load that would cross either fails with `E_TOO_LARGE`; `details` carry the limit, the count the
 load would have reached and the counts the graph holds. The refusal is decided before the graph
 is touched: nothing from the refused batch is held, and assigning `edgeData` past the ceiling
@@ -941,7 +1097,7 @@ for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
 
 ## Exporting the Graph
 
-`exportGraph(format, options?)` writes the graph in any format the catalogue lists with
+`exportGraph(format, options?)` writes the graph in any format the catalog lists with
 `canExport: true` -- every built-in format, and any format a writer was registered for.
 
 ```typescript
@@ -954,12 +1110,12 @@ const text = await result.text(); // or iterate result.bytes for a large file
 
 An export carries whatever the format can represent: every node and edge with its attributes,
 the current positions, every published algorithm result (as attributes named
-`results.<runId>.<field>`, the element's rank and percentile included) and the colour, size and
+`results.<runId>.<field>`, the element's rank and percentile included) and the color, size and
 edge width and node shape each element is drawn with. Edge weights are the weights the element
 runs on -- read through `edgeWeightPath` or the legacy `value` key, and folded under
 `repeatedEdges` -- and positions are written in file units (divided by `positionScale`), so a
 reload puts every node back where it was. Whatever the format has no place for -- positions in CSV,
-colours in GraphML (unless the export asks for `styles: true`, see
+colors in GraphML (unless the export asks for `styles: true`, see
 [Styles from Files](./file-styles#exporting-with-styles)), node attributes in an edge-list CSV --
 is listed in `losses`, one per kind of omission, about the table or file actually written:
 exporting the CSV node table lists no edge or graph loss. A value an algorithm did not measure is left absent, never written as zero. The
@@ -983,8 +1139,39 @@ words for it:
   no place for), or none (self-loops).
 - `count` is how many nodes, edges, values or columns are affected, or `null` when not counted.
 
-`lossNotes`, the same losses with an English `message`, is deprecated and goes in the next major
-release.
+Each loss also says whether it is the format's normal behavior, as `expected`. It is `true` for a
+kind of information the format (or the table chosen) has no place for at all, such as positions in
+CSV or styles in a format that writes none: the rest of the file is written as it is. It is `false`
+when the export changes or drops part of the data itself (ids renumbered, nested values written as
+text, parallel edges dropped), for a refusal, and for a registered writer's own codes. An
+application can show the expected ones quietly and warn about the rest:
+
+```typescript
+const surprising = result.losses.filter((loss) => !loss.expected);
+```
+
+### Exporting part of the graph
+
+Without a `scope`, an export writes the whole graph. With one, it writes only the nodes the scope
+names, and only the edges whose two ends are both written:
+
+```typescript
+// What the visibility filter and the time window leave showing
+const shown = await element.exportGraph("graphml", { scope: "shown" });
+// The selected nodes and the edges between them
+const picked = await element.exportGraph("csv", { scope: "selection" });
+// A kept set's members
+const members = await element.exportGraph("gexf", { scope: { set: "core-team" } });
+// These nodes, by id
+const pair = await element.exportGraph("json", { scope: { nodes: ["alice", "bob"] } });
+// A rule, read as the visibility filter reads it
+const busy = await element.exportGraph("csv", {
+    scope: { kind: "range", attribute: "data.degree", min: 10 },
+});
+```
+
+Each node keeps its own position, values and styles. `columns` (a list of column names) narrows
+which attribute columns are written in the same way.
 
 ### Exporting styles
 
@@ -1001,28 +1188,28 @@ back with `styles: "file"` rebuilds them. `session.catalog.formats()` says what 
 (`styles.write`: `"rules"`, `"values"` or `"none"`). Anything the format cannot hold is a loss with
 a `W_STYLE_` code (`W_STYLE_NOT_WRITTEN`, `W_STYLE_APPROXIMATED`, `W_STYLE_RULES_NOT_KEPT`,
 `W_STYLE_LAYER_FLATTENED`), naming the `target` and `property` it is about. With `styles: true` the
-drawn colour, size, shape and width columns are left out, because the style slots carry them.
+drawn color, size, shape and width columns are left out, because the style slots carry them.
 
 Without `styles: true` the export is the file it always was, and a graph with layers of its own
 above the element's base layers reports one more loss, `W_STYLES_NOT_EXPORTED`, whose `count` is
 how many layers were left out. Use it to warn a reader before their styles are lost. See
 [Styles from Files](./file-styles#exporting-with-styles).
 
-| Format     | Positions     | Colour and size | Node attributes | Notes                                                                                                                                                                                |
-| ---------- | ------------- | --------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| GEXF       | yes           | yes             | yes             |                                                                                                                                                                                      |
-| GML        | yes           | no              | yes             | node ids must be integers; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                                    |
-| DOT, Pajek | yes           | no              | yes             |                                                                                                                                                                                      |
-| GraphML    | no            | no              | yes             | node ids must be XML name tokens; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                             |
-| JSON       | as attributes | as attributes   | yes             |                                                                                                                                                                                      |
-| CSV        | no            | no              | no (edge table) | `{ table: "nodes" }` writes the node table instead; `{ variant: "neo4j" }` writes a Neo4j admin-import file; a number id and the same text id (`1` and `"1"`) cannot both be written |
+| Format     | Positions     | Color and size | Node attributes | Notes                                                                                                                                                                                |
+| ---------- | ------------- | -------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GEXF       | yes           | yes            | yes             |                                                                                                                                                                                      |
+| GML        | yes           | no             | yes             | node ids must be integers; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                                    |
+| DOT, Pajek | yes           | no             | yes             |                                                                                                                                                                                      |
+| GraphML    | no            | no             | yes             | node ids must be XML name tokens; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                             |
+| JSON       | as attributes | as attributes  | yes             |                                                                                                                                                                                      |
+| CSV        | no            | no             | no (edge table) | `{ table: "nodes" }` writes the node table instead; `{ variant: "neo4j" }` writes a Neo4j admin-import file; a number id and the same text id (`1` and `"1"`) cannot both be written |
 
 CX, CX2 and Cytoscape session (`.cys`) node ids are integers: other ids are renumbered by default,
 each original kept in the file so reading it back restores it (`{ sanitizeIds: "error" }` refuses
-instead). A Cytoscape session is a zip file, so its catalogue entry says `binary: true`: its
+instead). A Cytoscape session is a zip file, so its catalog entry says `binary: true`: its
 `text()` rejects with `E_UNSUPPORTED`, and the file is `bytes`.
 
-The "Colour and size" column describes an export without `styles: true`. With it, each format
+The "Color and size" column describes an export without `styles: true`. With it, each format
 writes as much of the look as its own style slots hold; see [Exporting styles](#exporting-styles).
 
 A CSV export puts an apostrophe before every text cell, id and header that starts with `=`, `+`,
@@ -1032,7 +1219,7 @@ formula. Numbers, and texts that are numbers such as `-2.31`, are never touched.
 
 ### Kinds of file a format writes
 
-JSON and CSV each write several kinds of file. Their catalogue entries list them in
+JSON and CSV each write several kinds of file. Their catalog entries list them in
 `exportVariants`, one entry per kind, so a picker can offer them by name:
 
 | Format | Variants                                                                                                                |
@@ -1060,7 +1247,7 @@ reads back exactly -- styles, results, layout and notes -- and it is read back b
 `session.project.open`, never by `session.data.import`, which refuses the name with
 `E_UNKNOWN_FORMAT`. It takes no options, has no loss notes, and is built as one string.
 
-Each format's options are listed in its catalogue entry's `writerOptions`, graph-io's
+Each format's options are listed in its catalog entry's `writerOptions`, graph-io's
 `sanitizeIds` and `onMixedDirection` included; an option not listed there is refused with
 `E_UNKNOWN_OPTION`, and a value outside its choices with `E_OPTION_RANGE`.
 

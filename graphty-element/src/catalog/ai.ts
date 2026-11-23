@@ -1,5 +1,5 @@
 /**
- * @file The AI catalogue: the assistant's providers, their models and keys, and the stages its
+ * @file The AI catalog: the assistant's providers, their models and keys, and the stages its
  * status reports, as plain data.
  *
  * The provider classes need a DOM and three LLM SDKs, so they live behind
@@ -7,7 +7,7 @@
  * providers exist, whether one needs a key and what that key looks like, which models it offers
  * and whether each can call the assistant's tools -- and those live here, where Node can read
  * them. The providers read the same tables (`VercelAiProvider`'s default models,
- * `WebLlmProvider`'s model list), and `ProviderType` is {@link AiProviderId}, so the catalogue
+ * `WebLlmProvider`'s model list), and `ProviderType` is {@link AiProviderId}, so the catalog
  * and the providers cannot disagree.
  *
  * Neutral facts only: no placeholder text, no labels, no display order. An application writes its
@@ -51,7 +51,17 @@ export type AiReasoningEffort = (typeof AI_REASONING_EFFORTS)[number];
  * token budget for its thinking (`AiManagerConfig.thinkingBudgetTokens`, at least `min`).
  */
 export type AiModelReasoning =
-    { readonly efforts: readonly AiReasoningEffort[] } | { readonly budgetTokens: { readonly min: number } };
+    | {
+          /** The reasoning efforts the model takes. */
+          readonly efforts: readonly AiReasoningEffort[];
+      }
+    | {
+          /** The model takes a token budget for its thinking. */
+          readonly budgetTokens: {
+              /** The smallest budget it accepts, in tokens. */
+              readonly min: number;
+          };
+      };
 
 /** One model a provider offers. */
 export interface AiModelDescriptor {
@@ -66,7 +76,12 @@ export interface AiModelDescriptor {
     /** How its reasoning is set; absent, it takes no reasoning setting. */
     readonly reasoning?: AiModelReasoning;
     /** The sampling temperatures it honors (`AiManagerConfig.temperature`); absent, it ignores one. */
-    readonly temperature?: { readonly min: number; readonly max: number };
+    readonly temperature?: {
+        /** The lowest temperature it accepts. */
+        readonly min: number;
+        /** The highest temperature it accepts. */
+        readonly max: number;
+    };
 }
 
 /** Gemini 3 Flash's thinking levels: gemini-3.8-flash refuses "minimal" (checked 2026-10-12). */
@@ -281,6 +296,32 @@ export function aiProviderDescriptor(id: AiProviderId): AiProviderDescriptor {
     return found;
 }
 
+/** The image model a provider makes pictures with (`AI_IMAGE_MODELS`). */
+export interface AiImageModelDescriptor {
+    /** The model id sent to the provider. */
+    readonly id: string;
+    /** The model's own name. */
+    readonly plainName: string;
+    /**
+     * What one picture is expected to cost, in US dollars, at the provider's list price when this
+     * table was written. A host's own price, a discount or a later price change is not known here.
+     */
+    readonly costUsd: number;
+}
+
+/**
+ * The image model each provider that can make pictures uses, by provider id: the assistant's
+ * `project` tool `generate_background` action calls it with the reader's own key. A provider
+ * absent here makes no pictures (the action refuses with `AI_NOT_AVAILABLE`). Entries may be
+ * added in a minor release.
+ */
+export const AI_IMAGE_MODELS: Readonly<Partial<Record<AiProviderId, AiImageModelDescriptor>>> = Object.freeze({
+    // $30 per million output tokens, 1,290 tokens a picture (checked 2026-11-15).
+    google: { id: "gemini-2.5-flash-image", plainName: "Gemini 2.5 Flash Image", costUsd: 0.039 },
+    // Medium quality at 1536 x 1024, OpenAI's list price per picture (checked 2026-11-16).
+    openai: { id: "gpt-image-1", plainName: "GPT Image 1", costUsd: 0.063 },
+});
+
 /**
  * Every tool the assistant can use beyond its own commands (`AiToolOptions`): a web search and
  * reading a given web page, both run by the provider, and running a program the model writes in a
@@ -312,7 +353,7 @@ export type AiToolCapabilities = Readonly<Record<AiHostedToolId, AiCapabilitySta
 /** What the assistant can use with a provider and model (`getAiCapabilities()`). */
 export interface AiCapabilities {
     /** The provider: one of `AI_PROVIDER_IDS`, or the `name` of a provider instance of your own. */
-    readonly provider: AiProviderId | (string & {}); // NOSONAR(S4335): the open-union idiom
+    readonly provider: AiProviderId | (string & {}); // the open-union idiom
     /** The model id; empty when a provider instance of your own does not say. */
     readonly model: string;
     /** Each tool, and whether it can be used. */
@@ -371,6 +412,7 @@ export function aiHostedToolStatus(provider: AiProviderId, model: string, tool: 
 export interface AiProviderVoice {
     /** Speech to text through the provider. */
     readonly transcription: {
+        /** Whether the provider transcribes speech. */
         readonly status: AiCapabilityStatus;
         /** The default transcription model; absent when the chat model transcribes or there is none. */
         readonly model?: string;
@@ -379,6 +421,7 @@ export interface AiProviderVoice {
     };
     /** Text to speech through the provider. */
     readonly speech: {
+        /** Whether the provider speaks text. */
         readonly status: AiCapabilityStatus;
         /** The default speech model; absent when there is none. */
         readonly model?: string;
@@ -388,6 +431,7 @@ export interface AiProviderVoice {
      * Absent means unsupported.
      */
     readonly live?: {
+        /** Whether the provider holds a live voice conversation. */
         readonly status: AiCapabilityStatus;
         /** The default live model (`AiVoiceOptions.liveModel` overrides it); absent when there is none. */
         readonly model?: string;
@@ -513,10 +557,40 @@ export type AiKeyShapeCode = "E_KEY_EMPTY" | "E_KEY_PREFIX" | "E_KEY_TOO_SHORT";
 
 /** The verdict of {@link checkApiKeyShape}. */
 export type AiKeyShapeCheck =
-    | { readonly valid: true }
-    | { readonly valid: false; readonly code: "E_KEY_EMPTY"; readonly params: Record<string, never> }
-    | { readonly valid: false; readonly code: "E_KEY_PREFIX"; readonly params: { readonly prefix: string } }
-    | { readonly valid: false; readonly code: "E_KEY_TOO_SHORT"; readonly params: { readonly minLength: number } };
+    | {
+          /** The key has the provider's shape. */
+          readonly valid: true;
+      }
+    | {
+          /** The key does not have the provider's shape. */
+          readonly valid: false;
+          /** The key is empty. */
+          readonly code: "E_KEY_EMPTY";
+          /** No facts: an empty key has none. */
+          readonly params: Record<string, never>;
+      }
+    | {
+          /** The key does not have the provider's shape. */
+          readonly valid: false;
+          /** The key does not start the way the provider's keys do. */
+          readonly code: "E_KEY_PREFIX";
+          /** What the key should start with. */
+          readonly params: {
+              /** The text every key of the provider starts with. */
+              readonly prefix: string;
+          };
+      }
+    | {
+          /** The key does not have the provider's shape. */
+          readonly valid: false;
+          /** The key is shorter than the provider's keys. */
+          readonly code: "E_KEY_TOO_SHORT";
+          /** How long the key should be. */
+          readonly params: {
+              /** The fewest characters a key of the provider has. */
+              readonly minLength: number;
+          };
+      };
 
 /**
  * Whether a key has the shape of a provider's keys, without calling the provider. A key of the
@@ -565,7 +639,7 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *   when the provider answered with an HTTP status. `{ cause }` when the provider said why:
  *   `"quota"` (the account has no credit, quota or spend left; asking again will not help),
  *   `"rate-limit"` (too many requests for now), `"live-closed"` (a live voice session closed).
- * - `AI_CANCELLED` -- the command was cancelled (`cancelAiCommand()`); what it changed is taken back.
+ * - `AI_CANCELED` -- the command was canceled (`cancelAiCommand()`); what it changed is taken back.
  * - `AI_UNDONE` -- the command was undone while it ran; what it changed is taken back.
  * - `AI_TOOL_UNKNOWN` -- the model called a tool that does not exist. `{ tool }`.
  * - `AI_TOOL_INVALID_ARGUMENTS` -- the model called a tool with arguments it refused. `{ tool }`.
@@ -654,7 +728,7 @@ export const AI_RESULT_CODES = Object.freeze([
     "AI_KEY_MISSING",
     "AI_KEY_REJECTED",
     "AI_PROVIDER_ERROR",
-    "AI_CANCELLED",
+    "AI_CANCELED",
     "AI_UNDONE",
     "AI_TOOL_UNKNOWN",
     "AI_TOOL_INVALID_ARGUMENTS",
@@ -718,7 +792,6 @@ export type AiResultParams = Readonly<Record<string, string | number>>;
  * {@link AiRule}), so an application can word it from its own names for columns and values.
  *
  * OPEN UNION: codes may be added in a minor release.
- * @experimental assistant
  */
 export const AI_EFFECT_CODES = Object.freeze([
     "AI_EFFECT_STYLE",
@@ -737,7 +810,6 @@ export const AI_EFFECT_CODES = Object.freeze([
 
 /**
  * One effect code; see {@link AI_EFFECT_CODES}.
- * @experimental assistant
  */
 export type AiEffectCode = (typeof AI_EFFECT_CODES)[number];
 
@@ -747,20 +819,51 @@ export type AiEffectCode = (typeof AI_EFFECT_CODES)[number];
  * as it is now. A rule or a reference, so it stays exact at any graph size; `ids` appears only when
  * ids are what the call named. A target whose rule, layer or run is gone counts zero or is refused
  * (`E_UNKNOWN_LAYER`, `E_UNKNOWN_RUN`).
- * @experimental assistant
  */
 export type AiTarget =
-    | { readonly where: string }
-    | { readonly text: string }
-    | { readonly layer: string }
-    | { readonly range: { readonly run: string; readonly field?: string } }
-    | { readonly top: { readonly run: string; readonly field?: string; readonly n: number } }
-    | { readonly ids: readonly (string | number)[] }
-    | { readonly scope: "graph" | "visible" };
+    | {
+          /** Every element an expression matches, as the selection's `{ where }` target reads it. */
+          readonly where: string;
+      }
+    | {
+          /** Every node a text search finds, as the selection's `{ text }` target reads it. */
+          readonly text: string;
+      }
+    | {
+          /** Every element a style layer's rule matches, by the layer's id. */
+          readonly layer: string;
+      }
+    | {
+          /** Every element a finished run gave a value. */
+          readonly range: {
+              /** The run's id. */
+              readonly run: string;
+              /** The run's field that is read; absent, its primary field. */
+              readonly field?: string;
+          };
+      }
+    | {
+          /** The highest-ranked elements of a finished run. */
+          readonly top: {
+              /** The run's id. */
+              readonly run: string;
+              /** The run's field that is ranked; absent, its primary field. */
+              readonly field?: string;
+              /** The most elements taken. */
+              readonly n: number;
+          };
+      }
+    | {
+          /** The elements with these ids. */
+          readonly ids: readonly (string | number)[];
+      }
+    | {
+          /** The whole graph, or only what is visible. */
+          readonly scope: "graph" | "visible";
+      };
 
 /**
  * What a tool call did, for an application to word and to point at.
- * @experimental assistant
  */
 export interface AiEffect {
     /** What happened; see {@link AI_EFFECT_CODES}. */
@@ -779,7 +882,6 @@ export interface AiEffect {
 /**
  * One comparison of a rule: a column, how it compares, and the values it compares with. `values`
  * holds more than one value only for `==` (any of them) and `!=` (none of them).
- * @experimental assistant
  */
 export interface AiRuleTerm {
     /** The column, as the rule names it: a bare column name (`weight`) or a path (`results.r1.community`). */
@@ -793,7 +895,6 @@ export interface AiRuleTerm {
 /**
  * A rule in parts: its comparisons, and whether an element must pass all of them or any. `a == 1
  * || a == 2` is one term on `a` with the values 1 and 2.
- * @experimental assistant
  */
 export interface AiRule {
     /** `"all"` for `&&`, `"any"` for `||`; a rule of one term is `"all"`. */
@@ -818,7 +919,6 @@ export interface AiRule {
  * - `other` -- anything else (an options object, coordinates); no formatter is expected.
  *
  * OPEN UNION: kinds may be added in a minor release; treat a kind you do not know as `other`.
- * @experimental assistant
  */
 export const AI_INPUT_KINDS = Object.freeze([
     "rule",
@@ -840,13 +940,11 @@ export const AI_INPUT_KINDS = Object.freeze([
 
 /**
  * One input kind; see {@link AI_INPUT_KINDS}.
- * @experimental assistant
  */
 export type AiInputKind = (typeof AI_INPUT_KINDS)[number];
 
 /**
  * One argument a model passed a tool, read against the tool's own parameter schema.
- * @experimental assistant
  */
 export interface AiCallInput {
     /** The argument's name in the tool's schema. */
@@ -863,7 +961,6 @@ export interface AiCallInput {
 
 /**
  * What a message was about (`AiCommandOptions.scope`), read when it was sent.
- * @experimental assistant
  */
 export interface AiMessageScope {
     /** `"selection"`: the selected elements; `"graph"`: the whole graph, whatever was selected. */

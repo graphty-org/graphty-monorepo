@@ -360,7 +360,7 @@ interface HelperOutcome {
  * @param state - The message's state; read-only when helpers run beside each other.
  * @param options - The engines and keys.
  * @returns The call's result and the helper's conversation since `conversation` was handed in.
- * @throws When the message was cancelled or undone while it ran.
+ * @throws When the message was canceled or undone while it ran.
  * @throws {MessageRolledBack} When a tool threw, or its last write batch failed: the message's
  *   writes are taken back, the helper's with the main's.
  */
@@ -531,7 +531,7 @@ function helperFailure(
     const { sink } = parent;
     // A cancel or an undo ends the whole message, helpers and all.
     if (parent.abort.signal.aborted) {
-        sink.emit({ type: "ai-agent-end", agent: role.name, code: "AI_CANCELLED", params: {}, usage });
+        sink.emit({ type: "ai-agent-end", agent: role.name, code: "AI_CANCELED", params: {}, usage });
         throw error;
     }
 

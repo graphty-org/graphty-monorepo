@@ -11,7 +11,7 @@ import { z } from "zod";
 import type { GroupValue } from "../../../session/groups";
 import type { FixCode, IssueId } from "../../../session/issues";
 import type { ColumnRef } from "../../../session/shared";
-import type { ColumnRole, GroupSummary, TransactionScope, ValueType } from "../../../session/types";
+import type { ColumnRole, GroupSummary, ScoreTerm, TransactionScope, ValueType } from "../../../session/types";
 import { MAX_ITEMS, MAX_STRING, recordField, resolveNode, text } from "../fields";
 import {
     type ActionResult,
@@ -240,6 +240,31 @@ export const columnsTool: ToolDefinition = {
             run: async ({ tx }, args) => {
                 const { kind, name } = columnOf(args);
                 await coded(() => tx.data.derive(name, text(args.expression), { kind }));
+                return ok(undefined, { column: name });
+            },
+        },
+        {
+            name: "score",
+            summary: "a column that combines numeric columns or results, each rescaled to 0..1, by weight",
+            fields: {
+                column,
+                on,
+                terms: z
+                    .array(
+                        z.object({
+                            path: z.string().max(MAX_STRING).describe("A numeric column's path, such as data.age."),
+                            weight: z.number().optional().describe("How much it counts. Default 1."),
+                        }),
+                    )
+                    .min(1)
+                    .max(MAX_ITEMS)
+                    .describe("The columns and their weights."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.deriveScore" }, { op: "data.derive" }],
+            run: async ({ tx }, args) => {
+                const { kind, name } = columnOf(args);
+                await coded(() => tx.data.deriveScore(name, args.terms as ScoreTerm[], { kind }));
                 return ok(undefined, { column: name });
             },
         },

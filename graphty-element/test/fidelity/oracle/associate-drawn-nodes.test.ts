@@ -129,6 +129,46 @@ describe("oracle nodes no id or label names", () => {
         assert.strictEqual(nameDrawnNodes([text(10, 100, 150, "Server")], below)[0].hint, null);
     });
 
+    it("reads an icon glyph on a node's center as its body and the words below it in its box as its label", () => {
+        // json-vis-synth 14: vis-network's box for an icon node holds its label below the glyph, so it is off center
+        const text = (
+            index: number,
+            box: { x0: number; y0: number; x1: number; y1: number },
+            content: string,
+        ): Prim => ({
+            ...body(index, (box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2, "#000000"),
+            kind: "text",
+            fill: null,
+            box,
+            text: {
+                content,
+                x: (box.x0 + box.x1) / 2,
+                y: (box.y0 + box.y1) / 2,
+                box,
+                sizePx: box.y1 - box.y0,
+                family: "arial",
+                weight: 400,
+                style: "normal",
+                anchor: "middle",
+                rotation: 0,
+                color: "#000000",
+                opacity: 1,
+            },
+        });
+        const glyph = text(0, { x0: 188, y0: 88, x1: 212, y1: 112 }, "\uf007");
+        const words = text(1, { x0: 192, y0: 118, x1: 208, y1: 128 }, "icon");
+        const icon = { nodes: [{ id: "i", x: 200, y: 100, w: 32, h: 46, box: { x0: 184, y0: 84, x1: 216, y1: 130 } }] };
+        const named = nameDrawnNodes([glyph, words], icon);
+        assert.deepEqual(
+            named.map((p) => p.hint?.id),
+            ["i", "i"],
+        );
+        const n = associate(named, 400, 400, guide, { ownLayout: true, drawn: icon }).scene.nodes.find(
+            (x) => x.id === "i",
+        );
+        assert.deepEqual([n?.cx, n?.cy, n?.w, n?.h, n?.label?.content], [200, 100, 24, 24, "icon"]);
+    });
+
     it("takes a text node's place and size from where the program drew it, not from its words", () => {
         // json-vis-synth 4: vis-network's box is the words and a 5 px margin each side, and its lines run to its middle
         const words: Prim = {

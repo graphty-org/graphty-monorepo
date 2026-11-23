@@ -11,7 +11,9 @@
  * exceptions with no row here (design/owner-standing-rules.md, rule 6).
  */
 
+import { LABEL_LOOKS } from "../../src/catalog/label-looks";
 import type { ShaderDescriptor } from "../../src/catalog/shaders";
+import * as graphStyle from "../../src/config/GraphStyle";
 import type { GraphSession } from "../../src/session";
 
 /** What a row's `useEvery` did. */
@@ -32,6 +34,10 @@ export interface SelfContainedKind {
     readonly useEvery: (session: GraphSession) => Promise<UsedEvery>;
     /** Each module that ships the built-ins, relative to this folder, with the exports of its empty stub. */
     readonly builtInModules: Readonly<Record<string, Record<string, unknown>>>;
+    /** False for a kind with no catalog behind it (a default value), which the census leaves out. */
+    readonly catalog?: false;
+    /** What the kind leaves in a session, which the session that opens the save must hold too. */
+    readonly state?: (session: GraphSession) => unknown;
 }
 
 /** The fixture's nodes. Their data avoids built-in names, so a hit in a save is a saved reference. */
@@ -124,6 +130,85 @@ async function useEveryShader(session: GraphSession): Promise<UsedEvery> {
     return { used, listed: presets.length, saves };
 }
 
+/** The settings a save once left out when they held their default. */
+const DEFAULTED_SETTINGS = ["edgeWeightMeaning", "edgeColor", "edgeScale", "edgeOpacity"];
+
+/**
+ * Leave every setting at its default, which a save must write all the same: one it left out would
+ * read back as the reading build's default, and this row's build has other defaults.
+ * @returns What was used.
+ */
+function useEveryDefault(): Promise<UsedEvery> {
+    return Promise.resolve({ used: DEFAULTED_SETTINGS, listed: DEFAULTED_SETTINGS.length, saves: [] });
+}
+
+/**
+ * Use every palette the catalog lists: one layer per palette, coloring nodes by a measurement.
+ * @param session - The session.
+ * @returns What was used.
+ */
+async function useEveryPalette(session: GraphSession): Promise<UsedEvery> {
+    const palettes = session.catalog.palettes();
+    for (const [at, palette] of palettes.entries()) {
+        await session.styles.add({
+            name: `Palette ${at}`,
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.color": { by: "data.weight", palette: palette.id } },
+        });
+    }
+
+    return { used: palettes.map((each) => each.id), listed: palettes.length, saves: [] };
+}
+
+/**
+ * Use every label look: one layer per look, on node labels.
+ * @param session - The session.
+ * @returns What was used.
+ */
+async function useEveryLabelLook(session: GraphSession): Promise<UsedEvery> {
+    for (const look of LABEL_LOOKS) {
+        await session.styles.add({
+            name: `Look ${look.id}`,
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labelStyle": { look: look.id } },
+        });
+    }
+
+    return { used: LABEL_LOOKS.map((each) => each.id), listed: LABEL_LOOKS.length, saves: [] };
+}
+
+/**
+ * Paint through the default palettes with bindings that name none -- a measurement, and one with a
+ * midpoint -- and read back the palettes the save names on them, so a save that leaves the choice
+ * to the reading build's defaults uses nothing (issue #6514). The groups' default needs a binding
+ * that names a categorical scale, which the scan counts against the scale exception, so
+ * test/session/styles/saved-default-palette.test.ts checks that one.
+ * @param session - The session.
+ * @returns What was used.
+ */
+async function useEveryDefaultPalette(session: GraphSession): Promise<UsedEvery> {
+    const bindings = [{ by: "data.weight" }, { by: "data.weight", midpoint: 2 }];
+    for (const [at, binding] of bindings.entries()) {
+        await session.styles.add({
+            name: `Default palette ${at}`,
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.color": binding },
+        });
+    }
+
+    const { members } = JSON.parse((await session.project.save()).text) as {
+        members: { kind: string; layers?: { name?: string; encode?: Record<string, { palette?: string }> }[] }[];
+    };
+    const layers = members.find((each) => each.kind === "graphty-style")?.layers ?? [];
+    const used = layers
+        .filter((layer) => layer.name?.startsWith("Default palette ") === true)
+        .flatMap((layer) => layer.encode?.["node.color"]?.palette ?? []);
+    return { used, listed: bindings.length, saves: [] };
+}
+
 /** Every kind a save file carries in full. The census requires each `selfContained` kind of `saved-format-lists.json` here. */
 export const SELF_CONTAINED_KINDS: readonly SelfContainedKind[] = [
     {
@@ -132,6 +217,61 @@ export const SELF_CONTAINED_KINDS: readonly SelfContainedKind[] = [
         builtInModules: {
             "../../src/shaders/presets/index.ts": { SHADER_PRESETS: [] },
             "../../src/shaders/presets/bodies.ts": { SHADER_PRESET_BODIES: {} },
+        },
+    },
+    {
+        kind: "palettes",
+        useEvery: useEveryPalette,
+        builtInModules: {
+            "../../src/catalog/palettes.ts": {
+                PALETTE_DESCRIPTORS: [],
+                paletteDescriptor: () => undefined,
+                palettesOfKind: () => [],
+                knownPaletteIds: () => [],
+            },
+        },
+    },
+    {
+        kind: "labelLooks",
+        useEvery: useEveryLabelLook,
+        builtInModules: {
+            "../../src/catalog/label-looks.ts": {
+                LABEL_LOOKS: [],
+                labelLook: () => undefined,
+                labelLookChanges: () => [],
+                builtInIdsForTesting: () => ({ kind: "labelLooks", ids: [] }),
+            },
+        },
+    },
+    {
+        kind: "default-settings",
+        catalog: false,
+        useEvery: useEveryDefault,
+        builtInModules: {
+            "../../src/config/GraphStyle.ts": {
+                ...graphStyle,
+                DEFAULT_SELECTION_STYLE: {
+                    ...graphStyle.DEFAULT_SELECTION_STYLE,
+                    edgeColor: "#123456",
+                    edgeScale: 7,
+                    edgeOpacity: 0.25,
+                },
+            },
+        },
+        state: (session) => ({
+            selectionStyle: session.config.selectionStyle,
+            knownFields: session.config.data.knownFields,
+        }),
+    },
+    {
+        kind: "defaultPalettes",
+        useEvery: useEveryDefaultPalette,
+        // A reading build whose defaults differ: the file must paint as it was saved, not as these.
+        builtInModules: {
+            "../../src/session/styles/defaultPalettes.ts": {
+                DEFAULT_PALETTE: "viridis",
+                DEFAULT_CATEGORICAL_PALETTE: "tol-muted",
+            },
         },
     },
 ];

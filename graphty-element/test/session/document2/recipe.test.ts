@@ -1,0 +1,823 @@
+/**
+ * @file The version 2 recipe codec (spec/README.md 4.3, 5 and 8.4), behind the `save-files-v2`
+ * experiment: what a session writes as commands, what names an element and stays out, the replay
+ * through one transaction, rerunning, unknown ops and members, and the round trips.
+ */
+
+import { readFileSync } from "node:fs";
+
+import { Ajv2020 } from "ajv/dist/2020.js";
+import addFormatsModule from "ajv-formats";
+import { assert, describe, it } from "vitest";
+
+import { createGraphSession, type GraphSession } from "../../../session";
+import { engineOptionsOf, FORCE_SAVED_OPTIONS } from "../../../src/catalog/layouts";
+import type { RunId } from "../../../src/catalog/types";
+import { recipeCodec } from "../../../src/session/document2/codecs/recipe";
+import { fileSetId, resolvedLayoutOptions } from "../../../src/session/document2/codecs/viewParts";
+import type {
+    DocumentProblem,
+    DocumentSection,
+    JsonObject,
+    ReadContext,
+    SectionWrite,
+    WriteContext,
+} from "../../../src/session/document2/types";
+import { createRunResult } from "../../../src/session/results";
+import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
+
+const SPEC = new URL("../../../spec/", import.meta.url);
+const readJson = (path: string): JsonObject => JSON.parse(readFileSync(new URL(path, SPEC), "utf8")) as JsonObject;
+
+const ajv = new Ajv2020({ allErrors: true, strict: false });
+const addFormats = (addFormatsModule as unknown as { default?: typeof addFormatsModule }).default ?? addFormatsModule;
+addFormats(ajv);
+ajv.addSchema(readJson("schemas/common/v2.json"));
+const validateRecipe = ajv.compile(readJson("schemas/graphty-recipe/v2.json"));
+
+/** A session and the run ids its executor computed. */
+interface Lab {
+    readonly session: GraphSession;
+    readonly computed: RunId[];
+    /** Outcomes waiting for their runs, as a results section would leave them. */
+    readonly canned: Map<RunId, RunOutcome>;
+}
+
+/**
+ * A session whose executor answers every algorithm with an empty node measurement, answering from
+ * `canned` first, as the session's own executor does.
+ * @returns The lab.
+ */
+function lab(): Lab {
+    const computed: RunId[] = [];
+    const canned = new Map<RunId, RunOutcome>();
+    const execute = (context: RunExecutionContext): Promise<RunOutcome> => {
+        const waiting = canned.get(context.runId);
+        if (waiting !== undefined) {
+            return Promise.resolve(waiting);
+        }
+
+        computed.push(context.runId);
+        const result = createRunResult({
+            runId: context.runId,
+            shape: "node-metric",
+            fields: [
+                {
+                    name: "value",
+                    plainName: "Value",
+                    technicalName: "value",
+                    kind: "node",
+                    type: "number",
+                    path: "results.$.value",
+                },
+            ],
+            measured: { nodes: 0, edges: 0 },
+            nodes: [],
+            edges: [],
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "test", facts: [], notes: [] },
+            durationMs: 1,
+        });
+        return Promise.resolve({ result, summary: result.summary() });
+    };
+    const session = createGraphSession({ features: ["save-files-v2"], runs: { execute } });
+    return { session, computed, canned };
+}
+
+/**
+ * Give a session a small graph.
+ * @param session - The session.
+ */
+async function addGraph(session: GraphSession): Promise<void> {
+    await session.data.addNodes([
+        { id: "a", type: "host", score: 1 },
+        { id: "b", type: "router", score: 2 },
+        { id: "c", type: "host", score: 3 },
+        { id: "d", type: "host", score: 4 },
+    ]);
+    await session.data.addEdges([
+        { src: "a", dst: "b", weight: 1 },
+        { src: "b", dst: "c", weight: 2 },
+        { src: "c", dst: "d", weight: 3 },
+    ]);
+}
+
+/**
+ * Write the recipe section of a session.
+ * @param session - The session.
+ * @param rewriteRecipe - Whether the saver asks for the session's recipe over an opened one.
+ * @returns What the codec wrote and what it reported.
+ */
+async function write(
+    session: GraphSession,
+    rewriteRecipe = false,
+): Promise<{ written: SectionWrite; problems: DocumentProblem[] }> {
+    const problems: DocumentProblem[] = [];
+    const context: WriteContext = {
+        session,
+        problems,
+        refs: () => assert.fail("a recipe names no element"),
+        dataId: () => undefined,
+        sections: new Set<DocumentSection>(["recipe"]),
+        embed: {},
+        rewriteRecipe,
+        isDerived: () => false,
+        bindsTo: () => Promise.resolve(undefined),
+    };
+    return { written: await recipeCodec.write(context), problems };
+}
+
+/**
+ * The section as a file holds it, with the members the framing writes.
+ * @param written - What the codec wrote.
+ * @returns The section.
+ */
+function asSection(written: SectionWrite): JsonObject {
+    return {
+        kind: "graphty-recipe",
+        version: 2,
+        generator: { name: "graphty-element", version: "0.0.0" },
+        ...written.header,
+        ...written.body,
+    };
+}
+
+/**
+ * The schema errors of a section.
+ * @param section - The section.
+ * @returns The errors, empty when it validates.
+ */
+function invalid(section: JsonObject): string[] {
+    return validateRecipe(section)
+        ? []
+        : (validateRecipe.errors ?? []).map((error) => `${error.instancePath} ${String(error.message)}`);
+}
+
+/**
+ * Open a recipe section in a session, in one transaction.
+ * @param target - The session.
+ * @param section - The section, header and body together.
+ * @param options - The open's choices.
+ * @param options.rerun - Whether runs rerun.
+ * @param options.others - The other sections the open loads.
+ * @param options.apply - Whether the caller asks to apply the recipe; default true here.
+ * @returns What the open reported.
+ */
+async function read(
+    target: Lab,
+    section: JsonObject,
+    options: { rerun?: boolean; apply?: boolean; others?: Partial<Record<DocumentSection, JsonObject>> } = {},
+): Promise<DocumentProblem[]> {
+    const problems: DocumentProblem[] = [];
+    const { kind, version, generator: _generator, namespace, commands, ...rest } = section;
+    const body: JsonObject = { ...(namespace === undefined ? {} : { namespace }), commands };
+    await target.session.transaction("Open document", async (tx) => {
+        const context: ReadContext = {
+            session: target.session,
+            problems,
+            refs: () => assert.fail("a recipe names no element"),
+            dataId: () => undefined,
+            sections: new Set<DocumentSection>(["recipe"]),
+            tx,
+            rerun: options.rerun ?? true,
+            applyRecipe: options.apply ?? true,
+            dataMode: "replace",
+            restored: new Set(),
+            other: (name) => {
+                const other = options.others?.[name];
+                return other === undefined
+                    ? undefined
+                    : { header: { kind: `graphty-${name}`, version: 1 }, body: other, pointer: "" };
+            },
+            canned: target.canned,
+            restoreDerived: () => undefined,
+        };
+        await recipeCodec.read(
+            {
+                header: { kind: String(kind), version: Number(version), ...rest },
+                body,
+                pointer: "",
+            },
+            context,
+        );
+    });
+    return problems;
+}
+
+/**
+ * What a recipe restores, as plain data: the filter steps' rules, the sets, the runs and the layout.
+ * @param session - The session.
+ * @returns The state.
+ */
+function stateOf(session: GraphSession): unknown {
+    return {
+        steps: session.visibility.steps.map((step) => ({ on: step.on, rule: step.rule })),
+        sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
+        runs: session.runs
+            .list()
+            .filter((run) => run.record.status === "succeeded")
+            .map((run) => ({
+                id: run.id,
+                algorithm: run.record.algorithm,
+                params: run.record.params,
+                seed: run.record.seed,
+                scope: run.record.scope.spec,
+            })),
+        // Resolved: a replayed `layout.set` asks for the defaults the saved one spelled out.
+        layout: {
+            id: session.layout.id,
+            engine: session.layout.engine,
+            dimension: session.layout.dimension,
+            options: resolvedLayoutOptions(session, session.layout),
+        },
+    };
+}
+
+/**
+ * The options a layout engine declares with a default, less the one it derives from the dimension.
+ * @param session - The session, for its catalog.
+ * @param id - The layout.
+ * @param engine - The engine.
+ * @returns The option names.
+ */
+function defaultedLayoutOptions(session: GraphSession, id: string, engine: string): string[] {
+    const descriptor = session.catalog.layouts().find((each) => each.id === id);
+    assert.isDefined(descriptor);
+    return engineOptionsOf(descriptor, engine)
+        .filter((option) => option.default !== undefined && option.default !== null && option.name !== "dim")
+        .map((option) => option.name);
+}
+
+/**
+ * The layout.set command a session writes.
+ * @param session - The session.
+ * @returns The command.
+ */
+async function layoutCommand(session: GraphSession): Promise<JsonObject> {
+    const commands = (await write(session)).written.body.commands as JsonObject[];
+    const command = commands.find((each) => each.op === "layout.set");
+    assert.isDefined(command);
+    return command;
+}
+
+/**
+ * A session holding one of each thing a recipe keeps.
+ * @returns The lab.
+ */
+async function analysis(): Promise<Lab> {
+    const source = lab();
+    const { session } = source;
+    await addGraph(session);
+    await session.visibility.setSteps([
+        { id: "s1", on: true, rule: { kind: "expression", where: "data.score > `1`" } },
+        { id: "s2", on: true, rule: { kind: "edges", where: "data.weight > `1`" } },
+    ]);
+    await session.runs.start("degree", undefined, { as: "lab__links", style: false });
+    session.sets.create({ kind: "rule", where: "data.score > `2`", reading: "induced" }, { name: "High" });
+    session.sets.create(
+        { kind: "rule", where: "results.lab__links.value > `1`", reading: "induced" },
+        { name: "Hubs" },
+    );
+    await session.layout.setDimension("2d");
+    await session.layout.set("force", { engine: "d3", options: { clusterStrength: 2, alphaDecay: 0.05 } });
+    return source;
+}
+
+/**
+ * Open one hand-written layout.set over a fresh graph.
+ * @param command - The command.
+ * @returns The lab and what the open reported.
+ */
+async function readLayout(command: JsonObject): Promise<{ target: Lab; problems: DocumentProblem[] }> {
+    const target = lab();
+    await addGraph(target.session);
+    const problems = await read(target, {
+        kind: "graphty-recipe",
+        version: 2,
+        commands: [{ op: "layout.set", dimension: 3, ...command }],
+    });
+    return { target, problems };
+}
+
+describe("the version 2 recipe codec", () => {
+    it("writes filters, sets, runs and the layout as commands that validate", async () => {
+        const { session } = await analysis();
+        const { written, problems } = await write(session);
+        const section = asSection(written);
+        assert.deepEqual(invalid(section), []);
+        assert.deepEqual(problems, []);
+        assert.strictEqual(written.body.namespace, "lab");
+        const commands = written.body.commands as JsonObject[];
+        assert.deepEqual(
+            commands.map((command) => command.op),
+            ["graph.filter", "graph.filter", "set.define", "algo.run", "set.define", "layout.set"],
+        );
+        assert.deepEqual(commands[1], { op: "graph.filter", where: "data.weight > `1`", on: "edges" });
+        const run = commands[3];
+        assert.strictEqual(run.as, "links");
+        assert.strictEqual(run.style, false);
+        assert.isUndefined(run.scope, "a run over the graph the recipe's filters keep needs no scope");
+        // The set reading the run names it by `as`, and comes after it.
+        assert.strictEqual(commands[4].where, "results.links.value > `1`");
+        assert.strictEqual(commands[5].dimension, 2);
+        assert.deepEqual(written.header?.dependencies, {
+            columns: [
+                { kind: "node", name: "score", schema: { type: "integer" } },
+                { kind: "edge", name: "weight", schema: { type: "integer" } },
+            ],
+            results: ["links"],
+        });
+        // A set is defined under its bare file id, `set_` plus a ULID, never its session id.
+        assert.match(String(commands[2].id), /^set_[0-9A-HJKMNP-TV-Z]{26}$/);
+    });
+
+    it("leaves out, and reports, what names an element", async () => {
+        const { session } = lab();
+        await addGraph(session);
+        await session.runs.start("degree", undefined, { as: "lab__picked", scope: { nodes: ["a", "b"] } });
+        await session.selection.apply({ nodes: ["c"] });
+        await session.runs.start("degree", undefined, { as: "lab__on_selection", scope: "selection" });
+        session.sets.create(
+            { kind: "rule", where: { kind: "neighborhood", seeds: ["a"], depth: 1 }, reading: "induced" },
+            {
+                name: "Near a",
+            },
+        );
+        session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Just a" });
+        await session.visibility.setSteps([
+            { id: "near", on: true, rule: { kind: "neighborhood", seeds: ["b"], depth: 1 } },
+        ]);
+        const { written, problems } = await write(session);
+        assert.deepEqual(
+            (written.body.commands as JsonObject[]).map((command) => command.op),
+            ["layout.set"],
+        );
+        assert.deepEqual(
+            problems.map((problem) => problem.params),
+            [
+                { section: "recipe", pointer: "/commands", step: "near" },
+                { section: "recipe", pointer: "/commands", set: "set_near-a" },
+                { section: "recipe", pointer: "/commands", run: "lab__picked" },
+                { section: "recipe", pointer: "/commands", run: "lab__on_selection" },
+            ],
+        );
+        assert.isTrue(problems.every((problem) => problem.code === "W_ELEMENT_NAMING_LEFT_OUT"));
+        assert.deepEqual(invalid(asSection(written)), []);
+    });
+
+    it("writes style false for a run whose suggested layers are saved, and a run scoped by a recipe set", async () => {
+        const { session } = lab();
+        await addGraph(session);
+        const high = session.sets.create(
+            { kind: "rule", where: "data.score > `2`", reading: "induced" },
+            { name: "High" },
+        );
+        await session.runs.start("degree", undefined, { as: "lab__deg", scope: { set: high } });
+        const { written } = await write(session);
+        const run = (written.body.commands as JsonObject[]).find((command) => command.op === "algo.run");
+        assert.deepEqual(run, {
+            op: "algo.run",
+            algorithm: "degree",
+            as: "deg",
+            params: { direction: "total" },
+            scope: { set: fileSetId(session, high) },
+            style: false,
+        });
+        assert.isAbove(session.runs.bindings("lab__deg").length, 0, "the run painted its suggested layer");
+        assert.deepEqual(invalid(asSection(written)), []);
+    });
+
+    it("round-trips: state to section to state, and section to state to section byte for byte", async () => {
+        const source = await analysis();
+        const first = await write(source.session);
+        const target = lab();
+        await addGraph(target.session);
+        const problems = await read(target, asSection(first.written));
+        assert.deepEqual(problems, []);
+        assert.deepEqual(stateOf(target.session), stateOf(source.session));
+        const second = await write(target.session);
+        assert.strictEqual(JSON.stringify(asSection(second.written)), JSON.stringify(asSection(first.written)));
+    });
+
+    it("keeps an opened recipe's identity for its re-save", async () => {
+        const target = lab();
+        await addGraph(target.session);
+        await read(target, {
+            kind: "graphty-recipe",
+            version: 2,
+            id: "org.example.team-overview",
+            name: "Overview",
+            commands: [{ op: "algo.run", algorithm: "degree", as: "deg", style: false }],
+        });
+        assert.isDefined(target.session.runs.get("team_overview__deg"), "the namespace comes from the id");
+        const { written } = await write(target.session);
+        assert.deepEqual(written.header, { id: "org.example.team-overview", name: "Overview" });
+    });
+
+    it("keeps a recipe it is not asked to apply, writes it back as read, and rewrites it only when asked", async () => {
+        const target = lab();
+        await addGraph(target.session);
+        const example = readJson("examples/card-fraud.graphty-recipe.json");
+        const problems = await read(target, example, { apply: false });
+        assert.deepEqual(problems, [{ code: "W_RECIPE_NOT_APPLIED", params: { section: "recipe" } }]);
+        assert.deepEqual(target.computed, [], "opening never applies a recipe");
+        assert.deepEqual(target.session.visibility.steps, []);
+
+        const {
+            kind: _kind,
+            version: _version,
+            generator: _generator,
+            $schema: _schema,
+            created: _created,
+            modified: _modified,
+            ...rest
+        } = example;
+        const again = (await write(target.session)).written;
+        assert.deepEqual({ ...again.header, ...again.body }, rest);
+
+        const fresh = (await write(target.session, true)).written;
+        assert.deepEqual(
+            (fresh.body.commands as JsonObject[]).map((command) => command.op),
+            ["layout.set"],
+        );
+        assert.strictEqual(fresh.header?.id, example.id, "a rewrite keeps the opened header");
+    });
+
+    it("stops the replay at an unknown op, unless it says narrows: false", async () => {
+        const stopped = lab();
+        await addGraph(stopped.session);
+        const problems = await read(stopped, {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "x",
+            commands: [
+                { op: "algo.run", algorithm: "degree", as: "one", style: false },
+                { op: "org.example.motif-census", as: "motifs" },
+                { op: "algo.run", algorithm: "degree", as: "two", params: {}, style: false },
+            ],
+        });
+        assert.deepEqual(problems, [
+            { code: "E_UNKNOWN_COMMAND", params: { section: "recipe", pointer: "/commands/1/op" } },
+            { code: "W_RUN_NOT_RUN", params: { run: "x__two" } },
+        ]);
+        assert.deepEqual(stopped.computed, ["x__one"]);
+
+        const skipped = lab();
+        await addGraph(skipped.session);
+        const skips = await read(skipped, {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "x",
+            commands: [
+                { op: "org.example.motif-census", as: "motifs", narrows: false },
+                {
+                    op: "set.define",
+                    id: "set_01JCBPX7K2M4Q8R1T5V9W3Y6ZB",
+                    name: "M",
+                    where: "results.motifs.count > `1`",
+                    reading: "induced",
+                },
+                {
+                    op: "algo.run",
+                    algorithm: "degree",
+                    as: "two",
+                    scope: { where: "results.motifs.count > `1`" },
+                    style: false,
+                },
+                { op: "algo.run", algorithm: "degree", as: "three", style: false },
+                { op: "join.add", source: "accounts" },
+            ],
+        });
+        assert.deepEqual(skips, [
+            { code: "E_UNKNOWN_COMMAND", params: { section: "recipe", pointer: "/commands/0/op" } },
+            { code: "W_RUN_NOT_RUN", params: { run: "x__two" } },
+        ]);
+        assert.deepEqual(skipped.computed, ["x__three"]);
+        assert.deepEqual(skipped.session.sets.list(), []);
+    });
+
+    it("stops the replay at an unknown member of a command or its scope", async () => {
+        for (const [command, pointer] of [
+            [{ op: "algo.run", algorithm: "degree", as: "one", sed: 7, style: false }, "/commands/0/sed"],
+            [
+                {
+                    op: "algo.run",
+                    algorithm: "degree",
+                    as: "one",
+                    scope: { where: "data.score > `1`", of: 1 },
+                    style: false,
+                },
+                "/commands/0/scope/of",
+            ],
+            [{ op: "graph.filter", where: "data.score > `1`", ignorable: "dropIsolated" }, "/commands/0/ignorable"],
+            [{ op: "graph.filter", where: "data.score > `1`", extensions: [] }, "/commands/0/extensions"],
+        ] as const) {
+            const target = lab();
+            await addGraph(target.session);
+            const problems = await read(target, {
+                kind: "graphty-recipe",
+                version: 2,
+                namespace: "x",
+                commands: [command, { op: "algo.run", algorithm: "degree", as: "later", style: false }],
+            });
+            assert.deepEqual(problems[0], { code: "E_UNKNOWN_OPTION", params: { section: "recipe", pointer } });
+            // The command the replay stops at is not run either, when it is a run.
+            const notRun = command.op === "algo.run" ? ["x__one", "x__later"] : ["x__later"];
+            assert.deepEqual(
+                problems.slice(1),
+                notRun.map((run): DocumentProblem => ({ code: "W_RUN_NOT_RUN", params: { run } })),
+            );
+            assert.deepEqual(target.computed, []);
+        }
+    });
+
+    it("stops at a command holding a refused expression or an unknown rule tree leaf", async () => {
+        for (const [command, pointer] of [
+            [{ op: "graph.filter", where: "data.a > 5" }, "/commands/0/where"],
+            [
+                { op: "set.define", id: "set_01JCBP1C9E2G4J6M8N0Q3S5V7Y", where: { kind: "future-leaf", x: 1 } },
+                "/commands/0/where",
+            ],
+            [
+                { op: "algo.run", algorithm: "degree", as: "one", style: false, scope: { where: "length(data.a)" } },
+                "/commands/0/scope/where",
+            ],
+        ] as const) {
+            const target = lab();
+            await addGraph(target.session);
+            const problems = await read(target, {
+                kind: "graphty-recipe",
+                version: 2,
+                namespace: "x",
+                commands: [command, { op: "algo.run", algorithm: "degree", as: "later", style: false }],
+            });
+            assert.deepEqual(problems[0], { code: "E_UNKNOWN_OPTION", params: { section: "recipe", pointer } });
+            assert.deepInclude(problems, { code: "W_RUN_NOT_RUN", params: { run: "x__later" } });
+            assert.deepEqual(target.computed, []);
+        }
+    });
+
+    it("runs a command whose unknown member ignorable names, and stops at one it does not", async () => {
+        const run = { op: "algo.run", algorithm: "degree", as: "one", style: false, accelerator: "any" };
+        const ignored = lab();
+        await addGraph(ignored.session);
+        const problems = await read(ignored, {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "x",
+            commands: [{ ...run, ignorable: ["accelerator"] }],
+        });
+        assert.deepEqual(problems, [
+            { code: "W_UNKNOWN_MEMBER", params: { section: "recipe", pointer: "/commands/0/accelerator" } },
+        ]);
+        assert.deepEqual(ignored.computed, ["x__one"]);
+
+        const stopped = lab();
+        await addGraph(stopped.session);
+        const refused = await read(stopped, {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "x",
+            commands: [run, { op: "algo.run", algorithm: "degree", as: "later", style: false }],
+        });
+        assert.deepEqual(refused, [
+            { code: "E_UNKNOWN_OPTION", params: { section: "recipe", pointer: "/commands/0/accelerator" } },
+            { code: "W_RUN_NOT_RUN", params: { run: "x__one" } },
+            { code: "W_RUN_NOT_RUN", params: { run: "x__later" } },
+        ]);
+        assert.deepEqual(stopped.computed, []);
+    });
+
+    it("runs a command and a scope carrying extensions, and a known op saying narrows: false, silently", async () => {
+        const target = lab();
+        await addGraph(target.session);
+        const extensions = { "org.example.audit": { ticket: 42 } };
+        const recipe = {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "x",
+            commands: [
+                {
+                    op: "algo.run",
+                    algorithm: "degree",
+                    as: "one",
+                    scope: { where: "data.score > `1`", extensions },
+                    style: false,
+                    extensions,
+                },
+                { op: "graph.filter", where: "data.score > `1`", narrows: false },
+            ],
+        };
+        assert.isTrue(validateRecipe(asSection({ body: recipe })), "the schema accepts it");
+        assert.deepEqual(await read(target, recipe), []);
+        assert.deepEqual(target.computed, ["x__one"]);
+    });
+
+    it("keeps an unknown op saying narrows: false byte for byte when the recipe is written back as read", async () => {
+        const command = { op: "org.example.motif-census", as: "motifs", narrows: false, params: { size: 3 } };
+        const target = lab();
+        await addGraph(target.session);
+        await read(
+            target,
+            {
+                kind: "graphty-recipe",
+                version: 2,
+                namespace: "x",
+                commands: [command, { op: "algo.run", algorithm: "degree", as: "one", style: false }],
+            },
+            { apply: false },
+        );
+        const written = (await write(target.session)).written.body.commands as JsonObject[];
+        assert.strictEqual(JSON.stringify(written[0]), JSON.stringify(command));
+    });
+
+    it("with rerun off, restores runs from waiting outcomes and lists the rest as not run", async () => {
+        const source = lab();
+        await addGraph(source.session);
+        const outcome = await (async () => {
+            const run = await source.session.runs.start("degree", undefined, { as: "x__saved" });
+            return { result: run, summary: run.summary() } as unknown as RunOutcome;
+        })();
+        const target = lab();
+        await addGraph(target.session);
+        target.canned.set("x__saved", outcome);
+        const problems = await read(
+            target,
+            {
+                kind: "graphty-recipe",
+                version: 2,
+                namespace: "x",
+                commands: [
+                    { op: "algo.run", algorithm: "degree", as: "saved", style: false },
+                    { op: "algo.run", algorithm: "degree", as: "missing", style: false },
+                ],
+            },
+            { rerun: false },
+        );
+        assert.deepEqual(problems, [{ code: "W_RUN_NOT_RUN", params: { run: "x__missing" } }]);
+        assert.deepEqual(target.computed, [], "nothing was computed again");
+        assert.isDefined(target.session.runs.get("x__saved"));
+        assert.isUndefined(target.session.runs.get("x__missing"));
+    });
+
+    it("paints nothing for a run with no style that a loaded style section reads, and drops unknown style parts", async () => {
+        const target = lab();
+        await addGraph(target.session);
+        const problems = await read(
+            target,
+            {
+                kind: "graphty-recipe",
+                version: 2,
+                namespace: "x",
+                commands: [
+                    { op: "algo.run", algorithm: "degree", as: "read" },
+                    { op: "algo.run", algorithm: "degree", as: "styled", style: { size: true, glow: 1 } },
+                ],
+            },
+            { others: { style: { layers: [{ encode: { by: "results.read.value" } }] } } },
+        );
+        assert.deepEqual(problems, [
+            { code: "W_UNKNOWN_MEMBER", params: { section: "recipe", pointer: "/commands/1/style/glow" } },
+        ]);
+        assert.strictEqual(target.session.runs.painting("x__read")?.state, "opted-out");
+        assert.notStrictEqual(target.session.runs.painting("x__styled")?.state, "opted-out");
+    });
+
+    it("writes the layout's options resolved: every defaulted engine option, less dim, and the seed", async () => {
+        const { session } = lab();
+        await addGraph(session);
+        await session.layout.set("force", { options: { seed: 7 } });
+        const command = await layoutCommand(session);
+        const options = command.options as JsonObject;
+        const drawnBy = command.drawnBy as JsonObject;
+        assert.strictEqual(drawnBy.engine, "ngraph");
+        assert.isUndefined(command.algorithm);
+        const engines = drawnBy.options as JsonObject;
+        assert.sameMembers(
+            [...Object.keys(options), ...Object.keys(engines)],
+            [...defaultedLayoutOptions(session, "force", "ngraph"), "seed"],
+        );
+        assert.includeMembers([...FORCE_SAVED_OPTIONS], Object.keys(options), "the arrangement's own options");
+        assert.strictEqual(options.seed, 7);
+        assert.deepEqual(
+            Object.keys(options),
+            [...Object.keys(options)].sort((a, b) => a.localeCompare(b)),
+            "keys sorted",
+        );
+        assert.deepEqual(invalid(asSection((await write(session)).written)), []);
+    });
+
+    it("names the arrangement in id and the engine, with the options only it takes, in drawnBy", async () => {
+        const { session } = await analysis();
+        const command = await layoutCommand(session);
+        assert.isUndefined(command.algorithm);
+        assert.strictEqual(command.id, "force");
+        assert.strictEqual(command.dimension, 2);
+        const options = command.options as JsonObject;
+        assert.strictEqual(options.clusterStrength, 2);
+        assert.includeMembers([...FORCE_SAVED_OPTIONS], Object.keys(options));
+        const drawnBy = command.drawnBy as JsonObject;
+        assert.strictEqual(drawnBy.engine, "d3");
+        const engines = drawnBy.options as JsonObject;
+        assert.strictEqual(engines.alphaDecay, 0.05);
+        assert.sameMembers(
+            [...Object.keys(options), ...Object.keys(engines)],
+            [...new Set([...defaultedLayoutOptions(session, "force", "d3"), "clusterStrength", "alphaDecay"])],
+        );
+    });
+
+    it("draws with the default engine, reporting it, when drawnBy names one this release lacks", async () => {
+        const { target, problems } = await readLayout({
+            id: "force",
+            options: { seed: 7 },
+            drawnBy: { engine: "com.example.gone", options: { warp: 1 } },
+        });
+        assert.deepEqual(problems, [
+            {
+                code: "W_LAYOUT_ENGINE_UNAVAILABLE",
+                params: { section: "recipe", pointer: "/commands/0", layout: "force", engine: "com.example.gone" },
+            },
+        ]);
+        const { layout } = target.session;
+        assert.deepEqual([layout.id, layout.engine, layout.options.seed], ["force", "ngraph", 7]);
+    });
+
+    it("leaves out, reporting it, an option the arrangement does not list, and still sets the layout", async () => {
+        const { target, problems } = await readLayout({ id: "force", options: { seed: 7, warp: 1 } });
+        assert.deepEqual(problems, [
+            {
+                code: "W_LAYOUT_OPTION_NOT_APPLIED",
+                params: {
+                    section: "recipe",
+                    pointer: "/commands/0",
+                    layout: "force",
+                    engine: "ngraph",
+                    option: "warp",
+                },
+            },
+        ]);
+        const { layout } = target.session;
+        assert.deepEqual([layout.id, layout.options.seed, layout.options.warp], ["force", 7, undefined]);
+    });
+
+    it("writes a dimension option that was asked for", async () => {
+        const { session } = lab();
+        await addGraph(session);
+        await session.layout.setDimension("3d");
+        await session.layout.set("force", { options: { dim: 2 } });
+        const options = (await layoutCommand(session)).options as JsonObject;
+        assert.strictEqual(options.dim, 2);
+    });
+
+    it("re-saves a terse hand-written run with every declared option at the value it ran with", async () => {
+        const target = lab();
+        await addGraph(target.session);
+        const problems = await read(target, {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "terse",
+            commands: [
+                { op: "algo.run", algorithm: "pagerank", as: "rank", params: { dampingFactor: 0.5 }, style: false },
+            ],
+        });
+        assert.deepEqual(problems, []);
+        const commands = (await write(target.session, true)).written.body.commands as JsonObject[];
+        const run = commands.find((each) => each.op === "algo.run");
+        assert.deepEqual(run?.params, {
+            dampingFactor: 0.5,
+            directed: true,
+            maxIterations: 100,
+            tolerance: 0.000001,
+            useDelta: true,
+        });
+    });
+
+    it("reads the specification's example recipe, reporting what this release cannot replay", async () => {
+        const target = lab();
+        await addGraph(target.session);
+        const example = readJson("examples/card-fraud.graphty-recipe.json");
+        assert.deepEqual(invalid(example), []);
+        const problems = await read(target, example);
+        // The type scope has no session form yet: that run is reported and the rest replays, the
+        // set of node-side source leaves included.
+        assert.deepEqual(problems, [
+            { code: "E_BAD_DOCUMENT", params: { section: "recipe", pointer: "/commands/2" } },
+            { code: "W_RUN_NOT_RUN", params: { run: "card_testing__communities" } },
+        ]);
+        assert.deepEqual(target.computed, ["card_testing__pagerank"]);
+        assert.deepEqual(
+            target.session.visibility.steps.map((step) => step.rule),
+            [{ kind: "edges", where: "data.time >= '2026-11-09'" }],
+        );
+        // The example writes resolved values, so the session holds them as written.
+        const commands = example.commands as JsonObject[];
+        const pagerank = commands.find((each) => each.as === "pagerank");
+        assert.deepEqual(target.session.runs.get("card_testing__pagerank")?.record.params, pagerank?.params);
+        const layout = commands.find((each) => each.op === "layout.set") as JsonObject;
+        const drawnBy = layout.drawnBy as JsonObject;
+        assert.strictEqual(target.session.layout.engine, drawnBy.engine);
+        assert.deepEqual(resolvedLayoutOptions(target.session, target.session.layout), {
+            ...(layout.options as JsonObject),
+            ...(drawnBy.options as JsonObject),
+        });
+    });
+});

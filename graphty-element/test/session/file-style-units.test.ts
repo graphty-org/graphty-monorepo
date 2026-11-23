@@ -507,8 +507,11 @@ describe("a sigma.js (graphology) file's labels are thinned by sigma's 100 px la
     it("hides the second label of a cell until its node is drawn larger than at sigma's framing", async () => {
         const session = await loadedGrid({ width: 800, height: 600 });
         // "small" is 10 units, 60 px across at sigma's framing: its label shows once the node is drawn
-        // sqrt(1) times that, as sigma shows two labels a cell from 1x the framing's zoom on
-        assert.approximately(labelField(session, "small", "minNodeScreenSize") as number, 60, 1e-6);
+        // more than sqrt(1) times that (a millionth above, past float rounding), as sigma shows two labels a
+        // cell only beyond 1x the framing's zoom
+        const small = labelField(session, "small", "minNodeScreenSize") as number;
+        assert.isAbove(small, 60);
+        assert.approximately(small, 60 * (1 + 1e-6), 1e-9);
         // the cell's largest node, and a node alone in its cell, keep sigma's own 12 px threshold
         assert.strictEqual(labelField(session, "big", "minNodeScreenSize"), 12);
         assert.strictEqual(labelField(session, "far", "minNodeScreenSize"), 12);

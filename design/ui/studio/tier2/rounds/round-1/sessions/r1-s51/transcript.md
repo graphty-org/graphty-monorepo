@@ -74,7 +74,7 @@ A small menu: Color, Opacity. Color.
 Something real happened: a new entry "2 nodes" appeared in the left list (between Selection and
 PageRank), the panel now says "2 nodes", "Layer", with Fill Color 6366F1 at 100%, which the swatch
 shows as a blue-purple. The legend on the drawing gained "Color: 2 nodes" with a purple square.
-But on the drawing Gus and Ivan look a dull grey-beige under their yellow glow, not purple. The
+But on the drawing Gus and Ivan look a dull gray-beige under their yellow glow, not purple. The
 legend and the picture disagree. I suspect the yellow selection glow is mixing in. I will click on
 empty canvas to drop the selection and look at them plain.
 
@@ -106,7 +106,7 @@ and Ivan, and nobody else, are now colored purple on the drawing, and it stays a
 - The number is labeled "weight", not "runs". Fine for my own sheet; a colleague's sheet would
   leave me asking "weight of what?".
 - "Select endpoints" is jargon; I guessed it meant the two people at the ends of the tie, and it did.
-- Right after I chose a color, the two people looked grey-beige on the drawing while the swatch and
+- Right after I chose a color, the two people looked gray-beige on the drawing while the swatch and
   the legend said purple, because the yellow selection glow was laid over the new color. For a
   moment the picture disagreed with the legend, which is exactly what makes me distrust a tool.
   Only after clicking away did they show the color I chose.

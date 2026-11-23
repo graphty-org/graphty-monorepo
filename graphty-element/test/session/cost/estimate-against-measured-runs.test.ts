@@ -83,7 +83,7 @@ const MAX_PESSIMISM = 4;
 
 /** One algorithm the element gates on cost, and how the element runs it. */
 interface Row {
-    /** The catalogue key the estimate is made for. */
+    /** The catalog key the estimate is made for. */
     readonly key: AlgorithmKey;
     /** Node counts to measure at, smallest first. */
     readonly sizes: readonly number[];
@@ -744,7 +744,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
                         statistics: statistics(nodes, edges, maxDegree, transitivity),
                         calibration,
                     });
-                    assert.isTrue(estimate.available, estimate.reason);
+                    assert.isTrue(estimate.available, estimate.refusal?.code);
 
                     const ratio = estimate.seconds / measured;
                     const facts = `${row.key} on ${row.shapeName ?? "random, m = 5n"} n=${nodes} m=${edges} T=${transitivity.toFixed(3)}: estimated ${estimate.seconds.toFixed(3)} s, measured ${measured.toFixed(3)} s, ratio ${ratio.toFixed(2)}`;

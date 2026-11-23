@@ -25,7 +25,7 @@ Oh nice, "Filters" with a plus, that is the Gephi word. Source says friends.csv,
 
 `node ../tool/real.mjs --step rounds/round-2/sessions/r2-s21 --click-at 276,197` -> 04.png ("Add filter step")
 
-A "New filter step" panel on the right: Keep "an attribute's value", Attribute empty, "Add step" button greyed out. Fine, I need weight. Opening the Attribute box.
+A "New filter step" panel on the right: Keep "an attribute's value", Attribute empty, "Add step" button grayed out. Fine, I need weight. Opening the Attribute box.
 
 ## Step 5
 

@@ -5,34 +5,44 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { GraphSnapshot } from "@graphty/graph-format";
+import type { AdjacencyView, GraphSnapshot } from "@graphty/graph-format";
 
 import type { LiveHover } from "./predicate";
 
 /**
- * The neighborhood of one node: one pass over the arcs, so a directed graph's in-neighbors count
- * as well as its out-neighbors.
+ * Marks one node's row of an adjacency: the far end and the edge of each of its arcs.
+ * @param adjacency - The forward or reverse adjacency.
+ * @param node - The node's dense index.
+ * @param hover - The neighborhood being filled.
+ */
+function markRow(adjacency: AdjacencyView, node: number, hover: LiveHover): void {
+    const { rowPtr, colIdx, arcToEdge } = adjacency;
+    for (let arc = rowPtr[node]; arc < rowPtr[node + 1]; arc++) {
+        hover.neighbors[colIdx[arc]] = 1;
+        hover.edges[arcToEdge[arc]] = 1;
+    }
+}
+
+/**
+ * The neighborhood of one node: its own row, plus its row in the reverse adjacency when the graph
+ * is directed so in-neighbors count as well as out-neighbors. O(degree), not a whole-graph pass.
  * @param graph - The snapshot.
  * @param node - The node's dense index.
  * @returns The node, its neighbors and the edges that touch it.
  */
 function hoverNeighborhood(graph: GraphSnapshot, node: number): LiveHover {
-    const neighbors = new Uint8Array(graph.nodeCount);
-    const edges = new Uint8Array(graph.edgeCount);
-    const { rowPtr, colIdx, arcToEdge } = graph;
-    neighbors[node] = 1;
-    for (let from = 0; from < graph.nodeCount; from++) {
-        for (let arc = rowPtr[from]; arc < rowPtr[from + 1]; arc++) {
-            const to = colIdx[arc];
-            if (from === node || to === node) {
-                neighbors[from] = 1;
-                neighbors[to] = 1;
-                edges[arcToEdge[arc]] = 1;
-            }
-        }
+    const hover: LiveHover = {
+        node,
+        neighbors: new Uint8Array(graph.nodeCount),
+        edges: new Uint8Array(graph.edgeCount),
+    };
+    hover.neighbors[node] = 1;
+    markRow(graph, node, hover);
+    if (graph.directed) {
+        markRow(graph.reverse(), node, hover);
     }
 
-    return { node, neighbors, edges };
+    return hover;
 }
 
 /**

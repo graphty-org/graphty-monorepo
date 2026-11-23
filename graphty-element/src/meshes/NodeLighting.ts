@@ -32,7 +32,7 @@ const RIM_BIAS = 0.1;
 
 /** The flat outline: object-space width and color. */
 const OUTLINE_WIDTH = 0.05;
-const OUTLINE_COLOR = new Color3(0.25, 0.25, 0.25);
+export const OUTLINE_COLOR = new Color3(0.25, 0.25, 0.25);
 
 /**
  * The lighting a scene is drawn with, as RenderManager last set it.

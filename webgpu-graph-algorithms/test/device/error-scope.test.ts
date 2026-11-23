@@ -1,14 +1,14 @@
 /**
- * src/device/error-scope.ts (contract 3.4; spec 5.7, 5.1): withValidationScope, AllocationTracker and
- * formatCompilationInfo on RAW devices on Dawn's null backend (acquireRawNullBackend(): nothing is read back, and the
- * scopes surface the same codes and messages as a real device's, issue #275). The out-of-memory path is driven by a
- * Proxy that substitutes popErrorScope (a real OOM needs the node-limits project of P4); the proxy binds every other
- * member to the underlying device so Dawn's native `this` checks pass.
+ * src/device/error-scope.ts (contract 3.4; spec 5.7, 5.1): AllocationTracker and formatCompilationInfo on RAW
+ * devices on Dawn's null backend (acquireRawNullBackend(): nothing is read back, and the scopes surface the same
+ * codes and messages as a real device's, issue #275). The out-of-memory path is driven by a Proxy that substitutes
+ * popErrorScope (a real OOM needs the node-limits project of P4); the proxy binds every other member to the
+ * underlying device so Dawn's native `this` checks pass.
  */
 
 import { OOM_SCOPE_THRESHOLD_BYTES } from "../../src/constants.js";
-import { AllocationTracker, formatCompilationInfo, withValidationScope } from "../../src/device/error-scope.js";
-import { BufferUsage, ShaderStage } from "../../src/device/webgpu-constants.js";
+import { AllocationTracker, formatCompilationInfo } from "../../src/device/error-scope.js";
+import { BufferUsage } from "../../src/device/webgpu-constants.js";
 import { isWebGpuGraphError, type WebGpuGraphError, type WebGpuGraphErrorCode } from "../../src/errors.js";
 import { acquireRawNullBackend, requireGpu } from "../setup/gpu.js";
 
@@ -33,16 +33,6 @@ function patched(device: GPUDevice, overrides: ScopeOverrides): GPUDevice {
     });
 }
 
-function brokenBindGroup(device: GPUDevice, label: string): void {
-    const layout = device.createBindGroupLayout({
-        label: `${label}/layout`,
-        entries: [{ binding: 0, visibility: ShaderStage.COMPUTE, buffer: { type: "storage", minBindingSize: 1024 } }],
-    });
-    const small = device.createBuffer({ label: `${label}/small`, size: 16, usage: BufferUsage.STORAGE });
-    device.createBindGroup({ label, layout, entries: [{ binding: 0, resource: { buffer: small } }] });
-    small.destroy();
-}
-
 async function rejection(promise: Promise<unknown>): Promise<unknown> {
     try {
         await promise;
@@ -61,55 +51,6 @@ function expectCode(err: unknown, code: WebGpuGraphErrorCode, details?: Record<s
     }
     return error;
 }
-
-describe("withValidationScope", () => {
-    it("surfaces a bad bind group as E_VALIDATION { label, message } and keeps it out of the uncaptured path", async (t) => {
-        requireGpu(t);
-        const { device } = await acquireRawNullBackend();
-        let uncapturedEvents = 0;
-        device.addEventListener("uncapturederror", () => {
-            uncapturedEvents += 1;
-        });
-        const err = await rejection(
-            withValidationScope(device, "bad-bind-group", () => {
-                brokenBindGroup(device, "bad-bind-group");
-            }),
-        );
-        const error = expectCode(err, "E_VALIDATION");
-        expect(error.details.label).toBe("bad-bind-group");
-        expect(String(error.details.message)).toMatch(/1024|binding/i);
-        expect(error.message).toContain("bad-bind-group");
-        expect(error.message).toContain(String(error.details.message));
-        await device.queue.onSubmittedWorkDone();
-        expect(uncapturedEvents).toBe(0);
-    });
-
-    it("returns the function's value when nothing was captured, for a sync and for an async fn", async (t) => {
-        requireGpu(t);
-        const { device } = await acquireRawNullBackend();
-        expect(await withValidationScope(device, "sync", () => 7)).toBe(7);
-        expect(await withValidationScope(device, "async", () => Promise.resolve("ok"))).toBe("ok");
-    });
-
-    it("rethrows the function's own error unchanged and pops the scope so a later scope still works", async (t) => {
-        requireGpu(t);
-        const { device } = await acquireRawNullBackend();
-        const own = new Error("mine");
-        const err = await rejection(
-            withValidationScope(device, "own", () => {
-                throw own;
-            }),
-        );
-        expect(err).toBe(own);
-        expect(await withValidationScope(device, "after", () => 1)).toBe(1);
-        const again = await rejection(
-            withValidationScope(device, "after-own", () => {
-                brokenBindGroup(device, "after-own");
-            }),
-        );
-        expectCode(again, "E_VALIDATION", { label: "after-own" });
-    });
-});
 
 describe("AllocationTracker", () => {
     it("wraps only allocations at or above the threshold in an out-of-memory scope; resident / liveBuffers follow create and destroy", async (t) => {

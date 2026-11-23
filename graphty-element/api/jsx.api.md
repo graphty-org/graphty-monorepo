@@ -25,7 +25,6 @@ import type { DatasetMeta } from '@graphty/graph-samples';
 import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
-import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core/Engines/engine.js';
 import { EngineInstrumentation } from '@babylonjs/core/Instrumentation/engineInstrumentation.js';
 import { ExtractedStyles } from '@graphty/graph-io/styles';
@@ -40,14 +39,17 @@ import { GraphAnnotation } from '@graphty/graph-io/styles';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GRAPHML_LOSS } from '@graphty/graph-io';
 import { GraphSnapshot } from '@graphty/graph-format';
+import type { ImageAnnotation } from '@graphty/graph-io/styles';
 import type { InstancedMesh } from '@babylonjs/core';
 import { JSON_LOSS } from '@graphty/graph-io';
 import { LitElement } from 'lit';
 import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
-import { LossNote } from '@graphty/graph-io';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
+import { ModelFormat } from 'babylonjs-models/detect';
+import type { ModelLimits as ModelLimits_2 } from 'babylonjs-models/files';
+import type { ModelSummary } from 'babylonjs-models/files';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
@@ -72,14 +74,10 @@ import type { SourceListQuery } from '@graphty/graph-io';
 import type { SourceProbe } from '@graphty/graph-io';
 import type { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
-import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
-import type { StyleRuleReason } from '@graphty/graph-io/styles';
-import type { StyleRuleRole } from '@graphty/graph-io/styles';
-import type { StyleTool } from '@graphty/graph-io/styles';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
-import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
+import type { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
 import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine.js';
 import type { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience.js';
@@ -90,13 +88,12 @@ import { z } from 'zod';
 export interface GraphtyElementJSXProps {
     "acceleration-min-nodes"?: string;
     "accessible-node-list"?: boolean;
-    // (undocumented)
     "aria-label"?: string;
-    "attribution-offset"?: string;
     "auto-frame"?: boolean;
     "auto-rotate"?: string;
     "autosave-restore"?: string;
     "camera-transition-duration"?: string;
+    "color-scheme"?: string;
     "data-source"?: string;
     "data-source-config"?: string;
     "edge-data"?: string;
@@ -113,6 +110,8 @@ export interface GraphtyElementJSXProps {
     "layout-2d"?: boolean;
     "layout-config"?: string;
     "layout-scope"?: string;
+    "legend-label"?: string;
+    "legend-position"?: string;
     "minimap-label"?: string;
     "node-data"?: string;
     "node-id-path"?: string;
@@ -124,7 +123,7 @@ export interface GraphtyElementJSXProps {
     "onai-agent-start"?: (event: CustomEvent<EventOfType<"ai-agent-start">>) => void;
     "onai-approval-requested"?: (event: CustomEvent<EventOfType<"ai-approval-requested">>) => void;
     "onai-capability-unavailable"?: (event: CustomEvent<EventOfType<"ai-capability-unavailable">>) => void;
-    "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
+    "onai-command-canceled"?: (event: CustomEvent<EventOfType<"ai-command-canceled">>) => void;
     "onai-command-complete"?: (event: CustomEvent<EventOfType<"ai-command-complete">>) => void;
     "onai-command-error"?: (event: CustomEvent<EventOfType<"ai-command-error">>) => void;
     "onai-command-start"?: (event: CustomEvent<EventOfType<"ai-command-start">>) => void;
@@ -144,82 +143,47 @@ export interface GraphtyElementJSXProps {
     "onai-voice-start"?: (event: CustomEvent<EventOfType<"ai-voice-start">>) => void;
     "onai-voice-support-change"?: (event: CustomEvent<EventOfType<"ai-voice-support-change">>) => void;
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;
-    // (undocumented)
-    "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
-    // (undocumented)
+    "onanimation-canceled"?: (event: CustomEvent<EventOfType<"animation-canceled">>) => void;
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
     "onbasemap-status"?: (event: CustomEvent<EventOfType<"basemap-status">>) => void;
-    // (undocumented)
     "oncamera-state-changed"?: (event: CustomEvent<EventOfType<"camera-state-changed">>) => void;
-    // (undocumented)
     "ondata-added"?: (event: CustomEvent<EventOfType<"data-added">>) => void;
     "ondata-cleared"?: (event: CustomEvent<EventOfType<"data-cleared">>) => void;
-    // (undocumented)
     "ondata-loaded"?: (event: CustomEvent<EventOfType<"data-loaded">>) => void;
-    // (undocumented)
     "ondata-loading-complete"?: (event: CustomEvent<EventOfType<"data-loading-complete">>) => void;
-    // (undocumented)
     "ondata-loading-error"?: (event: CustomEvent<EventOfType<"data-loading-error">>) => void;
     "ondata-loading-error-summary"?: (event: CustomEvent<EventOfType<"data-loading-error-summary">>) => void;
-    // (undocumented)
     "ondata-loading-progress"?: (event: CustomEvent<EventOfType<"data-loading-progress">>) => void;
     "onelements-removed"?: (event: CustomEvent<EventOfType<"elements-removed">>) => void;
-    // (undocumented)
     "ongraph-first-frame"?: (event: CustomEvent<EventOfType<"graph-first-frame">>) => void;
-    // (undocumented)
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
-    // (undocumented)
     "ongraph-settled"?: (event: CustomEvent<EventOfType<"graph-settled">>) => void;
     "ongraph-started"?: (event: CustomEvent<EventOfType<"graph-started">>) => void;
-    // (undocumented)
     "ongraphty-autosave-at-risk"?: (event: GraphtyElementEventMap["graphty-autosave-at-risk"]) => void;
-    // (undocumented)
     "ongraphty-autosave-available"?: (event: GraphtyElementEventMap["graphty-autosave-available"]) => void;
-    // (undocumented)
     "ongraphty-autosave-restored"?: (event: GraphtyElementEventMap["graphty-autosave-restored"]) => void;
-    // (undocumented)
     "ongraphty-autosave-status"?: (event: GraphtyElementEventMap["graphty-autosave-status"]) => void;
-    // (undocumented)
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
-    // (undocumented)
     "ongraphty-features"?: (event: GraphtyElementEventMap["graphty-features"]) => void;
-    // (undocumented)
     "ongraphty-history-change"?: (event: GraphtyElementEventMap["graphty-history-change"]) => void;
-    // (undocumented)
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;
-    // (undocumented)
     "ongraphty-model-change"?: (event: GraphtyElementEventMap["graphty-model-change"]) => void;
-    // (undocumented)
     "ongraphty-node-click"?: (event: GraphtyElementEventMap["graphty-node-click"]) => void;
-    // (undocumented)
     "ongraphty-node-drag-end"?: (event: GraphtyElementEventMap["graphty-node-drag-end"]) => void;
-    // (undocumented)
     "ongraphty-node-drag-start"?: (event: GraphtyElementEventMap["graphty-node-drag-start"]) => void;
-    // (undocumented)
     "ongraphty-node-hover"?: (event: GraphtyElementEventMap["graphty-node-hover"]) => void;
-    // (undocumented)
     "ongraphty-note-change"?: (event: GraphtyElementEventMap["graphty-note-change"]) => void;
-    // (undocumented)
     "ongraphty-progress-change"?: (event: GraphtyElementEventMap["graphty-progress-change"]) => void;
-    // (undocumented)
     "ongraphty-project-status"?: (event: GraphtyElementEventMap["graphty-project-status"]) => void;
-    // (undocumented)
     "ongraphty-run-change"?: (event: GraphtyElementEventMap["graphty-run-change"]) => void;
-    // (undocumented)
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
-    // (undocumented)
     "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
-    // (undocumented)
     "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
-    // (undocumented)
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
-    // (undocumented)
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
-    // (undocumented)
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
-    // (undocumented)
+    "ongraphty-source-loaded"?: (event: GraphtyElementEventMap["graphty-source-loaded"]) => void;
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
-    // (undocumented)
     "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;
     "oninput-enabled-changed"?: (event: CustomEvent<EventOfType<"input-enabled-changed">>) => void;
     "oninput:key-down"?: (event: CustomEvent<EventOfType<"input:key-down">>) => void;
@@ -235,56 +199,44 @@ export interface GraphtyElementJSXProps {
     "oninput:undo"?: (event: CustomEvent<EventOfType<"input:undo">>) => void;
     "oninput:wheel"?: (event: CustomEvent<EventOfType<"input:wheel">>) => void;
     "onlayout-changed"?: (event: CustomEvent<EventOfType<"layout-changed">>) => void;
-    // (undocumented)
     "onlayout-initialized"?: (event: CustomEvent<EventOfType<"layout-initialized">>) => void;
-    // (undocumented)
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
+    "onlayout-updated"?: (event: CustomEvent<EventOfType<"layout-updated">>) => void;
     "onlayout-warning"?: (event: CustomEvent<EventOfType<"layout-warning">>) => void;
-    // (undocumented)
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
-    // (undocumented)
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
     "onlimits-warning"?: (event: CustomEvent<EventOfType<"limits-warning">>) => void;
-    // (undocumented)
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
-    // (undocumented)
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
-    "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
-    // (undocumented)
+    "onoperation-canceled"?: (event: CustomEvent<EventOfType<"operation-canceled">>) => void;
     "onoperation-complete"?: (event: CustomEvent<EventOfType<"operation-complete">>) => void;
-    // (undocumented)
     "onoperation-obsoleted"?: (event: CustomEvent<EventOfType<"operation-obsoleted">>) => void;
-    // (undocumented)
     "onoperation-progress"?: (event: CustomEvent<EventOfType<"operation-progress">>) => void;
-    // (undocumented)
     "onoperation-queue-active"?: (event: CustomEvent<EventOfType<"operation-queue-active">>) => void;
-    // (undocumented)
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
-    // (undocumented)
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
     "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
-    // (undocumented)
+    "onreduced-motion-changed"?: (event: CustomEvent<EventOfType<"reduced-motion-changed">>) => void;
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;
     "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
-    // (undocumented)
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;
-    // (undocumented)
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
-    // (undocumented)
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
-    // (undocumented)
     "onskybox-failed"?: (event: CustomEvent<EventOfType<"skybox-failed">>) => void;
-    // (undocumented)
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     "onstats-update"?: (event: CustomEvent<EventOfType<"stats-update">>) => void;
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
+    "ontour-ended"?: (event: CustomEvent<EventOfType<"tour-ended">>) => void;
+    "ontour-progress"?: (event: CustomEvent<EventOfType<"tour-progress">>) => void;
+    "onviews-changed"?: (event: CustomEvent<EventOfType<"views-changed">>) => void;
+    "onxr-menu-select"?: (event: CustomEvent<EventOfType<"xr-menu-select">>) => void;
     "onxr-session-ended"?: (event: CustomEvent<EventOfType<"xr-session-ended">>) => void;
     "onxr-session-started"?: (event: CustomEvent<EventOfType<"xr-session-started">>) => void;
-    // (undocumented)
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
     "pixel-ratio"?: string;
     "position-scale"?: string;
+    "preserve-drawing-buffer"?: boolean;
     "reduced-motion"?: string;
     "render-on-demand"?: boolean;
     "render-path"?: string;
@@ -292,6 +244,7 @@ export interface GraphtyElementJSXProps {
     "run-algorithms-on-load"?: boolean;
     "starting-camera-distance"?: string;
     "view-mode"?: string;
+    "working-graph"?: boolean;
     "zoom-to-pointer"?: boolean;
     acceleration?: Graphty["acceleration"];
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
@@ -300,7 +253,6 @@ export interface GraphtyElementJSXProps {
     accessibleNodeList?: Graphty["accessibleNodeList"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
     antialias?: Graphty["antialias"];
-    attributionOffset?: Graphty["attributionOffset"];
     autoFrame?: Graphty["autoFrame"];
     autoRotate?: Graphty["autoRotate"];
     autosave?: Graphty["autosave"];
@@ -308,6 +260,7 @@ export interface GraphtyElementJSXProps {
     autosaveRestore?: Graphty["autosaveRestore"];
     background?: Graphty["background"];
     cameraTransitionDuration?: Graphty["cameraTransitionDuration"];
+    colorScheme?: Graphty["colorScheme"];
     dataSource?: Graphty["dataSource"];
     dataSourceConfig?: Graphty["dataSourceConfig"];
     directed?: Graphty["directed"];
@@ -330,6 +283,9 @@ export interface GraphtyElementJSXProps {
     layoutBehavior?: Graphty["layoutBehavior"];
     layoutConfig?: Graphty["layoutConfig"];
     layoutScope?: Graphty["layoutScope"];
+    legend?: Graphty["legend"];
+    legendLabel?: Graphty["legendLabel"];
+    legendPosition?: Graphty["legendPosition"];
     lighting?: Graphty["lighting"];
     limits?: Graphty["limits"];
     minimap?: Graphty["minimap"];
@@ -340,10 +296,10 @@ export interface GraphtyElementJSXProps {
     nodeTimeEndPath?: Graphty["nodeTimeEndPath"];
     nodeTimePath?: Graphty["nodeTimePath"];
     nodeTimeUnit?: Graphty["nodeTimeUnit"];
-    // (undocumented)
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
     pixelRatio?: Graphty["pixelRatio"];
     positionScale?: Graphty["positionScale"];
+    preserveDrawingBuffer?: Graphty["preserveDrawingBuffer"];
     reducedMotion?: Graphty["reducedMotion"];
     renderer?: Graphty["renderer"];
     renderOnDemand?: Graphty["renderOnDemand"];
@@ -355,6 +311,7 @@ export interface GraphtyElementJSXProps {
     startingCameraDistance?: Graphty["startingCameraDistance"];
     viewInsets?: Graphty["viewInsets"];
     viewMode?: Graphty["viewMode"];
+    workingGraph?: Graphty["workingGraph"];
     xr?: Graphty["xr"];
     zoomToPointer?: Graphty["zoomToPointer"];
 }

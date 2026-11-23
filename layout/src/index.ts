@@ -28,6 +28,9 @@ export {
     type CommonLayoutOptions,
     forceAtlas2,
     fruchtermanReingold,
+    geographic,
+    type GeographicLayoutOptions,
+    type GeographicProjection,
     grid,
     type GridLayoutOptions,
     type IndexedForceAtlas2Options,
@@ -68,3 +71,6 @@ export {
     LAYOUTS,
     type LayoutWeightUse,
 } from "./catalog.js";
+
+// ==================== version
+export { VERSION } from "./version.js";

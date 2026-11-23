@@ -23,7 +23,7 @@ with that category's state, so every page repeats the status line; Issues has no
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Overview      | Each category's state, the member that set it, the headline measures with sparklines, and the incidents of the last 24 hours.                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Master        | A minute-by-minute strip of master's builds, red spans with their cause and fix, and failures shared by several pull requests with suspect merges.                                                                                                                                                                                                                                                                                                                                                                                      |
-| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner".                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner". **Issue grouping** (fixing related issues in one pull request, design/ci/issue-grouping.md): issues closed per merged PR, merged PRs closing 2+ issues, runner-minutes per issue closed, grouped issues released as not part of their branch, and finished branches not opened.                                                                                                                                        |
 | CI            | Why first attempts failed (shared, the change, flaky, infrastructure), hangs, reruns; **Runner-minutes per merge** by run kind; **Shard times**: median and p90 per shard against budget, and for full runs each test group's members added up per run against its test step's deadline (not OK past 80%), with the members slower than their `GROUP_MEMBER_SECONDS` entry; **Chronically failing jobs**, gating or not; **Allowed to fail, and failing**: each non-gating job's pass rate; and **Benchmarks**: each benchmark's trend. |
 | Runners       | Running and queued jobs against the runner limit, who holds the runners, runs queued with no job, superseded runs still running. Under CI.                                                                                                                                                                                                                                                                                                                                                                                              |
 | Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -80,8 +80,10 @@ with `VITE_HEALTH_FIXTURES=1`; the published page has none and ignores `?fixture
 ## The read API
 
 Base URL: the `ApiUrl` output of the `graphty-health` stack, today
-https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com. Every route is a public `GET`, cached for 60
-seconds and throttled (20 requests/s, burst 40). CORS allows https://health.graphty.app.
+https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com. Every route is a public `GET`, throttled (20
+requests/s, burst 40); a good answer carries `Cache-Control: public, max-age=60` (there is no server-side
+cache). CORS allows https://health.graphty.app, plus the origin in the `devOrigin` cdk context when a deploy
+sets one.
 
 | Route                                                   | Returns                                                                      |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -90,7 +92,7 @@ seconds and throttled (20 requests/s, burst 40). CORS allows https://health.grap
 | `/v1/page/overview?range=1h\|6h\|24h`                   | The status, with each headline's value and sparkline                         |
 | `/v1/page/<page>?range=1h\|6h\|24h`                     | One page: its members (value, SLA, state) and sections                       |
 | `/v1/page/costs?range=7d\|28d`                          | The Costs page                                                               |
-| `/v1/page/issues?range=28d\|all`                        | The Issues page (default 28d)                                                |
+| `/v1/page/issues?range=28d\|1h\|6h\|1d\|7d\|all`        | The Issues page (default 28d)                                                |
 | `/v1/page/ci/shards?range=7d\|28d&kind=full\|pr-bins`   | Shard times, for full runs or pull request runs                              |
 | `/v1/page/flaky/hotspots?range=7d\|28d`                 | Flake hotspots                                                               |
 | `/v1/page/runners/jobs?range=7d`                        | Runner history: 15-minute running, queued, longest queued and saturated time |
@@ -175,18 +177,39 @@ targets, never judged into a page's state or alerted.
 ### CI
 
 CI posts test results through [`tools/results/client.mjs`](../results/client.mjs): when the repository
-variable `HEALTH_API_URL` is set, every record it sends to the results service is also sent to the
-health API, fire and forget (2 seconds at most; a failed post never fails a job). The routes are
-`POST /v1/invocations`, `/v1/failures`, `/v1/durations` and `/v1/verdicts`, with the results service's
-own bodies. The benchmark jobs (ci.yml's Performance Benchmarks, gpu.yml's T4 lane) post their numbers to
+variable `HEALTH_API_URL` is set, every write it sends to the results service (POST, PUT and DELETE) is also
+sent to the health API, fire and forget (2 seconds at most; a failed post never fails a job), with the results
+service's own paths and bodies. The benchmark jobs (ci.yml's Performance Benchmarks, gpu.yml's T4 lane) post their numbers to
 `POST /v1/benchmarks` through [`tools/results/post-benchmarks.mjs`](../results/post-benchmarks.mjs), which the
 API takes only from master's workflows.
 
+### The results service's copy
+
+The health API also keeps the results service's own records (issue #3607), in `RS#` items of the same table, so
+CI's `RESULTS_URL` can later name this API instead of the Cloudflare Worker. The ingest Lambda stores them from the
+same requests, under the Worker's claim rules, and answers CI's writes as the Worker does: `POST /v1/invocations`
+(`{ stored, kind, flaky, tracked }`), `/v1/failures`, `/v1/durations` (with `trend` and `lastSeen`), `/v1/sites`,
+`/v1/verdicts`, and the routes only the results service has: `POST /v1/issues`, `/v1/channel-moves`, `/v1/hold`,
+`/v1/base-checks` (and `DELETE`), `/v1/story-captures`, `/v1/story-reach` and `PUT /v1/durations/tests/<name>`. The
+Results Lambda answers the reads, `GET /v1/plan`, `/v1/site`, `/v1/quarantine`, `/v1/candidate`,
+`/v1/release-state`, `/v1/failures`, `/v1/durations/medians`, `/v1/durations/tests/<name>`, `/v1/story-captures`
+and `/v1/story-reach`, with the Worker's query strings, answers and `{ "error": "..." }` refusals (see
+[`tools/results-service/README.md`](../results-service/README.md)). Like every read here, they are public.
+
+Where they differ from the Worker: records are kept 90 days (duration samples 31 days, story captures 7 days besides
+each story's newest); a quarantine entry's `passes` are counted as master's runs are stored, not on read;
+`passedWithInputs` looks only at the variant's newest 1,000 runs; duration samples are kept only for master's push
+build and the full run (kinds `master` and `full`, the only ones whose trend files issues and whose medians are
+read), so another kind's `trend` is empty; and a test duration history is one item, refused past 350 KB gzipped.
+The failure signatures come from `tools/results-service/src/signature.js`, so a change there reaches AWS with the
+next deploy of this directory. Local tokens (kind `local`) are not taken here yet.
+
 Each post carries a GitHub OIDC token with audience `graphty-health`, so the job needs
 `permissions: id-token: write`. The API's JWT authorizer checks the token's signature, issuer
-(`https://token.actions.githubusercontent.com`), audience and expiry; the ingest Lambda then checks
+(`https://token.actions.githubusercontent.com`), audience (`graphty-health`, or the results service's
+`graphty-results`) and expiry; the ingest Lambda then checks
 the `repository`, `repository_id`, `job_workflow_ref` and `ref` claims against what that workflow may
-write (pull request runs, or the listed workflows on master). A body is at most 1 MB.
+write (pull request runs, or the listed workflows on master). A body is at most 1 MB (a test duration history 2 MB).
 
 ### The local collector
 
@@ -198,10 +221,16 @@ write (pull request runs, or the listed workflows on master). A body is at most 
 | `tmp/waits.jsonl` (test and GPU slot waits)                | `POST /v1/local/waits`       |
 | `tmp/test-ledger/records/<date>/*.json.gz` (pre-push gate) | `POST /v1/local/invocations` |
 | `tmp/push-log.jsonl` (pre-push gate runs)                  | `POST /v1/local/push-runs`   |
+| `tmp/issue-round/grouping-metrics.jsonl` (daily ledger)    | `POST /v1/local/grouping`    |
 
 Every test run on this machine holds a test slot (`tools/test-slots.mjs`), which logs the hold with what ran
 (the package, or the shard family `tools/run-tests.sh` ran) and its exit code: those are the Local runs page's
 runs and local time. The test ledger and the push log are written only by the pre-push gate, now run by hand.
+The grouping metrics line is appended once a day by issue-round (`tools/issue-groups.mjs metrics --append`). Only
+these fields are posted, as the source `grouping-ledger` (age limit 48 hours): `issuesPerMergedPr` and `multiFixShare`
+(the ledger counts a pull request's closing links and its commits' Fixes lines, so the dashboard never counts issues
+itself), `ledger.releasedNotPartShare`, `ledger.ready`, `combinable` and `combinableBranches`. A field a line lacks is
+not posted. Runner-minutes per issue closed is Runner-minutes per merge divided by the newest `issuesPerMergedPr`.
 
 Host paths, gate logs, working directories and session ids are never posted. Every row has an id from
 its content, so a retried post is harmless.
@@ -243,6 +272,17 @@ The token is `HEALTH_LOCAL_TOKEN`, from the server's environment or else the mai
 Its cursor is `tmp/pipeline-health-local/cursor.json` in the main checkout. A failed post logs one line
 and keeps the cursor, so the next pass sends the same rows; delete the cursor to post everything again.
 
+### Cloud usage
+
+Hourly, the collector reads what the cloud services were used for, by UTC day: from Cloudflare's GraphQL
+analytics, each Worker's requests, D1 rows read and written, and R2 Class A and B operations and storage; from
+CloudWatch, the table's consumed read and write units, Lambda invocations and the API's requests. Each is a row on
+Costs: yesterday's use as a share of its daily allowance (Cloudflare's included monthly amount over 30, AWS's
+allowance in `config/rates.json` `awsUsage`), yellow past 50%, red past 80% or when the last 7 days average more
+than twice the 28 days before. The Cloudflare line on the money table adds what that usage costs past the plan
+(`cloudflareUsage` in `config/rates.json`) and is projected to month-end against 5 USD. The Cloudflare rows need a
+read-only API token with Account Analytics: Read in SSM; until then they show "not set up".
+
 ## Configuration
 
 - [`config/slas.json`](config/slas.json): every member's target (`ok`) and red threshold (`fail`), its
@@ -255,18 +295,20 @@ and keeps the cursor, so the next pass sends the same rows; delete the cursor to
 - SSM SecureStrings under `/graphty-health/`, read by the Lambdas. A member whose parameter is missing
   shows "not set up":
 
-| Parameter                                                                    | Used for                                       |
-| ---------------------------------------------------------------------------- | ---------------------------------------------- |
-| `/graphty-health/github-app/app-id`, `installation-id`, `private-key`        | The collector's GitHub App                     |
-| `/graphty-health/local-token-sha256`                                         | The local collector's token (its SHA-256, hex) |
-| `/graphty-health/pushover/app-token`, `user-key`                             | Alerts                                         |
-| `/graphty-health/cloudflare/token`, `account-id`                             | The Cloudflare line on Costs (optional)        |
-| `/graphty-health/sentry/token`                                               | The Sentry line on Costs (optional)            |
-| `/graphty-health/results/url`, `token`                                       | The results store the slice dispatcher reads   |
-| `/graphty-health/release-scheduler/app-id`, `installation-id`, `private-key` | The App the slice dispatcher dispatches as     |
+| Parameter                                                                    | Used for                                                           |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `/graphty-health/github-app/app-id`, `installation-id`, `private-key`        | The collector's GitHub App                                         |
+| `/graphty-health/local-token-sha256`                                         | The local collector's token (its SHA-256, hex)                     |
+| `/graphty-health/pushover/app-token`, `user-key`                             | Alerts                                                             |
+| `/graphty-health/cloudflare/token`, `account-id`                             | Cloudflare usage and its bill on Costs (optional)                  |
+| `/graphty-health/sentry/token`                                               | The Sentry line on Costs (optional)                                |
+| `/graphty-health/results/url`, `token`                                       | The results store the slice dispatcher reads                       |
+| `/graphty-health/release-scheduler/app-id`, `installation-id`, `private-key` | The App the slice dispatcher and the release scheduler dispatch as |
 
 **When everything goes dark.** The backend stops itself before it costs money: a daily write budget
-(past it, writes get 429 and Data sources turns red), a 50 USD monthly AWS Budget whose action denies
+(past it, writes get 429 and Data sources turns red), a daily read budget of 500,000 DynamoDB read units for the
+public reads (past it, the page, the MCP server and the results reads get 429 until midnight UTC), per-route API
+throttling (reads 5 a second with bursts of 20, writes 20 with bursts of 100), a 50 USD monthly AWS Budget whose action denies
 the Lambdas at 100%, and the AWS project's own spend limit. Any of them silences the collector; the
 CloudWatch alarm `graphty-health-collector-dead-man` (no successful collector run in 20 minutes) emails
 the SNS topic `graphty-health-alarms` when that happens.
@@ -275,7 +317,7 @@ the SNS topic `graphty-health-alarms` when that happens.
 
 The Costs page's LLM regression line (`costs.llm`) estimates what CI spends on Gemini; it is not the Google bill. It
 counts every paid step -- release.yml's `LLM regression tests` step, and the `Run the failing files` step of each
-point of a bisect of the llm lane (bisect.yml's run name `Bisect (llm lane)`) -- with a passed, failed or cancelled
+point of a bisect of the llm lane (bisect.yml's run name `Bisect (llm lane)`) -- with a passed, failed or canceled
 conclusion, at a flat 0.94 USD each (`config/rates.json`, measured 2026-10-12 at about 194 calls of 0.00485 USD).
 Local runs with the same key and any other use of the Google project are not counted. The member's value is the
 projection to month-end; the money table shows the spend so far beside it.
@@ -377,6 +419,16 @@ its own, and shows the last data this browser loaded for the view, with its age,
 - **"answered HTTP 404"**: the page asked for a route the deployed API does not have, usually a page newer
   than the last deploy.
 - `/v1/status` answering while the view fails points at that view's route alone.
+
+## The release scheduler
+
+The Lambda `ReleaseScheduler`, invoked by the schedule `ReleaseSchedule` at 00:00, 06:00, 12:00 and 18:00 UTC,
+is the AWS copy of the Cloudflare Worker in `tools/release-scheduler/`, which still starts the release train. It
+runs in dry run (`RELEASE_DISPATCH_MODE` in `infra/health-stack.ts`): each slot logs one JSON line,
+`{"releaseScheduler":"dry-run","slot":...,"dispatched":false,"dispatch":{...}}`, the release.yml dispatch it would
+make, and dispatches nothing. To check the slots, look up its log group in the stack (below) and filter on
+`"releaseScheduler"`. Once it has logged all 56 slots of two weeks, one change sets the mode to `"live"` and
+deletes the Worker.
 
 ## Deployment
 

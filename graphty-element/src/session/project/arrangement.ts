@@ -359,12 +359,12 @@ export class Arrangement {
     }
 
     /**
-     * Write every restore still queued into the lane now, before a capture or a write reads it.
+     * Write every restore still queued into the lane now, before a capture or a write reads it. The engine is handed
+     * the lane by the `arrangement` hook the restore touched, in the pass that also derives the graph: handed it now,
+     * a rollback's redraw walked edges whose nodes the graph had already lost (an edge drawn to a node not built).
      */
     flush(): void {
-        if (this.ops.length > 0) {
-            this.apply(true);
-        }
+        this.writeQueued();
     }
 
     /**
@@ -555,20 +555,32 @@ export class Arrangement {
      */
     private apply(restoring: boolean): void {
         const byReader = restoring && this.lane.cause !== "rollback";
-        const ops = this.ops.splice(0);
         const { source } = this;
-        if (source !== null && ops.length > 0) {
-            this.writeOps(source, ops);
-        }
+        this.writeQueued();
 
         // The engine taking the lane may write it back unchanged; that is not a move. A layout
         // write made before this pass still is, and the next rest point seals it.
         const atRest = !this.moved;
-        const wrote = this.written || (source !== null && ops.length > 0);
+        const wrote = this.written || this.flushed;
         this.written = false;
+        this.flushed = false;
         this.engine?.loadArrangement(restoring, wrote, byReader);
         if (atRest) {
             this.captured = source?.positions.changes ?? 0;
+        }
+    }
+
+    /** Whether queued ops were written into the lane since the engine was last handed it. */
+    private flushed = false;
+
+    /**
+     * Write the queued ops into the lane.
+     */
+    private writeQueued(): void {
+        const ops = this.ops.splice(0);
+        if (this.source !== null && ops.length > 0) {
+            this.writeOps(this.source, ops);
+            this.flushed = true;
         }
     }
 

@@ -6,73 +6,28 @@
  * guard beside own-entry.test.ts's three-engine walk.
  */
 
-import { rmSync } from "node:fs";
-
 import type { BrowserContext, Page } from "playwright";
-import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { ENGINES, launch, profile } from "./engines";
-import { type Fixture, type LogEvent, type PageCheck, startFixture } from "./fixture";
+import { owned, type PageCheck, useLifecycleFixture } from "./fixture";
 
-/** One entry as the fixture's `listed` reports it. */
-interface Listed {
-    readonly id: string;
-    readonly own: boolean | undefined;
-    readonly live: boolean;
-}
-
-let fx: Fixture;
-const open: { context: BrowserContext; dir: string }[] = [];
-
-beforeAll(async () => {
-    fx = await startFixture();
-});
-
-afterAll(async () => {
-    await fx.close();
-});
-
-afterEach(async () => {
-    for (const { context, dir } of open.splice(0)) {
-        await context.close().catch(() => undefined);
-        rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
-    }
-});
-
-/**
- * The `listed` report a tab made at or after `from`.
- * @param tab - The tab label.
- * @param from - The log position to start at.
- * @returns The report.
- */
-function listedAt(tab: string, from: number): Promise<LogEvent & { item: string | null; entries: Listed[] }> {
-    return fx.waitFor((e) => e.seq >= from && e.tab === tab && e.type === "listed") as Promise<
-        LogEvent & { item: string | null; entries: Listed[] }
-    >;
-}
-
-/**
- * The ids a listing marks as this tab's own.
- * @param entries - The listing.
- * @returns The ids.
- */
-function owned(entries: readonly Listed[]): string[] {
-    return entries.filter((entry) => entry.own === true).map((entry) => entry.id);
-}
+const { fx, track, listedAt } = useLifecycleFixture();
 
 describe.each(ENGINES)("%s", (engine) => {
     /**
      * A browser and its page open on a fixture, ready to edit.
      * @param key - The autosave key.
      * @param delay - The fixture's debounce; a large one leaves every write to the lifecycle events.
+     * @param list - `1` lists the key before the element mounts, as a start screen does; `0` does not.
      * @returns The browser context and the page.
      */
-    const opened = async (key: string, delay?: number): Promise<{ context: BrowserContext; page: Page }> => {
+    const opened = async (key: string, delay?: number, list = 1): Promise<{ context: BrowserContext; page: Page }> => {
         const dir = profile(engine);
         const context = await launch(engine, dir);
-        open.push({ context, dir });
+        track(() => context.close(), dir);
         const page = await context.newPage();
-        await page.goto(fx.url({ key, tab: `${key}.a`, list: 1, ...(delay === undefined ? {} : { delay }) }));
+        await page.goto(fx.url({ key, tab: `${key}.a`, list, ...(delay === undefined ? {} : { delay }) }));
         await page.waitForFunction("window.fixture !== undefined");
         await page.evaluate("fixture.ready()");
         return { context, page };
@@ -82,11 +37,12 @@ describe.each(ENGINES)("%s", (engine) => {
      * Makes an edit and waits until it is committed.
      * @param page - The page.
      * @param key - The autosave key.
+     * @param tab - The page's tab label.
      * @returns The entry written.
      */
-    const editSaved = async (page: Page, key: string): Promise<string> => {
+    const editSaved = async (page: Page, key: string, tab = `${key}.a`): Promise<string> => {
         const revision = await page.evaluate<number>("fixture.next()");
-        await fx.waitFor((e) => e.tab === `${key}.a` && e.type === "saved" && (e.revision as number) >= revision);
+        await fx.waitFor((e) => e.tab === tab && e.type === "saved" && (e.revision as number) >= revision);
         const { entry } = (await page.evaluate<PageCheck>("fixture.check()")).status;
         assert.isNotNull(entry);
         return entry;
@@ -138,11 +94,118 @@ describe.each(ENGINES)("%s", (engine) => {
         assert.deepEqual(reopened.probes, probes, "the newest work came back");
     });
 
+    /**
+     * Makes the page's next end look like a Safari kill to the next load: session storage (with the
+     * leaving mark and the per-load item) is gone, and window.name is what the element's own pagehide
+     * left. That Safari keeps window.name when it ends a tab in the background is an assumption, not
+     * observed: where it does not, the newest-unheld case below is the one that applies. The element's
+     * listeners still run, so the leaving page lets its lock go as a killed one does.
+     * @param page - The page.
+     */
+    const killedOnLeave = (page: Page): Promise<unknown> =>
+        page.evaluate(`addEventListener("pagehide", () => { sessionStorage.clear(); });`);
+
+    /**
+     * A newer entry of the key that no tab holds, written by another page that then left: the guess
+     * made with no record would take it, so only the tab's record reopens the older, own one.
+     * @param context - The browser context.
+     * @param key - The autosave key.
+     * @returns The newer entry.
+     */
+    const newerLeft = async (context: BrowserContext, key: string): Promise<string> => {
+        const other = await context.newPage();
+        await other.goto(fx.url({ key, tab: `${key}.b`, list: 1 }));
+        await other.waitForFunction("window.fixture !== undefined");
+        await other.evaluate("fixture.ready()");
+        const newer = await editSaved(other, key, `${key}.b`);
+        await other.close();
+        return newer;
+    };
+
+    /**
+     * Reloads a page made to end as a killed one, and says whether the browser kept window.name:
+     * Playwright's Firefox reloads as a new navigation, which drops it.
+     * @param page - The page.
+     * @param key - The autosave key.
+     * @returns Where the reload's reports start, and whether it loaded as a new navigation.
+     */
+    const reloadKilled = async (page: Page, key: string): Promise<{ from: number; navigated: boolean }> => {
+        await killedOnLeave(page);
+        const from = fx.log.length;
+        await page.reload();
+        const boot = await fx.report(`${key}.a`, "boot", from);
+        return { from, navigated: boot.navigationType === "navigate" };
+    };
+
+    it("a tab ended with no pagehide finds its own entry by its record, not a newer closed tab's (issue #9230)", async () => {
+        const key = `own-killed-${engine}`;
+        const { context, page } = await opened(key);
+        const entry = await editSaved(page, key);
+        const newer = await newerLeft(context, key);
+        const { from, navigated } = await reloadKilled(page, key);
+        const reloaded = await listedAt(`${key}.a`, from);
+        assert.isNull(reloaded.item, "session storage names nothing");
+        assert.includeMembers(reloaded.entries?.map((listed) => listed.id) ?? [], [entry, newer]);
+        if (navigated) {
+            // No record and a new navigation: a new tab's load, which takes nothing.
+            assert.deepEqual(owned(reloaded.entries), [], "a navigation adopts nothing");
+            return;
+        }
+
+        assert.deepEqual(owned(reloaded.entries), [entry], "the tab's record found its own entry");
+        await page.waitForFunction("window.fixture !== undefined");
+        await page.evaluate("fixture.ready()");
+        const after = await page.evaluate<PageCheck>("fixture.check()");
+        assert.strictEqual(after.restored?.entry, entry, "the element restored the entry itself");
+        assert.isNull(after.restored?.copiedFrom ?? null, "not a copy");
+    });
+
+    it("a tab ended with no pagehide, whose element starts with no listing, restores its own entry by its record", async () => {
+        const key = `own-killed-start-${engine}`;
+        const { context, page } = await opened(key, undefined, 0);
+        const entry = await editSaved(page, key);
+        const newer = await newerLeft(context, key);
+        const { navigated } = await reloadKilled(page, key);
+        await page.waitForFunction("window.fixture !== undefined");
+        await page.evaluate("fixture.ready()");
+        const after = await page.evaluate<PageCheck>("fixture.check()");
+        // With no own entry the element restores the newest one, as in a new tab.
+        assert.strictEqual(after.restored?.entry, navigated ? newer : entry, "the element restored its own entry");
+        assert.isNull(after.restored?.copiedFrom ?? null, "not a copy");
+    });
+
+    it("a reload that lost both session storage and the tab's record reopens the newest unheld entry (issue #9230)", async () => {
+        const key = `own-lost-${engine}`;
+        const { page } = await opened(key);
+        const entry = await editSaved(page, key);
+        // A browser that keeps neither: cleared after every other pagehide listener, so no mark the
+        // leaving page writes is left either, and only the guess by the newest unheld entry is left.
+        await page.evaluate(`addEventListener("pagehide", () => { sessionStorage.clear(); window.name = ""; })`);
+        const beforeReload = fx.log.length;
+        await page.reload();
+        const reloaded = await listedAt(`${key}.a`, beforeReload);
+        assert.isNull(reloaded.item, "session storage names nothing");
+        const boot = await fx.report(`${key}.a`, "boot", beforeReload);
+        if (boot.navigationType === "navigate") {
+            // Playwright's Firefox reloads as a new navigation: that is a new tab's load, offered, so
+            // on Firefox this case only checks that nothing is taken.
+            assert.deepEqual(owned(reloaded.entries), [], "a navigation adopts nothing");
+            return;
+        }
+
+        assert.deepEqual(owned(reloaded.entries), [entry], "the reloaded tab owns its entry");
+        await page.waitForFunction("window.fixture !== undefined");
+        await page.evaluate("fixture.ready()");
+        const after = await page.evaluate<PageCheck>("fixture.check()");
+        assert.strictEqual(after.restored?.entry, entry, "the element restored the entry itself");
+        assert.isNull(after.restored?.copiedFrom ?? null, "not a copy");
+    });
+
     it("puts the camera back after a real reload with keepCamera", async () => {
         const key = `own-camera-${engine}`;
         const dir = profile(engine);
         const context = await launch(engine, dir);
-        open.push({ context, dir });
+        track(() => context.close(), dir);
         const page = await context.newPage();
         await page.goto(fx.url({ key, tab: `${key}.a`, keepCamera: 1 }));
         await page.waitForFunction("window.fixture !== undefined");

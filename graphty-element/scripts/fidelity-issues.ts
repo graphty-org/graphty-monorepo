@@ -1,8 +1,8 @@
 /**
- * Reports the style fidelity known failures that no open issue tracks: each listed element whose reasons cite no
+ * Fails on the style fidelity known failures that no open issue tracks: each listed element whose reasons cite no
  * issue, or cite only issues and pull requests that are closed. A known failure stays on the list until its issue is
- * fixed, so each one reported needs a new issue cited for it, or a fix (#7015). It asks GitHub for every cited
- * number's state in one GraphQL query (`gh`), and reports without failing: the lists already hold such entries.
+ * fixed, so each one reported needs a new issue cited for it (a new reason record listing it), or a fix (#7015). It
+ * asks GitHub for every cited number's state in one GraphQL query (`gh`). CI's Checks job runs it.
  *
  *     npm run fidelity:issues
  */
@@ -35,6 +35,7 @@ if (states === undefined) {
 }
 const open = new Set(cited.filter((n) => states[`i${String(n)}`]?.state === "OPEN"));
 
+let failed = false;
 for (const { path, records } of files) {
     const untracked = untrackedKnown({ ...records, reasons: records.reasons ?? [] }, open);
     const bySet = new Map<string, number>();
@@ -43,7 +44,14 @@ for (const { path, records } of files) {
         bySet.set(label, (bySet.get(label) ?? 0) + 1);
     }
     console.log(`${path}: ${String(untracked.length)} known failures no open issue tracks`);
+    failed ||= untracked.length > 0;
     for (const [label, count] of [...bySet].sort((a, b) => b[1] - a[1])) {
         console.log(`    ${String(count).padStart(5)}  ${label}`);
     }
 }
+if (failed) {
+    console.error(
+        "Each one needs an open issue: add a record to the file's reasons that lists it and cites the open issue tracking it, or fix it and take it off with npm run fidelity:ratchet",
+    );
+}
+process.exitCode = failed ? 1 : 0;

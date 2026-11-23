@@ -82,6 +82,7 @@ describe("a frame drawn while a style pass is painting", () => {
         element.nodeData = [
             { id: "a", position: { x: -2, y: 0, z: 0 } },
             { id: "b", position: { x: 2, y: 0, z: 0 } },
+            { id: "c", position: { x: 0, y: 2, z: 0 } },
         ];
         element.edgeData = [{ src: "a", dst: "b" }];
 
@@ -89,10 +90,18 @@ describe("a frame drawn while a style pass is painting", () => {
 
         const { graph, session } = element;
         // The frame's own style step, driven by hand so the test chooses when a frame lands.
-        const frame = (graph as unknown as { updateManager: { syncStyles: () => void } }).updateManager;
+        const frame = graph.getUpdateManager();
         const painter = graph.getStylePainter();
 
         graph.engine.stopRenderLoop();
+
+        await session.styles.add({
+            name: "Group b",
+            target: "node",
+            selector: { match: "expression", where: "data.group == 'b'" },
+            set: { "node.color": "#ff0000" },
+        });
+        frame.syncStyles();
 
         // Painted and announced, and left pending: no frame has drawn it yet.
         await session.styles.add({
@@ -108,9 +117,12 @@ describe("a frame drawn while a style pass is painting", () => {
         let clock = performance.now();
         vi.spyOn(performance, "now").mockImplementation(() => (clock += 1000));
 
-        // A data change repaints the whole graph from the bottom of the stack, which is the
-        // pass that clears an element's columns before painting them again.
-        const update = graph.updateNodes([{ id: "a", touched: true }]);
+        // A node taken out under a layer whose selector is an expression repaints the whole graph
+        // from the bottom of the stack (the rows after it move, and an expression is not painted row
+        // by row), which is the pass that clears an element's columns before painting them again.
+        // An edit no layer reads, or one every layer paints row by row, repaints only its own rows
+        // (issue #9164), so it would not start this pass.
+        const update = session.data.removeNodes(["c"]);
         let finished = false;
         void update.then(() => {
             finished = true;

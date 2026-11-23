@@ -81,6 +81,7 @@ const circular: LayoutDescriptor = {
     structuralInputs: ["ordering"],
     options: [],
     engine: "@graphty/layout",
+    honorsWeights: false,
     honoursWeights: false,
     scoped: false,
 };
@@ -154,7 +155,7 @@ describe("catalogue descriptors", () => {
             plainName: "Bridging",
             technicalName: "Betweenness centrality",
             available: false,
-            reason: "This graph has 2.1 million edges, above the exact computation cap.",
+            refusal: { code: "algorithm.needs-connected", params: { algorithm: "betweenness", pieces: 2 } },
             costClass: "cubic",
             estimateSeconds: 900,
             hasRun: false,
@@ -223,7 +224,7 @@ describe("what a layout engine needs before it can run", () => {
     );
 
     it("says that spring-electrical needs an accelerator, and says it of nothing else", () => {
-        // A picker reads this beside `capabilities.acceleration.state` and greys the entry out.
+        // A picker reads this beside `capabilities.acceleration.state` and grays the entry out.
         // Without it the only way to learn that an engine cannot run here is to ask for it and
         // catch the refusal -- which is the detection a consumer must never have to write.
         const needing = engines.filter((each) => each.implementation.requires?.accelerator === true);

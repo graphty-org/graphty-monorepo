@@ -1,24 +1,36 @@
 import type { ExportResult } from "@graphty/graphty-element";
 import { FORMAT_DESCRIPTORS, formatDescriptor, SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+import { GraphtyError, type GraphtyErrorCode } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import {
-    animationOptions,
     backgroundRefusal,
+    cameraScreenshotOptions,
     dataExportOptions,
-    DEFAULT_IMAGE,
+    DEFAULT_CAMERA_IMAGE,
     exportScope,
+    factWords,
     failureWords,
     fileName,
     formatRows,
+    framesWords,
     presetChoices,
-    presetOf,
     previewOf,
     refusalWords,
-    screenshotOptions,
     slug,
+    tourAnimationOptions,
     writerOptions,
 } from "../choices";
+
+/**
+ * A GraphtyError as the element throws one.
+ * @param code - its code.
+ * @param details - its details.
+ * @returns the error.
+ */
+function thrown(code: GraphtyErrorCode, details: Record<string, unknown> = {}): GraphtyError {
+    return new GraphtyError({ code, message: "for developers", source: "data", details });
+}
 
 describe("the Export dialog's choices", () => {
     it("lists one row per file type the element writes, Graphty JSON first", () => {
@@ -53,7 +65,6 @@ describe("the Export dialog's choices", () => {
         const result: ExportResult = {
             format: "csv",
             losses: [],
-            lossNotes: [],
             text: () => {
                 whole++;
                 return Promise.reject(new Error("read the whole file"));
@@ -65,17 +76,18 @@ describe("the Export dialog's choices", () => {
         assert.equal(pulled, 6, "stops at the chunk that ends the sixth line");
     });
 
-    it("names the preset the choices match, and none after an edit", () => {
-        assert.equal(presetOf(DEFAULT_IMAGE)?.id, "web-share");
-        assert.equal(presetOf({ ...DEFAULT_IMAGE, size: "4x" })?.id, "print");
-        assert.isUndefined(presetOf({ ...DEFAULT_IMAGE, format: "webp" }));
+    it("keeps the picked preset when the background changes", () => {
+        assert.equal(DEFAULT_CAMERA_IMAGE.preset, "web-share");
         for (const preset of SCREENSHOT_PRESET_DESCRIPTORS) {
-            assert.equal(presetOf({ ...presetChoices(preset), view: "current" }), preset);
+            assert.equal(presetChoices(preset).format, preset.format);
         }
+        const transparent = cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, background: "transparent" }, {});
+        assert.isTrue(transparent.transparentBackground);
+        assert.isUndefined(transparent.enhanceQuality, "still To share, not another preset");
     });
 
     it("turns choices into screenshot options", () => {
-        assert.deepEqual(screenshotOptions(DEFAULT_IMAGE, { download: true }, "a_b.png"), {
+        assert.deepEqual(cameraScreenshotOptions(DEFAULT_CAMERA_IMAGE, { download: true }, "a_b.png"), {
             format: "png",
             multiplier: 2,
             transparentBackground: false,
@@ -83,20 +95,34 @@ describe("the Export dialog's choices", () => {
             destination: { download: true },
             downloadFilename: "a_b.png",
         });
-        const thumbnail = screenshotOptions(
-            { format: "jpeg", size: "400x300", background: "canvas", view: "topView" },
-            { blob: true },
+        const thumbnail = cameraScreenshotOptions(
+            {
+                ...DEFAULT_CAMERA_IMAGE,
+                preset: "thumbnail",
+                format: "jpeg",
+                size: "400x300",
+                background: "canvas",
+                view: "topView",
+            },
+            {},
         );
         assert.equal(thumbnail.width, 400);
         assert.equal(thumbnail.height, 300);
         assert.equal(thumbnail.quality, 0.85);
         assert.isUndefined(thumbnail.multiplier);
-        assert.deepEqual(thumbnail.camera, { preset: "topView" });
-        assert.deepEqual(screenshotOptions({ ...DEFAULT_IMAGE, view: "fitToGraph" }, { blob: true }).camera, {
-            preset: "fitToGraph",
+        assert.deepEqual(thumbnail.camera, { view: "topView" });
+        assert.deepEqual(cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, view: "Hub cluster" }, {}).camera, {
+            view: "Hub cluster",
+        });
+        assert.isUndefined(cameraScreenshotOptions(DEFAULT_CAMERA_IMAGE, {}).camera, "the reader's camera");
+        assert.deepEqual(cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, view: "fitToGraph" }, {}).camera, {
+            view: "fitToGraph",
             params: { keepAngle: true },
         });
-        assert.isTrue(screenshotOptions({ ...DEFAULT_IMAGE, size: "4x" }, { blob: true }).enhanceQuality);
+        assert.isTrue(
+            cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, preset: "print", size: "4x" }, {}).enhanceQuality,
+        );
+        assert.isUndefined(cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, preset: null }, {}).enhanceQuality);
     });
 
     it("refuses a transparent background in a format that cannot keep it", () => {
@@ -155,7 +181,8 @@ describe("the Export dialog's choices", () => {
     });
 
     it("hands the element the scope and columns the reader chose", () => {
-        assert.isUndefined(exportScope("all"));
+        // All names the whole graph: with no scope the element writes the working graph the app reads.
+        assert.equal(exportScope("all"), "all");
         assert.equal(exportScope("shown"), "shown");
         assert.equal(exportScope("selection"), "selection");
         assert.deepEqual(exportScope("set:hubs"), { set: "hubs" });
@@ -169,34 +196,70 @@ describe("the Export dialog's choices", () => {
         assert.deepEqual(options.columns, ["name"]);
     });
 
-    it("records a tour by naming its views, and a still view without a camera path", () => {
-        const tour = animationOptions(
-            { camera: "tour", stops: ["topView", "isometric"], seconds: 3, fps: 30 },
+    it("records a saved tour by name for its own length, and a still view for its seconds", () => {
+        const tour = tourAnimationOptions(
+            { camera: "tour", tour: "Supply walk", view: "topView", seconds: 3, fps: 30 },
             "a.webm",
         );
-        assert.equal(tour.cameraMode, "animated");
-        assert.deepEqual(tour.tour, ["topView", "isometric"]);
-        assert.equal(tour.duration, 3000);
-        assert.isTrue(tour.download);
-        const still = animationOptions({ camera: "still", stops: [], seconds: 5, fps: 60 });
+        assert.equal(tour.tour, "Supply walk");
+        assert.equal(tour.motion, "authored");
+        assert.isUndefined(tour.duration, "a tour lasts as long as the tour");
+        assert.isUndefined(tour.cameraMode);
+        assert.isUndefined(tour.camera);
+        assert.deepEqual(tour.destination, { download: true, filename: "a.webm" });
+        const still = tourAnimationOptions({
+            camera: "still",
+            tour: "Supply walk",
+            view: "Overview",
+            seconds: 5,
+            fps: 60,
+        });
         assert.equal(still.cameraMode, "stationary");
+        assert.equal(still.duration, 5000);
+        assert.deepEqual(still.camera, { view: "Overview" });
         assert.isUndefined(still.tour);
-        assert.isUndefined(still.download);
+        assert.isUndefined(still.destination);
+        const current = tourAnimationOptions({ camera: "still", tour: null, view: null, seconds: 3, fps: 30 });
+        assert.isUndefined(current.camera, "the reader's camera");
+    });
+
+    it("words why a recording failed by its reason, and dropped frames as a warning", () => {
+        for (const [reason, words] of [
+            ["hidden", "The tab was hidden, so the recording stopped."],
+            ["resized", "The canvas changed size, so the recording stopped."],
+            ["interrupted", "The camera was moved, so the recording stopped."],
+            ["replaced", "Another camera move took over, so the recording stopped."],
+            ["mode-changed", "The drawing mode changed, so the recording stopped."],
+        ] as const) {
+            assert.equal(failureWords(thrown("E_CAPTURE_FAILED", { reason })), words);
+        }
+        assert.equal(failureWords(thrown("E_UNSUPPORTED", { reason: "xr", mode: "vr" })), "Not while in VR or AR.");
+        assert.equal(
+            failureWords(thrown("E_UNSUPPORTED", { reason: "mode", modes: ["3d"], mode: "2d" })),
+            "A view does not fit this drawing mode.",
+        );
+        assert.equal(failureWords(thrown("E_BAD_COMMAND", { reason: "no-stops" })), "The tour has no stops.");
+        assert.equal(failureWords(thrown("E_BAD_COMMAND", { reason: "name-taken", name: "a" })), "That name is taken.");
+        assert.deepEqual(framesWords({ totalFrames: 420, likelyToDropFrames: false }), {
+            value: "420 frames",
+            warning: null,
+        });
+        assert.deepEqual(framesWords({ totalFrames: 840, likelyToDropFrames: true, recommendedFps: 30 }), {
+            value: "840 frames",
+            warning: "This browser may drop frames at this rate. 30 fps is recommended.",
+        });
     });
 
     it("words a capture's codes as being about the image, and the same codes elsewhere as before", () => {
-        assert.equal(failureWords({ code: "E_TOO_LARGE" }, true), "The image is too large for this browser.");
-        assert.equal(failureWords({ code: "E_TOO_LARGE" }), "The graph is too large for this format.");
+        assert.equal(failureWords(thrown("E_TOO_LARGE"), true), "The image is too large for this browser.");
+        assert.equal(failureWords(thrown("E_TOO_LARGE")), "The graph is too large for this format.");
         assert.equal(
-            failureWords({ code: "E_UNSUPPORTED", details: { reason: "format", format: "mp4" } }),
+            failureWords(thrown("E_UNSUPPORTED", { reason: "format", format: "mp4" })),
             "This browser cannot write this image format.",
         );
+        assert.equal(failureWords(thrown("E_UNSUPPORTED", { reason: "other" })), "This browser cannot do this.");
         assert.equal(
-            failureWords({ code: "E_UNSUPPORTED", details: { reason: "other" } }),
-            "This browser cannot do this.",
-        );
-        assert.equal(
-            failureWords({ code: "E_CAPTURE_FAILED", details: { media: "video" } }),
+            failureWords(thrown("E_CAPTURE_FAILED", { media: "video" })),
             "The drawing could not be captured.",
         );
         assert.equal(
@@ -207,5 +270,10 @@ describe("the Export dialog's choices", () => {
             refusalWords({ code: "E_UNSUPPORTED", params: { reason: "format", format: "webp" } }),
             "this browser cannot write this image format",
         );
+        assert.equal(
+            factWords({ code: "E_BAD_COMMAND", params: { format: "jpeg" } }),
+            "Only PNG and WebP keep a transparent background.",
+        );
+        assert.equal(failureWords({ code: "E_TOO_LARGE" }, true), "Something went wrong.");
     });
 });

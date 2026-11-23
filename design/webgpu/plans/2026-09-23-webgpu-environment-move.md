@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Every task names the repository it runs in. NEVER run `git add`, `git commit`, `git push`, `git stash`, `git checkout`, `git reset`, `git restore` or `git worktree` yourself -- in a subagent these block forever on an unanswered prompt. Read-only git (`log`, `show`, `diff`, `ls-files`, `status`) is fine. The owner commits through `tools/commit-changes.sh` and creates the worktrees.
 
-**Goal:** Land design phase P-ENV inside `webgpu-graph-algorithms/`, `graph-format/` and `.github/workflows/`: move the development container and both runner images to Ubuntu 24.04, move the `webgpu` npm package from 0.4.0 to the current 0.6.x everywhere it is declared and in the install hint the package's no-WebGPU error prints, retire the `LD_LIBRARY_PATH` workaround for `libEGL.so.1`, note where 0.6.x made the staging ring's unmap redundant, and re-record the gate runs and benchmark baselines on the new rasteriser (gate G-ENV).
+**Goal:** Land design phase P-ENV inside `webgpu-graph-algorithms/`, `graph-format/` and `.github/workflows/`: move the development container and both runner images to Ubuntu 24.04, move the `webgpu` npm package from 0.4.0 to the current 0.6.x everywhere it is declared and in the install hint the package's no-WebGPU error prints, retire the `LD_LIBRARY_PATH` workaround for `libEGL.so.1`, note where 0.6.x made the staging ring's unmap redundant, and re-record the gate runs and benchmark baselines on the new rasterizer (gate G-ENV).
 
-**Architecture:** This phase changes no algorithm, no kernel and no interface. It changes the FLOOR everything else was measured on -- the C library, the shader compiler of the software rasteriser, and the native module that carries Dawn -- and its entire risk is that a floor change is invisible in a diff. The three machines this project judges code on are the development container, the GitHub-hosted default lane and the NVIDIA T4 lane, and until this phase they were three different operating systems with nothing recording which. The work is therefore mostly declaration and verification: name the image instead of inheriting it, pin the native module to a build that matches the image, and re-run the gates that were signed off on the old floor.
+**Architecture:** This phase changes no algorithm, no kernel and no interface. It changes the FLOOR everything else was measured on -- the C library, the shader compiler of the software rasterizer, and the native module that carries Dawn -- and its entire risk is that a floor change is invisible in a diff. The three machines this project judges code on are the development container, the GitHub-hosted default lane and the NVIDIA T4 lane, and until this phase they were three different operating systems with nothing recording which. The work is therefore mostly declaration and verification: name the image instead of inheriting it, pin the native module to a build that matches the image, and re-run the gates that were signed off on the old floor.
 
 **Tech Stack:** Ubuntu 24.04 (glibc 2.39, libstdc++ GLIBCXX_3.4.33, Mesa 25.x lavapipe, `libegl1`), the `webgpu` npm package 0.6.1 (Dawn, per platform-arch `dist/`), TypeScript 5.9 (strict), Node 22, vitest 3.2 (`node` / `node-device-errors` / `node-limits` / `browser` projects), pnpm 10 workspace, GitHub Actions (`ubuntu-24.04` lavapipe + SwiftShader lane; the `gpu-linux-t4` lane on a machine.dev T4).
 
@@ -41,18 +41,18 @@ was written, and `G4.md`, `G5.md` and `G7.md` -- all written days after P-ENV's 
 Ubuntu 22.04.5 and Mesa lavapipe 23.2.1 (LLVM 15.0.7), the exact environment the phase was meant to replace.
 
 Meanwhile the default lane moved anyway, sideways and without a commit: `.github/workflows/ci.yml` said
-`runs-on: ubuntu-latest`, GitHub repointed that label at Ubuntu 24.04, and the lane installs its rasteriser at job
+`runs-on: ubuntu-latest`, GitHub repointed that label at Ubuntu 24.04, and the lane installs its rasterizer at job
 time. So every pull request has been judging kernels on Mesa 25.2.8 (LLVM 20.1.2) -- two major Mesa versions and
 five LLVM versions newer than anything signed off -- while every gate record in the repository said 23.2.1.
 
-That is the failure this phase closes, and the shape of it is why the plan's centre of gravity is _naming things_
+That is the failure this phase closes, and the shape of it is why the plan's center of gravity is _naming things_
 rather than changing them: the environment moved precisely because no file had to change for it to move.
 
 ### 0.2 The measured facts this plan is built on
 
 All measured 2026-09-23. They are the reason the task order is what it is.
 
-| Machine                   | Image                           | glibc | libstdc++      | Software rasteriser       | `libegl1`        |
+| Machine                   | Image                           | glibc | libstdc++      | Software rasterizer       | `libegl1`        |
 | ------------------------- | ------------------------------- | ----- | -------------- | ------------------------- | ---------------- |
 | Dev container             | Ubuntu 22.04.5 LTS              | 2.35  | GLIBCXX_3.4.30 | Mesa 23.2.1 (LLVM 15.0.7) | absent           |
 | Default CI lane           | `ubuntu-24.04` (`20260907.300`) | 2.39  | GLIBCXX_3.4.33 | Mesa 25.2.8 (LLVM 20.1.2) | --               |
@@ -114,7 +114,7 @@ finding ENV-F2 and is the one item that must reach the owner before the branch m
   card acquisition without it.
 - **DEPARTURE-4 (additive).** `ci.yml` gains a step that prints the image, glibc and Mesa versions into the job
   log. The design's gate asks only that `gpu-report.json` show the new versions, which covers the GPU lane; the
-  default lane had no equivalent, and its silence is how the rasteriser changed unnoticed.
+  default lane had no equivalent, and its silence is how the rasterizer changed unnoticed.
 
 ---
 
@@ -191,7 +191,7 @@ pass. The push waits for ENV-T5 (finding ENV-F6).
       that the pending-map deferral stays because it guards a different defect (DEPARTURE-2). Delete nothing.
 - [x] Rewrite the README install section so a Linux consumer can tell which build they can load, stated in symbol
       versions (`GLIBC_2.38` / `GLIBCXX_3.4.32` for 0.6.x, `GLIBC_2.34` / `GLIBCXX_3.4.30` for 0.4.0) rather than
-      a distribution name, with the `require`-time error text so the failure is recognisable. Stop telling every
+      a distribution name, with the `require`-time error text so the failure is recognizable. Stop telling every
       consumer to install 0.4.0.
 
 **Verification:** `LC_ALL=C grep -nP '[^\x00-\x7F]'` over the touched files finds nothing; `pnpm run lint` clean.
@@ -238,10 +238,10 @@ section 3, which is the copy to follow.
 - [ ] Confirm the card acquires with no `LD_LIBRARY_PATH` (`node scripts/gpu-report.js` prints an NVIDIA adapter),
       then delete the workaround from `webgpu-graph-algorithms/CLAUDE.md` and `README.md` and update the
       hard-coded ICD spelling in the same commit (DEPARTURE-3, ENV-F4). Closes G-ENV item 7.
-- [ ] Run `gpu.yml` on a `gpu`-labelled pull request; confirm `gpu-report.json` carries the new driver and Mesa
+- [ ] Run `gpu.yml` on a `gpu`-labeled pull request; confirm `gpu-report.json` carries the new driver and Mesa
       versions. Closes items 9 and 10.
 - [ ] Re-record `benchmarks/results/<runner-class>.json` and `benchmarks/results/noise-floor.json` on the new
-      rasteriser. Closes item 11. The old numbers are not carried forward: they are a different shader compiler's.
+      rasterizer. Closes item 11. The old numbers are not carried forward: they are a different shader compiler's.
 - [ ] Run `hosts.yml` -- `webgpu` 0.6.0 restructured `dist/` per platform-arch and added a `windows-11-arm` build,
       so the macOS and Windows legs get new binaries and this branch does not exercise them.
 - [ ] Settle the futex abort with the loop of `G-ENV.md` section 4, and replace that section's UNKNOWN with the

@@ -4,9 +4,11 @@
  */
 
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
+import { type GraphSession, isGraphtyError, isGraphtyErrorCode } from "@graphty/graphty-element/session";
 import { createContext, useContext } from "react";
 
+import { detail, setCommandAllowlist } from "../../lib/analytics";
 import type { Command, CommandContext, WorkspaceCommands } from "../commands/registry";
 import { errorWords } from "../project/words";
 import { useStoreValue, type WorkspaceState, type WorkspaceStore } from "./store";
@@ -46,7 +48,7 @@ export function useWorkspaceState<T>(select: (state: WorkspaceState) => T): T {
 }
 
 /** A door's view of one command. */
-interface CommandDoor {
+export interface CommandDoor {
     readonly command: Command;
     /** Why it cannot run now, or null. */
     readonly disabledReason: string | null;
@@ -94,6 +96,8 @@ export function makeWorkspaceValue(
     session: GraphSession | null,
     element: GraphtyElement | null,
 ): WorkspaceValue {
+    // The registered command ids are the only `control` and `command` values usage data may carry.
+    setCommandAllowlist(registry.all.map((command) => command.id));
     const value: WorkspaceValue = {
         store,
         registry,
@@ -109,9 +113,13 @@ export function makeWorkspaceValue(
             ) {
                 return;
             }
+            GraphtyLogger.getLogger(["graphty", "workspace"]).info("command", { id });
+            detail("command_run", { command: id });
             const outcome = command.run(value);
             if (outcome instanceof Promise) {
                 outcome.catch((error: unknown) => {
+                    const code = isGraphtyError(error) && isGraphtyErrorCode(error.code) ? error.code : undefined;
+                    detail("command_failed", { command: id, code });
                     store.set({ notice: { message: errorWords(`${command.label} failed`, error) } });
                 });
             }

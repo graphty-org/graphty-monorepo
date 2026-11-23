@@ -64,7 +64,7 @@ Ease: 6 of 7. About 14 clicks, numbers matched what I counted by hand, and it to
 What slowed me down or confused me:
 - The "reports by itself" column (telemetry) was off-screen to the right; I had to scroll the table to find it. Columns "8 of 8" made me think everything was visible.
 - telemetry came in as text with a warning; I had to hover the triangle and pick "Read as yes/no" before it would act like a yes/no. Not hard, but I wouldn't have known to if I hadn't hovered.
-- The second filter card defaulted to Hide, so for a moment I'd thrown away two gauges I wanted to keep. The Select/Hide switch is small and grey; I only knew to look for it because I'd noticed it on the first card. Would be easy to miss and report "3" as the answer.
+- The second filter card defaulted to Hide, so for a moment I'd thrown away two gauges I wanted to keep. The Select/Hide switch is small and gray; I only knew to look for it because I'd noticed it on the first card. Would be easy to miss and report "3" as the answer.
 - The second card's badge said "5 of 12" while it was hiding and "3 of 5" once it was selecting. The first number made no sense to me in context (5 out of the whole graph, counting gauges I'd already hidden). Once on Select it read right.
 - The first filter's empty value dropdown had no label or hint -- I clicked it on faith.
 - In Gephi I'd do this with a filter chain and then a manual selection; this was quicker. I'd still want to know whether these two filter cards save with the project so I don't redo them next week.

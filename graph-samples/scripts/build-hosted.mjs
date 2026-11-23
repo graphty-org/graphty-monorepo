@@ -26,8 +26,9 @@
  *   public-data/v1/<name>.webp      every picture in thumbnails/ (tools/render-sample-thumbnails.mjs): the
  *                                   datasets', named by their `thumbnail`, and the generators'
  *   public-data/v1/index.json       every dataset's metadata, URL, size and checksum, small ones first
- *   src/datasets/hosted.ts          the same metadata for the DATASETS catalogue (committed)
- *   src/datasets/hosted-names.ts    their names alone, in the same order, for DATASET_NAMES (committed)
+ *   src/datasets/hosted.ts          the same metadata for the DATASETS catalog (committed)
+ *   src/datasets/hosted-names.ts    their names alone, in the same order, for DATASET_NAMES, and their
+ *                                   SHA-256 by name, for fetchDataset's check (committed)
  *
  * public-data/ is build output and is not committed; .github/workflows/deploy-pages.yml runs this
  * script and publishes public-data/v1/ as /data/graph-samples/v1/. Needs `unzip` on the PATH, a
@@ -512,6 +513,12 @@ async function main() {
             "/** The name of every hosted dataset, in the order of `HOSTED_DATASETS`, without the metadata. */",
             `export const HOSTED_DATASET_NAMES: readonly string[] = ${asciiJson(
                 metas.map((meta) => meta.name),
+                4,
+            )};`,
+            "",
+            "/** The SHA-256 of every hosted dataset's .gsnp.gz file, by name, for fetchDataset's check. */",
+            `export const HOSTED_DATASET_SHA256: Readonly<Record<string, string>> = ${asciiJson(
+                Object.fromEntries(metas.map((meta) => [meta.name, meta.sha256])),
                 4,
             )};`,
             "",

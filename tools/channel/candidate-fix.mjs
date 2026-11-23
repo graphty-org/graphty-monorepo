@@ -38,6 +38,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { issueInName } from "../branch-note.mjs";
 
+import { git as runGit } from "../lib/git.mjs";
 import { call, config } from "../results/client.mjs";
 import { acceptsIn } from "./resume.mjs";
 
@@ -141,8 +142,7 @@ export const visualProjects = (cfg) =>
         ]),
     );
 
-const git = (args, opts = {}) =>
-    execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...opts }).trim();
+const git = (args, opts = {}) => runGit(args, { stdio: ["ignore", "pipe", "pipe"], ...opts });
 const gitOk = (args) => {
     try {
         git(args);

@@ -40,7 +40,12 @@ export interface MapSurfaceOptions {
      * (a tile drawn more than `tileSize * lodScale` pixels across). Default 1.
      */
     lodScale?: number;
-    /** At most this many tiles are drawn per source. Default 256. */
+    /**
+     * At most this many tiles are chosen per source for each world copy the view spans (a flat map
+     * across the antimeridian spans two or more). While a chosen tile loads, the loaded finer tiles
+     * (up to three levels down) or the coarser tile standing in for it are drawn in addition, so more
+     * meshes than this can be drawn for a moment. Default 256.
+     */
     maxTiles?: number;
     /** Loaded tiles kept for reuse; the least recently drawn beyond this are disposed. Default 256. */
     maxCachedTiles?: number;
@@ -338,8 +343,8 @@ export abstract class MapSurface {
     }
 
     /**
-     * The credits of the sources that drew a tile in the last update, without repeats. Show them
-     * whenever the map is visible; a source whose tiles all failed is not drawn and not credited.
+     * The credits of the sources that drew a tile in the last update, without repeats, as data for
+     * the page to show where it chooses; a source whose tiles all failed is not drawn and not credited.
      * @returns The credits.
      */
     get attribution(): string[] {
@@ -576,7 +581,7 @@ export abstract class MapSurface {
 
     /**
      * How bright the picture is at a point of the surface, from 0 to 1, multiplied into its
-     * colour; null draws every point at full brightness.
+     * color; null draws every point at full brightness.
      * @returns The shading of a point in the root's own space, or null.
      */
     protected pointShade(): ((x: number, y: number, z: number) => number) | null {

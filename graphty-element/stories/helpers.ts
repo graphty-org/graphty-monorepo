@@ -1,11 +1,11 @@
 /**
- * Enhanced helpers that integrate loader-based event waiting
- * This approach prevents race conditions while maintaining backwards compatibility
+ * Shared story helpers: the story setup (data, styles, layout settings), waits on the element's
+ * own events and public state, and the real-input parameter stories use to click, drag and type.
  */
 
 import type { AbstractMesh } from "@babylonjs/core";
 import { RemoteLogClient } from "@graphty/remote-logger";
-import type { Meta } from "@storybook/web-components-vite";
+import type { Meta, WebComponentsRenderer } from "@storybook/web-components-vite";
 import lodash from "lodash";
 // Using direct property access instead of destructuring to avoid unbound-method warnings
 const deepSet = lodash.set.bind(lodash);
@@ -81,8 +81,9 @@ let storyObserver: MutationObserver | undefined;
  * Enhanced decorator that sets up event listeners before elements are rendered
  * This decorator should be added to the meta configuration
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const eventWaitingDecorator = (story: any): any => {
+export const eventWaitingDecorator = (
+    story: () => WebComponentsRenderer["storyResult"],
+): WebComponentsRenderer["storyResult"] => {
     // One observer at a time: the previous story's stops when the next one renders. It is not
     // stopped on a timer, because an element added after that timer would have no listeners, and
     // its play function would wait for an event that had already fired.
@@ -158,11 +159,9 @@ async function waitForDataLoaded(canvasElement: HTMLElement): Promise<void> {
  * element's own answer to "is this the finished picture", and every consumer has it, not just
  * these stories.
  *
- * IT THROWS RATHER THAN GIVING UP. What stood here before raced the settle event against a five
- * second timer and resolved either way, so a story that had not finished moving was photographed
- * anyway and said nothing about it -- a determinism device that failed silently, which is the
- * same defect as a waiver that hides a bug. A story that cannot reach a final frame now fails,
- * with the element's account of what was still moving.
+ * IT THROWS RATHER THAN GIVING UP. A wait that resolved either way would photograph a story that
+ * had not finished moving and say nothing about it. A story that cannot reach a final frame
+ * fails, with the element's account of what was still moving.
  * @param canvasElement - The story's root element.
  */
 export async function waitForGraphSettled(canvasElement: HTMLElement): Promise<void> {
@@ -228,8 +227,7 @@ export function skyboxReady(meshes: readonly AbstractMesh[]): boolean {
  *
  * ONE STACK, ONE DOCUMENT. `node`, `edge`, `nodeEncode`, `edgeEncode` and `layers` become layers
  * on `session.styles`, which is the only style stack there is; the rest are the element's own
- * configuration properties. What used to sit here instead was a 1.x style template, which
- * carried both halves in one object and replaced the whole of it every time a story applied one.
+ * configuration properties, set one by one so a story changes only what it names.
  */
 interface StorySetup {
     /** Channels every node is painted with, such as `{"node.color": "red"}`. */
@@ -244,7 +242,7 @@ interface StorySetup {
     layers?: readonly LayerSpec[];
     /** 2D or 3D. */
     viewMode?: ViewMode;
-    /** What the graph is drawn against: a colour, or a photo-dome skybox. */
+    /** What the graph is drawn against: a color, or a photo-dome skybox. */
     background?: GraphBackgroundConfig;
     /** How far the camera starts from the graph. */
     startingCameraDistance?: number;
@@ -258,9 +256,9 @@ interface StorySetup {
      * project's wait for a final frame -- should spend on it. The settled picture is the same.
      */
     stepMultiplier?: number;
-    /** Hide labels whose words would overlap: the element's `labels.declutter` behaviour. */
+    /** Hide labels whose words would overlap: the element's `labels.declutter` behavior. */
     declutterLabels?: boolean;
-    /** How node labels draw their words: the element's `labels.labelText` behaviour. */
+    /** How node labels draw their words: the element's `labels.labelText` behavior. */
     labelText?: "canvas" | "glyphs";
 }
 
@@ -438,11 +436,9 @@ function applyStyleLayers(element: Graphty, setup: StorySetup): void {
 /**
  * Apply the configuration half of a story's setup to the element.
  *
- * TWO OF THESE REACH THROUGH `graph`, AND SHOULD NOT HAVE TO. The layout pre-step count and the
- * list of algorithms to run on load were reachable only through the style template, and when that
- * was removed nothing replaced them: every other setting it carried has a property on
- * `<graphty-element>` -- `viewMode`, `background`, `startingCameraDistance`, `layout` -- and these
- * two have none. Until the element grows them, a story writes the configuration document.
+ * Every setting goes through a public property of `<graphty-element>`: `viewMode`,
+ * `background`, `startingCameraDistance`, `layoutBehavior` (layout pre-steps, the step
+ * multiplier, label decluttering and text) and `algorithmsOnLoad`.
  * @param element - The element to configure.
  * @param setup - What the story asked for.
  */
@@ -459,8 +455,8 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
         element.startingCameraDistance = setup.startingCameraDistance;
     }
 
-    // One document, written once: two assignments would leave only the second, and a story that
-    // declutters its labels used to lose its pre-steps that way.
+    // One document, written once: two assignments would leave only the second, so a story that
+    // declutters its labels would lose its pre-steps.
     const { preSteps, stepMultiplier, declutterLabels, labelText } = setup;
     const labels = {
         ...(declutterLabels === undefined ? {} : { declutter: declutterLabels }),
@@ -523,7 +519,7 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     // Set runAlgorithmsOnLoad BEFORE setting data, because data loading triggers
     // the algorithm-run operation which checks this property
     if (args.runAlgorithmsOnLoad !== undefined) {
-        g.runAlgorithmsOnLoad = args.runAlgorithmsOnLoad;
+        g.runAlgorithmsOnLoad = args.runAlgorithmsOnLoad as Graphty["runAlgorithmsOnLoad"];
     }
 
     // The story's own setup, with whatever the reader has moved a control to written over it. A
@@ -539,14 +535,14 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
             continue;
         }
 
-        const value = args[arg];
+        const value: unknown = args[arg];
 
         if (writeChannelControl(setup, name, value)) {
             continue;
         }
 
         // The two background controls build the element's own background value: one names a
-        // colour and the other the image a photo dome is built from.
+        // color and the other the image a photo dome is built from.
         if (name === "background.color" && typeof value === "string" && value !== "") {
             setup.background = { backgroundType: "color", color: value };
             continue;
@@ -589,8 +585,8 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     // A `layoutConfig.<option>` the reader changed wins over the controls above. The panel labels a
     // control by the option it sets (`layoutConfig.weighted`), but its arg key is something else
     // (`kamadaWeighted`), so a link built from the label -- `?args=layoutConfig.weighted:!false` --
-    // reaches Storybook as a nested write into the `layoutConfig` arg, and the control's unchanged
-    // value used to overwrite it. Either spelling works in a URL now (issue #229).
+    // reaches Storybook as a nested write into the `layoutConfig` arg, which the control's
+    // unchanged value must not overwrite. Either spelling works in a URL (issue #229).
     const initialLayoutConfig = (storyConfig.initialArgs.layoutConfig ?? {}) as Record<string, unknown>;
 
     for (const [option, value] of Object.entries((args.layoutConfig ?? {}) as Record<string, unknown>)) {
@@ -605,7 +601,7 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     // BEFORE the data, because these say how a record is read and the reading happens as the rows
     // arrive. See FORWARDED_ELEMENT_PROPERTIES.
     for (const property of FORWARDED_ELEMENT_PROPERTIES) {
-        const value = args[property];
+        const value: unknown = args[property];
 
         if (typeof value === "string") {
             g[property] = value;
@@ -621,12 +617,12 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     if (args.dataSource) {
         // Set dataSourceConfig BEFORE dataSource, because setting dataSource
         // triggers addDataFromSource which needs the config
-        g.dataSourceConfig = args.dataSourceConfig;
-        g.dataSource = args.dataSource;
+        g.dataSourceConfig = args.dataSourceConfig as Graphty["dataSourceConfig"];
+        g.dataSource = args.dataSource as Graphty["dataSource"];
     } else {
         // Use story-specific data if provided, otherwise use defaults
-        g.nodeData = args.nodeData ?? nodeData;
-        g.edgeData = args.edgeData ?? edgeData;
+        g.nodeData = (args.nodeData as Graphty["nodeData"] | undefined) ?? nodeData;
+        g.edgeData = (args.edgeData as Graphty["edgeData"] | undefined) ?? edgeData;
     }
 
     // Set layout properties if provided
@@ -637,12 +633,12 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     }
 
     if (args.layout) {
-        g.layout = args.layout;
+        g.layout = args.layout as Graphty["layout"];
     }
 
     // Set XR config if provided
     if (args.xr) {
-        g.xr = args.xr;
+        g.xr = args.xr as Graphty["xr"];
     }
 
     return g;
@@ -710,7 +706,7 @@ export const remoteLogging = (): (() => void) | undefined => {
 /**
  * One console argument as text.
  * @param arg - What was passed to the console.
- * @returns It as JSON when it is an object that serialises, otherwise as a string.
+ * @returns It as JSON when it is an object that serializes, otherwise as a string.
  */
 function formatConsoleArg(arg: unknown): string {
     if (typeof arg !== "object" || arg === null) {

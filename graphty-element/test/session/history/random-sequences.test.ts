@@ -27,7 +27,6 @@ import { fakeClock, fakeLayout, heldScheduler, runGate } from "./fakes";
 import { blankSession, fixtureSession, paintBaseline } from "./fixture-session";
 import {
     baselineModel,
-    COALESCE_MS,
     COMMANDS,
     laneOf,
     live,
@@ -78,7 +77,7 @@ afterEach(() => {
 
 /**
  * A layer the page declares.
- * @param color - Its colour.
+ * @param color - Its color.
  * @returns The specification.
  */
 function declared(color: string): LayerSpec {
@@ -252,8 +251,7 @@ describe("eviction folds the arrangement of every evicted step into the baseline
             const id = ids[step % ids.length];
             await session.positions.set([{ id, x: step, y: step, z: -step }]);
             placed.push([id, `${String(step)},${String(step)},${String(-step)}`]);
-            // Past the coalescing window, so every placement is a step of its own.
-            clock.advance(COALESCE_MS + 1);
+            // Each placement moves a node the one before it did not, so it is a step of its own.
         }
 
         const kept = session.history.steps.length;

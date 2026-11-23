@@ -12,14 +12,12 @@ import "@graphty/graphty-element";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { PROVIDER_PAGES } from "../providerPages";
 
-const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
 const KEY = "AIza-a-key-of-the-right-shape";
 const GOOGLE = PROVIDER_PAGES.google;
 
@@ -59,8 +57,6 @@ async function openKeyPage(): Promise<HTMLElement> {
 
 describe("the provider pages the Assistant links to", () => {
     beforeEach(async () => {
-        resetSiteConfig();
-        await loadSiteConfig(SITE);
         await page.viewport(1440, 900);
         localStorage.clear();
         sessionStorage.clear();
@@ -73,7 +69,6 @@ describe("the provider pages the Assistant links to", () => {
         cleanup();
         vi.unstubAllGlobals();
         vi.restoreAllMocks();
-        resetSiteConfig();
         writeAssistantChoice(null);
     });
 

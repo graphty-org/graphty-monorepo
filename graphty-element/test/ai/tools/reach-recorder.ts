@@ -25,6 +25,7 @@ const SESSION_PARTS: Readonly<Record<string, string>> = {
     visibility: "VisibilityApi",
     styles: "StylesApi",
     views: "SessionViews",
+    tours: "SessionTours",
     layout: "SessionLayout",
     positions: "SessionPositions",
     hidden: "SessionHidden",
@@ -33,6 +34,7 @@ const SESSION_PARTS: Readonly<Record<string, string>> = {
     project: "ProjectApi",
     time: "TimeApi",
     shaders: "SessionShaders",
+    assets: "AssetsApi",
 };
 
 /** The root a call's result is, by the root and member called. */

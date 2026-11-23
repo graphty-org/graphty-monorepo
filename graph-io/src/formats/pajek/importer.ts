@@ -312,6 +312,9 @@ function spellsDecl(): ColumnDecl {
     };
 }
 
+/** The box Pajek fits to its Draw window, whatever the vertices' extent: the 0..1 square. */
+const PAJEK_FRAME = { min: [0, 0], max: [1, 1] } as const;
+
 /**
  * The position column declaration (design section 5.2: f64 x 3, role position, units "file"), with
  * its spelling for `extractPositions()`.
@@ -339,6 +342,7 @@ function positionDecl(sourceDims: number, window: DrawWindow): ColumnDecl {
             yAxis: "down",
             zOrigin: 0.5,
             zeroUnplaced: true,
+            viewerFrame: PAJEK_FRAME,
         },
     };
 }
@@ -1082,7 +1086,7 @@ class PajekParser {
         this.checkCoordinates(text, tokens, i, dims === 2 && label !== null, k, line);
         let shape: string | null = null;
         if (i < tokens.length && isShapeKeyword(tokens[i])) {
-            shape = tokens[i].toLowerCase();
+            shape = tokens[i];
             i++;
         }
         const extras = this.extras(tokens, i, "node", line);
@@ -1778,7 +1782,7 @@ class PajekParser {
                 continue;
             }
             if (domain === "node" && isShapeKeyword(token)) {
-                extras.shape = token.toLowerCase();
+                extras.shape = token;
                 i++;
                 continue;
             }
@@ -2008,6 +2012,7 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
             units: "file",
             pxPerUnit: PAJEK_POINTS_PER_UNIT,
             yAxis: "down",
+            viewerFrame: PAJEK_FRAME,
             unplacedCircle: { center: [0.5, 0.5], radius: 0.4, startDegrees: 180, direction: 1 },
         };
     },

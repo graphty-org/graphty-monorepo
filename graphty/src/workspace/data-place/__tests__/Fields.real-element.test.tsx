@@ -14,16 +14,10 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
-import { siteFeatures } from "../../../test/siteFeatures";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { HeroTurns } from "../../start/heroTurns";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-// The timeline is an experiment: this file's workspaces switch it on.
-beforeAll(async () => {
-    await siteFeatures(["timeline"]);
-});
 
 type ElementUnderTest = HTMLElementTagNameMap["graphty-element"];
 
@@ -94,16 +88,18 @@ async function loadSample(store: WorkspaceStore, name: string): Promise<ElementU
 }
 
 /**
- * The Data place's Fields section, opened from the rail. The rail's Data button only selects the
+ * The Data place's Fields: each load's section on the Sources tab, or with nothing loaded the one
+ * Attributes section, opened from the rail. The rail's Data button only selects the
  * Data place, so it is clicked whether or not the place is already open: a reloaded workspace can
  * reopen the place on its own between a check and a click.
  * @returns queries inside it.
  */
-async function fields(): Promise<ReturnType<typeof within>> {
+async function fields(): Promise<Within> {
     // Exact, so "Data place" (the region) does not also match.
     await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
     const place = await screen.findByRole("region", { name: "Data place" });
-    return within(within(place).getByRole("group", { name: "Attributes" }));
+    const sections = place.querySelector<HTMLElement>(".dp-source-sections");
+    return within(sections ?? within(place).getByRole("group", { name: "Attributes" }));
 }
 
 /**
@@ -112,7 +108,7 @@ async function fields(): Promise<ReturnType<typeof within>> {
  * @param side - nodes or edges.
  * @returns the entries' kinds.
  */
-function entries(section: ReturnType<typeof within>, side: "nodes" | "edges"): string[] {
+function entries(section: Within, side: "nodes" | "edges"): string[] {
     const plus: HTMLElement = section.getByRole("button", {
         name: `Add to ${side === "nodes" ? "node" : "edge"} attributes`,
     });
@@ -121,13 +117,24 @@ function entries(section: ReturnType<typeof within>, side: "nodes" | "edges"): s
 }
 
 /**
+ * Opens "+"'s item for a kind of entry and picks a column from its submenu, as a reader does: the
+ * pointer rests on the item, which opens the submenu, then clicks the column.
+ * @param kind - the "+" menu's item.
+ * @param column - the column, a menu item of the submenu.
+ */
+async function pickFromSubmenu(kind: string, column: string | RegExp): Promise<void> {
+    await userEvent.hover(await screen.findByRole("menuitem", { name: kind }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: column }));
+}
+
+/**
  * The value a Fields dropdown shows.
  * @param section - the Fields section.
  * @param name - the dropdown's name.
  * @returns its text.
  */
-const shown = (section: ReturnType<typeof within>, name: string): string =>
-    (section.getByRole("combobox", { name }) as HTMLInputElement).value;
+const shown = (section: Within, name: string): string =>
+    section.getByRole<HTMLInputElement>("combobox", { name }).value;
 
 /**
  * Drops files as the browser does, on the window. A synthetic DragEvent, the one exception to
@@ -145,10 +152,13 @@ function drop(file: File): void {
 /**
  * Opens a project on the Data place and drops a CSV onto it.
  * @param csv - the file's text.
+ * @param store - the chrome store, when the test reads it.
  * @returns the session.
  */
-async function dropCsv(csv: string): Promise<GraphSession> {
-    const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+async function dropCsv(
+    csv: string,
+    store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" }),
+): Promise<GraphSession> {
     render(<Workspace store={store} />);
     await openElement();
     const session = await openBy(store, async () => {
@@ -177,7 +187,7 @@ describe("Data > Fields as a + list on the real element", () => {
         const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
         render(<Workspace store={store} />);
         const element = await openElement();
-        const section = await fields();
+        await fields();
         await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
         const samples = await screen.findByRole("dialog", { name: "Samples" });
@@ -185,6 +195,8 @@ describe("Data > Fields as a + list on the real element", () => {
             userEvent.click(within(samples).getByRole("button", { name: /^OpenFlights airline routes/ })),
         );
         assert.equal(element.session.data.statistics().nodeCount, 3214);
+        // The load is a section of its own on the Sources tab.
+        const section = await fields();
         await waitFor(() => {
             assert.includeMembers(entries(section, "nodes"), ["label", "latitude", "longitude"]);
             assert.include(entries(section, "edges"), "weight");
@@ -208,7 +220,12 @@ describe("Data > Fields as a + list on the real element", () => {
         await dropCsv("code,count,size\nA,1,10\nB,2,x\nC,3,30\n");
         const section = await fields();
         await userEvent.click(await section.findByRole("button", { name: "Add to node attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
+        // A load reads no node weight, so none is obvious: Weight asks for its column.
+        await pickFromSubmenu("Weight", /^count/);
+        await waitFor(() => {
+            assert.equal(shown(section, "Node weight"), "count");
+        });
+        await userEvent.click(section.getByRole("combobox", { name: "Node weight" }));
         await screen.findByRole("option", { name: /^count/ });
         const options = screen.getAllByRole("option");
         assert.deepEqual(
@@ -220,6 +237,89 @@ describe("Data > Fields as a + list on the real element", () => {
             assert.lengthOf(each.querySelectorAll("svg"), 2, `${each.textContent ?? ""} has a glyph`);
         }
         await userEvent.keyboard("{Escape}");
+    });
+
+    it("adds Time on edges from a submenu led by the column read as time, one undo step, and undo takes it away", async () => {
+        const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+        render(<Workspace store={store} />);
+        const element = await loadSample(store, "Marvel films");
+        const { session } = element;
+        const section = await fields();
+        await waitFor(() => {
+            section.getByRole("button", { name: "Add to edge attributes" });
+        });
+        assert.notInclude(entries(section, "edges"), "time");
+        assert.isNull(session.time.field);
+        const steps = session.history.steps.length;
+
+        const plus = section.getByRole("button", { name: "Add to edge attributes" });
+        await userEvent.click(plus);
+        // Time asks for its column, as Weight does, the one the element reads as time first.
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Time" }));
+        const released = await screen.findByRole("menuitem", { name: /^released/ });
+        const submenu = released.closest<HTMLElement>('[role="menu"]');
+        assert.isNotNull(submenu);
+        assert.strictEqual(within(submenu).getAllByRole("menuitem")[0], released, "best column first");
+        assert.isNull(session.time.field, "nothing while the submenu is open");
+        // Leaving the menu adds nothing.
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menu"));
+        });
+        assert.isNull(session.time.field, "nothing left behind");
+        assert.equal(session.history.steps.length, steps, "no undo step");
+
+        await userEvent.click(plus);
+        await pickFromSubmenu("Time", /^released/);
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "released" } });
+            assert.equal(shown(section, "Edge time"), "released");
+            // Focus is in the new entry's column, its list closed.
+            assert.strictEqual(document.activeElement, section.getByRole("combobox", { name: "Edge time" }));
+        });
+        assert.isNull(screen.queryByRole("listbox"), "no list left open");
+        assert.equal(session.history.steps.length, steps + 1, "one undo step");
+
+        // Undo, from the keyboard in the new entry's column, takes the entry away again.
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.isNull(session.time.field);
+            assert.notInclude(entries(section, "edges"), "time");
+        });
+    });
+
+    it("offers a submenu for a kind with no obvious column: leaving it adds nothing, a pick adds the entry", async () => {
+        const session = await dropCsv("code,colour\nA,red\nB,blue\nC,green\n");
+        const section = await fields();
+        const plus = await section.findByRole("button", { name: "Add to node attributes" });
+        await waitFor(() => {
+            assert.deepEqual(entries(section, "nodes"), []);
+        });
+
+        await userEvent.click(plus);
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Label" }));
+        await screen.findByRole("menuitem", { name: "colour" });
+        assert.deepEqual(entries(section, "nodes"), [], "no entry while the submenu is open");
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menu"));
+            assert.strictEqual(document.activeElement, plus);
+        });
+        assert.deepEqual(entries(section, "nodes"), [], "nothing left behind");
+
+        await userEvent.click(plus);
+        await pickFromSubmenu("Label", "colour");
+        await waitFor(() => {
+            assert.deepEqual(entries(section, "nodes"), ["label"]);
+            assert.equal(shown(section, "Node label"), "colour");
+            assert.strictEqual(document.activeElement, section.getByRole("combobox", { name: "Node label" }));
+        });
+        assert.include(
+            session.data.attributes().find((a) => a.kind === "node" && a.name === "colour")?.roles ?? [],
+            "label",
+        );
     });
 
     it("checks a found location as the column's role in its header's Role menu, as Fields lists it", async () => {
@@ -257,13 +357,12 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.notInclude(entries(section, "nodes"), "time");
 
         await userEvent.click(section.getByRole("button", { name: "Add to node attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
-        // Picking the kind opens its column list.
-        await userEvent.click(await screen.findByRole("option", { name: "year" }));
+        await pickFromSubmenu("Time", /^year/);
         await waitFor(() => {
             assert.equal(element.session.time.field?.nodes?.start, "year");
             assert.equal(shown(section, "Node time"), "year");
         });
+        assert.isNull(screen.queryByRole("listbox"), "no list left open");
 
         await userEvent.click(section.getByRole("button", { name: "Remove node time" }));
         await waitFor(() => {
@@ -294,6 +393,19 @@ describe("Data > Fields as a + list on the real element", () => {
         second.unmount();
     });
 
+    it("drops the wait to focus an entry the element refuses, so the row never grabs focus later", async () => {
+        const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+        await dropCsv("code,colour\nA,red\nB,blue\nC,green\n", store);
+        const section = await fields();
+        await userEvent.click(section.getByRole("button", { name: "Add to node attributes" }));
+        await pickFromSubmenu("Time", /^colour/);
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "colour has no times");
+        });
+        assert.isNull(store.get().fieldsEntry);
+        assert.notInclude(entries(section, "nodes"), "time");
+    });
+
     it("makes a text column of dates a date column when it is set as the time", async () => {
         const session = await dropCsv("id,opened\nA,2015-03-02\nB,2017-06-14\nC,2016-09-01\n");
         const typeOf = (): string | undefined =>
@@ -301,8 +413,7 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.equal(typeOf(), "string", "the days load as text");
         const section = await fields();
         await userEvent.click(section.getByRole("button", { name: "Add to node attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^opened/ }));
+        await pickFromSubmenu("Time", /^opened/);
         await waitFor(() => {
             assert.equal(session.time.field?.nodes?.start, "opened");
             // The column's kind and the timeline say the same thing: dates.
@@ -354,20 +465,20 @@ describe("Data > Fields as a + list on the real element", () => {
         );
         assert.notInclude(items, "Location");
 
-        // Picking City opens its column list with focus in it; picking the column designates it.
-        await userEvent.click(screen.getByRole("menuitem", { name: "City" }));
-        await userEvent.click(await screen.findByRole("option", { name: "place" }));
+        // No column is an obvious city: City opens a submenu of the columns, and picking one adds
+        // the entry with it, focus in its column.
+        await pickFromSubmenu("City", "place");
         await waitFor(() => {
             assert.equal(session.config.data.knownFields.nodeCityPath, "place");
             assert.deepInclude(session.layout.locationColumns(), { from: "designated", using: "city", role: "city" });
             assert.equal(shown(section, "Node city column"), "place");
+            assert.strictEqual(document.activeElement, section.getByRole("combobox", { name: "Node city column" }));
         });
 
         // A Country listed beside it narrows the city: no "Within" control.
         await userEvent.click(plus);
         assert.isNull(screen.queryByRole("menuitem", { name: "City" }), "a kind listed is not offered again");
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Country" }));
-        await userEvent.click(await screen.findByRole("option", { name: "land" }));
+        await pickFromSubmenu("Country", "land");
         await waitFor(() => {
             assert.deepInclude(session.layout.locationColumns(), {
                 kinds: { city: "place", country: "land" },
@@ -378,20 +489,21 @@ describe("Data > Fields as a + list on the real element", () => {
         });
         assert.isNull(section.queryByRole("combobox", { name: /read as|place type|within/i }));
 
-        // Closing a new entry's list with no pick drops it and puts focus back on "+".
+        // Leaving a submenu with no pick adds nothing, and focus goes back to "+".
         await userEvent.click(plus);
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Region" }));
-        await screen.findByRole("option", { name: "north" });
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Region" }));
+        await screen.findByRole("menuitem", { name: "north" });
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.notInclude(entries(section, "nodes"), "region");
+            assert.isNull(screen.queryByRole("menu"));
+            assert.deepEqual(entries(section, "nodes"), ["country", "city"]);
             assert.strictEqual(document.activeElement, plus);
         });
 
         // Half a pair is listed, but the city is what is read: the latitude says so, not only by dimming.
         await userEvent.click(plus);
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Latitude" }));
-        await userEvent.click(await screen.findByRole("option", { name: "north" }));
+        await pickFromSubmenu("Latitude", "north");
         await waitFor(() => {
             const latitude = section.getByRole("combobox", { name: "Node latitude column" });
             assert.equal((latitude as HTMLInputElement).value, "north");
@@ -399,5 +511,155 @@ describe("Data > Fields as a + list on the real element", () => {
             assert.isNotNull(latitude.closest("[data-unused]"));
         });
         assert.isNull(section.getByRole("combobox", { name: "Node city column" }).closest("[data-unused]"));
+    });
+});
+
+describe("Data > Fields' settings rows on the real element", () => {
+    beforeAll(async () => {
+        await page.viewport(1440, 900);
+    });
+    beforeEach(forgetAutosave);
+    afterEach(forgetAutosave);
+
+    /** An edge file whose ties hold a group, a start year and an end year. */
+    const SPELLS = "source,target,group,year,until\na,b,x,1990,1995\nb,c,y,2000,2004\nc,a,x,2001,2008\n";
+
+    /**
+     * Picks an option of a Fields dropdown, as a reader does.
+     * @param section - the Fields section.
+     * @param name - the dropdown's name.
+     * @param option - the option's words.
+     */
+    async function choose(section: Within, name: string, option: string | RegExp): Promise<void> {
+        await userEvent.click(section.getByRole("combobox", { name }));
+        await userEvent.click(await screen.findByRole("option", { name: option }));
+    }
+
+    it("Direction writes the graph's direction, and Auto gives it back to the file", async () => {
+        const session = await dropCsv(SPELLS);
+        const section = await fields();
+        await waitFor(() => {
+            assert.equal(shown(section, "Direction"), "Auto");
+        });
+        await choose(section, "Direction", "Directed");
+        await waitFor(() => {
+            assert.isTrue(session.config.data.directed);
+            assert.equal(shown(section, "Direction"), "Directed");
+        });
+        await choose(section, "Direction", "Undirected");
+        await waitFor(() => {
+            assert.isFalse(session.config.data.directed);
+        });
+        await choose(section, "Direction", "Auto");
+        await waitFor(() => {
+            assert.equal(session.config.data.directed, "auto");
+        });
+    });
+
+    it("a time column's Unit and End are set under it, and its column can be changed in place", async () => {
+        const session = await dropCsv(SPELLS);
+        const section = await fields();
+        await userEvent.click(await section.findByRole("button", { name: "Add to edge attributes" }));
+        await pickFromSubmenu("Time", /^year/);
+        await waitFor(() => {
+            assert.equal(session.time.field?.edges?.start, "year");
+            assert.equal(shown(section, "Edge time"), "year");
+        });
+
+        await choose(section, "Edge time unit", "Year");
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "year", unit: "year" } });
+            assert.equal(shown(section, "Edge time unit"), "Year");
+        });
+        await choose(section, "Edge time end", "until");
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "year", unit: "year", end: "until" } });
+        });
+        await choose(section, "Edge time end", "None");
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "year", unit: "year" } });
+            assert.equal(shown(section, "Edge time end"), "None");
+        });
+
+        // Another column for the time starts it over on that column.
+        await choose(section, "Edge time", /^until/);
+        await waitFor(() => {
+            assert.equal(session.time.field?.edges?.start, "until");
+            assert.equal(shown(section, "Edge time"), "until");
+        });
+    });
+
+    it("a row read when the rows load reads the load again: Kind added and taken away, and Target moved", async () => {
+        const session = await dropCsv(SPELLS);
+        const section = await fields();
+        await userEvent.click(await section.findByRole("button", { name: "Add to edge attributes" }));
+        await pickFromSubmenu("Kind", "group");
+        await waitFor(() => {
+            assert.include(entries(section, "edges"), "kind");
+            assert.equal(shown(section, "Kind"), "group");
+        });
+
+        await userEvent.click(section.getByRole("button", { name: "Remove edge kind" }));
+        await waitFor(() => {
+            assert.notInclude(entries(section, "edges"), "kind");
+            assert.strictEqual(document.activeElement, section.getByRole("button", { name: "Add to edge attributes" }));
+        });
+
+        assert.equal(shown(section, "Target"), "target");
+        await choose(section, "Target", "group");
+        // Fields shows the load's mapping, so Target names group once the load is read again.
+        await waitFor(() => {
+            assert.equal(shown(section, "Target"), "group");
+        });
+        // a, b and c, then the groups x and y as the edges' other ends.
+        assert.equal(session.data.statistics().nodeCount, 5);
+    });
+
+    it("a load of a node file and an edge file reads its edge table again when an edge row changes", async () => {
+        const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+        render(<Workspace store={store} />);
+        const { session } = await openElement();
+        const draft = await session.data.prepare({
+            config: {
+                nodeFile: new File(["id,name\na,Ann\nb,Bo\nc,Cy\n"], "people.csv"),
+                edgeFile: new File(["from,to,group\na,b,x\nb,c,y\n"], "links.csv"),
+            },
+        });
+        await draft.load();
+        const section = await fields();
+        await waitFor(() => {
+            assert.equal(shown(section, "Target"), "to");
+        });
+
+        await choose(section, "Target", "group");
+        await waitFor(() => {
+            assert.equal(shown(section, "Target"), "group");
+        });
+        // a, b and c from the node file, then the groups x and y as the edges' other ends.
+        assert.equal(session.data.statistics().nodeCount, 5);
+        assert.equal(session.data.node("a")?.name, "Ann");
+    });
+
+    it("keeps a one-edge-file load's rows as edges when a node column takes a load role from its header", async () => {
+        // The edge file's own id column shares its name with the nodes' id column.
+        const session = await dropCsv("id,source,target\ne1,a,b\ne2,b,c\n");
+        await waitFor(() => {
+            assert.lengthOf(session.data.edges(), 2);
+        });
+        const steps = session.history.steps.length;
+
+        await userEvent.keyboard("{Shift>}T{/Shift}");
+        const grid = await screen.findByRole("grid", { name: "Nodes" });
+        await userEvent.click(within(grid).getByRole("button", { name: "Options for id" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+        await userEvent.click(await screen.findByRole("menuitemradio", { name: "Kind" }));
+
+        await waitFor(() => {
+            assert.equal(session.history.steps.length, steps + 1);
+        });
+        // The table is read again as the edges it was: the id column names each edge's kind.
+        assert.equal(Object.values(session.data.sources()[0].mapping?.tables ?? {})[0]?.rowsAre, "edges");
+        assert.lengthOf(session.data.edges(), 2);
+        assert.equal(session.data.statistics().nodeCount, 3);
     });
 });

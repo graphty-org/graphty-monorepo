@@ -81,6 +81,11 @@ describe("A yes-or-no column", () => {
             ["Yes", "No"],
         );
         await userEvent.click(within(listbox).getByRole("option", { name: "Yes" }));
+        // The card is a draft until Done writes it as one step (design/working-graph/design.md, section 3).
+        assert.lengthOf(session.visibility.conditions, 0, "a draft writes nothing before Done");
+        const modal = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(modal, "the new card opens in the selection workspace");
+        await userEvent.click(within(modal ?? document.body).getByRole("button", { name: "Done" }));
 
         await waitFor(() => {
             assert.equal(session.visibility.conditions.length, 1);

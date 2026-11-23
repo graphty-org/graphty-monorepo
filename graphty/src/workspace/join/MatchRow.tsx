@@ -86,7 +86,7 @@ export function MatchRow({
         onChange({ ...choices, keys: choices.keys.map((each, i) => (i === at ? { ...each, ...key } : each)) });
     };
     return (
-        <div // NOSONAR(S6819): a <fieldset> brings a border and legend layout the compact row does not use; the role names the group
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a <fieldset> brings a border and legend layout the compact row does not use; the role names the group
             className="jn-match"
             role="group"
             aria-label="Match"
@@ -110,7 +110,7 @@ export function MatchRow({
                     return (
                         <div
                             className="jn-key"
-                            key={at} // NOSONAR(S6479): one slot per key position; the position is its identity
+                            key={at} // eslint-disable-line react/no-array-index-key -- one slot per key position; the position is its identity
                         >
                             <span className="jn-key-label">{side}</span>
                             <Select
@@ -175,7 +175,7 @@ export function MatchRow({
                     aria-label="Add key pair"
                     onClick={() => {
                         const used = new Set(choices.keys.map((key) => key.file));
-                        const file = columns.find((column) => !used.has(column)) ?? columns[0] ?? "";
+                        const file = columns.find((column) => !used.has(column)) ?? columns.at(0) ?? "";
                         onChange({ ...choices, keys: [...choices.keys, { file, graph: "id" }] });
                     }}
                 >

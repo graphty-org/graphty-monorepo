@@ -4,7 +4,8 @@ category: analysis
 description: Calculate PageRank - a prestige-based centrality where a node's importance depends on the importance of
     nodes pointing to it. Originally developed for web search, useful for directed networks where being referenced by
     important nodes matters.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/algorithms/PageRankAlgorithm.ts."
 algorithms:
     - PageRank
     - Power iteration

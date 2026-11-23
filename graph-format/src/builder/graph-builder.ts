@@ -58,7 +58,7 @@ import {
     Staging,
     StagingColumn,
 } from "./compact.js";
-import { type FreezeContext, type GraphValue, runFreeze, type Widening } from "./freeze.js";
+import { type FreezeContext, type GraphValue, runFreeze, type SortCache, type Widening } from "./freeze.js";
 import { assertDuplicatePolicy } from "./options.js";
 
 // ============================================================ option handling
@@ -222,6 +222,9 @@ export class GraphBuilder implements GraphBuilderContract {
     private metaValue: GraphMeta = EMPTY_GRAPH_META;
 
     private widenings: Widening[] = [];
+
+    /** The last freeze's sort, reused by the next freeze of the same edges; null when there is none. */
+    private lastSort: SortCache | null = null;
 
     private mutations = 0;
 
@@ -1277,9 +1280,13 @@ export class GraphBuilder implements GraphBuilderContract {
             graphValues: this.graphValues,
             meta: this.metaValue,
             widened: this.widenings,
+            // A transfer of the last snapshot (toWire({ transfer: true }) then postMessage) detaches the core
+            // the builder kept for this freeze: a detached one is dropped and the edges sorted again.
+            previousSort: this.lastSort === null || sortDetached(this.lastSort) ? null : this.lastSort,
         };
         const outcome = runFreeze(context, opts);
         this.staging = outcome.staging;
+        this.lastSort = opts.release === true ? null : outcome.sort;
         this.widenings = [];
         this.dirtyFlag = false;
         if (opts.release === true) {
@@ -1295,6 +1302,7 @@ export class GraphBuilder implements GraphBuilderContract {
         this.graphValues = new Map();
         this.metaValue = EMPTY_GRAPH_META;
         this.widenings = [];
+        this.lastSort = null;
         this.mutated();
     }
 
@@ -1313,6 +1321,7 @@ export class GraphBuilder implements GraphBuilderContract {
         this.graphValues = new Map();
         this.metaValue = EMPTY_GRAPH_META;
         this.widenings = [];
+        this.lastSort = null;
         this.disposed = true;
     }
 
@@ -1619,7 +1628,7 @@ export class GraphBuilder implements GraphBuilderContract {
             }
             const explicit = staging.weightExplicit(e);
             const weight = explicit && staging.weight !== null ? staging.weight.get(e) : undefined;
-            const mirror = staging.pushEdge(v, u, weight); // NOSONAR(S2234): the mirror arc runs the other way on purpose
+            const mirror = staging.pushEdge(v, u, weight); // eslint-disable-line sonarjs/arguments-order -- the mirror arc runs the other way on purpose
             directedColumn.write(mirror, false);
             pairColumn.write(e, mirror);
             pairColumn.write(mirror, e);
@@ -2353,20 +2362,21 @@ function adoptTypedValues(
     }
     const { refersTo } = column.meta;
     if (refersTo === null) {
-        for (let i = 0; i < data.length; i++) {
-            typed.set(i, data[i]);
-        }
-    } else {
-        const bound = refersTo === "node" ? bounds.node : bounds.edge;
-        for (let i = 0; i < data.length; i++) {
-            const value = data[i];
-            checkAdoptedReference(column, name, refersTo, value, i, bound);
-            typed.set(i, value);
-        }
+        // One copy of the whole array: the column was sized to it by ensureLength, and every row is set.
+        (typed.array as Float64Array).set(data);
+        column.validity?.resize(0);
+        column.validity?.resize(rows, true);
+        return;
+    }
+    const bound = refersTo === "node" ? bounds.node : bounds.edge;
+    for (let i = 0; i < data.length; i++) {
+        const value = data[i];
+        checkAdoptedReference(column, name, refersTo, value, i, bound);
+        typed.set(i, value);
     }
     if (column.validity !== null) {
         for (let row = 0; row < rows; row++) {
-            column.validity.set(row, refersTo === null || data[row] !== INVALID_INDEX);
+            column.validity.set(row, data[row] !== INVALID_INDEX);
         }
     }
 }
@@ -2411,4 +2421,15 @@ interface IndexBounds {
     readonly node: number;
     /** The edge index bound. */
     readonly edge: number;
+}
+
+/**
+ * Whether a kept sort's storage was transferred away since its freeze: a transfer detaches every exclusive
+ * buffer of the snapshot together, so its row offsets (never empty while attached) and per-edge weights tell.
+ * @param sort - the kept sort
+ * @returns true when it can no longer be read
+ */
+function sortDetached(sort: SortCache): boolean {
+    const { core } = sort.result;
+    return core.rowPtr.length === 0 || (sort.weights !== null && sort.weights.length < sort.edgeCount);
 }

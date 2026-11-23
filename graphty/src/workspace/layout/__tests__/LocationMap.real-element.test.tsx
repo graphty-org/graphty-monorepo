@@ -2,16 +2,18 @@
  * The location map on the REAL graphty-element, driven by real input: the location designated in
  * the Data place's Fields (what the element finds preselected), Map picked in the Layout popover
  * reading it, the 3D map (a globe) in the 3D view and the 2D map in the 2D view, Map type picking
- * the 2D map in 3D, and the map under the graph chosen in the same form.
+ * the 2D map in 3D, and the map under the graph chosen in the same form, an image from this computer
+ * among them.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, assert, beforeAll, describe, it } from "vitest";
+import { commands, page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
+import { MAP_DEPTH_INDEPENDENT_SIZE } from "../../settings/preferences";
 import { datasetBase } from "../../start/open";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -87,7 +89,7 @@ const CITIES = [
  * The Data place, opened from the rail as a reader does.
  * @returns queries inside it.
  */
-async function openDataPlace(): Promise<ReturnType<typeof within>> {
+async function openDataPlace(): Promise<Within> {
     await userEvent.click(screen.getByRole("button", { name: "Data" }));
     return within(await screen.findByRole("region", { name: "Data place" }));
 }
@@ -98,7 +100,7 @@ async function openDataPlace(): Promise<ReturnType<typeof within>> {
  * @param row - the row's name.
  * @param column - the column.
  */
-async function pickField(place: ReturnType<typeof within>, row: string, column: string): Promise<void> {
+async function pickField(place: Within, row: string, column: string): Promise<void> {
     const field = await place.findByRole("combobox", { name: row });
     await userEvent.click(field);
     // Within the field's own list: a role query over a large graph's whole page is slow.
@@ -318,6 +320,46 @@ describe("the location map", () => {
         assert.strictEqual(where(), before, "still no node moved");
     });
 
+    it("keeps Map and Same place picked in the Map form when it is closed without Apply", async () => {
+        const element = await openAirports();
+        let popover = await openMapForm();
+        await pickByKeys(popover, "Map", "Natural Earth gray");
+        await pickByKeys(popover, "Same place", "Stack");
+        const field = (scope: HTMLElement, label: string): string =>
+            within(scope).getByRole<HTMLInputElement>("combobox", { name: label }).value;
+        await waitFor(() => {
+            assert.strictEqual(field(popover, "Map"), "Natural Earth gray");
+            assert.strictEqual(field(popover, "Same place"), "Stack");
+        });
+
+        // Esc steps back to the list, and again closes the popover.
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Layout" }));
+        });
+        assert.notStrictEqual(element.session.layout.id, "location-map", "nothing was applied");
+
+        popover = await openMapForm();
+        assert.strictEqual(field(popover, "Map"), "Natural Earth gray");
+        assert.strictEqual(field(popover, "Same place"), "Stack");
+    });
+
+    it("draws an image chosen from this computer as the map, kept in the project as its contents", async () => {
+        const element = await openAirports();
+        await layOutOnMap(element, "2D");
+        const popover = await openMapForm();
+        await pickByKeys(popover, "Map", "Image");
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="1"><rect width="2" height="1"/></svg>';
+        await commands.chooseNextFile("world.svg", "image/svg+xml", svg);
+        await userEvent.click(within(popover).getByRole("button", { name: "Upload image" }));
+        await waitFor(() => {
+            assert.deepStrictEqual(element.session.layout.options.map, {
+                image: `data:image/svg+xml;base64,${btoa(svg)}`,
+            });
+        });
+    });
+
     it("greys Map out with its reason on a graph with no location, and the element refuses it", async () => {
         const element = await openAirports(false, [
             { id: "a", label: "A" },
@@ -356,8 +398,10 @@ describe("the location map", () => {
             assert.strictEqual(element.basemapStatus.state, "ready", "a map is drawn");
         });
         assert.strictEqual(element.session.layout.id, "location-map");
-        // The app's own choices: nodes one size on screen, on a map six times the element's default.
-        assert.strictEqual(element.session.layout.options.nodeScale, "screen");
+        // The app's own choices: nodes one size on screen (the map rule in Settings), on a map six
+        // times the element's default.
+        assert.notProperty(element.session.layout.options, "nodeScale");
+        assert.strictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
         assert.strictEqual(element.session.layout.options.mapScale, 6);
         assert.strictEqual(element.session.layout.options.flatNodeScale, 2);
         // West to east on screen: Seattle, Chicago, New York; Seattle, the farthest north, highest.
@@ -370,10 +414,10 @@ describe("the location map", () => {
         const element = await openAirports(false, CITIES);
         const place = await openDataPlace();
         // Listed with no action from the reader: the pair the element finds by name.
-        const latitude = (await place.findByRole("combobox", { name: "Node latitude column" })) as HTMLInputElement;
+        const latitude = await place.findByRole<HTMLInputElement>("combobox", { name: "Node latitude column" });
         assert.strictEqual(latitude.value, "lat");
         assert.strictEqual(
-            (place.getByRole("combobox", { name: "Node longitude column" }) as HTMLInputElement).value,
+            place.getByRole<HTMLInputElement>("combobox", { name: "Node longitude column" }).value,
             "lng",
         );
 
@@ -384,8 +428,8 @@ describe("the location map", () => {
             assert.isNull(place.queryByRole("combobox", { name: "Node longitude column" }));
         });
         await userEvent.click(place.getByRole("button", { name: "Add to node attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Coordinates" }));
-        await userEvent.click(await screen.findByRole("option", { name: "home" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Coordinates" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "home" }));
         await waitFor(() => {
             assert.deepInclude(element.session.layout.locationColumns(), {
                 from: "designated",
@@ -396,7 +440,7 @@ describe("the location map", () => {
                 within: null,
             });
             assert.strictEqual(
-                (place.getByRole("combobox", { name: "Node coordinates column" }) as HTMLInputElement).value,
+                place.getByRole<HTMLInputElement>("combobox", { name: "Node coordinates column" }).value,
                 "home",
             );
             assert.isNull(place.queryByRole("combobox", { name: "Node latitude column" }));
@@ -483,6 +527,27 @@ describe("the location map", () => {
         assert.isBelow(note.top - location.bottom, location.height, "right under it");
     });
 
+    it("hides the nodes with no place when Unplaced is Hide, and still says how many there are", async () => {
+        const element = await openAirports();
+        await layOutOnMap(element, "2D");
+        assert.isTrue(element.nodeScreenPosition("nowhere")?.visible, "in the tray, drawn");
+
+        const popover = await openMapForm();
+        await pickByKeys(popover, "Unplaced", "Hide");
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(() => {
+            assert.strictEqual(element.session.layout.options.unplaced, "hide");
+        });
+        await element.waitForSettled();
+        await element.waitForStableFrame();
+        await waitFor(() => {
+            assert.isFalse(element.nodeScreenPosition("nowhere")?.visible, "not drawn on the map");
+        });
+        assert.isTrue(element.nodeScreenPosition("LHR")?.visible, "a node with a place is still drawn");
+        assert.deepStrictEqual(element.mapFrame?.unplaced, ["nowhere"]);
+        await screen.findAllByText("1 of 4 nodes unplaced", undefined);
+    });
+
     it("puts Select on the unplaced notice, and posts it once across a 2D/3D switch", async () => {
         const { element, store } = await openWorkspace(false, NODES);
         let posted = 0;
@@ -558,5 +623,92 @@ describe("the location map", () => {
         assert.isNotNull(await within(popover).findByRole("radiogroup", { name: "Shape" }));
         assert.isNull(within(popover).queryByRole("combobox", { name: "Map type" }));
         assert.isNull(within(popover).queryByRole("combobox", { name: "Projection" }));
+    });
+});
+
+describe("Settings' map layout node size rule", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    afterEach(() => {
+        localStorage.removeItem(MAP_DEPTH_INDEPENDENT_SIZE.key);
+    });
+
+    /**
+     * Applies the Map layout from its form and waits for it.
+     * @param element - the element.
+     */
+    async function applyMap(element: Element): Promise<void> {
+        const popover = await openMapForm();
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(() => {
+            assert.strictEqual(element.session.layout.id, "location-map");
+        });
+    }
+
+    /**
+     * Opens Settings with its shortcut and finds the rule's switch.
+     * @returns the switch.
+     */
+    async function ruleSwitch(): Promise<HTMLElement> {
+        await userEvent.keyboard("{Control>},{/Control}");
+        const dialog = await screen.findByRole("dialog", { name: "Settings" });
+        return within(dialog).getByRole("switch", {
+            name: /^Map layout automatically enables depth-independent size/,
+        });
+    }
+
+    it("is on by default, sizes the map's nodes on screen, and off leaves them in the scene", async () => {
+        const { element } = await openWorkspace(false, CITIES);
+        await applyMap(element);
+        await waitFor(() => {
+            assert.strictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        });
+
+        const rule = await ruleSwitch();
+        assert.isTrue((rule as HTMLInputElement).checked, "on by default");
+        await userEvent.click(rule);
+        await waitFor(() => {
+            assert.notStrictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        });
+        assert.strictEqual(localStorage.getItem(MAP_DEPTH_INDEPENDENT_SIZE.key), "off");
+        await userEvent.click(rule);
+        await waitFor(() => {
+            assert.strictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        });
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("keeps the reader's off for the next visit", async () => {
+        localStorage.setItem(MAP_DEPTH_INDEPENDENT_SIZE.key, "off");
+        const { element } = await openWorkspace(false, CITIES);
+        await applyMap(element);
+        assert.isFalse(((await ruleSwitch()) as HTMLInputElement).checked);
+        assert.notStrictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("follows the layout: another layout turns it off and an undo back to the map turns it on", async () => {
+        const { element } = await openWorkspace(false, CITIES);
+        await applyMap(element);
+        await waitFor(() => {
+            assert.strictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(() => {
+            assert.notStrictEqual(element.session.layout.id, "location-map");
+            assert.notStrictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        });
+        await userEvent.keyboard("{Escape}");
+        await userEvent.click(element);
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.strictEqual(element.session.layout.id, "location-map");
+            assert.strictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
+        });
     });
 });

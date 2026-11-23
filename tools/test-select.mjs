@@ -75,7 +75,7 @@ export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.te
 /**
  * The rules file, with nx.json's sharedGlobals added to "everything".
  * @param root the checkout
- * @returns `{ everything, smoke, storySetup, noBuild, noTests, standalone, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel,
+ * @returns `{ everything, smoke, storySetup, noBuild, noTests, standalone, wholePackage, canary, alsoRun, opaque, readAtRunTime, fileLevel,
  *   fileLevelBrowser, stories }`
  */
 export function loadRules(root) {
@@ -96,6 +96,12 @@ export function loadRules(root) {
         noTests: raw.noTests.patterns.map(toRe),
         standalone: (raw.standaloneTools?.patterns ?? []).map(toRe),
         wholePackage: raw.wholePackage.patterns.map(toRe),
+        canary: {
+            patterns: (raw.canary?.patterns ?? []).map((p) => toRe(p)),
+            files: Object.fromEntries(
+                Object.entries(raw.canary?.files ?? {}).map(([f, ps]) => [f, ps.map((p) => toRe(p))]),
+            ),
+        },
         alsoRun: raw.alsoRun.entries.map((e) => ({ re: toRe(e.pattern), packages: e.packages, why: e.why })),
         opaque: toRe(raw.opaqueTest.pattern),
         readAtRunTime: toRe(raw.readAtRunTime.pattern),
@@ -1358,9 +1364,12 @@ export function planRuns(root, shards, selection) {
  * The longest a light-check test bin is planned to run (design/ci/channels-pipeline/merging.md section 4.1). At 8
  * min the bins were the pull request tail (#3448): Build ends about 4.6 min in, a Test job spends about 45 s on
  * setup, and its bin ran up to the limit (graphty-1: 22 files, vitest 430 s; graphty-element-storybook-1: 31 files,
- * 490 s; runs 41128974826 and 41178964261), so those runs took 13 to 14 min. 4 min bins end near 10 min.
+ * 490 s; runs 41128974826 and 41178964261), so those runs took 13 to 14 min. At 4 min a Test job spent about 1.45
+ * min outside its tests (setup, install, browsers): 181 of 535 Test job minutes in PR run 43872756475 (2026-11-16,
+ * 125 Test jobs), while the run's tail was its Story tests jobs at 27 min, not the Test bins (ended by 20 min).
+ * 6 min bins cut about a third of those jobs and their setup and still end before that tail (#5404).
  */
-export const BIN_LIMIT_MS = 4 * 60_000;
+export const BIN_LIMIT_MS = 6 * 60_000;
 /** Milliseconds counted for a file of a family with no recorded file at all. */
 const NO_HISTORY_MS = 30_000;
 /**
@@ -1383,10 +1392,19 @@ export const FILE_OVERHEAD_MS = 5_000;
  *   one 1-minute run into ten bins.
  * - graphty-large-graph's files are each planned at about half the file guard (tools/ci-test-matrix.mjs), with
  *   no room for a second in a job: a whole bin of overhead gives each its own bin, recorded or not.
+ * - graphty-element-browser, re-fitted to PR runs 44077096553, 44102453358 and 44102973749 (2026-11-17, 6-min
+ *   bins, 96 bins of it and its features-on twin): 3.1 to 3.9 s per file (4.9 s at the 90th percentile) and
+ *   0.92 times the recorded time, so its bins of many short files ended at 2.5 to 3.5 min on a 6-minute plan;
+ *   4.5 s per file (#5404).
+ * A features-on twin (`<family>-features-on`) runs the same files with flags on, so it takes its family's cost:
+ * at the default 5 s a file, graphty-element-default-features-on planned 11 bins whose tests ran 30 to 137 s each,
+ * and graphty-element-storybook-features-on's bins ran 441 to 448 s on a 6-minute plan (same runs, #5404).
  * ponytail: constants re-fitted by hand; learn them from the store's invocation records if they drift.
  */
 export const FAMILY_BIN_COST = {
-    "graphty-element-browser": { overheadMs: 7_500, scale: 1 },
+    "graphty-element-browser": { overheadMs: 4_500, scale: 1 },
+    // the browser family's files again, one at a time in the same browser (ponytail: re-fit from its own PR bins)
+    "graphty-element-forced-batched": { overheadMs: 4_500, scale: 1 },
     "graphty-element-storybook": { overheadMs: 7_500, scale: 1 },
     graphty: { overheadMs: 2_000, scale: 1.35 },
     "graphty-element-default": { overheadMs: 500, scale: 1 },
@@ -1395,11 +1413,14 @@ export const FAMILY_BIN_COST = {
 };
 
 /**
- * A family's bin cost: FAMILY_BIN_COST's entry, or FILE_OVERHEAD_MS per file and the recorded ms as they are.
+ * A family's bin cost: FAMILY_BIN_COST's entry (a features-on twin's is its family's), or FILE_OVERHEAD_MS per
+ * file and the recorded ms as they are.
  * @param family a shard family
  * @returns `{ overheadMs, scale }`
  */
-export const binCost = (family) => FAMILY_BIN_COST[family] ?? { overheadMs: FILE_OVERHEAD_MS, scale: 1 };
+export const binCost = (family) =>
+    FAMILY_BIN_COST[family] ??
+    FAMILY_BIN_COST[family.replace(/-features-on$/u, "")] ?? { overheadMs: FILE_OVERHEAD_MS, scale: 1 };
 
 /**
  * Packs one shard family's selected test files into bins of at most `limitMs` each, longest file first, each
@@ -1471,9 +1492,11 @@ export function lightPlan(root, shards, selection, durations = {}) {
     for (const [family, runs] of families) {
         const fileMs = new Map(Object.entries(durations[family] ?? {}));
         if (runs.some((r) => r.mode === "all")) {
-            if (!packWhole(root, family, runs, fileMs, out)) {
+            // a shard marked "pack-whole": false runs whole as its own slices (tools/ci-test-matrix.mjs)
+            if (runs[0].shard["pack-whole"] === false || !packWhole(root, family, runs, fileMs, out)) {
                 runWhole(family, runs, out);
             }
+            pinnedBins(root, family, runs, selection, fileMs, out);
             continue;
         }
         let n = 0;
@@ -1506,6 +1529,47 @@ export function lightPlan(root, shards, selection, durations = {}) {
         }
     }
     return out;
+}
+
+/**
+ * The files pinned to a features-on family that runs whole (pinChanged(), pinCanary()): a pull request never runs such
+ * a family whole (tools/ci-test-matrix.mjs plan()), so they run as bins of their own, numbered after its shards and
+ * packed bins, with no `whole` field.
+ * @param root the checkout
+ * @param family the family name
+ * @param runs its planRuns() entries
+ * @param selection lightPlan()'s selection
+ * @param fileMs Map(file -> recorded ms) of the family
+ * @param out lightPlan()'s output, which gets the bins
+ */
+function pinnedBins(root, family, runs, selection, fileMs, out) {
+    const shard = runs[0].shard;
+    const ours = selection.filter((s) => familyOf(s.shard) === family);
+    // a file pinned twice keeps its first reason
+    const why = new Map(
+        ours
+            .flatMap((s) => s.pinned ?? [])
+            .reverse()
+            .map((p) => [p.file, p.why]),
+    );
+    const files = [...why.keys()].sort();
+    if (shard["pull-request"] !== "selected" || files.length === 0) {
+        return;
+    }
+    let n = Math.max(ours.length, out.bins.filter((b) => b.family === family).length);
+    const { overheadMs, scale } = binCost(family);
+    for (const bin of packBins(files, fileMs, BIN_LIMIT_MS, overheadMs, scale)) {
+        n += 1;
+        out.bins.push({
+            name: `${family}-${n}`,
+            family,
+            shard: shard.shard,
+            covers: [shard.shard],
+            ...bin,
+            command: selectedCommand(root, shard, bin.files),
+            why: Object.fromEntries(bin.files.map((f) => [f, why.get(f)])),
+        });
+    }
 }
 
 /**
@@ -1823,6 +1887,14 @@ export function storiesReaching(dir, changed, gs) {
 export const STORY_BIN_LIMIT_MS = 3 * 60_000;
 
 /**
+ * Where a light-check Stories bin's limit starts (storyBins()), above STORY_BIN_LIMIT_MS (the rolling slices' bin,
+ * tools/channel/story-slices.mjs): at 3 min a Stories job spent about 1.5 min on setup for 1.6 min of capture (47
+ * jobs, 70 of 147 minutes outside capture, PR run 43872756475, 2026-11-16), and the Stories jobs ended by 10 min,
+ * far ahead of the run's 27-minute Story tests tail. 6 min halves the jobs and their setup (#5404).
+ */
+export const LIGHT_STORY_BIN_LIMIT_MS = 6 * 60_000;
+
+/**
  * The most Stories jobs a pull request's light check plans: past it, every bin's limit grows (in steps of 30 s, up to
  * STORY_BIN_MAX_MS) until the bins fit. It was 9 after 37 bins of 3 min queued for runners (2026-10-29), but the
  * organization runs up to 500 Linux jobs at once: in PR runs 41061566840, 41067254808 and 41073371165 (2026-10-30)
@@ -1849,8 +1921,12 @@ export const STORY_MS = {
     // each changed picture is shot twice (capture.mjs needsSecondShot: the reference, master's story-test capture,
     // never matches the built-Storybook capture byte for byte), and PR run 41005977433 (#4559, Stories
     // (graph-io-fidelity-1), both attempts) captured cx2 and cys Specimens at 6.1 to 6.5 s a story, graphology
-    // and pajek at 5.0 to 5.5 s, Samples at 8 to 12.4 s, and overran the job's 20 minutes at a 12-minute plan (#4639)
-    "graph-io-fidelity": 6_500,
+    // and pajek at 5.0 to 5.5 s, Samples at 8 to 12.4 s, and overran the job's 20 minutes at a 12-minute plan (#4639).
+    // PR runs 44227750388, 44233191243 and 44246676418 (2026-11-18) captured its 39 bins at 0.24 to 0.60 of their
+    // plan (0.43 in all, Samples, Specimens and the slow Specimens files alike; 0.93 at most on a change that
+    // differs from every baseline, #5404), so it and its STORY_FILE_MS rates are 0.6 of what they were: a bin
+    // captures in at most its plan, and in about 1.55 times it when every picture is shot twice
+    "graph-io-fidelity": 3_900,
     // PR runs 40590034554, 40591791083, 40602189710 (2026-10-27): graphty's bins without a STORY_FILE_MS file
     // captured at 0.26 to 0.66 of their plan at 6 s, so it is 3 s; its heavy files keep their own times
     graphty: 3_000,
@@ -1881,27 +1957,27 @@ export const STORY_FILE_MS = {
     // graph-io-fidelity's Samples files draw real datasets, about twice its Specimens stories (fit above, at
     // STORY_MS), and are shot twice while they differ from their baselines: 12.4 s, gexf's measured rate in PR run
     // 41005977433 (#4639); xgmml's bin with half of gexf/Specimens took 246 s against 182 s fitted, so its samples are 12 s
-    "graph-io/fidelity-stories/stories/cx/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/cx2/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/cys/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/cytoscapejs/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/dot/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/gephi-json/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/gexf/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/gml/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/graphology/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/xgmml/Samples.stories.ts": 12_000,
+    "graph-io/fidelity-stories/stories/cx/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/cx2/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/cys/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/cytoscapejs/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/dot/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/gephi-json/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/gexf/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/gml/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/graphology/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/xgmml/Samples.stories.ts": 7_200,
     // PR run 40891650568 (2026-10-29): Stories (graph-io-fidelity-4) captured 46 dot Specimens stories and 8 gexf
     // Samples ones in 361 s and Stories (graph-io-fidelity-9) 41 xgmml Specimens and 9 cytoscapejs Samples in 370 s,
     // both planned at about 175 s and the pull request's last job; less the Samples at 6.2 s, 6.8 s and 7.7 s a story
-    "graph-io/fidelity-stories/stories/dot/Specimens.stories.ts": 6_800,
+    "graph-io/fidelity-stories/stories/dot/Specimens.stories.ts": 4_100,
     // gexf's Specimens, measured in the same runs at 4.1 s a story
-    "graph-io/fidelity-stories/stories/gexf/Specimens.stories.ts": 4_100,
-    "graph-io/fidelity-stories/stories/xgmml/Specimens.stories.ts": 7_700,
-    "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/gexf/Specimens.stories.ts": 2_500,
+    "graph-io/fidelity-stories/stories/xgmml/Specimens.stories.ts": 4_600,
+    "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 7_400,
 };
 
 const STORY_EXPORT = /^export const [A-Z]/gmu;
@@ -1986,7 +2062,7 @@ export function packStoryBins(plans, limitMs = STORY_BIN_LIMIT_MS) {
 
 /**
  * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
- * files packed into bins of at most STORY_BIN_LIMIT_MS (more when that makes over `jobBudget` bins), a file counted at the longer of its recorded time and its
+ * files packed into bins of at most LIGHT_STORY_BIN_LIMIT_MS (more when that makes over `jobBudget` bins), a file counted at the longer of its recorded time and its
  * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
  * changed baseline's story id is packed with them as one story at that rate. A file longer than a bin is split by story into
  * `<file>#<k>/<n>` parts: the k-th of every n of its stories in the Storybook index's order.
@@ -1997,7 +2073,7 @@ export function packStoryBins(plans, limitMs = STORY_BIN_LIMIT_MS) {
  * @param [storiesIn] (file) => the stories the file declares (storyCount() of its text)
  * @param [options] binning options
  * @param [options.jobBudget] the most bins before every bin's limit grows (STORY_JOB_BUDGET); Infinity keeps every
- *   bin at STORY_BIN_LIMIT_MS (the rolling slices, design/visual-testing/early-capture.md 4a)
+ *   bin at LIGHT_STORY_BIN_LIMIT_MS
  * @returns `[{ name, project, storybook, files, ids, ms }]`, `name` is `<project>-<n>`
  */
 export function storyBins(
@@ -2010,7 +2086,7 @@ export function storyBins(
 ) {
     const plans = storyUnitPlans(stories, projects, listFiles, durations, storiesIn);
     // one limit for every project, the smallest that fits the job budget, so no job is longer than it must be
-    let limit = STORY_BIN_LIMIT_MS;
+    let limit = LIGHT_STORY_BIN_LIMIT_MS;
     let packed = packStoryBins(plans, limit);
     while (packed.length > jobBudget && limit < STORY_BIN_MAX_MS) {
         limit += 30_000;
@@ -2101,7 +2177,7 @@ async function buildGraph(root, pkg, config, reuseFrom = null) {
 }
 
 /**
- * One file's edges, then its imports' (memoised across every test of the package).
+ * One file's edges, then its imports' (memoized across every test of the package).
  * @param project the Vitest project whose Vite server transforms the file
  * @param file an absolute path
  * @param ctx shared state of the run
@@ -3159,6 +3235,62 @@ async function graphChild(root, dir, config, on = false, base = null) {
 }
 
 /**
+ * The test files a change added or changed, and those the import graphs reached (a shard's `measured` answer), pinned
+ * to every shard that runs whole (#9274): lightPlan() runs them as bins of their own in a features-on family, which a
+ * pull request never runs whole, so a change that runs its package whole still runs its own tests with every
+ * experiment on, as the full run will.
+ * @param changed repo-relative changed paths
+ * @param selection selectShards() output
+ * @returns the selection, with `pinned: [{ file, why }]` on the shards that run whole and hold such a file
+ */
+export function pinChanged(changed, selection) {
+    const mine = new Set(changed);
+    return selection.map((s) => {
+        if (s.mode !== "all" || !s.specs) {
+            return s;
+        }
+        const pins = [
+            ...s.specs.filter((f) => mine.has(f)).map((file) => ({ file, why: "the pull request changed it" })),
+            ...(s.measured?.files ?? []),
+        ];
+        return pins.length === 0 ? s : { ...s, pinned: [...(s.pinned ?? []), ...pins] };
+    });
+}
+
+/**
+ * The canary configuration's tests added to a selection (test-select-rules.json "canary", #9234): when a changed
+ * build file matches a pattern, each named family's shards get the tracked test files its patterns match. A shard
+ * that selected files or none gets them as selected files; one that runs whole keeps them as `pinned`, which
+ * lightPlan() runs as a bin of their own for a features-on family (a pull request never runs one whole).
+ * @param changed repo-relative changed paths
+ * @param canary loadRules().canary
+ * @param selection selectShards() output
+ * @param tracked returns the checkout's tracked paths (called only when a pattern matches)
+ * @returns the selection, with the canary files added
+ */
+export function pinCanary(changed, canary, selection, tracked) {
+    const hit = changed.find((f) => canary.patterns.some((re) => re.test(f)) && buildInput(f.replace(/^[^/]+\//u, "")));
+    if (!hit) {
+        return selection;
+    }
+    const paths = tracked();
+    const why = `the canary configuration's tests run on every change to what it draws with (${hit} changed)`;
+    return selection.map((s) => {
+        const res = canary.files[familyOf(s.shard)] ?? [];
+        const files = paths.filter((f) => res.some((re) => re.test(f)));
+        if (files.length === 0) {
+            return s;
+        }
+        if (s.mode === "all") {
+            return { ...s, pinned: [...(s.pinned ?? []), ...files.map((file) => ({ file, why }))] };
+        }
+        const have = new Set((s.files ?? []).map((f) => f.file));
+        const added = files.filter((f) => !have.has(f)).map((file) => ({ file, why }));
+        return { ...s, mode: "files", files: [...(s.files ?? []), ...added] };
+    });
+}
+
+/**
  * The selection for a change, with everything it needs read from the checkout.
  * @param root the checkout
  * @param changed repo-relative changed paths
@@ -3190,9 +3322,12 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
         deferDownstream,
         lockfile: lockRefs && changed.includes(LOCK) ? lockfileImporters(root, lockRefs.base, lockRefs.head) : null,
     });
+    const picked = selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke);
     return {
         ...sel,
-        shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke),
+        shards: pinCanary(changed, rules.canary, pinChanged(changed, picked), () =>
+            execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 }).split("\n"),
+        ),
         graphs: all,
         // by directory: nx names remote-logger, which has no project.json, @graphty/remote-logger
         deps: new Map(
@@ -3262,6 +3397,62 @@ export function describe(selection) {
     return lines.join("\n");
 }
 
+/** The test file of the render-parity project that draws the stories (graphty-element vitest.config.ts). */
+const PARITY_SPEC = "test/render-parity/stories.test.ts";
+/** A story file PARITY_SPEC draws (its import.meta.glob takes `stories/**\/*.stories.ts`). */
+const PARITY_STORY = /\.stories\.ts$/u;
+const escapeRe = (text) => text.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
+
+/**
+ * The render-parity bins of a pull request (#9274): the shards marked "pull-request": "stories" (full-run-only
+ * otherwise, tools/ci-test-matrix.mjs) draw the story files the change added or changed under their package's
+ * stories/, every engine in one job (`job`, a group of the bins), each engine one `vitest run` of PARITY_SPEC that
+ * VITE_PARITY_STORIES narrows to those files. Packed so a job's stories take at most BIN_LIMIT_MS on all its engines
+ * together, at each shard's "story-ms".
+ * @param shards SHARDS entries
+ * @param changed repo-relative changed paths
+ * @param exists whether a path is in the checkout (a deleted story draws nothing)
+ * @param storiesIn the number of stories in a story file
+ * @returns lightPlan()-shaped bins, with `job`
+ */
+export function parityBins(shards, changed, exists, storiesIn) {
+    const bins = [];
+    for (const [pkg, lanes] of Map.groupBy(
+        shards.filter((s) => s["pull-request"] === "stories"),
+        (s) => s.package,
+    )) {
+        const files = changed
+            .filter((f) => f.startsWith(`${pkg}/stories/`) && PARITY_STORY.test(f) && exists(f))
+            .sort();
+        const perStory = lanes.reduce((ms, s) => ms + s["story-ms"], 0);
+        const fileMs = new Map(files.map((f) => [f, storiesIn(f) * perStory]));
+        packBins(files, fileMs, BIN_LIMIT_MS, 0).forEach((bin, i) => {
+            const names = bin.files.map((f) => f.slice(`${pkg}/stories/`.length).replace(PARITY_STORY, ""));
+            const re = String.raw`/stories/(${names.map((n) => escapeRe(n)).join("|")})\.stories\.ts$`;
+            for (const s of lanes) {
+                const run = "pnpm exec vitest run --project=render-parity";
+                if (!s["test-command"].includes(run)) {
+                    throw new Error(`${s.shard}: its command has no "${run}" to narrow to the changed stories`);
+                }
+                const narrowed = `VITE_PARITY_STORIES=${quote(re)} ${run} ${PARITY_SPEC} --passWithNoTests`;
+                const command = s["test-command"].replace(run, () => narrowed);
+                bins.push({
+                    name: `${s.shard}-${i + 1}`,
+                    family: s.shard,
+                    shard: s.shard,
+                    covers: [s.shard],
+                    job: `${pkg}-render-parity-${i + 1}`,
+                    files: bin.files,
+                    ms: bin.files.reduce((ms, f) => ms + storiesIn(f) * s["story-ms"], 0),
+                    command,
+                    why: Object.fromEntries(bin.files.map((f) => [f, "the pull request changed this story"])),
+                });
+            }
+        });
+    }
+    return bins;
+}
+
 /**
  * The light check's plan JSON (`--plan`): the test bins and the stories of a change.
  * @param root the checkout
@@ -3272,9 +3463,10 @@ export function describe(selection) {
  * @param input.base the base ref
  * @param input.head the head ref
  * @param input.durations lightPlan()'s durations
+ * @param input.parity the shards parityBins() plans (render-parity)
  * @returns `{ changed, everything, bins, whole, none, stories, storyBins }`
  */
-function planOf(root, { changed, selection, shards, base, head, durations }) {
+function planOf(root, { changed, selection, shards, base, head, durations, parity = [] }) {
     const show = (rev) => {
         try {
             return execFileSync("git", ["show", `${rev}:${LOCK}`], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
@@ -3299,18 +3491,25 @@ function planOf(root, { changed, selection, shards, base, head, durations }) {
     });
     const listFiles = (dir) =>
         execFileSync("git", ["ls-files", "--", dir], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
+    const storiesIn = (f) => {
+        try {
+            return storyCount(readFileSync(join(root, f), "utf8"));
+        } catch {
+            return 1;
+        }
+    };
+    const light = lightPlan(root, shards, selection.shards, durations);
+    const drawn = parityBins(parity, changed, (f) => existsSync(join(root, f)), storiesIn);
+    // the stories a parity bin draws reach its test file through import.meta.glob, which the import graphs skip
+    const spec = [...new Set(drawn.map((b) => `${parity.find((s) => s.shard === b.shard).package}/${PARITY_SPEC}`))];
     return {
         changed: changed.length,
         everything: selection.everything,
-        ...lightPlan(root, shards, selection.shards, durations),
+        ...light,
+        bins: [...light.bins, ...drawn],
+        touched: [...new Set([...light.touched, ...spec])].sort(),
         stories,
-        storyBins: storyBins(stories, projects, listFiles, durations, (f) => {
-            try {
-                return storyCount(readFileSync(join(root, f), "utf8"));
-            } catch {
-                return 1;
-            }
-        }),
+        storyBins: storyBins(stories, projects, listFiles, durations, storiesIn),
     };
 }
 
@@ -3345,8 +3544,9 @@ async function main(argv) {
     const base = arg("--base") ?? "origin/master";
     const head = arg("--head") ?? "HEAD";
     const changed = changedFiles(root, base, head);
-    // a pull request's selection: the full-run-only shards are never in it; the On shards are (their selected
-    // files run on a pull request, tools/ci-test-matrix.mjs plan()), with their -features-on import graphs
+    // a pull request's selection: the full-run-only shards are never in it; the On and forced-batched shards are
+    // (their selected files run on a pull request, tools/ci-test-matrix.mjs plan()), the On with their
+    // -features-on import graphs
     const shards = SHARDS.filter((s) => !s["full-run-only"]);
     const selection = await selectChange(root, changed, shards, undefined, argv.includes("--defer-downstream"), {
         base,
@@ -3354,7 +3554,8 @@ async function main(argv) {
     });
     if (argv.includes("--plan")) {
         const durations = arg("--durations") ? JSON.parse(readFileSync(arg("--durations"), "utf8")) : {};
-        console.log(JSON.stringify(planOf(root, { changed, selection, shards, base, head, durations })));
+        const parity = SHARDS.filter((s) => s["pull-request"] === "stories");
+        console.log(JSON.stringify(planOf(root, { changed, selection, shards, base, head, durations, parity })));
         return;
     }
     if (argv.includes("--json")) {

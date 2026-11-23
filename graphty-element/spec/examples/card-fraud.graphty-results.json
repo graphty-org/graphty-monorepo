@@ -1,0 +1,307 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-results/v2.json",
+    "kind": "graphty-results",
+    "version": 2,
+    "modified": "2026-11-14T17:58:00.000Z",
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "bindsTo": {
+        "data": "d1a7c0de-0001-4000-8000-000000000001"
+    },
+    "runs": {
+        "card_testing__pagerank": {
+            "namespace": "card_testing",
+            "as": "pagerank",
+            "algorithm": "pagerank",
+            "params": {
+                "dampingFactor": 0.85,
+                "directed": true,
+                "maxIterations": 100,
+                "tolerance": 0.000001,
+                "useDelta": true
+            },
+            "engine": {
+                "packages": {
+                    "@graphty/graphty-element": "3.39.0",
+                    "@graphty/algorithms": "3.4.22"
+                },
+                "accelerator": "cpu"
+            },
+            "seed": null,
+            "durationMs": 3,
+            "bindsTo": {
+                "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+                "sources": {
+                    "reader": "01JCBQ3G6J8M0P2R4T6W8Y1A3C",
+                    "src_01JCBP0A7Q3M5V8X2K4N6R9T1W": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4",
+                    "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y": "01JCBQ2F5H7K9M1P3R5T7W9Y2A"
+                }
+            },
+            "fields": [
+                {
+                    "name": "value",
+                    "kind": "node",
+                    "type": "number"
+                },
+                {
+                    "name": "rank",
+                    "kind": "node",
+                    "type": "integer"
+                }
+            ],
+            "caveats": {
+                "exact": true,
+                "converged": true,
+                "iterations": 21,
+                "direction": "directed",
+                "weight": null,
+                "filterScope": true,
+                "precision": "f64",
+                "method": "pagerank",
+                "facts": []
+            },
+            "nodes": {
+                "refs": [
+                    {
+                        "space": "account",
+                        "key": "acct-1001"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1003"
+                    },
+                    {
+                        "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "key": "merch-77"
+                    },
+                    {
+                        "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "key": "dev-9f3"
+                    }
+                ],
+                "columns": {
+                    "value": [0.11, 0.24, 0.23, 0.31, 0.11],
+                    "rank": [4, 2, 3, 1, 4]
+                }
+            }
+        },
+        "card_testing__communities": {
+            "namespace": "card_testing",
+            "as": "communities",
+            "algorithm": "louvain",
+            "params": {
+                "maxIterations": 100,
+                "resolution": 1,
+                "tolerance": 0.000001,
+                "useOptimized": true
+            },
+            "engine": {
+                "packages": {
+                    "@graphty/graphty-element": "3.39.0",
+                    "@graphty/algorithms": "3.4.22"
+                },
+                "accelerator": "cpu"
+            },
+            "seed": 1873,
+            "durationMs": 2,
+            "bindsTo": {
+                "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+                "sources": {
+                    "reader": "01JCBQ3G6J8M0P2R4T6W8Y1A3C",
+                    "src_01JCBP0A7Q3M5V8X2K4N6R9T1W": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4",
+                    "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y": "01JCBQ2F5H7K9M1P3R5T7W9Y2A"
+                }
+            },
+            "fields": [
+                {
+                    "name": "group",
+                    "kind": "node",
+                    "type": "integer"
+                },
+                {
+                    "name": "groupSize",
+                    "kind": "node",
+                    "type": "integer"
+                }
+            ],
+            "caveats": {
+                "exact": true,
+                "direction": "directed",
+                "weight": null,
+                "filterScope": true,
+                "precision": "f64",
+                "method": "louvain",
+                "facts": []
+            },
+            "graph": {
+                "modularity": 0.22,
+                "groupCount": 2
+            },
+            "nodes": {
+                "refs": [
+                    {
+                        "space": "account",
+                        "key": "acct-1001"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1003"
+                    },
+                    {
+                        "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "key": "dev-9f3"
+                    }
+                ],
+                "columns": {
+                    "group": [1, 0, 0, 0],
+                    "groupSize": [1, 3, 3, 3]
+                }
+            }
+        },
+        "route": {
+            "algorithm": "shortest-path",
+            "params": {
+                "bidirectional": true,
+                "direction": "all",
+                "invertStrength": false,
+                "method": "dijkstra",
+                "source": {
+                    "space": "account",
+                    "key": "acct-1002"
+                },
+                "target": {
+                    "space": "account",
+                    "key": "acct-1003"
+                },
+                "timeOrder": null
+            },
+            "engine": {
+                "packages": {
+                    "@graphty/graphty-element": "3.39.0",
+                    "@graphty/algorithms": "3.4.22"
+                },
+                "accelerator": "cpu"
+            },
+            "seed": null,
+            "durationMs": 1,
+            "bindsTo": {
+                "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+                "sources": {
+                    "reader": "01JCBQ3G6J8M0P2R4T6W8Y1A3C",
+                    "src_01JCBP0A7Q3M5V8X2K4N6R9T1W": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4",
+                    "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y": "01JCBQ2F5H7K9M1P3R5T7W9Y2A"
+                }
+            },
+            "fields": [
+                {
+                    "name": "distance",
+                    "kind": "node",
+                    "type": "number"
+                }
+            ],
+            "caveats": {
+                "exact": true,
+                "direction": "directed",
+                "weight": null,
+                "precision": "f64",
+                "method": "dijkstra",
+                "facts": []
+            },
+            "nodes": {
+                "refs": [
+                    {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    {
+                        "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "key": "dev-9f3"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1003"
+                    }
+                ],
+                "columns": {
+                    "distance": [0, 1, 2]
+                }
+            }
+        }
+    },
+    "layout": {
+        "id": "force",
+        "dimension": 3,
+        "options": {
+            "clusterStrength": 1,
+            "nodeGapFront": false,
+            "seed": 52211
+        },
+        "drawnBy": {
+            "engine": "ngraph",
+            "options": {
+                "dragCoefficient": 0.9,
+                "gravity": -12,
+                "springCoefficient": 0.8,
+                "springLength": 10,
+                "theta": 0.8,
+                "timeStep": 0.5
+            }
+        },
+        "seed": 52211,
+        "durationMs": 41,
+        "engine": {
+            "packages": {
+                "@graphty/graphty-element": "3.39.0",
+                "@graphty/layout": "2.7.1"
+            },
+            "accelerator": "cpu"
+        },
+        "bindsTo": {
+            "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
+            "sources": {
+                "reader": "01JCBQ3G6J8M0P2R4T6W8Y1A3C",
+                "src_01JCBP0A7Q3M5V8X2K4N6R9T1W": "sha256:ee4785872b116bfa999de8c834fffa560b962be14eb43bc884ae9d9356e7b2c4",
+                "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y": "01JCBQ2F5H7K9M1P3R5T7W9Y2A"
+            }
+        },
+        "nodes": {
+            "refs": [
+                {
+                    "space": "account",
+                    "key": "acct-1001"
+                },
+                {
+                    "space": "account",
+                    "key": "acct-1002"
+                },
+                {
+                    "space": "account",
+                    "key": "acct-1003"
+                },
+                {
+                    "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                    "key": "merch-77"
+                },
+                {
+                    "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                    "key": "dev-9f3"
+                }
+            ],
+            "columns": {
+                "x": [-3.2, 2, 2.6, 0, 4.1],
+                "y": [1.1, 2.4, 1.5, 0, 3.3],
+                "z": [0.4, -0.7, 0.9, 0, 0.2]
+            }
+        }
+    }
+}

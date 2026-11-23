@@ -55,7 +55,14 @@ const peer = vi.hoisted(() => ({
  */
 type StubAccelerator = Pick<GpuAccelerator, "kind" | "dispose"> & {
     readonly ctx: {
-        readonly caps: Pick<GpuCaps, "vendor" | "architecture" | "description" | "device">;
+        readonly caps: Pick<
+            GpuCaps,
+            "vendor" | "architecture" | "description" | "device" | "software" | "runtime" | "features"
+        > & {
+            /** Only the limits the entry point logs; a fake device grants none. */
+            readonly limits: Partial<GPUSupportedLimits>;
+        };
+        readonly device: Pick<GPUDevice, "addEventListener" | "removeEventListener">;
         readonly lost: GpuAccelerator["ctx"]["lost"];
     };
     readonly forceAtlas2: () => string;
@@ -70,7 +77,17 @@ function readyAccelerator(): Omit<AcceleratorReady, "accelerator"> & { readonly 
         accelerator: {
             kind: "webgpu",
             ctx: {
-                caps: { vendor: "acme", architecture: "gen-1", description: "Acme Fake GPU", device: "acme-1" },
+                caps: {
+                    vendor: "acme",
+                    architecture: "gen-1",
+                    description: "Acme Fake GPU",
+                    device: "acme-1",
+                    software: false,
+                    runtime: "browser",
+                    features: new Set<string>(),
+                    limits: {},
+                },
+                device: new EventTarget(),
                 lost: new Promise(() => {
                     // a device that is never lost: this suite is about the check, not about loss
                 }),
@@ -94,7 +111,7 @@ function incorrect(mismatch: DeviceCheckMismatch): AcceleratorDeclined {
     };
 }
 
-vi.mock("@graphty/webgpu-graph-algorithms", () => ({ EXACT_MAX_NODES: 32_768 }));
+vi.mock("@graphty/webgpu-graph-algorithms", () => ({ EXACT_MAX_NODES: 32_768, VERSION: "9.8.7" }));
 
 vi.mock("@graphty/webgpu-graph-algorithms/browser", () => ({
     acquireAccelerator: () => ({ current: peer.current, dispose: peer.dispose }),
@@ -124,6 +141,8 @@ describe("the ./webgpu entry point: the device self-check", () => {
         assert.isNotNull(accelerator);
         assert.isUndefined(accelerator?.verify);
         assert.strictEqual(accelerator?.device?.description, "Acme Fake GPU");
+        // A run it computes lists the peer at the version the peer itself states.
+        assert.deepStrictEqual(accelerator?.package, { name: "@graphty/webgpu-graph-algorithms", version: "9.8.7" });
         accelerator?.dispose?.();
         assert.strictEqual(peer.dispose.mock.calls.length, 1);
     });

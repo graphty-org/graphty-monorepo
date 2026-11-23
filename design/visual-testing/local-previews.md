@@ -1,6 +1,6 @@
 # Local screenshot previews, Finish on local captures, and the pending-approvals inbox
 
-> The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
+> Merging today: every change reaches master through its own pull request with auto-merge on (CLAUDE.md, "Shipping a change"; .github/workflows/README.md). The Mergify merge queue and the `hold` label were retired on 2026-10-18, and the `golden` integration branch that briefly replaced per-change pull requests was retired in turn by the channels pipeline (design/ci/channels-pipeline.md). Read the merge-queue and `golden` parts below as history.
 
 Date: 2026-10-04. Status: adopted design. Built: pinned fonts (section 3), the preview script
 (section 5, started by the agent after each push rather than by the server), review and
@@ -50,7 +50,7 @@ Fixed, unchanged by this design:
 **CPU does not matter.** The visual job records the runner's CPU in each `results.json`. Over 16
 recent jobs (runs 37211866060 to 37220350543) the runners were AMD EPYC 7763 (Zen 3, AVX2 only),
 AMD EPYC 9V74 and 9V45 (AVX-512), and Intel Xeon Platinum 8370C and 8573C (AVX-512). All 1,002
-compact-mantine captures and 198 graphty-element captures equalled their baselines byte for byte.
+compact-mantine captures and 198 graphty-element captures equaled their baselines byte for byte.
 SwiftShader and Chromium's CPU rasterizer produce the same bytes whatever the SIMD width. The
 development machine's i9-14900KF (AVX2) sits inside that range.
 
@@ -259,7 +259,7 @@ pull request's current head.
 1. An agent pushes. Within a minute or two the server starts a local preview.
 2. About 6 to 10 minutes after the push the local capture is done; the pull request appears in
    the inbox (section 7) and the notifier (section 8) may tell the owner.
-3. The owner opens it. Each project captured locally is labelled "local preview" with the commit
+3. The owner opens it. Each project captured locally is labeled "local preview" with the commit
    it built; Accept, Reject and Exclude work exactly as on a CI capture, and decisions are saved
    in the same `tmp/visual-review/state/<pr>.json`, each keyed by the image's SHA-256 and its
    baseline's SHA-256 (`decisionsOf` in `trusted/lib/serve.mjs` already applies a saved decision

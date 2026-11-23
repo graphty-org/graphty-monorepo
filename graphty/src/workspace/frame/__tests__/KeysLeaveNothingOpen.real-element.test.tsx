@@ -49,6 +49,19 @@ async function openGraph(): Promise<{ session: GraphSession; store: WorkspaceSto
 }
 
 /**
+ * Fills the Everything layer's Fill: it sets Color already, and a picture here, so Fill's "+" has
+ * nothing left to add.
+ * @param session - the element's session.
+ */
+async function fillEverything(session: GraphSession): Promise<void> {
+    const everything = session.styles.list().find((layer) => layer.name === "Everything" && layer.target === "node");
+    if (everything === undefined) {
+        throw new Error("no Everything layer");
+    }
+    await session.styles.update(everything.id, { set: { ...everything.set, "node.texture": "asset:not-held" } });
+}
+
+/**
  * Opens a style tree row in the inspector.
  * @param name - the row's name.
  */
@@ -74,8 +87,7 @@ function focused(): string {
     return `${active?.tagName ?? "none"} ${active?.getAttribute("aria-label") ?? active?.textContent ?? ""}`;
 }
 
-// Analyze's algorithm form, which the `selection-workspace` experiment replaces with its calm list
-// (covered by its own tests): the experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 describe("keys that close what they leave and land focus in the right place", () => {
@@ -165,26 +177,6 @@ describe("keys that close what they leave and land focus in the right place", ()
         });
     });
 
-    it("Tab in Filter analyses with letters typed takes the highlighted analysis", async () => {
-        await openGraph();
-        const analyze = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
-            name: "Analyze",
-        });
-        await userEvent.click(analyze);
-        await screen.findByRole("combobox", { name: "Filter analyses" });
-        await userEvent.keyboard("cluster");
-        const highlighted = await waitFor(() => {
-            const option = screen.getAllByRole("option").find((o) => o.getAttribute("aria-selected") === "true");
-            assert.isDefined(option, "no analysis highlighted");
-            return option.textContent ?? "";
-        });
-        await userEvent.keyboard("{Tab}");
-        // Its card opens, with focus on its Run button, so Enter runs it.
-        const card = await screen.findByRole("form");
-        assert.include(highlighted, card.getAttribute("aria-label") ?? "(no name)");
-        assert.strictEqual(document.activeElement, within(card).getByRole("button", { name: /^Run / }), focused());
-    });
-
     it("Escape on a button in the inspector clears the graph's selection", async () => {
         const { session } = await openGraph();
         await session.selection.apply({
@@ -231,7 +223,8 @@ describe("keys that close what they leave and land focus in the right place", ()
     });
 
     it("Tab from Add to node text passes over the full Fill +", async () => {
-        await openGraph();
+        const { session } = await openGraph();
+        await fillEverything(session);
         await openRow("Everything");
         const text = await screen.findByRole("button", { name: "Add to node text" });
         const fill = screen.getByRole("button", { name: "Add to node fill" });

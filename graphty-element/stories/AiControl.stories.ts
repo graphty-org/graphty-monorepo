@@ -8,9 +8,6 @@
  * - Error retry functionality
  */
 
-// encrypt-storage, as the ./ai and ./credentials entry points register it
-import "../src/ai/keys/withEncryptStorage";
-
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html, type TemplateResult } from "lit";
 import { userEvent, waitFor } from "storybook/test";
@@ -21,6 +18,7 @@ import type { AiStatus } from "../src/ai/AiStatus";
 import { registerProviderApiEngine } from "../src/ai/engine/load";
 import type { AiEngine } from "../src/ai/engine/types";
 import { ApiKeyManager } from "../src/ai/keys/ApiKeyManager";
+import { getWebLlmProviderClass } from "../src/ai/providers";
 import type { MockLlmProvider } from "../src/ai/providers/MockLlmProvider";
 import type { WebLlmProvider } from "../src/ai/providers/WebLlmProvider";
 import { type GraphtyElement } from "../src/graphty-element";
@@ -79,18 +77,10 @@ const SAMPLE_EDGES = [
 const keyManager = new ApiKeyManager();
 const PERSISTENCE_KEY = "graphty-ai-showcase";
 
-// Check WebGPU availability
+// Whether this browser can run WebLLM: the element's own WebGPU check.
 async function checkWebGPU(): Promise<boolean> {
-    if (typeof navigator === "undefined" || !("gpu" in navigator)) {
-        return false;
-    }
-
-    try {
-        const adapter = await navigator.gpu?.requestAdapter();
-        return Boolean(adapter);
-    } catch {
-        return false;
-    }
+    const WebLlm = await getWebLlmProviderClass();
+    return WebLlm.isWebGPUAvailable();
 }
 
 // Available WebLLM models that support tool calling
@@ -180,19 +170,6 @@ function getAvailableMemory(): { available: number | null; total: number | null 
     }
 }
 
-// Voice graph interface
-interface VoiceGraph {
-    getVoiceAdapter: () => { isSupported: boolean };
-    startVoiceInput: (options: {
-        continuous?: boolean;
-        interimResults?: boolean;
-        onTranscript?: (text: string, isFinal: boolean) => void;
-        onStart?: (started: boolean, error?: string) => void;
-    }) => boolean;
-    stopVoiceInput: () => void;
-    isVoiceActive: () => boolean;
-}
-
 // Main setup function
 async function setupShowcase(): Promise<void> {
     const element = document.querySelector<GraphtyElement>("graphty-element");
@@ -241,9 +218,7 @@ async function setupShowcase(): Promise<void> {
         return;
     }
 
-    // The element is upgraded, so its graph exists.
     await customElements.whenDefined("graphty-element");
-    const graph = element.graph as VoiceGraph & GraphtyElement["graph"];
 
     // State
     let isConnected = false;
@@ -365,9 +340,9 @@ async function setupShowcase(): Promise<void> {
     }
 
     // Load persisted keys
-    const loadPersistedKey = (): void => {
+    const loadPersistedKey = async (): Promise<void> => {
         try {
-            keyManager.enablePersistence({
+            await keyManager.enablePersistence({
                 encryptionKey: PERSISTENCE_KEY,
                 storage: "localStorage",
             });
@@ -402,7 +377,7 @@ async function setupShowcase(): Promise<void> {
 
         // Load persisted key for cloud providers
         if (isCloud) {
-            loadPersistedKey();
+            void loadPersistedKey();
         }
     };
 
@@ -539,12 +514,12 @@ async function setupShowcase(): Promise<void> {
                     }
 
                     // Enable AI with the initialized provider instance
-                    await graph.enableAiControl({
+                    await element.enableAiControl({
                         provider: "webllm",
                         providerInstance: webllmProvider,
                     });
                 } else if (provider === "mock") {
-                    await graph.enableAiControl({ provider: "mock" });
+                    await element.enableAiControl({ provider: "mock" });
                 } else {
                     // Cloud provider
                     const apiKey = ui.apiKeyInput?.value.trim();
@@ -552,14 +527,14 @@ async function setupShowcase(): Promise<void> {
                         throw new Error("Please enter an API key");
                     }
 
-                    await graph.enableAiControl({
+                    await element.enableAiControl({
                         provider: provider as "openai" | "anthropic" | "google",
                         apiKey,
                     });
 
                     // Save key if requested
                     if (ui.rememberKeyCheckbox?.checked && ui.apiKeyInput) {
-                        keyManager.enablePersistence({
+                        await keyManager.enablePersistence({
                             encryptionKey: PERSISTENCE_KEY,
                             storage: "localStorage",
                         });
@@ -568,7 +543,7 @@ async function setupShowcase(): Promise<void> {
                 }
 
                 // Subscribe to status updates
-                graph.onAiStatusChange(updateStatus);
+                element.onAiStatusChange(updateStatus);
 
                 isConnected = true;
                 if (ui.connectionStatus) {
@@ -610,7 +585,7 @@ async function setupShowcase(): Promise<void> {
 
     // Disconnect handler
     ui.disconnectBtn.addEventListener("click", () => {
-        graph.disableAiControl();
+        element.disableAiControl();
         isConnected = false;
         webllmProvider = null;
 
@@ -643,7 +618,7 @@ async function setupShowcase(): Promise<void> {
         ui.sendBtn.disabled = true;
 
         try {
-            const result = await graph.aiCommand(value);
+            const result = await element.aiCommand(value);
 
             let output = result.message;
             if (result.data) {
@@ -672,7 +647,7 @@ async function setupShowcase(): Promise<void> {
 
     // Voice input
     if (ui.voiceBtn) {
-        const adapter = graph.getVoiceAdapter();
+        const adapter = element.getVoiceAdapter();
         if (!adapter.isSupported) {
             ui.voiceBtn.disabled = true;
             ui.voiceBtn.title = "Voice input not supported in this browser";
@@ -684,7 +659,7 @@ async function setupShowcase(): Promise<void> {
             }
 
             if (isVoiceActive) {
-                graph.stopVoiceInput();
+                element.stopVoiceInput();
                 ui.voiceBtn.textContent = "🎤";
                 ui.voiceBtn.className = "action-btn voice";
                 isVoiceActive = false;
@@ -695,7 +670,7 @@ async function setupShowcase(): Promise<void> {
                 ui.voiceBtn.textContent = "⏳";
                 ui.voiceBtn.disabled = true;
 
-                graph.startVoiceInput({
+                element.startVoiceInput({
                     continuous: true,
                     interimResults: true,
                     onStart: (started, error) => {
@@ -728,7 +703,7 @@ async function setupShowcase(): Promise<void> {
 
                             if (shouldAutoExecute) {
                                 // Auto-execute: send command immediately
-                                void graph.aiCommand(text, { via: "voice" }).then((result) => {
+                                void element.aiCommand(text, { via: "voice" }).then((result) => {
                                     ui.responseOutput.textContent = result.message;
                                     logCommand(
                                         `🎤 ${text}`,
@@ -2070,7 +2045,12 @@ export const RunCode: Story = {
 
         // The model was sent the program's value, and it is the graph's own mean degree.
         const provider = element?.getAiManager()?.getProvider() as QueuedProvider | undefined;
-        const sent = (provider?.sent.at(-1) ?? []).find((message) => message.toolCallId === "code1")?.content ?? "";
+        // The engine gives each call its own id, so find the run_code call by name, then its result.
+        const history = provider?.sent.at(-1) ?? [];
+        const callId = history
+            .flatMap((message) => message.toolCalls ?? [])
+            .find((call) => call.name === "run_code")?.id;
+        const sent = history.find((message) => message.toolCallId === callId)?.content ?? "";
         const json = sent.slice(sent.indexOf("{"), sent.lastIndexOf("}") + 1);
         const value = (JSON.parse(json === "" ? "{}" : json) as { data?: { value?: unknown } }).data?.value;
         const { nodes, edges } = before.session.status.counts;

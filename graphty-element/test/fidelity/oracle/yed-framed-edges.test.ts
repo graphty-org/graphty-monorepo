@@ -112,6 +112,34 @@ describe("yEd's framed edges", () => {
         assert.isTrue(near(band?.route.at(-1), [840.575, 527.111]), String(band?.route.at(-1)));
     });
 
+    it("reads an outline yEd starts at the source arrowhead's wing, its tip the next corner", () => {
+        // graphml-stm32-func e36 (n2 -> n1), LineStyle width 3.0, Arrows source="standard" target="standard": the
+        // outline runs wing, the source tip (428), the other wing, down the band, round the target head (tip 543.8)
+        // and back, a corner drawn twice on the way
+        const band = framedBand(
+            outline(
+                "M443.3168 371.3414 L428.3168 377.5914 L443.3168 383.8414 L440.4668 379.0914 L531.6298 379.0914 L528.7798 383.8414 L543.7798 377.5914 L528.7798 371.3414 L528.7798 371.3414 L531.6298 376.0914 L440.4668 376.0914 L443.3168 371.3414 Z",
+            ),
+            16,
+        );
+        assert.isNotNull(band);
+        assert.closeTo(band?.width ?? 0, 3, 0.05);
+        assert.deepEqual(
+            band?.heads.map((h) => h.end),
+            ["source", "target"],
+        );
+        assert.isTrue(
+            band?.heads[0].outline.some((p) => near(p, [428.3168, 377.5914])),
+            "the source head holds its tip",
+        );
+        assert.isTrue(
+            band?.heads[1].outline.some((p) => near(p, [543.7798, 377.5914])),
+            "the target head holds its tip",
+        );
+        assert.isTrue(near(band?.route[0], [440.4668, 377.5914]), String(band?.route[0]));
+        assert.isTrue(near(band?.route.at(-1), [531.6298, 377.5914]), String(band?.route.at(-1)));
+    });
+
     it("reads no band in a node's outline, or in a closed shape no longer than it is wide", () => {
         assert.isNull(framedBand(outline("M992 691.333 L1048 691.333 L1048 727.333 L992 727.333 Z"), 16));
         assert.isNull(framedBand(outline("M376 600.222 L404 618.222 L376 636.222 L348 618.222 Z"), 16));

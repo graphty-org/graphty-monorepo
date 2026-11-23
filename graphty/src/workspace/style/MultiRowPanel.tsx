@@ -1,6 +1,6 @@
 /// <reference lib="es2023.array" />
 import type { Channel } from "@graphty/graphty-element/schema";
-import type { GraphSession, HistoryStepId, Layer, LayerReach, StyleRow } from "@graphty/graphty-element/session";
+import type { GraphSession, HistoryStepId, Layer } from "@graphty/graphty-element/session";
 import { Stack } from "@mantine/core";
 import React, { useState } from "react";
 
@@ -22,10 +22,10 @@ import {
     type Target,
     without,
 } from "./row";
-import { type KindControl, RowStyle, StateLine } from "./StylePanel";
+import { type KindControl, RowStyle } from "./StylePanel";
 import { useStyleVersion } from "./useStyleVersion";
 import { WhichPicker } from "./WhichPicker";
-import { channelPhrase } from "./words";
+import { channelPhrase, type EncodeKey } from "./words";
 
 /** One value or binding written to a channel, or each layer its own values (Vary by Layer). */
 type Write =
@@ -36,7 +36,7 @@ type Write =
 /** What the last write did, and the rows it left unset, so "Also set those" can write them. */
 interface LastWrite extends BulkReceipt {
     readonly side: Target;
-    readonly channel: Channel;
+    readonly channel: EncodeKey;
     readonly write: Write;
     /** The rows that did not set the channel and were left out. */
     readonly left: readonly string[];
@@ -57,7 +57,7 @@ interface LastWrite extends BulkReceipt {
  */
 function patchOf(
     layer: Layer,
-    channel: Channel,
+    channel: EncodeKey,
     write: LiteralWrite | { readonly binding: DataBinding },
 ): Pick<Layer, "set" | "encode"> {
     if ("value" in write && (write.combine === undefined || write.combine === "replace")) {
@@ -138,7 +138,7 @@ interface Bulk {
  * @param n - how many layers.
  * @returns the words.
  */
-function stepWords(channel: Channel, n: number): string {
+function stepWords(channel: EncodeKey, n: number): string {
     return `changing ${channelPhrase(channel)} on ${count(n, "layer")}`;
 }
 
@@ -161,13 +161,13 @@ function manyOf(
 ): Pick<RowContext, "many" | "beneath"> {
     const layersOf = (row: FoundRow): Layer[] => rowLayers(session, [...treeLayers(session, row.row.id)], side);
     const rows = all.filter((row) => layersOf(row).length > 0);
-    const lineOfRow = (row: FoundRow, channel: Channel): Line | undefined => {
+    const lineOfRow = (row: FoundRow, channel: EncodeKey): Line | undefined => {
         const line = lineOf(layersOf(row), channel);
         return line?.layer.locked === true ? undefined : line;
     };
-    const linesOf = (channel: Channel): (Line | undefined)[] => rows.map((row) => lineOfRow(row, channel));
+    const linesOf = (channel: EncodeKey): (Line | undefined)[] => rows.map((row) => lineOfRow(row, channel));
     // Where a row takes a write: the layer that already sets the channel, else its topmost layer.
-    const homeOf = (row: FoundRow, channel: Channel): Layer | undefined =>
+    const homeOf = (row: FoundRow, channel: EncodeKey): Layer | undefined =>
         lineOfRow(row, channel)?.layer ?? layersOf(row).findLast((layer) => !layer.locked);
     // Copies of one binding differ only in each layer's own table: they count as one value.
     const key = (line: Line): string => {
@@ -175,7 +175,7 @@ function manyOf(
         return JSON.stringify([line.value, line.binding === undefined ? null : binding, line.combine]);
     };
     // The write rule: the rows that already set it, unless none does.
-    const targetsOf = (channel: Channel): FoundRow[] => {
+    const targetsOf = (channel: EncodeKey): FoundRow[] => {
         const lines = linesOf(channel);
         const setting = rows.filter((_, at) => lines[at] !== undefined);
         return setting.length > 0 ? setting : rows;
@@ -183,14 +183,14 @@ function manyOf(
     // Beneath the lowest of them in paint order, so no selected row reads as beneath another.
     const stack = session.styles.list().map((layer) => layer.id);
     // The rows as the tree lists them, top first, by the layer a write of the channel reaches.
-    const topFirst = (targets: readonly FoundRow[], channel: Channel): FoundRow[] =>
+    const topFirst = (targets: readonly FoundRow[], channel: EncodeKey): FoundRow[] =>
         [...targets].sort(
             (a, b) => stack.indexOf(homeOf(b, channel)?.id ?? "") - stack.indexOf(homeOf(a, channel)?.id ?? ""),
         );
     // `from`: where in a Vary by Layer sequence these rows start ("Also set those" goes on after the first write).
     const writeRows = async (
         targets: readonly FoundRow[],
-        channel: Channel,
+        channel: EncodeKey,
         write: Write,
         from = 0,
         after?: HistoryStepId,
@@ -237,7 +237,7 @@ function manyOf(
     // A receipt speaks for its write only while that write is applied: undone, it goes. (Not
     // "the last step": "Also set those" adds a step before the receipt learns of it.)
     const last = bulk.last?.side === side && session.history.position >= bulk.last.position ? bulk.last : null;
-    const record = async (channel: Channel, write: Write, after?: HistoryStepId): Promise<void> => {
+    const record = async (channel: EncodeKey, write: Write, after?: HistoryStepId): Promise<void> => {
         const targets = targetsOf(channel);
         const left = rows.filter((row) => !targets.includes(row));
         const result = await writeRows(targets, channel, write, 0, after);
@@ -268,7 +268,7 @@ function manyOf(
         },
         count: (channel) => linesOf(channel).filter((line) => line !== undefined).length,
         of: rows.length,
-        write: (channel, write) => record(channel, write),
+        write: (channel, write, after) => record(channel, write, after),
         clear: async (channel) => {
             const patches = rows.flatMap((row) => {
                 const layer = lineOfRow(row, channel)?.layer;
@@ -372,45 +372,6 @@ function treeLayers(session: GraphSession, id: string): string[] {
 }
 
 /**
- * The scope line: how many layers an edit reaches and what it leaves alone. "12 layers in Louvain:
- * 2 in Fantine's, 2 hidden, 1 locked and skipped. Layers added later are not changed."
- * @param tree - the style tree.
- * @param picked - the rows picked: layer rows and folders.
- * @param reach - the layer rows they reach.
- * @returns the words, or nothing when they would only repeat the header's count.
- */
-function scopeWords(tree: readonly StyleRow[], picked: readonly FoundRow[], reach: readonly LayerReach[]): string {
-    const folders = picked.filter((row) => row.row.kind === "folder");
-    const single = picked.length === 1 && folders.length === 1 ? folders[0].row : undefined;
-    const head =
-        single === undefined ? count(reach.length, "layer") : `${count(reach.length, "layer")} in ${single.name}`;
-    // Layers inside a folder nested in what was picked, by that folder's name.
-    const nested = new Map<string, number>();
-    for (const each of reach) {
-        const found = findTreeRow(tree, each.row);
-        const holder = found?.folders.at(-1);
-        const top = picked.some((row) => row.row.id === holder?.id || row.row.id === each.row);
-        if (holder !== undefined && !top) {
-            nested.set(holder.name, (nested.get(holder.name) ?? 0) + 1);
-        }
-    }
-    const hidden = reach.filter((row) => row.hidden).length;
-    const locked = reach.filter((row) => row.locked).length;
-    const parts = [
-        ...[...nested].map(([name, n]) => `${String(n)} in ${name}`),
-        ...(hidden === 0 ? [] : [`${String(hidden)} hidden`]),
-        ...(locked === 0 ? [] : [`${String(locked)} locked and skipped`]),
-    ];
-    const later = folders.length > 0 ? " Layers added later are not changed." : "";
-    // "3 layers." alone repeats the panel's header: there is nothing to add.
-    if (single === undefined && parts.length === 0 && later === "") {
-        return "";
-    }
-    const tail = parts.length === 0 ? "" : `: ${parts.join(", ")}`;
-    return `${head}${tail}.${later}`;
-}
-
-/**
  * What the kinds of several layer rows do: how many style nodes or edges, turning a kind on or off
  * for all of them in one step, and the picker of which elements each kind styles.
  * @param session - the element's session.
@@ -484,7 +445,7 @@ export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): Re
     const tree = session.styles.tree();
     const picked = ids.flatMap((id) => findTreeRow(tree, id) ?? []);
     if (picked.length === 0) {
-        return <StateLine>These rows are gone</StateLine>;
+        return null;
     }
     const reach = session.styles.layersUnder(picked.map((row) => row.row.id));
     const open = reach.filter((row) => !row.locked).flatMap((row) => findTreeRow(tree, row.row) ?? []);
@@ -497,13 +458,15 @@ export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): Re
     // Layer rows only: a folder has no pick of its own.
     const layerRows = open.filter((row) => row.row.kind !== "folder").map((row) => row.row.id);
     const kinds = kindControl(session, store, layerRows);
-    const scope = scopeWords(tree, picked, reach);
+    // Keyed by the rows, not their layers, so turning a kind on keeps the tab, and a card asked
+    // for on the other kind's tab, where they are (#9537).
+    const rows = open.map((row) => row.row.id).join(" ");
     return (
         <Stack gap={0}>
-            {scope === "" ? null : <StateLine id="ws-bulk-scope">{scope}</StateLine>}
             {sides.length > 0 && (
                 <RowStyle
-                    key={layerIds.join(" ")}
+                    key={rows}
+                    panel={rows}
                     session={session}
                     row={layerIds}
                     sides={sides}

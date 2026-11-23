@@ -1,7 +1,7 @@
 /**
- * Pictures on nodes (`node.texture`) with the node models experiment on (issue #3396), in the Style
+ * Pictures on nodes (`node.texture`) (issue #3396), in the Style
  * tab and on the canvas, on the real graphty-element, by real input: Fill's "+" adds a Picture line
- * whose pop-over takes a chosen picture; a model chosen there is offered as the layer's model, and
+ * whose pop-over takes a picture chosen, dropped or typed as an address; a model chosen there is offered as the layer's model, and
  * let go when it is not taken; a picture a layer names as its model moves to node.texture in one
  * undo step; Escape takes back an empty new Picture line and Delete removes a set one. Every assertion reads what the element
  * reports: its layers and assets.
@@ -17,7 +17,7 @@ import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
-import { fileInput, openShapes, written } from "./modelHarness";
+import { choose, dropOn, openShapes, written } from "./modelHarness";
 import { quadGlb } from "./quadGlb";
 
 // These tests drive the Style panel the app shows with file styles off; the panel by part of the
@@ -63,7 +63,7 @@ async function chooseColormap(
     picture: HTMLElement,
     session: Awaited<ReturnType<typeof openShapes>>["session"],
 ): Promise<unknown> {
-    await userEvent.upload(fileInput(picture), [await colormap()]);
+    await choose(picture, "Choose picture", [await colormap()]);
     await waitFor(() => {
         assert.match(String(written(session, "node.texture")), /^asset:/);
     });
@@ -76,7 +76,7 @@ afterEach(() => {
 
 describe("pictures on nodes, on the real element", () => {
     it("puts a chosen picture on a sphere layer from Fill's Picture line", async () => {
-        const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const { session, tab } = await openShapes([], { "node.shape": "sphere" });
         const picture = await addPicture(tab);
         assert.isNotNull(within(picture).getByRole("button", { name: "Choose picture" }));
         await chooseColormap(picture, session);
@@ -87,8 +87,38 @@ describe("pictures on nodes, on the real element", () => {
         });
     });
 
+    it("puts a picture dropped on the Picture pop-over on the layer", async () => {
+        const { session, tab } = await openShapes([], { "node.shape": "sphere" });
+        const picture = await addPicture(tab);
+        dropOn(within(picture).getByRole("button", { name: "Choose picture" }), [await colormap()]);
+        await waitFor(() => {
+            assert.match(String(written(session, "node.texture")), /^asset:/);
+        });
+        assert.isNotNull(await within(tab).findByLabelText("Node picture, colormap"));
+    });
+
+    it("puts a picture typed as an address in the Picture pop-over on the layer", async () => {
+        const url = "https://pictures.example.com/paint/colormap.png";
+        const bytes = await (await colormap()).arrayBuffer();
+        const original = globalThis.fetch.bind(globalThis);
+        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            const to = input instanceof Request ? input.url : String(input);
+            return to === url
+                ? Promise.resolve(new Response(bytes, { status: 200, headers: { "content-type": "image/png" } }))
+                : original(input, init);
+        });
+        const { session, tab } = await openShapes([], { "node.shape": "sphere" });
+        const picture = await addPicture(tab);
+        await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), `${url}{Enter}`);
+        // An address is written as the address, so the layer names where the picture lives.
+        await waitFor(() => {
+            assert.equal(written(session, "node.texture"), url);
+        });
+        assert.equal(session.assets.find(url)?.kind, "image", "the element holds the fetched picture");
+    });
+
     it("offers a model chosen in the Picture pop-over as the layer's model", async () => {
-        const { session, tab } = await openShapes(["node-models"], { "node.model": "asset:sample/box" });
+        const { session, tab } = await openShapes([], { "node.model": "asset:sample/box" });
         const texture = await chooseColormap(await addPicture(tab), session);
         assert.equal(written(session, "node.model"), "asset:sample/box", "the model stays");
 
@@ -97,9 +127,11 @@ describe("pictures on nodes, on the real element", () => {
         await userEvent.click(await within(tab).findByLabelText("Node picture, colormap"));
         const picture = await screen.findByRole("dialog", { name: "Picture" });
         assert.isNotNull(within(picture).getByRole("button", { name: "colormap" }));
-        await userEvent.upload(fileInput(picture), [new File([quadGlb()], "quad.glb")]);
+        await choose(picture, "Choose picture", [new File([quadGlb()], "quad.glb")]);
         const use = await within(picture).findByRole("button", { name: "Use quad as model" });
-        assert.isNotNull(within(picture).getByText("Not a picture"));
+        // Said as the field's error, not a chip.
+        assert.isNotNull(within(picture).getByText("Not a picture: this file is a 3D model"));
+        assert.isNull(picture.querySelector(".mantine-Badge-root"), "no pill in the Picture pop-over");
         await userEvent.click(use);
         await waitFor(() => {
             assert.match(String(written(session, "node.model")), /^asset:/);
@@ -110,14 +142,17 @@ describe("pictures on nodes, on the real element", () => {
 
     it("moves a picture a layer names as its model to node.texture, in one undo step", async () => {
         let id = "";
-        const { session, tab } = await openShapes(["node-models"], async (up) => {
+        const { session, tab } = await openShapes([], async (up) => {
             const record = await up.assets.add(await colormap());
             assert.equal(record.kind, "image");
             ({ id } = record);
             return { "node.model": id };
         });
 
-        await userEvent.click(await within(tab).findByRole("button", { name: "Use colormap as picture" }));
+        const use = await within(tab).findByRole("button", { name: "Use colormap as picture" });
+        // The Shape field offers the button only: the refusal is no chip in the Style panel.
+        assert.isNull(tab.querySelector(".ws-model-actions .mantine-Badge-root"), "no chip under the Shape field");
+        await userEvent.click(use);
         await waitFor(() => {
             assert.equal(written(session, "node.texture"), id);
             assert.isUndefined(written(session, "node.model"));
@@ -128,7 +163,7 @@ describe("pictures on nodes, on the real element", () => {
     });
 
     it("takes back a Picture line just added and holding nothing on Escape, focus on the '+'", async () => {
-        const { session, tab, store } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const { session, tab, store } = await openShapes([], { "node.shape": "sphere" });
         await addPicture(tab);
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -141,7 +176,7 @@ describe("pictures on nodes, on the real element", () => {
     });
 
     it("removes the Picture line with Delete on its field", async () => {
-        const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const { session, tab } = await openShapes([], { "node.shape": "sphere" });
         await chooseColormap(await addPicture(tab), session);
         const field = await within(tab).findByLabelText("Node picture, colormap");
         await waitFor(() => {
@@ -156,9 +191,9 @@ describe("pictures on nodes, on the real element", () => {
     });
 
     it("lets go of a model chosen in the Picture pop-over and not taken as the model", async () => {
-        const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const { session, tab } = await openShapes([], { "node.shape": "sphere" });
         const picture = await addPicture(tab);
-        await userEvent.upload(fileInput(picture), [await fixture(policeUrl, "police.glb")]);
+        await choose(picture, "Choose picture", [await fixture(policeUrl, "police.glb")]);
         assert.isNotNull(await within(picture).findByRole("button", { name: "Use police as model" }));
         assert.lengthOf(session.assets.waiting(), 1);
         await userEvent.keyboard("{Escape}");
@@ -186,7 +221,7 @@ describe("pictures on nodes, on the real element", () => {
                 ? Promise.resolve(new Response(null, { status: 404 }))
                 : original(input, init);
         });
-        const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const { session, tab } = await openShapes([], { "node.shape": "sphere" });
         await chooseColormap(await addPicture(tab), session);
         const field = await within(tab).findByLabelText("Node picture, colormap");
         await waitFor(() => {
@@ -196,7 +231,7 @@ describe("pictures on nodes, on the real element", () => {
         await userEvent.click(field);
         let picture = await screen.findByRole("dialog", { name: "Picture" });
         await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), url);
-        await userEvent.click(within(picture).getByRole("button", { name: "Add picture address" }));
+        await userEvent.click(within(picture).getByRole("button", { name: "Add" }));
         await waitFor(() => {
             assert.include(asked, url);
         });
@@ -206,13 +241,11 @@ describe("pictures on nodes, on the real element", () => {
         });
 
         answer(new Response(police, { status: 200 }));
-        // Open again: once the add has finished, its button is no longer loading.
+        // Open again: once the add has finished, nothing is loading.
         await userEvent.click(field);
         picture = await screen.findByRole("dialog", { name: "Picture" });
         await waitFor(() => {
-            assert.isNull(
-                within(picture).getByRole("button", { name: "Add picture address" }).getAttribute("data-loading"),
-            );
+            assert.isNull(within(picture).queryByRole("progressbar"));
         });
         assert.lengthOf(session.assets.waiting(), 0, "nothing the reader closed on waits for parts");
         assert.isNull(within(picture).queryByRole("button", { name: "Use police as model" }));

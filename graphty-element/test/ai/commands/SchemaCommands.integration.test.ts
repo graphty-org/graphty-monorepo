@@ -7,9 +7,8 @@ import { assert, describe, it } from "vitest";
 
 import { CommandRegistry } from "../../../src/ai/commands/CommandRegistry";
 import { describeProperty, sampleData } from "../../../src/ai/commands/SchemaCommands";
-import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockGraphWithCustomData } from "../../helpers/mock-graph-custom-data";
+import { createCommandGraph } from "../../helpers/session-graph";
 
 /**
  * Create a command registry with schema commands registered.
@@ -115,24 +114,24 @@ describe("SchemaCommands integration", () => {
     describe("command execution", () => {
         let graph: Graph;
 
-        function createTestGraph(): Graph {
-            return createMockGraphWithCustomData({
+        function createTestGraph(): Promise<Graph> {
+            return createCommandGraph({
                 nodeCount: 10,
                 edgeCount: 15,
-                nodeDataGenerator: (i) => ({
+                nodeData: (i) => ({
                     type: ["server", "client", "router"][i % 3],
                     count: i * 10,
                     active: i % 2 === 0,
                 }),
-                edgeDataGenerator: () => ({
-                    weight: Math.random() * 100,
+                edgeData: (i) => ({
+                    weight: (i % 10) * 10,
                     relation: "connects",
                 }),
             });
         }
 
         it("sampleData command can be executed from registry", async () => {
-            graph = createTestGraph();
+            graph = await createTestGraph();
             const registry = createRegistryWithSchemaCommands();
 
             const cmd = registry.get("sampleData");
@@ -147,7 +146,7 @@ describe("SchemaCommands integration", () => {
                 { target: "nodes", count: 3 },
                 {
                     graph,
-                    tx: {} as CommandContext["tx"],
+                    tx: graph.getSession(),
                     abortSignal: new AbortController().signal,
                     emitEvent: noop,
                     updateStatus: noop,
@@ -161,7 +160,7 @@ describe("SchemaCommands integration", () => {
         });
 
         it("describeProperty command can be executed from registry", async () => {
-            graph = createTestGraph();
+            graph = await createTestGraph();
             const registry = createRegistryWithSchemaCommands();
 
             const cmd = registry.get("describeProperty");
@@ -176,7 +175,7 @@ describe("SchemaCommands integration", () => {
                 { property: "type", target: "nodes" },
                 {
                     graph,
-                    tx: {} as CommandContext["tx"],
+                    tx: graph.getSession(),
                     abortSignal: new AbortController().signal,
                     emitEvent: noop,
                     updateStatus: noop,
@@ -190,14 +189,14 @@ describe("SchemaCommands integration", () => {
         });
 
         it("commands execute independently", async () => {
-            graph = createTestGraph();
+            graph = await createTestGraph();
             const registry = createRegistryWithSchemaCommands();
             const noop = (): void => {
                 /* no-op */
             };
             const context = {
                 graph,
-                tx: {} as CommandContext["tx"],
+                tx: graph.getSession(),
                 abortSignal: new AbortController().signal,
                 emitEvent: noop,
                 updateStatus: noop,

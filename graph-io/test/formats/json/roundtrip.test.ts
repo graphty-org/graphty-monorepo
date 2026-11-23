@@ -252,6 +252,7 @@ describe("synthetic round trips", () => {
             },
         });
         const s = await imported(text);
+        expect(s.nodes.byRole("fixed")?.meta.name).toBe("locked");
         await exact(s);
         await exact(s, { indent: 2 });
     });

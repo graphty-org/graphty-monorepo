@@ -6,6 +6,7 @@
  */
 
 import type { Graph } from "../../Graph";
+import type { GraphSession } from "../../session/types";
 import { SchemaExtractor } from "./SchemaExtractor";
 import { formatSchemaForPrompt } from "./SchemaFormatter";
 import type { SchemaExtractorOptions, SchemaSummary } from "./types";
@@ -20,7 +21,7 @@ import type { SchemaExtractorOptions, SchemaSummary } from "./types";
  * - Pass-through options to SchemaExtractor
  */
 export class SchemaManager {
-    private readonly graph: Graph;
+    private readonly graph: Graph | GraphSession;
     private readonly options: SchemaExtractorOptions;
     private cachedSchema: SchemaSummary | null = null;
     private cachedFormattedSchema: string | null = null;
@@ -30,7 +31,7 @@ export class SchemaManager {
      * @param graph - The graph to extract schema from
      * @param options - Options passed through to SchemaExtractor
      */
-    constructor(graph: Graph, options: SchemaExtractorOptions = {}) {
+    constructor(graph: Graph | GraphSession, options: SchemaExtractorOptions = {}) {
         this.graph = graph;
         this.options = options;
     }

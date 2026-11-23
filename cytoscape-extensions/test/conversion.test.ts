@@ -440,10 +440,31 @@ describe("positions on import", () => {
             },
         });
         const [a, b, c] = snapshotToElements(snapshot);
-        expect(a.position).toEqual({ x: 1, y: 2 });
+        // an undeclared column's y grows up, and Cytoscape's down
+        expect(a.position).toEqual({ x: 1, y: -2 });
         expect(b.position).toBeUndefined();
         expect(c.position).toBeUndefined();
         expect(a.data).toEqual({ id: "a" });
+    });
+
+    it("keeps the y of a column whose y grows down, and turns over one whose y grows up", () => {
+        const placedWith = (yAxis: "up" | "down") =>
+            snapshotToElements(
+                fromEdgeArrays({
+                    directed: false,
+                    ids: ["a"],
+                    src: new Uint32Array(0),
+                    dst: new Uint32Array(0),
+                    nodeColumns: {
+                        xy: {
+                            data: [[3, 4]],
+                            decl: { dtype: "f64", components: 2, role: "position", coordinates: { yAxis } },
+                        },
+                    },
+                }),
+            )[0].position;
+        expect(placedWith("down")).toEqual({ x: 3, y: 4 });
+        expect(placedWith("up")).toEqual({ x: 3, y: -4 });
     });
 
     it("reports that GraphML cannot hold positions instead of dropping them silently", async () => {

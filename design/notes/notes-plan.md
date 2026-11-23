@@ -473,7 +473,7 @@ ordinary data columns (`data.graphty.notes.count`), never as notes.
   is an `i32` column, unset (not zero) on an element no note names.
 - The 64 KB cap is 65,536 UTF-8 bytes, cut back to a code point boundary.
 - `W_GRAPHTY_CSV_NEUTRALIZED` was not reported by the CSV writer before this step, though
-  export-mapping.md requires it. It is now reported for every neutralised cell (data, results,
+  export-mapping.md requires it. It is now reported for every neutralized cell (data, results,
   ids, headers and note text), with `count` the number of cells; a header is counted once per
   record that carries the key.
 - Not changed, and recorded here: GML refuses the two column names unless the caller passes
@@ -546,7 +546,7 @@ compiles against the published types (CLAUDE.md, "Easy things easy, hard things 
 ## Step 9. The gate, and the pull request
 
 - `./tools/run-tests.sh graphty-element-default`, then each `graphty-element-browser-<n>` shard,
-  one at a time; `tools/prepush.sh` (build, lint, knip, fast tests).
+  one at a time; `tools/prepush.sh` (build, lint, knip, fast tests; removed 2026-11-02, `pnpm run check:quick` now).
 - Open the notes pull request from `feat/element-notes` against master. Its description says it is
   not breaking, lists the published names (section 10), and names the breaking change it leaves
   for the grouped major (below), with the reason.

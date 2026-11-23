@@ -91,7 +91,7 @@ Next: click it.
 
 Command: `node $T/real.mjs --step $S --click "Size by attribute"` -> 10.png
 
-Seen: a list: Influence, Influence rank, Influence percentile; greyed out id and name ("Cannot be
+Seen: a list: Influence, Influence rank, Influence percentile; grayed out id and name ("Cannot be
 used: Holds groups, not amounts" -- clear enough). Plain choice.
 Next: click "Influence".
 

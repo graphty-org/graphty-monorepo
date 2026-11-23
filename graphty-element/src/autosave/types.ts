@@ -67,8 +67,19 @@ export interface AutosaveCommitOptions {
 export interface AutosaveStore {
     /** Every entry of `key`, oldest `seq` first. */
     list(key: string): Promise<readonly AutosaveEntryMeta[]>;
-    /** One entry with all its parts, or `undefined` when there is none. */
-    read(id: string): Promise<{ meta: AutosaveEntryMeta; parts: AutosaveParts } | undefined>;
+    /**
+     * One entry with all its parts, or `undefined` when there is none. The result is a copy: a
+     * caller that changes the returned meta or parts does not change the store.
+     */
+    read(id: string): Promise<
+        | {
+              /** The entry's metadata. */
+              meta: AutosaveEntryMeta;
+              /** The entry's saved parts. */
+              parts: AutosaveParts;
+          }
+        | undefined
+    >;
     /**
      * Atomic: every write commits, or none does. Rejects with {@link AutosaveConflict} when any
      * entry's stored `gen` differs from its `expectedGen`. Assigns each meta's `seq` inside the commit.
@@ -137,7 +148,7 @@ export function autosaveAbortError(): DOMException {
  * | `E_AUTOSAVE_UNAVAILABLE` | `{ api }` | IndexedDB is missing or throws on open |
  * | `E_AUTOSAVE_KEY_AMBIGUOUS` | `{ elements }` | a bare `autosave` on several elements without an `id` |
  * | `E_AUTOSAVE_QUOTA` | `{ usage, quota }` | the storage quota is full, even after old clean entries were removed |
- * | `E_AUTOSAVE_STALLED` | `{ afterMs, step }` | the listing or a write did not finish in time |
+ * | `E_AUTOSAVE_STALLED` | `{ afterMs, step }` | the listing, a read, a restore's write or a write did not finish in time; `step` is `list`, `read`, `restore` or `write` |
  * | `E_AUTOSAVE_CONNECTION_LOST` | `{}` | the database connection is gone and reopening it failed |
  * | `E_AUTOSAVE_TOO_LARGE` | `{ part }` | a part of the project could not be built (string length limit) |
  * | `E_AUTOSAVE_FAILED` | `{ name }` | any other write failure; `name` is the error's name |
@@ -181,9 +192,13 @@ export interface AutosaveStatus {
     readonly persisted: boolean | null;
     /** Storage use, where the browser reports it; `entries` and `bytes` are this key's. */
     readonly storage: {
+        /** Bytes this site uses in all, as the browser reports it. */
         readonly usage: number;
+        /** Bytes this site may use, as the browser reports it. */
         readonly quota: number;
+        /** How many entries this key has saved. */
         readonly entries: number;
+        /** How many bytes this key's entries take. */
         readonly bytes: number;
     } | null;
     /**
@@ -319,7 +334,9 @@ export interface AutosaveApi {
      * @param options - How to open it.
      * @param options.discard - Open it over changes never saved to a file.
      * @throws A `GraphtyError` (as a rejection): `E_UNSAVED_CHANGES`, `E_AUTOSAVE_UNKNOWN_ENTRY`,
-     *     `E_AUTOSAVE_ENTRY_TAKEN`, or `E_BAD_DOCUMENT` for an entry that cannot be read.
+     *     `E_AUTOSAVE_ENTRY_TAKEN`, `E_BAD_DOCUMENT` for an entry that cannot be read, or
+     *     `E_AUTOSAVE_STALLED` (`details: { afterMs, step }`, `step` `"list"`, `"read"` or `"restore"`)
+     *     when the browser's database did not answer in time; the entry is left as it was.
      */
     restore(id: string, options?: { readonly discard?: boolean }): Promise<ProjectOpenReport>;
     /**

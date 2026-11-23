@@ -83,14 +83,14 @@ export const OBSOLESCENCE_RULES: Partial<Record<OperationCategory, ObsolescenceR
         skipRunning: false, // Allow interrupting running camera animations
     },
 
-    // A VIEW-MODE SWITCH IS CANCELLED BY NOTHING BUT A LATER VIEW-MODE SWITCH, which is why it is
+    // A VIEW-MODE SWITCH IS CANCELED BY NOTHING BUT A LATER VIEW-MODE SWITCH, which is why it is
     // not a `camera-update`. Where the viewer stands is a question about the positions in front of
     // them, so a new layout rightly cancels a pending zoom-to-fit; which of the four views is
     // being drawn is not. Arriving data, a new layout engine and a restyle all leave it correct.
     //
     // The defect this closes reached a consumer through the most ordinary two lines anybody would
     // write -- `element.viewMode = "2d"` followed by `element.layout = "circular"`. The layout
-    // cancelled the pending switch, the element's own `viewMode` getter went on answering "2d",
+    // canceled the pending switch, the element's own `viewMode` getter went on answering "2d",
     // and the graph was drawn through a perspective camera. Measured 2026-09-22 against a page
     // importing only the published entry points: set together, `graph.getViewMode()` answered
     // "3d" and the active camera was a perspective `UniversalCamera`; set three seconds apart,

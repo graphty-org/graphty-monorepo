@@ -2,7 +2,7 @@ import "./index.css";
 import "@mantine/core/styles.css";
 
 // Types the <graphty-element> tag for JSX, as any React 19 consumer opts in.
-import type {} from "@graphty/graphty-element/jsx"; // NOSONAR(S7787): the element's documented JSX opt-in, a types-only import
+import type {} from "@graphty/graphty-element/jsx"; // the element's documented JSX opt-in, a types-only import
 import { GraphtyLogger, LogLevel, parseLoggingURLParams } from "@graphty/graphty-element/logging";
 import { MantineProvider, Tooltip } from "@mantine/core";
 import React from "react";
@@ -10,18 +10,17 @@ import ReactDOM from "react-dom/client";
 
 import { App } from "./App.tsx";
 import { loadGraphtyElement } from "./elementLoader";
+import { bootQuery, startAnalyticsAtBoot } from "./lib/analytics";
 import { loadSiteConfig } from "./siteConfig";
 import { theme } from "./theme";
 import { loadFrame } from "./workspace/frameLoader";
-import { startUsageDataIfShared } from "./workspace/privacy/usageData";
 
-// Re-export theme for tests and other modules
-export { theme } from "./theme";
-
-// Nothing is sent until the reader says Share usage data in the question a first visit is asked or in Settings >
-// Privacy; a reader who said so on an earlier visit starts sending again here, once the site's
-// site.json (fetched first, before the element) has said how this site labels its errors.
-void loadSiteConfig().then(startUsageDataIfShared); // NOSONAR(S7785): a top-level await would hold the first paint for the fetch
+// Analytics start once the site's site.json (fetched first, before the element) has given its ids:
+// PostHog's anonymous counts for every visitor (its code loads after first paint), and PostHog's
+// shared mode and error reporting for a reader who said Share usage data, on this visit or an
+// earlier one (lib/analytics.ts startAnalyticsAtBoot). Anything
+// that reads the query after boot reads bootQuery(): Share removes the query from the address bar.
+void loadSiteConfig().then(startAnalyticsAtBoot); // eslint-disable-line unicorn/prefer-top-level-await -- a top-level await would hold the first paint for the fetch
 
 // The element reads nothing off the page's address, so the app turns its logging on from the
 // documented parameter: `?graphty-element-logging=voice:debug` shows what speech recognition did.
@@ -45,13 +44,30 @@ if (import.meta.env.DEV) {
 
 /** Logs what a remote log reader needs to tie a session to a server, a browser and a navigation. */
 function logPageStart(): void {
-    const [navigation] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+    const navigation = (performance.getEntriesByType("navigation") as PerformanceNavigationTiming[]).at(0);
     GraphtyLogger.getLogger(["graphty", "workspace"]).info("page start", {
         origin: location.origin,
         path: location.pathname,
-        features: new URLSearchParams(location.search).get("features"),
+        features: bootQuery().get("features"),
         userAgent: navigator.userAgent,
         navigationType: navigation?.type ?? null,
+    });
+}
+
+/** Logs every error and promise rejection nothing caught, with its stack, so the remote log shows what broke. */
+function logUncaught(): void {
+    const log = GraphtyLogger.getLogger(["graphty", "workspace"]);
+    globalThis.addEventListener("error", (event) => {
+        log.error("uncaught error", event.error instanceof Error ? event.error : new Error(event.message), {
+            source: event.filename,
+            line: event.lineno,
+            column: event.colno,
+        });
+    });
+    // `reason` is typed any in the DOM's types; reading it through this view keeps it unknown.
+    globalThis.addEventListener("unhandledrejection", (event: { reason: unknown }) => {
+        const { reason } = event;
+        log.error("unhandled rejection", reason instanceof Error ? reason : new Error(String(reason)));
     });
 }
 
@@ -60,9 +76,10 @@ if (import.meta.env.VITE_REMOTE_LOG_URL) {
     const remoteLogging = GraphtyLogger.configure({
         enabled: true,
         level: LogLevel.INFO,
-        modules: ["autosave", "workspace"],
+        modules: ["autosave", "workspace", "view", "algorithm", "acceleration", "layout", "data", "style", "command"],
     });
-    void remoteLogging.then(logPageStart); // NOSONAR(S7785): a top-level await would hold the first paint for the logger
+    logUncaught();
+    void remoteLogging.then(logPageStart); // eslint-disable-line unicorn/prefer-top-level-await -- a top-level await would hold the first paint for the logger
 }
 
 const rootElement = document.getElementById("root");

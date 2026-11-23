@@ -1,0 +1,273 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-results/v2.json",
+    "title": "graphty results section, version 2",
+    "description": "The record of each run and of the layout: what ran, the seed it used, the code that computed it, duration, caveats, which build it ran on, and its outputs as columns. Bound to one dataset.",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/header"
+        }
+    ],
+    "required": ["kind", "version", "generator", "bindsTo", "runs"],
+    "properties": {
+        "kind": {
+            "const": "graphty-results"
+        },
+        "version": {
+            "const": 2
+        },
+        "dependencies": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/boundDependencies"
+        },
+        "bindsTo": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/bindsToData"
+        },
+        "runs": {
+            "type": "object",
+            "propertyNames": {
+                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/runId"
+            },
+            "additionalProperties": {
+                "type": "object",
+                "required": ["algorithm", "engine", "bindsTo", "fields"],
+                "properties": {
+                    "namespace": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/namespace"
+                    },
+                    "as": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/runName"
+                    },
+                    "algorithm": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "params": {
+                        "type": "object",
+                        "description": "Every option the implementation declares with a default, at the value used (spec 9 rule 10). A reader applies its own default for an absent one."
+                    },
+                    "engine": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/engine",
+                        "description": "The code that computed the run (spec 4.5 rule 6)."
+                    },
+                    "seed": {
+                        "type": ["integer", "null"]
+                    },
+                    "durationMs": {
+                        "type": "number",
+                        "minimum": 0
+                    },
+                    "bindsTo": {
+                        "type": "object",
+                        "properties": {
+                            "build": {
+                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/ulid"
+                            },
+                            "sources": {
+                                "type": "object",
+                                "propertyNames": {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/sourceId"
+                                },
+                                "additionalProperties": {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/copyId"
+                                }
+                            }
+                        },
+                        "required": ["build", "sources"],
+                        "description": "The data section's build stamp when the run happened, and each available source's copy id by source id.",
+                        "unevaluatedProperties": false
+                    },
+                    "fields": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "kind": {
+                                    "enum": ["node", "edge", "graph"]
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "minLength": 1
+                                }
+                            },
+                            "required": ["name", "kind", "type"],
+                            "unevaluatedProperties": false
+                        }
+                    },
+                    "caveats": {
+                        "type": "object",
+                        "description": "graphty-element's Caveats, without its deprecated notes and partialReason, and without seed and accelerator: the run's own seed and engine.accelerator are the authority, and a reader puts them back into the caveats.",
+                        "required": ["exact", "direction", "precision", "method", "facts"],
+                        "properties": {
+                            "exact": {
+                                "type": "boolean"
+                            },
+                            "direction": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "precision": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "method": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "An identifier of the method that computed the numbers: the algorithm's key, or a method of its own such as \"stoer-wagner\". Never reader-facing text."
+                            },
+                            "facts": {
+                                "type": "array"
+                            },
+                            "notes": false,
+                            "partialReason": false,
+                            "seed": false,
+                            "accelerator": false
+                        }
+                    },
+                    "graph": {
+                        "type": "object"
+                    },
+                    "nodes": {
+                        "type": "object",
+                        "properties": {
+                            "refs": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                                }
+                            },
+                            "columns": {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "required": ["refs", "columns"],
+                        "unevaluatedProperties": false
+                    },
+                    "edges": {
+                        "type": "object",
+                        "properties": {
+                            "refs": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/edgeRef"
+                                }
+                            },
+                            "columns": {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "required": ["refs", "columns"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                "dependentRequired": {
+                    "namespace": ["as"],
+                    "as": ["namespace"]
+                },
+                "description": "A recipe-made run writes namespace and as; a hand-started run writes neither."
+            }
+        },
+        "layout": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "An arrangement in the layout registry, never the engine that draws it (spec 5 rule 9)."
+                },
+                "drawnBy": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/layoutDrawnBy"
+                },
+                "engine": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/engine",
+                    "description": "The code that drew the positions (spec 4.5 rule 6)."
+                },
+                "dimension": {
+                    "enum": [2, 3]
+                },
+                "options": {
+                    "type": "object",
+                    "description": "The arrangement's options, by the layout registry's names: every one declared with a default, at the value used (spec 5 rule 9, 9 rule 10). A reader applies its own default for an absent one."
+                },
+                "seed": {
+                    "type": ["integer", "null"]
+                },
+                "durationMs": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "bindsTo": {
+                    "type": "object",
+                    "properties": {
+                        "build": {
+                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/ulid"
+                        },
+                        "sources": {
+                            "type": "object",
+                            "propertyNames": {
+                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/sourceId"
+                            },
+                            "additionalProperties": {
+                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/copyId"
+                            }
+                        }
+                    },
+                    "required": ["build", "sources"],
+                    "description": "The data section's build stamp when the run happened, and each available source's copy id by source id.",
+                    "unevaluatedProperties": false
+                },
+                "nodes": {
+                    "type": "object",
+                    "properties": {
+                        "refs": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                            }
+                        },
+                        "columns": {
+                            "type": "object",
+                            "properties": {
+                                "x": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    }
+                                },
+                                "y": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    }
+                                },
+                                "z": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    }
+                                }
+                            },
+                            "required": ["x", "y", "z"],
+                            "unevaluatedProperties": false
+                        }
+                    },
+                    "required": ["refs", "columns"],
+                    "unevaluatedProperties": false
+                },
+                "versions": false
+            },
+            "required": ["id", "dimension", "engine", "bindsTo", "nodes"],
+            "unevaluatedProperties": false
+        }
+    }
+}

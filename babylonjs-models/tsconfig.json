@@ -1,0 +1,14 @@
+{
+    "extends": "../tsconfig.base.json",
+    "compilerOptions": {
+        "composite": true,
+        "noEmit": true,
+        "noImplicitOverride": true,
+        "target": "ES2022",
+        "module": "ES2022",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "types": ["node"]
+    },
+    "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.mjs"],
+    "exclude": ["node_modules", "dist", "coverage", "tmp"]
+}

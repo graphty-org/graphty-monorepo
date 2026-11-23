@@ -8,6 +8,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { browserProjects } from "../../session";
 import { isGraphtyError } from "../../src/errors";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { sphereGlb } from "../fixtures/models/fixtures";
 
@@ -158,6 +159,27 @@ describe("browserProjects", () => {
         assert.deepStrictEqual(await browserProjects.list(), [stored], "the listing carries the report too");
     });
 
+    it("stores a version 2 file when asked, and a subset of sections as a copy that leaves the project dirty", async () => {
+        setDefaultFeatures(["save-files-v2"]);
+        cleanups.push(() => {
+            setDefaultFeatures([]);
+        });
+        const from = (await threeInARow()).getSession();
+        const copy = await browserProjects.save(from, { format: 2, sections: ["style"] });
+        assert.isTrue(from.project.dirty, "a copy never marks the project saved");
+        assert.deepStrictEqual(copy.report?.written, ["style"]);
+
+        const stored = await browserProjects.save(from, { format: 2 });
+        assert.isFalse(from.project.dirty);
+        const file = await browserProjects.get(stored.id);
+        const text = (await file?.text()) ?? "";
+        assert.strictEqual((JSON.parse(text) as { version?: unknown }).version, 2);
+        const to = (await emptyGraph()).getSession();
+        const report = await to.project.open(text);
+        assert.strictEqual(report.opened, "project");
+        assert.strictEqual(to.status.counts.nodes, 3);
+    });
+
     it("lists the newest first", async () => {
         const session = (await threeInARow()).getSession();
         // A save is stamped with Date.now(): the second one is stamped a millisecond after the first.
@@ -183,6 +205,46 @@ describe("browserProjects", () => {
         assert.strictEqual((error as { code: string }).code, "E_TOO_LARGE");
         assert.isTrue(session.project.dirty);
         assert.deepStrictEqual(await browserProjects.list(), []);
+    });
+
+    it("saves where IndexedDB refuses Blobs, as WebKit does, and still opens a project stored as a Blob", async () => {
+        const session = (await threeInARow()).getSession();
+        // WebKit (Safari) cannot store a Blob in IndexedDB; this is the error it reports.
+        const original = IDBObjectStore.prototype.put;
+        override(IDBObjectStore.prototype, "put", function (this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+            if (Object.values(value as object).some((each) => each instanceof Blob)) {
+                throw new DOMException("Error preparing Blob/File data to be stored in object store", "UnknownError");
+            }
+            return original.call(this, value, key);
+        });
+
+        const stored = await browserProjects.save(session);
+        assert.isFalse(session.project.dirty);
+        const file = await browserProjects.get(stored.id);
+        assert.deepInclude(JSON.parse((await file?.text()) ?? "null") as object, { name: "Three in a row" });
+
+        // A project kept by an earlier release holds its file as a Blob, and still opens.
+        const text = await file?.text();
+        const db = await new Promise<IDBDatabase>((resolve) => {
+            const request = indexedDB.open("graphty-projects", 1);
+            request.onsuccess = () => {
+                resolve(request.result);
+            };
+        });
+        await new Promise((resolve) => {
+            const transaction = db.transaction("projects", "readwrite");
+            original.call(transaction.objectStore("projects"), {
+                id: "older",
+                name: "Older",
+                savedAt: 1,
+                nodes: 3,
+                edges: 2,
+                file: new Blob([text ?? ""]),
+            });
+            transaction.oncomplete = resolve;
+        });
+        db.close();
+        assert.strictEqual(await (await browserProjects.get("older"))?.text(), text);
     });
 
     it("refuses every storage method with E_UNSUPPORTED when there is no IndexedDB", async () => {

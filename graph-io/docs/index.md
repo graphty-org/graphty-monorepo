@@ -49,7 +49,7 @@ one keeps.
 ## Where to go next
 
 - [Loading graphs](./guide/loading.md): every kind of input, format options, files with several
-  graphs, cancelling, keeping a browser bundle small.
+  graphs, canceling, keeping a browser bundle small.
 - [Reading the graph](./guide/reading.md): nodes, attributes, labels, edges, weights.
 - [Saving graphs](./guide/saving.md): checking a save, streaming, downloads, ids a format cannot hold.
 - [Styles](./guide/styles.md): a file's colors, sizes, shapes and labels, read and written in every

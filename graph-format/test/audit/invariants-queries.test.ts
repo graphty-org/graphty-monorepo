@@ -371,7 +371,7 @@ describe("empty and single-node snapshots through every view (design 11.3)", () 
                 expect(s.flags.allWeightsOne).toBe(true);
                 expect(s.edges.byRole("weight")).toBeNull();
             }
-            // every view is computable, has the right length and is memoised
+            // every view is computable, has the right length and is memoized
             for (const view of VIEW_NAMES) {
                 if (view === "mate" && s.directed) {
                     expect(() => s.mate()).toThrow(expect.objectContaining({ code: "E_DIRECTED" }));

@@ -1,7 +1,9 @@
 # Headless Chromium + NVIDIA GPU for WebGPU Tests
 
 Date: 2026-09-13
-Status: root cause found, working recipe verified, nothing wired into the project yet
+Status: record of the 2026-09-13 investigation. The recipe is wired into the package's test lanes:
+`GRAPHTY_BROWSER_GPU=nvidia` selects the four flags below (`vitest.config.ts`, `BROWSER_FLAGS`) and
+`GRAPHTY_EGL_LIB_DIR` puts the extracted libEGL directory (appendix D) on the browser's `LD_LIBRARY_PATH`.
 
 ## TL;DR
 
@@ -247,7 +249,7 @@ Run from the project root so it resolves the project's Playwright:
 
 ```js
 import { createRequire } from "node:module";
-const require = createRequire("/home/apowers/Projects/webgpu-graph-algorithms/package.json");
+const require = createRequire(`${process.cwd()}/package.json`);
 const { chromium } = require("playwright");
 
 const HOME = process.env.HOME;

@@ -9,12 +9,12 @@
 // here approves anything: every decision is the owner's, on exactly the render listed.
 // Needs RESULTS_URL and a read token (GRAPHTY_RESULTS_TOKEN), from the environment or the repository's .env, and
 // origin/master fetched (the review server fetches it on every refresh).
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { git as runGit } from "../lib/git.mjs";
 import { call, config } from "../results/client.mjs";
-import { parseEnvFile } from "../sonar/api.mjs";
+import { parseEnvFile } from "../results/env-file.mjs";
 
 export const CAPTURES_PATH = "/v1/story-captures";
 // what a decision can be taken on; unstable and failed renders are never offered
@@ -55,7 +55,7 @@ function holdBack(c, tip, mergesSince, reach) {
     return reached.length ? `re-render pending: ${reached.length} merges since reach ${c.project}` : null;
 }
 
-const git = (...args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+const git = (...args) => runGit(args, { stdio: ["ignore", "pipe", "ignore"] });
 
 async function main(get) {
     const tipRef = "refs/remotes/origin/master";

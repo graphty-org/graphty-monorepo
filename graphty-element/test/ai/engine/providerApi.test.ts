@@ -132,7 +132,7 @@ describe.each(PROVIDERS)("provider-API engine: %s", (provider) => {
             assert.strictEqual(requests.length, 1);
         });
 
-        it("stops waiting when the turn is cancelled during the wait", async () => {
+        it("stops waiting when the turn is canceled during the wait", async () => {
             const { failOnce, requests } = providerApiFixture(provider);
             const settings = { provider, apiKey: KEYS[provider], model: "m" } as const;
             const controller = new AbortController();
@@ -145,7 +145,7 @@ describe.each(PROVIDERS)("provider-API engine: %s", (provider) => {
             });
             controller.abort();
             const out = await pending;
-            assert.strictEqual(lastError(out).code, "AI_CANCELLED");
+            assert.strictEqual(lastError(out).code, "AI_CANCELED");
             assert.strictEqual(requests.length, 1);
         });
     });
@@ -1053,7 +1053,7 @@ describe.each(["openai", "google"] as const)("speech on %s: graphty's retries, c
             assert.strictEqual(requests.length, 1);
         });
 
-        it("is cancelled by its signal: AI_CANCELLED, and no further request", async () => {
+        it("is canceled by its signal: AI_CANCELED, and no further request", async () => {
             const { engine, hang, requests } = providerApiFixture(provider);
             const controller = new AbortController();
             hang();
@@ -1063,11 +1063,11 @@ describe.each(["openai", "google"] as const)("speech on %s: graphty's retries, c
             });
             controller.abort();
             const done = await pending;
-            assert.deepStrictEqual(done, { code: "AI_CANCELLED", params: {} });
+            assert.deepStrictEqual(done, { code: "AI_CANCELED", params: {} });
             assert.strictEqual(requests.length, 1);
 
             const already = await call(engine, AbortSignal.abort());
-            assert.strictEqual(already?.code, "AI_CANCELLED");
+            assert.strictEqual(already?.code, "AI_CANCELED");
             assert.strictEqual(requests.length, 1, "an aborted signal sends nothing");
         });
 

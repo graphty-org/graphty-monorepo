@@ -7,7 +7,7 @@ import { LeidenAlgorithm } from "../../../src/algorithms/LeidenAlgorithm";
 import { LouvainAlgorithm } from "../../../src/algorithms/LouvainAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { OptionValidationError } from "../../../src/algorithms/types/OptionSchema";
-import { createMockGraph, partitionOf } from "../../helpers/mockGraph";
+import { createSessionGraph, partitionOf } from "../../helpers/session-graph";
 
 describe("Community Detection Algorithm Options", () => {
     describe("PageRankAlgorithm", () => {
@@ -46,7 +46,7 @@ describe("Community Detection Algorithm Options", () => {
 
         describe("option defaults", () => {
             it("uses default options when none provided", async () => {
-                const graph = await createMockGraph({
+                const graph = await createSessionGraph({
                     nodes: [{ id: "A" }, { id: "B" }],
                     edges: [{ srcId: "A", dstId: "B" }],
                 });
@@ -55,18 +55,21 @@ describe("Community Detection Algorithm Options", () => {
 
                 // The damping factor a run used is in the caveats' notes, which is where a
                 // reader is told what the numbers mean.
-                assert.ok(algo.result?.summary().caveats.notes.some((note: string) => note.includes("0.85")));
+                assert.deepInclude(algo.result?.summary().caveats.facts ?? [], {
+                    code: "pagerank.damping",
+                    params: { dampingFactor: 0.85 },
+                });
             });
         });
 
         describe("option validation", () => {
             it("accepts valid dampingFactor", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.doesNotThrow(() => new PageRankAlgorithm(graph, { dampingFactor: 0.9 }));
             });
 
             it("rejects dampingFactor > 1", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.throws(
                     () => new PageRankAlgorithm(graph, { dampingFactor: 1.5 }),
                     OptionValidationError,
@@ -75,7 +78,7 @@ describe("Community Detection Algorithm Options", () => {
             });
 
             it("rejects dampingFactor < 0", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.throws(
                     () => new PageRankAlgorithm(graph, { dampingFactor: -0.1 }),
                     OptionValidationError,
@@ -84,7 +87,7 @@ describe("Community Detection Algorithm Options", () => {
             });
 
             it("rejects non-integer maxIterations", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.throws(
                     () => new PageRankAlgorithm(graph, { maxIterations: 100.5 }),
                     OptionValidationError,
@@ -93,7 +96,7 @@ describe("Community Detection Algorithm Options", () => {
             });
 
             it("rejects maxIterations < 1", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.throws(
                     () => new PageRankAlgorithm(graph, { maxIterations: 0 }),
                     OptionValidationError,
@@ -104,14 +107,17 @@ describe("Community Detection Algorithm Options", () => {
 
         describe("custom options in run()", () => {
             it("uses custom dampingFactor", async () => {
-                const graph = await createMockGraph({
+                const graph = await createSessionGraph({
                     nodes: [{ id: "A" }, { id: "B" }],
                     edges: [{ srcId: "A", dstId: "B" }],
                 });
                 const algo = new PageRankAlgorithm(graph, { dampingFactor: 0.5 });
                 await algo.run();
 
-                assert.ok(algo.result?.summary().caveats.notes.some((note: string) => note.includes("0.5")));
+                assert.deepInclude(algo.result?.summary().caveats.facts ?? [], {
+                    code: "pagerank.damping",
+                    params: { dampingFactor: 0.5 },
+                });
             });
         });
 
@@ -159,12 +165,12 @@ describe("Community Detection Algorithm Options", () => {
 
         describe("option validation", () => {
             it("accepts valid resolution", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.doesNotThrow(() => new LouvainAlgorithm(graph, { resolution: 2.0 }));
             });
 
             it("rejects resolution < 0.1", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.throws(
                     () => new LouvainAlgorithm(graph, { resolution: 0.05 }),
                     OptionValidationError,
@@ -173,7 +179,7 @@ describe("Community Detection Algorithm Options", () => {
             });
 
             it("rejects resolution > 5.0", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.throws(
                     () => new LouvainAlgorithm(graph, { resolution: 6.0 }),
                     OptionValidationError,
@@ -184,7 +190,7 @@ describe("Community Detection Algorithm Options", () => {
 
         describe("custom options in run()", () => {
             it("uses custom resolution", async () => {
-                const graph = await createMockGraph({
+                const graph = await createSessionGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
@@ -243,17 +249,17 @@ describe("Community Detection Algorithm Options", () => {
 
         describe("option validation", () => {
             it("accepts valid randomSeed", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.doesNotThrow(() => new LeidenAlgorithm(graph, { randomSeed: 123 }));
             });
 
             it("accepts a randomSeed of 0", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.doesNotThrow(() => new LeidenAlgorithm(graph, { randomSeed: 0 }));
             });
 
             it("rejects negative randomSeed", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.throws(
                     () => new LeidenAlgorithm(graph, { randomSeed: -1 }),
                     OptionValidationError,
@@ -264,7 +270,7 @@ describe("Community Detection Algorithm Options", () => {
 
         describe("custom options in run()", () => {
             it("uses custom options", async () => {
-                const graph = await createMockGraph({
+                const graph = await createSessionGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
@@ -310,12 +316,12 @@ describe("Community Detection Algorithm Options", () => {
 
         describe("option validation", () => {
             it("accepts valid maxIterations", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.doesNotThrow(() => new LabelPropagationAlgorithm(graph, { maxIterations: 200 }));
             });
 
             it("rejects maxIterations < 1", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.throws(
                     () => new LabelPropagationAlgorithm(graph, { maxIterations: 0 }),
                     OptionValidationError,
@@ -324,7 +330,7 @@ describe("Community Detection Algorithm Options", () => {
             });
 
             it("rejects maxIterations > 500", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.throws(
                     () => new LabelPropagationAlgorithm(graph, { maxIterations: 600 }),
                     OptionValidationError,
@@ -335,7 +341,7 @@ describe("Community Detection Algorithm Options", () => {
 
         describe("custom options in run()", () => {
             it("uses custom maxIterations", async () => {
-                const graph = await createMockGraph({
+                const graph = await createSessionGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
@@ -383,17 +389,17 @@ describe("Community Detection Algorithm Options", () => {
 
         describe("option validation", () => {
             it("accepts maxCommunities = 0 (no limit)", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.doesNotThrow(() => new GirvanNewmanAlgorithm(graph, { maxCommunities: 0 }));
             });
 
             it("accepts valid maxCommunities", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.doesNotThrow(() => new GirvanNewmanAlgorithm(graph, { maxCommunities: 5 }));
             });
 
             it("rejects negative maxCommunities", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.throws(
                     () => new GirvanNewmanAlgorithm(graph, { maxCommunities: -1 }),
                     OptionValidationError,
@@ -402,7 +408,7 @@ describe("Community Detection Algorithm Options", () => {
             });
 
             it("rejects minCommunitySize < 1", async () => {
-                const graph = await createMockGraph();
+                const graph = await createSessionGraph();
                 assert.throws(
                     () => new GirvanNewmanAlgorithm(graph, { minCommunitySize: 0 }),
                     OptionValidationError,
@@ -415,7 +421,7 @@ describe("Community Detection Algorithm Options", () => {
             it("uses custom options", async () => {
                 // A -- B -- C -- D: B-C carries the most shortest paths, so the first cut splits
                 // the path in half.
-                const graph = await createMockGraph({
+                const graph = await createSessionGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
                     edges: [
                         { srcId: "A", dstId: "B" },

@@ -33,11 +33,16 @@ export function installCaughtErrors(): void {
         errors.push(error);
     };
     if (typeof window !== "undefined") {
-        window.addEventListener("error", (event) => {
-            // Only an uncaught error: the element's own `error` CustomEvent bubbles here too.
-            if (event instanceof ErrorEvent) {
-                errors.push(event.error ?? event.message);
-            }
+        // Typed `Event`, not `ErrorEvent`: anything dispatched as `error` reaches this listener.
+        window.addEventListener("error", (event: Event) => {
+            // Anything else here is an `error` event that bubbled to the window, which every
+            // page-wide error handler reports as an uncaught exception: the element's own `error`
+            // CustomEvent stops at the element (#8231).
+            errors.push(
+                event instanceof ErrorEvent
+                    ? (event.error ?? event.message)
+                    : new Error(`an "${event.type}" ${event.constructor.name} reached the window`),
+            );
         });
         window.addEventListener("unhandledrejection", (event) => errors.push(event.reason));
     } else if (typeof process !== "undefined") {

@@ -1180,7 +1180,7 @@ graph.batchOperations(() => {
 - Circular dependencies detected and handled
 - Operations during processing are queued
 - Errors don't block subsequent operations
-- Long-running operations can be cancelled
+- Long-running operations can be canceled
 - Smart obsolescence prevents wasted computation
 
 ### 6. **Enhanced User Experience**

@@ -13,7 +13,6 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
@@ -24,9 +23,6 @@ declare module "vitest/browser" {
         grantClipboard: () => Promise<void>;
     }
 }
-
-/** The experiment on, as a site.json that lists it. */
-const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
 
 type Generate = MockLlmProvider["generate"];
 
@@ -144,8 +140,6 @@ const COLOR_EVEN: Awaited<ReturnType<Generate>>[] = [
 
 describe("a reply's steps", () => {
     beforeEach(async () => {
-        resetSiteConfig();
-        await loadSiteConfig(SITE);
         await page.viewport(1440, 900);
         localStorage.clear();
         sessionStorage.clear();
@@ -158,7 +152,6 @@ describe("a reply's steps", () => {
 
     afterEach(() => {
         vi.restoreAllMocks();
-        resetSiteConfig();
         writeAssistantChoice(null);
     });
 

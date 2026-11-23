@@ -128,11 +128,13 @@ The Vite dev server, Vite 8, Node and the CDN build are not affected.
 the core. The promise rejects with an `IdTakenError` (`code` `"E_ID_TAKEN"`, `id` the clashing id)
 and nothing is added. Remove the old graph with `cy.elements().remove()`, or use a new core.
 
-### `graphtyDataset` fails with "unknown dataset" or "HTTP 404"
+### `graphtyDataset` fails with "unknown dataset" or `E_DATASET_HTTP`
 
 A name not in the [dataset list](../reference/graphs#datasets) rejects with a `RangeError` naming
 the closest match. With your own `baseUrl`, any other name is fetched from
-`<baseUrl>/<name>.gsnp.gz` and fails with HTTP 404 if your server lacks it.
+`<baseUrl>/<name>.gsnp.gz` and rejects with a `DatasetError` whose `code` is `E_DATASET_HTTP` and
+whose `details.status` is 404 if your server lacks it. A known name your mirror serves with other
+content rejects with `E_DATASET_CHECKSUM`.
 
 ### Script tag: `graphtyImport` or `graphtyExport` rejects naming `dist/cdn/cytoscape-extensions.js`
 

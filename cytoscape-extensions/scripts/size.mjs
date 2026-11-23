@@ -124,7 +124,7 @@ function lazyPartName(chunk) {
     if (/cytoscape-extensions\/dist\/io\.js$/.test(id)) {
         return "file formats, all of them (on the first graphtyImport or graphtyExport)";
     }
-    if (/graph-io\/dist\/(sources-|chunks\/sigv4-)/.test(id)) {
+    if (/graph-io\/dist\/(sources-|chunks\/(sigv4|url)-)/.test(id)) {
         return "network sources, all of them (on the first load from a server)";
     }
     return `other lazy chunk ${chunk.fileName}`;
@@ -201,7 +201,10 @@ async function measurePackage(compare) {
                     // an external module (neo4j-driver), which the page does not hold
                     continue;
                 }
-                const name = lazyPartName(target);
+                // a chunk the file formats load on demand (the Excel reader, on the first workbook) is one of them
+                const formats = "file formats, all of them (on the first graphtyImport or graphtyExport)";
+                const own = lazyPartName(target);
+                const name = own.startsWith("other lazy chunk") && lazyPartName(c) === formats ? formats : own;
                 const loaded = loadedWith(chunks, byName, initial, c);
                 const group = lazy.get(name) ?? new Set();
                 closure(target, group, loaded);

@@ -6,7 +6,7 @@
  * ported side the snapshot. None carries a self-loop or a parallel edge: those are where the legacy
  * conventions and the snapshot's diverge on purpose (a self-loop counts once in the legacy weighted
  * degree and twice in the snapshot's, following NetworkX), and each port's own suite pins its
- * behaviour there directly.
+ * behavior there directly.
  */
 
 import { Graph } from "../../helpers/legacy-graph.js";

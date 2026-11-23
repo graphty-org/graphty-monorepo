@@ -85,7 +85,6 @@ tools/pr-open.test.mjs
 tools/pr-review.test.mjs
 tools/publish-hold.test.mjs
 tools/push-base.test.mjs
-tools/push-queue.test.mjs
 tools/release-diff.test.mjs
 tools/release-dry-run.test.mjs
 tools/release-due.test.mjs

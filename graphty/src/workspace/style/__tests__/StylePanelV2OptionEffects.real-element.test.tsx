@@ -93,10 +93,10 @@ describe("Style panel v2: options that would change nothing", () => {
         });
         assert.isTrue(graph.checked, "Graph, the default, is the unit shown");
 
-        // Pivot draws only in 3D (valueViews); the size beneath is 1, so x1 over it is Replace.
+        // Pivot draws only in 3D (valueViews); the size beneath is 1, so x1 over it is Set.
         assert.equal(optionDim(pop, "Node size space", "Pivot"), "3D only");
         assert.isUndefined(optionDim(pop, "Node size space", "Screen"));
-        assert.match(optionDim(pop, "Combine", "Multiply") ?? "", /^Same as Replace over a .+ of 1$/);
+        assert.match(optionDim(pop, "Combine", "Multiply") ?? "", /^Same as Set over a .+ of 1$/);
         assert.isUndefined(optionDim(pop, "Combine", "Add"), "Add adds to the size beneath");
         // Uniform draws the default icosphere at the extent Scale draws it at already (valueDrawn).
         assert.match(optionDim(pop, "Node size mode", "Uniform") ?? "", /^Only when /);

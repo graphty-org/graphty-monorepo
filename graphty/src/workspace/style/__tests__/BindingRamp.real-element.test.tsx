@@ -205,7 +205,7 @@ describe("a number binding's popover on the real element", () => {
         await waitFor(() => {
             assert.equal(bindingOf(session, layer, "node.size").combine, "multiply");
         });
-        await pick(popover, /^How size meets the layers beneath/, /^Replace/);
+        await pick(popover, /^How size meets the layers beneath/, /^Set/);
         await waitFor(() => {
             assert.isUndefined(bindingOf(session, layer, "node.size").combine);
         });

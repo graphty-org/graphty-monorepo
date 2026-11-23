@@ -14,6 +14,7 @@ import type { GraphSession, ReadableValue } from "@graphty/graphty-element/sessi
 import { ActionIcon, Box, Button, Group, Menu, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
+import { stylePanelV2On } from "../features";
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { formatNumber } from "../settings/numberFormat";
@@ -22,12 +23,15 @@ import { wholeNumbers } from "./cards";
 import { GroupList, LayerGroupList } from "./Groups";
 import { type DataBinding, type DataChoice, type LayerBinding, startingValue, topmostRow } from "./row";
 import { focusLineNext } from "./useFocusLine";
+import { SegmentsLine } from "./v2/RubricLine";
 import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
 import {
     channelPhrase,
     channelWord,
+    COMBINE_OPTIONS,
     COMBINE_WORDS,
+    combineOf,
     enumWords,
     failureWords,
     LAYER_TOKEN,
@@ -62,7 +66,7 @@ const OVERFLOW_WORDS = {
 } as const;
 
 /** How a number meets what the layers beneath painted, in today's words (`COMBINE_WORDS`). */
-const COMBINE_OPTIONS = Object.entries(COMBINE_WORDS).map(([value, { word }]) => ({ value, label: word }));
+const COMBINE_SELECT = Object.entries(COMBINE_WORDS).map(([value, { word }]) => ({ value, label: word }));
 
 /**
  * A painted value as a CSS color, when it is a color.
@@ -191,6 +195,7 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
     const parts = props.layers === undefined ? dataParts(session, props, setDetail) : layerParts(session, props);
     const { binding, patch } = parts;
     const numberParts = isNumber && !detail;
+    const v2 = stylePanelV2On(session);
 
     return (
         <Stack gap={8} role="group" aria-label={`${name} binding`}>
@@ -201,6 +206,17 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
                 inUse={parts.inUse}
                 onSource={onSource}
             />
+            {/* v2: what the number does with the value underneath, first (owner, 2026-11-23). */}
+            {numberParts && v2 ? (
+                <SegmentsLine
+                    label="Operation"
+                    options={COMBINE_OPTIONS}
+                    value={binding.combine ?? "replace"}
+                    onPick={(mode) => {
+                        patch({ combine: combineOf(mode) });
+                    }}
+                />
+            ) : null}
             {parts.ramp}
             {parts.categorical ? (
                 <GroupsSection session={session} descriptor={descriptor} parts={parts} detail={detail} />
@@ -211,7 +227,7 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
             {detail || !parts.noValue ? null : (
                 <NoValue session={session} descriptor={descriptor} missing={binding.missing ?? "skip"} patch={patch} />
             )}
-            {numberParts ? <CombineField name={name} binding={binding} patch={patch} /> : null}
+            {numberParts && !v2 ? <CombineField name={name} binding={binding} patch={patch} /> : null}
         </Stack>
     );
 }
@@ -341,10 +357,10 @@ function CombineField({
                     label={`How ${name.toLowerCase()} meets the layers beneath`}
                     kind="select"
                     width="fill"
-                    data={COMBINE_OPTIONS}
+                    data={COMBINE_SELECT}
                     value={binding.combine ?? "replace"}
                     onChange={(mode) => {
-                        patch({ combine: mode === "multiply" || mode === "add" ? mode : undefined });
+                        patch({ combine: combineOf(String(mode)) });
                     }}
                 />
             </FieldRow>

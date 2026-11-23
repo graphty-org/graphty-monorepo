@@ -7,25 +7,18 @@
  */
 
 import { type ChannelDescriptor, combineDrawn } from "@graphty/graphty-element/catalog";
-import type { CombineMode } from "@graphty/graphty-element/schema";
 import React, { useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { Field, type RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
 import { AddButton } from "../Section";
-import { channelWord, COMBINE_WORDS, failureWords } from "../words";
+import { channelWord, COMBINE_OPTIONS, combineOf, failureWords } from "../words";
 import { dimOf } from "./drawn";
 import { groupSet, unsetIn } from "./lineWrites";
 import { PlusList } from "./PlusList";
 import { lineChannels, type LineSpec, type ThingRubric } from "./rubric";
 import { LineFrame, RemoveButton, RubricLine, SegmentsLine } from "./RubricLine";
-
-/** Combine's options, in today's words. */
-const COMBINE_OPTIONS = (Object.keys(COMBINE_WORDS) as CombineMode[]).map((value) => ({
-    value,
-    name: COMBINE_WORDS[value].word,
-}));
 
 /** A sub-group "+" can add: its name, and whether a divider follows it in the menu (a rarer tier next). */
 interface ShellGroup {
@@ -287,12 +280,12 @@ export function FirstLines({ ctx, main }: Readonly<{ ctx: RowContext; main: Chan
                                     ? option
                                     : {
                                           ...option,
-                                          dimmed: `Same as Replace over a ${channelWord(main.channel).toLowerCase()} of ${String(found.unmet.base)}`,
+                                          dimmed: `Same as Set over a ${channelWord(main.channel).toLowerCase()} of ${String(found.unmet.base)}`,
                                       };
                             })}
                             value={own?.combine ?? "replace"}
                             onPick={(mode) => {
-                                const combine = mode === "multiply" || mode === "add" ? mode : undefined;
+                                const combine = combineOf(mode);
                                 writeIn(ctx, main.channel, { value: number, combine }).catch((error: unknown) => {
                                     store.set({
                                         notice: { message: failureWords("Combine", "changed", error), error: true },

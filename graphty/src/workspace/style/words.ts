@@ -25,7 +25,7 @@ import {
     type ShaderProblem,
     toColorValue,
 } from "@graphty/graphty-element/catalog";
-import type { Channel, LabelStyle, ShaderParamAddress } from "@graphty/graphty-element/schema";
+import type { Channel, CombineMode, LabelStyle, ShaderParamAddress } from "@graphty/graphty-element/schema";
 import {
     type CodedFact,
     type GraphSession,
@@ -355,10 +355,29 @@ export function listWords(names: readonly string[]): string {
 
 /** How a number a layer writes meets what lies beneath: its field's prefix and its menu word. */
 export const COMBINE_WORDS = {
-    replace: { prefix: undefined, word: "Replace" },
-    multiply: { prefix: "x", word: "Multiply" },
-    add: { prefix: "+", word: "Add" },
+    replace: { prefix: undefined, word: "Set", glyph: "opSet" },
+    add: { prefix: "+", word: "Add", glyph: "opAdd" },
+    subtract: { prefix: "-", word: "Subtract", glyph: "opSubtract" },
+    multiply: { prefix: "x", word: "Multiply", glyph: "opMultiply" },
+    divide: { prefix: "/", word: "Divide", glyph: "opDivide" },
 } as const;
+
+/** The combine modes as segments, in the owner's order: Set, Add, Subtract, Multiply, Divide. */
+export const COMBINE_OPTIONS = (Object.keys(COMBINE_WORDS) as CombineMode[]).map((value) => ({
+    value,
+    name: COMBINE_WORDS[value].word,
+    glyph: COMBINE_WORDS[value].glyph,
+}));
+
+/**
+ * What a picked combine segment writes: nothing for Set (graphty-element's default), else the mode.
+ * @param mode - the segment picked.
+ * @returns the binding's `combine`.
+ */
+export function combineOf(mode: string): Exclude<CombineMode, "replace"> | undefined {
+    const found = COMBINE_OPTIONS.find((option) => option.value === mode)?.value;
+    return found === undefined || found === "replace" ? undefined : found;
+}
 
 /**
  * Whether a field draws the vary glyph: its channel takes a binding (tier3 design, decision 1.12).

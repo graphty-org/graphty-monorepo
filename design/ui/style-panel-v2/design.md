@@ -162,7 +162,8 @@ opened from it are plain `Popout`s (SettingsPopout refuses nesting).
   member, so a switchable kind group (Label, Tooltip, External label, End caption, Plate) has its Show line. Only
   a family whose element member list holds an off value (Shape: none, 5) shows it as an **Off** member and has no
   Show line, so every thing has exactly one control for being off. Then
-  **Combine** (R8f Replace / Multiply / Add, today's `COMBINE_WORDS` in `words.ts`) on number lines only.
+  **Combine** (R8 icon segments Set / Add / Subtract / Multiply / Divide, `COMBINE_WORDS` in `words.ts`) on
+  number lines only.
 - **Main** sub-group: always shown, with its lines empty until written. Its first line is the row's main value
   (Color, Visible, Shading ...), then the row's common lines (Width, Strength, Size, Color ...), then the
   thing's own Main lines. The main value binds from its line's by-data link (`GLYPHS.link`) like any other line;
@@ -482,8 +483,9 @@ Rules for style inputs:
 - **Link operation.** Linking a value to a number input includes what to do with the number: a grouped-button
   line Set / Add / Subtract / Multiply / Divide (icons with tooltips allowed), default Set. Add to Divide combine
   the mapped data value with the value the input would have without the link. This is graphty-element's binding
-  option (additive, default "set" keeps today's behavior); the app only writes it. It replaces the Combine
-  controls (Replace / Multiply / Add) so one concept has one control.
+  option (`combine`: graphty-element's `"replace"` is Set, plus `"add"`, `"subtract"`, `"multiply"` and
+  `"divide"`); the app only writes it. The link dialog draws it as its "Operation" line, right after the source;
+  a set number's Combine line in a pop-over is the same five segments.
 
 ## 6. Control rubric
 

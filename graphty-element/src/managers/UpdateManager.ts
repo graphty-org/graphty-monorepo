@@ -4157,9 +4157,12 @@ export class UpdateManager implements Manager {
      * @param visited - Edges this pass already placed, skipped and added to; undefined to place every one.
      */
     private updateEdgesOf(nodes: readonly Node[], visited?: Set<Edge>): void {
+        // Only the built ones: an edge with no `Edge` is a row line, drawn from its rows, and reading it through
+        // `edges` would build one for every edge of a moved node.
+        const built = dataManagerInternals.builtEdges(this.dataManager);
         for (const node of nodes) {
             for (const id of this.dataManager.incidentEdgeIds(node)) {
-                const edge = this.dataManager.edges.get(id);
+                const edge = built.get(id);
                 if (edge !== undefined) {
                     UpdateManager.placeOnce(edge, visited);
                 }

@@ -130,6 +130,16 @@ const ACCELERATED_MAX_ITERATIONS = 128;
 const ACCELERATED_BATCH_NODE_ITERATIONS = 4_000_000;
 
 /**
+ * The same budget under renderPath "batched", where the frame loop draws again only once the batch in flight has
+ * landed, so the frame interval while the layout runs IS one batch's time on the device. At the budget above a
+ * 10,000-node batch of 128 iterations took about 85 ms, against about 12 ms at one iteration per frame. This keeps
+ * such a batch at 16 iterations: on an NVIDIA card a landing every 14 to 16 ms and a frame median of 13 to 24 ms
+ * (benchmarks/compare perf matrix, `layout-ngraph-2d-10k` and `layout-ngraph-3d-10k`), within the frame time of a
+ * one-iteration batch, at 16 times its iterations per frame. 8 iterations measured no faster a frame.
+ */
+const ACCELERATED_BATCHED_NODE_ITERATIONS = 160_000;
+
+/**
  * How many iterations the next accelerated batch computes when the host set no `iterationsPerStep`.
  *
  * It RAMPS: each batch computes as many iterations as the simulation has already submitted since it was built
@@ -139,10 +149,16 @@ const ACCELERATED_BATCH_NODE_ITERATIONS = 4_000_000;
  * @param base - The count the size rule gives ({@link iterationsPerStepFor}); never fewer.
  * @param nodeCount - The graph this load is over.
  * @param submitted - Iterations submitted since the simulation was built.
+ * @param budget - Nodes times iterations one batch may compute; renderPath "batched" passes a smaller one.
  * @returns The iteration count of the next batch.
  */
-export function acceleratedIterationsFor(base: number, nodeCount: number, submitted: number): number {
-    const byNodes = Math.floor(ACCELERATED_BATCH_NODE_ITERATIONS / Math.max(nodeCount, 1));
+export function acceleratedIterationsFor(
+    base: number,
+    nodeCount: number,
+    submitted: number,
+    budget = ACCELERATED_BATCH_NODE_ITERATIONS,
+): number {
+    const byNodes = Math.floor(budget / Math.max(nodeCount, 1));
     const cap = Math.max(base, Math.min(ACCELERATED_MAX_ITERATIONS, byNodes));
     return Math.min(cap, Math.max(base, submitted));
 }
@@ -880,6 +896,22 @@ export class SimulationLayoutEngine extends LayoutEngine {
     deviceEnvelope = true;
     /** The simulation's array was written by the element since the last landing, so a device measure no longer holds. */
     #adoptedSinceLanding = false;
+    /**
+     * Bumped by every change to the simulation's array that `#landed` does not count: an adoption, a placed node, a
+     * pre-step batch awaited by `stepAsync`.
+     */
+    #simWrites = 0;
+    /** The last fit's envelope and what it was measured over, so an accelerated fit with nothing new reuses it. */
+    #lastFit: {
+        envelope: LayoutEnvelope;
+        /** Measured over every row: a fit that left held rows out is no envelope for one that measures them all. */
+        whole: boolean;
+        landed: number;
+        simWrites: number;
+        radius: number | null;
+        simPositions: F32;
+        simulation: LayoutSimulation | null;
+    } | null = null;
     #landedPublished = 0;
 
     /** Set by `LayoutManager` while it is not stepping this layout. See {@link paused}. */
@@ -1296,7 +1328,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
     /**
      * How many iterations the next frame's batch computes: the load's count, ramped up on a hardware accelerator when
-     * the host did not pin one (see {@link acceleratedIterationsFor}).
+     * the host did not pin one (see {@link acceleratedIterationsFor}), to a smaller cap under renderPath "batched" (see
+     * {@link ACCELERATED_BATCHED_NODE_ITERATIONS}).
      *
      * NOT ON A SOFTWARE ADAPTER. The ramp pays off where a batch's round trip costs more than its arithmetic, which is
      * a real card's case. A software adapter computes on the CPU: a 128-iteration batch of a few thousand nodes takes
@@ -1315,7 +1348,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return this.#iterations;
         }
 
-        return acceleratedIterationsFor(this.#iterations, this.#snapshot.nodeCount, this.#iterationsDone);
+        const budget =
+            (this.#dataManager.renderLimits?.batched() ?? false)
+                ? ACCELERATED_BATCHED_NODE_ITERATIONS
+                : ACCELERATED_BATCH_NODE_ITERATIONS;
+        return acceleratedIterationsFor(this.#iterations, this.#snapshot.nodeCount, this.#iterationsDone, budget);
     }
 
     /**
@@ -1342,6 +1379,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
         try {
             await this.#simulation.step(iterations);
         } finally {
+            // The batch rewrote the simulation's array without the frame loop's landing count seeing it.
+            this.#simWrites += 1;
             this.#syncWork();
         }
     }
@@ -1481,6 +1520,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const scale = this.#envelopeScale;
+        this.#simWrites += 1;
         this.#simulation?.setPosition(
             row,
             (p.x - this.#targetCentre[0]) / scale + this.#simCentre[0],
@@ -2089,8 +2129,18 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const radii = this.#collisionRadii(snapshot.nodeCount);
         const radius = this.#fitRadius();
         const measured =
+            this.#unchangedFit(held === null, radius, simPositions) ??
             (held === null && this.deviceEnvelope ? this.#deviceEnvelope(snapshot.nodeCount, radius) : null) ??
             this.#walkEnvelope(simPositions, snapshot.nodeCount, radius, held);
+        this.#lastFit = {
+            envelope: measured,
+            whole: held === null,
+            landed: this.#landed,
+            simWrites: this.#simWrites,
+            radius,
+            simPositions,
+            simulation: this.#simulation,
+        };
         this.#simBox = measured.box;
 
         // NOTHING LEFT TO MEASURE KEEPS THE LAST MAP rather than resetting it to the identity. A
@@ -2117,6 +2167,32 @@ export class SimulationLayoutEngine extends LayoutEngine {
         if (radii !== null) {
             this.#setCollision(radii, this.#envelopeScale);
         }
+    }
+
+    /**
+     * The last fit's envelope when nothing it measured has changed since, or null.
+     *
+     * AN ACCELERATED ARRAY CHANGES ONLY WHEN A BATCH LANDS OR THE ELEMENT WRITES IT, so a fit with neither since the
+     * last one would measure the same rows again. The device queue can run hundreds of frames behind the page, and
+     * every one of those frames walked every row before the first landing (issue #9627). A CPU simulation rewrites
+     * its array on every step, so it always measures.
+     * @param whole - Whether this fit measures every row (none held).
+     * @param radius - The scene-unit radius this fit is published at, or null.
+     * @param simPositions - The simulation's coordinates, three per row.
+     * @returns The envelope to reuse, or null to measure.
+     */
+    #unchangedFit(whole: boolean, radius: number | null, simPositions: F32): LayoutEnvelope | null {
+        const last = this.#lastFit;
+        const unchanged =
+            whole &&
+            this.#accelerated &&
+            last?.whole === true &&
+            last.landed === this.#landed &&
+            last.simWrites === this.#simWrites &&
+            last.radius === radius &&
+            last.simPositions === simPositions &&
+            last.simulation === this.#simulation;
+        return unchanged ? last.envelope : null;
     }
 
     /**
@@ -2740,6 +2816,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         this.#simPositions = simPositions;
         this.#adoptedSinceLanding = true;
+        this.#simWrites += 1;
 
         return simPositions;
     }

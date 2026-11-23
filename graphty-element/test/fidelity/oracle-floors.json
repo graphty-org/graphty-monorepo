@@ -27716,7 +27716,7 @@
             "label.rotation": 1,
             "label.offset": 0.988,
             "label.opacity": 1,
-            "label.family": 0.562,
+            "label.family": 0.567,
             "label.lines": 1,
             "label.anchor": 1,
             "label.alongLine": 0.875,
@@ -27725,8 +27725,8 @@
             "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
-            "edge.extra": 0.988,
-            "edge.route": 0.975,
+            "edge.extra": 1,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -27735,14 +27735,14 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.987,
-            "edge.arrowShape": 0.99,
+            "edge.arrow": 0.996,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.99,
-            "edge.arrowColor": 0.989,
-            "edge.arrowLength": 0.99,
-            "edge.arrowWidth": 0.98,
+            "edge.arrowFill": 1,
+            "edge.arrowColor": 1,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "group.present": 1,
@@ -27754,7 +27754,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.773,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -27792,7 +27792,7 @@
             "label.rotation": 1,
             "label.offset": 0.988,
             "label.opacity": 1,
-            "label.family": 0.562,
+            "label.family": 0.567,
             "label.lines": 1,
             "label.anchor": 1,
             "label.alongLine": 0.875,
@@ -27801,8 +27801,8 @@
             "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
-            "edge.extra": 0.988,
-            "edge.route": 0.975,
+            "edge.extra": 1,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -27811,14 +27811,14 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.987,
-            "edge.arrowShape": 0.99,
+            "edge.arrow": 0.996,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.99,
-            "edge.arrowColor": 0.989,
-            "edge.arrowLength": 0.99,
-            "edge.arrowWidth": 0.98,
+            "edge.arrowFill": 1,
+            "edge.arrowColor": 1,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "group.present": 1,
@@ -27830,7 +27830,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.773,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -28391,7 +28391,7 @@
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
-            "edge.arrowColor": 0,
+            "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
@@ -28454,7 +28454,7 @@
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
-            "edge.arrowColor": 0,
+            "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
@@ -28898,7 +28898,7 @@
             "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
-            "edge.extra": 0.989,
+            "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
@@ -28925,7 +28925,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.95,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -28970,7 +28970,7 @@
             "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
-            "edge.extra": 0.989,
+            "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
@@ -28997,7 +28997,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.958,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -56332,31 +56332,47 @@
             }
         },
         "gml-synthetic-coverage": {
-            "edge.arrowLength": {
-                "floor": 0.99,
-                "to": 0.96,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
+            "label.alongLine": {
+                "floor": 0.875,
+                "to": 0.778,
+                "reason": "2026-11-22 (#9726): the comparator now finds gml-synthetic-coverage's edge 49 -> 60 (node 60 is drawn by neither program; yEd stops its line at its crow's foot's back), so its no-box side_slider label e47 is judged: yEd draws it below its line, 7.5 px along, where it finds room; graph-io puts a no-box side_slider label above its line's start, as yEd draws e2, e11, e20, e29 and e74",
+                "date": "2026-11-23"
             },
-            "edge.arrowWidth": {
-                "floor": 0.98,
-                "to": 0.95,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
+            "label.offLine": {
+                "floor": 1,
+                "to": 0.889,
+                "reason": "2026-11-22 (#9726): the comparator now finds gml-synthetic-coverage's edge 49 -> 60 (node 60 is drawn by neither program; yEd stops its line at its crow's foot's back), so its no-box side_slider label e47 is judged: yEd draws it below its line, 7.5 px along, where it finds room; graph-io puts a no-box side_slider label above its line's start, as yEd draws e2, e11, e20, e29 and e74",
+                "date": "2026-11-23"
             }
         },
         "gml-synthetic-coverage@matched": {
-            "edge.arrowLength": {
-                "floor": 0.99,
-                "to": 0.96,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
+            "label.alongLine": {
+                "floor": 0.875,
+                "to": 0.778,
+                "reason": "2026-11-22 (#9726): the comparator now finds gml-synthetic-coverage's edge 49 -> 60 (node 60 is drawn by neither program; yEd stops its line at its crow's foot's back), so its no-box side_slider label e47 is judged: yEd draws it below its line, 7.5 px along, where it finds room; graph-io puts a no-box side_slider label above its line's start, as yEd draws e2, e11, e20, e29 and e74",
+                "date": "2026-11-23"
             },
-            "edge.arrowWidth": {
-                "floor": 0.98,
-                "to": 0.95,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
+            "label.offLine": {
+                "floor": 1,
+                "to": 0.889,
+                "reason": "2026-11-22 (#9726): the comparator now finds gml-synthetic-coverage's edge 49 -> 60 (node 60 is drawn by neither program; yEd stops its line at its crow's foot's back), so its no-box side_slider label e47 is judged: yEd draws it below its line, 7.5 px along, where it finds room; graph-io puts a no-box side_slider label above its line's start, as yEd draws e2, e11, e20, e29 and e74",
+                "date": "2026-11-23"
+            }
+        },
+        "graphml-stm32-func": {
+            "edge.arrowFill": {
+                "floor": 1,
+                "to": 0.98,
+                "reason": "2026-11-22 (#8189): the comparator now reads graphml-stm32-func's framed edge n2 -> n1 (yEd's outline started at the source arrowhead's wing), so its heads are judged: yEd draws a framed edge with no fill color as its outline alone, its standard heads hollow, where graphty-element fills them (it has no hollow vee arrow)",
+                "date": "2026-11-23"
+            }
+        },
+        "graphml-stm32-func@matched": {
+            "edge.arrowFill": {
+                "floor": 1,
+                "to": 0.98,
+                "reason": "2026-11-22 (#8189): the comparator now reads graphml-stm32-func's framed edge n2 -> n1 (yEd's outline started at the source arrowhead's wing), so its heads are judged: yEd draws a framed edge with no fill color as its outline alone, its standard heads hollow, where graphty-element fills them (it has no hollow vee arrow)",
+                "date": "2026-11-23"
             }
         },
         "graphml-yfiles-html-ss13-tree": {

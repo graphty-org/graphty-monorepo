@@ -11,8 +11,7 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { listAlgorithms, runAlgorithm } from "../../../src/ai/commands/AlgorithmCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createCommandGraph } from "../../helpers/session-graph";
-import { createMockContext } from "../../helpers/test-graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 
 // Running an algorithm needs the element's run machinery, so the runs themselves -- options,
 // routes, summaries and refused options -- are covered against a real graph in
@@ -23,7 +22,7 @@ describe("AlgorithmCommands", () => {
 
     beforeEach(async () => {
         graph = await createCommandGraph({ nodeCount: 10, edgeCount: 15 });
-        context = createMockContext(graph);
+        context = createCommandContext(graph);
     });
 
     describe("runAlgorithm", () => {

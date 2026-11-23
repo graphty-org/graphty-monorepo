@@ -17,8 +17,7 @@ import { clearStyles, findAndStyleEdges, findAndStyleNodes } from "../../../src/
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
 import type { Layer, SessionStylesApi } from "../../../src/session/styles";
-import { createCommandGraph } from "../../helpers/session-graph";
-import { createMockContext } from "../../helpers/test-graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 
 describe("StyleCommands", () => {
     let graph: Graph;
@@ -26,7 +25,7 @@ describe("StyleCommands", () => {
 
     beforeEach(async () => {
         graph = await createCommandGraph({ nodeCount: 25, edgeCount: 40 });
-        context = createMockContext(graph);
+        context = createCommandContext(graph);
     });
 
     /**

@@ -5,7 +5,7 @@
 // (saved-format-lists.json). This check refuses a push that weakens them without the owner:
 //
 //   node tools/check-saved-format-allowlist.mjs [--base <rev>]
-//   (pnpm run check:saved-format-allowlist; ci.yml's Checks job)
+//   (pnpm run check:saved-format-allowlist; tools/prepush-source-checks.sh, ci.yml's Checks job)
 //
 // Each commit from the push base (tools/push-base.mjs) to HEAD is judged on its own. A commit needs a
 // `Saved-Format-Exception-Approved: <reason>` trailer, which only the owner adds, when it

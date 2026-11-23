@@ -41,9 +41,7 @@ describe("LayoutCommands", () => {
             assert.strictEqual(result.success, true);
         });
 
-        // A headless session accepts an id no layout answers to (#9653); only the renderer
-        // refuses it. Flips red once that is fixed: make it an ordinary `it` again then.
-        it.fails("rejects invalid layout type", async () => {
+        it("rejects invalid layout type", async () => {
             const result = await setLayout.execute(graph, { type: "nonexistent_layout_xyz" }, context);
             assert.strictEqual(result.success, false);
             assert.ok(

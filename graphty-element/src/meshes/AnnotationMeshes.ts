@@ -181,6 +181,17 @@ export class AnnotationMeshes {
     }
 
     /**
+     * The meshes the annotations placed in the file's own coordinates are drawn on now, which a fit frames with the
+     * graph. A text placed beside the drawing (a Graphviz graph label) is left out: it follows the nodes' extent,
+     * which the fit is still settling.
+     * @returns The meshes.
+     */
+    get placedMeshes(): Mesh[] {
+        const besides = new Set(this.besides.map((b) => b.mesh));
+        return this.meshes.filter((m) => !besides.has(m));
+    }
+
+    /**
      * Whether a picture annotation is still loading, so the picture on screen is not the finished one (issue #3383).
      * @returns True while any picture has neither loaded nor failed.
      */

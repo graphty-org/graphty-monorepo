@@ -1875,6 +1875,7 @@ export class Graph implements GraphContext {
         this.updateManager.fitAnnotations = () => {
             this.#annotations?.refit();
         };
+        this.updateManager.annotationMeshes = () => this.#annotations?.placedMeshes ?? [];
         this.updateManager.picturesLoading = () =>
             this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
         // Late-bound: a change of renderer replaces the render manager.

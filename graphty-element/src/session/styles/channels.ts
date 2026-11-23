@@ -2991,6 +2991,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         shortName: "Wireframe",
         group: "effects",
         default: false,
+        // Off draws nothing: a wireframe starts on.
+        start: true,
         accepts: "boolean",
         stylePath: "effect.wireframe",
         renderable: true,

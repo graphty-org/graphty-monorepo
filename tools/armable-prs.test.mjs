@@ -55,6 +55,7 @@ describe("armable", () => {
             pr(3, { history: { nodes: [{ commit: { message: "feat(x)!: y" } }] } }),
             pr(4, { files: { nodes: [{ path: "tools/pr-integrity.mjs" }] } }),
             pr(5, { changedFiles: 101 }),
+            pr(6, { files: { nodes: [{ path: "tools/integrity/pr.mjs", changeType: "RENAMED" }] } }),
         ]);
         assert.deepEqual(r.armable, []);
         assert.deepEqual(
@@ -65,6 +66,7 @@ describe("armable", () => {
                 "breaking commit",
                 "guards the owner: tools/pr-integrity.mjs",
                 "too large to check here",
+                "renames a file",
             ],
         );
         assert.equal(lines(r)[0], "armable: none -- arm the first with gh pr merge <n> --auto --merge");

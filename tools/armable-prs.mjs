@@ -35,7 +35,7 @@ const QUERY = `query($after: String) {
           nodes { ... on AutoMergeDisabledEvent { actor { login } } }
         }
         closingIssuesReferences(first: 10) { nodes { number labels(first: 20) { nodes { name } } } }
-        files(first: 100) { nodes { path } }
+        files(first: 100) { nodes { path changeType } }
       }
     }
   }
@@ -61,6 +61,8 @@ const green = (pr) =>
 const holdFor = (pr, guarded) => {
     // the query reads 100 files and 30 commits: a larger pull request cannot be cleared, so pr-open.sh judges it
     if (pr.changedFiles > 100 || pr.history.totalCount > 30) return "too large to check here";
+    // GitHub gives a renamed file only its new path, so a guarded file moved away would pass the GUARD_PATHS test
+    if (pr.files.nodes.some((f) => f.changeType === "RENAMED")) return "renames a file";
     const offBy = pr.timelineItems.nodes[0];
     if (offBy) return `auto-merge turned off by ${offBy.actor?.login ?? "a deleted account"}`;
     const owned = pr.files.nodes.find((f) => OWNER_FILES.test(f.path));

@@ -14,7 +14,7 @@ import { flushSync } from "react-dom";
 
 /**
  * Click `target` with React's resulting render flushed, then skip the browser's mouse-down focus
- * step when that moved focus or removed `pressed`.
+ * step when that moved focus to another element or removed `pressed`.
  * @param event - the mouse-down
  * @param pressed - the element the press landed on
  * @param target - what to click
@@ -24,7 +24,11 @@ function activate(event: React.MouseEvent<HTMLElement>, pressed: Element, target
     flushSync(() => {
         target.click();
     });
-    if (!pressed.isConnected || pressed.ownerDocument.activeElement !== focused) {
+    // Focus that fell to the page because the change removed its holder (a panel that closed)
+    // was not moved by the change, so the browser still focuses the pressed control.
+    const now = pressed.ownerDocument.activeElement;
+    const moved = now !== focused && now !== null && now !== pressed.ownerDocument.body;
+    if (!pressed.isConnected || moved) {
         event.preventDefault();
     }
 }

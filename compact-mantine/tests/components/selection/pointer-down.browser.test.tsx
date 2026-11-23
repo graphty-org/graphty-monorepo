@@ -199,6 +199,31 @@ describe("an activation that moves focus keeps it", () => {
 
         expect(tab).toHaveFocus();
     });
+
+    // Focus inside the panel the change closes falls to the page with it: that is not focus the
+    // change moved, so the pressed tab still takes it.
+    it("a change that removes the focused control still focuses the pressed tab", async () => {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <Tabs defaultValue="design" keepMounted={false}>
+                    <Tabs.List>
+                        <Tabs.Tab value="design">Design</Tabs.Tab>
+                        <Tabs.Tab value="prototype">Prototype</Tabs.Tab>
+                    </Tabs.List>
+                    <Tabs.Panel value="design">
+                        <input aria-label="Width" />
+                    </Tabs.Panel>
+                </Tabs>
+            </MantineProvider>,
+        );
+        screen.getByRole("textbox", { name: "Width" }).focus();
+        const tab = screen.getByRole("tab", { name: "Prototype" });
+
+        await pressOn(tab);
+        await commands.mouseUp();
+
+        expect(tab).toHaveFocus();
+    });
 });
 
 describe("segmented options", () => {

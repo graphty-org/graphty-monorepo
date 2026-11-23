@@ -82,8 +82,8 @@ describe("source-steps drafts: the join workspace's reads", () => {
             unmatched: "add",
         });
         const act = d.steps().at(-1)?.act;
-        assert.strictEqual(act?.repeated, "first", "one edge per pair");
-        assert.strictEqual(act.unmatched, "add");
+        assert.strictEqual(act?.perPair, true, "one edge per pair");
+        assert.strictEqual(act?.unmatched, "add");
         d.dispose();
         session.dispose();
     });

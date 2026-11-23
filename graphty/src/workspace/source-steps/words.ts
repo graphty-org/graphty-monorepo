@@ -163,11 +163,14 @@ export const WORKSPACE_WORDS = {
     inGraph: "In graph",
     incoming: "Incoming",
     manyRows: "Many rows",
+    clash: "Both have",
     noMatch: "No match",
     add: "Add",
     skip: "Skip",
     first: "First",
     last: "Last",
+    list: "List",
+    count: "Count",
     edges: "Edges",
     perRow: "Per row",
     perPair: "Per pair",
@@ -186,7 +189,7 @@ export const WORKSPACE_WORDS = {
     unknown: "?",
     drawing: "Drawing",
     committed: "Joined",
-    matchCount: "Matched",
+    matchCount: "Match count",
 } as const;
 
 /** The six live counts of `data.matchCounts`, in the order the card shows them. */

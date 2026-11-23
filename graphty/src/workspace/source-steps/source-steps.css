@@ -119,3 +119,38 @@ dialog.jw-modal {
     padding: 0;
     color: inherit;
 }
+
+.jw-modal .jw-table {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* Sized by the pane alone, never by the table inside it, so its measured height cannot feed back. */
+.jw-table-grid {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+.jw-table-grid > * {
+    position: absolute;
+    inset: 0;
+}
+
+/* The key's marks: the ring, dashed and dotted borders the preview draws for each effect. */
+.jw-key-mark {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border: 2px solid currentcolor;
+    border-radius: 50%;
+}
+
+.jw-key-mark[data-mark="new"] {
+    border-style: dashed;
+}
+
+.jw-key-mark[data-mark="untouched"] {
+    border-style: dotted;
+}

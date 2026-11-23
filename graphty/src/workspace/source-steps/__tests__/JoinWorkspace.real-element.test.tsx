@@ -17,7 +17,7 @@ import { page, userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
-import { drop, emptyProject } from "./sourceSteps";
+import { choose, drop, emptyProject } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -28,16 +28,17 @@ const ENTRIES = "entry,badge,door\nE1,B1,D1\nE2,B1,D2\nE3,B2,D1\nE4,B9,D1\nE6,B2
 /**
  * People in the graph as type person, entries.csv dropped and staged, and the workspace opened
  * with Shift+J.
+ * @param strict - mount the app under StrictMode, as main.tsx does in development.
  * @returns the store, the session, the staged entries' key and the modal.
  */
-async function opened(): Promise<{
+async function opened(strict = false): Promise<{
     store: WorkspaceStore;
     session: GraphSession;
     entries: string;
     modal: HTMLElement;
 }> {
     await page.viewport(1280, 900);
-    const { store, session } = await emptyProject();
+    const { store, session } = await emptyProject(strict);
     await session.data.import(
         { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
         { key: "badge", type: "person" },
@@ -50,6 +51,15 @@ async function opened(): Promise<{
     await userEvent.keyboard("{Shift>}J{/Shift}");
     const modal = await screen.findByRole("dialog", { name: "Join" });
     return { store, session, entries, modal };
+}
+
+/**
+ * The cards the workspace draws.
+ * @param modal - the workspace.
+ * @returns how many.
+ */
+function cardCount(modal: HTMLElement): number {
+    return modal.querySelectorAll("[data-join-card]").length;
 }
 
 /**
@@ -85,7 +95,7 @@ describe("the join workspace (source-steps)", () => {
         const counts = draft?.matchCounts({ from: { source: entries, field: "badge" }, into: { space } });
         await waitFor(() => {
             assert.strictEqual(
-                within(modal).getByLabelText("Matched").textContent,
+                within(modal).getByLabelText("Match count").textContent,
                 `${String(counts?.matched)} / ${String((counts?.matched ?? 0) + (counts?.only2 ?? 0))}`,
             );
         });
@@ -144,5 +154,57 @@ describe("the join workspace (source-steps)", () => {
             "the join is in the graph",
         );
         assert.strictEqual(session.history.steps.length, history + 1, "one undo step");
+    });
+
+    it("stays open under StrictMode, its draft drawn and still open", async () => {
+        const { session, modal } = await opened(true);
+        await waitFor(() => {
+            assert.isNull(modal.querySelector("[data-drawing]"), "the draft is drawn");
+        });
+        assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }), "the workspace is still open");
+        assert.isTrue(session.data.currentDraft()?.open === true, "its draft is still open");
+    });
+
+    it("lists the open card's values in the table, before and after a result is picked", async () => {
+        const { session, modal } = await opened();
+        const values = await within(modal).findByRole("grid", { name: "Values" });
+        await waitFor(() => {
+            assert.isAbove(within(values).getAllByRole("row").length, 1, "the values are listed at once");
+        });
+        await connect(modal, session);
+        await waitFor(() => {
+            const grid = within(modal).getByRole("grid", { name: "Values" });
+            assert.isAbove(within(grid).getAllByRole("row").length, 1, "still listed once the card has a result");
+        });
+    });
+
+    it("changing a written card's match keeps one card", async () => {
+        const { session, modal } = await opened();
+        await connect(modal, session);
+        assert.strictEqual(cardCount(modal), 1);
+        await choose(modal, "In graph field", "dept");
+        await waitFor(() => {
+            assert.strictEqual(session.data.currentDraft()?.steps().at(-1)?.act?.into.field, "dept");
+        });
+        assert.strictEqual(cardCount(modal), 1, "the card it was written from is not drawn again");
+    });
+
+    it("removing one unfinished card keeps the others", async () => {
+        const { modal } = await opened();
+        const add = within(modal).getByRole("button", { name: /^\+ Join/ });
+        await userEvent.click(add);
+        await userEvent.click(add);
+        await waitFor(() => {
+            assert.strictEqual(cardCount(modal), 3);
+        });
+        const deletes = within(modal).getAllByRole("button", { name: /^Delete / });
+        const last = deletes.at(-1);
+        assert.isDefined(last);
+        if (last !== undefined) {
+            await userEvent.click(last);
+        }
+        await waitFor(() => {
+            assert.strictEqual(cardCount(modal), 2, "only the removed card is gone");
+        });
     });
 });

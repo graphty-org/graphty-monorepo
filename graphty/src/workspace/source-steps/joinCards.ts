@@ -7,6 +7,7 @@
  */
 
 import type {
+    JoinReduce,
     SourceDraft,
     SourceKey,
     SourceMatchCounts,
@@ -35,8 +36,8 @@ export interface CardPicks {
 /** A card's result and its options, as the draft's step carries them. */
 export interface CardResult {
     readonly result: "merge" | "connect";
-    /** Merge: which of a node's rows wins. */
-    readonly repeated: "first" | "last";
+    /** Merge: what a node named by several rows keeps: the first or last row, or every row's values as a list or a count. */
+    readonly many: "first" | "last" | "list" | "count";
     /** Merge: what a row matching no node does. */
     readonly unmatchedFrom: "keep" | "drop";
     /** Connect: which way the edges run. */
@@ -57,10 +58,11 @@ export interface PendingCard {
     /** Whether the picks are still the element's guess. */
     readonly suggested: boolean;
     /**
-     * Whether the card wrote a step: it is then drawn as that step's card, and drawn again as
-     * this card once an undo takes the step back.
+     * The picks of every step the card wrote, its first and each rewrite: while a step with any
+     * of them is in the draft the card is drawn as that step's card, and it is drawn again as this
+     * card once undo takes them all back.
      */
-    readonly written?: boolean;
+    readonly written?: readonly CardPicks[];
 }
 
 /** One card as the workspace draws it. */
@@ -76,7 +78,7 @@ export interface JoinCardView {
 
 /** The options a new result starts with. */
 export const DEFAULT_RESULT: Omit<CardResult, "result"> = {
-    repeated: "first",
+    many: "first",
     unmatchedFrom: "keep",
     direction: "into-from",
     edgeType: "",
@@ -116,11 +118,11 @@ export function cardsOf(draft: SourceDraft, pending: readonly PendingCard[]): Jo
                 picks: { from: act.from, into, ignoreCase: act.ignoreCase, ignoreSpaces: act.ignoreSpaces },
                 result: {
                     result: act.act,
-                    repeated: act.repeated === "last" ? "last" : "first",
+                    many: manyOf(act.aggregate, act.repeated),
                     unmatchedFrom: act.unmatchedFrom ?? "keep",
                     direction: act.direction ?? "into-from",
                     edgeType: act.edgeType ?? "",
-                    perPair: act.act === "connect" && act.repeated === "first",
+                    perPair: act.perPair === true,
                     unmatched: act.unmatched ?? "skip",
                 },
                 guess: null,
@@ -129,9 +131,27 @@ export function cardsOf(draft: SourceDraft, pending: readonly PendingCard[]): Jo
         ];
     });
     const shown = pending.filter(
-        (card) => card.written !== true || !steps.some((each) => samePicks(each.picks, card.picks)),
+        (card) => !steps.some((each) => card.written?.some((picks) => samePicks(each.picks, picks)) === true),
     );
     return [...steps, ...shown.map((card) => ({ ...card, step: null, result: null }))];
+}
+
+/**
+ * A merge step's "many rows" choice, from the aggregate the card wrote (one reduction for every
+ * column) or its repeated rule.
+ * @param aggregate - The step's aggregate.
+ * @param repeated - The step's repeated rule.
+ * @returns The choice.
+ */
+function manyOf(
+    aggregate: Readonly<Record<string, JoinReduce>> | null,
+    repeated: "first" | "last" | "both" | null,
+): CardResult["many"] {
+    const reduce = aggregate === null ? undefined : Object.values(aggregate)[0];
+    if (reduce === "list" || reduce === "count") {
+        return reduce;
+    }
+    return repeated === "last" ? "last" : "first";
 }
 
 /**
@@ -142,6 +162,16 @@ export function cardsOf(draft: SourceDraft, pending: readonly PendingCard[]): Jo
  */
 export function samePicks(a: CardPicks, b: CardPicks): boolean {
     return JSON.stringify(pairOf(a)) === JSON.stringify(pairOf(b));
+}
+
+/**
+ * Whether a pending card is the written card behind a step card: it wrote that step's picks.
+ * @param pending - A pending card.
+ * @param card - A step card.
+ * @returns True when it is.
+ */
+export function writtenFor(pending: PendingCard, card: JoinCardView): boolean {
+    return card.step !== null && pending.written?.some((picks) => samePicks(picks, card.picks)) === true;
 }
 
 /**
@@ -200,9 +230,18 @@ export function draftColumns(draft: SourceDraft, source: SourceKey, table?: "nod
 function makeAct(draft: SourceDraft, pair: SourceMatchPair, picks: CardPicks, result: CardResult): void {
     const matching = { ignoreCase: picks.ignoreCase, ignoreSpaces: picks.ignoreSpaces };
     if (result.result === "merge") {
-        draft.merge({ ...pair, ...matching, unmatchedFrom: result.unmatchedFrom });
-        if (result.repeated === "last") {
-            draft.editStep(draft.steps().length - 1, { repeated: "last" });
+        const { many } = result;
+        draft.merge({
+            ...pair,
+            ...matching,
+            unmatchedFrom: result.unmatchedFrom,
+            ...(many === "last" ? { repeated: "last" } : {}),
+        });
+        if (many === "list" || many === "count") {
+            const columns = draftColumns(draft, pair.from.source).filter((column) => column !== pair.from.field);
+            draft.editStep(draft.steps().length - 1, {
+                aggregate: Object.fromEntries(columns.map((column) => [column, many])),
+            });
         }
         return;
     }

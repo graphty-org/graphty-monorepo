@@ -16,9 +16,10 @@ import {
     type SourceDraftRow,
     type SourceElementRef,
     type SourceMatchValue,
+    type SourceStepPatch,
     type SourceStepRow,
 } from "@graphty/graphty-element/session";
-import { Badge, Button, ColorSwatch, Group, Kbd, Loader, Radio, Stack, Switch, Text } from "@mantine/core";
+import { Badge, Button, Group, Kbd, Loader, Radio, Stack, Switch, Text } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -30,6 +31,7 @@ import { cardPalette } from "../selection/cardPalette";
 import { usePreviewCanvas } from "../selection/previewCanvas";
 import { useSessionEvents } from "../sessionEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useBoxSize } from "../useBoxSize";
 import { commitWorkspace } from "./actions";
 import { edgeTypeChoices, spaceChoices } from "./join";
 import { Pick } from "./JoinCard";
@@ -45,9 +47,9 @@ import {
     newCard,
     pairOf,
     type PendingCard,
-    samePicks,
     stepCardId,
     writeCard,
+    writtenFor,
 } from "./joinCards";
 import { JOIN_WORKSPACE_KEY, SIDE_KEY, WORKSPACE_UNDO_KEY } from "./keys";
 import { EFFECT_COLORS, MATCH_VALUE_COLUMNS, rowColumns } from "./tableColumns";
@@ -58,6 +60,7 @@ import {
     OVERLAP_FILTERS,
     PREVIEW_WORDS,
     refusedWords,
+    RULE_WORDS,
     WORKSPACE_WORDS,
 } from "./words";
 
@@ -67,6 +70,15 @@ const DRAFT_EVENTS = ["data:draft-changed"] as const;
 /** Lists, menus and popovers close themselves on Escape: never the workspace too. */
 const SELF_CLOSING =
     "[data-portal], [data-popout-portal-container], .mantine-Combobox-dropdown, .mantine-Popover-dropdown";
+
+/** The colors of what the commit does, as the header key names them: merged, new, unmatched. */
+const [MERGED_COLOR = "#000", NEW_COLOR = "#000", UNTOUCHED_COLOR = "#000"] = DEFAULT_BRANCH_PALETTE;
+
+/** The key's colors, upper case, which no card takes. */
+const KEY_COLORS: ReadonlySet<string> = new Set([MERGED_COLOR, NEW_COLOR, UNTOUCHED_COLOR].map((c) => c.toUpperCase()));
+
+/** A step's counts that make a graph a reader rarely wants: drawn as a warning. */
+const WARN_BUCKETS: ReadonlySet<string> = new Set(["selfLoops", "parallelPairs"]);
 
 /** How many rows a table page reads. */
 const PAGE = 200;
@@ -258,6 +270,7 @@ function Choice({
  * @param props.card - the card, with a result
  * @param props.result - its result
  * @param props.onChange - writes the card
+ * @param props.onPatch - changes a choice its step keeps, such as a column's clash rule
  * @returns the rows
  */
 function Options({
@@ -265,29 +278,47 @@ function Options({
     card,
     result,
     onChange,
+    onPatch,
 }: Readonly<{
     session: GraphSession;
     card: JoinCardView;
     result: CardResult;
     onChange: CardChange;
+    onPatch: (step: number, patch: SourceStepPatch) => void;
 }>): React.JSX.Element {
     const set = (patch: Partial<CardResult>): void => {
         onChange(card, card.picks, { ...result, ...patch });
     };
     if (result.result === "merge") {
+        const { step } = card;
         return (
             <Stack gap={4}>
                 <Choice
                     label={WORKSPACE_WORDS.manyRows}
-                    value={result.repeated}
-                    data={[
-                        { value: "first", label: WORKSPACE_WORDS.first },
-                        { value: "last", label: WORKSPACE_WORDS.last },
-                    ]}
+                    value={result.many}
+                    data={MANY_ROWS}
                     onChange={(value) => {
-                        set({ repeated: value === "last" ? "last" : "first" });
+                        set({ many: MANY_ROWS.find((each) => each.value === value)?.value ?? "first" });
                     }}
                 />
+                {step?.valuesDiffer.map(({ params }) => (
+                    <Group key={params.column} gap={6} wrap="nowrap" justify="space-between">
+                        <Text size="xs" c="dimmed" truncate>
+                            {params.column}
+                        </Text>
+                        <Pick
+                            name={`${WORKSPACE_WORDS.clash} ${params.column}`}
+                            data={params.rules.map((rule) => ({ value: rule, label: RULE_WORDS[rule] }))}
+                            value={params.rule}
+                            onPick={(rule) => {
+                                const picked = params.rules.find((each) => each === rule);
+                                if (picked !== undefined) {
+                                    onPatch(step.index, { clash: { [params.column]: picked } });
+                                }
+                            }}
+                        />
+                    </Group>
+                ))}
                 <Choice
                     label={WORKSPACE_WORDS.noMatch}
                     value={result.unmatchedFrom}
@@ -356,6 +387,14 @@ function Options({
     );
 }
 
+/** Merge's "many rows" ways, as `CardResult.many` names them. */
+const MANY_ROWS = [
+    { value: "first", label: WORKSPACE_WORDS.first },
+    { value: "last", label: WORKSPACE_WORDS.last },
+    { value: "list", label: WORKSPACE_WORDS.list },
+    { value: "count", label: WORKSPACE_WORDS.count },
+] as const;
+
 /**
  * A step's counts, each a button that lists its rows in the table.
  * @param props - Component props
@@ -380,7 +419,9 @@ function StepCounts({
                     <Button
                         key={id}
                         size="compact-xs"
-                        variant="subtle"
+                        variant={WARN_BUCKETS.has(id) ? "light" : "subtle"}
+                        color={WARN_BUCKETS.has(id) ? "red" : undefined}
+                        data-warn={WARN_BUCKETS.has(id) ? "" : undefined}
                         onClick={() => {
                             onShow(id);
                         }}
@@ -475,10 +516,10 @@ function TablePane({
 }>): React.JSX.Element | null {
     // on reload: fresh: pointer: the page of a list opened for a look
     const [offset, setOffset] = useState(0);
-    const box = useRef<HTMLDivElement>(null);
-    const height = Math.max(PANEL_GRID.ROW_PITCH * 4, (box.current?.clientHeight ?? 240) - PANEL_GRID.ROW_PITCH * 2);
+    const grid = useBoxSize();
+    const height = Math.max(PANEL_GRID.ROW_PITCH * 4, grid.height);
     if (shows === null) {
-        return <div ref={box} className="jw-table" />;
+        return <div className="jw-table" />;
     }
     const range = (start: number, end: number): void => {
         if (start < offset || end > offset + PAGE) {
@@ -503,7 +544,7 @@ function TablePane({
             }
         }
         return (
-            <div ref={box} className="jw-table">
+            <div className="jw-table">
                 <SegmentedControl
                     size="xs"
                     aria-label={PREVIEW_WORDS.valuesDiffer}
@@ -514,20 +555,22 @@ function TablePane({
                         onShows({ ...shows, only: only as typeof shows.only });
                     }}
                 />
-                <DataTable<SourceMatchValue>
-                    key={`${shows.card}:${shows.only}`}
-                    label={JOIN_WORDS.values}
-                    rowHeight={PANEL_GRID.ROW_PITCH}
-                    headerHeight={PANEL_GRID.ROW_PITCH}
-                    data={page.values}
-                    rowCount={page.total}
-                    rowOffset={offset}
-                    onRangeChange={range}
-                    columns={MATCH_VALUE_COLUMNS}
-                    getRowId={(row) => `${typeof row.value}:${String(row.value)}`}
-                    height={height}
-                    selectionMode="none"
-                />
+                <div ref={grid.ref} className="jw-table-grid">
+                    <DataTable<SourceMatchValue>
+                        key={`${shows.card}:${shows.only}`}
+                        label={JOIN_WORDS.values}
+                        rowHeight={PANEL_GRID.ROW_PITCH}
+                        headerHeight={PANEL_GRID.ROW_PITCH}
+                        data={page.values}
+                        rowCount={page.total}
+                        rowOffset={offset}
+                        onRangeChange={range}
+                        columns={MATCH_VALUE_COLUMNS}
+                        getRowId={(row) => `${typeof row.value}:${String(row.value)}`}
+                        height={height}
+                        selectionMode="none"
+                    />
+                </div>
             </div>
         );
     }
@@ -539,26 +582,28 @@ function TablePane({
     }
     const ids = rows.rows.map((row) => JSON.stringify([row.source, row.table, row.row, row.key, row.element]));
     return (
-        <div ref={box} className="jw-table">
-            <DataTable<SourceDraftRow>
-                key={`${String(shows.step)}:${shows.bucket}`}
-                label={WORKSPACE_WORDS.rows}
-                rowHeight={PANEL_GRID.ROW_PITCH}
-                headerHeight={PANEL_GRID.ROW_PITCH}
-                data={rows.rows}
-                rowCount={rows.total}
-                rowOffset={offset}
-                onRangeChange={range}
-                columns={rowColumns(session, rows.rows)}
-                getRowId={(_row, index) => ids[index - offset] ?? String(index)}
-                height={height}
-                rowColor={(row) => EFFECT_COLORS[row.effect]}
-                selectionMode="multiple"
-                onSelectionChange={(selected) => {
-                    const picked = rows.rows.filter((_row, at) => selected.includes(ids[at] ?? ""));
-                    onMark(picked.flatMap((row) => (row.element === null ? [] : [row.element])));
-                }}
-            />
+        <div className="jw-table">
+            <div ref={grid.ref} className="jw-table-grid">
+                <DataTable<SourceDraftRow>
+                    key={`${String(shows.step)}:${shows.bucket}`}
+                    label={WORKSPACE_WORDS.rows}
+                    rowHeight={PANEL_GRID.ROW_PITCH}
+                    headerHeight={PANEL_GRID.ROW_PITCH}
+                    data={rows.rows}
+                    rowCount={rows.total}
+                    rowOffset={offset}
+                    onRangeChange={range}
+                    columns={rowColumns(session, rows.rows)}
+                    getRowId={(_row, index) => ids[index - offset] ?? String(index)}
+                    height={height}
+                    rowColor={(row) => EFFECT_COLORS[row.effect]}
+                    selectionMode="multiple"
+                    onSelectionChange={(selected) => {
+                        const picked = rows.rows.filter((_row, at) => selected.includes(ids[at] ?? ""));
+                        onMark(picked.flatMap((row) => (row.element === null ? [] : [row.element])));
+                    }}
+                />
+            </div>
         </div>
     );
 }
@@ -610,7 +655,11 @@ export function JoinWorkspace({
     usePreviewCanvas(draft !== null, box, frame);
 
     // The draft is drawn After while the workspace is open; closing by any door throws it away.
+    // Decided a microtask later: StrictMode's development-only rerun mounts the workspace again
+    // first, and must find its draft still open (as the selection workspace does).
+    const mounted = useRef(true);
     useEffect(() => {
+        mounted.current = true;
         if (draft === null) {
             return undefined;
         }
@@ -618,9 +667,12 @@ export function JoinWorkspace({
             setDrawing(false);
         });
         return () => {
-            if (draft.open) {
-                draft.dispose();
-            }
+            mounted.current = false;
+            queueMicrotask(() => {
+                if (!mounted.current && draft.open) {
+                    draft.dispose();
+                }
+            });
         };
     }, [draft]);
 
@@ -636,8 +688,11 @@ export function JoinWorkspace({
     }, [draft, live, version, store]);
 
     const cards = live ? cardsOf(draft, pending) : [];
-    const palette = session.scope.options.branchPalette ?? cardPalette(session.catalog.palettes());
-    const colorOf = (at: number): string => palette[at % palette.length] ?? DEFAULT_BRANCH_PALETTE[0];
+    // Cards never take the key's colors, so a color names either a card or what the commit does.
+    const palette = (session.scope.options.branchPalette ?? cardPalette(session.catalog.palettes())).filter(
+        (color) => !KEY_COLORS.has(color.toUpperCase()),
+    );
+    const colorOf = (at: number): string => palette[at % Math.max(1, palette.length)] ?? MERGED_COLOR;
     // A card an undo took back is drawn again with its picks: it is the open one.
     const openCard = cards.find((card) => card.id === open) ?? cards.find((card) => card.step === null);
 
@@ -646,15 +701,14 @@ export function JoinWorkspace({
         if (!live || !colors) {
             return undefined;
         }
-        const [merged = "#000", added = "#000", untouched = "#000"] = DEFAULT_BRANCH_PALETTE;
         const steps = cards.flatMap((card, at) =>
             card.step === null ? [] : [{ step: card.step.index, color: colorOf(at) }],
         );
         const mark = marked.length > 0 ? { refs: marked } : stepMark(openCard);
         const view = session.styles.showDraft({
-            merged,
-            new: added,
-            untouched,
+            merged: MERGED_COLOR,
+            new: NEW_COLOR,
+            untouched: UNTOUCHED_COLOR,
             steps,
             ...(mark === undefined ? {} : { mark }),
         });
@@ -686,19 +740,39 @@ export function JoinWorkspace({
             }
             const id = at === null ? card.id : `new:${String(++nextId.current)}`;
             const next: PendingCard = { id, picks, guess: card.guess, suggested: false };
-            setPending((now) => [...now.filter((each) => each.id !== card.id), next]);
+            // A step card going back to picks takes the written card behind it along.
+            setPending((now) => [
+                ...now.filter((each) => each.id !== card.id && !(at !== null && writtenFor(each, card))),
+                next,
+            ]);
             setOpen(id);
             return;
         }
         try {
             const step = writeCard(draft, at, picks, result);
             if (step !== null) {
-                // Kept, written: an undo that takes the step back draws the card again.
+                // Kept, written: an undo that takes the step back draws the card again. A step card
+                // rewritten with other picks carries its written card's picks along, so that card
+                // is never drawn again beside it.
                 setPending((now) =>
-                    now.map((each) => (each.id === card.id ? { ...each, picks, written: true } : each)),
+                    now.map((each) =>
+                        each.id === card.id || (at !== null && writtenFor(each, card))
+                            ? { ...each, picks, written: [...(each.written ?? []), picks] }
+                            : each,
+                    ),
                 );
                 setOpen(stepCardId(step));
+                setShows((now) =>
+                    now?.kind === "values" && now.card === card.id ? { ...now, card: stepCardId(step) } : now,
+                );
             }
+        } catch (error) {
+            notice(error);
+        }
+    };
+    const patch = (step: number, edit: SourceStepPatch): void => {
+        try {
+            draft.editStep(step, edit);
         } catch (error) {
             notice(error);
         }
@@ -718,9 +792,8 @@ export function JoinWorkspace({
                 return;
             }
         }
-        setPending((now) =>
-            now.filter((each) => each.id !== id && (card === undefined || !samePicks(each.picks, card.picks))),
-        );
+        // Only a step card takes the written card behind it along; unfinished cards stay.
+        setPending((now) => now.filter((each) => each.id !== id && !(card !== undefined && writtenFor(each, card))));
     };
     const undo = (): void => {
         draft.undo();
@@ -786,11 +859,17 @@ export function JoinWorkspace({
     };
 
     const { marks } = draft.preview();
+    // The key names each effect by the mark the preview draws for it (a ring, a dashed border, a
+    // dotted border), in the color it takes outside a card's own color.
     const keyItems = [
-        { id: "merged", color: DEFAULT_BRANCH_PALETTE[0], label: WORKSPACE_WORDS.merged, count: marks.merged },
-        { id: "new", color: DEFAULT_BRANCH_PALETTE[1], label: WORKSPACE_WORDS.new, count: marks.new },
-        { id: "untouched", color: DEFAULT_BRANCH_PALETTE[2], label: WORKSPACE_WORDS.untouched, count: marks.untouched },
+        { id: "merged", color: MERGED_COLOR, label: WORKSPACE_WORDS.merged, count: marks.merged },
+        { id: "new", color: NEW_COLOR, label: WORKSPACE_WORDS.new, count: marks.new },
+        { id: "untouched", color: UNTOUCHED_COLOR, label: WORKSPACE_WORDS.untouched, count: marks.untouched },
     ];
+    // The table lists what the reader asked for, else the open card's values.
+    const listed = shows?.kind === "values" && !cards.some((card) => card.id === shows.card) ? null : shows;
+    const tableShows: TableShows | null =
+        listed ?? (openCard === undefined ? null : { kind: "values", card: openCard.id, only: "all" });
 
     const items: CardListItem[] = cards.map((card, at) => {
         const { result } = card;
@@ -815,7 +894,7 @@ export function JoinWorkspace({
                         card={card}
                         onChange={change}
                         onFocusValues={() => {
-                            if (shows?.kind !== "values" || shows.card !== card.id) {
+                            if (tableShows?.kind !== "values" || tableShows.card !== card.id) {
                                 setShows({ kind: "values", card: card.id, only: "all" });
                             }
                         }}
@@ -848,7 +927,7 @@ export function JoinWorkspace({
                         </Group>
                     </Radio.Group>
                     {result === null ? null : (
-                        <Options session={session} card={card} result={result} onChange={change} />
+                        <Options session={session} card={card} result={result} onChange={change} onPatch={patch} />
                     )}
                     {card.step === null ? null : (
                         <StepCounts
@@ -883,7 +962,12 @@ export function JoinWorkspace({
                     </Text>
                     {keyItems.map((each) => (
                         <Group key={each.id} gap={4} wrap="nowrap" aria-label={`${each.label} ${String(each.count)}`}>
-                            <ColorSwatch size={10} color={each.color} aria-hidden />
+                            <span
+                                className="jw-key-mark"
+                                data-mark={each.id}
+                                style={{ color: each.color }}
+                                aria-hidden
+                            />
                             <Text size="xs">{`${each.label} ${formatNumber(each.count)}`}</Text>
                         </Group>
                     ))}
@@ -980,7 +1064,7 @@ export function JoinWorkspace({
                             <TablePane
                                 session={session}
                                 draft={draft}
-                                shows={shows}
+                                shows={tableShows}
                                 cards={cards}
                                 onShows={setShows}
                                 onMark={setMarked}

@@ -5085,6 +5085,8 @@ export interface SourceStepAct {
     readonly unmatchedFrom?: "keep" | "drop";
     /** Make an edge: what becomes of a row whose field names no node, as `connect` takes it. */
     readonly unmatched?: "skip" | "add";
+    /** Make an edge: one edge per pair of ends, as `connect` takes it. */
+    readonly perPair?: boolean;
 }
 
 /**

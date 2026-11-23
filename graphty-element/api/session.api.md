@@ -8543,6 +8543,7 @@ export interface SourceStepAct {
     readonly into: SourceJoinInto & {
         readonly space: SourceSpaceName;
     };
+    readonly perPair?: boolean;
     readonly repeated: "first" | "last" | "both" | null;
     readonly unmatched?: "skip" | "add";
     readonly unmatchedFrom?: "keep" | "drop";

@@ -15,20 +15,15 @@ on:
     # the history to work around a scheduling hiccup.
     # The release train (release.yml) calls this workflow on the commit it is about to release: the full
     # suite, every shard of every package, and the builds it publishes (design/ci/ci-cd-plan.md, section 10).
-    # (golden-verify.yml, removed, also called it; a caller that takes the ref from a dispatch input would run any
-    # commit in master's cache scope, so tools/ci-workflows.test.mjs allows only the release train.)
-    # `verify` leaves out the benchmarks, and `shards` (a CI bisect point) runs only the named test shards.
+    # A caller that takes the ref from a dispatch input would run any commit in master's cache scope, so
+    # tools/ci-workflows.test.mjs allows only the release train.
+    # `shards` (a CI bisect point) runs only the named test shards.
     workflow_call:
         inputs:
             ref:
                 description: "the commit to test and build"
                 type: string
                 required: true
-            verify:
-                description: "a verification run of golden: skip the Performance benchmarks, which gate nothing"
-                type: boolean
-                required: false
-                default: false
             shards:
                 description: "a JSON list of test shard names: run only these, as a light run (no screenshots)"
                 type: string
@@ -330,9 +325,9 @@ jobs:
             # change to any of them affects every project, so it runs the full set here too.
             # The shard list itself lives in tools/ci-test-matrix.mjs, which filters it; the base is named
             # explicitly for the same reason as "Build affected (PR)" below.
-            # A called run (inputs.ref: the release train, golden-verify.yml) is full even when the caller was
-            # started by a push: a called workflow sees its caller's event, and golden-verify.yml runs on a push
-            # to golden-candidate. Only a push of master itself (no inputs.ref) is the build-only run.
+            # A called run (inputs.ref: the release train) is full even when the caller was started by a push: a
+            # called workflow sees its caller's event. Only a push of master itself (no inputs.ref) is the
+            # build-only run.
             # A `shards` input keeps only those shards (tools/ci-test-matrix.mjs --only) and makes the run light,
             # so the summary accepts the jobs it skipped and no screenshots are taken.
             # visual-skip names the Storybooks whose screenshots this run leaves out (tools/visual-capture-plan.mjs:
@@ -2316,7 +2311,7 @@ jobs:
     algorithms-benchmarks:
         name: Algorithms Benchmarks
         needs: packages
-        if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
+        if: github.event_name != 'pull_request' && needs.packages.outputs.light != 'true'
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 50
@@ -2387,7 +2382,7 @@ jobs:
     browser-benchmarks:
         name: Browser Benchmarks
         needs: packages
-        if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
+        if: github.event_name != 'pull_request' && needs.packages.outputs.light != 'true'
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 50
@@ -2460,7 +2455,7 @@ jobs:
     performance:
         name: Performance Benchmarks
         needs: packages
-        if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
+        if: github.event_name != 'pull_request' && needs.packages.outputs.light != 'true'
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 50
@@ -3709,7 +3704,7 @@ jobs:
                   fi
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
-            # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
+            # this job's success does not replace, so a re-run that passed stayed red (#2639).
             # The run's token shares its API limits with every run of the repository, and a busy hour used one
             # up: the calls failed, the step was continue-on-error, and the early verdict stayed red with the
             # pull request blocked (#3857). So a failed call waits for the limit to reset and tries again, and

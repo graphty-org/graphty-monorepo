@@ -1391,7 +1391,7 @@ describe("ci.yml", () => {
             assert.doesNotMatch(body, /event_name == 'push'|refs\/heads\/master/, name);
         }
         for (const name of ["algorithms-benchmarks", "browser-benchmarks", "performance"]) {
-            assert.match(job(ci, name), /if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
+            assert.match(job(ci, name), /if: github.event_name != 'pull_request' &&/, name);
         }
     });
 
@@ -1538,11 +1538,8 @@ describe("verification runs of ci.yml", () => {
         return { status: r.status, stderr: r.stderr, out };
     };
 
-    it("is called with a ref, an optional verify flag and an optional shard list", () => {
-        assert.match(
-            ci,
-            /\n {12}verify:\n {16}description: .*\n {16}type: boolean\n {16}required: false\n {16}default: false\n/,
-        );
+    it("is called with a ref and an optional shard list", () => {
+        assert.doesNotMatch(ci, /inputs\.verify|\n {12}verify:/);
         assert.match(
             ci,
             /\n {12}shards:\n {16}description: .*\n {16}type: string\n {16}required: false\n {16}default: ""\n/,
@@ -1574,12 +1571,6 @@ describe("verification runs of ci.yml", () => {
         );
         const bad = planStep({ EVENT: "workflow_dispatch", CALLED_REF: "abc123", SHARDS: '["nope"]' });
         assert.notEqual(bad.status, 0);
-    });
-
-    it("skips the benchmarks on a verification run", () => {
-        for (const name of ["algorithms-benchmarks", "browser-benchmarks", "performance"]) {
-            assert.match(job(ci, name), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
-        }
     });
 
     it("uploads every shard's JUnit reports, without letting the upload decide the shard", () => {

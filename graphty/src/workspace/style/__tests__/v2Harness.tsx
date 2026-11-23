@@ -248,12 +248,14 @@ export function settingsName(title: string | RegExp): RegExp {
  * @returns the open Kind list.
  */
 export async function openKind(row: HTMLElement, title: string | RegExp): Promise<HTMLElement> {
-    const settings = within(row).getByRole("button", { name: settingsName(title) });
-    // A pick leaves the pop-over open: a second click on "..." would close it.
-    if (settings.getAttribute("aria-expanded") !== "true") {
+    const settings = within(row).queryByRole("button", { name: settingsName(title) });
+    // A pick leaves the pop-over open: a second click on "..." would close it. A row with no settings (a basic
+    // shape) draws its Kind under it.
+    if (settings !== null && settings.getAttribute("aria-expanded") !== "true") {
         await userEvent.click(settings);
     }
-    await userEvent.click(await screen.findByRole("combobox", { name: "Kind" }));
+    const scope = settings === null ? within(row) : screen;
+    await userEvent.click(await scope.findByRole("combobox", { name: "Kind" }));
     return screen.findByRole("listbox");
 }
 
@@ -285,7 +287,10 @@ export async function closeSettings(): Promise<void> {
  * @returns the kind's name.
  */
 export async function kindOf(row: HTMLElement, title: string | RegExp): Promise<string> {
-    const settings = within(row).getByRole("button", { name: settingsName(title) });
+    const settings = within(row).queryByRole("button", { name: settingsName(title) });
+    if (settings === null) {
+        return (await within(row).findByRole<HTMLInputElement>("combobox", { name: "Kind" })).value;
+    }
     if (settings.getAttribute("aria-expanded") !== "true") {
         await userEvent.click(settings);
     }

@@ -189,9 +189,9 @@ describe("Style panel v2's Switch to", () => {
     it("no row or pop-over uses the sliders glyph (Graph settings: GraphSettingsV2's test)", async () => {
         await openStar();
         const tab = await openStyle("Key people");
-        const row = await rowOf(sectionOf(tab, "node-shape"), "shape");
+        const row = await rowOf(sectionOf(tab, "node-shape"), "size");
         assert.isNull(tab.querySelector(".lucide-sliders-horizontal"), "the panel");
-        await openSettings(row, "Node shape settings");
+        await openSettings(row, "Node size settings");
         assert.isNull(document.querySelector(".lucide-sliders-horizontal"), "a pop-over");
         await userEvent.keyboard("{Escape}");
     });

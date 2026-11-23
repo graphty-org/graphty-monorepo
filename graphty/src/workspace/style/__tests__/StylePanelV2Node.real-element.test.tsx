@@ -137,7 +137,7 @@ describe("Style panel v2's node things", () => {
         });
     });
 
-    it("Shape's pop-over adds Corners from its '+', and the legend's minus unsets them", async () => {
+    it("a basic Shape row has no settings; Corners the layer sets are lines under it with their minus", async () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const shape = sectionOf(tab, "node-shape");
@@ -146,30 +146,19 @@ describe("Style panel v2's node things", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const row = await rowOf(shape, "shape");
         assert.isNull(row.querySelector('.ws-row[data-line="node.size"]'), "an unset Size is not under the row");
+        // Its drop-down is its settings (owner, 2026-11-23).
+        assert.isNull(within(row).queryByRole("button", { name: /^Node shape settings/ }));
 
-        await userEvent.click(within(row).getByRole("button", { name: /^Node shape settings/ }));
-        const pop = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
-            assert.isNotNull(found);
-            return found;
-        });
-        assert.isNull(
-            pop.querySelector('[data-line="node.size"]'),
-            "Size is its own row, not the Shape's (ia-design 2)",
-        );
-        assert.isNull(within(pop).queryByRole("group", { name: "Corners" }), "Corners waits for its '+'");
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to node shape settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Corners" }));
-        const corners = await within(pop).findByRole("group", { name: "Corners" });
-        await typeInto(await lineOf(corners, "node.cornerRadius"), "0.2");
+        // Corners a layer already sets (an imported file's) are drawn under the row, editable.
+        await session.styles.update(id, { set: { ...session.styles.get(id)?.set, "node.cornerRadius": 0.1 } });
+        await typeInto(await lineOf(row, "node.cornerRadius"), "0.2");
         await waitFor(() => {
             assert.equal(written(session, id, "node.cornerRadius"), 0.2);
         });
-
-        await userEvent.click(within(corners).getByRole("button", { name: "Remove corners" }));
+        const line = await lineOf(row, "node.cornerRadius");
+        await userEvent.click(within(line).getByRole("button", { name: /^Remove / }));
         await waitFor(() => {
-            assert.isUndefined(written(session, id, "node.cornerRadius"), "the legend's minus unsets its lines");
-            assert.isNull(within(pop).queryByRole("group", { name: "Corners" }));
+            assert.isUndefined(written(session, id, "node.cornerRadius"), "its minus unsets it");
         });
         assert.isDefined(written(session, id, "node.shape"), "the shape stays");
     });
@@ -253,31 +242,20 @@ describe("Style panel v2's node things", () => {
         await userEvent.keyboard("{Escape}");
         assert.isNotNull(await rowOf(text, "record"), "the Record row stays");
 
-        // Inner lines are the custom shape's: the Shape pop-over's Custom shape sub-group (ia-design 2).
+        // Inner lines are the custom shape's (ia-design 2): lines a layer sets are drawn under the Shape row.
         const shape = sectionOf(tab, "node-shape");
         await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
         // Shape's "+" lists Size and Shape (ia-design 2).
         await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
-        const row = await rowOf(shape, "shape");
-        await userEvent.click(within(row).getByRole("button", { name: /^Node shape settings/ }));
-        const pop = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
-            assert.isNotNull(found);
-            return found;
-        });
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to node shape settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Custom shape" }));
-        const custom = await within(pop).findByRole("group", { name: "Custom shape" });
+        await rowOf(shape, "shape");
+        await session.styles.update(id, { set: { ...session.styles.get(id)?.set, "node.shapeLines": "-1,0 1,0" } });
+        const custom = await rowOf(shape, "shape");
         // Extra pieces take lines too: Inner lines' own "+" is on its line.
         const innerLines = (): HTMLElement => {
             const found = custom.querySelector<HTMLElement>('[data-line="node.shapeLines"]');
             assert.isNotNull(found);
             return found;
         };
-        await userEvent.click(within(innerLines()).getByRole("button", { name: "Add line" }));
-        await waitFor(() => {
-            assert.equal(written(session, id, "node.shapeLines"), "-1,0 1,0", "Inner lines start with one line");
-        });
         await userEvent.click(within(innerLines()).getByRole("button", { name: "Add line" }));
         await waitFor(() => {
             assert.equal(written(session, id, "node.shapeLines"), "-1,0 1,0; -1,0 1,0", "a second line");

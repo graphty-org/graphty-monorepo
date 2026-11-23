@@ -43,7 +43,19 @@ const SECTION_ORDER = {
  * every shader is the one Shader item (E668).
  */
 const EFFECTS_ITEMS = {
-    node: ["Border", "Visibility", "|", "Ring", "Shader", "Glow", "|", "Drop shadow", "Raised edge", "Plate"],
+    node: [
+        "Border",
+        "Visibility",
+        "|",
+        "Ring",
+        "Shader",
+        "Glow",
+        "Wireframe",
+        "|",
+        "Drop shadow",
+        "Raised edge",
+        "Plate",
+    ],
     edge: ["Visibility", "|", "Shader", "Animation"],
 } as const;
 
@@ -177,7 +189,8 @@ describe("Style panel v2 on", () => {
             assert.isNotNull(found);
             return found;
         });
-        assert.isNotNull(within(row).getByRole("button", { name: "Node shape settings" }));
+        // A basic shape's row is its settings: its drop-down picks the shape (owner, 2026-11-23).
+        assert.isNull(within(row).queryByRole("button", { name: "Node shape settings" }));
 
         await userEvent.click(within(row).getByRole("button", { name: "Remove node shape" }));
         await waitFor(() => {
@@ -206,7 +219,7 @@ describe("Style panel v2 on", () => {
             within(menu)
                 .getAllByRole("menuitem")
                 .map((item) => item.textContent),
-            ["Border", "Visibility", "Ring", "Shader", "Glow", "Drop shadow", "Raised edge", "Plate"],
+            ["Border", "Visibility", "Ring", "Shader", "Glow", "Wireframe", "Drop shadow", "Raised edge", "Plate"],
         );
         assert.lengthOf(menu.querySelectorAll(".mantine-Menu-divider"), 2, "a divider between each two groups");
         await userEvent.click(within(menu).getByRole("menuitem", { name: "Ring" }));
@@ -291,14 +304,14 @@ describe("Style panel v2's '+' lists", () => {
             await onlyPlusAdds(session, section, section.textContent ?? "a section");
         }
 
-        // A pop-over's group: a Shape, added from its section's menu (Size and Shape, ia-design 2), has sub-groups.
+        // A pop-over's group: a Size, added from its section's menu (Size and Shape, ia-design 2), has sub-groups.
         const shape = sectionOf(tab, "node-shape");
         await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
         await waitFor(() => {
-            assert.isNotNull(shape.querySelector('[data-thing="shape"]'));
+            assert.isNotNull(shape.querySelector('[data-thing="size"]'));
         });
-        await userEvent.click(within(shape).getByRole("button", { name: /^Node shape settings/ }));
+        await userEvent.click(within(shape).getByRole("button", { name: /^Node size settings/ }));
         const pop = await waitFor(() => {
             const found = document.querySelector<HTMLElement>("[data-thing-popover]");
             assert.isNotNull(found);
@@ -311,14 +324,14 @@ describe("Style panel v2's '+' lists", () => {
         const groupTitle = (group: Element): string =>
             group.querySelector('[data-testid="control-group-label"]')?.textContent ?? "";
         const titles = [...pop.querySelectorAll('[data-plus-list="group"]')].map(groupTitle);
-        assert.isNotEmpty(titles, "Shape's pop-over has groups");
+        assert.isNotEmpty(titles, "Size's pop-over has groups");
         for (const title of titles) {
             const group = [
                 ...document.querySelectorAll<HTMLElement>('[data-thing-popover] [data-plus-list="group"]'),
             ].find((each) => groupTitle(each) === title);
-            assert.isDefined(group, `Shape's ${title} group`);
+            assert.isDefined(group, `Size's ${title} group`);
             if (group !== undefined) {
-                await onlyPlusAdds(session, group, `Shape's ${title}`);
+                await onlyPlusAdds(session, group, `Size's ${title}`);
             }
         }
         await userEvent.keyboard("{Escape}");

@@ -552,14 +552,19 @@ export function ThingRow({
                 }}
             />
         ) : null;
-    const slots: RowSlots = {
-        slot: settings,
-        removeLabel,
-        onRemove: remove,
-        onOpen: () => {
-            setOpen(true);
-        },
-    };
+    // A basic shape's row has no settings pop-over (owner, 2026-11-23): its drop-down picks the shape, its Kind
+    // line is drawn under it, and the lines a layer sets (Rotation, Corners, Custom shape) under that.
+    const plainShape = thing.id === "shape" && replacing === undefined && main.channel === "node.shape";
+    const slots: RowSlots = plainShape
+        ? { slot: null, removeLabel, onRemove: remove }
+        : {
+              slot: settings,
+              removeLabel,
+              onRemove: remove,
+              onOpen: () => {
+                  setOpen(true);
+              },
+          };
     return (
         <div ref={box} data-thing={thing.id}>
             {picker}
@@ -574,6 +579,8 @@ export function ThingRow({
                 onCancel={onCancel}
                 slots={slots}
             />
+            {/* With no pop-over, a basic shape's Kind (Basic shape, Model, a shader) is the line under its row. */}
+            {plainShape && member}
             {/* Every line of the thing the layer sets, in the pop-over's order, named, each with its minus (design 2.5). */}
             {setLines.map((line) => (
                 <RubricLine key={line.channel} ctx={ctx} line={line} named />

@@ -53,7 +53,6 @@ const KNOWN_TALL: readonly string[] = [
     "node.image",
     "node.label",
     "node.pie",
-    "node.shape",
     "node.size",
     "node.stripes",
     "node.tooltip",
@@ -61,7 +60,7 @@ const KNOWN_TALL: readonly string[] = [
 ];
 
 /** Pop-overs with a level-2 pop-out that holds a control opening a third level. */
-const KNOWN_THIRD_LEVEL: readonly string[] = ["edge.arrow", "edge.pattern", "node.plate", "node.shape"];
+const KNOWN_THIRD_LEVEL: readonly string[] = ["edge.arrow", "edge.pattern", "node.plate"];
 
 /**
  * A compact-mantine component's own inner pop-out, not counted as a third level: the app cannot change it
@@ -98,11 +97,11 @@ const KNOWN_MINUS_NOT_LAST: readonly string[] = [
     "node.record",
     "node.rings",
     "node.shadow",
-    "node.shape",
     "node.size",
     "node.stripes",
     "node.tooltip",
     "node.visibility",
+    "node.wireframe",
     "node.xlabel",
 ];
 
@@ -131,11 +130,11 @@ const KNOWN_SLOT_NOT_AFTER_CONTROL: readonly string[] = [
     "node.record",
     "node.rings",
     "node.shadow",
-    "node.shape",
     "node.size",
     "node.stripes",
     "node.tooltip",
     "node.visibility",
+    "node.wireframe",
     "node.xlabel",
 ];
 
@@ -165,11 +164,11 @@ const KNOWN_SHOWN_AT_REST: readonly string[] = [
     "node.record",
     "node.rings",
     "node.shadow",
-    "node.shape",
     "node.size",
     "node.stripes",
     "node.tooltip",
     "node.visibility",
+    "node.wireframe",
     "node.xlabel",
 ];
 
@@ -197,7 +196,6 @@ const KNOWN_EMPTY: readonly string[] = [
     "node.record",
     "node.rings",
     "node.shadow",
-    "node.shape",
     "node.size",
     "node.stripes",
     "node.tooltip",
@@ -568,14 +566,18 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 await userEvent.click(button);
                 return openedBy(button);
             };
-            const pop = await openSettings();
-            await addEveryGroup(pop);
-            const tall = linesTall(pop);
+            // A row with no settings (a basic Shape: its drop-down is its settings) is checked alone.
+            const settings = within(row).queryAllByRole("button", { name: / settings( has configured values)?$/ });
+            const pop = settings.length === 0 ? null : await openSettings();
+            if (pop !== null) {
+                await addEveryGroup(pop);
+            }
+            const tall = pop === null ? 0 : linesTall(pop);
 
             // At rest: the pointer on the Style tab's own tab, outside the row and the pop-over.
             const away = screen.getByRole("tab", { name: "Style" });
             await userEvent.hover(away);
-            const lines = [...linesIn(row), ...linesIn(pop)];
+            const lines = [...linesIn(row), ...(pop === null ? [] : linesIn(pop))];
             const found: Found = {
                 tall: tall > 6 ? tall : undefined,
                 minus: minusNotLast(lines),
@@ -594,7 +596,7 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                     assert.notStrictEqual(getComputedStyle(button).visibility, "hidden", `${nameOf(hidden)} on hover`);
                 }
             }
-            found.third = await thirdLevels(pop, openSettings);
+            found.third = pop === null ? [] : await thirdLevels(pop, openSettings);
             FOUND.set(walk.key, found);
         });
     }

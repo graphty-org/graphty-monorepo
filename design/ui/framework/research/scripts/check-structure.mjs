@@ -300,7 +300,7 @@ const SEEDED = new Set([
     "Attributes", "Appearance", "Name", "Look", "Background", "Layout", "Style layers", "Replace",
     "Pin", "Collapse", "Show filtered graph", "New graph from", "Quick actions",
     "General overview", "Flow overview", "Community overview", "Reduced motion", "GPU policy", "Top nodes",
-    "Findings report", "Community colors", "Degree sizes", "Base style", "Styles", "Assistant", "Overview",
+    "Findings report", "Community colors", "Degree sizes", "Everything", "Styles", "Assistant", "Overview",
 ]);
 
 // The rail's places agree across the README's frame summary, interface-specification.md 1.2 and the

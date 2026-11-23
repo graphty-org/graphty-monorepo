@@ -53,7 +53,7 @@ Commit: `feat(algorithms): add the all-pairs shortest-path entry point with its 
 
 Files: `algorithms/src/indexed/all-pairs.ts`, `algorithms/test/unit/indexed/all-pairs.test.ts`.
 
-Implement `method: "floyd-warshall"` (section 3.1): initialise `Float64Array(n * n)` to `+Infinity`,
+Implement `method: "floyd-warshall"` (section 3.1): initialize `Float64Array(n * n)` to `+Infinity`,
 take `Math.min` over each row's arcs skipping the diagonal, write the diagonal 0, then sweep k-i-j
 with `kr = k * n`, `ir = i * n`, `dik = d[ir + k]` hoisted and `if (dik === Infinity) continue`,
 strict `<`. Unit weights when rule 1 of section 4 applies. `method` reports `"floyd-warshall"`.
@@ -137,7 +137,7 @@ Files: `algorithms/src/indexed/all-pairs.ts`, `algorithms/test/unit/indexed/all-
 
 Implement section 5.4. With `paths: true` allocate `Uint32Array(n * n)` filled with
 `INVALID_INDEX`. Floyd-Warshall: the chosen (cheapest, first on ties) arc per direct pair at
-initialisation, `predArc[ir + j] = predArc[kr + j]` on each strict improvement. Dijkstra rows: the
+initialization, `predArc[ir + j] = predArc[kr + j]` on each strict improvement. Dijkstra rows: the
 relaxing arc written straight into row i of `predArc`. BFS rows: the arc that discovered each node. `pathTo(i, j)` and
 `pathEdges(i, j)` call `walkPredArcs` / `walkPredEdges` with `predArc.subarray(i * n, i * n + n)`.
 Without `paths: true` both throw an `Error` naming the option; under a negative cycle both throw

@@ -2,9 +2,10 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
+import { paintSettled } from "../../stories/paintSettled";
 import { answerUsageData, forgetUsageAnswer } from "../privacy/usageData";
 import { Workspace } from "../Workspace";
 import { DISCARD_DIALOG, SAVE_AS_DIALOG } from "./actions";
@@ -43,6 +44,23 @@ async function loadRing(canvasElement: HTMLElement): Promise<void> {
 }
 
 /**
+ * Waits until the open dialog holds the focus, which it takes a task after it opens.
+ * @param doc - the story's document.
+ */
+async function waitForFocusIn(doc: Document): Promise<void> {
+    await new Promise<void>((resolve) => {
+        const check = (): void => {
+            if ((doc.activeElement?.closest('[role="dialog"]') ?? null) === null) {
+                requestAnimationFrame(check);
+            } else {
+                resolve();
+            }
+        };
+        check();
+    });
+}
+
+/**
  * A story with the ring open as a project and one of this package's dialogs on top.
  * @param dialog - the dialog.
  * @returns the story.
@@ -56,6 +74,11 @@ function dialogStory(dialog: string): Story {
             store.set({ dialog: null });
             await loadRing(canvasElement);
             store.set({ dialog });
+            // The dialog has taken the focus and the status bar's WebGPU chip is up: both arrive a
+            // frame early or late, so the page is then drawn afresh as a whole.
+            await waitForFocusIn(canvasElement.ownerDocument);
+            await within(canvasElement.ownerDocument.body).findByTestId("webgpu-chip");
+            await paintSettled(canvasElement.ownerDocument);
         },
     };
 }

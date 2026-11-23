@@ -19,9 +19,9 @@ export interface RandomTreeOptions extends WeightOptions {
 }
 
 /**
- * A uniformly random labelled tree: a uniformly random Pruefer sequence (H. Pruefer, Archiv der
+ * A uniformly random labeled tree: a uniformly random Pruefer sequence (H. Pruefer, Archiv der
  * Mathematik und Physik 27, 142-144, 1918) of n - 2 draws nextBelow(n) from stream (seed,
- * "prufer", 0), decoded in O(n). Edge k joins the k-th removed leaf to its neighbour; the last
+ * "prufer", 0), decoded in O(n). Edge k joins the k-th removed leaf to its neighbor; the last
  * edge is (leaf, n - 1).
  * @param options - n and seed
  * @returns the undirected tree

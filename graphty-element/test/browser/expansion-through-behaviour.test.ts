@@ -1,7 +1,7 @@
 /**
  * @file On-demand expansion, reached the way a consumer reaches it.
  *
- * Double-clicking a node asks the consumer for that node's neighbourhood and adds what comes
+ * Double-clicking a node asks the consumer for that node's neighborhood and adds what comes
  * back. The two functions that answer -- `fetchNodes` and `fetchEdges` -- are declared in
  * `GraphBehaviorOpts`, so `element.layoutBehavior = { fetchNodes, fetchEdges }` parses and is
  * stored in the configuration. `NodeBehavior` then looks for them somewhere else entirely: on
@@ -114,6 +114,62 @@ describe("expansion switched on through the element's own behaviour setting", ()
         assert.isDefined(graph.getDataManager().getNode("b"));
         assert.strictEqual(fetchEdges.mock.calls.length, 1, "the fetched records were kept");
         assert.strictEqual(fetchNodes.mock.calls.length, 1);
+    });
+
+    test("fetchNeighborEdges adds the edges among the new neighbors in the same step", async () => {
+        const fetchEdges = vi.fn().mockReturnValue(
+            new Set([
+                { source: "a", target: "b" },
+                { source: "a", target: "c" },
+            ]),
+        );
+        const fetchNodes = vi.fn().mockReturnValue([{ id: "b" }, { id: "c" }]);
+        const fetchNeighborEdges = vi.fn().mockReturnValue([
+            { source: "b", target: "c" }, // among the new neighbors
+            { source: "c", target: "z" }, // to a node already in the graph
+            { source: "b", target: "elsewhere" }, // to a node nothing brought: left out
+            { source: "a", target: "b" }, // the edge followed to get here: not duplicated
+        ]);
+        graph.setLayoutBehavior({ fetchNodes, fetchEdges, fetchNeighborEdges });
+        await graph.addNodes([
+            { id: "a", position: { x: 0, y: 0, z: 0 } },
+            { id: "z", position: { x: 50, y: 50, z: 0 } },
+        ]);
+        const session = graph.getSession();
+        const steps = session.history.steps.length;
+
+        await addAndDoubleClick(graph);
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.steps, steps + 1, "one step");
+        });
+
+        assert.deepEqual([...(fetchNeighborEdges.mock.calls[0][0] as Set<string>)].sort(), ["b", "c"]);
+        assert.strictEqual(graph.getEdgeCount(), 4);
+        assert.isUndefined(graph.getDataManager().getNode("elsewhere"));
+
+        await session.undo();
+        assert.strictEqual(graph.getEdgeCount(), 0, "one undo removes everything the expansion added");
+    });
+
+    test("without fetchNeighborEdges an expansion adds only the node's own edges", async () => {
+        const fetchEdges = vi.fn().mockReturnValue(
+            new Set([
+                { source: "a", target: "b" },
+                { source: "a", target: "c" },
+            ]),
+        );
+        const fetchNodes = vi.fn().mockReturnValue([{ id: "b" }, { id: "c" }]);
+        graph.setLayoutBehavior({ fetchNodes, fetchEdges });
+        await graph.addNodes([{ id: "a", position: { x: 0, y: 0, z: 0 } }]);
+        const session = graph.getSession();
+        const steps = session.history.steps.length;
+
+        await addAndDoubleClick(graph);
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.steps, steps + 1, "one step");
+        });
+
+        assert.strictEqual(graph.getEdgeCount(), 2);
     });
 
     test("naming one pacing setting does not switch expansion back off", async () => {

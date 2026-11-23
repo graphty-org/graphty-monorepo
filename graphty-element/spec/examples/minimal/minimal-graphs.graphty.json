@@ -1,0 +1,150 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-document/v2.json",
+    "kind": "graphty-document",
+    "version": 2,
+    "name": "Two graphs",
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "sections": {
+        "data": {
+            "$schema": "https://graphty.app/schema/documents/graphty-data/v2.json",
+            "kind": "graphty-data",
+            "version": 2,
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "id": "minimal-data",
+            "build": "01JCC0000000000000000000AA",
+            "directed": false,
+            "sources": [],
+            "types": [],
+            "joins": [],
+            "graph": {
+                "directed": false,
+                "multigraph": false,
+                "graph": {},
+                "nodes": [],
+                "links": []
+            }
+        },
+        "view": {
+            "$schema": "https://graphty.app/schema/documents/graphty-view/v1.json",
+            "kind": "graphty-view",
+            "version": 1,
+            "generator": {
+                "name": "graphty-element",
+                "version": "3.40.0"
+            },
+            "bindsTo": {
+                "data": "minimal-data"
+            }
+        }
+    },
+    "graphs": [
+        {
+            "id": "graph_01JCC0000000000000000000G1",
+            "name": "People"
+        },
+        {
+            "id": "graph_01JCC0000000000000000000G2",
+            "name": "Friends from a file",
+            "sections": {
+                "data": {
+                    "$schema": "https://graphty.app/schema/documents/graphty-data/v2.json",
+                    "kind": "graphty-data",
+                    "version": 2,
+                    "generator": {
+                        "name": "graphty-element",
+                        "version": "3.40.0"
+                    },
+                    "id": "minimal-second-data",
+                    "build": "01JCC0000000000000000000AB",
+                    "directed": false,
+                    "sources": [
+                        {
+                            "id": "src_01JCC0000000000000000000AC",
+                            "label": "friends.csv",
+                            "kind": "file",
+                            "format": "csv",
+                            "options": {
+                                "styles": "none"
+                            },
+                            "origin": {
+                                "copy": "sha256:bf7c2a9d7c32b6e31e6a4e5e7a0d0a3f28ef3dbf0b5db3e2d2b1f6c7b1a4e2c9",
+                                "name": "friends.csv",
+                                "size": 22,
+                                "path": "data/friends.csv"
+                            },
+                            "mapping": {
+                                "nodes": {
+                                    "key": "id",
+                                    "space": "source:src_01JCC0000000000000000000AC"
+                                },
+                                "edges": {
+                                    "source": "source",
+                                    "sourceSpace": "source:src_01JCC0000000000000000000AC",
+                                    "target": "target",
+                                    "targetSpace": "source:src_01JCC0000000000000000000AC"
+                                }
+                            },
+                            "settings": {
+                                "duplicateIds": "first",
+                                "unmatched": "add"
+                            },
+                            "columns": {
+                                "nodes": {
+                                    "id": {
+                                        "name": "id",
+                                        "dtype": "string",
+                                        "nullable": false
+                                    }
+                                },
+                                "edges": {
+                                    "source": {
+                                        "name": "source",
+                                        "dtype": "string",
+                                        "nullable": false
+                                    },
+                                    "target": {
+                                        "name": "target",
+                                        "dtype": "string",
+                                        "nullable": false
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "types": [],
+                    "joins": [
+                        {
+                            "op": "join.add",
+                            "source": "src_01JCC0000000000000000000AC"
+                        }
+                    ],
+                    "graph": {
+                        "directed": false,
+                        "multigraph": false,
+                        "graph": {},
+                        "nodes": [],
+                        "links": []
+                    }
+                },
+                "view": {
+                    "$schema": "https://graphty.app/schema/documents/graphty-view/v1.json",
+                    "kind": "graphty-view",
+                    "version": 1,
+                    "generator": {
+                        "name": "graphty-element",
+                        "version": "3.40.0"
+                    },
+                    "bindsTo": {
+                        "data": "minimal-second-data"
+                    }
+                }
+            }
+        }
+    ]
+}

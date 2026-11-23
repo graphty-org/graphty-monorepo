@@ -8,7 +8,7 @@
  * Everything here is a type, a constant or a pure function over numbers and strings. Nothing
  * reaches a renderer, a canvas, a DOM node or a 3D engine, so this entry point runs in Node, in
  * a worker, in a test and in a build script. That is the whole reason it exists: a legend, a
- * settings panel, a colour picker and a saved document all need the element's palettes, shape
+ * settings panel, a color picker and a saved document all need the element's palettes, shape
  * names and style defaults, and none of them need Babylon.js.
  *
  * The failure this prevents is copying. The one application that consumes this package copied
@@ -76,14 +76,6 @@ export type {
     ThemeDescriptor,
 } from "./src/catalog/types";
 export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
-export type {
-    FileStyleMappingKind,
-    FileStyleMeaning,
-    FileStyleOrigin,
-    FileStyleReason,
-    FileStyleRole,
-    FileStyleRuleOrigin,
-} from "./src/session/styles/fileStyles/origin";
 
 // ---------------------------------------------------------------------------------------------
 // The style configuration: the shapes, the defaults and the helpers
@@ -98,6 +90,7 @@ export type {
     BasemapConfig,
     BasemapSourceId,
     BasemapStatus,
+    ColorScheme,
     EdgeStyleConfig,
     GlobeLook,
     GraphBackgroundConfig,
@@ -116,6 +109,7 @@ export {
     Basemap,
     colorToHex,
     DEFAULT_BACKGROUND_COLOR,
+    DEFAULT_DARK_BACKGROUND_COLOR,
     DEFAULT_LIGHTING,
     DEFAULT_SELECTION_STYLE,
     DEFAULT_VIEW_MODE,
@@ -134,6 +128,7 @@ export {
     LIGHTING_VALUES,
     NodeBorderStyles,
     NodeShapes,
+    NodeSizeSpaces,
     NodeStyle,
     RichTextStyle,
     VIEW_MODE_VALUES,
@@ -144,7 +139,7 @@ export {
 export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants/meshConstants";
 
 // ---------------------------------------------------------------------------------------------
-// The palettes themselves, and the colour maths that reads them
+// The palettes themselves, and the color maths that reads them
 // ---------------------------------------------------------------------------------------------
 
 export * from "./src/config/palettes/index";

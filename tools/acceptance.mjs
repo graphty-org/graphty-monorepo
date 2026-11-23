@@ -30,12 +30,13 @@
  * Exit 0: every selected route passed (or none was selected); 1: a route failed; 2: usage; 4: could not
  * run (no build, no GPU).
  */
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
+import { git as runGit } from "./lib/git.mjs";
 import { pushBaseRef } from "./push-base.mjs";
 import { buildInput, loadRules } from "./test-select.mjs";
 
@@ -116,7 +117,7 @@ function dataEffect(name, routes, routesText) {
     return routesText.includes(name) ? every("a shared step names it") : none("no route opens it");
 }
 
-const git = (args, cwd = ROOT) => execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: 1 << 28 }).trim();
+const git = (args, cwd = ROOT) => runGit(args, { cwd });
 
 /**
  * What the app's build runs, read from its source maps.

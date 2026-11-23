@@ -28,6 +28,10 @@ interface TableCell {
     image?: TableImage;
     /** Its background (`BGCOLOR`), a color; of a gradient, its first color. */
     fill?: string;
+    /** Of a gradient background (`BGCOLOR="a:b"`), the color it runs to. */
+    fillGradient?: string;
+    /** Which way the gradient runs, in degrees clockwise on screen from left to right (`GRADIENTANGLE` negated). */
+    fillGradientAngle?: number;
     colspan?: number;
     rowspan?: number;
     width?: number;
@@ -67,6 +71,15 @@ export interface LabelTable {
     valign?: "top" | "bottom";
     /** Its background (`BGCOLOR`), a color; of a gradient, its first color. */
     fill?: string;
+    /** Of a gradient background (`BGCOLOR="a:b"`), the color it runs to. */
+    fillGradient?: string;
+    /** Which way the gradient runs, in degrees clockwise on screen from left to right (`GRADIENTANGLE` negated). */
+    fillGradientAngle?: number;
+    /**
+     * How round its corners are (`STYLE="rounded"`), in points: Graphviz's 12 (`RBCONST` in lib/common/shapes.c),
+     * which whoever draws it caps at a third of the table's shorter side, as `round_corners` does.
+     */
+    radius?: number;
     rows: TableRow[];
 }
 
@@ -209,18 +222,36 @@ function readTable(
         cellPadding: whole(attrs, "cellpadding", 0, 255) ?? 2,
         ...sizeFields(attrs),
         ...(alignFields(attrs, false) as Pick<LabelTable, "align" | "valign">),
-        ...fillField(r, attrs),
+        ...(invisible(attrs) ? {} : fillField(r, attrs)),
+        ...(styleWords(attrs).includes("rounded") ? { radius: ROUNDED_RADIUS } : {}),
         rows: [],
     };
     const state: RowState = { row: null, rowRule: false, cellRule: false };
     let at = from;
     for (let tag = nextTag(r.body, at); tag !== null; tag = nextTag(r.body, at)) {
         if (tag.name === "table" && tag.closing) {
-            return { table, next: tag.end };
+            return { table: hiddenIf(table, attrs), next: tag.end };
         }
         at = readRowTag(r, table, state, tag, { fonts, depth });
     }
-    return { table, next: at };
+    return { table: hiddenIf(table, attrs), next: at };
+}
+
+/**
+ * A table whose `STYLE` hides it keeps its room but draws nothing: no fill, and none of its cells (Graphviz 14 draws a
+ * `<TABLE STYLE="invis">` as nothing at all, its cells' words included: dot-specimen-labels-p3 html-table-style-invis).
+ * @param table - the table as read
+ * @param attrs - the table tag's attributes
+ * @returns the table, every cell hidden where it is invisible (its fill is never read: `readTable`)
+ */
+function hiddenIf(table: LabelTable, attrs: ReadonlyMap<string, string>): LabelTable {
+    if (!invisible(attrs)) {
+        return table;
+    }
+    return {
+        ...table,
+        rows: table.rows.map((row) => ({ ...row, cells: row.cells.map((c) => ({ ...c, hidden: true as const })) })),
+    };
 }
 
 /** Where reading a table's rows is: the row being read, and whether a rule comes before the next row or cell. */
@@ -377,19 +408,47 @@ function readCell(
  * @returns whether the cell is drawn invisible
  */
 function invisible(attrs: ReadonlyMap<string, string>): boolean {
-    return (attrs.get("style") ?? "").split(/[\s,]+/).some((w) => /^invis(?:ible)?$/i.test(w));
+    return styleWords(attrs).some((w) => /^invis(?:ible)?$/.test(w));
 }
 
 /**
- * A `BGCOLOR` as a fill: a gradient's first color (`"red:blue"`, `"red;0.3:blue"`).
+ * A tag's `STYLE` words, in lower case (Graphviz htmllex.c `stylefn` reads them case-insensitively).
+ * @param attrs - the tag's attributes
+ * @returns the words
+ */
+function styleWords(attrs: ReadonlyMap<string, string>): string[] {
+    return (attrs.get("style") ?? "").toLowerCase().split(/[\s,]+/);
+}
+
+/** How round a `STYLE="rounded"` table's corners are, in points (Graphviz lib/common/shapes.c `RBCONST`). */
+const ROUNDED_RADIUS = 12;
+
+/**
+ * A `BGCOLOR` as a fill: a color, or a gradient's first color, the color it runs to and its `GRADIENTANGLE`
+ * (`"red:blue"`; a first color's `;fraction` is not kept, so the gradient runs evenly).
  * @param r - the label and the helpers
  * @param attrs - the tag's attributes
  * @returns the field, when it is a color
  */
-function fillField(r: Reading, attrs: ReadonlyMap<string, string>): { fill?: string } {
-    const first = (attrs.get("bgcolor") ?? "").split(":")[0].split(";")[0].trim();
+function fillField(
+    r: Reading,
+    attrs: ReadonlyMap<string, string>,
+): Pick<LabelTable, "fill" | "fillGradient" | "fillGradientAngle"> {
+    const colors = (attrs.get("bgcolor") ?? "").split(":").map((c) => c.split(";")[0].trim());
+    const [first, second] = colors;
     const fill = first === "" ? null : r.color(first);
-    return fill === null ? {} : { fill };
+    if (fill === null) {
+        return {};
+    }
+    if (colors.length < 2) {
+        return { fill };
+    }
+    // a second color left out is black, as it is for a node's fillcolor; colors after the second are not drawn
+    const to = r.color(second === "" ? "black" : second);
+    const angle = Number(attrs.get("gradientangle") ?? "0");
+    // the neutral angle turns clockwise on screen, Graphviz's counter-clockwise
+    const turned = Number.isFinite(angle) ? ((-angle % 360) + 360) % 360 : 0;
+    return to === null ? { fill } : { fill, fillGradient: to, fillGradientAngle: turned };
 }
 
 /**

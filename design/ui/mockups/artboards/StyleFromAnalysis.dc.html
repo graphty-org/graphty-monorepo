@@ -29,7 +29,7 @@
   New board for spec revision 1.7 (DECISIONS-1.7.md section I). It draws track 4 in one picture: the user's
   own example, Markov clustering at granularity 2.5 on the 318-node ovarian dataset, as a style layer that
   carries its run, with the granularity mid-edit and the cost gate pending while the canvas still holds the
-  2.5 colours.
+  2.5 colors.
   Spec revision 1.7: app-shell-progressive-disclosure-design.md sections 5.1 (top bar, overlays, status bar),
   5.3 Style (Layers, Arrangement, Parameters, the Styles library, Canvas, Animation), 5.4 Style layer,
   5.6 (canvas toolbar), 5.8 (Coming tags), 6.2 (tier 3a), 6.3 (plain then technical names), 6.5, 6.7,
@@ -43,7 +43,7 @@
            drawn: no path, edge set, removal impact or scenario has been run on this board.
     STY-5  no palette, scale or domain on a result card; encoding has one home and this is it.
     STY-6  the parameter row is live. Granularity was turned from 2.5 to 3.0 and released, so the layer is
-           dirty: the field shows 3.0 at value colour with its 12px reset x, the gate sits beneath it in
+           dirty: the field shows 3.0 at value color with its 12px reset x, the gate sits beneath it in
            Analyze's second band (2 s to the ask limit, one line and two verbs), and the canvas keeps the
            completed run's picture. Nothing on the canvas ever shows a half-computed state.
     STY-8  a re-run from a Source row replaces this run in place -- same stack position, same palette, same
@@ -66,7 +66,7 @@
            its reason in its title rather than being hidden: floor item 7 outranks Rule 7c for a row
            carrying a name the user typed.
     TB-1, TB-2, TB-4  the 56px navigation cluster is gone; the canvas toolbar is 246 by 36 at bottom 12,
-           centred on the 832-wide canvas rect, with the only shadow and the only 7px radius on the canvas.
+           centered on the 832-wide canvas rect, with the only shadow and the only 7px radius on the canvas.
            Nothing else is on the canvas floor: this dataset has no Time role, so no slider, and the Data
            table drawer is closed. Collision check: minimap 12 to 172, legend 660 to 820, bar 293 to 539 --
            121px clear on both sides, well above the 622px two-line threshold.
@@ -74,7 +74,7 @@
   Dataset: ovarian_de_string.tsv, a STRING-style protein interaction network (318 proteins, 1,104 edges,
   combined_score 0.4 to 0.99) around a 40-gene differential expression list, with expression.tsv joined.
   Same layout geometry as StyleDiverging.dc.html so the two boards show one graph; about 100 of the 318
-  proteins are in view, recoloured by the six MCL groups on the Okabe-Ito palette. The six are Okabe-Ito's
+  proteins are in view, recolored by the six MCL groups on the Okabe-Ito palette. The six are Okabe-Ito's
   own first six in its own order -- E69F00, 56B4E9, 009E73, F0E442, 0072B2, D55E00 -- so the group number,
   the legend order and the palette chip in the Color row all agree, and the two blues land on groups that
   are far apart in the arrangement. An earlier draft picked six by eye and put two near-identical blues on
@@ -113,13 +113,13 @@
   content 487px; the Source section 209px, of which 32 is the RT-8 header and 54 is the cost gate and its
   gap, which are only on screen while a re-run is pending -- 155px at rest, against STY-3's measured 164
   for a Source carrying a two-line reading and one deviating parameter. The canvas toolbar measures
-  246.00 by 36.00 and centres at x = 416 of the 832 rect, 121px clear of both the minimap (12 to 172) and
+  246.00 by 36.00 and centers at x = 416 of the 832 rect, 121px clear of both the minimap (12 to 172) and
   the legend (660 to 820), which is far above the 622px two-line threshold.
   Palette index (E4 measure 1): Layout parameters, Advanced parameters, Values table. Each is reachable
   by both its own name and the name of the row that owns it, and each is exactly one click from that row
   with the owning thing present (A3).
   Shell from SHELL-SKELETON.html. Palette in VOCAB.md.
-  REVISION 1.9 (SECTIONS-1.9.md, VOCAB section 15). D1 withdraws the licence a section had to be nothing
+  REVISION 1.9 (SECTIONS-1.9.md, VOCAB section 15). D1 withdraws the license a section had to be nothing
   but a door: every section expands in place, a chevron renders only where it opens onto resident rows,
   and a gear is an ADDITION to a section that already draws content, never the section itself. The door
   test keeps its shape and changes one word -- clause (a)'s denominator is now LOCAL: of the readers who
@@ -127,7 +127,7 @@
   Three of the seventeen breached sections are on this board: 5.1 Parameters and 5.2 Animation in the
   panel, and 5.3 Values nested in the inspector's Color section.
   5.1 PARAMETERS. The section expands in place, drawn from VOCAB 15.1 verbatim: the RT-1 pair Edge length
-  30 | Pull to centre -1.2, and the bound Edge weight field below it reading "combined_score", which is this file's own
+  30 | Pull to center -1.2, and the bound Edge weight field below it reading "combined_score", which is this file's own
   Weight column (FIXTURES 0). All three sit at their shipped defaults -- NGraphLayoutEngine.ts declares
   springLength .default(30) and gravity .default(-1.2), and Edge weight defaults to the import column --
   and they are drawn anyway, which is D3: Rule 7a no longer reaches the two or three locally common rows
@@ -138,12 +138,12 @@
   (dragCoefficient), Time step (timeStep), Random seed (seed). Three values resident, six behind the gear,
   which is the product owner's own sentence. The gear keeps its "Layout parameters" title and A6's two
   inks, dimmed because nothing behind it deviates, and it is now an addition to a section rather than the
-  section itself. Pull to centre takes 1.9's one new field glyph, four chevrons pointing inward at a
-  centre dot, owed to REGISTER-1.5 section 1.
+  section itself. Pull to center takes 1.9's one new field glyph, four chevrons pointing inward at a
+  center dot, owed to REGISTER-1.5 section 1.
   The section comment below called this section "collapsed"; it was a door with a gear and no chevron
   target, which is the shape D1 removes. Source, one section above it, is what the record's section 4
   holds up as the correct form already drawn on this board -- resident rows plus an Advanced parameters
-  gear -- and Parameters now matches its neighbour.
+  gear -- and Parameters now matches its neighbor.
   5.2 ANIMATION. This header drew no chevron at all -- an empty 16px leading slot -- and no rows, so its
   gear was the only route in, which is D1's defect in its purest form. It now draws a chevron over two
   packed RT-5 toggles, Transitions (on) and Reduce motion (off), both at their defaults and both drawn
@@ -170,7 +170,7 @@
   and a door has no open state to preserve. Every one of them still DEFAULTS closed in the product, so
   6.9's skyline promise is untouched -- eight collapsed sections are still 8 x 33 = 264px -- and the new
   rows cost a reader nothing until they open the section. This board draws them open because section 4 of
-  the record settles 5.1's board-to-board divergence in StyleLibrary's favour and moves the other four
+  the record settles 5.1's board-to-board divergence in StyleLibrary's favor and moves the other four
   Style boards to its open form.
   MEASURED, by rendering the board and reading the boxes. Panel: the stack goes 617 to 745 -- Layers 126,
   Arrangement 137, Parameters 33 -> 105, Styles 214, Canvas 73, Animation 33 -> 89, closing rule 1 --
@@ -1754,11 +1754,11 @@
                  Rule 7a already forbids drawing them resident, and 6.2's arithmetic, a schema group of
                  more than four rows renders as a 3a pop-out opened from a gear on the row it belongs to,
                  routes the rest. It is the same gear-and-pop-out mechanism as the Analyze card gear: two
-                 gears in the product, one behaviour. The row stays a door rather than a collapsed section
+                 gears in the product, one behavior. The row stays a door rather than a collapsed section
                  and no row is added or removed. The ink is dimmed because everything behind it is at its
                  default; it draws #d5d7da the moment one is not (A6, VOCAB 14.1).
                  REVISION 1.9 (SECTIONS-1.9 5.1, D1, D3, D5; VOCAB 15.1). The door is withdrawn and the section
-                 expands in place. Resident, from VOCAB 15.1 verbatim: the RT-1 pair Edge length 30 | Pull to centre
+                 expands in place. Resident, from VOCAB 15.1 verbatim: the RT-1 pair Edge length 30 | Pull to center
                  -1.2, and the bound Edge weight field below it. All three sit at their shipped defaults and are drawn
                  anyway -- D3 lifts Rule 7a off the two or three locally common rows of a section, because a section
                  whose rows 7a all deletes is a chevron over nothing, which D1 forbids. No reset x on any of them:
@@ -1767,8 +1767,8 @@
                  (theta), Damping (dragCoefficient), Time step (timeStep), Random seed (seed). Three values resident,
                  six behind the gear, which is the product owner's own sentence. The gear keeps A6's two inks (VOCAB
                  14.1), dimmed here because none of the six deviates, and it is now an ADDITION to a section that
-                 draws content rather than the section itself. Pull to centre takes 1.9's one new field glyph -- four
-                 chevrons pointing inward at a centre dot, owed to REGISTER-1.5 section 1 -- and every field keeps the
+                 draws content rather than the section itself. Pull to center takes 1.9's one new field glyph -- four
+                 chevrons pointing inward at a center dot, owed to REGISTER-1.5 section 1 -- and every field keeps the
                  title of the word its glyph replaced. Closed, this header would carry no gear and the mark
                  "Force directed - settled" instead (VOCAB 15.2); open, D5 gives the slot to the gear and Rule 8
                  deletes the mark, because the header above already says Force directed.
@@ -2838,7 +2838,7 @@
                                 "
                             >
                                 <!-- CANVAS CONTENT: the same ovarian_de_string.tsv arrangement StyleDiverging draws, about 100 of
-               the 318 proteins in view, now coloured by the six MCL groups on the Okabe-Ito palette. This is
+               the 318 proteins in view, now colored by the six MCL groups on the Okabe-Ito palette. This is
                the completed granularity 2.5 picture and it stays on screen while the 3.0 re-run is pending
                (STY-6). The 12 white rings are the DE list layer above it. -->
                                 <svg
@@ -3321,7 +3321,7 @@
                                     </g>
                                 </svg>
 
-                                <!-- CANVAS TOOLBAR (5.6, VOCAB 12), 246 by 36, centred on the live canvas rect at bottom 12.
+                                <!-- CANVAS TOOLBAR (5.6, VOCAB 12), 246 by 36, centered on the live canvas rect at bottom 12.
                Order by how long the effect lasts: [2D | 3D], divider, Zoom out, Zoom in, Zoom to fit, Zoom to
                selection, divider, Views. The item set is fixed, so Zoom to selection is permanently drawn and
                merely disables -- a selected style layer is not a selection -- and carries the register's
@@ -3577,7 +3577,7 @@
                                     </div>
                                 </div>
 
-                                <!-- MINIMAP, bottom left (5.1), on the toolbar's baseline: nodes only, coloured as on the canvas.
+                                <!-- MINIMAP, bottom left (5.1), on the toolbar's baseline: nodes only, colored as on the canvas.
                No caption: the overlay names itself. -->
                                 <div
                                     style="
@@ -3719,7 +3719,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -3735,8 +3735,8 @@
                full width. They are not lost -- they render in the groups table, on the result card and in
                the exported legend. Cut 3, the cap: the canvas cap of five plus Other is not what binds
                here, C6's overflow rule is, and it takes the Color block below five. The canvas keeps all
-               six Okabe-Ito colours: the rolled-up nodes are NOT repainted grey, because Other is a
-               roll-up row and not a colour key -- its text says how many groups it rolls up and the table
+               six Okabe-Ito colors: the rolled-up nodes are NOT repainted gray, because Other is a
+               roll-up row and not a color key -- its text says how many groups it rolls up and the table
                it opens lists every one with its own swatch -- and the exported legend keeps all six named
                rows with their counts.
                Cut 1, the state rows: checked and found empty on this board. This legend draws no state-row
@@ -3768,7 +3768,7 @@
                row plus Other: Group 1, 118 of 318 nodes, then Other rolling up the remaining five groups,
                200 nodes, 63%. Measured 225 against the 240 cap, and max-height is now the 240 every other
                board in the set carries.
-               What that costs, said plainly rather than buried: the canvas paints six Okabe-Ito colours
+               What that costs, said plainly rather than buried: the canvas paints six Okabe-Ito colors
                and this legend now keys one of them by name. The other five are reachable in one click --
                Other opens the groups table, which lists every group with its own swatch and count -- and
                the exported legend, which has no cap, carries all six named rows with their counts and the
@@ -4236,7 +4236,7 @@
                                             <!-- RT-1, the one deviating parameter, live. Granularity stays a word inside its own field
                      and does not become a glyph: Rule 4 forbids giving a concept a glyph, and granularity,
                      resolution, damping and tolerance are concepts. The word is the scrub handle in place of
-                     the 16px slot. The value reads 3.0 at value colour with the 12px reset x beside it,
+                     the 16px slot. The value reads 3.0 at value color with the 12px reset x beside it,
                      which is Rule 7a's deviation form: the field no longer sits at the value the picture was
                      made with. -->
                                             <div style="display: flex; align-items: center; gap: 8px; height: 24px">
@@ -4364,7 +4364,7 @@
                  No missing-value field: MCL puts every node in a group, so there is nothing unassigned and
                  Rule 7a does not draw the control.
                  REVISION 1.8, A6: the Values door is dimmed because everything behind it is at its
-                 default; it draws #d5d7da the moment one is not (A6, VOCAB 14.1), and no group's colour
+                 default; it draws #d5d7da the moment one is not (A6, VOCAB 14.1), and no group's color
                  has been overridden by hand. Its trailing 6 is the stub's one fact, the number of values
                  behind the door, and it is one of the resident surfaces that keeps the partition legible
                  now that the canvas legend prints no counts (C3).
@@ -4379,7 +4379,7 @@
                  row one row above and Rule 9 gives a control one destination -- a control with a resident home does not
                  acquire a second one behind a gear. The trailing count 6 goes when the section is open (D5, Rule 8: the
                  rows say it), and comes back as the closed mark. A6's two inks move to the gear, dimmed here because no
-                 group's colour has been overridden by hand; the trailing 6 that was this section's one fact is now six
+                 group's color has been overridden by hand; the trailing 6 that was this section's one fact is now six
                  rows, five of them named and counted, which is more than the count could say and is what D6 means by a
                  section resolving on what a reader came to READ.
                  -->
@@ -5021,7 +5021,7 @@
                                         </div>
                                     </div>
 
-                                    <!-- SECTIONS Size, Shape, Labels and Effects. This layer sets colour and nothing else, so each
+                                    <!-- SECTIONS Size, Shape, Labels and Effects. This layer sets color and nothing else, so each
                  is RT-8's empty form: one 32px row, dimmed name, one 24px + in the trailing slot, no content
                  rows, no Not set and no empty-state sentence. Dimming the name says it, and the closed
                  skyline is the inventory of what has not been done on this layer. Sections keep a fixed
@@ -5250,7 +5250,7 @@
 
                 <!-- STATUS BAR, 24 tall (5.1): counts | zoom | layout chip. The zoom percentage stays here and does not
        enter the canvas toolbar (TB-7): the bar sits 12px above this line, so the number is already adjacent
-       to the buttons that change it, and a numeric readout would change a centred bar's width as the graph
+       to the buttons that change it, and a numeric readout would change a centered bar's width as the graph
        is zoomed. The running slot is empty: the re-run has been offered but not started, and nothing on the
        canvas ever shows a half-computed state. A selected style layer is not a selection, so the
        selection-count slot stays empty (6.1). -->

@@ -10,6 +10,7 @@ used_in_workflows:
     - W04
     - W06
     - W19
+    - W21
 dependencies:
     - metric-card
     - color-swatch

@@ -5,7 +5,7 @@ success state A: the Notes place, after closing the tab and reopening the projec
 projects, lists "Moving away in May; ask who takes over the Tuesday run" with the chip "Farah" and
 "Spring list, checked against the sign-up sheet" with the chip "Graph". The project was saved in
 the browser ("Saved friends in this browser.", `16.png`) before the reopen. The one detour (a note
-form that opened "About PageRank") was cancelled before anything was saved, so no note ever sat on
+form that opened "About PageRank") was canceled before anything was saved, so no note ever sat on
 a wrong target. The key grades SD only for a note saved on the wrong target and then fixed, or for
 reminders found only after searching; neither happened.
 
@@ -41,7 +41,7 @@ was extra; the key counts the browser save alone as kept and says a local copy a
   local copy (1, allowed by the key).
 - **First move:** the Notes rail button (`02.png`), a direct door.
 - **Wrong turns: 1.** Step 3 (`04.png`): with nothing selected on the drawing but the PageRank run
-  open in the inspector, the Notes "+" opened a form "About PageRank". He cancelled, opened Graph,
+  open in the inspector, the Notes "+" opened a form "About PageRank". He canceled, opened Graph,
   chose Everything, and came back to "About Graph" (`05.png` to `07.png`). Recovered.
 - **Farah route:** the find box ("Farah", `10.png`), then the "Farah" row under Nodes 1 (`11.png`),
   then Notes "+", which opened "About Farah" (`12.png`). The drawing shows no names, so he could not

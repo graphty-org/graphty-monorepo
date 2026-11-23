@@ -9,6 +9,7 @@ import {
     assertSameMembers,
     defineTask,
     degrees,
+    isColorNamed,
     neighborhood,
     nodeValues,
     runOf,
@@ -348,10 +349,8 @@ export const PATH_TASKS = [
                 run.id,
                 run.fields.some((field) => field.name === "onPath") ? "onPath" : "level",
             );
-            const red = (id: string): boolean =>
-                JSON.stringify(styleOf(s, id, "node.color"))
-                    .toLowerCase()
-                    .includes("ff0000") || JSON.stringify(styleOf(s, id, "node.color")).includes('"r":255,"g":0,"b":0');
+            // Any red the model picks reads as red, not only #ff0000 (#9510: it chose #e41a1c).
+            const red = (id: string): boolean => isColorNamed(styleOf(s, id, "node.color"), "red");
             for (const id of ["Medici", "Ridolfi", "Strozzi"]) {
                 assert.isTrue(
                     red(id),

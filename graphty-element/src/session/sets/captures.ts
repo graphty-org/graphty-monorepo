@@ -237,7 +237,7 @@ const bitmaps = new WeakMap<
 
 /**
  * A capture as bitmaps over the context snapshot, rebound like a fixed set's members: node ids
- * through the id map, edges by stable identity. Memoised per capture and snapshot.
+ * through the id map, edges by stable identity. Memoized per capture and snapshot.
  * @param capture - The capture.
  * @param context - What the resolution reads.
  * @returns The halves.

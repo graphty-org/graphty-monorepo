@@ -14,18 +14,19 @@ drifts. The catalog is structured data, and section 9's lints run over it.
 
 ## 1. Who owns a string
 
-**The owner test.** A string about a graph fact belongs to graphty-element, because a third party
-embedding it reads the same words: catalog labels, (i) text, states, marks, commands, undo labels,
-errors, legend notes, readings (`src/session/results/reading.ts`), the filter chip's count, the
-save state, and every sentence about a run, an import, a binding or an autosave. The app owns only
-chrome: panel tooltips, menu headings, Report problem, feedback, the start screen's empty line. **The app never rewords a graph fact**; wrong words are fixed in the element.
+**The owner test.** The facts belong to graphty-element and the words belong to the app
+(`CLAUDE.md`, "graphty-element is neutral about presentation"). The element publishes neutral, structured facts: values, descriptors,
+states, and every event and error as a code with its parameters, plus a catalog `plainName` for
+what it ships. Every reader-facing sentence is the app's: states, marks, commands, undo labels,
+errors, legend notes, readings, the filter chip's count, the save state, and every sentence about a
+run, an import, a binding or an autosave, as well as the chrome. A third-party host writes its own
+words from the same codes. A wrong fact is fixed in the element; wrong words are fixed in the app.
 
-**Delivery.** The element publishes finished reader text, an error's cause apart from its
-developer message, by the route each key names (`element-needs.md`, "Reader text and
-formatting"). Each message is published as a key and its named parameters, the template's slots,
-beside the English `text`, which is an unpublished default: a host that wants other words, or
-another language, supplies a template per key and never parses English (`decided-doors.md`, "Host
-names for reader text"). The key scheme, `graphty.<area>.<message>`, and its stability rules are
+**Delivery.** The element publishes each message as a key and its named parameters, the
+template's slots, by the route each key names (`element-needs.md`, "Reader text and formatting"),
+and never English text: the app holds the template for every key, and another host, or another
+language, supplies its own and never parses English (`decided-doors.md`, "Host names for reader
+text"). The key scheme, `graphty.<area>.<message>`, and its stability rules are
 `message-catalog.md`, "Published keys". **Every slot has a source**: a field on the key's route. A slot the
 element does not publish yet is an `element-needs.md` row, and its key's words are not final until
 that row lands, because otherwise the app would have to guess a graph fact.

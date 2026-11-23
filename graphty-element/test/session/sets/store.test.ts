@@ -19,7 +19,7 @@ import { loadRecord } from "../../../src/session/sets/prepare";
 import { createSetsApi } from "../../../src/session/sets/SetsApi";
 import { SetsStore } from "../../../src/session/sets/store";
 import type { SetChange, SetsApi } from "../../../src/session/sets/types";
-import { edgeBetween, makeSession } from "../helpers";
+import { edgeBetween, makeSession, rejectionCode } from "../helpers";
 
 /** A store and its doors, with no graph behind them. */
 function harness(): { store: SetsStore; sets: SetsApi; changes: SetChange[] } {
@@ -43,18 +43,6 @@ function group<T>(store: SetsStore, write: () => T): Promise<T> {
     return dispatcher.transaction("group", (tx) =>
         dispatcher.routed((command, options) => tx.dispatch(command, options), write),
     );
-}
-
-/** The code of what a call throws. */
-function codeOf(call: () => unknown): string {
-    try {
-        call();
-    } catch (error) {
-        assert.isTrue(isGraphtyError(error), String(error));
-        return (error as { code: string }).code;
-    }
-
-    return assert.fail("expected a refusal");
 }
 
 const NODES = { kind: "fixed", nodes: ["a"], reading: "induced" } as const;
@@ -177,24 +165,24 @@ describe("names", () => {
         const id = sets.create(NODES, { name: "  Hubs " });
         assert.strictEqual(sets.get(id)?.name, "Hubs");
         assert.strictEqual(
-            codeOf(() => sets.create(NODES, { name: "   " })),
+            rejectionCode(() => sets.create(NODES, { name: "   " })),
             "E_BAD_COMMAND",
         );
         assert.strictEqual(
-            codeOf(() => sets.create(NODES, { name: "Hubs" })),
+            rejectionCode(() => sets.create(NODES, { name: "Hubs" })),
             "E_DUPLICATE_ID",
         );
         assert.strictEqual(
-            codeOf(() => sets.create(NODES, { name: " Hubs" })),
+            rejectionCode(() => sets.create(NODES, { name: " Hubs" })),
             "E_DUPLICATE_ID",
         );
         sets.create(NODES, { name: "hubs" });
         assert.strictEqual(
-            codeOf(() => sets.rename(id, "hubs")),
+            rejectionCode(() => sets.rename(id, "hubs")),
             "E_DUPLICATE_ID",
         );
         assert.strictEqual(
-            codeOf(() => sets.rename(id, "")),
+            rejectionCode(() => sets.rename(id, "")),
             "E_BAD_COMMAND",
         );
     });
@@ -231,7 +219,7 @@ describe("names", () => {
         );
         assert.strictEqual(sets.get(later)?.order, 6);
         assert.strictEqual(
-            codeOf(() => sets.rename(later, "Same")),
+            rejectionCode(() => sets.rename(later, "Same")),
             "E_DUPLICATE_ID",
         );
         sets.rename("set_a", "Unique");
@@ -447,7 +435,7 @@ describe("session edge ids at the doors", () => {
         sets.removeMembers(id, { edges: [edge] });
         assert.deepStrictEqual(sets.get(id)?.definition, { kind: "fixed", nodes: [], reading: "listed" });
         assert.strictEqual(
-            codeOf(() => sets.addMembers(id, { edges: ["999"] })),
+            rejectionCode(() => sets.addMembers(id, { edges: ["999"] })),
             "E_BAD_COMMAND",
         );
     });

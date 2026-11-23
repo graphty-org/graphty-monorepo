@@ -7,8 +7,8 @@ import { createHash } from "node:crypto";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { sha256Bytes } from "../../src/sources/sha256.js";
-import { sha256Hex, signRequest } from "../../src/sources/sigv4.js";
+import { sha256Bytes, sha256Hex, sha256HexSync } from "../../src/sources/sha256.js";
+import { signRequest } from "../../src/sources/sigv4.js";
 
 /**
  * Lowercase hex of bytes.
@@ -35,6 +35,13 @@ describe("sha256Bytes", () => {
                 createHash("sha256").update(data).digest("hex"),
             );
         }
+    });
+
+    it("answers synchronously with the same digest, for text and bytes", () => {
+        const text = "caf\u00e9 \u{1f600}";
+        expect(sha256HexSync(text)).toBe(createHash("sha256").update(text).digest("hex"));
+        const bytes = new Uint8Array([0, 1, 2, 255]);
+        expect(sha256HexSync(bytes)).toBe(createHash("sha256").update(bytes).digest("hex"));
     });
 });
 

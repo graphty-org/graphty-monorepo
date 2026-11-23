@@ -175,8 +175,8 @@ describe("notes.mergeDocument", () => {
         assert.strictEqual(source?.name, "mine");
         assert.match(source?.opened ?? "", /Z$/);
         assert.deepEqual(
-            fresh.history.steps.map((step) => step.label),
-            ["Added notes from mine"],
+            fresh.history.steps.map((step) => step.fact),
+            [{ code: "note.merge", params: { source: "mine" } }],
         );
         await fresh.undo();
         assert.deepEqual(fresh.notes.list(), []);
@@ -193,7 +193,10 @@ describe("notes.mergeDocument", () => {
         });
         assert.deepEqual(changes.sort(), ["created note_a", "created note_b"]);
         assert.strictEqual(session.notes.status("note_a").source?.name, "outer.graphty.json");
-        assert.strictEqual(session.history.steps.at(-1)?.label, "Added notes from outer.graphty.json");
+        assert.deepEqual(session.history.steps.at(-1)?.fact, {
+            code: "note.merge",
+            params: { source: "outer.graphty.json" },
+        });
     });
 
     it("opens a bare empty member (note-2)", () => {
@@ -482,7 +485,7 @@ describe("notes.mergeDocument", () => {
             tx.notes.add({ text: "mine", targets: [{ graph: true }] });
         });
         assert.deepEqual(
-            session.history.steps.map((step) => step.label),
+            session.history.steps.map((step) => step.fact.params.label),
             ["Open findings"],
         );
         assert.strictEqual(session.notes.list().length, 2);

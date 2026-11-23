@@ -8,12 +8,13 @@
 
 import { SegmentedControl } from "@graphty/compact-mantine";
 import type { Channel } from "@graphty/graphty-element/catalog";
-import { ActionIcon, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
 import { GLYPHS } from "../../glyphs";
 import { SettingsPopout } from "../../options/SettingsPopout";
 import { useWorkspace } from "../../state/WorkspaceContext";
+import { ControlLabel } from "../ControlLabel";
 import { shownChannel } from "../offered";
 import { Field, type RowContext } from "../PropertyRow";
 import { lineIn, partlySet } from "../row";
@@ -116,9 +117,9 @@ function ItemSettings({
     return (
         <div data-item-settings={item.id}>
             {named ? (
-                <Text size="xs" fw={600} px={8} pt={8}>
+                <ControlLabel size="xs" fw={600} px={8} pt={8}>
                     {item.name}
-                </Text>
+                </ControlLabel>
             ) : null}
             {own.map((channel) => (
                 <ChannelLine key={channel} ctx={ctx} channel={channel} word={itemWord(channel, item)} />

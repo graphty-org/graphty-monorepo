@@ -3,6 +3,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import {
+    approvalWords,
     askedRows,
     changeLines,
     effectLine,
@@ -70,10 +71,10 @@ const ROWS: readonly (readonly [string, Record<string, string | number>, string 
     ["AI_TOOL_THREW", {}, "The assistant could not finish this step.", AGAIN],
     ["AI_TOOL_UNKNOWN", {}, "The assistant could not finish this step.", AGAIN],
     ["AI_TOOL_INVALID_ARGUMENTS", {}, "The assistant could not finish this step.", AGAIN],
-    ["AI_CANCELLED", {}, "Stopped.", { action: "again", failed: false, stopped: "" }],
-    ["AI_CANCELLED", { steps: 0 }, "Stopped.", { action: "again", failed: false, stopped: "" }],
+    ["AI_CANCELED", {}, "Stopped.", { action: "again", failed: false, stopped: "" }],
+    ["AI_CANCELED", { steps: 0 }, "Stopped.", { action: "again", failed: false, stopped: "" }],
     [
-        "AI_CANCELLED",
+        "AI_CANCELED",
         { steps: 2 },
         "Stopped. Changes taken back.",
         { action: "again", failed: false, stopped: "Changes taken back." },
@@ -351,5 +352,27 @@ describe("isLookup", () => {
         );
         assert.isFalse(isLookup({ tool: "style", code: "AI_TOOL_FAILED", params: {} }));
         assert.isFalse(isLookup({ tool: "style" }), "a running step is not yet anything");
+    });
+});
+
+describe("approvalWords", () => {
+    it("states the provider and the cost of a paid call", () => {
+        const words = approvalWords({
+            id: "r1",
+            gate: "paid",
+            calls: [{ tool: "project", arguments: { action: "generate_background", prompt: "stars" } }],
+            preview: { provider: "google", model: "gemini-2.5-flash-image", costUsd: 0.039 },
+        });
+        assert.strictEqual(words.line, "About $0.04 (Google).");
+    });
+
+    it("states only the cost when the provider has no plain name", () => {
+        const words = approvalWords({
+            id: "r2",
+            gate: "paid",
+            calls: [{ tool: "project", arguments: { action: "generate_background", prompt: "stars" } }],
+            preview: { provider: "unknown-provider", costUsd: 0.039 },
+        });
+        assert.strictEqual(words.line, "About $0.04.");
     });
 });

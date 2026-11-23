@@ -51,6 +51,61 @@ export const OPEN_PROJECT_URLS = {
     fallback: "ask",
 } as const;
 
+/**
+ * Default timeline style (Settings > General): the look the
+ * Timeline Hidden row starts with when a project's timeline first turns on, as graphty-element's
+ * `timelineHiddenLook`. It never rewrites a row a project already has.
+ */
+export const TIMELINE_STYLE = {
+    key: "graphty.timelineStyle.v1",
+    values: ["hidden", "ghost"],
+    fallback: "hidden",
+} as const;
+
+/**
+ * Map layout automatically enables depth-independent size (Settings > General): while the map
+ * layout is drawn, every node keeps one size on screen (graphty-element's `node.sizeSpace: "screen"`).
+ */
+export const MAP_DEPTH_INDEPENDENT_SIZE = {
+    key: "graphty.mapDepthIndependentSize.v1",
+    values: ["on", "off"],
+    fallback: "on",
+} as const;
+
+/**
+ * Your name (Settings > General): written on each project's author setting, which graphty-element
+ * stamps on every note added and never saves in a project file. Free text, so it is not a `Preference`.
+ */
+export const AUTHOR_KEY = "graphty.author.v1";
+
+/**
+ * Reads the reader's name.
+ * @returns the name, or "" when none is kept or storage is blocked.
+ */
+export function readAuthor(): string {
+    try {
+        return localStorage.getItem(AUTHOR_KEY) ?? "";
+    } catch {
+        return "";
+    }
+}
+
+/**
+ * Keeps the reader's name; an empty or blank one removes it.
+ * @param name - the name.
+ */
+export function writeAuthor(name: string): void {
+    try {
+        if (name.trim() === "") {
+            localStorage.removeItem(AUTHOR_KEY);
+        } else {
+            localStorage.setItem(AUTHOR_KEY, name.trim());
+        }
+    } catch {
+        // Storage blocked: the name holds for this page view only.
+    }
+}
+
 /** One preference: where it is kept, what it may hold, and its default. */
 interface Preference<T extends string> {
     readonly key: string;
@@ -152,5 +207,69 @@ export function rememberProjectHost(projectId: string, host: string): void {
         localStorage.setItem(PROJECT_HOSTS_KEY, JSON.stringify(all));
     } catch {
         // Storage blocked: the choice holds for this page view only.
+    }
+}
+
+/**
+ * How the reader arranged the workspace (the panel widths, the table dock's height and whether it
+ * is open, the legend switch), kept in this browser so the next visit opens the same way. Each
+ * field names the workspace state field it restores and the type it must hold.
+ */
+export const WORKSPACE_LAYOUT = {
+    key: "graphty.workspaceLayout.v1",
+    fields: {
+        leftWidth: "number",
+        assistantWidth: "number",
+        rightWidth: "number",
+        dockHeight: "number",
+        dockOpen: "boolean",
+        legendShown: "boolean",
+        legendAsked: "boolean",
+    },
+} as const;
+
+/** The workspace arrangement kept in this browser: whichever fields it holds. */
+export type WorkspaceLayout = {
+    -readonly [K in keyof typeof WORKSPACE_LAYOUT.fields]?: (typeof WORKSPACE_LAYOUT.fields)[K] extends "number"
+        ? number
+        : boolean;
+};
+
+/**
+ * Takes the layout fields out of any object, each only when it holds the type the field must.
+ * @param from - a stored or a live state.
+ * @returns the layout fields it holds.
+ */
+export function layoutOf(from: object): WorkspaceLayout {
+    const { fields }: { readonly fields: Readonly<Record<string, string>> } = WORKSPACE_LAYOUT;
+    return Object.fromEntries(
+        Object.entries(from).filter(
+            ([key, value]) => typeof value === fields[key] && (typeof value !== "number" || Number.isFinite(value)),
+        ),
+    );
+}
+
+/**
+ * Reads the workspace arrangement the reader left on an earlier visit.
+ * @returns the fields kept; empty when none are, or storage is blocked or holds something unknown.
+ */
+export function readWorkspaceLayout(): WorkspaceLayout {
+    try {
+        const stored: unknown = JSON.parse(localStorage.getItem(WORKSPACE_LAYOUT.key) ?? "{}");
+        return typeof stored === "object" && stored !== null ? layoutOf(stored) : {};
+    } catch {
+        return {};
+    }
+}
+
+/**
+ * Keeps the workspace arrangement for the next visit.
+ * @param layout - the fields to keep.
+ */
+export function writeWorkspaceLayout(layout: WorkspaceLayout): void {
+    try {
+        localStorage.setItem(WORKSPACE_LAYOUT.key, JSON.stringify(layout));
+    } catch {
+        // Storage blocked: the arrangement holds for this page view only.
     }
 }

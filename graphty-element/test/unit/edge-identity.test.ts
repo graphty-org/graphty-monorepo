@@ -13,7 +13,7 @@
  * for nodes and edges at the same time.
  *
  * The harness is a real `NullEngine` scene and the managers `Node` and `Edge` call into, so the
- * field initialisers actually run and the store really assigns rows.
+ * field initializers actually run and the store really assigns rows.
  */
 import { NullEngine, type Scene as BabylonScene, Scene } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
@@ -271,7 +271,7 @@ describe("how many edges share an endpoint pair", () => {
 
 describe("the element's own paint is unaffected by any of this", () => {
     it("draws no label on an edge nothing named", () => {
-        // The label used to fall back to the id, so an unlabelled edge read "alice:bob" on screen.
+        // The label used to fall back to the id, so an unlabeled edge read "alice:bob" on screen.
         // Under a counter the same fallback would read "17", an internal number with no meaning to
         // a reader, so the fallback is gone rather than reworded.
         harness = createHarness();

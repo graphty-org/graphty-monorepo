@@ -14,11 +14,11 @@
  *   - `mesh.scaling` tracking `size`. `NodeMesh` bakes size into the GEOMETRY -- a sphere of size
  *     2 is built with `diameter: 2` -- and never touches scaling, which stays 1. The assertions
  *     below therefore measure the bounding box instead, which is where the size really went.
- *   - a top-level numeric `opacity` reaching `mesh.visibility`. Only an object colour carrying
+ *   - a top-level numeric `opacity` reaching `mesh.visibility`. Only an object color carrying
  *     `opacity` does that (`NodeMesh.create` guards on `"opacity" in texture.color`).
  *
  * Two things the mock had no concept of, and which are asserted here for the first time: the 3D
- * emissive shadow floor (`emissiveColor === diffuseColor * 0.2`), and gradient colours, whose
+ * emissive shadow floor (`emissiveColor === diffuseColor * 0.2`), and gradient colors, whose
  * absence was a shipped defect -- see the comment on `NodeMesh.createMaterial`.
  */
 

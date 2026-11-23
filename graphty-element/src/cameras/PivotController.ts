@@ -104,7 +104,7 @@ export class PivotController {
 
         const onCenter = this.onCenter();
         const normalizedAxis = axis.normalize();
-        const currentRotation = this.pivot.rotationQuaternion ?? Quaternion.Identity();
+        const currentRotation = this.pivot.rotationQuaternion ?? Quaternion.FromEulerVector(this.pivot.rotation);
         const rotationQuat = Quaternion.RotationAxis(normalizedAxis, angle);
         this.pivot.rotationQuaternion = rotationQuat.multiply(currentRotation);
         this.backOnCenter(onCenter);

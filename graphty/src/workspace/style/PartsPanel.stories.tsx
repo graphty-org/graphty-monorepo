@@ -2,7 +2,7 @@
 import "@graphty/graphty-element";
 
 import { setDefaultFeatures } from "@graphty/graphty-element/extend";
-import { fileStyleOf, type Layer } from "@graphty/graphty-element/session";
+import type { Layer } from "@graphty/graphty-element/session";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
@@ -38,19 +38,25 @@ type Story = StoryObj<typeof meta>;
 /** One of the three styled files. */
 type FileKind = "graphml" | "cx2" | "dot";
 
-/** Each file's text and name. */
-const FILES: Readonly<Record<FileKind, { data: string; name: string }>> = {
-    graphml: { data: YED_GRAPHML, name: "workflow.graphml" },
-    cx2: { data: CYTOSCAPE_CX2, name: "network.cx2" },
-    dot: { data: GRAPHVIZ_DOT, name: "shapes.gv" },
+/**
+ * Each file's text, name and layout. The yEd and Cytoscape files carry their nodes' positions, so
+ * they stay where the file put them. The Graphviz file carries none: "fixed" stacked all four nodes
+ * on the origin, where avoiding labels has no one answer, and two renders framed the labels apart
+ * (#8238). It is laid out in a circle instead.
+ */
+const FILES: Readonly<Record<FileKind, { data: string; name: string; layout: "fixed" | "circular" }>> = {
+    graphml: { data: YED_GRAPHML, name: "workflow.graphml", layout: "fixed" },
+    cx2: { data: CYTOSCAPE_CX2, name: "network.cx2", layout: "fixed" },
+    dot: { data: GRAPHVIZ_DOT, name: "shapes.gv", layout: "circular" },
 };
 
 /**
- * The story's element, once it is defined, laid out flat and fixed.
+ * The story's element, once it is defined, laid out flat and fixed (or by the layout given).
  * @param canvasElement - the story's root.
+ * @param layout - the layout.
  * @returns the element.
  */
-async function elementOf(canvasElement: HTMLElement): Promise<GraphtyElement> {
+async function elementOf(canvasElement: HTMLElement, layout: "fixed" | "circular" = "fixed"): Promise<GraphtyElement> {
     await customElements.whenDefined("graphty-element");
     const element = await waitFor(() => {
         const found = canvasElement.querySelector("graphty-element");
@@ -58,7 +64,9 @@ async function elementOf(canvasElement: HTMLElement): Promise<GraphtyElement> {
         return found as GraphtyElement;
     });
     await element.session.layout.setDimension("2d");
-    await element.session.layout.set("fixed");
+    await (layout === "fixed"
+        ? element.session.layout.set("fixed")
+        : element.session.layout.set("circular", { options: { scale: 0.5 } }));
     return element;
 }
 
@@ -94,7 +102,7 @@ async function showStyle(
 }
 
 /**
- * A story that loads one styled file with its styles and shows the first layer the file made for
+ * A story that loads one styled file with its styles and shows the first layer the load added for
  * one kind.
  * @param file - which file.
  * @param kind - nodes or edges.
@@ -111,7 +119,8 @@ function fileStory(
         play: async (context) => {
             const { canvasElement } = context;
             const store = storeOf(context);
-            const element = await elementOf(canvasElement);
+            const element = await elementOf(canvasElement, FILES[file].layout);
+            const before = new Set(element.session.styles.list().map((each: Layer) => each.id));
             await element.session.data.import(
                 { type: file, name: FILES[file].name, config: { data: FILES[file].data } },
                 { styles: "file" },
@@ -119,7 +128,7 @@ function fileStory(
             await element.session.styles.settled();
             const layer = element.session.styles
                 .list()
-                .find((each: Layer) => each.target === kind && fileStyleOf(each) !== null);
+                .find((each: Layer) => each.target === kind && !before.has(each.id));
             if (layer === undefined) {
                 throw new Error(`the ${file} file made no ${kind} layer`);
             }

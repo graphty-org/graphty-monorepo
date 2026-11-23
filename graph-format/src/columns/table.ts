@@ -74,6 +74,20 @@ function isColumn(data: unknown): data is Column {
     );
 }
 
+/** Column-set change counts, kept outside the class so the module helpers need no private access. */
+const columnSetVersions = new WeakMap<AttributeTable, number>();
+
+/** Tables sealed by sealTable(): set / remove / rename throw E_FROZEN for them. */
+const sealedTables = new WeakSet<AttributeTable>();
+
+/**
+ * Count one change of a table's column set (set / remove / rename).
+ * @param table - the table that changed
+ */
+function bumpColumnSetVersion(table: AttributeTable): void {
+    columnSetVersions.set(table, columnSetVersion(table) + 1);
+}
+
 /**
  * The number of column-set changes a table has seen (set / remove / rename), so a cached role or name
  * lookup can be reused while the set is unchanged.
@@ -81,7 +95,7 @@ function isColumn(data: unknown): data is Column {
  * @returns the change count
  */
 export function columnSetVersion(table: AttributeTable): number {
-    return (table as unknown as { mutations: number }).mutations;
+    return columnSetVersions.get(table) ?? 0;
 }
 
 /**
@@ -90,7 +104,7 @@ export function columnSetVersion(table: AttributeTable): number {
  * @param table - the table
  */
 export function sealTable(table: AttributeTable): void {
-    (table as unknown as { sealed: boolean }).sealed = true;
+    sealedTables.add(table);
 }
 
 /**
@@ -117,12 +131,6 @@ export class AttributeTable implements AttributeTableContract {
     readonly rowCount: number;
 
     private readonly columns: Map<string, Column>;
-
-    /** Bumped on every change of the column set (set / remove / rename), for callers that cache a lookup. */
-    private mutations = 0;
-
-    /** Set by sealTable(): set / remove / rename throw E_FROZEN from then on. */
-    private readonly sealed: boolean = false;
 
     /**
      * Create a table from wrapped columns (the constructor the freeze pipeline, fromCsr and the wire
@@ -243,7 +251,7 @@ export class AttributeTable implements AttributeTableContract {
     }
 
     /**
-     * Typed read of one cell honouring the column's declared default.
+     * Typed read of one cell honoring the column's declared default.
      * @param name - the column name; E_UNKNOWN_COLUMN when absent
      * @param row - the row index; E_INDEX_RANGE when out of range
      * @returns the value, the default for an unset row, or undefined for an unset row without a default
@@ -324,7 +332,7 @@ export class AttributeTable implements AttributeTableContract {
         }
         // Map.set on an existing key keeps its position, so a replacement keeps the declaration order
         this.columns.set(name, column);
-        this.mutations++;
+        bumpColumnSetVersion(this);
         return column;
     }
 
@@ -337,7 +345,7 @@ export class AttributeTable implements AttributeTableContract {
         this.assertWritable(name);
         const removed = this.columns.delete(name);
         if (removed) {
-            this.mutations++;
+            bumpColumnSetVersion(this);
         }
         return removed;
     }
@@ -374,7 +382,7 @@ export class AttributeTable implements AttributeTableContract {
                 this.columns.set(name, existing);
             }
         }
-        this.mutations++;
+        bumpColumnSetVersion(this);
     }
 
     /**
@@ -435,7 +443,7 @@ export class AttributeTable implements AttributeTableContract {
      * @param name - the column the refused change names
      */
     private assertWritable(name: string): void {
-        if (this.sealed) {
+        if (sealedTables.has(this)) {
             throw new GraphFormatError(
                 "E_FROZEN",
                 `the ${this.domain} table is sealed: its column set cannot change (column "${name}")`,
@@ -554,13 +562,50 @@ function uniqueKey(column: Column, row: number): unknown {
 }
 
 /**
+ * Whether a scalar numeric column's set cells rise strictly in row order: then no two are equal, and
+ * the uniqueness check needs no map. A counter stamped in row order (an id column) always does, so
+ * each freeze of a large graph checks it in one pass over the array instead of hashing every cell.
+ * @param column - the column
+ * @returns true when every set cell is greater than the set cell before it
+ */
+function strictlyIncreasing(column: Column): boolean {
+    switch (column.dtype) {
+        case "f32":
+        case "f64":
+        case "i32":
+        case "u32":
+        case "u8":
+            break;
+        default:
+            return false;
+    }
+    if (column.meta.components !== 1) {
+        return false;
+    }
+    const { data } = column;
+    let last = -Infinity;
+    for (let row = 0; row < column.length; row++) {
+        if (!column.isSet(row)) {
+            continue;
+        }
+        const value = data[row];
+        // NaN goes to the map, which keeps NaN apart as before.
+        if (Number.isNaN(value) || value <= last) {
+            return false;
+        }
+        last = value;
+    }
+    return true;
+}
+
+/**
  * Enforce a unique column over its set rows (design section 5.5; the freeze step 10 hook):
  * E_DUPLICATE_EDGE_ID for an edge column and E_DUPLICATE_ID for every other domain, with the
  * duplicated value and both rows in details.
  * @param column - a column declared unique
  */
 export function verifyUniqueColumn(column: Column): void {
-    if (!column.meta.unique) {
+    if (!column.meta.unique || strictlyIncreasing(column)) {
         return;
     }
     const seen = new Map<unknown, number>();

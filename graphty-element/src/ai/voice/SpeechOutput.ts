@@ -7,7 +7,7 @@
 import type { AiResultCode, AiResultParams, AiVoiceUnavailableReason } from "../../catalog/ai";
 import type { AiEngine } from "../engine/types";
 
-/** How speaking ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE` or the provider's code. */
+/** How speaking ended: `AI_COMPLETED`, `AI_CANCELED`, `AI_VOICE_UNAVAILABLE` or the provider's code. */
 interface SpeechOutputEnd {
     readonly code: AiResultCode;
     readonly params: AiResultParams;
@@ -34,12 +34,12 @@ export interface SpeechOutput {
      * @returns How it ended; never rejects.
      */
     speak(text: string, onStart?: () => void): Promise<SpeechOutputEnd>;
-    /** Stop speaking: the running `speak` ends with `AI_CANCELLED`. */
+    /** Stop speaking: the running `speak` ends with `AI_CANCELED`. */
     cancel(): void;
 }
 
 const COMPLETED: SpeechOutputEnd = Object.freeze({ code: "AI_COMPLETED", params: {} });
-const CANCELLED: SpeechOutputEnd = Object.freeze({ code: "AI_CANCELLED", params: {} });
+const CANCELED: SpeechOutputEnd = Object.freeze({ code: "AI_CANCELED", params: {} });
 
 /**
  * Speech that cannot be produced.
@@ -104,7 +104,7 @@ export function createSpeechOutput(route: "browser" | "provider", options: Speec
             undo = start(done);
         });
 
-    const cancel = (): void => settle?.(CANCELLED);
+    const cancel = (): void => settle?.(CANCELED);
 
     if (route === "browser") {
         return {
@@ -128,7 +128,7 @@ export function createSpeechOutput(route: "browser" | "provider", options: Speec
                     utterance.onerror = (event) => {
                         done(
                             event.error === "interrupted" || event.error === "canceled"
-                                ? CANCELLED
+                                ? CANCELED
                                 : unavailable("playback-failed"),
                         );
                     };

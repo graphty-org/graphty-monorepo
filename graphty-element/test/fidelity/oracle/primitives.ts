@@ -226,6 +226,10 @@ export interface PStroke {
     line?: number;
     /** A stroke painted with a gradient (its first stop is also its `color`), or null for a flat color. */
     gradient?: PGradient | null;
+    /** A line drawn as parallel strands side by side: their colors, in the order drawn. */
+    strands?: readonly string[];
+    /** How its corners are joined, where not mitered (SVG's default): what a thick-stroked arrowhead's tip reaches. */
+    join?: "round" | "bevel";
 }
 
 /** Text as drawn. */
@@ -396,8 +400,9 @@ export interface PNode {
     bands?: { box: PBox; color: string }[];
     label: PText | null;
     /**
-     * graphty's side only: a label under a node-size rule (sigma's labelRenderedSizeThreshold), shown or not at
-     * graphty's framing, with its node's size across in render px and the least that shows it. The comparison shows it
+     * graphty's side only: a label under a node-size rule (sigma's labelRenderedSizeThreshold) or a font-size rule
+     * (vis-network's drawThreshold), shown or not at graphty's framing, with its node's size across (or its letters'
+     * height) in render px and the least that shows it. The comparison shows it
      * where the oracle's framing would (`labelAtScale`).
      */
     sizedLabel?: { label: PText; acrossPx: number; min: number };
@@ -435,6 +440,12 @@ export interface PNode {
      * as at a box.
      */
     drawnBox?: true;
+    /**
+     * The oracle's side only: the box, centered on the node, its lines and arrowheads end at where that is not the
+     * node's own box: vis-network's icon node, whose glyph is its body, ends them at the glyph's box with its margin
+     * and border round it (`drawnBodyless`). A line is cut at it as at a box.
+     */
+    endBox?: { w: number; h: number };
 }
 
 /**
@@ -499,6 +510,12 @@ export interface PArrow {
      * the barb meets it; graphty stopped it at the head's back, short of a barb that meets the line only near its tip.
      */
     lineGap?: number;
+    /**
+     * Drawn wholly under a node other than its edge's ends, which is painted over it, so this drawing shows it nowhere.
+     * The head is left out only where the other side's head at the same end of the paired edge is hidden too
+     * (`withoutHiddenInBoth`); a head hidden in one drawing and shown in the other is judged as any other.
+     */
+    hidden?: boolean;
 }
 
 /** An edge as drawn. */
@@ -527,6 +544,12 @@ export interface PEdge {
      * an end at a node drawn wholly under another at the same place is seen at the node over it. Absent: the same.
      */
     ownEnds?: { source: string; target: string };
+    /**
+     * The oracle's: ends with no arrowhead read where the drawing still has a filled head-sized piece at the line's
+     * end wholly under a node other than its ends, painted after it (`markHiddenHeads`), so the program's head there is
+     * hidden. Judged only beside graphty's head at the same end hidden too (`withoutHiddenInBoth`). Absent: none.
+     */
+    hiddenEnds?: ArrowEnd[];
 }
 
 /** A group box as drawn. */
@@ -561,6 +584,8 @@ export interface PStray {
     text: string | null;
     /** Words a program drew as glyph outlines (`isLettering`), whose words it does not say. */
     lettering?: true;
+    /** A picture graphty draws in a node's label (yEd's label icon). */
+    label?: true;
 }
 
 /** One side's drawing, associated with graph elements. */
@@ -653,7 +678,10 @@ export function dashClassOf(dash: readonly number[] | null, width: number, cap =
     // line's last element is cut short by its end
     const sorted = [...on].sort((x, y) => x - y);
     const alternate = sorted[Math.floor(0.75 * sorted.length)] >= 2 * sorted[Math.floor(0.25 * sorted.length)];
-    if (on.every((d) => d <= dot)) {
+    // a ring of dots round a sharp-cornered shape has one dot per corner that takes the corner's mitre and measures one
+    // and a half to two dots (#9768): dots by the typical piece, while no piece is twice it (a dash is three dots)
+    const typical = sorted[Math.floor(0.5 * sorted.length)];
+    if (on.every((d) => d <= dot) || (typical <= dot && sorted[sorted.length - 1] < 2 * typical)) {
         // under the floor every dash is a dot, but a hairline's dash and dot still differ (cx-syn-mappings 342->360)
         return alternate ? "dash-dot" : "dotted";
     }
@@ -677,9 +705,9 @@ export function boxOfPoints(pts: readonly Pt[]): PBox {
 }
 
 /**
- * Places for the nodes a drawing has none for, from their neighbours': each at the middle of its neighbours that have
- * one, taken in rounds so a node whose neighbours have none waits for them. A node with fewer than two placed
- * neighbours stays without: one neighbour says nothing of where beside it the node stood. A position-matched drawing moves graphty's nodes to where the program drew them, and a node the
+ * Places for the nodes a drawing has none for, from their neighbors': each at the middle of its neighbors that have
+ * one, taken in rounds so a node whose neighbors have none waits for them. A node with fewer than two placed
+ * neighbors stays without: one neighbor says nothing of where beside it the node stood. A position-matched drawing moves graphty's nodes to where the program drew them, and a node the
  * program's drawing does not show (drawn wholly under another, as in a dense clique) would otherwise stay where graphty's
  * own layout put it, far from the drawing it is moved into.
  * @param placed - the nodes that have a place
@@ -752,10 +780,34 @@ const lengthOf = (pts: readonly Pt[]): number => {
     return s;
 };
 
+/** The length of an open route, first point to last. */
+const routeLength = (pts: readonly Pt[]): number =>
+    pts.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]), 0);
+
 const areaOf = (b: PBox): number => (b.x1 - b.x0) * (b.y1 - b.y0);
 const holds = (outer: PBox, inner: PBox): boolean =>
     inner.x0 > outer.x0 && inner.y0 > outer.y0 && inner.x1 < outer.x1 && inner.y1 < outer.y1;
 const median = (xs: readonly number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
+
+/**
+ * The line width of a ring drawn as two square boxes, one inside the other, where its sides are not all as wide: the
+ * narrowest side is the line, and a wider side is a band painted with it (yEd's DemoGroup, a 1 px frame whose top is
+ * its 22 px header, yed-graphml-specimen-groups). Null for any other ring, or one as wide all round.
+ * @param outer - the outer outline
+ * @param inner - the inner outline
+ * @returns the narrowest side's width, or null
+ */
+function boxFrameWidth(outer: readonly Pt[], inner: readonly Pt[]): number | null {
+    const square = (q: readonly Pt[]): boolean => Math.abs(signedArea(q)) >= 0.98 * areaOf(boxOfPoints(q));
+    if (!square(outer) || !square(inner)) {
+        return null;
+    }
+    const o = boxOfPoints(outer);
+    const i = boxOfPoints(inner);
+    const sides = [i.x0 - o.x0, i.y0 - o.y0, o.x1 - i.x1, o.y1 - i.y1];
+    const narrowest = Math.min(...sides);
+    return narrowest > 0 && Math.max(...sides) >= 3 * narrowest ? narrowest : null;
+}
 
 /** The sectors a painted outline is read in, around its box's center. */
 const SECTORS = 36;
@@ -940,22 +992,26 @@ function piecesPattern(
     // row of arrows touching one another is drawn square on the line.
     {
         // round a ring, a piece across the seam of the angle reaches all the way round less its widest gap
-        const covered = subpaths.reduce((sum, q) => {
+        const spans = subpaths.map((q) => {
             const a = q.map(run.along).sort((x, y) => x - y);
             const span = (a.at(-1) ?? 0) - (a[0] ?? 0);
             if (run.circular !== true) {
-                return sum + span;
+                return span;
             }
             const widest = Math.max(run.length - span, ...a.slice(1).map((x, i) => x - a[i]));
-            return sum + run.length - widest;
-        }, 0);
+            return run.length - widest;
+        });
+        const covered = spans.reduce((a, b) => a + b, 0);
+        // a wave drawn in whole periods leaves up to one period undrawn where the next would not fit: round a small
+        // node that is more than a tenth of the way (cx2-syn-mappings 222, six periods round a hexagon, 89% covered)
+        const reachesRound = covered >= Math.min(0.9 * run.length, run.length - median(spans));
         const thin = median(subpaths.map((q) => (2 * Math.abs(signedArea(q))) / Math.max(lengthOf(q), 1e-9)));
         const reach = median(pieces.map((p) => p.short));
         // a period of a wave (Cytoscape desktop's sine wave is a crest and a trough a piece) or a lobe of one lies off
         // its own mirror image by half its thickness or more (a wide one's period, cys-syn-mappings 432->450: 1.3 px off
         // at 1.4 thick); an arrow drawn square on the line is its own mirror image, a fraction of a pixel off
         const lopsided = median(subpaths.map((q) => mirrorGap(q, run.mirror))) > 0.5 * thin;
-        if (covered >= 0.9 * run.length && reach > 4 * thin && lopsided) {
+        if (reachesRound && reach > 4 * thin && lopsided) {
             const straight = subpaths.reduce((sum, q) => sum + straightShare(q), 0) / subpaths.length;
             return { dashClass: straight > 0.5 ? "zigzag" : "sinewave", width: thin };
         }
@@ -1209,9 +1265,10 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[], nonze
         // lengthen its outlines but not its band: its width is how far its two outlines most often are apart, where
         // the line runs straight.
         const waved = dashClass === "zigzag" || dashClass === "sinewave";
+        const inner = subpaths[1 - boxes.indexOf(outerBox)];
         return patternResult(
             dashClass,
-            waved ? outlinesApart(outer, subpaths[1 - boxes.indexOf(outerBox)]) : width,
+            waved ? outlinesApart(outer, inner) : (boxFrameWidth(outer, inner) ?? width),
             box,
         );
     }
@@ -1280,6 +1337,12 @@ export interface PaintedBand extends PaintedOutline {
      * straight and runs between its `ends`.
      */
     route?: Pt[];
+    /**
+     * How far apart its pieces are along it, where the band is drawn in pieces: a program that draws only whole pieces
+     * (Cytoscape desktop's arrows and slashes) stops the line up to this far short of where it ends. Absent for a band
+     * of one outline.
+     */
+    piece?: number;
 }
 
 /**
@@ -1312,7 +1375,7 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
     const [a0, a1] = [Math.min(...along), Math.max(...along)];
     const spread = Math.max(...across) - Math.min(...across);
     if (a1 - a0 < BAND_ASPECT * Math.max(spread, 1e-9)) {
-        return null;
+        return turnedBand(subpaths);
     }
     const box = boxOfPoints(all);
     const mid = (Math.max(...across) + Math.min(...across)) / 2;
@@ -1344,7 +1407,9 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
             return [x + 2 * c * u[1], y - 2 * c * u[0]];
         },
     });
-    const result = { ...patternResult(dashClass, width, box), ends, across: spread };
+    const order = subpaths.map((q) => q.reduce((t, p) => t + alongOf(p), 0) / q.length).sort((a, b) => a - b);
+    const piece = median(order.slice(1).map((a, i) => a - order[i]));
+    const result = { ...patternResult(dashClass, width, box), ends, across: spread, piece };
     // A straight band reaches across its axis as far as one of its pieces does; one that reaches twice as far bends,
     // and is routed through its pieces' centers, in order along it, its ends the end pieces' centers carried out along
     // the axis to the band's ends.
@@ -1364,8 +1429,97 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
     if (spread <= 2 * median(pieceAcross) || (dashClass === "double" && reach(centers) <= median(pieceAcross))) {
         return result;
     }
+    // A route that turns back along the axis is scrambled by that order: its pieces are taken in the order drawn.
+    const turned = dashClass === "double" ? null : drawnRoute(subpaths);
+    if (turned !== null && routeLength(sorted) > BAND_ASPECT * routeLength(turned)) {
+        return { ...result, ends: [turned[0], turned[turned.length - 1]], route: turned };
+    }
     const out = (c: Pt, a: number): Pt => [c[0] + (a - alongOf(c)) * u[0], c[1] + (a - alongOf(c)) * u[1]];
     return { ...result, route: [out(centers[0], a0), ...centers, out(centers[centers.length - 1], a1)] };
+}
+
+/**
+ * The centers of a band's pieces in the order they are drawn, when that order walks the line: Cytoscape desktop draws a
+ * patterned edge's pieces one after the other from one end to the other, however its route bends. Null unless each
+ * piece is drawn near the last (no step over four times the usual one) and the walk ends away from where it started
+ * (a ring of pieces, a node's border, comes back).
+ * @param subpaths - the pieces, in drawing order
+ * @returns the route, or null
+ */
+function drawnRoute(subpaths: readonly (readonly Pt[])[]): Pt[] | null {
+    if (subpaths.length < 3) {
+        return null;
+    }
+    const centers = subpaths.map((q): Pt => [
+        q.reduce((t, p) => t + p[0], 0) / q.length,
+        q.reduce((t, p) => t + p[1], 0) / q.length,
+    ]);
+    const steps = centers.slice(1).map((c, i) => Math.hypot(c[0] - centers[i][0], c[1] - centers[i][1]));
+    const walk = routeLength(centers);
+    const [first, last] = [centers[0], centers[centers.length - 1]];
+    const ok =
+        Math.max(...steps) <= 4 * median(steps) && Math.hypot(last[0] - first[0], last[1] - first[1]) >= 0.25 * walk;
+    return ok ? centers : null;
+}
+
+/**
+ * A band of pieces whose route turns back on itself (cx-syn-bypass's bent slashed edge, out across the sheet and back),
+ * which no one axis is long against its width: read along the route the pieces are drawn on, each piece against the
+ * route's own direction where it sits.
+ * @param subpaths - the pieces, in drawing order
+ * @returns the band, its ends the route's, or null when the pieces do not walk a line
+ */
+function turnedBand(subpaths: readonly (readonly Pt[])[]): PaintedBand | null {
+    // a line's worth of pieces, not a handful of marks
+    const route = subpaths.length >= 8 ? drawnRoute(subpaths) : null;
+    if (route === null) {
+        return null;
+    }
+    const at: number[] = [0];
+    for (let i = 1; i < route.length; i++) {
+        at.push(at[i - 1] + Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]));
+    }
+    const nearest = ([x, y]: Pt): number => {
+        let best = 0;
+        for (let i = 1; i < route.length; i++) {
+            if (Math.hypot(route[i][0] - x, route[i][1] - y) < Math.hypot(route[best][0] - x, route[best][1] - y)) {
+                best = i;
+            }
+        }
+        return best;
+    };
+    const local = (i: number): { c: Pt; t: Pt } => {
+        const [a, b] = [route[Math.max(0, i - 2)], route[Math.min(route.length - 1, i + 2)]];
+        const len = Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]), 1e-9);
+        return { c: route[i], t: [(b[0] - a[0]) / len, (b[1] - a[1]) / len] };
+    };
+    const frame: PatternFrame = (p) => {
+        const { c, t } = local(nearest(p));
+        return { tangent: t, across: -(p[0] - c[0]) * t[1] + (p[1] - c[1]) * t[0] };
+    };
+    const { dashClass, width } = piecesPattern(subpaths, frame, {
+        length: at[at.length - 1],
+        along: (p) => at[nearest(p)],
+        mirror: (p) => {
+            const { c, t } = local(nearest(p));
+            const k = -(p[0] - c[0]) * t[1] + (p[1] - c[1]) * t[0];
+            return [p[0] + 2 * k * t[1], p[1] - 2 * k * t[0]];
+        },
+    });
+    // how far a piece reaches across the route where it sits
+    const across = median(
+        subpaths.map((q, i) => {
+            const { c, t } = local(i);
+            const k = q.map((p) => -(p[0] - c[0]) * t[1] + (p[1] - c[1]) * t[0]);
+            return Math.max(...k) - Math.min(...k);
+        }),
+    );
+    return {
+        ...patternResult(dashClass, width, boxOfPoints(subpaths.flat())),
+        ends: [route[0], route[route.length - 1]],
+        across,
+        route,
+    };
 }
 
 /**
@@ -1429,7 +1583,7 @@ export function taperPaintedAsFill(points: readonly Pt[]): PaintedBand | null {
 }
 
 /** How narrow, as a share of its widest, a tapered line's end must be to be read as its point. */
-const TAPER_POINT = 0.25;
+export const TAPER_POINT = 0.25;
 
 /**
  * Whether a filled outline is an edge's line drawn as Graphviz's `style=tapered` draws it (lib/common/taper.c): one
@@ -1599,15 +1753,18 @@ export function framedBand(vertices: readonly Pt[], samples: number): FramedBand
         return plain;
     }
     const fromTarget = bandOf([v[v.length - 1], ...v.slice(0, -1)], samples);
-    return fromTarget === null
-        ? null
-        : {
-              route: [...fromTarget.route].reverse(),
-              width: fromTarget.width,
-              heads: fromTarget.heads
-                  .map((h) => ({ ...h, end: h.end === "source" ? ("target" as const) : ("source" as const) }))
-                  .reverse(),
-          };
+    if (fromTarget === null) {
+        // and some at the source's arrowhead, one corner before its tip, at its wing (graphml-stm32-func e36, Arrows
+        // source="standard" target="standard"): read from the tip, it is read as drawn
+        return bandOf([...v.slice(1), v[0]], samples);
+    }
+    return {
+        route: [...fromTarget.route].reverse(),
+        width: fromTarget.width,
+        heads: fromTarget.heads
+            .map((h) => ({ ...h, end: h.end === "source" ? ("target" as const) : ("source" as const) }))
+            .reverse(),
+    };
 }
 
 /**
@@ -1992,6 +2149,51 @@ export function figureOf(
 }
 
 /**
+ * A node's figure (`PNode.figure`) as edges in the point's pixels.
+ * @param figure - the figure's edges, in halves of the node's size from its center
+ * @param n - the node's center and size, in the point's pixels
+ * @param n.cx - its center's x
+ * @param n.cy - its center's y
+ * @param n.w - its width
+ * @param n.h - its height
+ * @returns the edges
+ */
+function figureEdges(
+    figure: readonly (readonly [Readonly<Pt>, Readonly<Pt>])[],
+    n: { cx: number; cy: number; w: number; h: number },
+): [Pt, Pt][] {
+    const [hw, hh] = [n.w / 2, n.h / 2];
+    return figure.map(([a, b]): [Pt, Pt] => [
+        [n.cx + a[0] * hw, n.cy + a[1] * hh],
+        [n.cx + b[0] * hw, n.cy + b[1] * hh],
+    ]);
+}
+
+/**
+ * How far a point lies from a node's figure's outline (`PNode.figure`), inside or out.
+ * @param figure - the figure's edges, in halves of the node's size from its center
+ * @param n - the node's center and size, in the point's pixels
+ * @param n.cx - its center's x
+ * @param n.cy - its center's y
+ * @param n.w - its width
+ * @param n.h - its height
+ * @param p - the point
+ * @returns the distance, in pixels
+ */
+export function figureOutlineDistance(
+    figure: readonly (readonly [Readonly<Pt>, Readonly<Pt>])[],
+    n: { cx: number; cy: number; w: number; h: number },
+    [px, py]: Readonly<Pt>,
+): number {
+    const off = ([[x0, y0], [x1, y1]]: [Pt, Pt]): number => {
+        const [dx, dy] = [x1 - x0, y1 - y0];
+        const t = Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / (dx * dx + dy * dy || 1)));
+        return Math.hypot(px - x0 - t * dx, py - y0 - t * dy);
+    };
+    return Math.min(...figureEdges(figure, n).map(off));
+}
+
+/**
  * Whether a point lies inside a node's figure (`PNode.figure`, even-odd), or within `slack` pixels of its outline.
  * @param figure - the figure's edges, in halves of the node's size from its center
  * @param n - the node's center and size, in the point's pixels
@@ -2006,24 +2208,15 @@ export function figureOf(
 export function insideFigure(
     figure: readonly (readonly [Readonly<Pt>, Readonly<Pt>])[],
     n: { cx: number; cy: number; w: number; h: number },
-    [px, py]: Readonly<Pt>,
+    p: Readonly<Pt>,
     slack = 0,
 ): boolean {
-    const [hw, hh] = [n.w / 2, n.h / 2];
-    const edges = figure.map(([a, b]): [Pt, Pt] => [
-        [n.cx + a[0] * hw, n.cy + a[1] * hh],
-        [n.cx + b[0] * hw, n.cy + b[1] * hh],
-    ]);
+    const [px, py] = p;
     let inside = false;
-    for (const [[x0, y0], [x1, y1]] of edges) {
+    for (const [[x0, y0], [x1, y1]] of figureEdges(figure, n)) {
         if (y0 > py !== y1 > py && px < x0 + ((py - y0) * (x1 - x0)) / (y1 - y0)) {
             inside = !inside;
         }
     }
-    const off = ([[x0, y0], [x1, y1]]: [Pt, Pt]): number => {
-        const [dx, dy] = [x1 - x0, y1 - y0];
-        const t = Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / (dx * dx + dy * dy || 1)));
-        return Math.hypot(px - x0 - t * dx, py - y0 - t * dy);
-    };
-    return inside || (slack > 0 && edges.some((e) => off(e) <= slack));
+    return inside || (slack > 0 && figureOutlineDistance(figure, n, p) <= slack);
 }

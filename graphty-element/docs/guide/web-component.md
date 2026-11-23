@@ -33,7 +33,8 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `layoutConfig`           | `layout-config`            | `object`                                                            | `{}`        | Layout algorithm options                                                                                                                                                                                                                                                            |
 | `layoutScope`            | `layout-scope`             | scope (JSON)                                                        | unset       | Lay out only these nodes and hold the rest still, such as `{"set":"set_team"}`; unset means the whole graph (see [Layouts](./layouts#laying-out-part-of-the-graph))                                                                                                                 |
 | `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'`                                      | `'3d'`      | Rendering mode                                                                                                                                                                                                                                                                      |
-| `background`             | `background`               | `object`                                                            | whitesmoke  | A colour, or a skybox image                                                                                                                                                                                                                                                         |
+| `background`             | `background`               | `object`                                                            | whitesmoke  | A color, or a skybox image                                                                                                                                                                                                                                                          |
+| `colorScheme`            | `color-scheme`             | `'light' \| 'dark' \| 'auto'`                                       | `'light'`   | Which background color the canvas draws: `color`, `darkColor` (default `#121212`), or follow `prefers-color-scheme`. A view preference, not saved in a project                                                                                                                      |
 | `startingCameraDistance` | `starting-camera-distance` | `number`                                                            | unset       | How far the camera starts out; unset frames the graph to fit, set turns automatic framing off                                                                                                                                                                                       |
 | `autoFrame`              | `auto-frame`               | `boolean`                                                           | `true`      | Frame the graph after each load and layout change; `auto-frame="false"` leaves the camera alone. A view preference, not saved in a project                                                                                                                                          |
 | `labelDeclutter`         | `label-declutter`          | `boolean`                                                           | `false`     | Hide a node label that would overlap another until the reader zooms in; a view preference, not saved in a project                                                                                                                                                                   |
@@ -57,7 +58,6 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `layoutBehavior`         | property only              | `object`                                                            | `{}`        | How the element drives the layout, whether overlapping labels are thinned out, and the two on-demand expansion functions                                                                                                                                                            |
 | `algorithmsOnLoad`       | (property only)            | `Array<string \| object>`                                           | unset       | Algorithms to run once data loads: names, or `{ algorithm, params?, style?, seed?, as? }` (see [Algorithms](./algorithms#running-algorithms-when-the-data-loads))                                                                                                                   |
 | `runAlgorithmsOnLoad`    | `run-algorithms-on-load`   | `boolean`                                                           | `false`     | Whether `algorithmsOnLoad` runs; a boolean attribute, on by presence                                                                                                                                                                                                                |
-| `debug`                  | `debug`                    | `boolean`                                                           | `false`     | Enable debug overlay                                                                                                                                                                                                                                                                |
 | `historyKeys`            | `history-keys`             | `boolean`                                                           | `true`      | Whether Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y on the focused canvas undo and redo; `history-keys="false"` turns them off (see [Undo and History](./undo#keyboard-shortcuts))                                                                                                              |
 
 ### How the element finds an edge's endpoints
@@ -68,8 +68,7 @@ decides once for a whole batch of records rather than once per record -- so a fi
 edge one way and the next edge another and have both silently accepted.
 
 A batch that answers none of the three fails the load with `E_EDGE_ENDPOINTS_UNRESOLVED`, naming
-the columns the records do carry. It never loads a graph with nodes and no edges in silence, which
-is what 1.x did to every file spelled the way the guides teach.
+the columns the records do carry. It never loads a graph with nodes and no edges in silence.
 
 Setting either attribute settles the question and turns the probe off. A record that then does not
 answer the column you named is rejected and counted rather than guessed at again.
@@ -94,7 +93,7 @@ layer.
 
 ```javascript
 element.selectionStyle = {
-    color: "#00BCD4", // any colour the element understands
+    color: "#00BCD4", // any color the element understands
     scale: 1.8, // how far past the node it stands, as a multiple of the node's size
     opacity: 0.55, // 0 to 1
 };
@@ -151,6 +150,20 @@ Both are called on the double-click, so switching expansion on after the graph i
 the nodes already on screen. An edge record may spell its endpoints `source`/`target`, `src`/`dst`
 or `from`/`to`; the element decides once per batch. An edge the graph already holds is not
 duplicated.
+
+Those two draw a fresh neighborhood as a star: only the expanded node's own edges come back. To
+also get the edges among the new neighbors, and between them and the nodes already on screen,
+add a third function. It is handed the ids of the nodes just fetched, and the edges it returns
+are added in the same undoable step; an edge whose other end is neither in the graph nor just
+fetched is left out:
+
+```javascript
+element.layoutBehavior = {
+    fetchEdges: (node) => fetchEdgesFor(node.id),
+    fetchNodes: (nodeIds) => fetchNodesFor([...nodeIds]),
+    fetchNeighborEdges: (nodeIds) => fetchEdgesTouching([...nodeIds]), // an iterable of edge records
+};
+```
 
 ### Pacing the layout
 
@@ -279,7 +292,9 @@ is at rest, and draws again as soon as the data, a style, the layout, the camera
 the reader's pointer, wheel or keys change the picture. A still graph then costs the page nothing
 per frame, which matters most where the GPU is emulated in software (virtual machines, CI runners,
 headless browsers): there each frame costs the page tens of milliseconds or more, and the page's
-own buttons and fields answer that much later.
+own buttons and fields answer that much later. While a layout runs on the GPU it also skips the
+frames between two landings of the layout's batches; under `render-path="batched"` those frames are
+skipped even with this option off.
 
 ```html
 <graphty-element render-on-demand></graphty-element>

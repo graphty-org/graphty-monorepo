@@ -12,7 +12,8 @@ import type { Scene } from "@babylonjs/core/scene.js";
  *
  * A node batch draws many rows of one look in one draw call. A row's place lives in the
  * `rowPosition` texture (`render/RowTable.ts`), so moving a row moves one texel and never touches
- * the batch. The per-instance `graphtyRow` attribute says which texel is whose.
+ * the batch. The per-instance `graphtyRow` attribute says which texel is whose. A row written
+ * -row - 2 is drawn from its own matrix (`NodeBatch.own`), and reads only whether it is hidden.
  *
  * The plugin sits on the material the object rows draw with; its define is on only for a batch
  * mesh, so those rows compile the shader they always did.
@@ -20,6 +21,11 @@ import type { Scene } from "@babylonjs/core/scene.js";
  * Babylon writes a thin instance's normal by another formula than an ordinary instance's, which
  * shades any scale in `matrix` differently (85 levels for a non-uniform one). The rewrite below
  * puts the ordinary line back, so a batch and an object row agree.
+ *
+ * Babylon also multiplies a thin instance's alpha by its interpolated color alpha, which an
+ * ordinary instance's never is. A batch's color alpha is always 1, but WebKit interpolates that 1
+ * a hair below 1, so a 0.5-opacity node blends a level off where the object row lands on a half
+ * level (#9506). The fragment rewrite drops the multiply for a batch.
  */
 
 const PLUGIN_NAME = "GraphtyRowPull";
@@ -44,10 +50,29 @@ mat4 finalWorld=mat4(world0,world1,world2,world3);
 #endif
 `,
     CUSTOM_VERTEX_UPDATE_WORLDPOS: `#ifdef ROW_PULL
-int grRow = int(graphtyRow + 0.5);
-vec4 grPlace = graphtyRow < 0.0 ? vec4(0.0) : texelFetch(rowPosition, ivec2(grRow & 1023, grRow >> 10), 0);
+bool grOwn = graphtyRow < -1.5;
+float grAt = grOwn ? -2.0 - graphtyRow : graphtyRow;
+int grRow = int(grAt + 0.5);
+vec4 grPlace = grAt < 0.0 ? vec4(0.0) : texelFetch(rowPosition, ivec2(grRow & 1023, grRow >> 10), 0);
+if (grOwn) {
+grPlace = vec4(0.0, 0.0, 0.0, grPlace.w > 0.0 ? 1.0 : 0.0);
+}
 vec3 grOrigin = world[3].xyz;
 worldPos = vec4((worldPos.xyz - grOrigin) * grPlace.w + grOrigin + mat3(world) * grPlace.xyz, worldPos.w);
+#endif
+`,
+};
+
+const GLSL_FRAGMENT = {
+    [String.raw`!alpha\*=vColor\.a;`]: `#ifndef ROW_PULL
+alpha*=vColor.a;
+#endif
+`,
+};
+
+const WGSL_FRAGMENT = {
+    [String.raw`!alpha\*=fragmentInputs\.vColor\.a;`]: `#ifndef ROW_PULL
+alpha*=fragmentInputs.vColor.a;
 #endif
 `,
 };
@@ -68,10 +93,15 @@ var finalWorld=mat4x4<f32>(vertexInputs.world0,vertexInputs.world1,vertexInputs.
 #endif
 `,
     CUSTOM_VERTEX_UPDATE_WORLDPOS: `#ifdef ROW_PULL
-let grRow: i32 = i32(vertexInputs.graphtyRow + 0.5);
+let grOwn: bool = vertexInputs.graphtyRow < -1.5;
+let grAt: f32 = select(vertexInputs.graphtyRow, -2.0 - vertexInputs.graphtyRow, grOwn);
+let grRow: i32 = i32(grAt + 0.5);
 var grPlace: vec4f = vec4f(0.0);
-if (vertexInputs.graphtyRow >= 0.0) {
+if (grAt >= 0.0) {
 grPlace = textureLoad(rowPosition, vec2<i32>(grRow & 1023, grRow >> 10), 0);
+}
+if (grOwn) {
+grPlace = vec4f(0.0, 0.0, 0.0, select(0.0, 1.0, grPlace.w > 0.0));
 }
 #ifdef WORLD_UBO
 let grWorld: mat4x4f = mesh.world;
@@ -195,14 +225,15 @@ class RowPullPlugin extends MaterialPluginBase {
      * The vertex code, in the language the material compiles to.
      * @param shaderType - "vertex" or "fragment".
      * @param shaderLanguage - GLSL or WGSL.
-     * @returns The code, or null for a fragment shader.
+     * @returns The code.
      */
-    override getCustomCode(shaderType: string, shaderLanguage?: ShaderLanguage): Record<string, string> | null {
+    override getCustomCode(shaderType: string, shaderLanguage?: ShaderLanguage): Record<string, string> {
+        const wgsl = shaderLanguage === ShaderLanguage.WGSL;
         if (shaderType !== "vertex") {
-            return null;
+            return wgsl ? WGSL_FRAGMENT : GLSL_FRAGMENT;
         }
 
-        return shaderLanguage === ShaderLanguage.WGSL ? WGSL : GLSL;
+        return wgsl ? WGSL : GLSL;
     }
 }
 
@@ -220,7 +251,7 @@ export function attachRowPull(material: Material): void {
         material.unfreeze();
     }
 
-    new RowPullPlugin(material); // NOSONAR(S1848): the base constructor attaches it to the material
+    new RowPullPlugin(material); // eslint-disable-line sonarjs/constructor-for-side-effects -- the base constructor attaches it to the material
     if (frozen) {
         material.freeze();
     }

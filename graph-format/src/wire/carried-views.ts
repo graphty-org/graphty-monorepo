@@ -10,13 +10,21 @@
  */
 
 import { type GraphFormatError } from "../errors.js";
-import { type GraphSnapshot } from "../snapshot/graph-snapshot.js";
+import { type GraphSnapshot, seedView } from "../snapshot/graph-snapshot.js";
 import { invariantViolation } from "../snapshot/validate.js";
-import { DEGREE_TIER_HIGH, DEGREE_TIER_MID, rowLengths } from "../snapshot/views.js";
-import { type F32, type F64, type ReverseView, type U32 } from "../types/index.js";
+import {
+    cooViewOf,
+    DEGREE_TIER_HIGH,
+    DEGREE_TIER_MID,
+    edgeListViewOf,
+    ReverseAdjacency,
+    rowLengths,
+} from "../snapshot/views.js";
+import { type F32, type F64, type ReverseView, type TypedArrayData, type U32 } from "../types/index.js";
+import { badWire } from "./bad-wire.js";
 
 /** The per-arc facts every index-view check reads, computed once per manifest. */
-export class CoreFacts {
+class CoreFacts {
     /** The row (source) of every arc. */
     readonly arcRow: U32;
     /** Loop arcs per node. */
@@ -126,7 +134,7 @@ function expectPermutation(view: string, member: string, perm: U32): void {
  * @param snapshot - the snapshot
  * @param data - the carried array
  */
-export function checkOutDegree(snapshot: GraphSnapshot, data: U32): void {
+function checkOutDegree(snapshot: GraphSnapshot, data: U32): void {
     expectSame("outDegree", "data", data, rowLengths(snapshot.rowPtr, snapshot.nodeCount), "I2");
 }
 
@@ -135,7 +143,7 @@ export function checkOutDegree(snapshot: GraphSnapshot, data: U32): void {
  * @param facts - the core facts
  * @param data - the carried array
  */
-export function checkInDegree(facts: CoreFacts, data: U32): void {
+function checkInDegree(facts: CoreFacts, data: U32): void {
     expectSame("inDegree", "data", data, facts.inDegree, "I2");
 }
 
@@ -145,7 +153,7 @@ export function checkInDegree(facts: CoreFacts, data: U32): void {
  * @param facts - the core facts
  * @param data - the carried array
  */
-export function checkDegree(snapshot: GraphSnapshot, facts: CoreFacts, data: U32): void {
+function checkDegree(snapshot: GraphSnapshot, facts: CoreFacts, data: U32): void {
     const out = rowLengths(snapshot.rowPtr, snapshot.nodeCount);
     const add = snapshot.directed ? facts.inDegree : facts.loops;
     for (let u = 0; u < out.length; u++) {
@@ -160,7 +168,7 @@ export function checkDegree(snapshot: GraphSnapshot, facts: CoreFacts, data: U32
  * @param facts - the core facts
  * @param data - the carried array
  */
-export function checkSelfLoopsPerNode(facts: CoreFacts, data: U32): void {
+function checkSelfLoopsPerNode(facts: CoreFacts, data: U32): void {
     expectSame("selfLoopsPerNode", "data", data, facts.loops, "I2");
 }
 
@@ -170,7 +178,7 @@ export function checkSelfLoopsPerNode(facts: CoreFacts, data: U32): void {
  * @param facts - the core facts
  * @param data - the carried array
  */
-export function checkSelfLoopArcs(snapshot: GraphSnapshot, facts: CoreFacts, data: U32): void {
+function checkSelfLoopArcs(snapshot: GraphSnapshot, facts: CoreFacts, data: U32): void {
     const { colIdx, arcCount } = snapshot;
     for (let i = 0; i < data.length; i++) {
         const a = data[i];
@@ -185,7 +193,7 @@ export function checkSelfLoopArcs(snapshot: GraphSnapshot, facts: CoreFacts, dat
  * @param facts - the core facts
  * @param src - the carried array
  */
-export function checkCooSrc(facts: CoreFacts, src: U32): void {
+function checkCooSrc(facts: CoreFacts, src: U32): void {
     expectSame("coo", "src", src, facts.arcRow, "I2");
 }
 
@@ -197,7 +205,7 @@ export function checkCooSrc(facts: CoreFacts, src: U32): void {
  * @param dst - the carried targets, or null when colIdx is aliased
  * @param weights - the carried weights, or null when aliased or unweighted
  */
-export function checkEdgeList(
+function checkEdgeList(
     snapshot: GraphSnapshot,
     facts: CoreFacts,
     src: U32,
@@ -227,7 +235,7 @@ export function checkEdgeList(
  * @param facts - the core facts
  * @param mate - the carried array
  */
-export function checkMate(snapshot: GraphSnapshot, facts: CoreFacts, mate: U32): void {
+function checkMate(snapshot: GraphSnapshot, facts: CoreFacts, mate: U32): void {
     const { arcCount, arcToEdge, colIdx } = snapshot;
     for (let a = 0; a < arcCount; a++) {
         const m = mate[a];
@@ -246,7 +254,7 @@ export function checkMate(snapshot: GraphSnapshot, facts: CoreFacts, mate: U32):
  * @param perm - the carried permutation
  * @param segmentOffsets - the carried tier offsets
  */
-export function checkDegreeOrder(
+function checkDegreeOrder(
     name: "degreeOrder" | "reverseDegreeOrder",
     degree: U32,
     perm: U32,
@@ -300,7 +308,7 @@ function checkReverseTieOrder(fwdArc: U32, arcRow: U32, k: number, a: number, so
  * @param facts - the core facts
  * @param reverse - the carried view
  */
-export function checkReverse(snapshot: GraphSnapshot, facts: CoreFacts, reverse: ReverseView): void {
+function checkReverse(snapshot: GraphSnapshot, facts: CoreFacts, reverse: ReverseView): void {
     const { nodeCount, arcCount, colIdx } = snapshot;
     const forward = snapshot.weights;
     const { rowPtr, fwdArc } = reverse;
@@ -335,6 +343,327 @@ export function checkReverse(snapshot: GraphSnapshot, facts: CoreFacts, reverse:
  * @param found - the carried array
  * @param expected - the computed truth
  */
-export function checkF64View(name: string, found: F64, expected: F64): void {
+function checkF64View(name: string, found: F64, expected: F64): void {
     expectSame(name, "data", found, expected, "I17");
+}
+
+// ============================================================ installing carried views
+
+/** The member arrays of the views a manifest carried, keyed by view name then member name. */
+export type CarriedViews = Map<string, Map<string, TypedArrayData>>;
+
+/**
+ * One member array of a carried view, checked for class and length.
+ * @param members - the view's member arrays
+ * @param view - the view name (for the error path)
+ * @param member - the member name
+ * @param ctor - the required typed-array class
+ * @param length - the required length
+ * @param required - whether an absent member is an error
+ * @returns the array, or null when absent and not required
+ */
+function viewMember<T extends TypedArrayData>(
+    members: ReadonlyMap<string, TypedArrayData>,
+    view: string,
+    member: string,
+    ctor: new (length: number) => T,
+    length: number,
+    required: boolean,
+): T | null {
+    const path = `views.${view}.${member}`;
+    const array = members.get(member);
+    if (array === undefined) {
+        if (required) {
+            throw badWire(path, "the carried view is missing this member");
+        }
+        return null;
+    }
+    if (!(array instanceof ctor)) {
+        throw badWire(path, `expected ${ctor.name}, found ${array.constructor.name}`, {
+            expected: ctor.name,
+            found: array.constructor.name,
+        });
+    }
+    if (array.length !== length) {
+        throw badWire(path, `expected ${length} entries, found ${array.length}`, {
+            expected: length,
+            found: array.length,
+        });
+    }
+    return array;
+}
+
+/**
+ * The per-node or per-arc array of a single-member view.
+ * @param members - the view's member arrays
+ * @param view - the view name
+ * @param ctor - the required typed-array class
+ * @param length - the required length
+ * @returns the array
+ */
+function dataMember<T extends TypedArrayData>(
+    members: ReadonlyMap<string, TypedArrayData>,
+    view: string,
+    ctor: new (length: number) => T,
+    length: number,
+): T {
+    return viewMember(members, view, "data", ctor, length, true) as T;
+}
+
+/**
+ * Install the views a manifest carried into the snapshot's cache (design section 9.1), so the
+ * receiver does not recompute them. Views that alias another view on an undirected snapshot
+ * (`reverse`, `inDegree`, `weightedInDegree`, `reverseDegreeOrder`) are left to the snapshot, which
+ * produces the alias itself; `mate` on a directed snapshot and unknown view names are ignored.
+ * Every installed member must have the class and length of the view it claims to be
+ * (E_BAD_SERIALIZATION otherwise); at the "structure" level (`verify`) every carried view is also
+ * checked against the core before it is installed (src/wire/carried-views.ts), so a corrupt or
+ * forged view never enters the cache below "full".
+ * @param snapshot - the freshly built snapshot
+ * @param carried - the carried member arrays
+ * @param verify - whether to check the contents (the "structure" level)
+ */
+export function installViews(snapshot: GraphSnapshot, carried: CarriedViews, verify: boolean): void {
+    let facts: CoreFacts | null = null;
+    const ctx: ViewInstall = {
+        snapshot,
+        verify,
+        facts: (): CoreFacts => {
+            facts ??= new CoreFacts(snapshot);
+            return facts;
+        },
+    };
+    for (const [name, members] of carried) {
+        if (!isAliasView(name, snapshot.directed)) {
+            installView(ctx, name, members);
+        }
+    }
+}
+
+/** What installing one carried view needs. */
+interface ViewInstall {
+    readonly snapshot: GraphSnapshot;
+    /** Whether to check the contents against the core (the "structure" level). */
+    readonly verify: boolean;
+    /** The core facts, computed on first use and shared by every view. */
+    readonly facts: () => CoreFacts;
+}
+
+type ViewMembers = ReadonlyMap<string, TypedArrayData>;
+
+/** The views an undirected snapshot produces as aliases of another view. */
+const UNDIRECTED_ALIAS_VIEWS: ReadonlySet<string> = new Set([
+    "reverse",
+    "inDegree",
+    "weightedInDegree",
+    "reverseDegreeOrder",
+]);
+
+/**
+ * Whether a carried view is left to the snapshot: an alias on an undirected snapshot, or `mate` on a
+ * directed one.
+ * @param name - the view name
+ * @param directed - whether the snapshot is directed
+ * @returns true when the carried view is ignored
+ */
+function isAliasView(name: string, directed: boolean): boolean {
+    return directed ? name === "mate" : UNDIRECTED_ALIAS_VIEWS.has(name);
+}
+
+/**
+ * Install one carried view by name; unknown names (a newer minor) and scalar views are ignored and
+ * recomputed.
+ * @param ctx - the snapshot, the level and the core facts
+ * @param name - the view name
+ * @param members - the view's member arrays
+ */
+function installView(ctx: ViewInstall, name: string, members: ViewMembers): void {
+    const { snapshot } = ctx;
+    switch (name) {
+        case "reverse":
+            installReverse(ctx, members);
+            break;
+        case "coo":
+            installCoo(ctx, members);
+            break;
+        case "edgeList":
+            installEdgeList(ctx, members);
+            break;
+        case "outDegree":
+            installCountView(ctx, "outDegree", members, snapshot.nodeCount, (data) => {
+                checkOutDegree(snapshot, data);
+            });
+            break;
+        case "degree":
+            installCountView(ctx, "degree", members, snapshot.nodeCount, (data) => {
+                checkDegree(snapshot, ctx.facts(), data);
+            });
+            break;
+        case "selfLoopsPerNode":
+            installCountView(ctx, "selfLoopsPerNode", members, snapshot.nodeCount, (data) => {
+                checkSelfLoopsPerNode(ctx.facts(), data);
+            });
+            break;
+        case "inDegree":
+            installCountView(ctx, "inDegree", members, snapshot.nodeCount, (data) => {
+                checkInDegree(ctx.facts(), data);
+            });
+            break;
+        case "selfLoopArcs":
+            installCountView(ctx, "selfLoopArcs", members, snapshot.selfLoopCount, (data) => {
+                checkSelfLoopArcs(snapshot, ctx.facts(), data);
+            });
+            break;
+        case "mate":
+            installCountView(ctx, "mate", members, snapshot.arcCount, (data) => {
+                checkMate(snapshot, ctx.facts(), data);
+            });
+            break;
+        case "weightedOutDegree":
+        case "weightedInDegree":
+        case "weightedDegree":
+        case "selfLoopWeight":
+            installF64View(ctx, name, members);
+            break;
+        case "degreeOrder":
+        case "reverseDegreeOrder":
+            installDegreeOrder(ctx, name, members);
+            break;
+        default:
+            // An unknown view name (a newer minor) or a scalar view: ignored and recomputed.
+            break;
+    }
+}
+
+/**
+ * Refuse a weights member carried for an unweighted snapshot.
+ * @param snapshot - the snapshot
+ * @param view - the view name
+ * @param weights - the carried weights, or null
+ */
+function rejectStrayWeights(snapshot: GraphSnapshot, view: string, weights: F32 | null): void {
+    if (weights !== null && snapshot.weights === null) {
+        throw badWire(`views.${view}.weights`, "weights carried for an unweighted snapshot");
+    }
+}
+
+/**
+ * Install a carried directed `reverse` view.
+ * @param ctx - the snapshot, the level and the core facts
+ * @param members - the view's member arrays
+ */
+function installReverse(ctx: ViewInstall, members: ViewMembers): void {
+    const { snapshot } = ctx;
+    const { nodeCount, arcCount } = snapshot;
+    const rowPtr = viewMember(members, "reverse", "rowPtr", Uint32Array, nodeCount + 1, true) as U32;
+    const colIdx = viewMember(members, "reverse", "colIdx", Uint32Array, arcCount, true) as U32;
+    const fwdArc = viewMember(members, "reverse", "fwdArc", Uint32Array, arcCount, true) as U32;
+    const weights = viewMember(members, "reverse", "weights", Float32Array, arcCount, snapshot.weights !== null);
+    rejectStrayWeights(snapshot, "reverse", weights);
+    const reverse = new ReverseAdjacency(snapshot, rowPtr, colIdx, weights, fwdArc);
+    if (ctx.verify) {
+        checkReverse(snapshot, ctx.facts(), reverse);
+    }
+    seedView(snapshot, "reverse", reverse);
+}
+
+/**
+ * Install a carried `coo` view (its src array; dst is the core colIdx).
+ * @param ctx - the snapshot, the level and the core facts
+ * @param members - the view's member arrays
+ */
+function installCoo(ctx: ViewInstall, members: ViewMembers): void {
+    const { snapshot } = ctx;
+    const src = viewMember(members, "coo", "src", Uint32Array, snapshot.arcCount, true) as U32;
+    if (ctx.verify) {
+        checkCooSrc(ctx.facts(), src);
+    }
+    seedView(snapshot, "coo", cooViewOf(snapshot, src));
+}
+
+/**
+ * Install a carried `edgeList` view; dst and weights are omitted when arcToEdge is the identity.
+ * @param ctx - the snapshot, the level and the core facts
+ * @param members - the view's member arrays
+ */
+function installEdgeList(ctx: ViewInstall, members: ViewMembers): void {
+    const { snapshot } = ctx;
+    const { edgeCount } = snapshot;
+    const identity = snapshot.flags.arcToEdgeIsIdentity;
+    const src = viewMember(members, "edgeList", "src", Uint32Array, edgeCount, true) as U32;
+    const dst = viewMember(members, "edgeList", "dst", Uint32Array, edgeCount, !identity);
+    const weights = viewMember(
+        members,
+        "edgeList",
+        "weights",
+        Float32Array,
+        edgeCount,
+        snapshot.weights !== null && !identity,
+    );
+    rejectStrayWeights(snapshot, "edgeList", weights);
+    if (ctx.verify) {
+        checkEdgeList(snapshot, ctx.facts(), src, dst, weights);
+    }
+    seedView(snapshot, "edgeList", edgeListViewOf(snapshot, src, dst ?? snapshot.colIdx, weights ?? snapshot.weights));
+}
+
+/**
+ * Install a single-member u32 view (a per-node count, the self-loop arcs or the mates).
+ * @param ctx - the snapshot, the level and the core facts
+ * @param name - the view name
+ * @param members - the view's member arrays
+ * @param length - the required length
+ * @param check - the contents check run under `verify`
+ */
+function installCountView(
+    ctx: ViewInstall,
+    name: "outDegree" | "degree" | "selfLoopsPerNode" | "inDegree" | "selfLoopArcs" | "mate",
+    members: ViewMembers,
+    length: number,
+    check: (data: U32) => void,
+): void {
+    const data = dataMember(members, name, Uint32Array, length);
+    if (ctx.verify) {
+        check(data);
+    }
+    seedView(ctx.snapshot, name, data);
+}
+
+/**
+ * Install an f64 view; under `verify` it is compared with the snapshot's own computation instead
+ * (which then stays cached), so a corrupt value array never enters the cache.
+ * @param ctx - the snapshot, the level and the core facts
+ * @param name - the view
+ * @param members - the view's member arrays
+ */
+function installF64View(
+    ctx: ViewInstall,
+    name: "weightedOutDegree" | "weightedInDegree" | "weightedDegree" | "selfLoopWeight",
+    members: ViewMembers,
+): void {
+    const { snapshot } = ctx;
+    const data = dataMember(members, name, Float64Array, snapshot.nodeCount);
+    if (ctx.verify) {
+        checkF64View(name, data, snapshot[name]());
+        return;
+    }
+    seedView(snapshot, name, data);
+}
+
+/**
+ * Install a carried degree order (`degreeOrder`, or `reverseDegreeOrder` on a directed snapshot).
+ * @param ctx - the snapshot, the level and the core facts
+ * @param name - the view
+ * @param members - the view's member arrays
+ */
+function installDegreeOrder(ctx: ViewInstall, name: "degreeOrder" | "reverseDegreeOrder", members: ViewMembers): void {
+    const { snapshot } = ctx;
+    const { nodeCount } = snapshot;
+    const perm = viewMember(members, name, "perm", Uint32Array, nodeCount, true) as U32;
+    const segmentOffsets = viewMember(members, name, "segmentOffsets", Uint32Array, 5, true) as U32;
+    if (ctx.verify) {
+        const degree = name === "degreeOrder" ? rowLengths(snapshot.rowPtr, nodeCount) : ctx.facts().inDegree;
+        checkDegreeOrder(name, degree, perm, segmentOffsets);
+    }
+    seedView(snapshot, name, Object.freeze({ perm, segmentOffsets }));
 }

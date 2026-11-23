@@ -12,7 +12,12 @@ import { assert, describe, it } from "vitest";
 import { z } from "zod";
 
 import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
-import { FLEX_CAPACITY_CODE, GeminiTransport, REQUEST_TIMEOUT_CODE } from "../helpers/llm-regression-gemini";
+import {
+    deleteCaches,
+    FLEX_CAPACITY_CODE,
+    GeminiTransport,
+    REQUEST_TIMEOUT_CODE,
+} from "../helpers/llm-regression-gemini";
 
 const API = "https://generativelanguage.googleapis.com/v1beta";
 const GENERATE = `${API}/models/gemini-3.8-flash:generateContent`;
@@ -123,6 +128,68 @@ describe("GeminiTransport", () => {
             api.sent.filter((s) => s.method === "DELETE").map((s) => s.url),
             [`${API}/cachedContents/c1`],
         );
+    });
+
+    it("shares a run's caches between test files: one counts the other's sightings, uses its cache, never deletes it", async () => {
+        const cacheDir = mkdtempSync(join(tmpdir(), "llm-caches-"));
+        const api = fakeGemini();
+        const first = new GeminiTransport({ apiKey: "k", tier: "standard", fetch: api.fetch, cacheDir });
+        const second = new GeminiTransport({ apiKey: "k", tier: "standard", fetch: api.fetch, cacheDir });
+        await first.fetch(GENERATE, request());
+        // The prefix's second sighting in the run, though the first in this file: it is cached.
+        await second.fetch(GENERATE, request());
+        await first.fetch(GENERATE, request());
+
+        assert.deepStrictEqual(
+            api.sent.filter((s) => s.url === GENERATE).map((s) => s.body?.cachedContent ?? null),
+            [null, "cachedContents/c1", "cachedContents/c1"],
+        );
+        assert.strictEqual(api.sent.filter((s) => s.url === `${API}/cachedContents`).length, 1, "created once");
+        assert.strictEqual(second.usage.caches + first.usage.caches, 1, "counted by the file that made it");
+
+        await first.close();
+        await second.close();
+        assert.isEmpty(
+            api.sent.filter((s) => s.method === "DELETE"),
+            "a shared cache outlives a file",
+        );
+        await deleteCaches(cacheDir, "k", api.fetch);
+        assert.deepStrictEqual(
+            api.sent.filter((s) => s.method === "DELETE").map((s) => s.url),
+            [`${API}/cachedContents/c1`],
+        );
+        rmSync(cacheDir, { recursive: true, force: true });
+    });
+
+    it("sends a prefix whole while another file creates its cache", async () => {
+        const cacheDir = mkdtempSync(join(tmpdir(), "llm-caches-"));
+        const api = fakeGemini();
+        let release = (): void => {};
+        const held = new Promise<void>((resolve) => (release = resolve));
+        // The first file's create is still on the wire when the second file sends.
+        const slowCreate = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+            if ((input instanceof Request ? input.url : input.toString()).endsWith("/cachedContents")) {
+                await held;
+            }
+
+            return api.fetch(input, init);
+        };
+        const first = new GeminiTransport({ apiKey: "k", tier: "standard", fetch: slowCreate, cacheDir });
+        const second = new GeminiTransport({ apiKey: "k", tier: "standard", fetch: api.fetch, cacheDir });
+        await first.fetch(GENERATE, request());
+        const creating = first.fetch(GENERATE, request());
+        await second.fetch(GENERATE, request());
+        release();
+        await creating;
+
+        assert.strictEqual(api.sent.filter((s) => s.url === `${API}/cachedContents`).length, 1, "created once");
+        const generates = api.sent.filter((s) => s.url === GENERATE);
+        assert.deepStrictEqual(
+            generates.map((s) => s.body?.cachedContent ?? null),
+            [null, null, "cachedContents/c1"],
+            "the second file's request went whole, the creator's by the cache",
+        );
+        rmSync(cacheDir, { recursive: true, force: true });
     });
 
     it("keeps a different prefix (the answer-only ask's tool config) in a group of its own", async () => {

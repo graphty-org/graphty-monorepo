@@ -11,7 +11,7 @@
  * loop waited between its own ticks, and whether it skipped ticks for that frame's fence (the
  * existing `gpuBehind` fence). A frame is GPU-bound when the wait alone is over the limit, or the
  * fence held it: Chromium does not run the next animation frame until the GPU has caught up, so
- * a slow GPU shows as a long wait and the fence has always signalled by then. A slow frame spent
+ * a slow GPU shows as a long wait and the fence has always signaled by then. A slow frame spent
  * in the loop's own work is the CPU's -- a 10,000-node layout step -- and changes nothing. The
  * ladder, one rung per second of GPU-bound frames over 50 ms measured while a shader holds a motion
  * claim: high, medium, low, loops at half rate, heavy shaders off, all shader motion paused. A
@@ -597,7 +597,7 @@ const FLASH_IN_FLIGHT = 3;
 /**
  * Reads a {@link FLASH_GRID}-square downsample of a WebGL 2 canvas back without stalling: the
  * frame is blitted (resolved first when the canvas is multisampled) into a small target, read into
- * a pixel buffer, and fenced; the bytes are fetched on a later frame, once the fence signalled.
+ * a pixel buffer, and fenced; the bytes are fetched on a later frame, once the fence signaled.
  * Up to {@link FLASH_IN_FLIGHT} captures wait at once, each in its own buffer.
  *
  * ponytail: WebGL 2 only; on WebGPU shaders are not checked for flashing. A mapAsync
@@ -679,7 +679,7 @@ export class FlashReadback {
     }
 
     /**
-     * The oldest capture's bytes, once its fence signalled; never waits. Call it until it answers
+     * The oldest capture's bytes, once its fence signaled; never waits. Call it until it answers
      * null to take every capture ready, in the order drawn. The bytes are overwritten by the next
      * call.
      * @returns The downsample and when it was drawn, or null while none is ready.

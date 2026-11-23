@@ -5,13 +5,13 @@
  * `positions()` hook) declares.
  */
 
-import type { Column, GraphSnapshot } from "@graphty/graph-format";
+import { type Column, coordinateSystemOf, type GraphSnapshot } from "@graphty/graph-format";
 
 import { NoteCollector } from "../common/notes.js";
 import { type GraphTool, toolOf } from "../common/units.js";
 import type { GraphImporter, ImportReport } from "../types.js";
 import { POSITION_ISSUE, type PositionNoteCode } from "./codes.js";
-import { median, toNeutral } from "./convert.js";
+import { constantZ, median, toNeutral } from "./convert.js";
 import type {
     ExtractPositionsOptions,
     FilePositionGroup,
@@ -20,6 +20,7 @@ import type {
     ImporterPositions,
     PositionColumnExtra,
     PositionNote,
+    ViewerFrame,
 } from "./types.js";
 
 type Point = [number, number, number];
@@ -39,6 +40,8 @@ interface Spelling {
     readonly groups: readonly ImporterGroupBox[];
     readonly medianNodeSize: number | null | undefined;
     readonly tool: GraphTool | null | undefined;
+    /** The plain columns the importer recognized by their names only, so their spelling is a guess; empty otherwise. */
+    readonly guessedFrom: readonly string[];
 }
 
 /** Report codes of format readers that mean the file mixes 2- and 3-coordinate positions. */
@@ -53,6 +56,7 @@ const PHRASES: Readonly<Record<PositionNoteCode, string>> = {
     W_POSITION_ANCHOR_NO_SIZE: "top-left positions have no size and were not moved to the center",
     W_POSITION_OTHER_VIEWS: "other views were not used",
     W_POSITIONS_NOT_READ: "position-like columns this format does not read",
+    W_POSITIONS_GUESSED: "columns read as positions by their names",
 };
 
 /**
@@ -100,6 +104,9 @@ export function extractPositions(
     const stacked = dropStacked(coords, placed, notes);
     noteReport(report, notes);
     noteOtherViews(snapshot, notes);
+    for (const name of spelling.guessedFrom) {
+        notes.add(POSITION_ISSUE.GUESSED, { sample: name });
+    }
     return {
         version: 1,
         source: {
@@ -110,6 +117,7 @@ export function extractPositions(
         units: spelling.extra.units ?? "file",
         ...(spelling.extra.pxPerUnit === undefined ? {} : { pxPerUnit: spelling.extra.pxPerUnit }),
         ...(spelling.extra.viewerFit === undefined ? {} : { viewerFit: spelling.extra.viewerFit }),
+        ...(spelling.extra.viewerFrame === undefined ? {} : { viewerFrame: neutralFrame(spelling.extra) }),
         medianNodeSize: spelling.medianNodeSize ?? medianSize(spelling.size, n, containers),
         dims: coords.realZ ? 3 : 2,
         coords: coords.values,
@@ -137,7 +145,8 @@ function spellingOf(importer: GraphImporter, snapshot: GraphSnapshot, signal: Ab
         return plainSpelling(snapshot, hook);
     }
     const column = hook?.column === undefined ? snapshot.nodes.byRole("position") : snapshot.nodes.get(hook.column);
-    if (column === null || column.meta.components < 2) {
+    // longitude and latitude are places on the Earth, not a drawing: a geographic column is left to a map layout
+    if (column === null || column.meta.components < 2 || coordinateSystemOf(column.meta).kind === "geographic") {
         return hook?.unplacedCircle === undefined ? null : circleSpelling(snapshot, hook);
     }
     const extra = { ...extraOf(column.meta.extra), ...extraOf(hook ?? {}) };
@@ -200,8 +209,11 @@ function plainSpelling(snapshot: GraphSnapshot, hook: ImporterPositions): Spelli
  * @param hook - the hook's answer, or null
  * @returns groups, median node size and tool
  */
-function hookFields(hook: ImporterPositions | null): Pick<Spelling, "groups" | "medianNodeSize" | "tool"> {
-    return { groups: hook?.groups ?? [], medianNodeSize: hook?.medianNodeSize, tool: hook?.tool };
+function hookFields(
+    hook: ImporterPositions | null,
+): Pick<Spelling, "groups" | "medianNodeSize" | "tool" | "guessedFrom"> {
+    const guessedFrom = hook?.byName === true ? [hook.x, hook.y, hook.z].filter((n) => n !== undefined) : [];
+    return { groups: hook?.groups ?? [], medianNodeSize: hook?.medianNodeSize, tool: hook?.tool, guessedFrom };
 }
 
 /**
@@ -253,7 +265,27 @@ function extraOf(source: object): PositionColumnExtra {
     if (typeof fit?.padding === "number" && Number.isFinite(fit.padding) && fit.padding >= 0) {
         out.viewerFit = { padding: fit.padding };
     }
+    const frame = extra.viewerFrame as Readonly<Record<string, unknown>> | null | undefined;
+    const pair = (v: unknown): v is readonly [number, number] =>
+        Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n));
+    if (pair(frame?.min) && pair(frame.max) && frame.min[0] < frame.max[0] && frame.min[1] < frame.max[1]) {
+        out.viewerFrame = { min: [frame.min[0], frame.min[1]], max: [frame.max[0], frame.max[1]] };
+    }
     return out;
+}
+
+/**
+ * The box the program fits to its canvas, in the neutral convention: its corners converted as a node's coordinates are.
+ * @param extra - the spelling, with its `viewerFrame`
+ * @returns the box, its smallest corner first
+ */
+function neutralFrame(extra: PositionColumnExtra): ViewerFrame {
+    const { min, max } = extra.viewerFrame as ViewerFrame;
+    const a: Point = [min[0], min[1], 0];
+    const b: Point = [max[0], max[1], 0];
+    toNeutral(a, extra, null, false);
+    toNeutral(b, extra, null, false);
+    return { min: [Math.min(a[0], b[0]), Math.min(a[1], b[1])], max: [Math.max(a[0], b[0]), Math.max(a[1], b[1])] };
 }
 
 // ------------------------------------------------------------ rows
@@ -383,26 +415,6 @@ function dropZeroPile(values: Float64Array): void {
             values.fill(Number.NaN, i, i + 3);
         }
     }
-}
-
-/**
- * Whether every placed row has the same z (Pajek writes z = 0.5 on 2D drawings).
- * @param values - the raw coordinates
- * @returns true when z never differs
- */
-function constantZ(values: Float64Array): boolean {
-    let z = Number.NaN;
-    for (let i = 0; i < values.length; i += 3) {
-        if (Number.isNaN(values[i])) {
-            continue;
-        }
-        if (Number.isNaN(z)) {
-            z = values[i + 2];
-        } else if (values[i + 2] !== z) {
-            return false;
-        }
-    }
-    return true;
 }
 
 // ------------------------------------------------------------ groups

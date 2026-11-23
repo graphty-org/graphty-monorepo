@@ -2,6 +2,7 @@ import { ModalFooter } from "@graphty/compact-mantine";
 import { Badge, Button, Group, Text } from "@mantine/core";
 import React, { useState } from "react";
 
+import { count } from "../../lib/analytics";
 import { askAssetChoices } from "../project/actions";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { fileName, saveBlob, slug } from "./choices";
@@ -51,7 +52,7 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
         }
         if (kind === "recipe") {
             const recipe = session.recipe();
-            const leftOut = recipe.leftOut.reduce((sum, fact) => sum + Number(fact.params?.count ?? 1), 0);
+            const leftOut = recipe.leftOut.reduce((sum, fact) => sum + Number(fact.params.count ?? 1), 0);
             return {
                 rows: [
                     { label: "Data sources", value: recipe.sources.length },
@@ -65,8 +66,8 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
         }
         return {
             rows: [
-                { label: "Nodes", value: session.data.statistics().nodeCount },
-                { label: "Edges", value: session.data.statistics().edgeCount },
+                { label: "Nodes", value: session.data.statistics({ scope: "all" }).nodeCount },
+                { label: "Edges", value: session.data.statistics({ scope: "all" }).edgeCount },
                 { label: "Layers", value: session.styles.list().length },
             ],
         };
@@ -77,14 +78,21 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
 
     const save = async (): Promise<void> => {
         if (kind === "project") {
-            // The node models experiment first asks how to keep each model named by web address.
+            // It first asks how to keep each model named by web address.
             const assets = session === null ? {} : await askAssetChoices(store, session);
             if (assets === null) {
                 return;
             }
-            await element?.downloadProject({ fileName: name, ...(Object.keys(assets).length === 0 ? {} : { assets }) });
+            if (element !== null) {
+                await element.downloadProject({
+                    fileName: name,
+                    ...(Object.keys(assets).length === 0 ? {} : { assets }),
+                });
+                count("export_done", { kind, destination: "download" });
+            }
         } else if (contents?.text !== undefined) {
             saveBlob(new Blob([contents.text], { type: "application/json" }), name);
+            count("export_done", { kind, destination: "download" });
         }
         onDone(`Exported ${name}`, name);
     };
@@ -105,7 +113,7 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
                 {contents?.text === undefined ? null : (
                     <pre
                         className="ws-export-text"
-                        tabIndex={0} // NOSONAR(S6845): a scrolling region must take focus so a keyboard can scroll it
+                        tabIndex={0} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region must take focus so a keyboard can scroll it
                         aria-label={`Preview of the ${kind} file`}
                     >
                         {contents.text.split("\n").slice(0, PREVIEW_LINES).join("\n")}

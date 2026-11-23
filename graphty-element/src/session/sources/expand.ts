@@ -36,7 +36,7 @@ const NOT_EDITS = new Set(["id", "position"]);
 function unitHash(text: string): number {
     let hash = 2166136261;
     for (let i = 0; i < text.length; i++) {
-        hash = Math.imul(hash ^ text.charCodeAt(i), 16777619); // NOSONAR(S7758): hashes UTF-16 code units on purpose; code points would move existing seeds
+        hash = Math.imul(hash ^ text.charCodeAt(i), 16777619); // eslint-disable-line unicorn/prefer-code-point -- hashes UTF-16 code units on purpose; code points would move existing seeds
     }
 
     // FNV-1a alone moves the high bits little for a change in the last character, so keys that
@@ -215,7 +215,7 @@ function startRun(host: SourceHost, ids: readonly NodeId[], options: ExpandOptio
 }
 
 /**
- * Wait on a running expansion that asked the same. When its own caller cancelled it and this one
+ * Wait on a running expansion that asked the same. When its own caller canceled it and this one
  * did not, this caller asks again.
  * @param host - the session pieces
  * @param id - the seed

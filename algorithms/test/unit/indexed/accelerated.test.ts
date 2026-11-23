@@ -1041,7 +1041,7 @@ describe("accelerated(acc) routing for PageRank and eigenvector centrality", () 
                 ["d", "e"],
             ]),
         );
-        // Parallel edges: the port counts the neighbour once, the accelerator every arc.
+        // Parallel edges: the port counts the neighbor once, the accelerator every arc.
         const multi = new GraphBuilder({ directed: false, weighted: false });
         for (const [u, v] of [
             ["a", "b"],
@@ -1368,7 +1368,7 @@ describe("accelerated(acc) routing for Katz and HITS", () => {
     it("keeps Katz on the port when its series may diverge: alpha times the spectral-radius bound reaches 1", async () => {
         // A hub joined both ways to sixteen leaves has spectral radius sqrt(16) = 4, and the bound
         // is that exactly: at alpha 0.25 the series may diverge, where an f32 iteration with no
-        // normaliser can overflow, so the port answers, and refuses the run that does not converge.
+        // normalizer can overflow, so the port answers, and refuses the run that does not converge.
         // Just below it the accelerator is asked.
         const g = new Graph({ directed: true });
         for (let i = 0; i < 16; i++) {
@@ -1394,6 +1394,18 @@ describe("accelerated(acc) routing for Katz and HITS", () => {
         const calls: unknown[][] = [];
         await accelerated(deviceLike(calls)).katzCentrality(toSnapshot(g), { alpha: 0.1 });
         expect(calls).toHaveLength(1);
+    });
+
+    it("hands the accelerator the alpha the port derives when the caller gives none", async () => {
+        // A hub joined both ways to 36 leaves has radius 6, past 1 / (2 * 0.1): the derived alpha is 0.5 / 6.
+        const g = new Graph({ directed: true });
+        for (let i = 0; i < 36; i++) {
+            g.addEdge(`leaf${String(i)}`, "hub");
+            g.addEdge("hub", `leaf${String(i)}`);
+        }
+        const calls: unknown[][] = [];
+        await accelerated(deviceLike(calls)).katzCentrality(toSnapshot(g));
+        expect(calls).toEqual([["katzCentrality", expect.objectContaining({ alpha: 0.5 / 6 })]]);
     });
 
     it("hands HITS the iteration options unweighted and rescales both vectors to unit length like the port", async () => {

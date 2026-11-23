@@ -1,22 +1,17 @@
 /**
- * @file A `state` rule leaf: hovered, selected, pinned and ghosted as calculated values. A layer
+ * @file A `state` rule leaf: hovered, selected, pinned, ghosted and outsideWindow as calculated values. A layer
  * reading one follows the state live, and the leaf sits beside other conditions in a selection.
  */
 
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession, isGraphtyError } from "../../../session";
 import type { ElementState, RuleTree, UnionLeaf } from "../../../src/catalog/types";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { selectorRule, selectorStates } from "../../../src/session/styles";
-
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 /** Four nodes in a line, each at its step; nodes 1 and 2 are tagged. */
 async function line(): Promise<GraphSession> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     await session.data.addNodes(
         ["a", "b", "c", "d"].map((id, step) => ({ id, step, tagged: step < 2 ? "yes" : "no" })),
     );
@@ -55,17 +50,23 @@ async function matched(session: GraphSession, id: string): Promise<number> {
 const leaf = (state: ElementState): RuleTree => ({ kind: "state", state });
 
 describe("a state selector has a rule form", () => {
-    it.each(["selected", "hovered", "ghosted", "pinned"] as const)("reads %s as a state leaf when asked", (state) => {
-        assert.deepEqual(selectorRule({ match: "state", state }, { states: true }), {
-            match: "rule",
-            where: leaf(state),
-        });
-    });
+    it.each(["selected", "hovered", "ghosted", "outsideWindow", "pinned"] as const)(
+        "reads %s as a state leaf when asked",
+        (state) => {
+            assert.deepEqual(selectorRule({ match: "state", state }, { states: true }), {
+                match: "rule",
+                where: leaf(state),
+            });
+        },
+    );
 
-    it.each(["selected", "hovered", "ghosted", "pinned"] as const)("reads %s as no rule by default", (state) => {
-        assert.isUndefined(selectorRule({ match: "state", state }));
-        assert.isUndefined(selectorRule({ match: "state", state }, { comparisons: true }));
-    });
+    it.each(["selected", "hovered", "ghosted", "outsideWindow", "pinned"] as const)(
+        "reads %s as no rule by default",
+        (state) => {
+            assert.isUndefined(selectorRule({ match: "state", state }));
+            assert.isUndefined(selectorRule({ match: "state", state }, { comparisons: true }));
+        },
+    );
 
     it("names the states a selector reads, however deep", () => {
         const union: UnionLeaf = {
@@ -140,11 +141,10 @@ describe("a layer on a state leaf follows the state live", () => {
         session.dispose();
     });
 
-    it("ghosted: follows the time window, with no layer on the state selector", async () => {
+    it("outsideWindow: follows the time window, with no layer on the state selector", async () => {
         const session = await line();
         await session.time.setField({ nodes: { start: "step" }, edges: { start: "step" } });
-        await session.time.setSettings({ outside: "ghost" });
-        const { node } = await layersOn(session, leaf("ghosted"));
+        const { node } = await layersOn(session, leaf("outsideWindow"));
         await session.time.window({ from: 0, to: 2 });
         assert.strictEqual(await matched(session, node), 2, "steps 2 and 3 lie outside");
         await session.time.window({ from: 0, to: 3 });
@@ -212,7 +212,7 @@ describe("a project on a state", () => {
         const { text } = await saved.project.save();
         saved.dispose();
 
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.project.open(text);
         const of = (name: string): string => {
             const layer = session.styles.list().find((each) => each.name === name && each.target === "node");

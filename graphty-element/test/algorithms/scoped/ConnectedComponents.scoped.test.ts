@@ -6,11 +6,10 @@
 import { assert, describe, it } from "vitest";
 
 import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedComponentsAlgorithm";
-import type { Graph } from "../../../src/Graph";
-import { InputGraph } from "../input/harness";
-import { assertComputesOverScope, assertOverGeneratedScopes, describeScopedAdapter } from "./harness";
+import type { AlgorithmHost } from "../../../src/algorithms/host";
+import { assertComputesOverScope, assertOverGeneratedScopes, describeScopedAdapter, scopedGraph } from "./harness";
 
-const build = (graph: Graph): ConnectedComponentsAlgorithm => new ConnectedComponentsAlgorithm(graph);
+const build = (graph: AlgorithmHost): ConnectedComponentsAlgorithm => new ConnectedComponentsAlgorithm(graph);
 
 describeScopedAdapter("connected-components", build);
 
@@ -22,7 +21,7 @@ describe("connected components over generated scopes", () => {
 
 describe("connected components over a scope that keeps every node and drops edges", () => {
     it("each node left with no edge in the scope is its own component", async () => {
-        const graph = new InputGraph(
+        const graph = await scopedGraph(
             ["a", "b", "c", "d"],
             [
                 ["a", "b", 5],

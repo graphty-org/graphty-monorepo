@@ -14,8 +14,14 @@
  * paying for one whose answer is known. This is the same convention `CompiledVisibility` uses
  * for a filter half that constrains nothing.
  *
- * WHY THE ELEMENT COMPILES ITS OWN EXPRESSIONS. The expression kind speaks JMESPath, but it
- * speaks a declared SUBSET of it, parsed here. Three measured facts drove that:
+ * WHY THE ELEMENT COMPILES ITS OWN EXPRESSIONS. A `where` is a graphty expression, defined by the
+ * save file format's specification (spec/README.md, section 4.8.2): JMESPath's syntax, cut down to
+ * paths, literals, comparisons, `&&`, `||`, `!` and parentheses, plus three extensions --
+ * arithmetic (`+ - * /` over numbers), the bare words `true`, `false` and `null` as values, and an
+ * ordering of two strings (by Unicode code point), which JMESPath leaves undefined. The spec's
+ * grammar alone defines it: it is not JMESPath. Bare `true`, `false` and `null` are values where
+ * JMESPath reads them as field names, and a path is one column lookup where JMESPath walks nested
+ * keys. Three measured facts drove compiling it here rather than calling a JMESPath library:
  *
  * - `jmespath@0.16.0` exports `compile()`, but it exposes no evaluator for the tree that comes
  *   back, so a parsed expression cannot be run. `search()` is the only door and it re-parses
@@ -26,15 +32,13 @@
  *   the character that is wrong, which that parser cannot say.
  * - A path is not walked here, it is READ: `results.louvain.group` is one column lookup, not
  *   three object dereferences, because the session stores values in columns addressed by path.
- *   An off-the-shelf evaluator would need the whole root materialised per element, which is an
+ *   An off-the-shelf evaluator would need the whole root materialized per element, which is an
  *   object allocation per element per layer.
  *
- * THE SUBSET IS REFUSED AT ITS EDGE, NEVER NARROWED IN SILENCE. Everything JMESPath can express
+ * THE LANGUAGE IS REFUSED AT ITS EDGE, NEVER NARROWED IN SILENCE. Everything JMESPath can express
  * that this file does not implement -- projections, slices, functions, pipes, multi-selects,
  * wildcards, the current-node reference -- is rejected where it was typed, by name, with the
- * offset. A selector that is accepted means exactly what JMESPath means by it, with one stated
- * exception: a lone `true`, `false` or `null` word is that value (see `VALUE_WORDS`). A wrong
- * picture is worse than a refusal, so there is no branch that guesses.
+ * offset. A wrong picture is worse than a refusal, so there is no branch that guesses.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -42,7 +46,7 @@
 import { maskTest, type U32 } from "@graphty/graph-format";
 
 import type { AiRule, AiRuleTerm } from "../../catalog/ai";
-import type { EdgeId, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
+import type { EdgeId, ElementState, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 
@@ -64,6 +68,10 @@ export type SelectorTarget = "node" | "edge";
  */
 export interface SelectorSource {
     /**
+     * Whether the source-steps experiment is on. Off or absent, a `type` selector is refused.
+     */
+    readonly sourceSteps?: () => boolean;
+    /**
      * The value one node carries for a path.
      * @param index - The dense node index.
      * @param path - The column path, such as `results.louvain.group`.
@@ -81,8 +89,8 @@ export interface SelectorSource {
      * Whether one node carries a value for a path.
      *
      * Optional, and worth supplying: this is the test `{match:"has"}` compiles to and the test
-     * `<path> != \`null\`` is recognised as, so a store holding a presence bitmap answers it
-     * without materialising the value. Absent, it is derived from {@link nodeValue}.
+     * `<path> != \`null\`` is recognized as, so a store holding a presence bitmap answers it
+     * without materializing the value. Absent, it is derived from {@link nodeValue}.
      *
      * PRESENT MEANS A VALUE THAT IS NEITHER ABSENT NOR NULL. An override that answers anything
      * else disagrees with the expression form of the same question, and the two would paint
@@ -176,11 +184,7 @@ export interface SelectorSource {
      * @param index - The dense index.
      * @returns True when the element is in that state.
      */
-    readonly inState?: (
-        state: "selected" | "hovered" | "ghosted" | "pinned",
-        target: SelectorTarget,
-        index: number,
-    ) => boolean;
+    readonly inState?: (state: ElementState, target: SelectorTarget, index: number) => boolean;
     /**
      * What the reader is pointing at, which a `{match:"hover"}` selector tests by index. Absent,
      * a `{match:"hover"}` selector is refused.
@@ -298,7 +302,8 @@ export type ElementPredicate = (index: number) => boolean;
 /** A selector, reduced to the test a repaint runs and the columns that test reads. */
 export interface CompiledSelector {
     /** Which selector kind this was compiled from. */
-    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member" | "rule" | "state" | "hover";
+    readonly match:
+        "everything" | "expression" | "has" | "ids" | "top" | "member" | "rule" | "state" | "hover" | "type";
     /** Which kind of element it speaks about. */
     readonly target: SelectorTarget;
     /**
@@ -312,10 +317,10 @@ export interface CompiledSelector {
     /**
      * Every column path the test reads, in the order the selector names them, without repeats.
      *
-     * This is what the caller resolves against the run list and the attribute catalogue. A
+     * This is what the caller resolves against the run list and the attribute catalog. A
      * selector that parses perfectly and names a run or an attribute nothing answers matches
      * NOTHING, silently, and an empty screen reads exactly like a correct answer of zero. The
-     * compiler cannot tell the difference -- it has no catalogue -- so it reports what was asked
+     * compiler cannot tell the difference -- it has no catalog -- so it reports what was asked
      * for and leaves the reference check to whoever holds one.
      */
     readonly paths: readonly Path[];
@@ -335,7 +340,7 @@ export interface CompiledSelector {
  *
  * A column answers undefined for an element it has no value for; JMESPath answers null for a
  * field that is not there. They are the same fact, so both are absent here and every read is
- * normalised to null before anything compares it.
+ * normalized to null before anything compares it.
  * @param value - The value a column answered.
  * @returns True when it is neither undefined nor null.
  */
@@ -552,7 +557,7 @@ function continuesIdentifier(character: string): boolean {
 }
 
 /**
- * Find the end of a delimited run, honouring backslash escapes.
+ * Find the end of a delimited run, honoring backslash escapes.
  * @param where - The expression being lexed.
  * @param from - The index of the opening delimiter.
  * @param delimiter - The character that closes the run.
@@ -930,7 +935,7 @@ function rejectCharacter(where: Query, at: number, character: string): never {
  */
 type CompareOperator = "!=" | "<" | "<=" | "==" | ">" | ">=";
 
-/** The comparators, keyed by their text, so the parser recognises one without a cast. */
+/** The comparators, keyed by their text, so the parser recognizes one without a cast. */
 const COMPARATORS: Readonly<Record<string, CompareOperator | undefined>> = Object.freeze({
     "!=": "!=",
     "<": "<",
@@ -940,7 +945,7 @@ const COMPARATORS: Readonly<Record<string, CompareOperator | undefined>> = Objec
     ">=": ">=",
 } satisfies Record<CompareOperator, CompareOperator>);
 
-/** Each arithmetic operator's work, keyed by its text, so the parser recognises one without a cast. */
+/** Each arithmetic operator's work, keyed by its text, so the parser recognizes one without a cast. */
 const ARITHMETIC: Readonly<Record<string, ((a: number, b: number) => number) | undefined>> = Object.freeze({
     "+": (a: number, b: number) => a + b,
     "-": (a: number, b: number) => a - b,
@@ -1424,8 +1429,8 @@ function nodeRule(node: ExpressionNode, comparisons: boolean): RuleTree | undefi
 
     const { value } = literal;
     if (node.operator !== "==" && node.operator !== "!=") {
-        // Only a number orders: an ordering comparison of anything else matches no element, as a
-        // range leaf does not.
+        // A range leaf orders numbers only, so only a number literal has a rule form; an ordering
+        // of strings stays an expression.
         const operator = node.left.kind === "literal" ? FLIPPED[node.operator] : node.operator;
         return comparisons && typeof value === "number" && Number.isFinite(value)
             ? orderingRule(operator, path, value)
@@ -1607,9 +1612,73 @@ export function renamePaths(where: Query, rename: (path: Path) => Query | undefi
 }
 
 /**
+ * An expression with every run its `results.<run>.<field>` paths name renamed, by token: a string
+ * literal holding `results.x` is not a path and is left alone, and a renamed path is quoted where
+ * a segment needs it (`results."min-cut".value`).
+ *
+ * ```ts
+ * import { renameRunPaths } from "@graphty/graphty-element/session";
+ *
+ * renameRunPaths("results.louvain.group == `3`", (run) => (run === "louvain" ? "ns__louvain" : undefined));
+ * // "results.ns__louvain.group == `3`"
+ * ```
+ * @param where - The expression.
+ * @param rename - The new name of a run, or undefined to keep it.
+ * @returns The rewritten expression.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` for an expression that does not lex.
+ */
+export function renameRunPaths(where: Query, rename: (run: string) => string | undefined): Query {
+    return renamePaths(where, (path) => {
+        const renamed = renameRunInPath(path, rename);
+        return renamed === path ? undefined : quotePath(renamed);
+    });
+}
+
+/**
+ * A raw path (never quoted) with the run a `results.<run>.<field>` path names renamed; any other
+ * path comes back as it was.
+ * @param path - The raw path.
+ * @param rename - The new name of a run, or undefined to keep it.
+ * @returns The path.
+ */
+export function renameRunInPath(path: Path, rename: (run: string) => string | undefined): Path {
+    if (!path.startsWith("results.")) {
+        return path;
+    }
+
+    const rest = path.slice("results.".length);
+    const dot = rest.indexOf(".");
+    const run = dot < 0 ? rest : rest.slice(0, dot);
+    const renamed = run === "" ? undefined : rename(run);
+    return renamed === undefined ? path : `results.${renamed}${rest.slice(run.length)}`;
+}
+
+/** The roots a path may start with (spec 4.8.1 rule 1). */
+const ROOT = /^(data|results|graphty|_source)\./;
+
+/**
+ * A version 1 expression as version 2 writes it: every bare number put between backticks, and
+ * `data.` put before each path whose first segment is not a root. An expression that still does
+ * not lex comes back as written, and is refused when it is read.
+ * @param where - The version 1 expression.
+ * @returns The version 2 expression.
+ */
+export function v1Expression(where: Query): Query {
+    try {
+        return renamePaths(backtickNumbers(where), (path) => (ROOT.test(path) ? undefined : quotePath(`data.${path}`)));
+    } catch (error) {
+        if (error instanceof GraphtyError && error.code === "E_BAD_SELECTOR") {
+            return where;
+        }
+
+        throw error;
+    }
+}
+
+/**
  * Compile a tree into the closure that reads one element's value for it.
  *
- * A path reads its column and normalises an absent value to null, because that is what JMESPath
+ * A path reads its column and normalizes an absent value to null, because that is what JMESPath
  * calls a field that is not there, and every comparison below is written against that.
  * @param node - The tree.
  * @param columns - Where to read values.
@@ -1732,7 +1801,7 @@ function pickLiteral(left: ExpressionNode, right: ExpressionNode): { readonly va
  * Two of those roads matter. `<path> != \`null\`` and `<path> == \`null\`` are the presence test
  * in disguise -- they are half of every selector the element ships -- so they compile to
  * {@link ElementColumns.has}, which a columnar store can answer from a presence bitmap without
- * materialising the value. And an equality against a primitive compiles to `===` rather than to
+ * materializing the value. And an equality against a primitive compiles to `===` rather than to
  * a structural walk, because a structural walk on a number is three type checks for nothing.
  * @param operator - Which comparison.
  * @param left - Its left side.
@@ -1781,9 +1850,42 @@ function compileComparison(
         const a = readLeft(index);
         const b = readRight(index);
 
-        // JMESPath orders numbers and nothing else: anything else answers null, which is false.
-        return typeof a === "number" && typeof b === "number" ? compare(a, b) : null;
+        // Two numbers order numerically and two strings by code point (spec 4.8.2 rule 5); any
+        // other pair answers null, which is false.
+        if (typeof a === "number" && typeof b === "number") {
+            return compare(a, b);
+        }
+
+        return typeof a === "string" && typeof b === "string" ? compare(codePointOrder(a, b), 0) : null;
     };
+}
+
+/**
+ * The order of two strings by Unicode code point, which is not JavaScript's `<` on strings: that
+ * compares UTF-16 code units, and puts a character above U+FFFF below U+FFFF.
+ * @param a - One string.
+ * @param b - The other.
+ * @returns -1, 0 or 1.
+ */
+function codePointOrder(a: string, b: string): number {
+    let i = 0;
+    let j = 0;
+    while (i < a.length && j < b.length) {
+        const x = a.codePointAt(i) ?? 0;
+        const y = b.codePointAt(j) ?? 0;
+        if (x !== y) {
+            return x < y ? -1 : 1;
+        }
+
+        i += x > 0xffff ? 2 : 1;
+        j += y > 0xffff ? 2 : 1;
+    }
+
+    if (i < a.length) {
+        return 1;
+    }
+
+    return j < b.length ? -1 : 0;
 }
 
 /**
@@ -1881,6 +1983,63 @@ export function quotePath(path: Path): Query {
 export function rulePath(path: Path): Query {
     const bare = path.startsWith("data.") ? path.slice("data.".length) : "";
     return isUnquotedName(bare) && !VALUE_WORDS.has(bare) ? bare : quotePath(path);
+}
+
+/**
+ * The value path a rule leaf tests: `attribute` for `range` and `categories`, `path` for
+ * `threshold`, `same-value` and `by-size`, and `reads` for `text`. Every other leaf reads no
+ * column -- a `text` leaf reading the node's `"id"`, an `expression`, a `state`, a `measure` (it tests an
+ * algorithm's field, not a path), a structural or membership leaf -- and neither does an `all`,
+ * `any` or `not`, which hold leaves rather than test a value; for those it returns undefined.
+ * A leaf kind added later is placed here before the package compiles.
+ *
+ * ```ts
+ * import { ruleValuePath } from "@graphty/graphty-element/session";
+ *
+ * ruleValuePath({ kind: "range", attribute: "data.age", min: 18 }); // "data.age"
+ * ruleValuePath({ kind: "degree", min: 2 }); // undefined
+ * ```
+ * @param rule - The rule leaf.
+ * @returns The path it reads, or undefined.
+ * @since 3.40.0
+ */
+export function ruleValuePath(rule: RuleTree): Path | undefined {
+    switch (rule.kind) {
+        case "range":
+        case "categories":
+            return rule.attribute;
+        case "threshold":
+        case "same-value":
+        case "by-size":
+            return rule.path;
+        case "text":
+            return rule.reads === "id" ? undefined : rule.reads;
+        case "expression":
+        case "degree":
+        case "component":
+        case "neighborhood":
+        case "isolated":
+        case "self-loop":
+        case "repeated-edge":
+        case "edges":
+        case "member":
+        case "item":
+        case "source":
+        case "union":
+        case "hops":
+        case "touching":
+        case "nonempty":
+        case "measure":
+        case "state":
+        case "all":
+        case "any":
+        case "not":
+            return undefined;
+        default: {
+            const unhandled: never = rule;
+            return unhandled;
+        }
+    }
 }
 
 /**

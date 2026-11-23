@@ -172,7 +172,7 @@ describe("session.data.expand from a network source", () => {
         assert.lengthOf(session.history.steps, steps + 1);
     });
 
-    it("runs a joined call itself when the expansion it joined was cancelled by its own caller", async () => {
+    it("runs a joined call itself when the expansion it joined was canceled by its own caller", async () => {
         const session = await seeded();
         const steps = session.history.steps.length;
         const controller = new AbortController();

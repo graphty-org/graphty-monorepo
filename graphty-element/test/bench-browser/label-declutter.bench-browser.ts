@@ -1,7 +1,7 @@
 /**
  * @file What the label declutter pass costs a frame.
  *
- * Renders graphs with 100, 1000 and 5000 labelled nodes and times `scene.render()` with the
+ * Renders graphs with 100, 1000 and 5000 labeled nodes and times `scene.render()` with the
  * declutter pass on and off, for a still camera over a still layout and for a camera that turns
  * a little every frame. The pass's own time is measured separately by wrapping its `run`.
  *
@@ -23,6 +23,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { LabelDeclutter } from "../../src/managers/LabelDeclutter";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 
 const WIDTH = 1280;
 const HEIGHT = 720;
@@ -60,7 +61,7 @@ describe("label declutter performance", () => {
         graph = g;
         await g.init();
 
-        // A square grid tight enough that neighbouring labels collide, so the pass has work.
+        // A square grid tight enough that neighboring labels collide, so the pass has work.
         const side = Math.ceil(Math.sqrt(count));
         const nodes = [];
         for (let i = 0; i < count; i++) {
@@ -91,7 +92,7 @@ describe("label declutter performance", () => {
     }
 
     function declutterOf(g: Graph): LabelDeclutter | undefined {
-        const found: unknown = g.scene.metadata?.labelDeclutter;
+        const found: unknown = (g.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
         return found instanceof LabelDeclutter ? found : undefined;
     }
 

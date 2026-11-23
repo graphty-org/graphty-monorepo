@@ -127,9 +127,9 @@ describe("daily write budget", () => {
         const store = new MemoryStore();
         expect(await takeQuota(store, DAILY_ROW_LIMIT - 100_000, T0)).toBe(true);
         expect(await takeQuota(store, 100_000, T0)).toBe(true);
-        expect(await quotaUsed(store, T0)).toBe(DAILY_ROW_LIMIT);
+        expect((await quotaUsed(store, T0)).rows).toBe(DAILY_ROW_LIMIT);
         expect(await takeQuota(store, 1, T0)).toBe(false);
-        expect(await quotaUsed(store, T0)).toBe(DAILY_ROW_LIMIT);
+        expect((await quotaUsed(store, T0)).rows).toBe(DAILY_ROW_LIMIT);
         expect(await takeQuota(store, 1, T0 + 24 * 60 * MIN)).toBe(true); // a new UTC day
         expect(await takeQuota(new MemoryStore(), DAILY_ROW_LIMIT + 1, T0)).toBe(false);
     });

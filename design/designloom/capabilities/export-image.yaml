@@ -3,11 +3,18 @@ name: Image Export
 category: export
 description: Export the current visualization as a static image for use in presentations, reports, or documentation.
     Support common image formats with configurable resolution and transparency.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/screenshot/ and graphty/src/workspace/export/CameraImageOutput.tsx."
 algorithms: []
 used_by_workflows:
     - W09
     - W15
+    - W20
+    - W21
+    - W22
+    - W23
+    - W24
+    - W25
 implemented_by_components:
     - image-export-dialog
 requirements:

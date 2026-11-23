@@ -4,7 +4,7 @@
  * assertion counts writes or reads the store back; none measures time.
  */
 
-import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterAll, afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
 import { Autosaver, type AutosaverOptions, lockName } from "../../src/autosave/Autosaver";
@@ -56,6 +56,14 @@ interface Setup {
     readonly saver: Autosaver;
 }
 
+/** What {@link setup} made, stopped and disposed after each test. */
+const made: (() => void)[] = [];
+afterEach(() => {
+    for (const end of made.splice(0)) {
+        end();
+    }
+});
+
 /**
  * A writer over a small session.
  * @param options - Overrides.
@@ -67,6 +75,10 @@ async function setup(options: Partial<AutosaverOptions> = {}): Promise<Setup> {
     const clock = (options.clock as FakeClock | undefined) ?? new FakeClock();
     const locks = (options.locks as FakeLocks | undefined) ?? new FakeLocks();
     const saver = new Autosaver({ key: KEY, ...options, session, store, clock, locks });
+    made.push(() => saver.stop());
+    if (options.session === undefined) {
+        made.push(() => session.dispose());
+    }
     return { session, store, clock, locks, saver };
 }
 
@@ -282,6 +294,7 @@ describe("the parts a change writes", () => {
         assert.deepStrictEqual(partsOf(store.log.at(-1) ?? [], saver.status.entry), [
             "arrangement",
             "data",
+            "drafts",
             "rest",
             "run:links",
             "sources",
@@ -393,15 +406,15 @@ describe("fencing", () => {
     it("rejects a stale held write; the entry holds one writer's state and the other's work moves", async () => {
         const store = recorded();
         const clock = new FakeClock();
-        const locks = new FakeLocks();
-        const a = await written({ store, clock, locks });
+        const a = await written({ store, clock });
         const id = a.saver.status.entry;
         const meta = (await store.read(id ?? ""))?.meta;
 
-        // A second tab took the entry over (A lost its lock while frozen), from the same state.
+        // A second tab took the entry over, from the same state, in a browser with no Web Locks
+        // (each tab's locks are its own), so the store's fence alone stands between them.
         const sessionB = createGraphSession();
         await sessionB.project.open((await a.session.project.save({ markSaved: false })).text);
-        const b = await setup({ session: sessionB, store, clock, locks });
+        const b = await setup({ session: sessionB, store, clock, locks: new FakeLocks() });
         b.saver.adopt(meta ?? ({} as AutosaveEntryMeta));
 
         a.session.notes.add({ text: "written by A", targets: [{ node: "a" }] });
@@ -424,6 +437,54 @@ describe("fencing", () => {
         assert.notStrictEqual(moved, id, "A moved to a new entry");
         assert.deepStrictEqual((await entryOf(store, moved)).document, await saveOf(a.session), "A's work is whole");
         assert.strictEqual(a.saver.status.state, "saved");
+    });
+
+    it("a tab that lost the entry's lock never writes it: one writer per entry (#818)", async () => {
+        const store = recorded();
+        const clock = new FakeClock();
+        const locks = new FakeLocks();
+        const a = await written({ store, clock, locks });
+        const id = a.saver.status.entry;
+
+        // A goes into the back/forward cache, and a second tab opens the same work and takes its lock.
+        a.saver.releaseLockNow();
+        const b = await setup({ session: createGraphSession(), store, clock, locks });
+        made.push(() => b.session.dispose());
+        assert.strictEqual((await b.saver.recover())?.entry.id, id, "the second tab opened A's entry");
+        assert.strictEqual(b.session.project.name, "Project", "with A's work");
+
+        // A writes before it reclaims the lock: the lease is the second tab's.
+        a.session.notes.add({ text: "written by A", targets: [{ node: "a" }] });
+        await a.saver.flush();
+        const moved = a.saver.status.entry;
+        assert.notStrictEqual(moved, id, "A moved to a new entry");
+        assert.deepStrictEqual((await entryOf(store, moved)).document, await saveOf(a.session), "A's work is whole");
+        assert.deepStrictEqual((await entryOf(store, id)).document, await saveOf(b.session), "B's entry is untouched");
+
+        // The holder keeps writing its entry with no conflict.
+        await b.session.styles.add(STYLE);
+        await b.saver.flush();
+        assert.strictEqual(b.saver.status.entry, id, "B still writes the entry it holds");
+        assert.deepStrictEqual((await entryOf(store, id)).document, await saveOf(b.session));
+        assert.isTrue((await locks.held()).has(lockName(KEY, id ?? "")), "B holds its lock");
+    });
+
+    it("the lease decides, not the store's fence: a write without the lock moves before the holder commits", async () => {
+        const { session, store, locks, saver } = await written();
+        const id = saver.status.entry ?? "";
+        const before = await entryOf(store, id);
+
+        // Another tab took the lock and has not written yet, so the entry's generation still matches.
+        saver.releaseLockNow();
+        locks.holdElsewhere(lockName(KEY, id));
+        await session.styles.add(STYLE);
+        await saver.flush();
+
+        assert.notStrictEqual(saver.status.entry, id, "the work moved to a new entry");
+        assert.deepStrictEqual((await entryOf(store, id)).document, before.document, "the held entry is untouched");
+        assert.strictEqual((await entryOf(store, id)).meta.gen, before.meta.gen, "and was never committed to");
+        assert.deepStrictEqual((await entryOf(store, saver.status.entry)).document, await saveOf(session));
+        assert.strictEqual(saver.status.state, "saved");
     });
 });
 
@@ -817,9 +878,6 @@ describe("status", () => {
 });
 
 describe("timeline playback", () => {
-    beforeAll(() => {
-        setDefaultFeatures(["timeline"]);
-    });
     afterAll(() => {
         setDefaultFeatures([]);
     });

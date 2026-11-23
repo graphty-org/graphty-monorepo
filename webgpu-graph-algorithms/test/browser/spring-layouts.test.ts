@@ -1,7 +1,7 @@
 /**
  * Browser leg of the Fruchterman-Reingold and spring-electrical simulations (spec 11.6 item 3; 13 row P5 "browser
  * smoke"; P5-T9) on the shape of test/browser/forceatlas2.test.ts: the 500-node smoke of each model -- load, step(10)
- * five times with maxInFlight 2, positions written back, setPosition / setFixed honoured, dispose clean -- with the
+ * five times with maxInFlight 2, positions written back, setPosition / setFixed honored, dispose clean -- with the
  * model's own trace checked (a strictly decreasing FR temperature; a spring-electrical kineticEnergy that is exactly 0
  * on the first record after load() and positive on every later one, PD-4's one-iteration lag), the FR frame loop
  * through the widened helper (PD-18), and the G5 settle item in Chromium: the preset settles on the story graph within
@@ -90,7 +90,7 @@ interface SmokeModel<O extends CommonLayoutOptions & SimulationOptions, S extend
 /**
  * The 11.6 item 3 smoke on 500 nodes / 1,500 edges: load, step(10) x 5 with maxInFlight 2 (the third call after the
  * first landed), iterationsDone 50, the model's trace after the first and the last landing, positions finite and
- * moved with z === 0, setFixed pinning node 7 over two step(5), setPosition(3, 5, -4, 0) honoured and reheating, an
+ * moved with z === 0, setFixed pinning node 7 over two step(5), setPosition(3, 5, -4, 0) honored and reheating, an
  * unpin reheating, dispose returning allocator.liveBuffers to its value before the simulation existed (only the
  * context's staging ring may have grown).
  * @param ctx - the context
@@ -167,7 +167,7 @@ async function smoke<O extends CommonLayoutOptions & SimulationOptions, S extend
     await sim.step(5);
     await sim.step(5);
     expect(sim.iterationsDone).toBe(10);
-    expect(Array.from(positions.subarray(9, 12))).toEqual([5, -4, 0]); // honoured, not restored by the GPU
+    expect(Array.from(positions.subarray(9, 12))).toEqual([5, -4, 0]); // honored, not restored by the GPU
     expect(Array.from(positions.subarray(21, 24))).toEqual(node7); // a pinned node never moves (7.12)
     let othersMoved = 0;
     for (let i = 0; i < n; i++) {

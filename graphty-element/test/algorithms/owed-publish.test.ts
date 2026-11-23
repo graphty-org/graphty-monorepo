@@ -9,11 +9,11 @@ import { assert, describe, it } from "vitest";
 import { DegreeAlgorithm } from "../../src/algorithms/DegreeAlgorithm";
 import { WRITABLE_LANE } from "../../src/data/lane";
 import { ElementPositions } from "../../src/data/positions";
-import { createMockGraph } from "../helpers/mockGraph";
+import { createSessionGraph } from "../helpers/session-graph";
 
 describe("an algorithm run while a layout's publish is owed", () => {
     it("writes the owed publish before it reads the graph", async () => {
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: [{ id: "a" }, { id: "b" }],
             edges: [{ srcId: "a", dstId: "b" }],
         });

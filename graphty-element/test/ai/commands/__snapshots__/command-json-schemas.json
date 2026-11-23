@@ -34,37 +34,6 @@
         },
         "type": "object"
     },
-    "captureVideo": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
-        "properties": {
-            "action": {
-                "description": "Action to perform: start or stop recording",
-                "enum": [
-                    "start",
-                    "stop"
-                ],
-                "type": "string"
-            },
-            "duration": {
-                "description": "Auto-stop after this many seconds (only for start action)",
-                "exclusiveMinimum": 0,
-                "type": "number"
-            },
-            "format": {
-                "description": "Video format (default: webm, note: mp4 may not be supported in all browsers)",
-                "enum": [
-                    "webm",
-                    "mp4"
-                ],
-                "type": "string"
-            }
-        },
-        "required": [
-            "action"
-        ],
-        "type": "object"
-    },
     "clearStyles": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
@@ -113,7 +82,7 @@
                 "type": "string"
             },
             "selector": {
-                "description": "Expression matching edges. A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name such as id or type matches nothing. An empty string matches everything.",
+                "description": "Expression matching edges. A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name reads the data column of that name, so type == 'server' matches what data.type == 'server' matches. An empty string matches everything.",
                 "type": "string"
             },
             "style": {
@@ -175,7 +144,7 @@
                 "type": "string"
             },
             "selector": {
-                "description": "Expression matching nodes. A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name such as id or type matches nothing. An empty string matches everything.",
+                "description": "Expression matching nodes. A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name reads the data column of that name, so type == 'server' matches what data.type == 'server' matches. An empty string matches everything.",
                 "type": "string"
             },
             "style": {
@@ -257,7 +226,7 @@
                 "type": "number"
             },
             "selector": {
-                "description": "Expression matching nodes. A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name such as id or type matches nothing. An empty string matches everything.",
+                "description": "Expression matching nodes. A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name reads the data column of that name, so type == 'server' matches what data.type == 'server' matches. An empty string matches everything.",
                 "type": "string"
             }
         },
@@ -505,7 +474,7 @@
                 "type": "number"
             },
             "selector": {
-                "description": "Expression matching nodes. A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name such as id or type matches nothing. An empty string matches everything.",
+                "description": "Expression matching nodes. A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name reads the data column of that name, so type == 'server' matches what data.type == 'server' matches. An empty string matches everything.",
                 "type": "string"
             }
         },

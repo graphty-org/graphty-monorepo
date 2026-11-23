@@ -7,15 +7,14 @@ import { assert, describe, it } from "vitest";
 
 import { DijkstraAlgorithm } from "../../src/algorithms/DijkstraAlgorithm";
 import { PageRankAlgorithm } from "../../src/algorithms/PageRankAlgorithm";
-import { InputGraph } from "./input/harness";
-import { runWhole } from "./scoped/harness";
+import { runWhole, type ScopedGraph, scopedGraph } from "./scoped/harness";
 
 /**
  * A directed chain `"34" -> "35" -> "36"`, its node ids held as text.
  * @returns The graph.
  */
-const chain = (): InputGraph =>
-    new InputGraph(
+const chain = (): Promise<ScopedGraph> =>
+    scopedGraph(
         ["34", "35", "36"],
         [
             ["34", "35"],
@@ -26,7 +25,10 @@ const chain = (): InputGraph =>
 
 describe("either spelling of an integer id in an algorithm option", () => {
     it("dijkstra's source and target find the node by the number it spells", async () => {
-        const result = await runWhole((graph) => new DijkstraAlgorithm(graph, { source: 34, target: 36 }), chain());
+        const result = await runWhole(
+            (graph) => new DijkstraAlgorithm(graph, { source: 34, target: 36 }),
+            await chain(),
+        );
 
         assert.deepInclude(result?.node("36"), { onPath: true, distance: 2 });
         assert.deepInclude(result?.node(36), { onPath: true, distance: 2 }, "the result answers either spelling too");
@@ -35,7 +37,7 @@ describe("either spelling of an integer id in an algorithm option", () => {
     it("dijkstra refuses text that is not an id's decimal printing", async () => {
         const error: unknown = await runWhole(
             (graph) => new DijkstraAlgorithm(graph, { source: "34.0", target: "36" }),
-            chain(),
+            await chain(),
         ).catch((rejection: unknown) => rejection);
 
         assert.include(String(error), "34.0");
@@ -43,7 +45,8 @@ describe("either spelling of an integer id in an algorithm option", () => {
 
     it("pagerank's personalization keys find the node by the number it spells", async () => {
         const rankOf = async (personalization: Map<string | number, number>): Promise<unknown> =>
-            (await runWhole((graph) => new PageRankAlgorithm(graph, { personalization }), chain()))?.node("34")?.value;
+            (await runWhole((graph) => new PageRankAlgorithm(graph, { personalization }), await chain()))?.node("34")
+                ?.value;
 
         assert.strictEqual(await rankOf(new Map([[34, 1]])), await rankOf(new Map([["34", 1]])));
         assert.notStrictEqual(await rankOf(new Map([[34, 1]])), await rankOf(new Map([["36", 1]])));

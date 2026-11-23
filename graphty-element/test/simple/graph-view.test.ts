@@ -14,6 +14,7 @@
 import { assert, describe, it } from "vitest";
 
 import { GraphtyError, isGraphtyError } from "../../src/errors";
+import { workingGraphOfSession } from "../../src/session/GraphSession";
 import { viewSourceOf } from "../../src/simple/source";
 import type { GraphView, NodeId, NodeView } from "../../src/simple/types";
 import { compareNodeIds, createGraphView, viewWarnings } from "../../src/simple/view";
@@ -33,10 +34,13 @@ function viewOf(
 ): { view: GraphView; harness: Harness } {
     const harness = makeSession({ directed: options.data ?? false });
     harness.add(nodes, edges);
-    const view = createGraphView(viewSourceOf(harness.session), {
-        id: "acme-test",
-        directed: options.definition ?? false,
-    });
+    const view = createGraphView(
+        viewSourceOf(harness.session, workingGraphOfSession(harness.session).view().snapshot),
+        {
+            id: "acme-test",
+            directed: options.definition ?? false,
+        },
+    );
 
     return { view, harness };
 }

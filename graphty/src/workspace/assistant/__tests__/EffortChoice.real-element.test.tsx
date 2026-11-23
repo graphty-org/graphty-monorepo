@@ -9,20 +9,15 @@ import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { effortConfig, effortLevels, readAssistantChoice, writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
-
 /** Every configuration the app enabled the assistant with. */
 let enabled: AiManagerConfig[] = [];
 
-beforeEach(async () => {
-    resetSiteConfig();
-    await loadSiteConfig(SITE);
+beforeEach(() => {
     enabled = [];
     const tag = customElements.get("graphty-element") as unknown as {
         prototype: HTMLElementTagNameMap["graphty-element"];
@@ -42,7 +37,6 @@ afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
     writeAssistantChoice(null);
-    resetSiteConfig();
 });
 
 /**

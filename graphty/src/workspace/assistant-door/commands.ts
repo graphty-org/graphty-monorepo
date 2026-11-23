@@ -1,5 +1,3 @@
-import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-
 import { defineRegistration } from "../commands/registry";
 import type { WorkspaceStore } from "../state/store";
 import { readAssistantChoice } from "./provider";
@@ -9,16 +7,6 @@ const COMPOSER = "[data-assistant-composer]";
 
 /** Where the Assistant closes to when nothing says where it opened from (a reload). */
 const HOME = { page: "panels", place: "graph", focus: null } as const;
-
-/**
- * Whether the element has the assistant experiment on. This folder is the Assistant's door, always
- * loaded; the panel itself is the separate chunk under `../assistant`.
- * @param element - the element, or null before it has come up.
- * @returns true or false as the element reports, or null while there is no element to ask.
- */
-export function assistantOn(element: GraphtyElement | null): boolean | null {
-    return element === null ? null : element.enabledFeatures.enabled.includes("assistant");
-}
 
 /**
  * Closes the Assistant: back to the place or page the reader came from, and focus to where it was,
@@ -78,8 +66,6 @@ export const registration = defineRegistration({
             label: "Assistant",
             group: "Go to",
             keys: ["Mod+I"],
-            shown: ({ element }) => assistantOn(element) === true,
-            experiment: true,
             run: ({ workspace }) => {
                 if (assistantShown(workspace) && document.activeElement?.closest(COMPOSER)) {
                     closeAssistant(workspace);
@@ -93,8 +79,6 @@ export const registration = defineRegistration({
             label: "Talk",
             group: "Go to",
             keys: ["Shift+Mod+Space"],
-            shown: ({ element }) => assistantOn(element) === true,
-            experiment: true,
             run: ({ workspace }) => {
                 if (!assistantShown(workspace)) {
                     goToComposer(workspace);
@@ -107,8 +91,6 @@ export const registration = defineRegistration({
             id: "settings.assistant",
             label: "AI provider...",
             group: "Settings and help",
-            shown: ({ element }) => assistantOn(element) === true,
-            experiment: true,
             run: ({ workspace }) => {
                 workspace.set({ dialog: "settings:assistant" });
             },

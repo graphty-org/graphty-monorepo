@@ -896,6 +896,22 @@ export class SimulationLayoutEngine extends LayoutEngine {
     deviceEnvelope = true;
     /** The simulation's array was written by the element since the last landing, so a device measure no longer holds. */
     #adoptedSinceLanding = false;
+    /**
+     * Bumped by every change to the simulation's array that `#landed` does not count: an adoption, a placed node, a
+     * pre-step batch awaited by `stepAsync`.
+     */
+    #simWrites = 0;
+    /** The last fit's envelope and what it was measured over, so an accelerated fit with nothing new reuses it. */
+    #lastFit: {
+        envelope: LayoutEnvelope;
+        /** Measured over every row: a fit that left held rows out is no envelope for one that measures them all. */
+        whole: boolean;
+        landed: number;
+        simWrites: number;
+        radius: number | null;
+        simPositions: F32;
+        simulation: LayoutSimulation | null;
+    } | null = null;
     #landedPublished = 0;
 
     /** Set by `LayoutManager` while it is not stepping this layout. See {@link paused}. */
@@ -1363,6 +1379,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
         try {
             await this.#simulation.step(iterations);
         } finally {
+            // The batch rewrote the simulation's array without the frame loop's landing count seeing it.
+            this.#simWrites += 1;
             this.#syncWork();
         }
     }
@@ -1502,6 +1520,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const scale = this.#envelopeScale;
+        this.#simWrites += 1;
         this.#simulation?.setPosition(
             row,
             (p.x - this.#targetCentre[0]) / scale + this.#simCentre[0],
@@ -2110,8 +2129,18 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const radii = this.#collisionRadii(snapshot.nodeCount);
         const radius = this.#fitRadius();
         const measured =
+            this.#unchangedFit(held === null, radius, simPositions) ??
             (held === null && this.deviceEnvelope ? this.#deviceEnvelope(snapshot.nodeCount, radius) : null) ??
             this.#walkEnvelope(simPositions, snapshot.nodeCount, radius, held);
+        this.#lastFit = {
+            envelope: measured,
+            whole: held === null,
+            landed: this.#landed,
+            simWrites: this.#simWrites,
+            radius,
+            simPositions,
+            simulation: this.#simulation,
+        };
         this.#simBox = measured.box;
 
         // NOTHING LEFT TO MEASURE KEEPS THE LAST MAP rather than resetting it to the identity. A
@@ -2138,6 +2167,32 @@ export class SimulationLayoutEngine extends LayoutEngine {
         if (radii !== null) {
             this.#setCollision(radii, this.#envelopeScale);
         }
+    }
+
+    /**
+     * The last fit's envelope when nothing it measured has changed since, or null.
+     *
+     * AN ACCELERATED ARRAY CHANGES ONLY WHEN A BATCH LANDS OR THE ELEMENT WRITES IT, so a fit with neither since the
+     * last one would measure the same rows again. The device queue can run hundreds of frames behind the page, and
+     * every one of those frames walked every row before the first landing (issue #9627). A CPU simulation rewrites
+     * its array on every step, so it always measures.
+     * @param whole - Whether this fit measures every row (none held).
+     * @param radius - The scene-unit radius this fit is published at, or null.
+     * @param simPositions - The simulation's coordinates, three per row.
+     * @returns The envelope to reuse, or null to measure.
+     */
+    #unchangedFit(whole: boolean, radius: number | null, simPositions: F32): LayoutEnvelope | null {
+        const last = this.#lastFit;
+        const unchanged =
+            whole &&
+            this.#accelerated &&
+            last?.whole === true &&
+            last.landed === this.#landed &&
+            last.simWrites === this.#simWrites &&
+            last.radius === radius &&
+            last.simPositions === simPositions &&
+            last.simulation === this.#simulation;
+        return unchanged ? last.envelope : null;
     }
 
     /**
@@ -2761,6 +2816,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         this.#simPositions = simPositions;
         this.#adoptedSinceLanding = true;
+        this.#simWrites += 1;
 
         return simPositions;
     }

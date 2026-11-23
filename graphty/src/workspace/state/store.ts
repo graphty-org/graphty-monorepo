@@ -363,6 +363,8 @@ export interface WorkspaceState {
      * (`data.currentDraft()`).
      */
     readonly sourceCard: { readonly kind: "add"; readonly source: SourceKey } | JoinCardState | StepCardState | null;
+    /** The join workspace is open over the canvas (the source-steps experiment, issue #9796). */
+    readonly joinWorkspace: boolean;
     /** The Data place's Reader edits list is open (the source-steps experiment). */
     readonly readerEditsOpen: boolean;
     /**
@@ -600,6 +602,7 @@ export const ON_RELOAD = {
     editingJoin: "gap #9660: an edit in progress on the join screen",
     ends: "gap #9660: a half-made choice of edge ends",
     sourceCard: "gap #9660: its draft lives in the element, whose autosave does not keep source drafts",
+    joinWorkspace: "kept",
     readerEditsOpen: "fresh: pointer: a list opened for a look",
     stagedEnds: "gap #9660: a half-made choice of edge ends",
     draftOpen: "gap #9660: a question about a draft a reload discarded",
@@ -728,6 +731,7 @@ const INITIAL: WorkspaceState = {
     editingJoin: null,
     ends: null,
     sourceCard: null,
+    joinWorkspace: false,
     readerEditsOpen: false,
     stagedEnds: null,
     draftOpen: null,

@@ -149,6 +149,46 @@ export const JOIN_WORDS = {
     needsNodes: "No node rows",
 } as const;
 
+/** The join workspace's words (issue #9796). */
+export const WORKSPACE_WORDS = {
+    title: "Join",
+    open: "Edit joins",
+    addJoin: "Join",
+    match: "Match",
+    matches: "Matches",
+    result: "Result",
+    merge: "Merge",
+    connect: "Connect",
+    suggested: "suggested",
+    inGraph: "In graph",
+    incoming: "Incoming",
+    manyRows: "Many rows",
+    noMatch: "No match",
+    add: "Add",
+    skip: "Skip",
+    first: "First",
+    last: "Last",
+    edges: "Edges",
+    perRow: "Per row",
+    perPair: "Per pair",
+    merged: "merged",
+    new: "new",
+    untouched: "unmatched",
+    cardColors: "Card colors",
+    styled: "Styled",
+    preview: "Preview",
+    cancel: "Cancel",
+    done: "Done",
+    undo: "Undo",
+    frame: "Frame",
+    remove: "Remove",
+    rows: "Rows",
+    unknown: "?",
+    drawing: "Drawing",
+    committed: "Joined",
+    matchCount: "Matched",
+} as const;
+
 /** The six live counts of `data.matchCounts`, in the order the card shows them. */
 export const COUNT_WORDS = [
     { id: "matched", label: "matched" },

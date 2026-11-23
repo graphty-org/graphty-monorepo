@@ -62,3 +62,60 @@
     text-align: start;
     text-decoration: underline dotted;
 }
+
+/* The join workspace (issue #9796): the selection workspace's frame, sized for iPad and phones. */
+.jw-modal .sel-ws-head {
+    overflow-x: auto;
+}
+
+.jw-lower {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 4px 8px;
+    overflow: hidden;
+    border-top: 1px solid var(--cm-border);
+}
+
+.jw-table {
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+@media (width < 1024px) {
+    .sel-ws.jw-modal {
+        inset: 12px;
+    }
+
+    .jw-modal .sel-ws-body {
+        grid-template-columns: 320px minmax(0, 1fr);
+    }
+
+    .jw-modal .sel-ws-center[data-strip] {
+        grid-template-rows: minmax(0, 1fr) 35%;
+    }
+}
+
+@media (width < 720px) {
+    .jw-modal .sel-ws-body {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 55% minmax(0, 1fr);
+    }
+
+    .jw-modal .sel-ws-cards {
+        order: 2;
+        border-inline-end: none;
+        border-top: 1px solid var(--cm-border);
+    }
+}
+
+/* The workspace is a <dialog>: the modal frame draws it, not the browser's dialog box. */
+dialog.jw-modal {
+    max-width: none;
+    max-height: none;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    color: inherit;
+}

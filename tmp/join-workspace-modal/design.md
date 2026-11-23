@@ -12,7 +12,7 @@ card is one join. Nothing changes the graph until Done; Cancel throws it all awa
 
 ```
 +--------------------------------------------------------------------------------------------+
-| Join   o merged 283  o new 25  o unmatched 40   Drawing   [Before|After B]  Cancel Esc  Done Enter |
+| Join  o merged 283  o new 25  o unmatched 40  Drawing [Card colors|Styled] [Before|After B] Undo Mod+Z  Cancel Esc  Done |
 +------------------------------+-------------------------------------------------------------+
 | [1] hr -> Merge   283 m  25 n v ... x |                                                     |
 |  Matches                      |                graph preview (graphty-element canvas)       |
@@ -104,14 +104,18 @@ count is a button that shows its rows in the table. Exclude selected (n) and the
 stay as today's `Selection` block.
 
 `+ Join` (Shift+J, shown on the button) under the list adds an empty card. Every key is drawn on
-its button (Cancel Esc, Done Enter, Before/After B, Remove Del, + Join Shift+J).
+its button (Cancel Esc, Before/After B, Undo Mod+Z, Remove Del, + Join Shift+J). Done has no key, as
+in the selection workspace: Enter belongs to the Selects, ComboInputs and NumberInputs inside the
+cards, and must never commit every card from inside a field.
 
 ## 5. Preview and highlighting
 
 One element draft for the whole modal (`session.data.draft()`), displayed After on open
-(`draft.display(true)`) and drawn with `session.styles.showDraft(...)` in the branch palette
-(`session.scope.options.branchPalette ?? DEFAULT_BRANCH_PALETTE`): color 1 merged, color 2 new,
-color 3 unmatched. The header key shows the three swatches with their counts.
+(`draft.display(true)`) and drawn with `session.styles.showDraft(...)`. As in the selection workspace, each card has its own
+color from the branch palette (shown on its header chip), passed as `steps: [{ step, color }]`; within
+a card's color, merged is a ring, new is dashed and unmatched is dotted, so the graph shows which
+join did what. The header's `Card colors | Styled` switch turns the card colors off. The header key
+shows the three marks with their counts (`preview.marks`).
 
 - **Selecting a card** (unfolding it, or focus in it) marks its step: its elements stay at full
   strength, everything else faint. With no card open, nothing is marked.
@@ -131,18 +135,18 @@ center's lower pane, its content following focus:
 
 ## 7. Done, Cancel, Esc, undo
 
-- **Done (Enter)**: `draft.commit()`, which writes every card as ONE undo step; then today's
+- **Done** (no key): `draft.commit()`, which writes every card as ONE undo step; then today's
   undo notice (`commitCard`'s `showUndoNotice`). A refusal keeps the modal open and says why.
 - **Cancel (Esc)**: `draft.dispose()`, modal closes, nothing changed. Esc closes the innermost
   open thing first (a Select's list, a menu), as the selection workspace's `wsKeys` does.
-- **Mod+Z inside**: `draft.undo()` (today's `source.undo-in-card` command, its `shown` widened to
-  the modal). Cards are read back from `draft.steps()` after every change (`SourceStepRow.act`),
+- **Undo (Mod+Z)**: a header button showing its key, `draft.undo()`. Cards are read back from `draft.steps()` after every change (`SourceStepRow.act`),
   so undo never leaves a card out of step with the draft; only cards with no result yet are app
   state.
 - Removing a card removes its steps (`draft.removeStep`). A committed card removed is taken back
   on Done; the card shows the preview's `W_STEP_REMOVED` effects (today's `DraftEffects`).
 - Changing a match or the result of a card that has a step removes the step and makes the new act
-  at the same place (today's `makeAct`: `removeStep`, act, `moveStep`).
+  at the same place inside `draft.batch(...)`, so the change is ONE draft undo entry and Undo never
+  leaves half an edit.
 - A data write or a project opened while open: today's `DraftOpenDialog`.
 
 ## 8. Reused, by file
@@ -207,8 +211,14 @@ center's lower pane, its content following focus:
     their options, and acts take `group?: string`, read back on `SourceStepRow.group`, so one card
     that made several steps is rebuilt from `draft.steps()` after undo and on reopen.
 
-Until a gap lands, the card offers only what the element supports (Merge with one match, Connect
-from node rows) and the missing options are not drawn; no app-side substitute.
+Every gap above is required scope for this feature, built in graphty-element first; there is no
+fallback that ships the workspace without them. Also added: `draft.batch(fn)` (several acts, one undo
+entry) and `styles.shownDraft` (the view drawn now, read back as `shownBranches` is), which the
+tests read.
+
+Every count, value list, column and profile in the modal comes from the open draft
+(`draft.matchCounts`, `draft.matchValues`, `draft.sourceTable`, `draft.profile`), never
+`session.data`, which reads only the committed sources.
 
 ## 11. Tests (real input, `.claude/rules/tests.md`)
 

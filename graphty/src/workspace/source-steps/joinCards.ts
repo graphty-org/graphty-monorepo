@@ -1,0 +1,283 @@
+/**
+ * @file The join workspace's cards (issue #9796): one card per join, each one or more matches and
+ * one result. A card with a result is a step of the one open source draft and is read back from
+ * `draft.steps()` after every change, so undo never leaves a card out of step with the draft; a
+ * card with no result yet is only the reader's picks. Every count, value list and column comes
+ * from the open draft, never the committed graph.
+ */
+
+import type {
+    SourceDraft,
+    SourceKey,
+    SourceMatchCounts,
+    SourceMatchPair,
+    SourceStepRow,
+} from "@graphty/graphty-element/session";
+
+import { columnsOf } from "./join";
+
+/** The node 1 side of a match: a space's keys, or a column of a source that supplied it. */
+export interface CardInto {
+    readonly space: string;
+    readonly source?: SourceKey;
+    readonly field?: string;
+}
+
+/** The reader's picks of one card. */
+export interface CardPicks {
+    /** The incoming source and the field that names node 1. */
+    readonly from: { readonly source: SourceKey; readonly field?: string } | null;
+    readonly into: CardInto | null;
+    readonly ignoreCase: boolean;
+    readonly ignoreSpaces: boolean;
+}
+
+/** A card's result and its options, as the draft's step carries them. */
+export interface CardResult {
+    readonly result: "merge" | "connect";
+    /** Merge: which of a node's rows wins. */
+    readonly repeated: "first" | "last";
+    /** Merge: what a row matching no node does. */
+    readonly unmatchedFrom: "keep" | "drop";
+    /** Connect: which way the edges run. */
+    readonly direction: "into-from" | "from-into";
+    readonly edgeType: string;
+    /** Connect: one edge per pair of ends. */
+    readonly perPair: boolean;
+    /** Connect: a row whose field names no node. */
+    readonly unmatched: "skip" | "add";
+}
+
+/** A card with no result yet: only the reader's picks. */
+export interface PendingCard {
+    readonly id: string;
+    readonly picks: CardPicks;
+    /** The result the element guessed, shown as a suggestion and never picked for the reader. */
+    readonly guess: "merge" | "connect" | null;
+    /** Whether the picks are still the element's guess. */
+    readonly suggested: boolean;
+    /**
+     * Whether the card wrote a step: it is then drawn as that step's card, and drawn again as
+     * this card once an undo takes the step back.
+     */
+    readonly written?: boolean;
+}
+
+/** One card as the workspace draws it. */
+export interface JoinCardView {
+    readonly id: string;
+    /** The draft step it is, or null for a pending card. */
+    readonly step: SourceStepRow | null;
+    readonly picks: CardPicks;
+    readonly result: CardResult | null;
+    readonly guess: "merge" | "connect" | null;
+    readonly suggested: boolean;
+}
+
+/** The options a new result starts with. */
+export const DEFAULT_RESULT: Omit<CardResult, "result"> = {
+    repeated: "first",
+    unmatchedFrom: "keep",
+    direction: "into-from",
+    edgeType: "",
+    perPair: false,
+    unmatched: "skip",
+};
+
+/**
+ * A step's card id: its place, so a card follows its step through undo.
+ * @param index - The step's place.
+ * @returns The id.
+ */
+export function stepCardId(index: number): string {
+    return `step:${String(index)}`;
+}
+
+/**
+ * The cards of a draft's join steps, in step order, then the pending cards.
+ * @param draft - The open draft.
+ * @param pending - The cards with no result yet.
+ * @returns The cards.
+ */
+export function cardsOf(draft: SourceDraft, pending: readonly PendingCard[]): JoinCardView[] {
+    const steps = draft.steps().flatMap((row): JoinCardView[] => {
+        const { act } = row;
+        if (act === null) {
+            return [];
+        }
+        const into: CardInto =
+            act.into.source === undefined || act.into.field === undefined
+                ? { space: act.into.space }
+                : { space: act.into.space, source: act.into.source, field: act.into.field };
+        return [
+            {
+                id: stepCardId(row.index),
+                step: row,
+                picks: { from: act.from, into, ignoreCase: act.ignoreCase, ignoreSpaces: act.ignoreSpaces },
+                result: {
+                    result: act.act,
+                    repeated: act.repeated === "last" ? "last" : "first",
+                    unmatchedFrom: act.unmatchedFrom ?? "keep",
+                    direction: act.direction ?? "into-from",
+                    edgeType: act.edgeType ?? "",
+                    perPair: act.act === "connect" && act.repeated === "first",
+                    unmatched: act.unmatched ?? "skip",
+                },
+                guess: null,
+                suggested: false,
+            },
+        ];
+    });
+    const shown = pending.filter(
+        (card) => card.written !== true || !steps.some((each) => samePicks(each.picks, card.picks)),
+    );
+    return [...steps, ...shown.map((card) => ({ ...card, step: null, result: null }))];
+}
+
+/**
+ * Whether two cards match the same fields.
+ * @param a - One card's picks.
+ * @param b - The other's.
+ * @returns True when they do.
+ */
+export function samePicks(a: CardPicks, b: CardPicks): boolean {
+    return JSON.stringify(pairOf(a)) === JSON.stringify(pairOf(b));
+}
+
+/**
+ * The match a card's picks make, once both fields are picked.
+ * @param picks - The picks.
+ * @returns The pair, or null.
+ */
+export function pairOf(picks: CardPicks): SourceMatchPair | null {
+    const { from, into } = picks;
+    if (from?.field === undefined || into === null) {
+        return null;
+    }
+    const one =
+        into.source === undefined || into.field === undefined
+            ? { space: into.space }
+            : { source: into.source, field: into.field };
+    return { from: { source: from.source, field: from.field }, into: one };
+}
+
+/**
+ * The live counts of a card's match, in the open draft.
+ * @param draft - The open draft.
+ * @param picks - The picks.
+ * @returns The counts, or null while a field is unpicked or the draft refuses the pair.
+ */
+export function countsOf(draft: SourceDraft, picks: CardPicks): SourceMatchCounts | null {
+    const pair = pairOf(picks);
+    if (pair === null) {
+        return null;
+    }
+    try {
+        return draft.matchCounts(pair, { ignoreCase: picks.ignoreCase, ignoreSpaces: picks.ignoreSpaces });
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * A source's columns, as the open draft reads them: node rows first, else edge rows.
+ * @param draft - The open draft.
+ * @param source - The source.
+ * @param table - Only its node rows.
+ * @returns The column names.
+ */
+export function draftColumns(draft: SourceDraft, source: SourceKey, table?: "nodes"): readonly string[] {
+    return columnsOf(draft, source, table);
+}
+
+/**
+ * Make a card's act in the draft.
+ * @param draft - The open draft.
+ * @param pair - The match.
+ * @param picks - The picks.
+ * @param result - The result and its options.
+ */
+function makeAct(draft: SourceDraft, pair: SourceMatchPair, picks: CardPicks, result: CardResult): void {
+    const matching = { ignoreCase: picks.ignoreCase, ignoreSpaces: picks.ignoreSpaces };
+    if (result.result === "merge") {
+        draft.merge({ ...pair, ...matching, unmatchedFrom: result.unmatchedFrom });
+        if (result.repeated === "last") {
+            draft.editStep(draft.steps().length - 1, { repeated: "last" });
+        }
+        return;
+    }
+    draft.connect({
+        ...pair,
+        ...matching,
+        direction: result.direction,
+        perPair: result.perPair,
+        unmatched: result.unmatched,
+        ...(result.edgeType === "" ? {} : { edgeType: result.edgeType }),
+    });
+}
+
+/**
+ * Write a card into the draft as ONE undo entry: a pending card's step is made at the end, a
+ * step card's step is made again at its own place.
+ * @param draft - The open draft.
+ * @param at - The card's step place, or null for a pending card.
+ * @param picks - The picks.
+ * @param result - The result and its options.
+ * @returns The step's place, or null while the picks make no match.
+ */
+export function writeCard(draft: SourceDraft, at: number | null, picks: CardPicks, result: CardResult): number | null {
+    const pair = pairOf(picks);
+    if (pair === null) {
+        return null;
+    }
+    return draft.batch(() => {
+        if (at !== null) {
+            draft.removeStep(at);
+        }
+        makeAct(draft, pair, picks, result);
+        const made = draft.steps().length - 1;
+        if (at !== null && made !== at) {
+            draft.moveStep(made, at);
+            return at;
+        }
+        return made;
+    });
+}
+
+/**
+ * A new card for a source, its picks the element's best guess, if it has one.
+ * @param draft - The open draft.
+ * @param id - The card's id.
+ * @param source - The incoming source, if one is known.
+ * @param into - The node 1 side, when the reader started from a node.
+ * @returns The card.
+ */
+export function newCard(
+    draft: SourceDraft,
+    id: string,
+    source: SourceKey | undefined,
+    into: CardInto | null = null,
+): PendingCard {
+    const blank = { ignoreCase: false, ignoreSpaces: false };
+    if (source === undefined) {
+        return { id, picks: { from: null, into, ...blank }, guess: null, suggested: false };
+    }
+    let best;
+    try {
+        [best] = draft.suggestMatches(source);
+    } catch {
+        best = undefined;
+    }
+    const match = best?.matches[0];
+    if (match === undefined || into !== null) {
+        return { id, picks: { from: { source }, into, ...blank }, guess: null, suggested: false };
+    }
+    // The element proposes a space's keys; a match on another source's column is the reader's pick.
+    const guessedInto: CardInto = { space: match.into.space ?? "" };
+    return {
+        id,
+        picks: { from: match.from, into: guessedInto, ...blank },
+        guess: best?.result ?? null,
+        suggested: true,
+    };
+}

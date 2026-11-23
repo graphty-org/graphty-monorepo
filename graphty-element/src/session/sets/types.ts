@@ -41,7 +41,7 @@ export interface ElementSet {
     readonly createdFrom: SetCreatedFrom;
     /**
      * `r1:<hex>`, a digest of the canonical definition. Derived: computed on first read and
-     * memoised, never stored. Rename does not change it.
+     * memoized, never stored. Rename does not change it.
      */
     readonly revision: string;
 }
@@ -91,21 +91,80 @@ export interface SetStatus {
 
 /** Why a set is not current. OPEN UNION on `kind`: kinds may be added in a minor release. */
 export type SetStatusReason =
-    | { readonly kind: "run-out-of-date"; readonly run: RunId }
-    | { readonly kind: "missing-run"; readonly run: RunId }
-    | { readonly kind: "missing-set"; readonly id: SetId; readonly name: string }
-    | { readonly kind: "cycle"; readonly through: readonly string[] }
+    /** A run the set reads has inputs that changed. */
+    | {
+          /** The reason's kind. */
+          readonly kind: "run-out-of-date";
+          /** The run. */
+          readonly run: RunId;
+      }
+    /** A run the set reads is gone. */
+    | {
+          /** The reason's kind. */
+          readonly kind: "missing-run";
+          /** The run. */
+          readonly run: RunId;
+      }
+    /** A set this one reads is gone. */
+    | {
+          /** The reason's kind. */
+          readonly kind: "missing-set";
+          /** The missing set's id. */
+          readonly id: SetId;
+          /** The missing set's name, as last known, or its id when none is. */
+          readonly name: string;
+      }
+    /** The definition reads itself, through other sets. */
+    | {
+          /** The reason's kind. */
+          readonly kind: "cycle";
+          /** The ids of the sets the cycle passes through, in order. */
+          readonly through: readonly string[];
+      }
     /** `name` is a kind, field or algorithm; a plugin's is spelled `<package>:<kind>`, naming what to install. */
-    | { readonly kind: "missing-capability"; readonly name: string }
+    | {
+          /** The reason's kind. */
+          readonly kind: "missing-capability";
+          /** What is missing. */
+          readonly name: string;
+      }
     /** A held execution's values were not kept: the set resolves to nothing. */
-    | { readonly kind: "values-not-kept"; readonly run: RunId }
+    | {
+          /** The reason's kind. */
+          readonly kind: "values-not-kept";
+          /** The run. */
+          readonly run: RunId;
+      }
     /** Edge members more than one edge carries, which bind neither. */
-    | { readonly kind: "ambiguous-parallel-edge"; readonly count: number }
-    | { readonly kind: "invalid"; readonly message: string }
+    | {
+          /** The reason's kind. */
+          readonly kind: "ambiguous-parallel-edge";
+          /** How many such members. */
+          readonly count: number;
+      }
+    /** The definition cannot be read. */
+    | {
+          /** The reason's kind. */
+          readonly kind: "invalid";
+          /** What is wrong with it. */
+          readonly message: string;
+      }
     /** A run recorded a revision of another scheme version; its freshness is unknown until re-run. */
-    | { readonly kind: "revision-unknown"; readonly run: RunId }
+    | {
+          /** The reason's kind. */
+          readonly kind: "revision-unknown";
+          /** The run. */
+          readonly run: RunId;
+      }
     /** A set this one reads is not current. */
-    | { readonly kind: "input"; readonly id: SetId; readonly freshness: Exclude<SetStatus["freshness"], "current"> };
+    | {
+          /** The reason's kind. */
+          readonly kind: "input";
+          /** The set it reads. */
+          readonly id: SetId;
+          /** That set's freshness. */
+          readonly freshness: Exclude<SetStatus["freshness"], "current">;
+      };
 
 /**
  * One thing that names a set: "Used by". OPEN UNION on `kind`: kinds may be added in a minor
@@ -119,6 +178,8 @@ export interface SetUser {
     /**
      * What to show for it: a layer's or set's name, "Visibility filter", "Layout (ngraph)", a
      * note's first line cut to 80 characters.
+     * @deprecated English text the element composed. Write your own words from `kind` and `id`:
+     *   look up the layer, set, run or note by `id`, or name the layout type `id` holds.
      */
     readonly label: string;
 }

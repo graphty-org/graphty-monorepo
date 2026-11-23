@@ -33,7 +33,6 @@ import {
     Checkbox,
     Group,
     Input,
-    Loader,
     Menu,
     NavLink,
     NumberInput,
@@ -43,7 +42,7 @@ import {
     Title,
     Tooltip,
 } from "@mantine/core";
-import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { meaningGloss, weightName } from "../analyze/words";
 import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
@@ -58,7 +57,7 @@ import { readPasted } from "../start/open";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
-import { showNotices, timelineOn } from "../time/timeActions";
+import { showNotices } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
 import {
     elementRole,
@@ -545,6 +544,21 @@ interface PartProps {
 function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => void }): React.JSX.Element {
     const { store } = useWorkspace();
     const [entry, setEntry] = useState(false);
+    // An address entered in "From a URL" keeps it open, with its bar, until the read ends.
+    const [entryReading, setEntryReading] = useState(false);
+    const sawReading = useRef(false);
+    useEffect(() => {
+        if (!entryReading) {
+            return;
+        }
+        if (page.reading) {
+            sawReading.current = true;
+        } else if (sawReading.current) {
+            sawReading.current = false;
+            setEntryReading(false);
+            setEntry(false);
+        }
+    }, [entryReading, page.reading]);
     const addButton = useRef<HTMLButtonElement>(null);
     const { draft } = page;
     const paste = async (): Promise<void> => {
@@ -601,12 +615,17 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                         <Popout.Content>
                             {entry ? (
                                 <FileSource
+                                    submitOnBlur
+                                    barUnderField
                                     variant="row"
                                     url
                                     multiple
                                     placeholder="Address"
+                                    disabled={entryReading}
+                                    progress={entryReading ? page.readProgress : undefined}
                                     onUrl={(url) => {
-                                        setEntry(false);
+                                        sawReading.current = false;
+                                        setEntryReading(true);
                                         page.setSource({ kind: "url", url });
                                     }}
                                     onFiles={(files) => {
@@ -764,29 +783,28 @@ function MainView({
     onFiles,
 }: PartProps & { joins: Joins; onChooseFiles: () => void; onFiles: (files: File[]) => void }): React.JSX.Element {
     const { draft, source } = page;
-    if (source === null) {
-        // The whole page takes a drop; this area says so at the size of the space it fills.
+    // A source chosen but not yet read (the render before its read starts) counts as reading.
+    const reading = page.reading || (source !== null && draft === null && page.readError === null);
+    if (source === null || reading) {
+        // The whole page takes a drop; this area says so at the size of the space it fills. While a
+        // source is read it stays, with the read's bar under its URL field.
         return (
             <div className="dp-drop">
                 <FileSource
+                    submitOnBlur
+                    barUnderField
                     variant="drop"
                     multiple
                     url
+                    disabled={reading}
+                    progress={reading ? page.readProgress : undefined}
+                    status={source === null ? undefined : { label: `Reading ${sourceName(source)}` }}
                     onFiles={onFiles}
                     onUrl={(url) => {
                         page.setSource({ kind: "url", url });
                     }}
                 />
             </div>
-        );
-    }
-    if (page.reading) {
-        return (
-            <Group gap="xs" p="md">
-                <Loader size="xs" />
-                {/* No running row count until prepare() reports progress (#910). */}
-                <Text size="sm">Reading {sourceName(source)}</Text>
-            </Group>
         );
     }
     if (draft === null) {
@@ -797,7 +815,7 @@ function MainView({
             </Stack>
         );
     }
-    const table = draft.tables.find((each) => each.id === page.tableId) ?? draft.tables[0];
+    const table = draft.tables.find((each) => each.id === page.tableId) ?? draft.tables.at(0);
     const tooLarge = page.report?.tooLarge ?? null;
     let problem: Refusal | null = tooLarge === null ? null : tooLargeRefusal(tooLarge);
     if (page.reportError !== null) {
@@ -1014,26 +1032,49 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                                     }}
                                 />
                             ) : null}
-                            <NumberInput
-                                label="Error limit"
-                                description="Bad rows read past before the file is refused"
-                                size="sm"
-                                min={0}
-                                allowDecimal={false}
-                                placeholder="100"
-                                value={settings.errorLimit ?? ""}
-                                onChange={(value) => {
-                                    page.setSettings({
-                                        ...settings,
-                                        errorLimit: typeof value === "number" ? value : undefined,
-                                    });
-                                }}
-                            />
+                            <ErrorLimit page={page} />
                         </Stack>
                     </Popout.Content>
                 </Popout.Panel>
             </Popout>
         </Group>
+    );
+}
+
+/**
+ * File settings' Error limit. The number is used once the reader is done with it (Enter, or
+ * leaving the box): reading the file again takes File settings off the page while it reads, so a
+ * read on each keystroke kept only the first digit typed.
+ * @param props - Component props
+ * @param props.page - The page state
+ * @returns The box
+ */
+function ErrorLimit({ page }: PartProps): React.JSX.Element {
+    const { settings } = page;
+    const [typed, setTyped] = useState<string | number>(settings.errorLimit ?? "");
+    const commit = (): void => {
+        const errorLimit = typeof typed === "number" ? typed : undefined;
+        if (errorLimit !== settings.errorLimit) {
+            page.setSettings({ ...settings, errorLimit });
+        }
+    };
+    return (
+        <NumberInput
+            label="Error limit"
+            description="Bad rows read past before the file is refused"
+            size="sm"
+            min={0}
+            allowDecimal={false}
+            placeholder="100"
+            value={typed}
+            onChange={setTyped}
+            onBlur={commit}
+            onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                    commit();
+                }
+            }}
+        />
     );
 }
 
@@ -1074,17 +1115,10 @@ function roleChoices(
  * @returns The list
  */
 function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table: DraftTable }): React.JSX.Element {
-    const { session } = useWorkspace();
     const kind = rowsAreOf(draft, table, page.choices);
     const changed = kindChanged(draft, table, page.choices);
-    // With the timeline off Time is no choice, but a role the element already reads stays shown.
-    const timeOffered =
-        timelineOn(session) ||
-        table.columns.some((column) => elementRole(draft, table, column.name, page.choices) === "time");
     const options: { value: string; label: string }[] = [
-        ...LOAD_ROLES[kind].takes
-            .filter((role) => role !== "time" || timeOffered)
-            .map((role) => ({ value: role, label: roleWords(role) })),
+        ...LOAD_ROLES[kind].takes.map((role) => ({ value: role, label: roleWords(role) })),
         { value: "attribute", label: roleWords("attribute") },
         // After a kind change the element's new reading of each role is not reported (#911).
         ...(changed ? [{ value: "auto", label: "Auto" }] : []),
@@ -1144,9 +1178,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                             {marked ? `, ${TIMELINE_CANDIDATE}` : ""}
                         </Text>
                         {/* A number column holding times says how its numbers read: epoch or years. */}
-                        {timelineOn(session) &&
-                        (chosen ?? own) === "time" &&
-                        (column.type === "number" || column.type === "integer") ? (
+                        {(chosen ?? own) === "time" && (column.type === "number" || column.type === "integer") ? (
                             <Select
                                 size="xs"
                                 label="Unit"
@@ -1569,8 +1601,10 @@ function Footer({
     const counted = page.report !== null || page.reportError !== null;
     const decided = useRef<LoadDraft | null>(null);
     // The control that chose the file goes as the file is read: focus waits on the primary
-    // button, which takes the read's result, rather than falling back to the rail.
-    useEffect(() => {
+    // button, which takes the read's result, rather than falling back to the rail. A layout
+    // effect, so focus moves in the commit that removed that control, before the workspace's
+    // focus guard can find it lost and hand it elsewhere (#9005).
+    useLayoutEffect(() => {
         if (page.reading && focusIsLost()) {
             (replacePrimary ? replaceButton : loadButton).current?.focus();
         }

@@ -6,11 +6,16 @@
 import { assert, describe, it } from "vitest";
 
 import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
-import type { Graph } from "../../../src/Graph";
-import { InputGraph } from "../input/harness";
-import { assertComputesOverScope, assertOverGeneratedScopes, describeScopedAdapter, runScoped } from "./harness";
+import type { AlgorithmHost } from "../../../src/algorithms/host";
+import {
+    assertComputesOverScope,
+    assertOverGeneratedScopes,
+    describeScopedAdapter,
+    runScoped,
+    scopedGraph,
+} from "./harness";
 
-const build = (graph: Graph): BFSAlgorithm => new BFSAlgorithm(graph);
+const build = (graph: AlgorithmHost): BFSAlgorithm => new BFSAlgorithm(graph);
 
 describeScopedAdapter("bfs", build);
 
@@ -22,7 +27,7 @@ describe("bfs over generated scopes", () => {
 
 describe("bfs over a scope", () => {
     it("with no source, walks from the scope's first node", async () => {
-        const graph = new InputGraph(
+        const graph = await scopedGraph(
             ["x", "b", "c"],
             [
                 ["x", "b"],
@@ -36,7 +41,7 @@ describe("bfs over a scope", () => {
     });
 
     it("an early stop at a target walks only the scope", async () => {
-        const graph = new InputGraph(
+        const graph = await scopedGraph(
             ["a", "x", "b", "d", "c"],
             [
                 ["a", "x"],

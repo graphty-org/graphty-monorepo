@@ -1,7 +1,7 @@
 /**
  * @file The pieces drawn over a node's face: a pie's slices, a striped fill's bands and an image's
  * placement (`pie`, `stripes` and `image` of a node style), as plain geometry in the node's own
- * plane, centred on the node, y up. No Babylon.js, so it is tested on its own.
+ * plane, centered on the node, y up. No Babylon.js, so it is tested on its own.
  */
 import type { NodeStyleConfig } from "../config";
 import { toColorValue } from "../session/styles/channels";
@@ -14,6 +14,8 @@ export interface ColorPiece {
     readonly rgb: readonly [number, number, number];
     /** 0..1. */
     readonly opacity: number;
+    /** A color for each point of its outline in place of `rgb`, blended between them: a gradient. */
+    readonly vertexRgb?: readonly (readonly [number, number, number])[];
 }
 
 /** A box in the node's plane, y up. */
@@ -143,7 +145,7 @@ export function pieSlices(pie: NodeStyleConfig["pie"], width: number, height: nu
 /**
  * A striped fill's bands over a node `width` x `height`: bands following one another top to bottom
  * (`direction` "down", the default) or left to right ("right"), each its share of the box, over a
- * box `size` times the node's, centred on it.
+ * box `size` times the node's, centered on it.
  * @param stripes - The node style's stripes block.
  * @param width - The node's width.
  * @param height - Its height.
@@ -522,31 +524,76 @@ export function shapeLinePieces(
 
 /**
  * A table label's backgrounds (`BGCOLOR`) as filled boxes, in the order given, each box in fractions of the node's
- * half width and half height, y up; a color that cannot be read is dropped.
- * @param fills - The boxes and their colors.
+ * half width and half height, y up; a rounded one filled inside its outline, a gradient one blended from its color to
+ * the gradient's across its box; a color that cannot be read is dropped.
+ * @param fills - The boxes, their colors, gradients and outlines.
  * @param width - The face's width.
  * @param height - Its height.
  * @returns The pieces.
  */
 export function tableFillPieces(
-    fills: readonly { readonly box: PieceBox; readonly color: string }[],
+    fills: readonly {
+        readonly box: PieceBox;
+        readonly color: string;
+        readonly gradient?: { readonly to: string; readonly angle: number };
+        readonly outline?: readonly (readonly [number, number])[];
+    }[],
     width: number,
     height: number,
 ): (ColorPiece & { readonly box: PieceBox })[] {
     const [hw, hh] = [width / 2, height / 2];
-    return fills.flatMap(({ box: b, color }) => {
+    return fills.flatMap(({ box: b, color, gradient, outline: drawn }) => {
         const c = paint(color);
         if (c === null) {
             return [];
         }
         const box = { x0: b.x0 * hw, y0: b.y0 * hh, x1: b.x1 * hw, y1: b.y1 * hh };
-        const outline: Point2[] = [
-            [box.x0, box.y0],
-            [box.x1, box.y0],
-            [box.x1, box.y1],
-            [box.x0, box.y1],
-        ];
-        return [{ outline, box, ...c }];
+        // a rounded outline is laid clockwise on screen; the pieces are counter-clockwise
+        const outline: Point2[] =
+            drawn === undefined
+                ? [
+                      [box.x0, box.y0],
+                      [box.x1, box.y0],
+                      [box.x1, box.y1],
+                      [box.x0, box.y1],
+                  ]
+                : drawn.map(([x, y]): Point2 => [x * hw, y * hh]).reverse();
+        const to = gradient === undefined ? null : paint(gradient.to);
+        if (gradient === undefined || to === null) {
+            return [{ outline, box, ...c }];
+        }
+        return [{ outline, box, ...c, vertexRgb: gradientColors(outline, box, c.rgb, to.rgb, gradient.angle) }];
+    });
+}
+
+/**
+ * The colors of a linear gradient at each point of an outline: from one color at the box's middle less half its width
+ * times the angle's cosine and half its height times its sine (y down), to the other as far the other way, as a node's
+ * gradient runs over its box; held at the end colors past them.
+ * @param outline - The points, y up.
+ * @param box - The box the gradient runs over, y up.
+ * @param from - Its first color.
+ * @param to - Its last color.
+ * @param angle - Which way it runs, in degrees clockwise on screen from left to right.
+ * @returns A color for each point.
+ */
+function gradientColors(
+    outline: readonly Point2[],
+    box: PieceBox,
+    from: readonly [number, number, number],
+    to: readonly [number, number, number],
+    angle: number,
+): [number, number, number][] {
+    const a = (angle * Math.PI) / 180;
+    const [w, h] = [box.x1 - box.x0, box.y1 - box.y0];
+    // ponytail: colors blend linearly between points, so a gradient held at its ends (a diagonal one past a box's
+    // corners) blends a little off inside; exact at 0, 90, 180 and 270 degrees
+    return outline.map(([x, y]) => {
+        const u = w > 0 ? (x - box.x0) / w : 0.5;
+        const v = h > 0 ? (box.y1 - y) / h : 0.5;
+        const t = Math.max(0, Math.min(1, 0.5 + (u - 0.5) * Math.cos(a) + (v - 0.5) * Math.sin(a)));
+        const mix = (i: number): number => from[i] + (to[i] - from[i]) * t;
+        return [mix(0), mix(1), mix(2)];
     });
 }
 

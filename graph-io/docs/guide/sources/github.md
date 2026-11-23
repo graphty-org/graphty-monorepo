@@ -55,6 +55,7 @@ graphml: 107 nodes, 352 edges
 | `repository` | the repository, `owner/name`; required                                          |
 | `path`       | loading: the file's path in the repository; required. Listing: a folder to list |
 | `ref`        | a branch, tag or commit; default the repository's default branch                |
+| `release`    | a release's tag, or `"latest"`: `path` then names one of the release's assets   |
 
 The endpoint defaults to `https://api.github.com/`. For GitHub Enterprise Server, pass its API
 address (`https://github.example.com/api/v3/`) as `endpoint`.
@@ -70,12 +71,27 @@ page, or null on the last.
 Every file is listed, graph files or not; narrow the list with `search` (`".graphml"`) when you
 want one kind.
 
+## Releases
+
+With `release`, the source reads a release's assets instead of the repository's files:
+`loadFromSource(githubSource, { repository, release: "v1.0", path: "network.graphml" })` loads the
+asset `network.graphml` of the release tagged `v1.0`, and
+`listFromSource(githubSource, { params: { repository, release: "v1.0" } })` lists the release's
+assets. `release: "latest"` reads the newest release.
+
+The asset is downloaded from its public download address, without the token, so only a public
+repository's assets load. That address redirects to a host that sends no CORS headers, so release
+assets load in Node but not in a browser, where the load fails with `E_SOURCE_BLOCKED`. Listing them
+works in both.
+
 ## Links
 
 `parseGithubUrl(url)` reads a link a reader pastes: a repository page
 (`https://github.com/owner/name`), a file or folder page (`.../blob/main/data/graph.graphml`,
-`.../tree/main/data`) or a raw file link (`https://raw.githubusercontent.com/owner/name/main/data/graph.graphml`).
-It returns `{ repository, ref, path }` to load or list with. Anything else is rejected with
+`.../tree/main/data`), a raw file link (`https://raw.githubusercontent.com/owner/name/main/data/graph.graphml`),
+a release page (`.../releases/tag/v1.0`, `.../releases/latest`) or a release asset link
+(`.../releases/download/v1.0/graph.graphml`). It returns `{ repository, ref, path }`, or
+`{ repository, release, path }` for a release, to load or list with. Anything else is rejected with
 `E_SOURCE_PARAM` (`name: "url"`).
 
 ## Tokens and rate limits
@@ -87,11 +103,12 @@ the endpoint, never stored with the parameters and never written in an error or 
 
 ## Errors
 
-| Code                 | When                                                                                                                                  |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `E_SOURCE_NOT_FOUND` | no such repository or file: `params.what` is `"repository"` or `"file"`. GitHub answers a private repository this way without a token |
-| `E_SOURCE_QUOTA`     | the rate limit is used up; `params.retryAfterMs` is how long until GitHub resets it                                                   |
-| `E_SOURCE_FORBIDDEN` | the token may not read the repository                                                                                                 |
-| `E_SOURCE_AUTH`      | GitHub refused the token                                                                                                              |
-| `E_SOURCE_RESPONSE`  | the file is in no format graph-io reads                                                                                               |
-| `E_SOURCE_PARAM`     | `repository` is not `owner/name`, or `path` or `ref` holds an empty, `.` or `..` part                                                 |
+| Code                 | When                                                                                                                                                        |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_SOURCE_NOT_FOUND` | no such repository, release or file: `params.what` is `"repository"`, `"release"` or `"file"`. GitHub answers a private repository this way without a token |
+| `E_SOURCE_QUOTA`     | the rate limit is used up; `params.retryAfterMs` is how long until GitHub resets it                                                                         |
+| `E_SOURCE_FORBIDDEN` | the token may not read the repository                                                                                                                       |
+| `E_SOURCE_AUTH`      | GitHub refused the token                                                                                                                                    |
+| `E_SOURCE_RESPONSE`  | the file is in no format graph-io reads                                                                                                                     |
+| `E_SOURCE_BLOCKED`   | in a browser, a release asset: its download host sends no CORS headers                                                                                      |
+| `E_SOURCE_PARAM`     | `repository` is not `owner/name`, or `path`, `ref` or `release` holds an empty, `.` or `..` part                                                            |

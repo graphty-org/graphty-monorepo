@@ -227,7 +227,7 @@ describe("reportSinkOptions (design 8.4 precedence)", () => {
         const report = new ImportReportBuilder("test", 100);
         expect(reportSinkOptions(lenient, { addMissingNodes: false }, report, true)).toBe(0);
         expect(reportSinkOptions(lenient, { addMissingNodes: false }, report)).toBe(1);
-        // the looser request against a refusing sink is never honoured
+        // the looser request against a refusing sink is never honored
         expect(reportSinkOptions(sink(), { addMissingNodes: true }, report, true)).toBe(1);
         expect(report.finish().issues.map((i) => i.element)).toEqual(["addMissingNodes", "addMissingNodes"]);
     });

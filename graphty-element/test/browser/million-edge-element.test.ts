@@ -60,7 +60,7 @@ describe("a million edges through the element", () => {
         const { nodes, edges } = graph();
         await element.session.data.addNodes(nodes);
         await element.session.data.addEdges(edges);
-        await element.graph.setLayout("fixed", { dim: 2 });
+        await element.graph.setLayout("fixed", { dim: 2, spacing: 0 });
         await element.session.styles.add({
             name: "plain",
             target: "edge",

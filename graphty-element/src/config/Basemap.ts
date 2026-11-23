@@ -16,9 +16,8 @@ export type BasemapSourceId = MapSourceId | "none";
 const projection = z.enum(["web-mercator", "equirectangular"]);
 const bounds = z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]);
 /**
- * Whether the element draws the map's credits in the canvas's bottom-right corner (the default).
- * Every map source's terms require visible credits: set false only when the page shows
- * `basemapStatus.attribution` itself.
+ * Accepted so saved settings still load; it changes nothing. The element never draws the map's
+ * credits over the canvas: they are in `basemapStatus.attribution` for a page to show elsewhere.
  */
 const attributionShown = z.boolean().optional();
 /**
@@ -36,16 +35,26 @@ const beyond = z.enum(["continue", "clip"]).optional();
  * @since 3.31.0
  */
 export const Basemap = z.union([
-    z.strictObject({ source: z.string() as z.ZodType<BasemapSourceId>, attributionShown, beyond }),
+    z.strictObject({
+        /** The named source to draw (see {@link BasemapSourceId}). */
+        source: z.string() as z.ZodType<BasemapSourceId>,
+        attributionShown,
+        beyond,
+    }),
     z.strictObject({
         /** An XYZ URL template: `{z}`, `{x}`, `{y}`, `{-y}`, `{s}` and `{r}`. */
         tiles: z.string().min(1),
-        /** The credit the provider requires, shown whenever its tiles are. */
+        /** The provider's credit, reported in `basemapStatus.attribution`. */
         attribution: z.string(),
+        /** The projection the tiles are drawn in; default web-mercator. */
         projection: projection.optional(),
+        /** The width and height of one tile, in pixels; default 256. */
         tileSize: z.number().int().positive().optional(),
+        /** The lowest zoom level the service has tiles for; default 0. */
         minZoom: z.number().int().nonnegative().optional(),
+        /** The highest zoom level the service has tiles for; default 19. */
         maxZoom: z.number().int().nonnegative().optional(),
+        /** The values `{s}` in the URL template takes, spread across requests; default none. */
         subdomains: z.array(z.string()).optional(),
         attributionShown,
         beyond,
@@ -57,6 +66,7 @@ export const Basemap = z.union([
         bounds: bounds.optional(),
         /** The projection it is drawn in; default equirectangular. */
         projection: projection.optional(),
+        /** The picture's credit, reported in `basemapStatus.attribution`. */
         attribution: z.string().optional(),
         attributionShown,
         beyond,
@@ -69,7 +79,7 @@ export type BasemapConfig = z.infer<typeof Basemap>;
 /**
  * What the map under a geographic layout is doing, for an application to show: which source,
  * whether its pictures are loading, drawn, or failed (so the bundled world shows instead), and
- * the credits of everything drawn, which must be visible whenever the map is.
+ * the credits of everything drawn, as data for the page to show where it chooses.
  * @since 3.31.0
  */
 export interface BasemapStatus {
@@ -89,13 +99,25 @@ export interface BasemapStatus {
  */
 export type LocationSourceFact =
     | {
+          /** Read from a latitude column and a longitude column. */
           readonly kind: "columns";
+          /** The latitude column. */
           readonly latitude: string;
+          /** The longitude column. */
           readonly longitude: string;
+          /** Which of the two was found by name because only the other was set, or null when both were set. */
           readonly filled: "latitude" | "longitude" | null;
       }
-    | { readonly kind: "location"; readonly column: string; readonly format: LocationFormat }
     | {
+          /** Read from one column holding both coordinates. */
+          readonly kind: "location";
+          /** The column. */
+          readonly column: string;
+          /** The format its values were read in. */
+          readonly format: LocationFormat;
+      }
+    | {
+          /** Read from a column of place names. */
           readonly kind: "place";
           /** The column of place names. */
           readonly column: string;
@@ -104,7 +126,12 @@ export type LocationSourceFact =
           /** The column that narrowed each name, or null. */
           readonly within: string | null;
           /** The credits owed for the place data used (GeoNames for cities), shown with the map's. */
-          readonly attribution: readonly { readonly text: string; readonly url: string }[];
+          readonly attribution: readonly {
+              /** The credit's text. */
+              readonly text: string;
+              /** The page the credit links to. */
+              readonly url: string;
+          }[];
       };
 
 /**
@@ -116,6 +143,7 @@ export type LocationSourceFact =
 export type MapFrameFact = {
     /** 2 in the 2D view, 3 in the 3D view. */
     readonly dimensions: 2 | 3;
+    /** Where the locations were read. */
     readonly location: LocationSourceFact;
     /** The ids of the nodes with no place on the map. */
     readonly unplaced: readonly (string | number)[];
@@ -123,11 +151,17 @@ export type MapFrameFact = {
      * The warnings the run reported about reading the locations (`W_LOCATION_*`), each a code and
      * its parameters, as its `layout-warning` events carried them.
      */
-    readonly warnings: readonly { readonly code: string; readonly params: Readonly<Record<string, unknown>> }[];
+    readonly warnings: readonly {
+        /** The warning's code. */
+        readonly code: string;
+        /** The warning's parameters. */
+        readonly params: Readonly<Record<string, unknown>>;
+    }[];
 } & (
     | {
           /** A 2D (flat) map. */
           readonly mapDimension: "2d";
+          /** The projection the map is drawn in. */
           readonly projection: ProjectionId;
           /** The box shown, `[[west, south], [east, north]]`; east passes 180 across the date line. */
           readonly bounds: GeoBounds;
@@ -137,6 +171,7 @@ export type MapFrameFact = {
     | {
           /** The 3D map: a globe. */
           readonly mapDimension: "3d";
+          /** The globe's radius, in scene units. */
           readonly radius: number;
           /** The box of the data on the globe, `[[west, south], [east, north]]`, or the whole world. */
           readonly bounds: GeoBounds;
@@ -156,9 +191,14 @@ export interface GlobeLook {
      * Where the sun is overhead, in degrees: the far side of the globe is drawn dark, with a soft
      * twilight between. Default none: every side lit alike.
      */
-    readonly sun?: { readonly lat: number; readonly lon: number } | null;
+    readonly sun?: {
+        /** The latitude the sun is overhead at, in degrees. */
+        readonly lat: number;
+        /** The longitude the sun is overhead at, in degrees. */
+        readonly lon: number;
+    } | null;
     /**
-     * A colour (`#rrggbb`) the canvas is cleared to while the globe is drawn, in place of the
+     * A color (`#rrggbb`) the canvas is cleared to while the globe is drawn, in place of the
      * graph's own background, which comes back with a 2D map or another layout. Default none.
      */
     readonly background?: string | null;

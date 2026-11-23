@@ -4,6 +4,7 @@ import { afterEach, assert, beforeEach, describe, test } from "vitest";
 import { JOIN_TEMPLATE_POSITIONS } from "../../src/meshes/edgeJoinShader";
 import { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { Simple2DLineRenderer } from "../../src/meshes/Simple2DLineRenderer";
+import type { LineMeshMetadata } from "../../src/types/sceneMetadata";
 
 // What a 2D line draws on screen -- the rectangle of a straight edge, the joins of a bent one -- is
 // held by the pixels in test/browser/edge-corner-joins.test.ts. These hold what the batch is built
@@ -23,10 +24,10 @@ describe("Simple2DLineRenderer", () => {
         const mesh = Simple2DLineRenderer.createBatchMesh(0.1, "#ff0000", 0.5, scene);
 
         assert.strictEqual(mesh.getTotalVertices(), JOIN_TEMPLATE_POSITIONS.length / 3);
-        assert.strictEqual(mesh.metadata?.is2DLine, true);
-        assert.strictEqual(mesh.metadata?.joinedLine, true);
-        assert.strictEqual(mesh.metadata?.lineWidth, 0.1);
-        assert.strictEqual(mesh.metadata?.lineOpacity, 0.5);
+        assert.strictEqual((mesh.metadata as LineMeshMetadata | null)?.is2DLine, true);
+        assert.strictEqual((mesh.metadata as LineMeshMetadata | null)?.joinedLine, true);
+        assert.strictEqual((mesh.metadata as LineMeshMetadata | null)?.lineWidth, 0.1);
+        assert.strictEqual((mesh.metadata as LineMeshMetadata | null)?.lineOpacity, 0.5);
         assert.instanceOf(mesh.material, ShaderMaterial);
         assert.include(mesh.material.options.defines, "#define WORLD_WIDTH");
         assert.strictEqual(mesh.visibility, 0.5, "a translucent line is drawn in the transparent pass");

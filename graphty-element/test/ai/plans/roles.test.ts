@@ -78,8 +78,8 @@ describe("checkAgents", () => {
         ["the in-browser model", "webllm"],
         ["a provider of the host's own", "my-provider"],
     ])("rejects a model alone on %s, which the element cannot build a second of", (_case, main) => {
-        const modelled = [{ ...COUNTER, model: "small-model" }];
-        assert.deepInclude(rejection(modelled, main).params, {
+        const modeled = [{ ...COUNTER, model: "small-model" }];
+        assert.deepInclude(rejection(modeled, main).params, {
             agent: "counter",
             field: "model",
             reason: "unsupported",

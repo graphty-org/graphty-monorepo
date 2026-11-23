@@ -379,11 +379,13 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
                 ],
             });
             const out = await events(engine, request());
-            const calls = out.flatMap((e) => (e.type === "tool-call" ? [[e.id, e.arguments]] : []));
-            assert.deepStrictEqual(calls, [
-                ["t1", { selector: "a" }],
-                ["t2", { selector: "b" }],
-            ]);
+            const calls = out.flatMap((e) => (e.type === "tool-call" ? [e] : []));
+            assert.deepStrictEqual(
+                calls.map((call) => call.arguments),
+                [{ selector: "a" }, { selector: "b" }],
+            );
+            // An engine may mint its own ids, but each call has one no other call shares.
+            assert.strictEqual(new Set(calls.map((call) => call.id)).size, 2);
             assert.deepStrictEqual(out.at(-1), { type: "finish", reason: "tool-calls" });
             // One turn is one request: the model is not asked again with the calls' results.
             assert.strictEqual(seen().length, 1);
@@ -479,18 +481,18 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
             assert.deepStrictEqual(seen()[0].tools, ["findNodes"]);
         });
 
-        it("ends an aborted turn with AI_CANCELLED and nothing after it", async () => {
+        it("ends an aborted turn with AI_CANCELED and nothing after it", async () => {
             const { engine, hang } = make();
             hang();
             const controller = new AbortController();
             const pending = events(engine, request(), controller.signal);
             controller.abort();
             const out = await pending;
-            assert.strictEqual(endsInError(out).code, "AI_CANCELLED");
+            assert.strictEqual(endsInError(out).code, "AI_CANCELED");
             assert.notOk(out.some((e) => e.type === "tool-call"));
         });
 
-        it("ends a turn whose provider answers after the abort with AI_CANCELLED, dropping the answer", async () => {
+        it("ends a turn whose provider answers after the abort with AI_CANCELED, dropping the answer", async () => {
             const { engine, answerAfterAbort } = make();
             answerAfterAbort({
                 text: "late",
@@ -500,7 +502,7 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
             const pending = events(engine, request(), controller.signal);
             controller.abort();
             const out = await pending;
-            assert.strictEqual(endsInError(out).code, "AI_CANCELLED");
+            assert.strictEqual(endsInError(out).code, "AI_CANCELED");
             assert.notOk(out.some((e) => e.type === "tool-call"));
         });
 

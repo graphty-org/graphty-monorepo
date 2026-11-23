@@ -32,7 +32,7 @@ import type { LayerId, StyleDocumentRow } from "../../catalog/types";
 import type { CompiledLayer } from "./Layer";
 
 /** A row's id: its layer's id for a layer row, an element-minted `folder:` id for a folder. */
-export type StyleRowId = string; // NOSONAR(S6564): public API name in api/session.api.md, removing it is breaking
+export type StyleRowId = string; // eslint-disable-line sonarjs/redundant-type-aliases -- public API name in api/session.api.md, removing it is breaking
 
 /** Where a row is pinned among its siblings. */
 export type StyleRowPin = "top" | "bottom" | "none";
@@ -402,7 +402,7 @@ export function insertRow(rows: Rows, parent: StyleRowId | null, index: number, 
  * folder's run stays in that folder, and one added at the top of the stack lands at the top level.
  * @param rows - The rows before the edit.
  * @param planned - The stack the edit planned.
- * @param moved - A layer the edit moved, which is placed again like a new one.
+ * @param moved - A layer the edit moved, placed again by its new neighbors with its pin, lock and eye.
  * @returns The rows, banded by pin; the same array when nothing changed.
  */
 export function reconcile(rows: Rows, planned: readonly CompiledLayer[], moved?: LayerId): Rows {
@@ -414,6 +414,8 @@ export function reconcile(rows: Rows, planned: readonly CompiledLayer[], moved?:
         return rows;
     }
 
+    // The moved row is placed again by its new neighbors as it was: hidden, locked and pinned (#9307).
+    const movedRow = moved === undefined ? undefined : findRow(rows, moved)?.row;
     let next = pruneRows(rows, (row) => row.kind === "layer" && (!alive.has(row.id) || row.id === moved));
     const placed = new Set(layerIdsOf(next));
 
@@ -427,7 +429,7 @@ export function reconcile(rows: Rows, planned: readonly CompiledLayer[], moved?:
             .reverse()
             .find((each) => placed.has(each));
         const above = live.slice(at + 1).find((each) => placed.has(each));
-        next = placeBetween(next, id, below, above);
+        next = placeBetween(next, id === moved && movedRow !== undefined ? movedRow : layerRow(id), below, above);
         placed.add(id);
     }
 
@@ -438,14 +440,14 @@ export function reconcile(rows: Rows, planned: readonly CompiledLayer[], moved?:
  * Place a new layer row just above the row holding `below`, in the deepest folder holding both
  * neighbors.
  * @param rows - The rows.
- * @param id - The new layer.
+ * @param row - The new layer's row.
  * @param below - The nearest placed layer beneath it in the stack, if any.
  * @param above - The nearest placed layer above it in the stack, if any.
  * @returns The rows with it placed.
  */
-function placeBetween(rows: Rows, id: LayerId, below: LayerId | undefined, above: LayerId | undefined): Rows {
+function placeBetween(rows: Rows, row: RowNode, below: LayerId | undefined, above: LayerId | undefined): Rows {
     if (below === undefined) {
-        return insertRow(rows, null, 0, layerRow(id));
+        return insertRow(rows, null, 0, row);
     }
 
     const low = findRow(rows, below);
@@ -461,7 +463,7 @@ function placeBetween(rows: Rows, id: LayerId, below: LayerId | undefined, above
     const siblings = container === null ? rows : (container.children ?? []);
     const index = lowPath[depth] === undefined ? -1 : siblings.indexOf(lowPath[depth]);
 
-    return insertRow(rows, container?.id ?? null, index + 1, layerRow(id));
+    return insertRow(rows, container?.id ?? null, index + 1, row);
 }
 
 /**
@@ -584,4 +586,64 @@ export function readDocumentRows(
  */
 export function folderIdsOf(rows: Rows): StyleRowId[] {
     return rows.flatMap((row) => (row.kind === "folder" ? [row.id, ...folderIdsOf(row.children ?? [])] : []));
+}
+
+/**
+ * Whether the stack draws what lies outside the time window: for nodes and for edges alike, the
+ * topmost layer that paints (enabled, its row not hidden), selects
+ * `{ match: "state", state: "outsideWindow" }` and sets `visible` sets it true. With no such
+ * layer it is drawn as any other element, which this does not count as drawing it.
+ * @param stack - The stack.
+ * @returns True when both kinds are drawn.
+ */
+export function drawsOutsideWindow(stack: readonly CompiledLayer[]): boolean {
+    const painted = paintedStack(stack);
+    return drawsOutsideWindowOf(painted, "node") && drawsOutsideWindowOf(painted, "edge");
+}
+
+/**
+ * Whether the stack draws one kind outside the time window: see {@link drawsOutsideWindow}.
+ * @param painted - The stack as it paints ({@link paintedStack}).
+ * @param target - Nodes or edges.
+ * @returns True when that kind is drawn.
+ */
+export function drawsOutsideWindowOf(painted: readonly CompiledLayer[], target: "node" | "edge"): boolean {
+    const visible = outsideWindowVisible(painted, target);
+    return visible !== undefined && visible !== false;
+}
+
+/**
+ * The `visible` the topmost painting layer selecting `{ match: "state", state: "outsideWindow" }`
+ * sets for one kind, or undefined when no such layer sets it.
+ * @param painted - The stack as it paints ({@link paintedStack}).
+ * @param target - Nodes or edges.
+ * @returns The value it sets.
+ */
+function outsideWindowVisible(painted: readonly CompiledLayer[], target: "node" | "edge"): unknown {
+    for (let at = painted.length - 1; at >= 0; at--) {
+        const { layer } = painted[at];
+        const visible = layer.set?.[`${target}.visible`];
+        if (
+            layer.enabled &&
+            layer.target === target &&
+            layer.selector.match === "state" &&
+            layer.selector.state === "outsideWindow" &&
+            visible !== undefined
+        ) {
+            return visible;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * Whether the stack hides what lies outside the time window, of either kind: the topmost painting
+ * layer selecting `{ match: "state", state: "outsideWindow" }` that sets `visible` sets it false.
+ * @param stack - The stack.
+ * @returns True when nodes or edges outside the window are hidden.
+ */
+export function hidesOutsideWindow(stack: readonly CompiledLayer[]): boolean {
+    const painted = paintedStack(stack);
+    return (["node", "edge"] as const).some((target) => outsideWindowVisible(painted, target) === false);
 }

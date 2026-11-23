@@ -30,9 +30,10 @@ suggested_components:
     - data-table-panel
     - visual-encoding-panel
     - gradient-editor
-    - legend
+    - legend-panel
     - graph-canvas
-    - export-dialog
+    - data-export-dialog
+    - image-export-dialog
 starting_state:
     data_type: gene list (50-600 symbols) plus a wide per-gene data table
     node_count: 100-600
@@ -145,5 +146,5 @@ sources:
       url: https://jensenlab.org/training/stringapp/
       summary: Disambiguation dialogs and gradient optimization for skewed data listed as pain points
 version: 1.0.0
-created_at: 2026-09-04T00:00:00.000Z
-updated_at: 2026-09-04T00:00:00.000Z
+created_at: 2026-09-08T02:34:20.000Z
+updated_at: 2026-11-18T07:06:16.000Z

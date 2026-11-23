@@ -36,7 +36,7 @@ the wrong way round without noticing.
   than a slower one he can.
 - **Jargon.** As in his first file, he reads plain descriptions under a control before its name.
 
-## Behaviour rules for playing Dev, returning
+## Behavior rules for playing Dev, returning
 
 - **Reads the screen for proof.** After a calculation he looks for where the program says what it
   used, and says aloud whether that matches what he meant.

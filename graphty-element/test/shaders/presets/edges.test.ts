@@ -131,8 +131,8 @@ const TABLE: readonly {
         params: [
             ["flashColor", "color", "#e8f4ff", undefined, undefined, true],
             ["arriveTime", "number", { by: "since.matched", domain: [0, 0.5], range: [0, 0.5] }],
-            ["changeTime", "number", { by: "since.changed", domain: [0, 0.5], range: [0, 0.5] }],
-            ["leaveTime", "number", { by: "since.unmatched", domain: [0, 0.5], range: [0, 0.5] }],
+            ["changeTime", "number", { by: "since.changed", domain: [-0.5, 0.5], range: [-0.5, 0.5] }],
+            ["leaveTime", "number", { by: "since.unmatched", domain: [-0.5, 0.5], range: [-0.5, 0.5] }],
         ],
     },
 ];

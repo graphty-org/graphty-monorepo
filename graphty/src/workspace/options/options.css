@@ -1,4 +1,4 @@
-/* The `selection-workspace` forms: one line per option, its name at the left and its control filling
+/* The forms: one line per option, its name at the left and its control filling
    the rest, as Figma's property rows and the approved prototype's settings. Every control ends at
    the form's right edge and starts its value at one x. */
 .ws-options-rows {

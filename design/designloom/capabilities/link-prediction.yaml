@@ -3,7 +3,8 @@ name: Link Prediction
 category: analysis
 description: Predict which connections are likely to form between currently unconnected nodes. Use structural features
     (common neighbors, path length) to score potential edges. Useful for recommendation systems and fraud detection.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/algorithms/LinkPredictionAlgorithm.ts."
 algorithms:
     - Common neighbors
     - Jaccard coefficient

@@ -14,7 +14,7 @@ Seen: the links table with Source, Target and km. Good, the lengths are there. 1
 Command: --step <session> --wheel 740,750,400
 Screenshot: 03.png
 Seen: all 13 links now. Under 3 km (crew walks): Birch Hollow-Willow Run 2.8, Upper Falls-Mill Pond 1.9, Mill Pond-Cedar Bend 2.4, Quarry Pool-Mill Pond 1.6, Cedar Bend-Fox Creek 2.1, Fox Creek-Old Bridge 1.7, Old Bridge-Stone Weir 2.5, Stone Weir-Heron Marsh 1.9, Heron Marsh-Lake Inlet 2.2, Quarry Pool-Cedar Bend 2. Too long: Willow Run-Upper Falls 3.2, Fox Creek-Heron Marsh 3.6, Old Bridge-Heron Marsh 3.1.
-Counting by hand on paper: gauges with two or more walkable neighbours are Mill Pond (3), Cedar Bend (3), Quarry Pool, Fox Creek, Old Bridge, Stone Weir, Heron Marsh (2 each) = 7. I'd rather the program did this, but I don't know where. Now I need to make them orange. I'll try the + next to Style layers, it's the only "add" I see.
+Counting by hand on paper: gauges with two or more walkable neighbors are Mill Pond (3), Cedar Bend (3), Quarry Pool, Fox Creek, Old Bridge, Stone Weir, Heron Marsh (2 each) = 7. I'd rather the program did this, but I don't know where. Now I need to make them orange. I'll try the + next to Style layers, it's the only "add" I see.
 
 ## Step 4
 Command: --step <session> --click-at 276,122
@@ -29,7 +29,7 @@ Seen: a "Layer 1" appeared with its name ready to type, and on the right "Which 
 ## Step 6
 Command: --step <session> --type "Crew walks" --key Enter --click "Which nodes"
 Screenshot: 06.png
-Seen: a "Which nodes -- Crew walks" screen with a list: Node id, lat, lon, depth_cm, station, code... Nothing about neighbours or km here. I worked the seven out myself, so I'll pick by station name.
+Seen: a "Which nodes -- Crew walks" screen with a list: Node id, lat, lon, depth_cm, station, code... Nothing about neighbors or km here. I worked the seven out myself, so I'll pick by station name.
 
 ## Step 7
 Command: --step <session> --click "station"  (ambiguous, nothing happened; 07.png)
@@ -63,7 +63,7 @@ Seen: now it says 1 of 11 and "station contains Mill Pond", only Mill Pond in th
 ## Step 13
 Command: --step <session> --click "Or..."
 Screenshot: 13.png
-Seen: it made "A" (green, Mill Pond) and "or B" (orange) with the attribute list open again. Groups with their own colours -- I just want them all one colour, but I'll go on. station, then Cedar Bend.
+Seen: it made "A" (green, Mill Pond) and "or B" (orange) with the attribute list open again. Groups with their own colors -- I just want them all one color, but I'll go on. station, then Cedar Bend.
 
 ## Step 14
 Command: --step <session> --click "role=option:station" --click-at 1040,218 --type "Cedar Bend" --key Enter --wait 1500
@@ -78,12 +78,12 @@ Seen: 2 of 11, Mill Pond (A) and Cedar Bend (B). Next: Or..., station, Quarry Po
 ## Step 16
 Command: --step <session> --click "Or..." --click "role=option:station" --click "station: text to match" --type "Quarry Pool" --key Enter --wait 1500
 Screenshot: 16.png
-Seen: 3 of 11, Quarry Pool is group C in purple. Each one gets its own colour, which I don't want, but the count is right. Adding Fox Creek, Old Bridge, Stone Weir, Heron Marsh the same way.
+Seen: 3 of 11, Quarry Pool is group C in purple. Each one gets its own color, which I don't want, but the count is right. Adding Fox Creek, Old Bridge, Stone Weir, Heron Marsh the same way.
 
 ## Step 17
 Command: --step <session> (Or/station/type x4 for Fox Creek, Old Bridge, Stone Weir, Heron Marsh)
 Screenshot: 17.png
-Seen: 6 of 11 -- Fox Creek, Old Bridge, Stone Weir went in, but then "Or..." went grey and would not click, so Heron Marsh is missing. Why can't I add a seventh? I'll hold the pointer on the grey "Or..." to see if it says why.
+Seen: 6 of 11 -- Fox Creek, Old Bridge, Stone Weir went in, but then "Or..." went gray and would not click, so Heron Marsh is missing. Why can't I add a seventh? I'll hold the pointer on the gray "Or..." to see if it says why.
 
 ## Step 18
 Command: --step <session> --hover-at 998,100
@@ -103,7 +103,7 @@ Seen: Fill now has a "Color" box, empty. I'll click into it.
 ## Step 21
 Command: --step <session> --click-at 1312,787
 Screenshot: 21.png
-Seen: a cursor in the colour box, no colour chart opened. I'll just type "orange" and Enter and see if it takes it.
+Seen: a cursor in the color box, no color chart opened. I'll just type "orange" and Enter and see if it takes it.
 
 ## Step 22
 Command: --step <session> --type "orange" --key Enter --wait 1500
@@ -118,7 +118,7 @@ Seen: "Crew walks 2", 1 of 11, Heron Marsh. Done, then Fill orange.
 ## Step 24
 Command: --step <session> --click "Done" --click "Add to node fill" --click "Node color, not set" --type "orange" --key Enter --wait 1500
 Screenshot: 24.png
-Seen: the key now shows "Color: Crew walks 2, 1 of 11 nodes" and "Color: Crew walks, 6 of 11 nodes", both orange. On the map 7 gauges are orange and 4 are still blue (Upper Falls, Willow Run, Birch Hollow, Lake Inlet -- each has only one walkable neighbour). Autosave says saved. I'm stopping here.
+Seen: the key now shows "Color: Crew walks 2, 1 of 11 nodes" and "Color: Crew walks, 6 of 11 nodes", both orange. On the map 7 gauges are orange and 4 are still blue (Upper Falls, Willow Run, Birch Hollow, Lake Inlet -- each has only one walkable neighbor). Autosave says saved. I'm stopping here.
 
 ## End of session (in character)
 Did I finish? Yes. Seven gauges are orange: Mill Pond, Cedar Bend, Quarry Pool, Fox Creek, Old Bridge, Stone Weir, Heron Marsh. Answer: 7.
@@ -127,14 +127,14 @@ How easy: 3 out of 7.
 
 What confused me:
 - The program never worked out which gauges have more than one short stretch next to them. I read the km column in the links table and counted on paper. If I'd miscounted, nothing would have told me.
-- The "Which nodes" screen gave every name I added its own colour (A green, B orange, C purple...). I only wanted one colour, and it wasn't clear whether those colours would end up on the map. They didn't -- the Fill I picked did -- but I didn't know that until the end.
-- After the 6th name, "Or..." went grey. Only by holding the pointer on it did I learn "6 is the most". So I had to make a second layer just for Heron Marsh. Now the key has two entries, "Crew walks" and "Crew walks 2", for the same thing; the team will ask why.
+- The "Which nodes" screen gave every name I added its own color (A green, B orange, C purple...). I only wanted one color, and it wasn't clear whether those colors would end up on the map. They didn't -- the Fill I picked did -- but I didn't know that until the end.
+- After the 6th name, "Or..." went gray. Only by holding the pointer on it did I learn "6 is the most". So I had to make a second layer just for Heron Marsh. Now the key has two entries, "Crew walks" and "Crew walks 2", for the same thing; the team will ask why.
 - I picked "Is exactly" and the box still said "Contains". It worked anyway because the names are all different, but I'm not sure my choice took.
 - After I typed the first name, the count stayed "11 of 11" until I pressed Enter in the box; I thought it had done nothing.
 - The boxes on the right moved up between one name and the next, so the second time I clicked "Advanced" instead of the text box.
-- The colour box had no colour chart. Typing "orange" worked, which was lucky.
+- The color box had no color chart. Typing "orange" worked, which was lucky.
 
 ## Follow-up
 Facilitator: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to walk away), how did the program feel while you did this? Say the number. Then name the moment you were least sure where to look or what to do next, and what was on the screen."
 
-Tom: 4. Most of it I could push through one click at a time, but I was never sure the program agreed with me. The moment I was least sure was right after I had the links table scrolled down (step 3): all 13 links with Source, Target and km on the screen, the map above, and the Style layers list on the left with a small +. I had to find which gauges had two or more stretches under 3 km, and nothing on that screen offered to work that out -- no count of neighbours, no filter on km. I did it by hand on paper, and then picked the + next to Style layers only because it was the only "add" I could see. I didn't know whether I was in the right place until the menu said "Layer". A close second was when "Or..." went grey after the sixth name with the six coloured groups A to F on the right -- no message until I held the pointer on it and it said "6 is the most".
+Tom: 4. Most of it I could push through one click at a time, but I was never sure the program agreed with me. The moment I was least sure was right after I had the links table scrolled down (step 3): all 13 links with Source, Target and km on the screen, the map above, and the Style layers list on the left with a small +. I had to find which gauges had two or more stretches under 3 km, and nothing on that screen offered to work that out -- no count of neighbors, no filter on km. I did it by hand on paper, and then picked the + next to Style layers only because it was the only "add" I could see. I didn't know whether I was in the right place until the menu said "Layer". A close second was when "Or..." went gray after the sixth name with the six colored groups A to F on the right -- no message until I held the pointer on it and it said "6 is the most".

@@ -66,8 +66,8 @@ export interface RunItem extends RawBase {
     sha: string;
     pr?: number;
     status: string; // queued | in_progress | completed
-    conclusion?: string; // success | failure | cancelled | timed_out | skipped | startup_failure | ...
-    /** For a cancelled run (4, "Master state"): never from timing. */
+    conclusion?: string; // success | failure | canceled | timed_out | skipped | startup_failure | ...
+    /** For a canceled run (4, "Master state"): never from timing. */
     cancelClass?: "superseded" | "by-hand" | "red";
     /** Why a failed attempt-1 pull request run failed (4, "Failure cause"); flaky once a rerun passed. */
     cause?: "infrastructure" | "shared_aggregator" | "shared_check" | "flaky" | "change";
@@ -183,7 +183,7 @@ export interface ShardRunItem extends RawBase {
     full: boolean; // a full run (the release train's ci lane)
     pr?: number;
     sha: string;
-    outcome: string; // passed | failed | error | infra | cancelled
+    outcome: string; // passed | failed | error | infra | canceled
     startedAt: number;
     endedAt: number;
     secs: number;
@@ -412,10 +412,17 @@ export const dirtyKey = (start5m: number): Key => ({ pk: DIRTY_PK, sk: skTime(st
 
 // Raised from 300_000 for the 28-day history backfill; set it back on 2026-11-02 (#3746).
 export const DAILY_ROW_LIMIT = 1_000_000;
+/**
+ * The public reads' daily budget (the Read and Results Lambdas), in DynamoDB read request units: about 0.06 USD a
+ * day at the on-demand rate. A dashboard viewer spends a few thousand a day; past it those Lambdas answer 429.
+ */
+export const DAILY_READ_LIMIT = 500_000;
 export const utcDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 export const quotaKey = (ms: number): Key => ({ pk: `QUOTA#${utcDay(ms)}`, sk: "-" });
 export interface QuotaItem extends Item {
     rows: number;
+    /** Read request units the public reads spent (readMeter in raw.ts). */
+    reads?: number;
 }
 
 export const cursorKey = (name: string): Key => ({ pk: `CURSOR#${name}`, sk: "-" });

@@ -687,7 +687,7 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         const known = Object.values(targets)
             .filter((t) => t.knownMiss?.["gpu-linux-t4"] !== undefined)
             .map((t) => t.id);
-        expect([...new Set(known)]).toEqual(["T-1", "T-2", "T-3", "T-7", "T-9"]);
+        expect([...new Set(known)]).toEqual(["T-1", "T-2", "T-3", "T-7"]);
     });
 
     it("a regression names the SM clock gpu.yml recorded for its group, so a clock drop is told from slower code (issue #703)", () => {
@@ -1222,7 +1222,7 @@ describe("benchmarks/layout-run.ts (contract 6.3)", () => {
         expect(text).toMatch(
             /^metrics: spread=33\.0000 edgeQ10=[\d.]+ edgeQ50=[\d.]+ edgeQ90=[\d.]+ nnBins\(1 in 32 nodes\)=\[/,
         );
-        // 34 nodes sampled every 32nd: two nodes (0 and 32), each the other's nearest neighbour at the mean distance
+        // 34 nodes sampled every 32nd: two nodes (0 and 32), each the other's nearest neighbor at the mean distance
         expect(text).toContain(
             "nnBins(1 in 32 nodes)=[0.0000, 0.0000, 0.0000, 0.0000, 1.0000, 0.0000, 0.0000, 0.0000]",
         );

@@ -278,14 +278,13 @@ describe("Graph Queue Integration", () => {
             // Wait for operations
             await operationQueueOf(graph).waitForCompletion();
 
-            // Verify algorithm-run was queued
+            // Verify algorithm-run was queued; the run's own id, which for a built-in algorithm is
+            // derived from its key.
+            const description: unknown = expect.stringContaining("degree");
             expect(queueSpy).toHaveBeenCalledWith(
                 "algorithm-run",
                 expect.any(Function),
-                expect.objectContaining({
-                    // The run's own id, which for a built-in algorithm is derived from its key.
-                    description: expect.stringContaining("degree"),
-                }),
+                expect.objectContaining({ description }),
             );
 
             queueSpy.mockRestore();

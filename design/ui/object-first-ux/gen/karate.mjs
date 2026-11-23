@@ -69,7 +69,7 @@ export const COMMUNITIES = {
 
 export const BOX = { w: 1000, h: 760 };
 
-// Betweenness centrality (NetworkX, normalised), rounded to three places:
+// Betweenness centrality (NetworkX, normalized), rounded to three places:
 // the values screen 9's table and screen 5's run show.
 export const BETWEENNESS = {
   1: 0.438, 2: 0.054, 3: 0.144, 4: 0.012, 5: 0.001, 6: 0.030, 7: 0.030, 8: 0, 9: 0.056,

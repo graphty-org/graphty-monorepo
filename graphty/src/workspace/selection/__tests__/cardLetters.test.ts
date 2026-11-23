@@ -6,7 +6,7 @@
 import type { UnionLeaf } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { addBranch, duplicateBranch, removeBranch } from "../model";
+import { addBranch, duplicateBranch, editBranch, removeBranch } from "../model";
 
 const empty: UnionLeaf = { kind: "union", side: "nodes", within: "graph", branches: [] };
 
@@ -37,6 +37,15 @@ describe("card letters", () => {
         const three = cards(3);
         const left = removeBranch(three, three.branches[0].id ?? "");
         assert.deepEqual(names(duplicateBranch(left, left.branches[0].id ?? "").rule), ["B", "D", "C"]);
+    });
+
+    it("a name the reader typed is kept when it is the last card, and never sets the next letter", () => {
+        const two = cards(2);
+        const typed = editBranch(two, two.branches[1].id ?? "", { name: "X" });
+        assert.isUndefined(typed.branches[1].autoName, "a typed name is not automatic");
+        assert.deepEqual(names(addBranch(typed).rule), ["A", "X", "B"]);
+        assert.deepEqual(names(removeBranch(typed, typed.branches[0].id ?? "")), ["X"]);
+        assert.deepEqual(names(removeBranch(typed, typed.branches[1].id ?? "")), [undefined]);
     });
 
     it("letters run on past Z", () => {

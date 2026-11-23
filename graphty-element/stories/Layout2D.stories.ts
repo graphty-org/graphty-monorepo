@@ -24,7 +24,7 @@ import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from
  *
  * TWO THINGS EVERY ONE OF THESE TWELVE PROMISES AND NONE OF THEM ASSERTED. That all of its nodes
  * are placed somewhere real and no two are stacked on one another -- a layout that never ran
- * draws a picture and used to pass -- and that the picture is FLAT, which is the whole of what
+ * still draws a picture -- and that the picture is FLAT, which is the whole of what
  * makes it a 2D layout rather than a 3D one.
  * @param canvasElement - Where the story was rendered.
  * @param story - How to name it in a failure message.
@@ -328,8 +328,8 @@ export const Shell: Story = {
     play: async ({ canvasElement }) => {
         const scene = await placed(canvasElement, "Shell", { nodes: 120, edges: 151 });
 
-        // Five shells, named in the story's own nlist: one node at the centre, then 5, 15, 30 and
-        // 69 around it. Five shells is five distinct distances from the centre.
+        // Five shells, named in the story's own nlist: one node at the center, then 5, 15, 30 and
+        // 69 around it. Five shells is five distinct distances from the center.
         const centre = scene.nodes
             .reduce((sum, node) => [sum[0] + node.position[0], sum[1] + node.position[1]], [0, 0])
             .map((total) => total / scene.nodes.length);

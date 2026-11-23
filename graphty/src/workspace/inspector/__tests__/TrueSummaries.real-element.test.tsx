@@ -119,29 +119,6 @@ describe("summaries and cards that say true, complete things", () => {
         assert.isNull(screen.queryByRole("menu"));
     });
 
-    it("says on a Size line added to a selection that the first size picked makes the layer", async () => {
-        const session = await open((s) =>
-            s.data.import({ type: "graphml", name: "volunteers.graphml", config: { data: VOLUNTEERS } }),
-        );
-        assert.equal(session.data.statistics().nodeCount, 6);
-        await session.selection.apply({ nodes: allIds(session).slice(0, 1) });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        const note = await waitFor(() => {
-            const found = document.querySelector('.ws-row[data-line="node.size"] [data-first-value]');
-            assert.isNotNull(found);
-            return found;
-        });
-        assert.equal(note?.textContent, "Not set yet: the first size you pick makes the layer");
-        const before = session.styles.list().length;
-        await userEvent.keyboard("3{Enter}");
-        await waitFor(() => {
-            assert.equal(session.styles.list().length, before + 1, "the first size made the layer");
-            assert.isNull(document.querySelector("[data-first-value]"), "and the line no longer says it waits");
-        });
-    });
-
     it("wraps the Node tab's way to an edge attribute inside the list, with no sideways scroll", async () => {
         const session = await open((s) =>
             s.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } }),

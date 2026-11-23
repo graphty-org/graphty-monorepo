@@ -54,7 +54,6 @@ import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import type { TimeStepEvent } from "../../session.js";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { DirtyRuns } from "../../src/meshes/DirtyRuns";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import type { SessionVisibilityApi } from "../../src/session/visibility/VisibilityApi";
@@ -397,7 +396,6 @@ export function describeFrames(nodes: number, load: "objects" | "batched" = "obj
 
         beforeAll(async () => {
             (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = false;
-            setDefaultFeatures(["timeline"]);
             const created = document.createElement("graphty-element");
             created.style.width = "1280px";
             created.style.height = "720px";

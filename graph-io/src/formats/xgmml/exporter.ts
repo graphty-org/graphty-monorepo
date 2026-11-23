@@ -27,6 +27,8 @@ import { itemAt, jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
+import { neutralPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import type { ExporterStyleInput, ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
@@ -222,6 +224,8 @@ interface Plan {
     /** 1 for a node a traversal from the roots reaches; the others are written without parents. */
     readonly reachable: Uint8Array;
     readonly position: Column | null;
+    /** The position column's rows in the neutral form (center, y up), x, y, z per node; null without one. */
+    readonly neutral: Float64Array | null;
     readonly edgeId: Column | null;
 }
 
@@ -684,6 +688,7 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, esc
         hierarchy,
         reachable: reachableNodes(snapshot.nodeCount, hierarchy),
         position,
+        neutral: position === null ? null : neutralPositions(snapshot, position),
         edgeId,
     };
 }
@@ -1148,11 +1153,10 @@ function coordsOf(plan: Plan, zColumn: Column | null, node: number): [string, st
  * @returns the coordinates as XML attributes (none for an unset or non-finite position)
  */
 function positionCoordsOf(plan: Plan, zColumn: Column | null, node: number): [string, string][] {
-    const xyz = cellOf(plan.position, node);
-    if (xyz === null) {
+    if (cellOf(plan.position, node) === null || plan.neutral === null) {
         return [];
     }
-    const coords = Array.from(xyz as ArrayLike<number>);
+    const coords = Array.from(plan.neutral.subarray(3 * node, 3 * node + 3));
     const [x, y] = coords;
     const z = itemAt(coords, 2);
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
@@ -1412,18 +1416,24 @@ function planFor(snapshot: GraphSnapshot, options: (XgmmlExportOptions & CommonE
  * The XGMML exporter.
  * @category Built-in formats
  */
-export const xgmmlExporter: GraphExporter<XgmmlExportOptions> = Object.freeze({
-    format: FORMAT,
-    options: Object.freeze(["cytoscapeEscapes"]),
-    capabilities: CAPABILITIES,
-    styles: Object.freeze({ capabilities: XGMML_STYLE_CAPABILITIES }),
-    check: (snapshot: GraphSnapshot, options?: XgmmlWriteOptions): readonly LossNote[] =>
-        Object.freeze([
-            ...planExport(snapshot, resolveExportOptions(options), resolveEscapes(options)).notes,
-            ...(options?.styles === undefined ? [] : styledGraphicsNotes(options.styles, snapshot)),
-        ]),
-    export: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> =>
-        encodeChunks(write(snapshot, options)),
-    exportToString: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): Promise<string> =>
-        joinText(write(snapshot, options)),
-});
+export const xgmmlExporter: GraphExporter<XgmmlExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: FORMAT,
+        options: Object.freeze(["cytoscapeEscapes"]),
+        capabilities: CAPABILITIES,
+        styles: Object.freeze({ capabilities: XGMML_STYLE_CAPABILITIES }),
+        check: (snapshot: GraphSnapshot, options?: XgmmlWriteOptions): readonly LossNote[] =>
+            Object.freeze([
+                ...planExport(snapshot, resolveExportOptions(options), resolveEscapes(options)).notes,
+                ...(options?.styles === undefined ? [] : styledGraphicsNotes(options.styles, snapshot)),
+            ]),
+        export: (
+            snapshot: GraphSnapshot,
+            options?: XgmmlExportOptions & CommonExportOptions,
+        ): AsyncIterable<Uint8Array> => encodeChunks(write(snapshot, options)),
+        exportToString: (
+            snapshot: GraphSnapshot,
+            options?: XgmmlExportOptions & CommonExportOptions,
+        ): Promise<string> => joinText(write(snapshot, options)),
+    }),
+);

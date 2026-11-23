@@ -70,6 +70,15 @@ describe("check", () => {
         }
     });
 
+    it("reports not checked when nx colors the 403 and prints its dry-run NOTE after it (#8417)", () => {
+        const tail =
+            "printf '\\033[7m\\033[1m\\033[31m NX \\033[39m  \\033[31mRequest failed with status code 403\\033[39m\\n\\n" +
+            "Pass --verbose to see the stacktrace.\\n\\n\\033[1m\\033[33m\\n" +
+            'NOTE: The "dryRun" flag means no changes were made.\\033[39m\\033[22m\\n\' >&2; exit 1';
+        const { code, out } = run(["nx.json"], tail);
+        assert.equal(code, NOT_CHECKED, out);
+    });
+
     it("fails a real error even when a 403 or a rate limit appears above it", () => {
         const noise = "npm warn 403 Forbidden; API rate limit exceeded; Request failed with status code 403";
         const { code, out } = run(["nx.json"], `echo '${noise}'; echo '${NX_ERROR}' >&2; exit 1`);

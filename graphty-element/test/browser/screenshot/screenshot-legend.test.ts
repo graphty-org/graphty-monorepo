@@ -152,7 +152,7 @@ async function inkIn(blob: Blob, corner: "top-left" | "top-right" | "bottom-left
 }
 
 /**
- * Colours the test graph's nodes by their degree, so the element's legend has a block to draw.
+ * Colors the test graph's nodes by their degree, so the element's legend has a block to draw.
  * @param target - The graph.
  */
 async function colorByDegree(target: Graph): Promise<void> {
@@ -185,6 +185,15 @@ test("legend takes a corner and a heading in the caller's words", async () => {
 
     assert.isAbove(await inkIn(keyed.blob, "top-left"), 0);
     assert.strictEqual(await inkIn(keyed.blob, "bottom-right"), 0);
+});
+
+test("legend draws the caller's sections in the corner it names", async () => {
+    graph = await createTestGraphWithData();
+
+    const keyed = await graph.captureScreenshot({ legend: { position: "bottom-left", sections: LEGEND } });
+
+    assert.isAbove(await inkIn(keyed.blob, "bottom-left"), 0, "the caller's key is drawn in its corner");
+    assert.strictEqual(await inkIn(keyed.blob, "top-left"), 0, "and not at the top left");
 });
 
 test('legend: "auto" draws nothing while no layer binds a value', async () => {

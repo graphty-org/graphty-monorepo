@@ -78,7 +78,7 @@ describe("AI events", () => {
     });
 
     it("reach listeners for voice input start, transcript and end", async () => {
-        /** A stand-in for the browser's speech recogniser, driven by the test. */
+        /** A stand-in for the browser's speech recognizer, driven by the test. */
         class FakeRecognition {
             static last: FakeRecognition | null = null;
             continuous = false;

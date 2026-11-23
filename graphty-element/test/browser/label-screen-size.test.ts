@@ -46,7 +46,7 @@ async function draw(graph: Graph, frames = 5): Promise<void> {
 }
 
 /**
- * Les Miserables in a circle, labelled "Valjean" on every node, framed whole.
+ * Les Miserables in a circle, labeled "Valjean" on every node, framed whole.
  * @param style - The label style.
  * @param viewMode - "2d" for the orthographic camera.
  * @returns The graph.

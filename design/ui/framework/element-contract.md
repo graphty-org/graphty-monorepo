@@ -472,8 +472,7 @@ these session-part fields, each new under the version number and tolerant reader
 expression; the start nodes of a neighborhood or path step; a filter step over items; the Window
 step's Nodes row as views capture it; saved comparisons over list scopes; per-scope and difference
 columns; the declared direction and weight with their per-run overrides; the order of the views,
-set by the analyst; each view's note order; the Base style and
-Overrides rows; the project's overview recipe; and the applied recipes with their sources. At the top level, beside the
+set by the analyst; each view's note order; the project's overview recipe; and the applied recipes with their sources. At the top level, beside the
 graph entries: the project id (element-minted, persisted; Duplicate mints a new one), the
 project-wide high-water counters of issued ids and the tombstones of deleted sets
 (set ids are unique across the project's graphs), a version number and a tolerant reader. The
@@ -548,7 +547,7 @@ several candidate results, the binding names the one it was made on (doors 5, 19
 | Object selection | none (working state) | no | - | no | yes |
 | Layout settings and pins | none (one per graph, with a scope defaulting to the filtered graph for scoped layouts, which a set's Run layout sets) | yes | out of date when the filtered graph changed after the layout ran | session part | yes |
 | Positions (2D, 3D) and stored positions | element (stored positions) | yes | no freshness | session part | yes |
-| Style layer | element | yes | follows; suppressed (automatic paint), edited, detached | authored layers in the project part; run-made layers, Overrides and Base style in each graph's session part (door 5's recommendation) | yes |
+| Style layer | element | yes | follows; suppressed (automatic paint), edited, detached | authored layers, the default layers included, in the project part; run-made layers in each graph's session part (door 5's recommendation) | yes |
 | Note | element | yes | citations of runs and of the filter steps in force; quoted values (target, attribute, run, the value when written) and whether each live value differs; author and times | project part (door 5) | yes |
 | View | element | yes | changed since applied; title, caption, note list, export settings, stored positions | project part (door 5) | yes |
 | Comparison | element | while open | transient | only as a saved comparison with its record | yes (`project.compare`) |
@@ -611,7 +610,7 @@ rule; a contract test covers the dedupe. The keys are an open union: the undo
    transaction locks (node, edge and pin ids) and never blocks a layout or catalog algorithm run.
    The element's own drag, marquee and lasso use it. The time-window merge (`coalesceMs`) applies
    only to callers that open no gesture.
-4. **Synchronous availability.** Each intent command's availability, with its reader-facing
+4. **Synchronous availability.** Each intent command's availability, with its coded
    reason, is a synchronous, cheap read, because a menu and a shortcut sheet are drawn inside one
    keydown.
 5. **Windowed reads.** Any read whose size grows with the graph is offered as a count plus a

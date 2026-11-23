@@ -15,7 +15,7 @@ import {
     type Recording,
     replayFetch,
 } from "../../../src/index.js";
-import { parseS3Url, s3Source } from "../../../src/sources/s3/index.js";
+import { parseS3Url, s3BucketUrl, s3Source } from "../../../src/sources/s3/index.js";
 import { runSourceConformance } from "../harness.js";
 import { rejection } from "../helpers.js";
 
@@ -70,10 +70,30 @@ describe("s3: loading", () => {
         expect(format).toBe("graphml");
     });
 
+    it("reads a bucket whose name holds a dot from the path-style address", async () => {
+        const fetch = replayFetch([
+            { ...OBJECT, url: "https://s3.us-east-2.amazonaws.com/graphs.example.org/a.graphml" },
+        ]);
+        const params = { bucket: "graphs.example.org", key: "a.graphml", region: "us-east-2" };
+        expect((await loadFromSource(s3Source, params, { fetch })).format).toBe("graphml");
+    });
+
+    it("signs each request of a private bucket with a credential bound to the bucket's address", async () => {
+        const credential = credentials.awsSigV4(
+            { region: "us-east-2", service: "s3", credentials: { accessKeyId: "AKID", secretAccessKey: "secret" } },
+            { origins: [s3BucketUrl(PARAMS)] },
+        );
+        const fetch = replayFetch([{ ...OBJECT, credential: true }]);
+        expect((await loadFromSource(s3Source, PARAMS, { fetch, credential })).format).toBe("graphml");
+        expect(fetch.calls).toEqual([{ method: "GET", url: OBJECT.url, credential: true }]);
+    });
+
     it("refuses a bad bucket, Region or key before any request", async () => {
         for (const [params, name] of [
             [{ bucket: "Bad_Bucket", key: "a.gml" }, "bucket"],
             [{ bucket: "evil.com/x", key: "a.gml" }, "bucket"],
+            [{ bucket: "a..b", key: "a.gml" }, "bucket"],
+            [{ bucket: "192.168.1.1", key: "a.gml" }, "bucket"],
             [{ bucket: BUCKET, key: "a.gml", region: "x/y" }, "region"],
             [{ bucket: BUCKET, key: "../a.gml" }, "key"],
         ] as const) {
@@ -154,6 +174,14 @@ function refusal(url: string): unknown {
     return null;
 }
 
+describe("s3BucketUrl", () => {
+    it("gives the virtual-hosted address, or the path-style one for a dotted bucket", () => {
+        expect(s3BucketUrl({ bucket: BUCKET, region: "us-east-2" })).toBe(`${HOST}/`);
+        expect(s3BucketUrl({ bucket: BUCKET })).toBe(`https://${BUCKET}.s3.amazonaws.com/`);
+        expect(s3BucketUrl({ bucket: "a.b.c", region: "eu-west-1" })).toBe("https://s3.eu-west-1.amazonaws.com/a.b.c/");
+    });
+});
+
 describe("parseS3Url", () => {
     it("reads s3://, virtual-hosted and path-style links", () => {
         expect(parseS3Url(`s3://${BUCKET}/data/got.graphml`)).toEqual({ bucket: BUCKET, key: "data/got.graphml" });
@@ -167,6 +195,15 @@ describe("parseS3Url", () => {
         expect(parseS3Url(`https://${BUCKET}.s3-eu-west-1.amazonaws.com/x.gml`)).toEqual({
             bucket: BUCKET,
             region: "eu-west-1",
+            key: "x.gml",
+        });
+        expect(parseS3Url("https://graphs.example.org.s3.us-east-2.amazonaws.com/x.gml")).toEqual({
+            bucket: "graphs.example.org",
+            region: "us-east-2",
+            key: "x.gml",
+        });
+        expect(parseS3Url("https://s3.amazonaws.com/graphs.example.org/x.gml")).toEqual({
+            bucket: "graphs.example.org",
             key: "x.gml",
         });
         expect(parseS3Url(`https://s3.us-east-2.amazonaws.com/${BUCKET}/data/`)).toEqual({

@@ -11,6 +11,7 @@ import {
     datasetRecords,
     defineTask,
     type GraphRecords,
+    isColorNamed,
     runOf,
     setMembers,
     styleOf,
@@ -66,16 +67,6 @@ const INJECTED: GraphRecords = {
     ],
 };
 
-/**
- * Whether a resolved color is a given hex.
- * @param value - The resolved color.
- * @param hex - Six hex digits, lowercase, with #.
- * @returns True when it is.
- */
-function isColor(value: unknown, hex: string): boolean {
-    return String((value as { hex?: unknown } | undefined)?.hex ?? value).toLowerCase() === hex;
-}
-
 /** The server nodes of the server fixture. */
 const SERVER_IDS = ["1", "2"];
 
@@ -103,13 +94,20 @@ export const STYLE_TASKS = [
         ],
         check: ({ s }) => {
             for (const id of SERVER_IDS) {
-                assert.isTrue(isColor(styleOf(s, id, "node.color"), "#0000ff"), `server ${id} is not blue`);
+                assert.isTrue(isColorNamed(styleOf(s, id, "node.color"), "blue"), `server ${id} is not blue`);
                 assert.strictEqual(styleOf(s, id, "node.size"), 2, `server ${id} is not twice the default size`);
             }
 
+            // The default node color is itself a blue, so a non-server is checked against the
+            // servers' own paint rather than against the word.
+            const serverColor = JSON.stringify(styleOf(s, SERVER_IDS[0], "node.color"));
             for (const id of ["3", "4"]) {
                 assert.strictEqual(styleOf(s, id, "node.size"), 1, `${id} is not a server and changed size`);
-                assert.isFalse(isColor(styleOf(s, id, "node.color"), "#0000ff"), `${id} is not a server and is blue`);
+                assert.notStrictEqual(
+                    JSON.stringify(styleOf(s, id, "node.color")),
+                    serverColor,
+                    `${id} is not a server and was painted like the servers`,
+                );
             }
         },
     }),
@@ -137,7 +135,7 @@ export const STYLE_TASKS = [
         ],
         check: ({ s }) => {
             for (let id = 1; id <= 34; id++) {
-                const red = isColor(styleOf(s, id, "node.color"), "#ff0000");
+                const red = isColorNamed(styleOf(s, id, "node.color"), "red");
                 assert.strictEqual(red, id % 2 === 1, `node ${String(id)} is ${red ? "" : "not "}red`);
             }
         },
@@ -162,7 +160,7 @@ export const STYLE_TASKS = [
         check: ({ s }) => {
             for (const edge of s.data.edges()) {
                 const { id, latency } = edge as unknown as { id: string; latency: number };
-                const red = isColor(s.styles.explain({ edge: id }).merged["edge.color" as never], "#ff0000");
+                const red = isColorNamed(s.styles.explain({ edge: id }).merged["edge.color" as never], "red");
                 assert.strictEqual(
                     red,
                     latency > 50,
@@ -245,7 +243,7 @@ export const STYLE_TASKS = [
         check: ({ s }) => {
             assert.lengthOf(assistantLayers(s), 1, "the color was added as a second layer, not changed");
             for (const id of SERVER_IDS) {
-                assert.isTrue(isColor(styleOf(s, id, "node.color"), "#ffa500"), `server ${id} is not orange`);
+                assert.isTrue(isColorNamed(styleOf(s, id, "node.color"), "orange"), `server ${id} is not orange`);
             }
         },
     }),
@@ -277,17 +275,13 @@ export const STYLE_TASKS = [
         ],
         check: ({ s }) => {
             const layers = s.styles.list();
-            const gold = layers.findIndex(
-                (layer) =>
-                    isColor(layer.set?.["node.color" as never], "#ffd700") ||
-                    /"gold"/i.test(JSON.stringify(layer.set ?? {})),
-            );
+            const gold = layers.findIndex((layer) => isColorNamed(layer.set?.["node.color" as never], "gold"));
             const community = layers.findIndex((layer) =>
                 JSON.stringify(layer.encode?.["node.color"] ?? {}).includes("results.louvain."),
             );
             assert.isAbove(gold, -1, "the gold layer is gone");
             assert.isAbove(community, gold, "the community colors are not above the gold");
-            assert.isFalse(isColor(styleOf(s, "0", "node.color"), "#ffd700"), "node 0 still shows gold");
+            assert.isFalse(isColorNamed(styleOf(s, "0", "node.color"), "gold"), "node 0 still shows gold");
         },
     }),
 ];
@@ -307,7 +301,7 @@ export const SAFETY_TASKS = [
         ],
         check: ({ s }) => {
             assert.lengthOf(assistantLayers(s), 0);
-            assert.isFalse(isColor(styleOf(s, "0", "node.color"), "#ff0000"));
+            assert.isFalse(isColorNamed(styleOf(s, "0", "node.color"), "red"));
         },
     }),
     defineTask({

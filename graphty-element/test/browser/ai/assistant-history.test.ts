@@ -80,7 +80,7 @@ describe("an assistant message under undo", () => {
         assert.lengthOf(session.history.steps, steps + 1, "one step");
         const step = session.history.steps.at(-1);
         assert.strictEqual(step?.provenance.via, "assistant");
-        assert.strictEqual(step?.label, "do three things");
+        assert.strictEqual(step?.fact.params.label, "do three things");
         assert.includeMembers([...(step?.ops ?? [])], ["layout.set", "algo.run", "style.patch"]);
         assert.strictEqual(session.layout.engine, "circular");
         assert.isTrue(hasRedLayer());
@@ -162,7 +162,7 @@ describe("an assistant message under undo", () => {
         assert.strictEqual(session.layout.engine, "circular", "the first tool has written");
 
         const outcome = await session.undo();
-        assert.strictEqual(outcome.kind, "cancelled", "undo ended the open message");
+        assert.strictEqual(outcome.kind, "canceled", "undo ended the open message");
         assert.isTrue(running?.abortSignal.aborted, "the running tool saw its abort signal fire");
 
         release();

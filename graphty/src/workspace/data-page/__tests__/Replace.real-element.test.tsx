@@ -12,12 +12,16 @@ import { act } from "react";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { replaceSource } from "../request";
 import { replacedWords, replaceWords } from "../words";
+
+// A second source opens the join screen only with sources and steps off: on, it is staged.
+withoutFeatures(["source-steps"]);
 
 const FRIENDS = "source,target,weight\nAva,Ben,3\nBen,Chloe,4\nChloe,Ava,5\nChloe,Dev,1\n";
 /** The same people and links, new weights. */

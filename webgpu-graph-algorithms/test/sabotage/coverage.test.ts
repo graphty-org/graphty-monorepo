@@ -18,12 +18,10 @@ import {
     type Mutation,
     SABOTAGE,
     SABOTAGE_EXEMPT,
-    SABOTAGE_P3_ADDENDUM,
-    SABOTAGE_P4_LAW,
-    SABOTAGE_P4_TIERS,
-    SABOTAGE_P5,
     SABOTAGE_PHASES,
+    SABOTAGE_TABLES,
     sabotagedBody,
+    validateSabotageTables,
 } from "../helpers/sabotage.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
@@ -31,10 +29,6 @@ const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", ".."
 
 function rowsOf(id: KernelId): readonly Mutation[] {
     return SABOTAGE[id] ?? [];
-}
-
-function tabledIds(): KernelId[] {
-    return Object.keys(SABOTAGE) as KernelId[];
 }
 
 describe("sabotage coverage (spec 11.9 item 1, 13 rule f)", () => {
@@ -83,45 +77,65 @@ describe("sabotage coverage (spec 11.9 item 1, 13 rule f)", () => {
         expect(rowsOf("fill")).toEqual([]);
     });
 
-    it("every find string occurs exactly once in the entry's normative body, the replacement differs, minFactor >= 10, names unique", () => {
-        for (const id of tabledIds()) {
-            const { body } = KERNELS[id];
-            const names = new Set<string>();
-            for (const m of rowsOf(id)) {
-                expect(names.has(m.name), `${id}: duplicate mutation name ${m.name}`).toBe(false);
-                names.add(m.name);
-                const first = body.indexOf(m.find);
-                expect(first, `${id}/${m.name}: find string absent from the body`).toBeGreaterThanOrEqual(0);
-                expect(body.indexOf(m.find, first + m.find.length), `${id}/${m.name}: find string not unique`).toBe(-1);
-                expect(m.replace, `${id}/${m.name}: replace equals find`).not.toBe(m.find);
-                expect(m.minFactor, `${id}/${m.name}: minFactor`).toBeGreaterThanOrEqual(10);
-                const mutated = sabotagedBody(id, m);
-                expect(mutated).not.toBe(body);
-                expect(mutated.includes(m.replace)).toBe(true);
-                expect(mutated.length).toBe(body.length - m.find.length + m.replace.length);
-            }
-        }
+    it("every row of every table is well formed: its find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique per kernel", () => {
+        expect(validateSabotageTables(SABOTAGE_TABLES)).toEqual([]);
     });
 
-    it("every test names an existing test file under test/", () => {
-        for (const id of tabledIds()) {
-            for (const m of rowsOf(id)) {
-                expect(m.test).toMatch(/^test\/.+\.test\.ts$/);
-                expect(existsSync(resolve(PACKAGE_ROOT, m.test)), `${id}/${m.name}: ${m.test} does not exist`).toBe(
-                    true,
-                );
+    it("every row of every table names an existing test file under test/", () => {
+        const missing: string[] = [];
+        for (const table of SABOTAGE_TABLES) {
+            for (const [id, rows] of Object.entries(table) as [KernelId, readonly Mutation[]][]) {
+                for (const m of rows) {
+                    if (!existsSync(resolve(PACKAGE_ROOT, m.test))) {
+                        missing.push(`${id}/${m.name}: ${m.test}`);
+                    }
+                }
             }
         }
+        expect(missing).toEqual([]);
+    });
+
+    it("validateSabotageTables reports an absent find, a duplicated find, an equal replacement, a low minFactor, a bad test path and a reused name", () => {
+        const good: Mutation = {
+            name: "x",
+            find: "no such text in any body",
+            replace: "y",
+            minFactor: 10,
+            test: "test/algorithms/degree.test.ts",
+        };
+        // `rowPtr[` occurs twice in the degree body: rowPtr[i] and rowPtr[i + 1u]
+        const problems = validateSabotageTables([
+            { degree: [good, { ...good, name: "dup", find: "rowPtr[" }] },
+            {
+                degree: [
+                    {
+                        ...good,
+                        name: "dup",
+                        find: "rowPtr[i + 1u]",
+                        replace: "rowPtr[i + 1u]",
+                        minFactor: 9,
+                        test: "x.ts",
+                    },
+                ],
+            },
+        ]);
+        expect(problems).toEqual([
+            "degree/x: find string absent from the body",
+            "degree/dup: find string not unique",
+            "degree/dup: name used twice for this kernel",
+            "degree/dup: replace equals find",
+            "degree/dup: minFactor 9 is below 10",
+            "degree/dup: test x.ts is not a test file under test/",
+        ]);
     });
 
     it("every row of every table compiles: a mutant that does not compile would be counted as caught", async (t) => {
         requireGpu(t);
-        const tables = [SABOTAGE, SABOTAGE_P3_ADDENDUM, SABOTAGE_P5, SABOTAGE_P4_TIERS, SABOTAGE_P4_LAW];
         const ctx = await acquire({ label: "sabotage-compile" });
         const failures: string[] = [];
         let compiled = 0;
         try {
-            for (const table of tables) {
+            for (const table of SABOTAGE_TABLES) {
                 for (const [id, rows] of Object.entries(table) as [KernelId, readonly Mutation[]][]) {
                     const base = OVERRIDE_MATRIX.find((c) => c.id === id);
                     if (base === undefined) {

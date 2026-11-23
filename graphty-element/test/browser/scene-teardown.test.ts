@@ -4,7 +4,7 @@
  * THE DEFECT: neither `Node` nor `Edge` had a `dispose()`, and `DataManager.clear()` emptied its
  * maps and called `meshCache.clear()` and nothing else. `MeshCache.clear()` disposes the cached
  * SOURCE meshes, and Babylon disposes a source's instances with it -- which is exactly why node
- * spheres and 3D solid edge lines vanished on a clear while roughly sixty grey ARROWHEADS stayed
+ * spheres and 3D solid edge lines vanished on a clear while roughly sixty gray ARROWHEADS stayed
  * on the canvas, in rosettes where the previous dataset's edges had converged. Arrowheads are
  * deliberately built per edge, bare against the scene (`EdgeMesh.createArrowHead` carries a
  * "PERFORMANCE FIX" note), and parented to the `graph-root` TransformNode, which outlives every
@@ -39,7 +39,7 @@ const STAR_GRAPH = JSON.stringify({
 let mounted: Graphty | null = null;
 
 /**
- * Mounts a graphty-element and waits for it to initialise.
+ * Mounts a graphty-element and waits for it to initialize.
  * @returns The mounted element
  */
 async function createGraphtyElement(): Promise<Graphty> {

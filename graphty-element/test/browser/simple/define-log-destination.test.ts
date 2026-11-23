@@ -4,7 +4,7 @@
  * Each example is the file the guide includes (docs/examples/simple-tier/), imported here as it
  * is written, so the guide cannot show code these tests did not run. Every assertion reads what
  * a reader would see: the requests the telemetry destination sent, the lines the panel shows,
- * the error a malformed definition gets, and the catalogue entry a settings panel renders.
+ * the error a malformed definition gets, and the catalog entry a settings panel renders.
  *
  * Owner decision 34 (delivery whatever the global `enabled` flag) is NOT taken, so a simple
  * destination follows today's rule: while logging is globally off it receives nothing. The

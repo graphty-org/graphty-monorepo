@@ -7,6 +7,7 @@
 
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
+import type { FetchNodesFn } from "../../src/config/GraphBehavior";
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { doubleClick, drag, hover, nodePoint, type Point } from "../helpers/real-input";
@@ -142,10 +143,12 @@ describe("a node under the real mouse", () => {
     });
 
     test("double-click expansion fetches the neighbourhood when fetchNodes/fetchEdges exist", async () => {
-        const fetchNodes = vi.fn().mockReturnValue([
-            { id: "node2", data: {} },
-            { id: "node3", data: {} },
-        ]);
+        const fetchNodes = vi.fn<FetchNodesFn>().mockReturnValue(
+            new Set([
+                { id: "node2", data: {}, metadata: {} },
+                { id: "node3", data: {}, metadata: {} },
+            ]),
+        );
         const fetchEdges = vi.fn().mockReturnValue(
             new Set([
                 { src: "test-node-5", dst: "node2" },
@@ -167,7 +170,7 @@ describe("a node under the real mouse", () => {
         assert.equal(fetchEdges.mock.calls[0][0], node);
         assert.equal(fetchEdges.mock.calls[0][1], graph);
 
-        // The nodes fetched are the neighbours, not the node itself
+        // The nodes fetched are the neighbors, not the node itself
         assert.equal(fetchNodes.mock.calls.length, 1);
         const nodeIds = fetchNodes.mock.calls[0][0];
         assert.equal(nodeIds.size, 2);
@@ -185,11 +188,13 @@ describe("a node under the real mouse", () => {
     test("double-click expansion reads the endpoints a canonical fetchEdges returns", async () => {
         // The handler used to read `e.src` and `e.dst` off whatever `fetchEdges` returned, so a
         // consumer following the guides -- which teach `source`/`target` everywhere -- collected a
-        // set of `undefined` neighbours, fetched nothing, and left the edges pending for ever.
-        const fetchNodes = vi.fn().mockReturnValue([
-            { id: "node2", data: {} },
-            { id: "node3", data: {} },
-        ]);
+        // set of `undefined` neighbors, fetched nothing, and left the edges pending for ever.
+        const fetchNodes = vi.fn<FetchNodesFn>().mockReturnValue(
+            new Set([
+                { id: "node2", data: {}, metadata: {} },
+                { id: "node3", data: {}, metadata: {} },
+            ]),
+        );
         const fetchEdges = vi.fn().mockReturnValue(
             new Set([
                 { source: "test-node-7", target: "node2" },

@@ -1,8 +1,8 @@
-// Screen 64: the Neighbours tool armed (round-3/filters-sets.md, "Neighbours tool").
+// Screen 64: the Neighbors tool armed (round-3/filters-sets.md, "Neighbours tool").
 // College football. The reader selected BrighamYoung and pressed E (or the "Neighbours" button
 // on its Links tab), so the tool is armed and seeded with the selection. The secondary bar
 // reads the whole sentence with the live size; its Options popover is open above the
-// Neighbours button with the per-step size table. The canvas previews the neighbourhood: the
+// Neighbors button with the per-step size table. The canvas previews the neighborhood: the
 // 13 members at full strength, the edges among them dark, the rest faded. Counts are the real
 // ones from football.mjs.
 import { NODES, EDGES } from "../football.mjs";

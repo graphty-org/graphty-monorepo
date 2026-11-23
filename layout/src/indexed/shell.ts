@@ -28,7 +28,7 @@ export type ShellRotate = number | "networkx";
 
 /**
  * Concentric-circle rows. Shell k of m has radius `(k + 1) * scale / m`, except that a first shell of exactly one
- * node puts that node on the centre and shell k at `k * scale / m`; an empty shell is skipped and takes no radius.
+ * node puts that node on the center and shell k at `k * scale / m`; an empty shell is skipped and takes no radius.
  * A node listed twice keeps its last place. Shell k starts at angle `(k + 1) * rotate`.
  * @param n - node count (rows)
  * @param shells - node indices per shell, innermost first
@@ -79,7 +79,7 @@ export function shellRows(
 
 /**
  * Nodes on concentric circles, one circle per shell, each circle's nodes evenly spaced in the order listed. In 3D the
- * circles lie in the plane of the centre's z.
+ * circles lie in the plane of the center's z.
  * @param s - the snapshot
  * @param options - `scale / m` is the radius step between the m shells; `nlist` the shells; `rotate` the turn of
  * each shell past the one inside it

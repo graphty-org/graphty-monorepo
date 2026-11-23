@@ -1,5 +1,5 @@
 /**
- * The `wcc-compress` kernel body (spec 8.3): pointer jumping to the root, reading through `atomicLoad` on the same
+ * The `wcc-compress` kernel body: pointer jumping to the root, reading through `atomicLoad` on the same
  * `array<atomic<u32>>` because WGSL forbids mixing atomic and plain access to one element. The walk is bounded by
  * `P.maxSteps`; a walk that runs out leaves a shorter path, which the next round finishes. The body is normative:
  * a sabotage mutation is a textual edit of it, so it is not restyled.

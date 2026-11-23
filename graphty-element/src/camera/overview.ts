@@ -28,7 +28,7 @@ export interface OverviewRect {
 /**
  * What `getOverview()` returns: the graph laid flat along the current view, in a unit frame
  * where x runs right and y runs down from 0 to 1. The frame is the box around every placed node,
- * scaled the same on both axes so the longer side spans 0 to 1 and the shorter one is centred.
+ * scaled the same on both axes so the longer side spans 0 to 1 and the shorter one is centered.
  */
 export interface GraphOverview {
     /** `"points"` up to `maxPoints` placed nodes, `"density"` above it. */
@@ -39,7 +39,12 @@ export interface GraphOverview {
      * How many placed nodes fall in each cell of a `size` by `size` grid over the frame, row by
      * row from the top; null when `kind` is `"points"`.
      */
-    density: { size: number; counts: Uint32Array } | null;
+    density: {
+        /** The grid's columns, and its rows. */
+        size: number;
+        /** The node count of each cell, row by row from the top: `size * size` entries. */
+        counts: Uint32Array;
+    } | null;
     /**
      * The part of the frame the camera shows, at the depth of what it looks at. It may reach past
      * 0 to 1 when the view shows more than the graph. All zero when no node is placed.
@@ -66,7 +71,7 @@ export interface OverviewFrame {
     midZ: number;
     /** View units per frame unit. */
     size: number;
-    /** Frame-unit offsets that centre the shorter side. */
+    /** Frame-unit offsets that center the shorter side. */
     offX: number;
     offY: number;
 }

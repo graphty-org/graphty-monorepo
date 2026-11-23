@@ -241,15 +241,20 @@ is the app's, but nobody has asked for it).
 
 The app's half of an experiment (the Data place in the nav rail, a timeline scrubber panel) is
 shown when the element's `enabledFeatures.enabled` contains the id, read from the element, never
-computed in the app. An app-only experiment with no element part (none today) would be declared
-in `graphty/src/features.ts` and checked against the combined raw list; `tools/check-features.mjs`
-reads that file too, so its ids get the same checks.
+computed in the app. An app-only experiment with no element part is declared in
+`graphty/src/features.ts` (`APP_FEATURES`, empty today; a shipped one moves to that file's
+`GRADUATED_FEATURES`, as `usage-analytics` did) and checked against the combined
+raw list (`appFeatureOn`, `useAppFeature`), where `"all"` switches it on as it does the element's;
+`tools/check-features.mjs` reads that file too, so its ids, its rows' issues and its gates get the
+same checks. graphty-element's `resolveFeatures` lists such an id under `unknown`, harmlessly.
 
 ## 6. Which work starts behind a flag
 
 - **`location-map`** -- Element part: the location-map layout (`src/layout/locationMap/`), its catalog entry in `catalog/layouts.ts`, the basemap catalog (`catalog/basemaps.ts`), `basemap` attribute and `BasemapManager`; App part: the layout's picker entry, the location column control; Branches to restructure: `feat/location-map-prototype`, `fix/3317-locationmap-load`, `fix/location-map-applies`, design on `design/location-map-layout`.
 - **`timeline`** -- Element part: the time attribute and the visibility filter it drives (`src/session/visibility/`), its commands and events; App part: the scrubber; Branches to restructure: `feat/timeline-data`, `feat/timeline-prototype`, `feat/timeline-samples`, design `design/data/timeline-attribute.md`.
 - **`data-management`** -- Element part: versioned, refreshed and joined data commands as they are built; App part: the Data place.
+- **`assistant`** (issues #2000, #9670) -- graduated 2026-11-22: now in graphty-element's `GRADUATED_FEATURES`. The AI assistant, its rail button, Mod+I, Talk and the AI provider settings are on every site, and the element's scope, peek, `voice.review` and message effects need no flag. `tools/check-features.mjs` treats `assistant` as an ordinary word (a chat role, a place) and fails it only where it gates.
+- **`usage-analytics`** (issue #8818) -- graduated: an app-only experiment (section 5.3), now in `GRADUATED_FEATURES` in `graphty/src/features.ts`. PostHog's anonymous and shared modes run on every site whose site.json has PostHog ids (design/graphty/usage-analytics.md).
 
 The new `babylonjs-map` package itself is not flagged: a package is opt-in by install, and
 graphty-element loads it as an optional peer the way it loads webgpu-graph-algorithms.

@@ -119,6 +119,7 @@ interface Ctx {
     daily: Map<string, Series>;
     metas: Map<string, SourceItem>;
     quota: number;
+    reads: number;
     sources: Map<string, SourceStatus>;
 }
 
@@ -163,7 +164,12 @@ function merged(series: Series | undefined, from: number, to: number): Bucket {
     return out;
 }
 
-const metricsOf = (m: Measure): string[] => ("metric" in m ? [m.metric] : []);
+const metricsOf = (m: Measure): string[] => {
+    if (m.type === "rate_per_last") {
+        return [m.metric, m.per];
+    }
+    return "metric" in m ? [m.metric] : [];
+};
 
 /** Days of spend a month-end projection takes its daily rate from. */
 export const PROJECTION_DAYS = 7;
@@ -340,6 +346,12 @@ function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
         };
     }
     const b = merged(ctx.daily.get(metricsOf(m)[0]), from, today);
+    if (m.type === "rate_per_last") {
+        // Runner-minutes per issue: the 7-day rate per merge over another source's newest per-merge reading.
+        const per = merged(ctx.daily.get(m.per), from, today);
+        const div = per.lastAt === undefined ? undefined : per.last;
+        return { ...(b.n > 0 && div ? { value: b.sum / b.n / div } : {}), n: b.n, covered };
+    }
     return { value: measureValue(m, b, (covered || days) * DAY), n: b.n, covered };
 }
 
@@ -451,6 +463,8 @@ function engineValue(ctx: Ctx, name: Extract<Measure, { type: "engine" }>["name"
         }
         case "write_budget":
             return { value: ctx.quota / ctx.cfg.dailyRowLimit };
+        case "read_budget":
+            return { value: ctx.reads / ctx.cfg.dailyReadLimit };
         default:
             return {};
     }
@@ -803,7 +817,7 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
     if (partial) {
         return { ...status, state: "PARTIAL WINDOW", reason: partial };
     }
-    // A slow window the history does not yet cover still shows its value, labelled with the days it covers,
+    // A slow window the history does not yet cover still shows its value, labeled with the days it covers,
     // and is never gray only for too few samples while history is short.
     const short = c.window === "slow" && v.value !== undefined && (v.covered ?? 0) < slowDays(c);
     const out = short
@@ -1131,6 +1145,7 @@ async function load(store: Store, nowMs: number, cfg: SlaConfig): Promise<Ctx> {
         daily: new Map(),
         metas: new Map(),
         quota: 0,
+        reads: 0,
         sources: new Map(),
     };
     // The oldest step's 6 h window starts 24 h + 6 h back.
@@ -1147,7 +1162,9 @@ async function load(store: Store, nowMs: number, cfg: SlaConfig): Promise<Ctx> {
             ctx.metas.set(id, meta);
         }
     }
-    ctx.quota = await quotaUsed(store, nowMs);
+    const used = await quotaUsed(store, nowMs);
+    ctx.quota = used.rows;
+    ctx.reads = used.reads;
     for (const id of Object.keys(cfg.sources)) {
         ctx.sources.set(id, sourceStatus(ctx, id));
     }

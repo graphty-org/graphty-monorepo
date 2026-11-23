@@ -122,7 +122,7 @@ result of the call on the same row. Where the name is unchanged, the arguments a
 | `isStronglyConnected(graph)`                     | `stronglyConnectedComponents(s).count === 1`                                                                        |
 | `isWeaklyConnected(graph)`                       | `weaklyConnectedComponents(s).count === 1`                                                                          |
 | `kCoreDecomposition(graph)`                      | `kCoreDecomposition(s)`: `r.coreness`, `r.maxCore`, `r.cores()`                                                     |
-| `kargerMinCut(graph, iterations)`                | `kargerMinCut(s, { iterations, randomSeed })`: `r.cutValue`, `r.side`, `r.cutEdges`                                 |
+| `kargerMinCut(graph, iterations)`                | `kargerMinCut(s, { iterations, seed })`: `r.cutValue`, `r.side`, `r.cutEdges`                                       |
 | `katzCentrality(graph, options)`                 | `katzCentrality(s, options)`: `r.scores`                                                                            |
 | `kruskalMST(graph)`                              | `kruskalMST(s)`: `r.edges` (edge indices), `r.totalWeight`                                                          |
 | `labelPropagation(graph, options)`               | `labelPropagation(s, options)`: `r.labels`, `r.count`                                                               |
@@ -184,7 +184,7 @@ graphs named:
 - **Order.** `stronglyConnectedComponents` lists components in Tarjan's order, where `findStronglyConnectedComponents`
   used Kosaraju's; `connectedComponents` lists members in node order, where `connectedComponentsDFS` used depth-first
   order; `isBipartite` returns an unordered side mask where `bipartitePartition` listed the sides in search order. Pass
-  `arcOrder` to a traversal to try neighbours in insertion order.
+  `arcOrder` to a traversal to try neighbors in insertion order.
 - **Edge betweenness.** On an undirected graph `edgeBetweennessCentrality` gives each edge twice the value 2.x gave it:
   2.x stored every undirected edge under both `"u-v"` and `"v-u"` and put half the edge's score on each key, where 3.0
   returns one score per edge, the whole sum (on the edges `1-2, 2-3, 3-1, 3-4, 4-5`, 2.x gave `0.5, 1.5, 1.5, 3, 2`
@@ -197,9 +197,9 @@ graphs named:
   not from the largest score).
 - **Louvain and Leiden** visit nodes in another seeded order and stop at other partitions (on the karate club, Louvain
   now reaches modularity 0.4188 against 0.3404).
-- **Label propagation.** For the same `randomSeed`, communities differ on any graph with more than one valid partition
+- **Label propagation.** For the same `seed`, communities differ on any graph with more than one valid partition
   (a work queue, a uniform tie draw and another random generator); it stops when every label is dominant, so tie-rich
-  graphs converge; in-neighbours vote on a directed graph; self-loops do not vote; a negative, NaN or infinite weight
+  graphs converge; in-neighbors vote on a directed graph; self-loops do not vote; a negative, NaN or infinite weight
   throws a `RangeError`. `labelPropagationSemiSupervised` draws from another random stream and renumbers the labels, and since the fix of
   issue #959 its free nodes start unlabeled instead of in a community of their own, so seed labels spread to every node
   connected to a seed rather than stopping where the free nodes outvote them.
@@ -222,7 +222,8 @@ graphs named:
   2.x scored only the pairs whose u was added before v, so they list the pairs 2.x missed too.
 - **Clustering.** `modularity` is Newman's modularity over weighted degrees, where `calculateMCLModularity` ignored
   weights and summed the null model over the edges only. `spectralClustering` solves the Laplacian to a tolerance and
-  gives other clusters on most graphs. `teraHAC` indexes its distances by node, where 2.x looked them up by
+  gives other clusters on most graphs (2.x used fixed placeholder eigenvalues for k <= 3 and drew its k-means seeds from
+  `Math.random` unless given a seed). `teraHAC` indexes its distances by node, where 2.x looked them up by
   `parseInt(nodeId)` and merged arbitrarily after the first merge on most graphs. `markovClustering` throws a
   `RangeError` on options and weights 2.x ran with: an `expansion` that is not a whole number of at least 1, an
   `inflation` that is not finite and above 0, a `maxIterations` that is not a whole number, and a negative, NaN or
@@ -230,6 +231,9 @@ graphs named:
 - **Self-loops in community detection.** On an undirected graph with a self-loop, `girvanNewman` counts the loop twice
   in its node's degree where 2.x counted it once, so each level's modularity differs and the best level can be another
   one; `grsbm` gives another root modularity (on one small graph with a loop, 0 where 2.x gave 0.0586).
+- **One seed option.** Every seeded algorithm takes `seed`, an integer, default 42. `leiden`, `labelPropagation`,
+  `labelPropagationSemiSupervised` and `kargerMinCut` took `randomSeed`, which they still read when `seed` is not given;
+  `grsbm` and `syncClustering` now refuse a seed that is not an integer, as the others always did.
 - **Seeded `grsbm` and `syncClustering`.** Both draw from mulberry32 in every release after 3.1.2. 2.x and 3.0.0
   through 3.1.2 drew from a linear congruential generator whose float64 product lost its low bits above 2^53 and which could return exactly 1, so
   the same `seed` now gives other bisections, clusters and embeddings.
@@ -268,7 +272,7 @@ graphs named:
   list nodes in node order and cut edges by their source-side node, where 2.x followed the order its search met them.
 - **Matching and isomorphism.** The matchings join a left node to a right one whichever way the arc points. The greedy
   matching visits left nodes in node order, so it can differ in size. The maximum matching keeps the 2.x tie order --
-  left nodes in the order a breadth-first walk reaches them, neighbours in the order their edges were added -- so it
+  left nodes in the order a breadth-first walk reaches them, neighbors in the order their edges were added -- so it
   picks the same pairs as 2.x on a graph whose edges were added in the same order; an isomorphism `edgeMatch` is offered every pair of corresponding edges, self-loops included, and directed
   graphs are checked on in-arcs too. An isomorphism's mapping and a matching's pairs come as arrays indexed by node, so
   code that walks them meets the pairs in node order; 2.x returned a Map filled in the order its search found them.

@@ -22,7 +22,7 @@ import type { SessionCommand } from "../planning";
 import type { CommandDefinition, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import { edgeSpaceOf } from "../scope/spaces";
 import { deepEquals, quotePath } from "../styles/predicate";
-import type { DerivedColumn, RowUpdate } from "../types";
+import type { DerivedColumn, RowUpdate, ScoreTerm } from "../types";
 import { serviceOf } from "./data";
 
 /** The graph value holding every computed column's definition, in the order they are worked out. */
@@ -64,6 +64,35 @@ export type ValuesWhere = (
 ) => unknown[];
 
 /**
+ * Every computed column's values, worked out in order: one reading an earlier one reads its new
+ * values. A column whose expression no longer parses is left out.
+ * @param columns - The computed columns.
+ * @param valuesWhere - Reads an expression over every element.
+ * @returns The values per kind, by the column's path and dense index.
+ */
+export function derivedValues(
+    columns: readonly DerivedColumn[],
+    valuesWhere: ValuesWhere,
+): { readonly node: Map<Path, unknown[]>; readonly edge: Map<Path, unknown[]> } {
+    const fresh = { node: new Map<Path, unknown[]>(), edge: new Map<Path, unknown[]>() };
+    for (const column of columns) {
+        const overlay = fresh[column.kind];
+        try {
+            overlay.set(
+                `data.${column.name}`,
+                column.score === undefined
+                    ? valuesWhere(column.expression, column.kind, overlay)
+                    : scoreValues(column.score, (path) => valuesWhere(quotePath(path), column.kind, overlay)),
+            );
+        } catch {
+            // Checked when it was added; a project file anyone edited could still hold a bad one.
+            continue;
+        }
+    }
+    return fresh;
+}
+
+/**
  * The values of computed columns that differ from what the records hold now. The columns are
  * worked out in order, and one reading an earlier one reads its new values.
  * @param columns - The computed columns.
@@ -76,32 +105,24 @@ export function derivedRows(
     snapshot: GraphSnapshot,
     valuesWhere: ValuesWhere,
 ): { readonly nodes: RowUpdate<NodeId>[]; readonly edges: RowUpdate<EdgeId>[] } {
-    const fresh = { node: new Map<Path, unknown[]>(), edge: new Map<Path, unknown[]>() };
+    const fresh = derivedValues(columns, valuesWhere);
     const changed = {
         node: new Map<number, Record<string, unknown>>(),
         edge: new Map<number, Record<string, unknown>>(),
     };
-    for (const column of columns) {
-        const path = `data.${column.name}`;
-        const overlay = fresh[column.kind];
-        let values: unknown[];
-        try {
-            values = valuesWhere(column.expression, column.kind, overlay);
-        } catch {
-            // Checked when it was added; a project file anyone edited could still hold a bad one.
-            continue;
+    for (const kind of ["node", "edge"] as const) {
+        for (const [path, values] of fresh[kind]) {
+            const held = valuesWhere(quotePath(path), kind);
+            const rows = changed[kind];
+            const name = path.slice("data.".length);
+            values.forEach((value, at) => {
+                if (!deepEquals(value, held[at])) {
+                    const row = rows.get(at) ?? {};
+                    row[name] = value;
+                    rows.set(at, row);
+                }
+            });
         }
-
-        const held = valuesWhere(quotePath(path), column.kind);
-        overlay.set(path, values);
-        const rows = changed[column.kind];
-        values.forEach((value, at) => {
-            if (!deepEquals(value, held[at])) {
-                const row = rows.get(at) ?? {};
-                row[column.name] = value;
-                rows.set(at, row);
-            }
-        });
     }
 
     const nodes = [...changed.node].map(([at, values]) => ({ id: snapshot.ids.idOf(at), values }));
@@ -114,6 +135,49 @@ export function derivedRows(
 }
 
 /**
+ * A score's values: each term's numbers rescaled to 0..1 by their smallest and largest, times the
+ * term's weight, summed. A column whose numbers are all the same counts 0; an element missing a
+ * number for any term scores null.
+ * @param terms - The score's terms.
+ * @param read - Reads one path for every element, by dense index.
+ * @returns The score per element.
+ */
+function scoreValues(terms: readonly ScoreTerm[], read: (path: Path) => unknown[]): (number | null)[] {
+    let scores: (number | null)[] | null = null;
+    for (const term of terms) {
+        const raw = read(term.path);
+        let min = Infinity;
+        let max = -Infinity;
+        for (const value of raw) {
+            if (typeof value === "number" && Number.isFinite(value)) {
+                min = Math.min(min, value);
+                max = Math.max(max, value);
+            }
+        }
+        const span = max - min;
+        const weight = term.weight ?? 1;
+        const base: (number | null)[] = scores ?? raw.map(() => 0);
+        scores = base.map((sum, at) => {
+            const value = raw[at];
+            if (sum === null || typeof value !== "number" || !Number.isFinite(value)) {
+                return null;
+            }
+            return sum + (span > 0 ? ((value - min) / span) * weight : 0);
+        });
+    }
+    return scores ?? [];
+}
+
+/**
+ * The expression a score is listed with: the weighted sum of its terms' raw values.
+ * @param terms - The score's terms.
+ * @returns The expression.
+ */
+export function scoreExpression(terms: readonly ScoreTerm[]): Query {
+    return terms.map((term) => `${quotePath(term.path)} * \`${JSON.stringify(term.weight ?? 1)}\``).join(" + ");
+}
+
+/**
  * Whether a value is a list of computed columns, as a command or a project file may hold one.
  * @param value - The value.
  * @returns True when every entry has a kind, a name and an expression.
@@ -122,7 +186,7 @@ function isColumns(value: unknown): value is readonly DerivedColumn[] {
     return (
         Array.isArray(value) &&
         value.every((each: unknown) => {
-            const { kind, name, expression } = (typeof each === "object" && each !== null ? each : {}) as Record<
+            const { kind, name, expression, score } = (typeof each === "object" && each !== null ? each : {}) as Record<
                 string,
                 unknown
             >;
@@ -130,7 +194,28 @@ function isColumns(value: unknown): value is readonly DerivedColumn[] {
                 (kind === "node" || kind === "edge") &&
                 typeof name === "string" &&
                 name !== "" &&
-                typeof expression === "string"
+                typeof expression === "string" &&
+                (score === undefined || isTerms(score))
+            );
+        })
+    );
+}
+
+/**
+ * Whether a value is a score's terms: at least one, each a path with a finite weight or none.
+ * @param value - The value.
+ * @returns True when it is.
+ */
+export function isTerms(value: unknown): value is readonly ScoreTerm[] {
+    return (
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value.every((each: unknown) => {
+            const { path, weight } = (typeof each === "object" && each !== null ? each : {}) as Record<string, unknown>;
+            return (
+                typeof path === "string" &&
+                path !== "" &&
+                (weight === undefined || (typeof weight === "number" && Number.isFinite(weight)))
             );
         })
     );

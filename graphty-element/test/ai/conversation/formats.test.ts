@@ -348,6 +348,20 @@ describe("the saved conversation format", () => {
             assert.deepEqual(fromObject, fromText);
         });
 
+        it("a canceled message saved with the British code reads as AI_CANCELED", () => {
+            const record = goldenObject();
+            const messages = record.messages as { parts: unknown[] }[];
+            const british = ["AI", "CANCEL" + "LED"].join("_");
+            messages[0].parts.push({ type: "outcome", origin: "graphty", code: british, params: {} });
+            const read = readConversation(record);
+            assert.isTrue(read.ok);
+            const codes = read.ok
+                ? allParts(read.record.messages).map((part) => ("code" in part ? part.code : ""))
+                : [];
+            assert.include(codes, "AI_CANCELED");
+            assert.notInclude(codes, british);
+        });
+
         it("an unknown part kind is an invalid record", () => {
             const record = goldenObject();
             const messages = record.messages as { parts: unknown[] }[];

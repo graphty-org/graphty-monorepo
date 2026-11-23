@@ -1,6 +1,6 @@
 ---
 name: pipeline-round
-description: Use with /loop (for example `/loop 30m /pipeline-round`) to run one round of keeping graphty-monorepo's pipeline moving without the owner routing work -- react to a red master build and its master-guard reverts, a red 6-hour full run (bisect, revert, fix forward), flaky tests and base checks, CI budget alarms, held releases and failed publishes, the held nightly candidate and its promotion, owner items, red or conflicted agent pull requests, finished branches with no pull request, and check that finished worktrees are removed; escalate only what only the owner can do. It never starts new issue work (that is issue-round). Also use when changing this routine.
+description: Use with /loop (for example `/loop 30m /pipeline-round`) to run one round of keeping graphty-monorepo's pipeline moving without the owner routing work -- react to a red master build and its master-guard reverts, a red 6-hour full run (bisect, revert, fix forward), flaky tests and base checks, CI budget alarms, held releases and failed publishes, the held nightly candidate and its promotion, owner items, unarmed and dependabot pull requests, stranded branches, and check that finished worktrees are removed; escalate only what only the owner can do. It never starts new issue work, fixes red agent pull requests or opens finished branches (issue-round's fix-red and open jobs). Also use when changing this routine.
 ---
 
 # One round of the pipeline
@@ -135,9 +135,10 @@ A red master build comes first: it also blocks canary and the build cache every 
   reopen it as graphty-agent (`gh pr close <n> && gh pr reopen <n>`). When master is green again without it, close
   it with a one-line reason. After three failed fix attempts on one problem, keep master green by reverting the
   culprit and start the next attempt from a different approach, with the earlier attempts' evidence in its prompt.
-- **While master's build is red:** no other pull request is opened (steps 8 and 9 wait); the same holds while the
-  newest full run is red. Issue jobs keep working and queue `ready` branches, and master's fix takes a test slot
-  first (see "While master is red" in the shared file).
+- **While master's build is red:** no other pull request is opened (issue-round's `open` jobs wait). While only the
+  newest full run is red, only the pull requests that touch its failing lane wait; the others open as normal (owner,
+  2026-11-20). Issue jobs keep working and queue the held `ready` branches, and master's fix takes a test slot first
+  (see "While master is red" in the shared file).
 - **A critical issue no later step owns** is still this skill's alarm (issue-round also takes free code-work
   `priority:critical` issues first; the `in-progress` label and `taken` marker keep the two off each other): mark it
   and start a fix subagent the same way.
@@ -192,13 +193,24 @@ first-parent merges since the last green full run.
 - **`[FLAKY-UNRELATED]`** on a pull request (failed then passed, in a file the pull request did not touch): dispatch
   `base-check.yml` with `repeat: 5` for that file; its master records can quarantine it.
 - `Failing on master: <first line>` issues (filed by base checks) get a fix subagent like any code failure.
+- **A manual flaky sweep** (filing `Flaky test(s): ...` issues from the `pipeline-health` tool `flaky_hotspots`):
+  before filing for a test file, search closed and open issues that name it
+  (`gh issue list --state all --search '<basename> flaky in:title,body'`). A fix that closed after the newest flaky
+  event's commit, so every event predates it: file nothing. The newest event ran on a commit that contains the fix
+  (`git merge-base --is-ancestor <fix sha> <event sha>`): reopen that issue with the new events as evidence instead
+  of filing a new one. File a new issue only when no issue names the file. (The 11-15 sweep filed 17 issues; 10 of
+  them closed with no code because the test was already fixed.)
 
 ### 4. Budget alarms
 
-- **`ci-budget` issues**, filed by a run's `timings` job (`tools/ci-budgets.mjs trend`, budgets in `ci-budgets.json`):
-  read the suspect merge range in the issue, find the task or step that slowed, and revert or fix it. A budget
-  raise is never the fix by itself: it is its own pull request with its new measurement, for the owner to review.
-- A job killed at its `timeout-minutes` (labelled `hung`) is a defect: fix the hang, never re-run or raise it.
+- **`ci-budget` issues**, kept by a run's `timings` job (`tools/ci-budgets.mjs report`, budgets in `ci-budgets.json`):
+  one issue per workflow and run kind lists every key over its line, and each run strikes the keys back under and
+  closes it when none is left. `CI budget: <workflow> (<kind>) keys over the line`: read each key's suspect merge
+  range, find the task or step that slowed, and revert or fix it. `... shared slowdown` (`infrastructure`): the
+  whole run slowed (runner contention, a slower runner class): look at runner wait and queued runs, not the
+  merges. A budget raise is never the fix by itself: it is its own pull request with its new measurement, for the
+  owner to review.
+- A job killed at its `timeout-minutes` (labeled `hung`) is a defect: fix the hang, never re-run or raise it.
 - **`Nightly missed slot <date hh:mm> UTC: <cause>`** (`priority:critical`, from release.yml's slot job): act on
   the cause it names this round (see "Nightly every slot"). **`Nightly stalled since <date>`** (over a slot and a
   run with no missed-slot issue: a slot produced no run): check the release scheduler and the newest release.yml
@@ -278,27 +290,23 @@ several:
   old, and every pull request over 1,500 changed lines (tests and baselines not counted). Each is split into flagged
   pieces or its owner says why not, recorded with `tools/branch-note.mjs`. A warning, not a check.
 
-### 8. Red or conflicted agent pull requests
+### 8. Agent pull requests: unarmed and dependabot
 
-From the broker file (`tmp/pr-status/status.json`): every open pull request into master opened by graphty-agent
-(its `author`) whose `All Checks Pass` concluded `failure` on its head, that conflicts with master, or has unanswered
-review findings. A pull request anyone else opened -- the owner's, a master-guard revert (step 1) -- is not this step's: skip it.
+Red or conflicting graphty-agent pull requests are issue-round's `fix-red` jobs, ranked by the issues they block
+(`node tools/issue-groups.mjs jobs`; prompt `tmp/issue-round/red-pr-prompt.md`). This step never starts a fix for one:
+on 2026-11-17 it reported "nothing has changed" while 59 of 88 pull requests were red, because the work sat here and
+issue-round was forbidden to do it.
 
-**Most-blocking first.** Order them by how many issues list them in `tmp/issue-round/free-queue.json`
-`blocked[].prs`, and start one fix subagent per red or conflicting pull request with no live owner, with no fixed
-number (only issue-round's step 1 limits on slots, load, memory and disk). Write the `fix attempt` marker when it
-starts: issue-round counts the pull request's files again from then on.
-
-- Its branch's issue has a live `taken` marker (its session is alive, see "Alive"): that session owns it. Skip.
-- Otherwise classify the failure from the failed job (see "Failure classes"): outside, re-run the failed jobs once;
-  code or a conflict, mark the issue and start a fix subagent on the existing branch (fix prompt above), which merges
-  `origin/master` (never rebase), fixes and pushes.
-- **Inherited from master** (check this first, see "Inherited failures" in the shared file): link the master-break
-  issue with an `inherited` marker and start no fix job; once its fix merged, `PUT pulls/<n>/update-branch`.
-- **Close** a pull request that cannot go green after 2 fix attempts (or has 150 or more changed files): close it
-  with `pipeline-round: closed -- <reason>; branch kept` (a closed pull request can be reopened) and give its issues
-  a `released` marker with the evidence. Never split it into a new pull request: that copies commits ("Never copy,
-  always merge"). Instead, pipeline-round may revert the red part on the same branch by an ordinary commit.
+**Unarmed agent pull requests**, every round: `node tools/armable-prs.mjs` (one paged GraphQL query) prints
+`armable: #n <priority>, ...`, the open graphty-agent pull requests that are CLEAN with checks SUCCESS, auto-merge
+off and never turned off (any disable is a hold: pr-open.sh's for the owner, issue-round's send-back for changes),
+with no breaking commit, no file holding an approval the owner keeps and no `GUARD_PATHS` file (the owner merges
+those), critical first, then high, then oldest by the issues each closes; and `green, held for the owner: ...` for
+the rest. While master is green, arm the first (`gh pr merge <n> --auto --merge`) unless a comment on it records a
+hold (auto-merge stays off, or it needs the owner). One at a time: the next round arms the next. A
+green pull request with auto-merge on that conflicts with master gets a fix subagent that merges `origin/master`
+(same as a red one above). The round's last line names every pull request armed and every conflicted one sent to a
+fix, by number.
 
 **Dependabot pull requests** (author `dependabot[bot]`): `dependabot-automerge.yml` arms their auto-merge; one with
 auto-merge off gets it turned on as graphty-agent (`gh pr merge <n> --auto --merge`), except Actions updates, which
@@ -306,14 +314,8 @@ wait for the owner. A red one is classified like an agent pull request.
 
 ### 9. Finished branches with no pull request
 
-A branch on GitHub with commits master lacks, whose issue's newest marker is `ready <branch> <sha>` at its tip, and
-no open pull request (a subagent whose `pr-open.sh` failed, or a job that stopped at its `ready` marker while master
-was red): open it, oldest first, as many as CI's runners allow (the `pipeline-health` MCP tool `runners`:
-`ci.saturated` ok and `ci.runner_wait` not red), checked again after each one. `CI_PR_RUN_CAP` already limits how many
-pull requests CI runs at once. Only while master is green (see "While master is red" in the shared file);
-`pr-open.sh` merges master first. Run, from the branch's worktree (or a new worktree of the branch),
-`tools/pr-open.sh --proof tmp/pipeline-round/<branch>-proof.md` with a Proof that cites the `ready` marker and the
-tests the branch ran. Exit 2 (a conflict with master) goes to a fix subagent.
+issue-round's `open` jobs (a ready branch whose ready commit is not on master, with no pull request for 2 hours). This
+step opens none. Branches with commits master lacks, for step 10:
 
 ```bash
 git for-each-ref --no-merged=origin/master --sort=committerdate --format='%(refname:short) %(committerdate:unix)' \
@@ -322,18 +324,20 @@ git for-each-ref --no-merged=origin/master --sort=committerdate --format='%(refn
 
 ### 10. Stale issues and stranded branches
 
-Every round, over `marked` in the state file and the branch list above (no extra GitHub calls):
+First `node tools/issue-groups.mjs check --fix` (issue-round runs it too; twice a round is harmless): it ends the
+waits of merged pull requests and makes their follow-up groups startable, dissolves groups whose pull request closed
+unmerged so their issues are routed again, and expires waits on a pull request red or conflicting with no new commit
+for 6 hours or held by the owner for over 24 (design/ci/issue-grouping.md section 4), and runs the claims sweep (see
+"Claims" in the shared file), which releases dead claims with no commits and lists the stranded ones. Then, every
+round, over the sweep's `stranded` lines and the branch list above (no extra GitHub calls):
 
-- An `in-progress` issue that is stale (see "Stale" in the shared file) with no commits on its branch: write
-  `released -- <reason>` and remove the label in the same step, so issue-round can pick it again.
-- An idle claim (see "Idle claims" in the shared file): ask its session once, and in a later round with no answer
-  and still no activity, release it or treat its branch as stranded.
-- An issue whose label no longer matches its last marker (see "Label matches the last marker"): remove the label.
-- A stranded branch (see "Stranded" in the shared file; at most one per round, only when nothing above acted): a
-  branch from the list above with no `ready` marker, no pull request, no commit for a day, whose owner is provably
-  gone or idle and unanswered, or whose issue was handed back (`released`) with the branch still unopened, and whose
-  worktree has no process inside. Its issue still open and the work still wanted:
-  mark the issue and hand the branch to a fix subagent to merge `origin/master`, finish, and open its pull request.
+- Every stranded branch (see "Stranded" in the shared file), every round, even when a step above acted or ended the
+  round: a branch from the list above with no `ready` marker newer than its issue's newest `taken` marker, no pull request, no commit for a day, whose owner is
+  provably gone or idle and unanswered, or whose issue was handed back (`released`) with the branch still unopened,
+  and whose worktree has no process inside. Its issue still open and the work still wanted: mark every issue of the branch's group (`issue-queue.mjs taken` with all of them) and start
+  one background fix subagent per branch to merge `origin/master`, finish, and open its pull request, oldest commit
+  first, with no fixed number (only issue-round's limits on test slots, load, memory and disk, and its start rate,
+  checked again before each start). Branches left when a limit stops the starts wait for the next round.
   Not wanted: a `stranded branch` marker with the reason; never delete the branch. A branch with no issue gets one
   first (`node tools/branch-note.mjs new-issue --title "<what it does>" --branch <b>`).
 
@@ -400,13 +404,13 @@ Each: signal, meaning, action. Add to this list (see the next section).
   `tools/worktree-cleanup.mjs`, not a forced removal.
 - **The loop stopped running.** CronCreate jobs expire 7 days after they are created (the 2026-11-04 loop ran its last
   round 2026-11-11 and nobody noticed for a day). Start it again and follow "Renewing the loop" in `shared.md`.
-- **A full run cancelled with every lane green.** An advisory `continue-on-error` job that hits its timeout (ci.yml's
+- **A full run canceled with every lane green.** An advisory `continue-on-error` job that hits its timeout (ci.yml's
   Performance Benchmarks, #7507) leaves a full run's GitHub conclusion `cancelled` (or `failure`) although every lane
   passed and the Verdict job recorded `green-clean` or `green-images` (runs 43389691481 and 43421576817 on
   2026-11-13). Judge master by that verdict (the `release.yml` line of `shared.md`'s state block), never by
   the conclusion: such a run is green, master is not red, and nothing is bisected or reverted for it. Reading the
-  conclusion and skipping cancelled runs kept master red for hours on an older failure.
-- **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, and the
+  conclusion and skipping canceled runs kept master red for hours on an older failure.
+- **Not work:** issues labeled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, and the
   Release status issue.
 
 ## How this skill improves

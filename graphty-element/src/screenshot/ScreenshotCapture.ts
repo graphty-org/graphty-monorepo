@@ -75,6 +75,8 @@ export class ScreenshotCapture {
      * @param requestFrame - Asks the render loop to draw the next frame, even when the picture
      *     looks final: a graph drawn on demand draws none for a background cleared for a moment
      * @param readLegend - The element's legend (`session.styles.legend()`), for `legend: true`
+     * @param drawNow - Draws a frame now, outside the render loop, so a copy of a canvas that keeps
+     *     no frame is taken at the end of a frame that drew
      */
     constructor(
         private readonly engine: Engine | WebGPUEngine,
@@ -83,6 +85,7 @@ export class ScreenshotCapture {
         private readonly graph: Graph,
         private readonly requestFrame: () => void = () => undefined,
         private readonly readLegend: () => readonly LegendBlock[] = () => [],
+        private readonly drawNow: () => void = () => undefined,
     ) {}
 
     /**
@@ -840,11 +843,16 @@ export class ScreenshotCapture {
             if (sameSize || !sameShape) {
                 // Babylon copies the canvas at the end of the next frame. A canvas that keeps no
                 // frame (WebGPU, or WebGL without preserveDrawingBuffer) holds a picture only in a
-                // frame that drew one, and a graph drawn on demand may draw none: ask for one.
+                // frame that drew one, and the loop's next tick may draw none: on demand with
+                // nothing changed, or skipped to pace the GPU or a shader just compiled. That copy
+                // is transparent (#9730). So the copy is asked for first and a frame drawn now ends
+                // it; the requested frame covers a loop whose frames are held.
+                const copied = CreateScreenshotAsync(this.engine, camera, size);
                 if (!this.keepsFrames()) {
                     this.requestFrame();
+                    this.drawNow();
                 }
-                dataUrl = await CreateScreenshotAsync(this.engine, camera, size);
+                dataUrl = await copied;
             } else {
                 const scale = captureWidth / this.canvas.width;
                 CustomLineRenderer.setPixelScale(this.scene, scale);

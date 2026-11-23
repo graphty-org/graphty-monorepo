@@ -15,7 +15,7 @@
 
 import "../../src/graphty-element";
 
-import { type Effect, EngineStore, Mesh, Tools, Vector3, WebGPUEngine } from "@babylonjs/core";
+import { CreateScreenshotAsync, type Effect, EngineStore, Mesh, Tools, Vector3, WebGPUEngine } from "@babylonjs/core";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
@@ -131,25 +131,36 @@ async function animateEdges(graph: Graph): Promise<void> {
 }
 
 /**
- * Waits for the picture to be final and takes a screenshot the way the element does.
+ * Waits for the picture to be final and takes a screenshot with the element's own
+ * `captureScreenshot`.
  *
- * Babylon's own `CreateScreenshotAsync`, the call `captureScreenshot` makes, rather than
- * `captureScreenshot` itself: test/setup.ts replaces that call with a one-pixel stub for every
- * other test, so the real one is imported past the mock here. The PNG is kept under
- * tmp/webgpu-renderer/ for a person to look at.
+ * test/setup.ts replaces Babylon's `CreateScreenshotAsync`, the call `captureScreenshot` makes,
+ * with a one-pixel stub for every other test, so the real one stands in for the stub once here.
+ * The PNG is kept under tmp/webgpu-renderer/ for a person to look at.
  * @param graph - The graph to read.
  * @param name - The PNG's name.
  * @returns The RGBA pixels.
  */
 async function screenshot(graph: Graph, name: string): Promise<Uint8ClampedArray> {
     await graph.waitForStableFrame();
-    const { CreateScreenshotAsync } = await vi.importActual<typeof import("@babylonjs/core")>("@babylonjs/core");
-    const camera = graph.scene.activeCamera;
-    assert.isNotNull(camera);
-    const dataUrl = await CreateScreenshotAsync(graph.engine, camera, { width: WIDTH, height: HEIGHT });
+    const real = await vi.importActual<typeof import("@babylonjs/core/Misc/screenshotTools.js")>(
+        "@babylonjs/core/Misc/screenshotTools.js",
+    );
+    vi.mocked(CreateScreenshotAsync).mockImplementationOnce(real.CreateScreenshotAsync);
+    const { blob } = await graph.captureScreenshot();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            resolve(typeof reader.result === "string" ? reader.result : "");
+        };
+        reader.onerror = () => {
+            reject(reader.error ?? new Error("the screenshot could not be read"));
+        };
+        reader.readAsDataURL(blob);
+    });
     await commands.writeFile(`tmp/webgpu-renderer/${name}.png`, dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
 
-    const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob());
+    const bitmap = await createImageBitmap(blob);
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const context = canvas.getContext("2d");
     assert.isNotNull(context);
@@ -174,8 +185,12 @@ function compare(one: Uint8ClampedArray, other: Uint8ClampedArray): { differ: nu
         }
 
         differ += largest > PIXEL_TOLERANCE ? 1 : 0;
-        // The default background is #F5F5F5.
-        ink += Math.abs(one[at] - 0xf5) + Math.abs(one[at + 1] - 0xf5) + Math.abs(one[at + 2] - 0xf5) > 24 ? 1 : 0;
+        // The default background is #F5F5F5. A transparent pixel is no picture at all, not ink.
+        ink +=
+            one[at + 3] > 0 &&
+            Math.abs(one[at] - 0xf5) + Math.abs(one[at + 1] - 0xf5) + Math.abs(one[at + 2] - 0xf5) > 24
+                ? 1
+                : 0;
     }
 
     const pixels = one.length / 4;

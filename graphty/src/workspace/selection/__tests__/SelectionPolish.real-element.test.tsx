@@ -27,13 +27,13 @@ import { Workspace } from "../../Workspace";
 withFeatures([]);
 
 /**
- * Opens the selection's workspace from the Style tab's Style Nodes... line (issue #6810): a style
+ * Opens the selection's workspace from the Style tab's Select nodes... line (issue #6810): a style
  * layer's selection is read and edited there, never in the sidebar.
  * @returns the workspace.
  */
 async function openWs(): Promise<HTMLElement> {
     if (document.querySelector(".sel-ws") === null) {
-        await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Select (nodes|edges)\.\.\./ }));
     }
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
@@ -56,7 +56,7 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
     }
     if (document.querySelector(".sel-ws") === null) {
         await userEvent.click(
-            within(where).getAllByRole("button", { name: /^(Edit |Style (Nodes|Edges)\.\.\.)/ })[0] ?? document.body,
+            within(where).getAllByRole("button", { name: /^(Edit |Select (nodes|edges)\.\.\.)/ })[0] ?? document.body,
         );
     }
     const control = await waitFor(() => {

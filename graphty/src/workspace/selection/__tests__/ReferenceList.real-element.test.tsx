@@ -89,7 +89,7 @@ function optionNames(): string[] {
 describe("the reference picker's list", () => {
     it("opens on the live references, the sets and the node count, finds nodes by name and takes a set or a node", async () => {
         const { session, layer, set } = await openLayer();
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
         await waitFor(() => {
             assert.isNotNull(document.querySelector(".sel-ws"), "the workspace is open");
         });

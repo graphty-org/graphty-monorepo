@@ -214,7 +214,7 @@ describe("folders, several rows and the draft on the real element", () => {
             );
         }
         // A new layer draws its selection outline, Which nodes, with its Edit button.
-        await within(tab).findByRole("button", { name: /^Style Nodes\.\.\./ });
+        await within(tab).findByRole("button", { name: /^Select nodes\.\.\./ });
         assert.equal(session.styles.list().length, before + 2, "one row, a node part and an edge part");
 
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));

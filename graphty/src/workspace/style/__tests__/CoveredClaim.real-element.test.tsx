@@ -69,7 +69,7 @@ describe("a layer's Fill after an Or group is added to its Which nodes", () => {
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Busy, / }));
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
         const ws = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found, "the workspace is open");

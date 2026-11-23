@@ -41,7 +41,7 @@ Rules that hold throughout, from the owner:
 
 ### 2.1 Header (unchanged)
 
-The layer name and menu, "Style Nodes..." / "Style Edges...", the node / edge tabs, the Find a setting box
+The layer name and menu, "Select nodes..." / "Select edges..." (no Style nodes / Style edges checkbox; a layer with no selection holds all of them and the line says All), the node / edge tabs, the Find a setting box
 (key "/") and saving and loading styles stay as today. Find gains aliases in
 `parts/aliases.ts` (arrow -> Arrow, name -> Label, hide -> Visibility, highlight -> Ring).
 

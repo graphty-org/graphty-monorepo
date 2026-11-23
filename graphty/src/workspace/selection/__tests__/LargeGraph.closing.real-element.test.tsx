@@ -26,7 +26,7 @@ describe("the selection editor on 50,000 nodes", () => {
             );
             const row = document.querySelector<HTMLElement>(".sel-rest [data-edit]");
             if (row === null) {
-                throw new Error("the Style Nodes... line is drawn");
+                throw new Error("the Select nodes... line is drawn");
             }
             await userEvent.click(row);
             const values = await screen.findByRole("group", { name: "community values" });

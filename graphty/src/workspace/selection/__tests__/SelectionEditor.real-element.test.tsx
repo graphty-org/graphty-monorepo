@@ -100,7 +100,7 @@ describe("the start page's hover look, built with the editor (spec 7, acceptance
 });
 
 describe("a style layer's selection at rest (the owner, 2026-11-11, issue #6810)", () => {
-    it("is one line, Style Nodes... with the open-in-new-window icon, and no outline rows", async () => {
+    it("is one line, Select nodes... with the open-in-new-window icon, and no outline rows", async () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
         const editor = document.querySelector<HTMLElement>(".sel-rest");
@@ -112,7 +112,7 @@ describe("a style layer's selection at rest (the owner, 2026-11-11, issue #6810)
         );
         assert.deepEqual(
             shown.map((each) => each.textContent),
-            ["Style Nodes..."],
+            ["Select nodes..."],
         );
         assert.isNotNull(shown[0]?.querySelector("svg"), "the open-in-new-window icon");
         assert.lengthOf(editor.querySelectorAll(".sel-row, [role=tree]"), 0, "no Which nodes title or All nodes row");

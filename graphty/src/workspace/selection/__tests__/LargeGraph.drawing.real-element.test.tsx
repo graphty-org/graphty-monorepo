@@ -24,7 +24,7 @@ describe("the selection editor on 50,000 nodes", () => {
         );
         const row = document.querySelector<HTMLElement>(".sel-rest [data-edit]");
         if (row === null) {
-            throw new Error("the Style Nodes... line is drawn");
+            throw new Error("the Select nodes... line is drawn");
         }
         const opened = await firstFrameAfter(session, row);
         assert.isTrue(
@@ -96,7 +96,7 @@ describe("the selection editor on 50,000 nodes", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
         await screen.findByRole("textbox", { name: "Layer name" });
         const tab = await screen.findByTestId("style-tab");
-        const edit = await within(tab).findByRole("button", { name: /^Style Nodes\.\.\./ });
+        const edit = await within(tab).findByRole("button", { name: /^Select nodes\.\.\./ });
         await session.styles.settled();
         // The walks done from the press to the first frame drawn after it.
         let pressed = -1;

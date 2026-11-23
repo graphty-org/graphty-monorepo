@@ -103,7 +103,7 @@ async function openLayer(session: GraphSession, name: string, where?: UnionLeaf)
  * closed, and Done or Cancel closes it once the canvas has painted.
  * @returns it.
  */
-const editButton = (): Promise<HTMLElement> => screen.findByRole("button", { name: /^Style Nodes\.\.\./ });
+const editButton = (): Promise<HTMLElement> => screen.findByRole("button", { name: /^Select nodes\.\.\./ });
 
 describe("the attribute finder takes the keys typed as it opens (#8943)", () => {
     it("holds focus the moment it shows, and a word typed straight after the click lands in it", async () => {

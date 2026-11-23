@@ -99,7 +99,7 @@ async function opened(): Promise<HTMLElement> {
  * @returns the open workspace.
  */
 async function edit(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
     return opened();
 }
 
@@ -153,7 +153,7 @@ describe("the preview is the canvas", () => {
 });
 
 describe("one place for the rule while it is edited", () => {
-    it("the sidebar keeps only its Style Nodes... line, at rest and while edited, with no outline and no count", async () => {
+    it("the sidebar keeps only its Select nodes... line, at rest and while edited, with no outline and no count", async () => {
         const { session } = await openSample();
         await openLayer(session, "Once", TWO);
         const rest = document.querySelector<HTMLElement>(".sel-rest");
@@ -162,16 +162,16 @@ describe("one place for the rule while it is edited", () => {
         await waitFor(() => {
             assert.lengthOf(rest?.querySelectorAll(".sel-step-row, .sel-group-row") ?? [], 0, "no outline");
             assert.isNull(rest?.querySelector(".sel-count") ?? null, "no count");
-            assert.strictEqual(rest?.querySelector("[data-edit]")?.textContent, "Style Nodes...");
+            assert.strictEqual(rest?.querySelector("[data-edit]")?.textContent, "Select nodes...");
         });
     });
 });
 
-describe("the sidebar's Style Nodes... line", () => {
+describe("the sidebar's Select nodes... line", () => {
     it("draws no count at rest in a style layer, and its open-in-new-window icon inside the line", async () => {
         const { session } = await openSample();
         await openLayer(session, "Hover", TWO);
-        const line = await screen.findByRole("button", { name: "Style Nodes..." });
+        const line = await screen.findByRole("button", { name: "Select nodes..." });
         // The layer row and the canvas key say the layer's count; the line does not (tier5 decided.md).
         assert.isNull(document.querySelector(".sel-rest .sel-count"), "no count at rest");
         assert.strictEqual(getComputedStyle(line).opacity, "1", "drawn with no hover");

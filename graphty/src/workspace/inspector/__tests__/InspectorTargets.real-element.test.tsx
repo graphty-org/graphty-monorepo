@@ -366,7 +366,7 @@ describe("what the inspector opens, on the real element", () => {
             assert.equal(open?.kind, "layer-row");
             return open;
         });
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
         const ws = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found, "the workspace is open");

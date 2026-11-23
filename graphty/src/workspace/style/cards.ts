@@ -31,6 +31,7 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { sourceName } from "../data-place/words";
+import { stylePanelV2On } from "../features";
 import { edgeName } from "../inspector/words";
 import { countName, readableName, valueFact, valueName } from "./words";
 
@@ -738,7 +739,11 @@ export async function writeKind(
     const written = await tx.styles.writeRow(rowId, { target: has(other) ? "both" : side });
     const added = side === "edge" ? written.edge : written.node;
     if (added !== undefined) {
-        await tx.styles.update(added, { selector: newPartSelector(session, side, node) });
+        // v2: a kind nothing was selected for applies to all of it (owner, 2026-11-23).
+        const selector: Selector = stylePanelV2On(session)
+            ? { match: "everything" }
+            : newPartSelector(session, side, node);
+        await tx.styles.update(added, { selector });
     }
     return true;
 }

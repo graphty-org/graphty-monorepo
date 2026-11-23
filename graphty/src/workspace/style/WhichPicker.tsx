@@ -360,6 +360,8 @@ interface WhichPickerProps {
     readonly side: Side;
     /** Open on arrival: a new layer, or a kind just turned on with no cards. */
     readonly autoOpen?: boolean;
+    /** Opens the selection's workspace on arrival (v2, a kind just started from its Select line). */
+    readonly openWorkspace?: boolean;
     /** A field to open on with a card on it (the other kind's tab sent the reader here for it). */
     readonly adding?: string;
     /** Goes to the other kind's tab with a card on a field it carries. */
@@ -382,6 +384,7 @@ interface WhichPickerProps {
  * @param props.rows - the rows it writes
  * @param props.side - nodes or edges
  * @param props.autoOpen - open on arrival when it has no cards
+ * @param props.openWorkspace - opens the selection's workspace on arrival
  * @param props.adding - a field to open on with a card on it
  * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
  * @param props.summary - reads the folded row's cards as one line
@@ -392,6 +395,7 @@ export function WhichPicker({
     rows: ids,
     side,
     autoOpen = false,
+    openWorkspace = false,
     adding,
     onElsewhere,
     summary,
@@ -451,6 +455,7 @@ export function WhichPicker({
                     layer={rows[0].layer}
                     name={rows[0].name}
                     side={side}
+                    openTitle={openWorkspace}
                     onWriting={setWriting}
                 />
             )}

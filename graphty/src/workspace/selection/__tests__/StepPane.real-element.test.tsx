@@ -85,7 +85,7 @@ async function openStep(
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Calm, / }));
-    await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Select (nodes|edges)\.\.\./ }));
     const modal = await waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the workspace is open");

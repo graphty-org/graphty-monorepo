@@ -26,13 +26,13 @@ import { findNodes } from "../references";
 withFeatures([]);
 
 /**
- * Opens the selection's workspace from the Style tab's Style Nodes... line (issue #6810): a style
+ * Opens the selection's workspace from the Style tab's Select nodes... line (issue #6810): a style
  * layer's selection is read and edited there, never in the sidebar.
  * @returns the workspace.
  */
 async function openWs(): Promise<HTMLElement> {
     if (document.querySelector(".sel-ws") === null) {
-        await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Select (nodes|edges)\.\.\./ }));
     }
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
@@ -215,7 +215,7 @@ describe("keys and boxes in the panes", () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Named", { match: "everything" });
         // A layer of every node opens on its new step's pane: its value field opens the picker.
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
         await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("name{Enter}");

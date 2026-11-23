@@ -78,11 +78,11 @@ async function openLayer(where?: UnionLeaf): Promise<{ session: GraphSession; la
 }
 
 /**
- * Opens the workspace with the sidebar's Style Nodes...
+ * Opens the workspace with the sidebar's Select nodes...
  * @returns the workspace.
  */
 async function openModal(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
     return modal();
 }
 

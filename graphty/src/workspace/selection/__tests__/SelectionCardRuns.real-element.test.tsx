@@ -63,7 +63,7 @@ async function openLayer(): Promise<{ session: GraphSession; layer: Layer }> {
  * @returns the modal.
  */
 async function pickPageRank(session: GraphSession): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
     const modal = await waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the modal is open");
@@ -166,7 +166,7 @@ describe("runs started from a selection card", () => {
 describe("a card step computed on So far (design: algo-options cardruns.md, rule 4)", () => {
     it("keeps its result inside the step: no run listed, no column, no undo step, before or after Done", async () => {
         const { session, layer } = await openLayer();
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
         const modal = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found, "the modal is open");
@@ -289,7 +289,7 @@ function listedGroups(modal: HTMLElement): Map<string, number> {
 describe("a card's setting its run name does not carry (the owner, 2026-11-04)", () => {
     it("Louvain's Max iterations makes the card's own run: its groups are re-read and the tick follows its group", async () => {
         const { session, layer } = await openLayer();
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
         const modal = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found);

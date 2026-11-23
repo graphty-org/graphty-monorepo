@@ -39,6 +39,7 @@ import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 
+import { stylePanelV2On } from "../features";
 import { canFocus, focusInspectorTitle, focusIsLost, tabStops } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
@@ -483,7 +484,7 @@ export function SelectionEditor({
                 ? []
                 : [`[data-row="${CSS.escape(from)}"]`, `[data-selects="${CSS.escape(from)}"]`]),
             `[data-row="${TITLE}"]`,
-            // A style layer's sidebar has no rows, only its Style Nodes... line (issue #6810).
+            // A style layer's sidebar has no rows, only its Select nodes... line (issue #6810).
             "[data-edit]",
         ];
     };
@@ -900,6 +901,17 @@ export function SelectionEditor({
             return (
                 <StyleOpenLine
                     side={side}
+                    {...(stylePanelV2On(session)
+                        ? {
+                              count:
+                                  reading.total.count === of
+                                      ? { short: "All", full: `all ${formatNumber(of)} ${NOUNS[side].many}` }
+                                      : {
+                                            short: `${formatNumber(reading.total.count)} of ${formatNumber(of)}`,
+                                            full: countWords(reading.total.count, of, side),
+                                        },
+                          }
+                        : {})}
                     onOpen={() => {
                         openAt(TITLE, EDIT);
                     }}

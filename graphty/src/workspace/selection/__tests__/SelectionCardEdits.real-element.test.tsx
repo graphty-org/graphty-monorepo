@@ -99,11 +99,11 @@ async function openCards(
 }
 
 /**
- * Opens the workspace with the sidebar's Style Nodes...
+ * Opens the workspace with the sidebar's Select nodes...
  * @returns the workspace.
  */
 async function openModal(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the workspace is open");

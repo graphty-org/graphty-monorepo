@@ -552,7 +552,7 @@ body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface::after {
     --input-bd-focus: var(--sel-card-color);
 }
 
-/* A style layer's Which nodes / Which edges at rest: one line, "Style Nodes..." and its
+/* A style layer's Which nodes / Which edges at rest: one line, "Select nodes..." and its
    open-in-new-window icon, with a waiting step's Run at its end (issue #6810). */
 .sel-open-line {
     display: flex;

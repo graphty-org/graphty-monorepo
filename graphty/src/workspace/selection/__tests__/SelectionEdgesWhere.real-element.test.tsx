@@ -79,7 +79,7 @@ function firstStep(
  * @param id - the layer.
  */
 async function pickDegree(session: GraphSession, id: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-ws"), "the workspace is open");
     });

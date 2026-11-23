@@ -108,7 +108,7 @@ function firstStep(session: GraphSession, id: string): UnionLeaf["branches"][num
  * @param name - what to type.
  */
 async function openOn(name: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-ws"), "the workspace is open");
     });

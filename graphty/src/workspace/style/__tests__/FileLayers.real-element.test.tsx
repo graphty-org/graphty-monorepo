@@ -112,7 +112,7 @@ describe("the Style panel on a file's layers", () => {
             assert.isNotNull(document.querySelector(".sel-rest"), "the selection editor reads the layer");
         });
         // ...and edits the layer's selector as it edits any layer's.
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
         const ws = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found, "the selection editor is open");

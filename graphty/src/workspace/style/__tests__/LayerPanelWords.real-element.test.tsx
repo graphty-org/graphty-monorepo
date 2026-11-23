@@ -72,7 +72,7 @@ describe("the layer panel's words", () => {
         assert.strictEqual(tip.textContent, "Add to node fill", "the tooltip is the button's name");
     });
 
-    it("keeps the shape's value in its name, and reads its selection as the Style Nodes... line", async () => {
+    it("keeps the shape's value in its name, and reads its selection as the Select nodes... line", async () => {
         const { session } = await openScene();
         await session.styles.add({
             name: "Boxes",
@@ -84,8 +84,8 @@ describe("the layer panel's words", () => {
         await clickRow("Boxes");
         const shape = await screen.findByRole("combobox", { name: /^Node shape, / });
         assert.notInclude(shape.getAttribute("aria-label") ?? "", "default", "a set value is not the default");
-        // At rest the layer's selection is one Style Nodes... line that opens it (issue #6810).
-        assert.isNotNull(await screen.findByRole("button", { name: "Style Nodes..." }));
+        // At rest the layer's selection is one Select nodes... line that opens it (issue #6810).
+        assert.isNotNull(await screen.findByRole("button", { name: "Select nodes..." }));
         assert.isNull(screen.queryByRole("tree", { name: /^Which nodes/ }), "no outline at rest");
     });
 

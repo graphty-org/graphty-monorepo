@@ -97,7 +97,7 @@ function unionOf(session: GraphSession, id: string): UnionLeaf | undefined {
  * @returns the modal.
  */
 async function openModal(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the modal is open");
@@ -638,7 +638,7 @@ describe("long names in the selection modal (the owner, 2026-11-04)", () => {
 describe("the start button of an empty card", () => {
     it("takes All nodes before the first value, and the value then narrows All", async () => {
         const { session, layer } = await openLayer();
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
         const modal = await screen.findByRole("dialog", { name: /Which nodes/ });
         await userEvent.click(within(modal).getByRole("button", { name: "No nodes" }));
         await within(modal).findByRole("button", { name: "All nodes" });
@@ -663,7 +663,7 @@ describe("Escape on the workspace, wherever focus was left", () => {
     it("cancels after a press on the drawing or on the title bar's empty space", async () => {
         await openLayer();
         for (const spot of [".sel-ws-preview", ".sel-ws-head"]) {
-            await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+            await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
             await screen.findByRole("dialog", { name: /Which nodes/ });
             const box = document.querySelector(spot);
             if (box === null) {
@@ -703,7 +703,7 @@ describe("Escape on the workspace, wherever focus was left", () => {
 });
 
 describe("a style layer's scope at the top of its panel (the owner, 2026-11-04)", () => {
-    it("a new layer shows Style Nodes... and Style Edges... with no hover, and each opens the modal", async () => {
+    it("a new layer shows Select nodes... and Select edges... with no hover, and each opens the modal", async () => {
         await openLayer();
         await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));

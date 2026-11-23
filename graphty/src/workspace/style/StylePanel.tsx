@@ -11,6 +11,7 @@ import { cosmographOn, fileStylesOn, stylePanelV2On } from "../features";
 import { findTreeRow, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { errorWords } from "../project/words";
 import { RenderCount } from "../renderCount";
+import { StyleOpenLine } from "../selection/StyleOpenLine";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, isBlankRow, writeKind } from "./cards";
@@ -38,6 +39,9 @@ import { useLabelColumn } from "./useLabelColumn";
 import { useDataVersion, useStyleVersion } from "./useStyleVersion";
 import { StylePanelV2 } from "./v2/StylePanelV2";
 import { WhichPicker } from "./WhichPicker";
+
+/** A kind the row does not style yet: its Select line counts none. */
+const NO_COUNT = { short: "None", full: "none" } as const;
 import { sectionsFor } from "./words";
 
 /**
@@ -180,6 +184,7 @@ function rowKinds(session: GraphSession, store: WorkspaceStore, rowId: string): 
                 rows={[rowId]}
                 side={side}
                 autoOpen={justOn || isBlankRow(session, rowId)}
+                openWorkspace={justOn && stylePanelV2On(session)}
                 {...(fileStylesOn(session) ? { summary: ruleLine } : {})}
                 {...elsewhere}
             />
@@ -360,7 +365,7 @@ const KIND_WORDS: Readonly<Record<Target, { tab: string; many: string }>> = {
 
 /**
  * One row's Style tab (V7, the owner's choice of 2026-10-16): Node and Edge tabs; each tab holds
- * the kind's switch and its Style Nodes... or Style Edges... line (a tree row), then its sections.
+ * the kind's switch (v1 only) and its Select nodes... or Select edges... line (a tree row), then its sections.
  * One tab state for the panel: kept while the next row styles that kind, else the kind the row
  * styles, Node on a tie.
  * @param props - Component props
@@ -484,8 +489,13 @@ export function RowStyle({
             </Stack>
         );
     }
+    const v2 = stylePanelV2On(session);
     const show = (side: Target): void => {
         setAdding(null);
+        if (v2) {
+            // Back on a tab, its workspace does not open again.
+            setJustOn(null);
+        }
         setTab(side);
     };
     const turn = async (side: Target, on: boolean): Promise<void> => {
@@ -533,7 +543,18 @@ export function RowStyle({
                     const other: Target = side === "node" ? "edge" : "node";
                     return (
                         <Tabs.Panel key={side} value={side}>
-                            {kinds !== undefined && (
+                            {kinds !== undefined && v2 && !styled(side) && (
+                                // v2 has no switch: a kind the row does not style yet is its Select
+                                // line, which starts the kind on every element and opens the workspace.
+                                <StyleOpenLine
+                                    side={side}
+                                    count={NO_COUNT}
+                                    onOpen={() => {
+                                        void turn(side, true);
+                                    }}
+                                />
+                            )}
+                            {kinds !== undefined && !v2 && (
                                 <KindSwitch
                                     side={side}
                                     state={kinds.state(side)}

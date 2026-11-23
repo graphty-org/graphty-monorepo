@@ -23,6 +23,7 @@ import { layerSelection } from "./values";
  * @param props.name - the layer's row name, for the undo step's words
  * @param props.side - nodes or edges
  * @param props.autoFocus - takes focus on arrival
+ * @param props.openTitle - opens the workspace on arrival
  * @param props.onWriting - told whether an edit is still on its way to the layer
  * @returns The editor
  */
@@ -32,6 +33,7 @@ export function StyleSelection({
     name,
     side,
     autoFocus = false,
+    openTitle = false,
     onWriting,
 }: Readonly<{
     session: GraphSession;
@@ -39,6 +41,7 @@ export function StyleSelection({
     name: string;
     side: Side;
     autoFocus?: boolean;
+    openTitle?: boolean;
     onWriting?: (on: boolean) => void;
 }>): React.JSX.Element | null {
     // The rule as last edited, until the element holds it: typing is never undone by a write on its way.
@@ -69,6 +72,7 @@ export function StyleSelection({
             host="selector"
             ownerName={name}
             autoFocus={autoFocus}
+            openTitle={openTitle}
             onChange={(next) => {
                 setLocal(next);
                 writer.write([{ id: layer.id, patch: { selector: { match: "rule", where: next } } }]);

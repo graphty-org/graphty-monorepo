@@ -2,8 +2,6 @@
  * vis-network's file samples carry vis-network's own account of where it drew each node (`drawn` in the oracle,
  * written by oracles/tools/web/web-oracle.mjs). Without it the comparator names nodes by their shapes alone, and
  * where vis-network draws nodes over each other (json-vis-nodelegend's legend) it reads the wrong shape as a node.
- * json-vis-synth is not listed yet: drawn again today, its SVG gains vis-network's drop shadows and kept blanks, so
- * it waits until that new drawing is accepted on its own.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -19,6 +17,7 @@ describe("vis-network's file oracles", () => {
             "json-vis-lesmiserables",
             "json-vis-nodelegend",
             "json-vis-siblings",
+            "json-vis-synth",
             "json-vis-transparency",
             "json-vis-unix",
             "json-vis-world",

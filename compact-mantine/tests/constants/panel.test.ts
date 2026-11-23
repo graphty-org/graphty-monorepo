@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { PANEL_GRID, PANEL_INK } from "../../src/constants/panel";
 import { CM_COLORS, CM_GRAPHTY_ACCENT, CM_HIGH_CONTRAST, type CmColorName } from "../../src/theme/tokens";
+import { contrast as wcagContrast, over, type Rgba } from "../harness/contrast";
 
 // PANEL_INK resolves through the --cm-* token table. These tests resolve each ink in each
 // scheme and contrast mode and measure WCAG 2.x contrast on the composited color, so the AA
@@ -9,7 +10,6 @@ import { CM_COLORS, CM_GRAPHTY_ACCENT, CM_HIGH_CONTRAST, type CmColorName } from
 
 type Scheme = "light" | "dark";
 type Mode = "figma" | "high" | "graphty" | "graphty-high";
-type Rgba = [number, number, number, number];
 
 function tokenOf(ink: string): CmColorName {
     const m = /^var\(--cm-([a-z-]+)\)$/.exec(ink);
@@ -29,20 +29,6 @@ function resolve(name: CmColorName, scheme: Scheme, mode: Mode): Rgba {
     return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16), a];
 }
 
-/** Composite a (possibly translucent) color over an opaque ground. */
-function over(top: Rgba, ground: Rgba): Rgba {
-    const a = top[3];
-    return [0, 1, 2].map((i) => top[i] * a + ground[i] * (1 - a)).concat(1) as Rgba;
-}
-
-function luminance([r, g, b]: Rgba): number {
-    const [lr, lg, lb] = [r, g, b].map((c) => {
-        const v = c / 255;
-        return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
-}
-
 /**
  * Contrast of `fg` drawn on `bg`, where `bg` itself sits on the panel.
  * @returns the WCAG ratio
@@ -50,9 +36,7 @@ function luminance([r, g, b]: Rgba): number {
 function contrast(fg: string, bg: string, scheme: Scheme, mode: Mode): number {
     const panel = resolve("bg", scheme, mode);
     const ground = over(resolve(tokenOf(bg), scheme, mode), panel);
-    const ink = over(resolve(tokenOf(fg), scheme, mode), ground);
-    const [hi, lo] = [luminance(ink), luminance(ground)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
+    return wcagContrast(resolve(tokenOf(fg), scheme, mode), ground);
 }
 
 describe("PANEL_GRID (spec 9.1)", () => {

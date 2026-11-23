@@ -36,6 +36,7 @@ import {
     createWebGpuSharesDevice,
     WEBGPU_ACCELERATOR_NAME,
     type WebGpuPeerBrowser,
+    type WebGpuPeerRoot,
 } from "./webgpuFactory";
 
 /** The factory and the device-sharing answer, built over the loaded package. */
@@ -70,7 +71,7 @@ async function loadFactory(): Promise<Loaded> {
             : { summarizeAdapter: peer.summarizeAdapter as NonNullable<WebGpuPeerBrowser["summarizeAdapter"]> }),
     };
     return {
-        factory: createWebGpuFactory(peer.root, peerBrowser),
+        factory: createWebGpuFactory(peer.root as WebGpuPeerRoot, peerBrowser),
         sharesDevice: createWebGpuSharesDevice(peerBrowser),
     };
 }

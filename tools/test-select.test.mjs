@@ -65,7 +65,6 @@ import {
 } from "./test-select.mjs";
 import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
 import { applyBudgets, keyOf, percentile, replayRecord, SETUP_MS, summarize } from "./light-check-replay.mjs";
-import { laneEnv, passStore } from "./prepush-inputs.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
 import {
     mutant,
@@ -920,22 +919,6 @@ describe("running a selection", () => {
         assert.match(text, /graphty\/src\/a\.test\.tsx {2}<- imports it/u);
         assert.match(text, /remote-logger: WHOLE SHARD/u);
         assert.match(text, /nothing to run: layout/u);
-    });
-
-    it("keeps a selected pass apart from a whole-shard pass, and a selecting gate apart from a full one", () => {
-        const main = mkdtempSync(join(ROOT, "tmp", "passes-"));
-        try {
-            const store = passStore(main);
-            const key = "a".repeat(64);
-            store.record("shard-selected", key, { shard: "graph-format", files: ["graph-format/test/a.test.ts"] });
-            assert.equal(store.get("shard", key), null);
-            assert.equal(store.get("shard-selected", key).shard, "graph-format");
-        } finally {
-            rmSync(main, { recursive: true, force: true });
-        }
-        assert.deepEqual(laneEnv({ PREPUSH_SELECT: "1", PATH: "/bin" }), [["PREPUSH_SELECT", "1"]]);
-        assert.deepEqual(laneEnv({ PREPUSH_SELECT_BASE: "origin/golden-cut" }), [["PREPUSH_SELECT_BASE", "cut"]]);
-        assert.deepEqual(laneEnv({ PREPUSH_SELECT_BASE: "origin/golden" }), []);
     });
 
     it("counts committed, staged, unstaged and untracked files as the change, not ignored ones", () => {

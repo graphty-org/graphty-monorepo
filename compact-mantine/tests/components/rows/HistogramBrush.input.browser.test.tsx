@@ -10,6 +10,7 @@ import { commands, userEvent } from "vitest/browser";
 
 import { HistogramRow, RangeSlider } from "../../../src";
 import type { HistogramBin } from "../../../src/components/rows/ChartRow";
+import { contrast } from "../../harness/contrast";
 import { renderThemed, resetHarness } from "../../harness/measure";
 import { drag, press, release } from "../../harness/mouse";
 
@@ -77,25 +78,6 @@ function Brushed({
             />
         </div>
     );
-}
-
-/**
- * The WCAG contrast ratio of two opaque colors.
- * @param a - one computed color
- * @param b - the other
- * @returns the ratio
- */
-function contrast(a: string, b: string): number {
-    const lum = (color: string): number => {
-        const [r, g, bl] = (color.match(/[\d.]+/g) ?? []).map(Number);
-        const [lr, lg, lb] = [r, g, bl].map((c) => {
-            const v = c / 255;
-            return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-        });
-        return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
-    };
-    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
 }
 
 describe("HistogramRow's range brush", () => {

@@ -492,8 +492,20 @@ const FACE_COVERED = 0.9;
  */
 const PART_OF_BODY = 0.499;
 
-/** An icon glyph: one private-use character, as FontAwesome and its kind draw their icons. */
-const iconGlyph = (t: PText): boolean => /^[\uE000-\uF8FF]$/u.test(t.content);
+/** The texts `nameDrawnNodes` found to be a drawn node's icon glyph by the node's box, not by their character. */
+const drawnGlyphs = new WeakSet<PText>();
+
+/** An icon glyph: one private-use character, as FontAwesome and its kind draw their icons, or one the program's box says is. */
+const iconGlyph = (t: PText): boolean => /^[\uE000-\uF8FF]$/u.test(t.content) || drawnGlyphs.has(t);
+
+/** A text given its owner, still an icon glyph where it was one. */
+function ownedText(t: PText, owner: string): PText {
+    const owned = { ...t, owner };
+    if (drawnGlyphs.has(t)) {
+        drawnGlyphs.add(owned);
+    }
+    return owned;
+}
 
 /** A node built from the primitives that draw it; `fillOverStroke` as `associate()` takes it. */
 function nodeFrom(
@@ -530,9 +542,12 @@ function nodeFrom(
     // graphty reads its own glyph node (drawnPrimitives)
     const glyph = drawn.length === 0 ? texts.find(iconGlyph) : undefined;
     const words = texts.filter((t) => t !== glyph);
+    // a glyph is as tall as its font's size, the icon's size the program asked for, not its text box's line height
+    // (vis-network-specimen-images-charts: an "A" of 27.7 px in a line 33 px tall)
+    const glyphBox = (t: PText): PBox => ({ ...t.box, y0: cy(t.box) - t.sizePx / 2, y1: cy(t.box) + t.sizePx / 2 });
     const drawnBox = body
         ? union(sorted.filter((s) => area(s.box) >= PART_OF_BODY * area(body.box) || rows.has(s)).map((s) => s.box))
-        : union((glyph === undefined ? texts : [glyph]).map((t) => t.box));
+        : union(glyph === undefined ? texts.map((t) => t.box) : [glyphBox(glyph)]);
     // its body's, and half the wave's line round it, as any border drawn on the body's outline reaches
     const grow = (all.find((s) => s.tag === PAINTED_OUTLINE && swings(s))?.stroke?.width ?? 0) / 2;
     const box = {
@@ -578,8 +593,9 @@ function nodeFrom(
                   s.fill === null || s.kind === "image" ? [] : [{ box: s.box, color: s.fill.color }],
               );
     // a node drawn as its picture alone (yEd's image and SVG nodes) is read by its picture's bounds, as graphty's side
-    // reads one (`drawnPrimitives`): a box, whatever the picture draws inside it
-    const pictureOnly = outline === undefined && pictures.length > 0;
+    // reads one (`drawnPrimitives`): a box, whatever the picture draws inside it; so is a node drawn as its icon glyph
+    // alone, as graphty reads its own glyph node (vis-network-specimen-images-charts: icon)
+    const pictureOnly = outline === undefined && (pictures.length > 0 || glyph !== undefined);
     const pictureShape: PShape | null = pictureOnly ? "rect" : null;
     const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : pictureShape;
     const nodeFill = paintedFill ?? filled?.fill ?? null;
@@ -619,7 +635,7 @@ function nodeFrom(
         // a node the program draws as its words alone (Graphviz's unfilled plain, plaintext and none: a `<g
         // class="node">` holding one `<text>`) is a text-only node, read as graphty's are (`facelessAsTexts`): its words,
         // no node, unless the other side draws a node there (dot-real-happiness c, dot-real-linux-kernel LKD)
-        ...(drawn.length === 0 && texts.length > 0 ? { faceless: texts.map((t) => ({ ...t, owner: id })) } : {}),
+        ...(drawn.length === 0 && texts.length > 0 ? { faceless: texts.map((t) => ownedText(t, id)) } : {}),
         ...(drawn.length > 0 ? { order: Math.max(...drawn.map((p) => p.index)) } : {}),
         ...((painted ?? filled) ? { fillOrder: (painted ?? filled)?.index } : {}),
     };
@@ -2659,6 +2675,12 @@ const carryBox = (fit: Similarity, b: PBox): PBox =>
 /** How far from each of its two nodes a line under a third node may end and still be the edge between them. */
 const STUB_TOUCH = 3;
 
+/**
+ * How far, in px, an arrowhead's tip may stop short of a node's outline and still point at that node: Cytoscape
+ * desktop's square heads stop 2.3 to 2.5 px short of their node, its triangles about 0.4 px.
+ */
+const HEAD_TIP_REACH = 3;
+
 /** How much nearer, in px, one node a line's end lands on may be than another and the two still be tied for it. */
 const END_TIE = 2;
 
@@ -3096,15 +3118,24 @@ export function nameDrawnNodes(prims: readonly Prim[], drawn: DrawnNodes): Prim[
         p.box.x0 >= b.x0 - 1 && p.box.x1 <= b.x1 + 1 && p.box.y0 >= b.y0 - 1 && p.box.y1 <= b.y1 + 1;
     const centered = (p: Prim, n: DrawnNodes["nodes"][number]): boolean =>
         Math.abs(cx(p.box) - n.x) <= 1 + 0.1 * n.w && Math.abs(cy(p.box) - n.y) <= 1 + 0.1 * n.h;
-    // an icon glyph (one private-use character, FontAwesome's and its kind's) centered on a drawn node is its body
-    // whatever its box holds, and the words in that box are its label below it (json-vis-synth 14, vis-network's icon
-    // node); a word on a dot's center stays unnamed
-    const glyph = (p: Prim): boolean => p.text !== null && iconGlyph(p.text);
-    const iconOf = new Set(drawn.nodes.filter((n) => prims.some((p) => glyph(p) && centered(p, n))));
+    // an icon glyph centered on a drawn node is its body whatever its box holds, and the words in that box are its
+    // label below it (json-vis-synth 14, vis-network's icon node); a word on a dot's center stays unnamed. A glyph is
+    // one private-use character (FontAwesome's and its kind's), or one character of any font as wide as the box the
+    // program drew for the node, as vis-network sizes an icon node's box to its icon (vis-network-specimen-images-charts:
+    // icon.code "A" in DejaVu Sans)
+    // ponytail: the box's width alone tells an icon of an ordinary character from a one-letter label, which vis-network
+    // boxes with its margin; a program sizing a one-letter label's box to its font size would need its shape here
+    const glyphOn = (p: Prim, n: DrawnNodes["nodes"][number]): boolean =>
+        p.text !== null &&
+        centered(p, n) &&
+        (iconGlyph(p.text) ||
+            (/^.$/su.test(p.text.content) && Math.abs(n.w - p.text.sizePx) <= 1 && n.h >= p.text.sizePx - 1));
+    const iconOf = new Set(drawn.nodes.filter((n) => prims.some((p) => glyphOn(p, n))));
     const on = (p: Prim, n: DrawnNodes["nodes"][number]): boolean =>
-        (p.kind === "shape" || p.kind === "image" || glyph(p)
+        (p.kind === "shape" || p.kind === "image" || (p.text !== null && iconGlyph(p.text))
             ? centered(p, n)
-            : (labelInside(n) || iconOf.has(n)) && (centered(p, n) || (n.box !== undefined && inBox(p, n.box)))) &&
+            : glyphOn(p, n) ||
+              ((labelInside(n) || iconOf.has(n)) && (centered(p, n) || (n.box !== undefined && inBox(p, n.box))))) &&
         bw(p.box) <= 1.5 * n.w + 2 &&
         bh(p.box) <= 1.5 * n.h + 2;
     // A node's shapes are drawn together: a shape centered on a node that already has a shape, with another node's
@@ -3127,6 +3158,9 @@ export function nameDrawnNodes(prims: readonly Prim[], drawn: DrawnNodes): Prim[
             }
             shaped.add(id);
             lastShapeOf = id;
+        }
+        if (p.text !== null && glyphOn(p, at[0])) {
+            drawnGlyphs.add(p.text);
         }
         return { ...p, hint: { role: "node", id, key: id } };
     });
@@ -3156,7 +3190,7 @@ function drawnBodyless(
         if (
             n === undefined ||
             d.box === undefined ||
-            n.shape !== null ||
+            (n.shape !== null && n.faceless?.some(iconGlyph) !== true) ||
             n.fill !== null ||
             n.stroke !== null ||
             (n.pictures?.length ?? 0) > 0
@@ -3835,8 +3869,13 @@ export function associate(
     // same nodes); an ellipse's outline is its own, not its box's (cys-import-and-save: an end on a small circle's
     // outline, in its box's corner, beside another circle's box); and a program that runs its lines to the centers ends
     // them there
+    // -- save a node drawn as its words alone, placed where the program says it drew it (`drawnBodyless`), that has no
+    // edge in graphty's drawing: it draws no line, and a line ending beside it is another node's (a self-loop, or a
+    // line stopped short of its arrowhead, by a specimen's caption: vis-network-specimen-edges-lines, -arrows)
+    const guideEnds = new Set(guide.edges.flatMap((e) => [e.source, e.target]));
     const nodesOn = (p: Pt, slack = 0): { n: PNode; d: number }[] =>
         [...nodeList, ...undrawn, ...groupEnds.map((g) => g.node)]
+            .filter((n) => n.drawnBox !== true || guideEnds.has(n.id))
             .map((n) => {
                 const b = nodeBox(n);
                 const [rx, ry] = [bw(b) / 2, bh(b) / 2];
@@ -3984,8 +4023,11 @@ export function associate(
             // -- and where end and tip both lie on one node drawn over the line (a stub and its head under a third node's
             // border), the others are as near as the head's tip comes too, read below (cx-radiation-bibliography
             // 190 -> 209: a 3 px line and its head under 151's outline, the tip 0.8 px off 209, the line's end 6 px)
+            // -- a tip as near as Cytoscape desktop's square heads come counts as on it: they stop about 2.4 px short of
+            // their node (cx2-signor-aml 35 -> 38: its line's end 1.1 px off mir-143 and its group PI3K, the square
+            // head's tip 2.4 px off JAK2, was read as 35 -> 55, and each line from KIT after it took the next one's pair)
             if ((direct[0]?.d ?? Infinity) <= 2 && tip[0]?.n !== direct[0].n) {
-                return tip.length > 0 && tip[0].d <= 2
+                return tip.length > 0 && tip[0].d <= HEAD_TIP_REACH
                     ? [...tip, ...direct.filter((x) => !tip.some((y) => y.n === x.n))]
                     : nodesAt(q, false, slack);
             }

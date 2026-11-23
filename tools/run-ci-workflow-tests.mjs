@@ -50,6 +50,11 @@ const STRIPPED = [
     "RESULTS_URL",
     "GRAPHTY_RESULTS_TOKEN",
     "HEALTH_API_URL",
+    // what tools/results/run-group.mjs hands the run it records (ci.yml's Checks job runs these tests through it)
+    "RESULTS_RECORD_ONLY",
+    "GRAPHTY_RESULTS_INVOCATION",
+    "TEST_LEDGER_RUN",
+    "TEST_QUARANTINE_RESULT",
 ];
 
 /**

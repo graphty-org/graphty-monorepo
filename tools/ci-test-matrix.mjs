@@ -266,6 +266,15 @@ const OFF_SHARDS = [
             "cd cytoscape-extensions && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
         "needs-browser": true,
     },
+    // babylonjs-map's stories: every play function run as a test, the only browser tests of the package (its own
+    // unit tests run in Node). No coverage: the babylonjs-map shard measures the package.
+    {
+        shard: "babylonjs-map-storybook",
+        package: "babylonjs-map",
+        "test-command":
+            "cd babylonjs-map && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
+        "needs-browser": true,
+    },
     // babylonjs-models' stories: every play function run as a test, the only browser tests of the package (its own
     // unit tests run in Node). No coverage: graphty-element's browser tests measure the Babylon.js half.
     {

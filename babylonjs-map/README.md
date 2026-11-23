@@ -3,6 +3,7 @@
 [![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fbabylonjs-map.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/babylonjs-map.md)
 [![npm version](https://img.shields.io/npm/v/babylonjs-map.svg)](https://www.npmjs.com/package/babylonjs-map)
+[![Storybook](https://img.shields.io/badge/storybook-interactive%20demos-ff4785)](https://graphty.app/storybook/babylonjs-map/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/babylonjs-map/)
 

@@ -13,9 +13,5 @@
         "file": "test/browser/row-scan-parity.test.ts",
         "reason": "Holds the row scan against a pick of each row's mesh, which a batched row no longer has"
     },
-    { "file": "test/browser/row-table-shadow.test.ts", "reason": "Asserts a graph on objects opens no table" },
-    {
-        "file": "test/browser/time-ghost.test.ts",
-        "reason": "Reads mesh.visibility, which a hidden proxy answers with 0 until stage 11"
-    }
+    { "file": "test/browser/row-table-shadow.test.ts", "reason": "Asserts a graph on objects opens no table" }
 ]

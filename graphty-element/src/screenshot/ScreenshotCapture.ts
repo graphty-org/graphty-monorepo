@@ -838,13 +838,20 @@ export class ScreenshotCapture {
                 1 / Math.min(this.canvas.width, this.canvas.height);
             let dataUrl: string;
             if (sameSize || !sameShape) {
-                // Babylon copies the canvas at the end of the next frame. A canvas that keeps no
-                // frame (WebGPU, or WebGL without preserveDrawingBuffer) holds a picture only in a
-                // frame that drew one, and a graph drawn on demand may draw none: ask for one.
-                if (!this.keepsFrames()) {
-                    this.requestFrame();
-                }
-                dataUrl = await CreateScreenshotAsync(this.engine, camera, size);
+                // Babylon copies the canvas at the end of the frame it is asked in. A canvas that
+                // keeps no frame (WebGPU, or WebGL without preserveDrawingBuffer) holds a picture
+                // only at the end of a frame that drew one, and the loop ends ticks that draw
+                // nothing: one skipped while the GPU is behind, the frame guard's half rate, a held
+                // draw, or any tick of a graph drawn on demand. So a frame is asked for, and the
+                // copy is asked for from inside it once it has drawn, and taken at its end (#9732).
+                dataUrl = this.keepsFrames()
+                    ? await CreateScreenshotAsync(this.engine, camera, size)
+                    : await new Promise<string>((resolve, reject) => {
+                          this.scene.onAfterRenderObservable.addOnce(() => {
+                              CreateScreenshotAsync(this.engine, camera, size).then(resolve, reject);
+                          });
+                          this.requestFrame();
+                      });
             } else {
                 const scale = captureWidth / this.canvas.width;
                 CustomLineRenderer.setPixelScale(this.scene, scale);

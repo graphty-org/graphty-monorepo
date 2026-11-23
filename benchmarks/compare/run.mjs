@@ -252,6 +252,8 @@ try {
     await checkBatched("load");
     if (frameCheck) {
         log("frameCheck", await page.evaluate(([l, f]) => globalThis.B.frameCheck(l, f), [layout ?? "ngraph", FRAMES]));
+        const shot = `frame-check-${process.env.BENCH_SCENARIO ?? "run"}-${RENDER_PATH ?? "default"}.png`;
+        await page.screenshot({ path: join(dirname(RESULTS), "shots", shot), timeout: 20000 }).catch(() => {});
         throw new Error(FRAME_CHECK_DONE);
     }
     if (style) log("restyle", await page.evaluate((name) => globalThis.B.restyle(name), style));

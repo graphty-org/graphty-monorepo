@@ -518,8 +518,9 @@ function frameReader(gl, canvas) {
         },
     };
 }
-const isProbeEdge = (b, o) => b[o + 1] > 150 && b[o] < 110 && b[o + 2] < 110;
-const isProbeNode = (b, o) => b[o] > 150 && b[o + 2] > 150 && b[o + 1] < 110;
+// By hue, not brightness: a lit 3D face or an antialiased line edge is a darker shade of the same color.
+const isProbeEdge = (b, o) => b[o + 1] > 60 && b[o + 1] > b[o] + 40 && b[o + 1] > b[o + 2] + 40;
+const isProbeNode = (b, o) => b[o] > 60 && b[o + 2] > 60 && b[o] > b[o + 1] + 40 && b[o + 2] > b[o + 1] + 40;
 /** Distance of a point from the line through a and b. */
 function lineOffset(x, y, ax, ay, bx, by) {
     const l = Math.hypot(bx - ax, by - ay);
@@ -619,7 +620,11 @@ let probeRows = null;
 function markProbeRows(probe, nodes, edges) {
     if (!probe) return;
     for (const i of probeSample().nodes) nodes[i].probe = 1;
-    for (const e of probeSample().edges) edges[e].probe = 1;
+    for (const e of edges) e.faint = 1;
+    for (const e of probeSample().edges) {
+        edges[e].probe = 1;
+        delete edges[e].faint;
+    }
 }
 function probeSample() {
     if (probeRows) return probeRows;
@@ -777,6 +782,13 @@ async function graphtyAdapter({
     let onFrame = null;
     await addShapeStyles(el, mode, curves);
     if (probe) {
+        // Every other edge faint but still drawn, moved and updated: a dense picture buries the marker edges.
+        await el.session.styles.add({
+            name: "probe faint edges",
+            target: "edge",
+            selector: { match: "has", path: "data.faint" },
+            set: { "edge.opacity": 0.05 },
+        });
         await el.session.styles.add({
             name: "probe nodes",
             target: "node",
@@ -787,7 +799,8 @@ async function graphtyAdapter({
             name: "probe edges",
             target: "edge",
             selector: { match: "has", path: "data.probe" },
-            set: { "edge.color": PROBE_EDGE, "edge.width": 3 },
+            // Edge width is in graph units, and a layout spreads a larger graph wider: kept near 3 px on screen.
+            set: { "edge.color": PROBE_EDGE, "edge.width": 3 * Math.sqrt(Math.max(1, G.n / 1000)) },
         });
     }
     if (labels && (sampled || glyphs)) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };

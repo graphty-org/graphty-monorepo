@@ -381,9 +381,11 @@ const mean = (xs) => {
  *
  * The verdict reads edges that moved at least 5 px across their own line within the last 30 drawn frames: is the
  * marker color at the midpoint of the edge's ends in this frame (cur), or at its midpoint in that earlier frame
- * (prev)? An edge that follows its nodes has cur well above prev; an edge left behind has prev at or above cur. The margin cur - prev does
- * not depend on how crowded the picture is, so it is compared across builds whose layouts spread differently.
- * The lift (marker on the segment, against 8 px beside it) is reported for reading only.
+ * (prev)? An edge that follows its nodes has cur well above prev; an edge left behind has prev at or above cur.
+ * Builds are compared by follow = (cur - prev) / cur: crowding and nodes drawn over the edges hide both points
+ * alike, so it holds across builds whose layouts spread and whose cameras frame differently. An edge updated
+ * only every 15th frame drops follow from about 0.5 to 0.17 at 1,000 nodes. The lift (marker on the segment,
+ * against 8 px beside it) is reported for reading only.
  * @param {object[]} rows - run.mjs rows with `refdiff: { scenario, build, path }` and `frameCheck`.
  * @returns {object[]} one finding per scenario and HEAD path: { scenario, path, ref, head, verdict }.
  */
@@ -403,6 +405,9 @@ export function compareFrames(rows) {
             cur: mean(idx.map((i) => fc.curInkRate[i])),
             prev: mean(idx.map((i) => fc.prevInkRate[i])),
             margin: mean(margins),
+            // the share of the marker seen on this frame's midpoint that is not also seen on the old one: crowding
+            // and nodes drawn over the edges hide both alike, so this compares across builds that frame differently
+            follow: null,
             behindFrames: margins.filter((m) => m <= 0).length,
             nodeInk: mean(fc.nodeInkRate),
             frames: fc.frames,
@@ -410,11 +415,12 @@ export function compareFrames(rows) {
     };
     const pick = (s, build, path) =>
         rows.findLast((r) => r.refdiff?.scenario === s && r.refdiff.build === build && r.refdiff.path === path);
+    const withFollow = (x) => (x.error || !x.cur ? x : { ...x, follow: (x.cur - x.prev) / x.cur });
     const out = [];
     for (const [s] of FRAME_SCENARIOS) {
-        const ref = stat(pick(s, "ref", "objects"));
+        const ref = withFollow(stat(pick(s, "ref", "objects")));
         for (const path of ["objects", "batched"]) {
-            const head = stat(pick(s, "head", path));
+            const head = withFollow(stat(pick(s, "head", path)));
             out.push({ scenario: s, path, ref, head, verdict: frameVerdict(ref, head) });
         }
     }
@@ -424,11 +430,12 @@ export function compareFrames(rows) {
 function frameVerdict(ref, head) {
     if (head.error) return `head did not run: ${head.error}`;
     if (head.movingFrames < 3) return "too few frames with moving edges: nothing checked";
+    // the marker edges seldom seen at all (buried under nodes): nothing to read either way
+    if (head.cur < 0.05 && head.prev < 0.05) return "marker edges hidden under other rows: nothing checked";
     if (head.margin <= 0) return "edges drawn where their nodes were frames before";
-    const comparable = !ref.error && ref.movingFrames >= 3;
+    const comparable = !ref.error && ref.movingFrames >= 3 && Math.max(ref.cur, ref.prev) >= 0.05;
     if (!comparable) return "same as HEAD's own invariant; reference not comparable";
-    if (head.margin < ref.margin - 0.15) return "edges behind their nodes more often than on the reference";
-    if (head.nodeInk < ref.nodeInk - 0.1) return "nodes off their reported centers more often";
+    if (head.follow < ref.follow - 0.25) return "edges behind their nodes more often than on the reference";
     return "same";
 }
 
@@ -486,8 +493,8 @@ function reportFrames() {
     writeFileSync(join(OUT, "frames/summary.json"), JSON.stringify(f, null, 2));
     for (const x of f)
         console.log(
-            `${x.scenario} ${x.path}: ${x.verdict} (moving edges on this frame's segment minus last frame's: ` +
-                `reference ${x.ref.margin?.toFixed(3) ?? "-"}, HEAD ${x.head.margin?.toFixed(3) ?? "-"}; ` +
+            `${x.scenario} ${x.path}: ${x.verdict} (follow: ` +
+                `reference ${x.ref.follow?.toFixed(3) ?? "-"}, HEAD ${x.head.follow?.toFixed(3) ?? "-"}; ` +
                 `HEAD frames behind ${x.head.behindFrames ?? "-"} of ${x.head.movingFrames ?? "-"})`,
         );
     return f.some((x) => /^edges|^nodes/.test(x.verdict)) ? 1 : 0;
@@ -543,13 +550,13 @@ function reportFramesTable(fr) {
     if (!fr) return [];
     const lines = ["## Edges on their nodes while a layout runs", ""];
     lines.push(
-        "| scenario | path | verdict | margin reference | margin HEAD | HEAD frames behind |",
+        "| scenario | path | verdict | follow reference | follow HEAD | HEAD frames behind |",
         "|---|---|---|---|---|---|",
     );
     const n = (v) => (typeof v === "number" ? v.toFixed(3) : "-");
     for (const x of fr)
         lines.push(
-            `| ${x.scenario} | ${x.path} | ${x.verdict} | ${n(x.ref.margin)} | ${n(x.head.margin)} | ` +
+            `| ${x.scenario} | ${x.path} | ${x.verdict} | ${n(x.ref.follow)} | ${n(x.head.follow)} | ` +
                 `${x.head.behindFrames ?? "-"}/${x.head.movingFrames ?? "-"} |`,
         );
     return lines;

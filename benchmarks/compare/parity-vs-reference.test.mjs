@@ -110,8 +110,11 @@ test("edges a frame behind their nodes on HEAD fail; the reference's margin pass
     const by = (p) => f.find((x) => x.scenario === s && x.path === p).verdict;
     assert.equal(by("objects"), "same");
     assert.match(by("batched"), /^edges drawn where their nodes were frames before/);
-    const worse = compareFrames([row("ref", "objects", 0.8, 0.2), row("head", "objects", 0.5, 0.3)]);
+    // the scratch break (edges updated every 15th frame) measured at 1,000 nodes: follow 0.17 against 0.48
+    const worse = compareFrames([row("ref", "objects", 0.657, 0.338), row("head", "objects", 0.222, 0.185)]);
     assert.match(worse.find((x) => x.scenario === s && x.path === "objects").verdict, /^edges behind/);
     const still = compareFrames([row("ref", "objects", 0.8, 0.2), row("head", "objects", 0.8, 0.2, 0)]);
     assert.match(still.find((x) => x.scenario === s && x.path === "objects").verdict, /nothing checked/);
+    const buried = compareFrames([row("ref", "objects", 0.8, 0.2), row("head", "objects", 0.01, 0.01)]);
+    assert.match(buried.find((x) => x.scenario === s && x.path === "objects").verdict, /hidden under other rows/);
 });

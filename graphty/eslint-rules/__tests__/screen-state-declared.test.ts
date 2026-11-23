@@ -16,7 +16,6 @@ import { createRule } from "../screen-state-declared.js";
 
 RuleTester.describe = describe;
 RuleTester.it = it;
-RuleTester.itOnly = it.only;
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const KINDS = ["request", "in flight", "notice", "read", "derived", "pointer"];

@@ -14,10 +14,10 @@ import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
-import { screen, waitFor } from "../../../test/test-utils";
+import { screen, waitFor, within } from "../../../test/test-utils";
 import { flatOf, type LabelField } from "../v2/labelRubric";
 import { showKind } from "./kindTab";
-import { openGraph, openStyle } from "./v2Harness";
+import { openAdvanced, openGraph, openStyle } from "./v2Harness";
 
 /** A line's by-data link (design 2.6, E551). */
 const LINK = 'button[aria-label$=" by attribute"]';
@@ -135,7 +135,8 @@ async function readLines(tab: HTMLElement, seen: Map<string, Line>, links: Links
                 kind: `${kindOf(line.dataset.line ?? "")} ${line.dataset.rule ?? ""}`.trim(),
                 widgets: widgetsOf(line),
             });
-            if (bindsOwnValue(line)) {
+            // An Advanced dialog's lines draw no link: it would open a third pop-out level (design "Input rules").
+            if (where !== "advanced" && bindsOwnValue(line)) {
                 links.set(`${where} ${line.dataset.line ?? ""}`, line.querySelector(LINK) !== null);
             }
             const slot = line.querySelector(".cm-scrub-slot");
@@ -161,6 +162,11 @@ async function readLines(tab: HTMLElement, seen: Map<string, Line>, links: Links
             return found;
         });
         take(pop, "pop-over");
+        // Its rare settings: the Advanced dialog's lines follow the same pattern (design "Input rules").
+        if (within(pop).queryByRole("button", { name: / advanced settings$/ }) !== null) {
+            take(await openAdvanced(pop), "advanced");
+            await userEvent.keyboard("{Escape}");
+        }
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(document.querySelector("[data-thing-popover]"));
@@ -184,6 +190,8 @@ describe("Style panel v2's lines are one common pattern (E674)", () => {
                 "node.labelStyle": {
                     weight: "bold",
                     italic: true,
+                    // a switch line of its own (Italic is a toggle of the Style line)
+                    onTop: true,
                     size: 1,
                     color: "#ff0000",
                     font: "serif",

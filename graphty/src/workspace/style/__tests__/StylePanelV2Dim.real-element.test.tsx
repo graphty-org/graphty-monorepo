@@ -14,7 +14,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { openGraph, openShaderList, openStyle, sectionOf, switchView } from "./v2Harness";
+import { openAdvanced, openGraph, openShaderList, openStyle, sectionOf, switchView } from "./v2Harness";
 
 /**
  * The tooltip of a dimmed line or item (or of the dimmed row around it), or null when it is not dimmed.
@@ -48,17 +48,21 @@ describe("Style panel v2 dims what draws nothing in this view", () => {
         await openStyle("Links");
         await showKind("edge");
         const line = sectionOf(await screen.findByTestId("style-tab"), "edge-line");
+        // Lift is a rare setting: the Edge line pop-over's Advanced dialog's (design "Input rules").
         const openLine = async (): Promise<HTMLElement> => {
             await userEvent.click(within(line).getByRole("button", { name: "Edge line settings" }));
-            return waitFor(() => {
-                const found = document.querySelector<HTMLElement>("[data-thing-popover]");
-                assert.isNotNull(found);
-                return found;
-            });
+            return openAdvanced(
+                await waitFor(() => {
+                    const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+                    assert.isNotNull(found);
+                    return found;
+                }),
+            );
         };
         assert.strictEqual(session.layout.arrangedDimension, "3d");
         const over3d = await lineOf(await openLine(), "edge.lift");
         assert.equal(dimmed(over3d), "Only for a flat layout", "a 3D layout has no plane to lift out of");
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
         // A flat layout drawn in the 3D view.
         await session.layout.set("fixed", { options: { dim: 2 } });
@@ -66,8 +70,9 @@ describe("Style panel v2 dims what draws nothing in this view", () => {
         const lift = await lineOf(await openLine(), "edge.lift");
         assert.isNull(dimmed(lift), "over a flat layout in 3D Lift is not dimmed");
         await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
         await switchView("2D");
-        await userEvent.click(within(line).getByRole("button", { name: "Edge line settings" }));
+        await openLine();
         await waitFor(() => {
             const again = document.querySelector('[data-thing-popover] .ws-row[data-line="edge.lift"]');
             assert.isNotNull(again, "in 2D Lift is still there");

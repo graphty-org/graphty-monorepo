@@ -14,7 +14,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { openGraph, openProject, openStyle, sectionOf, written } from "./v2Harness";
+import { openAdvanced, openGraph, openProject, openStyle, sectionOf, written } from "./v2Harness";
 
 /**
  * Waits for a line in a part of the page.
@@ -76,9 +76,8 @@ describe("Style panel v2 splits a padding into its sides from a line of its own"
             assert.isNotNull(found);
             return found;
         });
-        const pop = await popoverOf(row, /^Node label settings/);
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Box stroke" }));
+        // Margin is a rare Box stroke line: the pop-over's Advanced dialog's (design "Input rules").
+        const pop = await openAdvanced(await popoverOf(row, /^Node label settings/));
         const margin = await lineOf(pop, "node.labelStyle.marginTop");
         assert.lengthOf(inputsOf(margin), 1, "one number while the sides are joined");
 
@@ -128,9 +127,8 @@ describe("Style panel v2 splits a padding into its sides from a line of its own"
             assert.isNotNull(found);
             return found;
         });
-        const pop = await popoverOf(row, /^Node size settings/);
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to node size settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Fit to label" }));
+        // Fit to label is a rare setting: the pop-over's Advanced dialog's (design "Input rules").
+        const pop = await openAdvanced(await popoverOf(row, /^Node size settings/));
         const padding = await lineOf(pop, "node.labelPaddingX");
         assert.lengthOf(inputsOf(padding), 1, "one number while X and Y are joined");
 

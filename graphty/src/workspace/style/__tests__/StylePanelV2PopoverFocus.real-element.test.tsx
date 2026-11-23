@@ -15,7 +15,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { openGraph, openStyle, switchView, written } from "./v2Harness";
+import { openAdvanced, openGraph, openStyle, switchView, written } from "./v2Harness";
 
 interface Case {
     readonly name: string;
@@ -24,6 +24,8 @@ interface Case {
     readonly set: Readonly<Record<string, unknown>>;
     readonly settings: string;
     readonly group: string;
+    /** The group is a rare one: always shown in the pop-over's Advanced dialog (design "Input rules"). */
+    readonly advanced?: true;
     /** The fields tabbed through in order: the first is clicked, each later one must have focus. */
     readonly fields: readonly string[];
     /** The channel each field writes. */
@@ -37,6 +39,7 @@ const CASES: readonly Case[] = [
         set: {},
         settings: "Edge line settings",
         group: "Fade",
+        advanced: true,
         fields: ["Edge fade start", "Edge fade end"],
         writes: ["edge.fadeStart", "edge.fadeEnd"],
     },
@@ -47,6 +50,7 @@ const CASES: readonly Case[] = [
         set: { "edge.curvature": true },
         settings: "Edge route settings",
         group: "Ports",
+        advanced: true,
         fields: ["Edge source port x", "Edge source port y"],
         writes: ["edge.sourcePort", "edge.sourcePort"],
     },
@@ -56,6 +60,7 @@ const CASES: readonly Case[] = [
         set: { "edge.curvature": true },
         settings: "Edge route settings",
         group: "Ports",
+        advanced: true,
         fields: ["Edge target port x", "Edge target port y"],
         writes: ["edge.targetPort", "edge.targetPort"],
     },
@@ -119,11 +124,16 @@ describe("Style panel v2: a pop-over field tabbed past keeps focus in the pop-ov
             const tab = await screen.findByTestId("style-tab");
             await userEvent.click(await within(tab).findByRole("button", { name: new RegExp(`^${each.settings}`) }));
             const pop = await popover();
-            await userEvent.click(
-                within(pop).getByRole("button", { name: `Add to ${each.settings.replace(/^E/, "e")}` }),
-            );
-            await userEvent.click(await screen.findByRole("menuitem", { name: each.group }));
-            await userEvent.click(await within(pop).findByLabelText(each.fields[0], { selector: "input" }));
+            let root = pop;
+            if (each.advanced === true) {
+                root = await openAdvanced(pop);
+            } else {
+                await userEvent.click(
+                    within(pop).getByRole("button", { name: `Add to ${each.settings.replace(/^E/, "e")}` }),
+                );
+                await userEvent.click(await screen.findByRole("menuitem", { name: each.group }));
+            }
+            await userEvent.click(await within(root).findByLabelText(each.fields[0], { selector: "input" }));
             await userEvent.keyboard("{Control>}a{/Control}0.4{Tab}");
             await waitFor(() => {
                 assert.isDefined(written(session, edges, each.writes[0]), `${each.fields[0]} writes`);
@@ -152,6 +162,9 @@ describe("Style panel v2: a pop-over field tabbed past keeps focus in the pop-ov
                 });
             }
             await userEvent.keyboard("{Escape}");
+            if (each.advanced === true) {
+                await userEvent.keyboard("{Escape}");
+            }
         });
     }
 });

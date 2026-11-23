@@ -94,7 +94,7 @@ import {
     parseShaderParamAddress,
     toColorValue,
 } from "./channels";
-import { missingValue, type RuleBinding, stopsProblem } from "./encoding";
+import { authoredValue, missingValue, type RuleBinding, stopsProblem } from "./encoding";
 import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import { colorsProblem } from "./palettes";
 import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
@@ -1076,6 +1076,7 @@ function checkBinding(
     readsPath(log, binding.by);
     checkBindingOptions(descriptor, binding, path, options, log);
     checkMissing(descriptor, binding, path, log);
+    checkOverrides(descriptor, binding, path, log);
 
     // Only a binding that paints a MISSING value reaches an element the run never measured: an
     // element with no value is otherwise not painted at all (encoding.ts), so a layer matching
@@ -1122,6 +1123,52 @@ function checkMissing(descriptor: ChannelDescriptor, binding: RuleBinding, path:
         missingValue(descriptor, binding);
     } catch (error) {
         report(log, problemFrom(error, `${path}.missing.value`));
+    }
+}
+
+/**
+ * Check each value a binding names itself -- its `map` entries, its `other` bucket and its
+ * `otherwise` -- with the same check the repaint applies, so a value the channel cannot draw is
+ * refused here rather than failing every repaint after (#9715).
+ * @param descriptor - The channel it writes.
+ * @param binding - The binding.
+ * @param path - Where in the specification it sits.
+ * @param log - Where problems are collected.
+ */
+function checkOverrides(descriptor: ChannelDescriptor, binding: RuleBinding, path: string, log: ProblemLog): void {
+    const check = (value: unknown, at: string): void => {
+        try {
+            authoredValue(descriptor, value as ChannelValue, `The value at ${at}`);
+        } catch (error) {
+            report(log, problemFrom(error, at));
+        }
+    };
+    const { map, other, otherwise } = binding as { map?: unknown; other?: unknown; otherwise?: unknown };
+
+    if (map !== undefined) {
+        if (isPlainObject(map)) {
+            for (const [name, value] of Object.entries(map)) {
+                check(value, `${path}.map.${name}`);
+            }
+        } else {
+            report(log, { code: "E_BAD_LAYER", message: "A map is { category: value }.", path: `${path}.map` });
+        }
+    }
+
+    if (other !== undefined) {
+        if (isPlainObject(other)) {
+            check(other.value, `${path}.other.value`);
+        } else {
+            report(log, {
+                code: "E_BAD_LAYER",
+                message: "The other bucket is { threshold, value }.",
+                path: `${path}.other`,
+            });
+        }
+    }
+
+    if (otherwise !== undefined) {
+        check(otherwise, `${path}.otherwise`);
     }
 }
 

@@ -1073,7 +1073,7 @@ function authoredEnum(descriptor: ChannelDescriptor, value: ChannelValue, what: 
  * @returns The value in the form a repaint reads, which for a color means its components.
  * @throws A `GraphtyError` with code `E_BAD_LAYER`, `E_OPTION_RANGE` or `E_UNSUPPORTED`.
  */
-function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
+export function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
     const { accepts } = descriptor;
     const wrongKind = (expected: string): GraphtyError =>
         badBinding(`${what} is ${expected}.`, { channel: descriptor.channel, value });

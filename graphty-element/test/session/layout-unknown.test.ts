@@ -39,7 +39,7 @@ describe("an unknown layout on a session with no renderer", () => {
         session.dispose();
     });
 
-    it("still takes a catalog id, an engine name and a deprecated name", async () => {
+    it("still takes a catalog id, an engine name, a deprecated name and an id in the engine slot", async () => {
         const session = createGraphSession();
         await session.layout.set("ngraph");
         assert.strictEqual(session.layout.id, "force");
@@ -47,6 +47,11 @@ describe("an unknown layout on a session with no renderer", () => {
         assert.strictEqual(session.layout.engine, "arf");
         await session.layout.set("force", { engine: "d3" });
         assert.strictEqual(session.layout.engine, "d3");
+        // `setLayout("force")` names the layout id as its engine too.
+        await session.layout.set("force", { engine: "force" });
+        assert.strictEqual(session.layout.id, "force");
+        await session.layout.set("force", { engine: "force-2d" });
+        assert.strictEqual(session.layout.id, "force");
         session.dispose();
     });
 });

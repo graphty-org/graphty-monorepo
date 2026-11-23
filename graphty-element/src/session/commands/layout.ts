@@ -243,6 +243,8 @@ export function unknownLayout(name: string): GraphtyError {
 
 /**
  * Refuse a choice whose layout or engine the catalog does not know, before anything is written.
+ * An engine slot holding a layout id or a deprecated name is known: it stands for that layout's
+ * default engine.
  * @param choice - The choice a `layout.set` makes.
  */
 function assertKnownLayout(choice: LayoutChoice): void {
@@ -250,8 +252,15 @@ function assertKnownLayout(choice: LayoutChoice): void {
         throw unknownLayout(choice.id);
     }
 
-    if (layoutIdForEngine(choice.engine) === undefined) {
-        throw unknownLayout(choice.engine);
+    // `setLayout("force")` passes the name as both id and engine: a layout id or a deprecated
+    // name in the engine slot means its default engine, as the renderer's layout manager reads it.
+    const { engine } = choice;
+    if (
+        layoutIdForEngine(engine) === undefined &&
+        layoutDescriptor(engine) === undefined &&
+        layoutAlias(engine) === undefined
+    ) {
+        throw unknownLayout(engine);
     }
 }
 

@@ -417,6 +417,48 @@ describe("the join screen on the real element", () => {
         }
     });
 
+    it("joins a picked table's columns onto nodes by the key the reader chooses, and counts the rows that match nothing", async () => {
+        const { session } = await projectWith(new File([GAUGES], "gauges.csv"), 11);
+        // site matches the nodes' station on six rows, gauge their id on five: the reader keys on gauge.
+        const DEPTHS = [
+            "site,gauge,depth",
+            "S1,G01,1.5",
+            "S2,G02,2.5",
+            "S3,G03,3.5",
+            "S4,G04,4.5",
+            "S5,G05,5.5",
+            "S6,G99,9.5",
+        ];
+        vi.stubGlobal("showOpenFilePicker", undefined);
+        try {
+            await commands.chooseNextFile("depths.csv", "text/csv", DEPTHS.join("\n"));
+            await userEvent.keyboard("{Control>}k{/Control}");
+            await userEvent.click(await screen.findByRole("option", { name: /Add data\.\.\./ }));
+            const join = await screen.findByRole("region", { name: "Join depths.csv" });
+
+            await userEvent.click(within(join).getByRole("combobox", { name: "Match column" }));
+            await userEvent.click(await screen.findByRole("option", { name: "gauge" }));
+            await userEvent.click(within(join).getByRole("combobox", { name: "Match graph value" }));
+            await userEvent.click(await screen.findByRole("option", { name: "Id" }));
+            await waitFor(() => {
+                assert.strictEqual(valueOf(join, "Match column"), "gauge");
+                assert.strictEqual(valueOf(join, "Match graph value"), "Id");
+                assert.includeMembers(chips(join), ["5 matched", "1 not in graph"]);
+            });
+
+            await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+            await waitFor(() => {
+                assert.strictEqual(String(session.data.node("G03")?.depth), "3.5");
+            });
+            assert.isUndefined(session.data.node("G06")?.depth, "a node without a row gets no value");
+            assert.isUndefined(session.data.node("G99"), "a row that matches nothing adds no node");
+            const [joined] = session.data.joins();
+            assert.strictEqual(joined.matched, 5);
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
     it("tags each row with what Join does, and decides an unknown end before joining", async () => {
         const { session } = await projectWith(new File([GAUGES], "gauges.csv"), 11);
         drop(new File([FLOWS], "flows.csv"));

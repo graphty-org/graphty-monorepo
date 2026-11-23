@@ -244,6 +244,7 @@ export function labelFieldDrawn(
  * Whether a combine mode can paint a value `"replace"` would not. A layer's number meets what the layers beneath
  * paint, or the channel's default where they paint nothing; `"multiply"` over 1 and `"add"` over 0 paint the layer's
  * own number, the same as `"replace"`, so a style editor offers the mode only where it can change the picture.
+ * `"subtract"` and `"divide"` never paint the layer's own number over their identity, so they are always drawn.
  * @param channel - The number channel.
  * @param mode - The combine mode.
  * @param beneath - What the layers beneath paint for the channel: one number where they agree on it, `"mixed"`
@@ -264,7 +265,7 @@ export function combineDrawn(
     mode: CombineMode,
     beneath: number | "mixed" | undefined,
 ): DrawnResult<{ readonly mode: CombineMode; readonly base: number }> {
-    if (mode === "replace" || beneath === "mixed") {
+    if (mode === "replace" || mode === "subtract" || mode === "divide" || beneath === "mixed") {
         return { drawn: true };
     }
 

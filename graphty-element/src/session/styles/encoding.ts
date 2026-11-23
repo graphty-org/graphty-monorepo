@@ -1237,14 +1237,14 @@ function prepareTemplateBinding(
 
 /**
  * Whether a binding's value is a factor or an offset rather than a value of its channel: a number
- * channel written with combine "multiply" or "add".
+ * channel written with any combine but "replace".
  * @param descriptor - The channel.
  * @param binding - The binding.
  * @returns True when the value is combined with what lies beneath rather than written.
  */
 function isCombineFactor(descriptor: ChannelDescriptor, binding: Binding): boolean {
     const combine = "combine" in binding ? binding.combine : undefined;
-    return descriptor.accepts === "number" && (combine === "multiply" || combine === "add");
+    return descriptor.accepts === "number" && combine !== undefined && combine !== "replace";
 }
 
 /**
@@ -1255,7 +1255,7 @@ function isCombineFactor(descriptor: ChannelDescriptor, binding: Binding): boole
  */
 function combineFactor(value: ChannelValue, what: string): number {
     if (typeof value !== "number" || !Number.isFinite(value)) {
-        throw badBinding(`${what} is a number to multiply or add by.`, { value });
+        throw badBinding(`${what} is a number to combine with.`, { value });
     }
 
     return value;

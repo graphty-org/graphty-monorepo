@@ -1275,12 +1275,14 @@ export interface BindingNumberFormat {
 /**
  * How a number a layer writes meets the number the layers beneath it painted. `"replace"` (the
  * default) writes over it; `"multiply"` and `"add"` scale or offset it, so a layer that asks for
- * twice the width doubles whatever width each element already had. Where nothing beneath painted
- * the channel, its default is what is scaled; the result is clamped to what the channel draws.
- * Only number channels take a mode other than `"replace"`.
+ * twice the width doubles whatever width each element already had. `"subtract"` takes the layer's
+ * number from what lies beneath and `"divide"` divides what lies beneath by it (a divisor of 0
+ * leaves what lies beneath unchanged). Where nothing beneath painted the channel, its default is
+ * what is combined; the result is clamped to what the channel draws. Only number channels take a
+ * mode other than `"replace"`. `"subtract"` and `"divide"` were added in 3.67.0.
  * @since 3.26.0
  */
-export type CombineMode = "replace" | "multiply" | "add";
+export type CombineMode = "replace" | "multiply" | "add" | "subtract" | "divide";
 
 /**
  * One point of a `stops` binding: what a number exactly at `at` paints, and what the stretches on

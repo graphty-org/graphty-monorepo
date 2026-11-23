@@ -935,11 +935,11 @@ function checkChannel(
 }
 
 /** The combine modes a binding may name. */
-const COMBINE_MODES: readonly CombineMode[] = ["replace", "multiply", "add"];
+const COMBINE_MODES: readonly CombineMode[] = ["replace", "multiply", "add", "subtract", "divide"];
 
 /**
- * Check a binding's combine mode: one of the three, and only "replace" on a channel that is not a
- * number, since only numbers multiply or add.
+ * Check a binding's combine mode: one of the five, and only "replace" on a channel that is not a
+ * number, since only numbers combine.
  * @param descriptor - The channel it writes.
  * @param binding - The binding.
  * @param path - Where in the specification it sits.
@@ -1079,11 +1079,11 @@ function checkBinding(
     checkCombine(descriptor, binding, path, log);
 
     if (!("by" in binding)) {
-        if (descriptor.accepts === "number" && (binding.combine === "multiply" || binding.combine === "add")) {
+        if (descriptor.accepts === "number" && binding.combine !== undefined && binding.combine !== "replace") {
             if (typeof binding.value !== "number" || !Number.isFinite(binding.value)) {
                 report(log, {
                     code: "E_BAD_LAYER",
-                    message: `${descriptor.plainName} is multiplied or added by a number.`,
+                    message: `${descriptor.plainName} is combined with a number.`,
                     path: `${path}.value`,
                 });
             }

@@ -162,6 +162,40 @@ describe("combine on number writes", () => {
         session.dispose();
     });
 
+    it("subtract and divide take from and divide what lies beneath; dividing by 0 leaves it", async () => {
+        const session = await lesMis();
+        await session.styles.add({
+            name: "Edge betweenness",
+            target: "edge",
+            selector: { match: "everything" },
+            encode: { "edge.width": { by: "data.betweenness", range: [2, 8] } },
+        });
+        const beneath = (await painted(session, "edge", "edge.width")) as number[];
+        const over = await session.styles.add({
+            name: "Thinner",
+            target: "edge",
+            selector: { match: "everything" },
+            encode: { "edge.width": { value: 1, combine: "subtract" } },
+        });
+        const less = (await painted(session, "edge", "edge.width")) as number[];
+        less.forEach((width, index) => {
+            assert.closeTo(width, beneath[index] - 1, 1e-9, `edge ${String(index)}`);
+        });
+
+        await session.styles.update(over.id, { encode: { "edge.width": { value: 2, combine: "divide" } } });
+        const halved = (await painted(session, "edge", "edge.width")) as number[];
+        halved.forEach((width, index) => {
+            assert.closeTo(width, beneath[index] / 2, 1e-9, `edge ${String(index)}`);
+        });
+
+        await session.styles.update(over.id, { encode: { "edge.width": { value: 0, combine: "divide" } } });
+        const kept = (await painted(session, "edge", "edge.width")) as number[];
+        kept.forEach((width, index) => {
+            assert.closeTo(width, beneath[index], 1e-9, `edge ${String(index)}`);
+        });
+        session.dispose();
+    });
+
     it("scales the channel's default where nothing beneath painted, and clamps to what it draws", async () => {
         const session = await lesMis();
         await session.styles.add({

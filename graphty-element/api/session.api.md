@@ -657,7 +657,7 @@ export interface ColumnRef {
 export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId" | "kind" | LocationKind | PositionAxis;
 
 // @public
-export type CombineMode = "replace" | "multiply" | "add";
+export type CombineMode = "replace" | "multiply" | "add" | "subtract" | "divide";
 
 // @public
 export type CommandOutcome<C extends SessionCommand> = CommandOutcomeMap[C["op"]];

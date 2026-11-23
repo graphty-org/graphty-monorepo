@@ -835,6 +835,25 @@ A number outside what a channel can draw (a negative size, an opacity above 1) i
 and a node color with alpha is still drawn opaque; `styles.counts(id)` reports both per layer, as
 `style.out-of-range` and `style.alpha-not-drawn` with the channel and how many elements.
 
+### Combining with what lies beneath
+
+A number a layer writes normally replaces what the layers beneath painted. `combine` makes it work
+on that number instead: `"add"`, `"subtract"`, `"multiply"` or `"divide"` (`"replace"` is the
+default). It works for literal values and bound values alike, on number channels only:
+
+```typescript
+await element.session.styles.add({
+    name: "Heavier edges are wider",
+    target: "edge",
+    selector: { match: "everything" },
+    encode: { "edge.width": { by: "data.weight", combine: "add", range: [0, 2] } },
+});
+```
+
+Each edge keeps the width the layers beneath gave it and gains 0 to 2 by its weight. Where nothing
+beneath paints the channel, its default is combined. Dividing by 0 leaves what lies beneath as it
+was, and the result is clamped to what the channel draws.
+
 ## Painting an algorithm's result
 
 A finished run knows what it measured, so the shortest route from a result to a picture is to let

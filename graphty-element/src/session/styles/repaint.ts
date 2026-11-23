@@ -57,7 +57,7 @@
 
 import { LABEL_STYLE_DEFAULTS } from "../../catalog/label-style";
 import type { ShaderUse } from "../../catalog/shaders";
-import type { Binding, Channel, GraphtyErrorCode, LabelStyle, LayerId, Path } from "../../catalog/types";
+import type { Binding, Channel, CombineMode, GraphtyErrorCode, LabelStyle, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
 import { withLabelLook } from "./carried";
@@ -1007,7 +1007,7 @@ interface PreparedChannel {
     readonly plainText: boolean;
     /**
      * How a number it writes meets what lies beneath, or null to write over it. Set only on a
-     * number channel whose binding asked for multiply or add.
+     * number channel whose binding asked for a mode other than replace.
      */
     readonly combine: Combine | null;
     /** Whether it is a template, whose binding reads the element through a function. */
@@ -1018,8 +1018,8 @@ interface PreparedChannel {
 
 /** A number channel's combine mode, with what to combine with where nothing beneath painted. */
 interface Combine {
-    /** Multiply or add. */
-    readonly mode: "multiply" | "add";
+    /** Every mode but replace. */
+    readonly mode: Exclude<CombineMode, "replace">;
     /** The channel's own default, or the mode's identity when it states none. */
     readonly fallback: number;
     /** The smallest value the channel draws. */
@@ -1037,7 +1037,22 @@ interface Combine {
  */
 function combined(combine: Combine, beneath: number, painted: number): number {
     const base = Number.isNaN(beneath) ? combine.fallback : beneath;
-    const value = combine.mode === "multiply" ? base * painted : base + painted;
+    let value: number;
+    switch (combine.mode) {
+        case "multiply":
+            value = base * painted;
+            break;
+        case "add":
+            value = base + painted;
+            break;
+        case "subtract":
+            value = base - painted;
+            break;
+        default:
+            // Divide. Dividing by 0 leaves what lies beneath (CombineMode's documented rule).
+            value = painted === 0 ? base : base / painted;
+            break;
+    }
 
     return Math.min(combine.max, Math.max(combine.min, value));
 }
@@ -1068,11 +1083,11 @@ function dropReplaceUnderShape(shaders: ChannelColumn, index: number): void {
 function combineOf(descriptor: ChannelDescriptor, binding: Binding): Combine | null {
     const mode = "combine" in binding ? binding.combine : undefined;
 
-    if (descriptor.accepts !== "number" || (mode !== "multiply" && mode !== "add")) {
+    if (descriptor.accepts !== "number" || mode === undefined || mode === "replace") {
         return null;
     }
 
-    const identity = mode === "multiply" ? 1 : 0;
+    const identity = mode === "multiply" || mode === "divide" ? 1 : 0;
 
     return {
         mode,

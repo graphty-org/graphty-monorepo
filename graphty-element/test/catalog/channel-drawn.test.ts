@@ -306,6 +306,11 @@ describe("combineDrawn", () => {
         assert.deepStrictEqual(combineDrawn("node.size", "replace", undefined), { drawn: true });
     });
 
+    it("subtracts and divides always draw: neither paints the layer's own number", () => {
+        assert.deepStrictEqual(combineDrawn("node.size", "subtract", 0), { drawn: true });
+        assert.deepStrictEqual(combineDrawn("node.size", "divide", 1), { drawn: true });
+    });
+
     it("adds to a default that is not 0, so add draws over nothing beneath", () => {
         assert.deepStrictEqual(combineDrawn("node.size", "add", undefined), { drawn: true });
         assert.deepStrictEqual(combineDrawn("node.size", "add", 0), { drawn: false, unmet: { mode: "add", base: 0 } });

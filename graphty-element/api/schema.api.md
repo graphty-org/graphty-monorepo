@@ -157,7 +157,7 @@ export type ColorScheme = "light" | "dark" | "auto";
 export function colorToHex(s: string): string | undefined;
 
 // @public
-export type CombineMode = "replace" | "multiply" | "add";
+export type CombineMode = "replace" | "multiply" | "add" | "subtract" | "divide";
 
 // @public
 export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";

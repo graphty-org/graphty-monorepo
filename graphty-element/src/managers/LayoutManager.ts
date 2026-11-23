@@ -1279,6 +1279,10 @@ export class LayoutManager implements Manager {
      * @param event - The freeze, carrying the snapshot every consumer must switch to.
      */
     private onSnapshotReplaced(event: GraphSnapshotReplacedEvent): void {
+        if (event.report.nodeRemap !== null || event.next.nodeCount !== event.previous?.nodeCount) {
+            this.#rowSets++;
+        }
+
         // A FREEZE IS WHERE THE GRAPH GETS ITS SIZE. The element's default layout is set before any
         // data arrives, over an empty graph, so this -- not `setLayout` -- is where a graph crosses
         // the size at which the default force arrangement is worth accelerating, in either
@@ -2593,8 +2597,9 @@ export class LayoutManager implements Manager {
      * @param byReader - Whether the reader asked for the restore (undo, redo, a history jump);
      *     false for a rollback of another command's writes, after which a driver rebuild the
      *     restore landed on resumes the layout. Defaults to `restoring`.
+     * @returns False when the engine already held the lane as it is, and nothing was handed over.
      */
-    loadArrangement(restoring: boolean, wrote = false, byReader = restoring): void {
+    loadArrangement(restoring: boolean, wrote = false, byReader = restoring): boolean {
         // Coordinates written over a drawing rising into 3D end the rise where they put it.
         this.#rise = null;
         if (restoring) {
@@ -2609,12 +2614,37 @@ export class LayoutManager implements Manager {
 
         const engine = this.layoutEngine;
         if (engine === undefined) {
-            return;
+            return false;
+        }
+
+        // An undo of a value edit writes no coordinate: the engine took the lane when nothing in it has
+        // moved since, and handing every node over again was a walk of a 100,000-node graph (issue #9164).
+        // Only a static engine: a simulation's load also stops what it would move on its own, so one that
+        // stepped since its last load (between a source draft's sides) went on moving the nodes.
+        const lane = this.dataManager[WRITABLE_LANE];
+        const agreed = this.#agreed;
+        if (
+            !wrote &&
+            engine instanceof StaticLayoutEngine &&
+            agreed?.engine === engine &&
+            agreed.changes === lane.changes &&
+            agreed.rows === this.#rowSets
+        ) {
+            engine.keepArrangement();
+            return false;
         }
 
         engine.loadArrangement();
         this.putOnPlane(engine);
+        this.#agreed = { engine, changes: lane.changes, rows: this.#rowSets };
+        return true;
     }
+
+    /** The engine, the lane's `changes` and the row set when the engine last took the lane; see {@link loadArrangement}. */
+    #agreed: { engine: LayoutEngine; changes: number; rows: number } | null = null;
+
+    /** Moves whenever a freeze adds, removes or renumbers node rows, which the engine takes again on a restore. */
+    #rowSets = 0;
 
     /**
      * Under a 2D engine, move every placed node with a Z onto the Z = 0 plane, keeping its X and Y.
@@ -3721,6 +3751,27 @@ export class LayoutManager implements Manager {
      */
     hasLayoutEngine(): boolean {
         return this.layoutEngine !== undefined;
+    }
+
+    /**
+     * Publish the running engine's answer, reporting a refusal as {@link LayoutManager.updatePositions} does
+     * instead of throwing it into the frame that asked (planar's E_NOT_PLANAR between a batch's writes).
+     * @returns False when the engine refused the graph, and so placed nothing.
+     * @internal
+     */
+    publishOrReport(): boolean {
+        const engine = this.layoutEngine;
+        if (engine === undefined) {
+            return true;
+        }
+
+        try {
+            engine.publishPositions();
+            return true;
+        } catch (error) {
+            this.reportLayoutFailure(engine.type, error, "stepped");
+            return false;
+        }
     }
 
     /**

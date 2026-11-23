@@ -369,6 +369,8 @@ export class RowTable {
     private outlineSides = 0;
     private flags: Uint8Array<ArrayBuffer>;
     private laneChanges = -1;
+    /** The lane's `changes` at a freeze that moved no row ({@link RowTable.replaced}), or -1. */
+    private keptChanges = -1;
     /** How many of the first {@link RowTable.rows} rows are hidden. */
     private hiddenCount = 0;
     /** The widest half extent {@link RowTable.measure} has written since the last clear. */
@@ -705,8 +707,11 @@ export class RowTable {
             laneRows.read(row, lane);
         }
 
-        const atLane =
-            Math.fround(x) === lane.x && Math.fround(y) === lane.y && Math.fround(z) === (this.twoD ? 0 : lane.z);
+        // Flat by the view the frame draws, not the one the table last followed: a node a 2D engine's first walk
+        // puts at its Z, before the table turned 2D, is held there, as the objects path draws it, and not flattened
+        // by the repack that turns the table.
+        const twoD = (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true;
+        const atLane = Math.fround(x) === lane.x && Math.fround(y) === lane.y && Math.fround(z) === (twoD ? 0 : lane.z);
         const flags = this.flags[row] ?? 0;
         const next = atLane ? flags & ~HELD : flags | HELD;
         this.flags[row] = next;
@@ -923,8 +928,18 @@ export class RowTable {
      */
     replaced(remap: U32 | null, nodes: Iterable<Node>): void {
         const lane = this.lane();
-        this.moves++;
-        this.unplacedMoves++;
+        // A freeze that only renumbered or appended rows, with no coordinate written since the last
+        // pack, draws every row where it was: the rows follow the remap and an appended row is new,
+        // not moved. Counted as a move, it made the next frame place every edge again (issue #9164).
+        const kept =
+            lane.changes === this.laneChanges &&
+            this.twoD === ((this.scene.metadata as GraphSceneMetadata | null)?.twoD === true);
+        if (!kept) {
+            this.moves++;
+            this.unplacedMoves++;
+        }
+
+        this.keptChanges = kept ? lane.changes : -1;
         this.ownRowWrites++;
         this.positions.follow(remap, lane.capacity);
         this.extents.follow(remap, lane.capacity);
@@ -982,11 +997,17 @@ export class RowTable {
 
         const twoD = (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true;
         if (lane.changes !== this.laneChanges || twoD !== this.twoD) {
+            // The repack a freeze asked for moves no row when no coordinate was written since.
+            const kept = this.keptChanges === lane.changes && twoD === this.twoD;
+            this.keptChanges = -1;
             this.twoD = twoD;
             this.laneChanges = lane.changes;
-            this.moves++;
+            if (!kept) {
+                this.moves++;
+            }
+
             // a lane change that left every repacked row where it was (a drag's own row, written by place) moves none
-            if (this.repack(lane.view(Math.min(this.rows, lane.count)), this.copiedAt !== lane.changes)) {
+            if (this.repack(lane.view(Math.min(this.rows, lane.count)), this.copiedAt !== lane.changes) && !kept) {
                 this.unplacedMoves++;
             }
 

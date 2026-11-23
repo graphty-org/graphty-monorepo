@@ -5,8 +5,9 @@
         "noEmit": true,
         "declaration": true,
         "target": "ES2022",
-        "module": "ES2022"
+        "module": "ES2022",
+        "paths": { "@graphty/compact-mantine": ["./src/index.ts"] }
     },
-    "include": ["src/**/*", "stories/**/*", "tests/**/*"],
+    "include": ["src/**/*", "stories/**/*", "tests/**/*", "docs/examples/**/*"],
     "exclude": ["node_modules", "dist"]
 }

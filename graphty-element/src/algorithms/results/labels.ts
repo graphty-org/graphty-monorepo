@@ -1,7 +1,7 @@
 /**
  * @file What to call a node, as distinct from how to address it.
  *
- * A result card naming the busiest node wants a name a reader recognises, and an id is only
+ * A result card naming the busiest node wants a name a reader recognizes, and an id is only
  * sometimes one -- a GML file keys its nodes by integer while carrying the name beside it. So a
  * result is built with a way to look a label up, and `RunResult` uses it for the rows in a
  * ranking, the entries in a summary and the node the plain-language reading names first.
@@ -14,12 +14,12 @@
  * party can subclass is the declared base -- so the half that got fixed would decide whether a
  * plugin can name a node. One reader, read by both, is what makes that question not arise.
  *
- * Nothing here reaches Babylon.js, Lit or the DOM: the `Graph` import is type-only and the
- * emitter erases it.
+ * Nothing here reaches Babylon.js, Lit or the DOM: the host import is type-only and the emitter
+ * erases it.
  */
 
 import type { NodeId } from "../../catalog/types";
-import type { Graph } from "../../Graph";
+import type { AlgorithmHost } from "../host";
 
 /**
  * How to read a node's display name, or undefined when the graph has not been told of one.
@@ -31,7 +31,7 @@ import type { Graph } from "../../Graph";
  * @param graph - The graph the run is reading.
  * @returns A label lookup, or undefined when no label attribute is configured.
  */
-export function nodeLabelReader(graph: Graph): ((id: NodeId) => string | undefined) | undefined {
+export function nodeLabelReader(graph: AlgorithmHost): ((id: NodeId) => string | undefined) | undefined {
     const labelPath = graph.styles?.config.data.knownFields.nodeLabelPath ?? null;
 
     if (labelPath === null) {
@@ -41,7 +41,7 @@ export function nodeLabelReader(graph: Graph): ((id: NodeId) => string | undefin
     const data = graph.getDataManager();
 
     return (id: NodeId): string | undefined => {
-        const value = data.getNode(id)?.data[labelPath];
+        const value: unknown = data.getNode(id)?.data[labelPath];
 
         // An empty label names nothing: the caller falls back to the id, as `session.data.name` does.
         return (typeof value === "string" && value !== "") || typeof value === "number" ? String(value) : undefined;

@@ -26,6 +26,13 @@ export function NoticeSlot({
     const [hovered, setHovered] = useState(false);
     const [focused, setFocused] = useState(false);
 
+    // A notice taken down under the pointer or the focus fires no pointerleave or blur: without
+    // this the next notice would read as hovered and never time out.
+    if (notice === null && (hovered || focused)) {
+        setHovered(false);
+        setFocused(false);
+    }
+
     useEffect(() => {
         if (notice === null || notice.error === true || notice.lasting === true || hovered || focused) {
             return undefined;
@@ -42,10 +49,12 @@ export function NoticeSlot({
         return null;
     }
     return (
-        <div // NOSONAR(S6848): hover and focus only pause the notice's timer; the slot is not a control
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- hover and focus only pause the notice's timer; the slot is not a control
             ref={slot}
             className="ws-notice-slot"
-            onPointerEnter={() => {
+            // A move, not pointerenter: a notice that comes up under a resting pointer gets a
+            // pointerenter from the browser at the next frame with no move, and would never time out.
+            onPointerMove={() => {
                 setHovered(true);
             }}
             onPointerLeave={() => {

@@ -6,24 +6,18 @@
  *   (see `PatternedLineRenderer.createPatternElement`), so a patterned line adds no scene object
  * - Uses FilledArrowRenderer shader for billboarding
  * - Adaptive element density (add/remove slots as line length changes)
+ * - Discrete patterns (dots, dashes) and alternating ones (dash-dot), whose element shapes
+ *   alternate by index
+ * - Connected patterns (sinewave, zigzag), whose elements join end to end
  * @remarks
- * This class implements Phases 1-4 of design/rendering/mesh-based-patterned-lines.md.
- * That document is a DESIGN NOTE, not a generator input: nothing in tools/ or
- * graphty-element/scripts/ produces this file, so it is an ordinary source file and is
- * edited directly. It previously carried a "THIS FILE IS AUTO GENERATED" banner naming a
- * path (design/mesh-based-patterned-lines.md) that no longer exists after the monorepo
- * reorganisation. That banner was false and was removed, because it would have stopped the
- * next reader from making exactly the mesh-count repair this file now carries.
- * - Phase 1: Basic infrastructure with discrete patterns
- * - Phase 2: Adaptive mesh density (the count is always the one the current length takes)
- * - Phase 3: Alternating patterns (dash-dot) support
- * - Phase 4: Connected patterns (sinewave, zigzag) positioning
+ * The design is in design/rendering/mesh-based-patterned-lines.md.
  */
 
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { ArrowCap } from "./ArrowCapBatch";
+import { routeMiddle } from "./edgeRoute";
 import {
     PATTERN_DEFINITIONS,
     type PatternDefinition,
@@ -34,7 +28,7 @@ import {
 import { type WaveShape, WHOLE_PERIOD, type ZigzagPiece, zigzagPieceKey } from "./shapeOutlines";
 
 /**
- * Centre-to-centre distance between two consecutive elements of a discrete pattern.
+ * Center-to-center distance between two consecutive elements of a discrete pattern.
  *
  * WHY THIS IS A SHARED FUNCTION -- the defect it prevents:
  * The mesh COUNT and the mesh POSITIONS were computed from two independently written
@@ -52,10 +46,10 @@ import { type WaveShape, WHOLE_PERIOD, type ZigzagPiece, zigzagPieceKey } from "
  * doubled the mesh count. `PATTERN_DEFINITIONS[*].spacing.min` already carried a per-pattern
  * WORLD-SPACE spacing floor intended to stop exactly that, but it was dead code: the count
  * routine read only `.connected` off the pattern definition and the positions routine took
- * the definition as an underscore-prefixed unused parameter. Honouring `spacing.min` here is
+ * the definition as an underscore-prefixed unused parameter. Honoring `spacing.min` here is
  * what makes the count stop growing as the width shrinks.
  * @param meshWidth - Rendered length of one pattern element ALONG the line, in world units
- * @returns Centre-to-centre period in world units, never less than `meshWidth`
+ * @returns Center-to-center period in world units, never less than `meshWidth`
  * @public
  */
 export function patternElementPeriod(meshWidth: number): number {
@@ -149,12 +143,12 @@ export function discreteMeshCount(lineLength: number, meshWidth: number, pattern
  * dependency on the spacing rule but was not one. Leaving it in place would have invited the
  * belief that this function had to be kept in step with {@link discreteMeshCount} by hand.
  * It does not: it takes whatever count it is given and spreads it evenly, so the new floor
- * and the new ceiling on the count cannot desynchronise the positions. That is the property
+ * and the new ceiling on the count cannot desynchronize the positions. That is the property
  * that keeps the last gap correct when the ceiling bites.
  * @param totalLength - Length of the line in world units, already trimmed for node surface and arrowhead
  * @param meshWidth - Rendered length of one pattern element along the line, in world units
  * @param meshCount - Number of elements to place; values below 2 place one
- * @returns Centre offsets from the line start, in world units, in order, one per element
+ * @returns Center offsets from the line start, in world units, in order, one per element
  * @public
  */
 export function discreteMeshOffsets(totalLength: number, meshWidth: number, meshCount: number): number[] {
@@ -239,7 +233,7 @@ export function fixedAdvanceCount(lineLength: number, advance: number): number {
  * @param lineLength - The line's length, already trimmed for the node surface and the arrowhead
  * @param advance - The distance between two glyphs' centers
  * @param count - How many glyphs
- * @returns Centre offsets from the line start, in order, one per glyph
+ * @returns Center offsets from the line start, in order, one per glyph
  */
 export function fixedAdvanceOffsets(lineLength: number, advance: number, count: number): number[] {
     const step = count >= MAX_PATTERN_PIECES ? Math.max(advance, lineLength / (MAX_PATTERN_PIECES - 1)) : advance;
@@ -281,7 +275,7 @@ export function alternatingMeshCount(lineLength: number, sizes: readonly number[
  * @param totalLength - Length of the line, already trimmed for the node surface and the arrowhead
  * @param sizes - Each shape's length along the line, in the order the pattern cycles through them
  * @param count - Number of elements; below 2 places one
- * @returns Centre offsets from the line start, in order, one per element
+ * @returns Center offsets from the line start, in order, one per element
  */
 export function alternatingMeshOffsets(totalLength: number, sizes: readonly number[], count: number): number[] {
     const own = (i: number): number => sizes[i % sizes.length];
@@ -505,8 +499,8 @@ export class PatternedLineMesh {
     }
 
     /**
-     * Create initial pattern meshes based on line length
-     * Phase 3: Updated to handle alternating patterns
+     * Create initial pattern meshes based on line length; a multi-shape pattern alternates
+     * shapes by element index
      * @param start - Starting point of the line
      * @param end - Ending point of the line
      */
@@ -520,7 +514,7 @@ export class PatternedLineMesh {
         } else {
             const meshCount = this.calculateOptimalMeshCount(length, patternDef);
 
-            // Phase 3: Create elements with alternating shapes for multi-shape patterns
+            // A multi-shape pattern alternates shapes by element index
             for (let i = 0; i < meshCount; i++) {
                 this.elements.push(this.createPatternElement(i));
             }
@@ -591,7 +585,7 @@ export class PatternedLineMesh {
         const offsets = this.calculateOffsets();
         let segment = 1;
         for (let i = 0; i < this.elements.length; i++) {
-            // a line shorter than its elements can put a later centre before an earlier one: search from the start
+            // a line shorter than its elements can put a later center before an earlier one: search from the start
             const placed = this.onRoute(offsets[i], i > 0 && offsets[i] < offsets[i - 1] ? 1 : segment);
             ({ segment } = placed);
             const { point, direction } = placed;
@@ -622,8 +616,8 @@ export class PatternedLineMesh {
     }
 
     /**
-     * Add or remove meshes to match optimal count
-     * Phase 3: Updated to handle alternating patterns when adding meshes
+     * Add or remove meshes to match optimal count; added meshes continue the alternating
+     * shape sequence
      * @param newLength - New length of the line
      */
     private adjustMeshCount(newLength: number): void {
@@ -638,7 +632,7 @@ export class PatternedLineMesh {
         }
 
         if (optimalCount > currentCount) {
-            // Phase 3: Add elements with correct alternating shapes
+            // Add elements continuing the alternating shape sequence
             for (let i = 0; i < optimalCount - currentCount; i++) {
                 // Use current count + i to get the next element index in sequence
                 this.elements.push(this.createPatternElement(currentCount + i));
@@ -652,7 +646,7 @@ export class PatternedLineMesh {
     }
 
     /**
-     * Where along the route each element's centre sits, as a distance from the route's start: a discrete pattern's
+     * Where along the route each element's center sits, as a distance from the route's start: a discrete pattern's
      * (dot, star, box, dash, diamond, dash-dot) first and last elements touch the route's two ends and the rest share
      * the room between them evenly ({@link discreteMeshOffsets}); a Cytoscape glyph pattern's (separate-arrow,
      * contiguous-arrow) sit a fixed advance apart from the start ({@link cytoscapeAdvance}); a connected pattern's (sinewave, zigzag) segments
@@ -891,12 +885,14 @@ export class PatternedLineMesh {
     }
 
     /**
-     * The middle of the route this line was last laid along, halfway along its length.
+     * The middle of the route this line was last laid along: the middle of its middle segment, or the joint between
+     * its two middle ones, where a solid line drawn along the same route hangs its label ({@link routeMiddle}).
      * @returns The point.
      * @internal
      */
     routeMiddle(): Vector3 {
-        return this.onRoute((this.laid?.along.at(-1) ?? 0) / 2).point;
+        const points = this.laid?.points ?? [Vector3.Zero()];
+        return Vector3.FromArray(routeMiddle(points.flatMap((p) => [p.x, p.y, p.z])));
     }
 
     /**
@@ -932,8 +928,7 @@ export class PatternedLineMesh {
     }
 
     /**
-     * Create a single pattern element
-     * Phase 3: Updated to handle alternating patterns via element index
+     * Create a single pattern element; a multi-shape pattern picks its shape by element index
      * @param meshIndex - Index of the element in the sequence (for alternating patterns)
      * @param piece - How much of its period a wave's element draws, and its caps
      * @returns The element: a slot in its shape's batch
@@ -941,7 +936,7 @@ export class PatternedLineMesh {
     private createPatternElement(meshIndex: number, piece: ZigzagPiece = WHOLE_PERIOD): ArrowCap {
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
 
-        // Phase 3: For multi-shape patterns, determine which shape to use based on index
+        // A multi-shape pattern picks its shape by index
         let shapeType: PatternShapeType | undefined;
 
         if (patternDef.shapes.length > 1) {

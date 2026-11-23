@@ -16,7 +16,7 @@ function gate(): { promise: Promise<void>; open: () => void } {
 function untilAborted(context: OperationContext): Promise<void> {
     return new Promise<void>((_resolve, reject) => {
         context.signal.addEventListener("abort", () => {
-            const error = new Error("Cancelled");
+            const error = new Error("Canceled");
             error.name = "AbortError";
             reject(error);
         });

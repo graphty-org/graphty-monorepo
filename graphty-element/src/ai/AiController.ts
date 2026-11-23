@@ -12,7 +12,6 @@ import {
     type AiResultCode,
     type AiResultParams,
 } from "../catalog/ai";
-import { GraphtyError } from "../errors";
 import type { AiApprovalRequest, AiEvent, AiQuestionRequest } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
 import { dispatcherOf } from "../session/dispatchers";
@@ -97,22 +96,11 @@ import {
     type MessageState,
     type ToolHost,
 } from "./tools/types";
+import { uniqueId } from "./uniqueId";
 
 export type { AiApprovalVerdict, AiToolCallFacts } from "./tools/types";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
-
-/**
- * An id no other message, conversation or page load gives: a prefix and 128 random bits. A
- * message's id is stamped on its steps' provenance, so it must stay unique across reloads.
- * @param prefix - What kind of id it is.
- * @returns The id.
- */
-function uniqueId(prefix: string): string {
-    // getRandomValues, unlike randomUUID, is there on a page served over plain http too.
-    const bytes = crypto.getRandomValues(new Uint8Array(16));
-    return prefix + Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
 
 /**
  * A conversation with its undone marks brought up to date with the history.
@@ -337,8 +325,14 @@ const NO_TOTALS: MessageState["totals"] = { removeNodes: 0, removeEdges: 0, chan
 export type AiApprovalsSetting =
     | "none"
     | "writes"
-    | { readonly ask: readonly string[] }
-    | { readonly policy: (call: AiToolCallFacts) => AiApprovalVerdict };
+    | {
+          /** The tools (by command name) whose calls the reader is asked about; every other call runs. */
+          readonly ask: readonly string[];
+      }
+    | {
+          /** Decides each call: `"allow"` runs it, `"ask"` holds it for the reader, `"deny"` refuses it. */
+          readonly policy: (call: AiToolCallFacts) => AiApprovalVerdict;
+      };
 
 /** How an answer to a question was given. */
 export interface AiAnswerOptions {
@@ -358,7 +352,10 @@ export interface AiApprovalAnswer {
      * runs as the model made it. Edited arguments are checked as the model's are: invalid ones
      * run nothing (`AI_TOOL_INVALID_ARGUMENTS`).
      */
-    readonly calls?: readonly { readonly arguments?: Readonly<Record<string, unknown>> }[];
+    readonly calls?: readonly {
+        /** The arguments to run the call with in place of the model's. */
+        readonly arguments?: Readonly<Record<string, unknown>>;
+    }[];
 }
 
 /** What the main model is told a change after reading the web does, by `tools.webContentWrites`. */
@@ -586,9 +583,7 @@ export interface AiCommandOptions {
      * something: once it is empty the message is about the whole graph for the rest of its run,
      * an answer included. `"graph"` is the whole graph, whatever is selected. Absent, as ever: the model is told how much is selected. The reader's
      * message then reports it (`AiConversationMessage.scope`). Needs `toolset: "generated"`
-     * (otherwise `AI_CONFIG_INVALID`) and the `assistant` experiment (otherwise it rejects with
-     * `E_FEATURE_OFF`).
-     * @experimental assistant
+     * (otherwise `AI_CONFIG_INVALID`).
      */
     readonly scope?: "selection" | "graph";
 }
@@ -659,7 +654,7 @@ export interface AiControllerOptions {
      * approval. Absent, only URLs in the reader's own message are imported.
      */
     allowImportUrl?: (url: URL) => boolean;
-    /** Where `load_dataset` downloads datasets from; absent, it fails with `E_OPTION_RANGE`. */
+    /** Where `load_dataset` downloads datasets from; absent, it fails with `AI_ARG_OUT_OF_RANGE`. */
     datasetBaseUrl?: string;
     /**
      * Whether the assistant keeps one conversation across messages: `"none"` (the default: every
@@ -716,6 +711,26 @@ export interface ExecutionResult extends CommandResult {
 }
 
 /**
+ * The engine's image model, as a tool host offers it.
+ * @param engine - The engine.
+ * @returns `{ image }`, or nothing when the engine makes no pictures.
+ */
+function imageOf(engine: AiEngine): Pick<ToolHost, "image"> {
+    const { imageModel } = engine;
+    return imageModel === undefined || engine.generateImage === undefined
+        ? {}
+        : {
+              image: {
+                  model: imageModel,
+                  generate: (prompt, signal) => {
+                      // Present with `imageModel`, so never absent here.
+                      return engine.generateImage?.(prompt, signal) ?? Promise.reject(new Error("no image model"));
+                  },
+              },
+          };
+}
+
+/**
  * Controller that orchestrates LLM providers and command execution.
  * Manages the conversation flow, command dispatch, and status updates.
  */
@@ -731,8 +746,8 @@ export class AiController {
     private readonly emitEvent: AiEventEmitter | undefined;
     private lastInput: string | null = null;
     private lastError: Error | null = null;
-    /** The messages `cancel()` ended, so their results say cancelled, not undone. */
-    private readonly cancelled = new WeakSet<AbortController>();
+    /** The messages `cancel()` ended, so their results say canceled, not undone. */
+    private readonly canceled = new WeakSet<AbortController>();
     /** Who hears that an open live connection no longer knows the conversation. */
     private readonly liveWatchers = new Set<() => void>();
     /** Batches held for approval, by request id, until an event ends each. */
@@ -771,6 +786,8 @@ export class AiController {
      * it, so two never write into each other's transactions or share the status.
      */
     private queue: Promise<unknown>;
+    /** How many turns have ended so far (`ai-command-complete` or `ai-command-error` emitted). */
+    private endings = 0;
     /** Where conversations are kept, and how; undefined when none are. */
     private readonly history: AiHistoryOptions | undefined;
     private readonly secrets: () => readonly string[];
@@ -876,7 +893,7 @@ export class AiController {
         this.storeOverride = (options as AiControllerOptions & { [STORE_OVERRIDE]?: ConversationStore })[
             STORE_OVERRIDE
         ];
-        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history); // NOSONAR(S7059): the store opens at construction on purpose; openHistory never rejects and ready() awaits it
+        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history); // eslint-disable-line sonarjs/no-async-constructor -- the store opens at construction on purpose; openHistory never rejects and ready() awaits it
         // Every turn waits for the saved conversation.
         this.queue = this.opened;
         liveFactsOf.set(this, {
@@ -921,12 +938,12 @@ export class AiController {
     }
 
     /**
-     * What a cancelled message ends with: `AI_DISPOSED` once `dispose` ended it under the `assistant`
-     * experiment, so an application that mounts a fresh element can tell that from the reader's Stop.
+     * What a canceled message ends with: `AI_DISPOSED` once `dispose` ended it, so an application
+     * that mounts a fresh element can tell that from the reader's Stop.
      * @returns The code.
      */
-    private get cancelCode(): "AI_CANCELLED" | "AI_DISPOSED" {
-        return this.disposed && this.graph.getSession().features.has("assistant") ? "AI_DISPOSED" : "AI_CANCELLED";
+    private get cancelCode(): "AI_CANCELED" | "AI_DISPOSED" {
+        return this.disposed ? "AI_DISPOSED" : "AI_CANCELED";
     }
 
     /**
@@ -934,6 +951,10 @@ export class AiController {
      * @param event - The AI event to emit
      */
     private emitAiEvent(event: AiEvent): void {
+        if (event.type === "ai-command-complete" || event.type === "ai-command-error") {
+            this.endings++;
+        }
+
         if (this.emitEvent) {
             this.emitEvent(event);
         }
@@ -960,12 +981,14 @@ export class AiController {
         // Read now, not when its turn comes: a selection changed while it waits is not its scope.
         const scope = options.scope === undefined ? undefined : this.readScope(options.scope);
         if (scope === null) {
-            return {
+            const result: ExecutionResult = {
                 success: false,
                 message: "",
                 code: "AI_CONFIG_INVALID",
                 params: { field: "scope", reason: "needs-generated-toolset" },
             };
+            this.emitAiEvent({ type: "ai-command-complete", result, duration: 0 });
+            return result;
         }
 
         // Track input for retry
@@ -981,66 +1004,58 @@ export class AiController {
         // Registered now, so `cancel()` reaches a message still waiting for the one before it.
         const abortController = new AbortController();
         this.running.set(abortController, input);
-        return this.enqueue(async () => {
-            if (abortController.signal.aborted) {
-                this.running.delete(abortController);
-                return { success: false, message: "", code: this.cancelCode, params: {} };
-            }
-
-            if (options.conversation !== undefined && !(await this.switchTo(options.conversation))) {
-                this.running.delete(abortController);
-                return UNKNOWN_CONVERSATION;
-            }
-
-            const live = (options as AiCommandOptions & { [LIVE_MESSAGE]?: LiveMessage })[LIVE_MESSAGE];
-            let planned: AiPlan | undefined;
-            try {
-                const refused = await this.refuseBeforeSending(input, live !== undefined);
-                if ("result" in refused) {
+        return this.enqueue(() =>
+            this.announced(async () => {
+                if (abortController.signal.aborted) {
                     this.running.delete(abortController);
-                    return refused.result;
+                    return { success: false, message: "", code: this.cancelCode, params: {} };
                 }
 
-                ({ planned } = refused);
-            } catch {
-                // A part of the assistant that would not load: nothing was sent.
-                this.running.delete(abortController);
-                return { success: false, message: "", code: "AI_FAILED", params: {} };
-            }
+                if (options.conversation !== undefined && !(await this.switchTo(options.conversation))) {
+                    this.running.delete(abortController);
+                    return UNKNOWN_CONVERSATION;
+                }
 
-            return this.executeNow(input, abortController, options, planned, scope);
-        });
+                const live = (options as AiCommandOptions & { [LIVE_MESSAGE]?: LiveMessage })[LIVE_MESSAGE];
+                let planned: AiPlan | undefined;
+                try {
+                    const refused = await this.refuseBeforeSending(input, live !== undefined);
+                    if ("result" in refused) {
+                        this.running.delete(abortController);
+                        return refused.result;
+                    }
+
+                    ({ planned } = refused);
+                } catch {
+                    // A part of the assistant that would not load: nothing was sent.
+                    this.running.delete(abortController);
+                    return { success: false, message: "", code: "AI_FAILED", params: {} };
+                }
+
+                return this.executeNow(input, abortController, options, planned, scope);
+            }),
+        );
     }
 
     /**
-     * Whether messages record what they did: the generated tools, with the experiment on.
-     * @param session - The session.
+     * Whether messages record what they did: under the generated tools.
      * @returns True when they do.
      */
-    private recordsEvidence(session: GraphSession): boolean {
-        return this.toolset === "generated" && session.features.has("assistant");
+    private recordsEvidence(): boolean {
+        return this.toolset === "generated";
     }
 
     /**
      * What a message's scope holds now.
      * @param kind - The scope asked for.
      * @returns The scope, or null when the commands of the default toolset cannot be bound.
-     * @throws A `GraphtyError` coded `E_FEATURE_OFF` while the `assistant` experiment is off.
      */
     private readScope(kind: "selection" | "graph"): SentScope | null {
-        const session = this.graph.getSession();
-        if (!session.features.has("assistant")) {
-            throw new GraphtyError({
-                code: "E_FEATURE_OFF",
-                message: `A message's scope needs the "assistant" experiment.`,
-                source: "config",
-                details: { feature: "assistant", key: "scope" },
-            });
-        }
-
         if (this.toolset !== "generated") {
             return null;
         }
+
+        const session = this.graph.getSession();
 
         const shown = session.visibility.summary;
         if (kind === "graph") {
@@ -1209,6 +1224,24 @@ export class AiController {
     }
 
     /**
+     * Run one queued turn so that it ends with exactly one `ai-command-complete` or
+     * `ai-command-error`: a turn that returned before running (refused, stale, canceled while it
+     * waited) emits `ai-command-complete` with its result, as one that ran already did.
+     * @param turn - The turn.
+     * @returns Its result.
+     */
+    private async announced(turn: () => Promise<ExecutionResult>): Promise<ExecutionResult> {
+        const before = this.endings;
+        const startTime = Date.now();
+        const result = await turn();
+        if (this.endings === before) {
+            this.emitAiEvent({ type: "ai-command-complete", result, duration: Date.now() - startTime });
+        }
+
+        return result;
+    }
+
+    /**
      * Run one message, its turn come. A new message ends every request still waiting: the message
      * that made it ends there, without another model turn.
      * @param input - The reader's request.
@@ -1239,7 +1272,7 @@ export class AiController {
                     via: options.via,
                     pointing: options.pointing,
                     scope: scope?.facts,
-                    provenance: this.recordsEvidence(session) ? message : undefined,
+                    provenance: this.recordsEvidence() ? message : undefined,
                 }),
             conversationId: this.current?.id,
             live,
@@ -1354,6 +1387,8 @@ export class AiController {
             readerText,
             ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
             ...(this.datasetBaseUrl === undefined ? {} : { datasetBaseUrl: this.datasetBaseUrl }),
+            provider: this.engine.providerName,
+            ...imageOf(this.engine),
         };
     }
 
@@ -1419,7 +1454,7 @@ export class AiController {
                 undo: { calls: 0 },
                 hostedUses: {},
                 totals: { ...(run.totals ?? { removeNodes: 0, removeEdges: 0, changedValues: 0 }) },
-                ...(this.recordsEvidence(session) ? { evidence: true } : {}),
+                ...(this.recordsEvidence() ? { evidence: true } : {}),
                 ...(binding === undefined ? {} : { binding }),
             },
             host: this.toolHost(emit, input),
@@ -1454,7 +1489,7 @@ export class AiController {
     }
 
     /**
-     * A tool threw, the message was cancelled or undone, or the model failed: what the message's
+     * A tool threw, the message was canceled or undone, or the model failed: what the message's
      * earlier batches recorded is taken back, as one transaction's rollback was.
      * @param error - What the loop threw.
      * @param session - The session.
@@ -1480,7 +1515,7 @@ export class AiController {
             result = { ...result, code: "AI_ROLLBACK_PARTIAL", params: { ...result.params, steps: remaining } };
         }
         // The batch's rollback aborts the message too, so only a cancel overrides the tool's code.
-        if (this.cancelled.has(run.abortController)) {
+        if (this.canceled.has(run.abortController)) {
             result = { ...result, ...this.cancelOutcome(run) };
         }
 
@@ -1557,15 +1592,8 @@ export class AiController {
 
         this.statusManager.setError(errorObj, true);
 
-        // Emit error event
-        this.emitAiEvent({
-            type: "ai-command-error",
-            error: errorObj,
-            input: run.input,
-            canRetry: true,
-        });
-
         const { code, params } = this.failureOutcome(error, run);
+
         const failed: ExecutionResult = {
             success: false,
             message: `Error: ${errorMessage}`,
@@ -1577,6 +1605,16 @@ export class AiController {
             await this.saveUnkept(run, conversation, base, failed, error instanceof TurnFailed ? error.said : "");
             this.hearLater(run, conversation, base);
         }
+
+        // Emitted once the message is saved, as ai-command-complete is: a listener reading the
+        // conversation finds this turn's own reader message, a spoken one included.
+        this.emitAiEvent({
+            type: "ai-command-error",
+            error: errorObj,
+            code,
+            input: run.input,
+            canRetry: true,
+        });
 
         return failed;
     }
@@ -1715,10 +1753,10 @@ export class AiController {
     /**
      * Why a message that was aborted ended.
      * @param run - The message.
-     * @returns Cancelled when `cancel()` ended it, undone otherwise.
+     * @returns Canceled when `cancel()` ended it, undone otherwise.
      */
     private abortOutcome(run: MessageRun): Outcome {
-        return this.cancelled.has(run.abortController) ? this.cancelOutcome(run) : { code: "AI_UNDONE", params: {} };
+        return this.canceled.has(run.abortController) ? this.cancelOutcome(run) : { code: "AI_UNDONE", params: {} };
     }
 
     /**
@@ -2205,7 +2243,7 @@ export class AiController {
      */
     resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult> {
         // An answer given while its message still runs (from inside the listener) waits for it.
-        return this.enqueue(() => this.resolveNow(id, answer));
+        return this.enqueue(() => this.announced(() => this.resolveNow(id, answer)));
     }
 
     /**
@@ -2305,7 +2343,7 @@ export class AiController {
         answer: string | readonly string[],
         options: AiAnswerOptions = {},
     ): Promise<ExecutionResult> {
-        return this.enqueue(() => this.answerNow(id, answer, options));
+        return this.enqueue(() => this.announced(() => this.answerNow(id, answer, options)));
     }
 
     /**
@@ -2641,7 +2679,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             }
         });
         const stopUndos = session.on("history:changed", () => {
-            if (this.recordsEvidence(session)) {
+            if (this.recordsEvidence()) {
                 void this.enqueue(() => this.noteUndone(session));
             }
         });
@@ -3166,7 +3204,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     cancel(): void {
         // Every request and question still waiting ends too, its message with it.
         for (const id of [...this.approvals.keys(), ...this.questions.keys()]) {
-            const pending = this.closePending(id, { code: "AI_CANCELLED", params: {} });
+            const pending = this.closePending(id, { code: "AI_CANCELED", params: {} });
             void this.enqueue(() => this.saveClosed(pending));
         }
 
@@ -3175,9 +3213,9 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 continue;
             }
 
-            this.cancelled.add(abortController);
+            this.canceled.add(abortController);
             abortController.abort();
-            this.emitAiEvent({ type: "ai-command-cancelled", input, reason: "user" });
+            this.emitAiEvent({ type: "ai-command-canceled", input, reason: "user" });
         }
     }
 

@@ -2,10 +2,10 @@ import { ActionIcon, Button, Group, Tooltip } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
+import { TIME_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { focusBrush, reportTimeError, unitOf } from "./timeActions";
 import { windowWords } from "./timeWords";
-import { useTimeVersion } from "./useTimeVersion";
 
 /**
  * The header's time chip, beside the filter chip, while a time window is on: what the canvas is
@@ -16,7 +16,8 @@ import { useTimeVersion } from "./useTimeVersion";
  */
 export function TimeChip(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useTimeVersion(session);
+    // The time window is not a style layer: a change to the layers alone does not draw the chip again.
+    useSessionEvents(session, TIME_EVENTS, true);
     if (!session?.time.field || session.time.current === null) {
         return null;
     }

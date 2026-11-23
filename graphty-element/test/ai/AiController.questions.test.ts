@@ -293,7 +293,7 @@ describe.each([
             const [part] = harness.driver.requests[1].messages.at(-1)?.parts ?? [];
             assert.strictEqual(part.type, "tool-result");
             if (part.type === "tool-result") {
-                assert.deepStrictEqual(JSON.parse(part.content).data, { answer: [answer] });
+                assert.deepStrictEqual((JSON.parse(part.content) as { data: unknown }).data, { answer: [answer] });
             }
 
             assert.deepStrictEqual(harness.controller.getPendingQuestions(), []);
@@ -315,7 +315,7 @@ describe.each([
         const [part] = harness.driver.requests[1].messages.at(-1)?.parts ?? [];
         assert.strictEqual(part.type, "tool-result");
         if (part.type === "tool-result") {
-            assert.deepStrictEqual(JSON.parse(part.content).data, { answer: ["red"] });
+            assert.deepStrictEqual((JSON.parse(part.content) as { data: unknown }).data, { answer: ["red"] });
         }
     });
 
@@ -350,7 +350,7 @@ describe.each([
         assert.strictEqual(late.params?.reason, "expired");
     });
 
-    it("a cancel ends it with AI_CANCELLED", async () => {
+    it("a cancel ends it with AI_CANCELED", async () => {
         const session = await assistantSession();
         const harness = new Harness(session, driver(), { questions: true });
         const request = await askQuestion(harness);
@@ -361,7 +361,7 @@ describe.each([
         assert.deepInclude(ended(harness.events.slice(start))[0], {
             id: request.id,
             kind: "question",
-            code: "AI_CANCELLED",
+            code: "AI_CANCELED",
         });
         assert.isUndefined(harness.controller.getStatus().pending);
         assert.strictEqual((await harness.controller.answerQuestion(request.id, "red")).code, "AI_APPROVAL_STALE");

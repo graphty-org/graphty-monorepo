@@ -53,7 +53,6 @@ describe('a range leaf read "as" time', () => {
             GAUGES.map((row) =>
                 row.installed === undefined ? row : { ...row, installed: Number(row.installed.slice(0, 4)) },
             ),
-            ["timeline"],
         );
         await session.time.setField({ nodes: { start: "installed" } });
         await session.visibility.setConditions([{ effect: "keep", rule: BEFORE_2005 }]);

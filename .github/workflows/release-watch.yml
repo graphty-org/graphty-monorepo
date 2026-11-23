@@ -1,14 +1,14 @@
 # The backstop for the release announcements (tools/release-status.mjs): when a Release run ends badly
-# (failure, cancelled, timed_out, startup_failure, action_required...) and no comment on the "Release status"
+# (failure, canceled, timed_out, startup_failure, action_required...) and no comment on the "Release status"
 # issue already reports a failure of that run attempt, this comments there, mentioning RELEASE_NOTIFY. It catches
 # the runs that never reached their own announce step: a run that started no job, a job that never got a runner,
-# a whole run cancelled, an announce step that failed, a bookkeeping step that failed after the release landed.
-# It runs as its own workflow run, so a broken or cancelled release run still triggers it.
+# a whole run canceled, an announce step that failed, a bookkeeping step that failed after the release landed.
+# It runs as its own workflow run, so a broken or canceled release run still triggers it.
 #
 # Not news, so silent: success, skipped and neutral runs; a pending run the release-train concurrency group
-# replaced with a newer one (cancelled before any job started); a first attempt release-rerun.yml re-runs on the same
+# replaced with a newer one (canceled before any job started); a first attempt release-rerun.yml re-runs on the same
 # commit or files itself (tools/release-rerun.mjs decides the same way for both), whose re-run announces itself; a
-# second attempt cancelled before its verdict, whose deferred red release-rerun.yml files.
+# second attempt canceled before its verdict, whose deferred red release-rerun.yml files.
 # A shadow release run (run name "Release (shadow)", release.yml's default mode) is never announced: it publishes
 # nothing, and its own held job comments on #3418 when it goes red.
 name: Release watch

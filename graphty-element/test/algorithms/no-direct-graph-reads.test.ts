@@ -5,7 +5,7 @@
  * here with a reason.
  *
  * It is a secondary guard. Which algorithms compute over their scope is decided by each class's
- * `scopeInput` declaration at run time, and proved behaviourally, not by which file reads what.
+ * `scopeInput` declaration at run time, and proved behaviorally, not by which file reads what.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -19,6 +19,7 @@ const DIRECT_READ = /getDataManager\(\)|getSnapshot\(\)/;
 /** Files that may read the graph directly for good, and why. */
 const PERMANENT: Readonly<Record<string, string>> = {
     "Algorithm.ts": "a seam: it hands the data manager to the input accessor",
+    "host.ts": "declares what an algorithm reads and adapts a session to it; it reads no graph itself",
     "results/labels.ts": "reads node labels for a summary, not topology",
 };
 

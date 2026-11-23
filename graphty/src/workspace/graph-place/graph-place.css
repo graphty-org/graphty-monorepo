@@ -101,7 +101,6 @@
    list never runs under Graph settings. */
 .ws-graph-place > .cm-tree {
     flex: 1 1 auto;
-    min-height: 0;
     overflow-y: auto;
 }
 

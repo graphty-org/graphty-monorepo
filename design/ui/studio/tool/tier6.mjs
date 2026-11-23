@@ -1,6 +1,6 @@
-// What a tier 6 study session adds to real.mjs: the assistant experiment on with nothing in the page
-// address, Gemini with the real key added on the way out of the browser, a request cap shared by
-// every session, and a check that the key never reached a session's folder.
+// What a tier 6 study session adds to real.mjs: a site.json that names no site, Gemini with the real
+// key added on the way out of the browser, a request cap shared by every session, and a check that
+// the key never reached a session's folder.
 import { appendFileSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { parseEnv } from "node:util";
@@ -28,7 +28,7 @@ export const sessionSlots = (tier, env) =>
 // What the session's server answers at this path instead of a file in the build, or null. It names
 // no site, so the app stays "unknown" and the header shows no site chip.
 export const siteFile = (tier, pathname) =>
-    usesAssistant(tier) && pathname === "/site.json" ? JSON.stringify({ features: ["assistant"] }) : null;
+    usesAssistant(tier) && pathname === "/site.json" ? JSON.stringify({}) : null;
 
 // The one value taken from the .env file, or null. parseEnv, not process.loadEnvFile: the load would
 // put every token in process.env, which the browser and every spawned process inherit.

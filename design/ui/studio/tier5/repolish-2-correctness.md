@@ -58,7 +58,7 @@ Fix (graphty-element): estimate Girvan-Newman from its real cost (iterations tim
 betweenness on the scope), so the step asks with an honest figure or refuses above a cap; run it in
 the Worker like Louvain, so the page keeps drawing and Cancel works. Element test: on a 4,000-node,
 8,000-edge graph the estimate is within a factor of 3 of the measured run, and a run in progress
-can be cancelled.
+can be canceled.
 
 ### 2. Major: a filter card's name drops its verb and says the opposite of what it does
 
@@ -114,14 +114,14 @@ nodes) (`v2/downloads/volunteers.graphty.json`, graphty-results). Spec 6 says on
 algorithm, settings and scope, a stale run rerun by the element. The stale ones stay visible:
 
 - The filter card's value picker offers three identical "Louvain, 3 values" entries, tooltip
-  "Louvain", none greyed, although spec 2 greys filtered-graph runs in the import filter
+  "Louvain", none grayed, although spec 2 grays filtered-graph runs in the import filter
   (`v2/22.png`, `v2/23.png` to `v2/26.png`).
 - The table shows three "Louvain (visible)" tabs and a "Louvain (visible)" column that reads Group 3
   for v17, v21, v23 and v24 (the stale 24-node run), while the step's current run keeps v17 and v23
   and leaves v21 and v24 (`v2/32.png`).
 
 Fix (graphty-element): a rerun of a step's run on a changed scope replaces the stale run under the
-same id, so one visible run per algorithm and settings remains; the app greys visible-scope runs in
+same id, so one visible run per algorithm and settings remains; the app grays visible-scope runs in
 the filter's picker. Element test: two filter changes under a style step on Louvain leave one
 visible Louvain run.
 

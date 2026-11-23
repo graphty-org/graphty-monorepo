@@ -1,6 +1,6 @@
 /**
- * Layout extension point. NORMATIVE for shapes; behaviour in design/extensions/layout.md.
- * Entry point: @graphty/graphty-element/extend. Serialised form of the descriptor:
+ * Layout extension point. NORMATIVE for shapes; behavior in design/extensions/layout.md.
+ * Entry point: @graphty/graphty-element/extend. Serialized form of the descriptor:
  * design/extensions/descriptors.schema.json#/$defs/LayoutDescriptor (published) and
  * #/$defs/AuthoredLayoutDescriptor (what a class writes).
  */
@@ -15,10 +15,10 @@ import type { GraphSnapshot, NodeMask } from "./extend-snapshot";
 
 /**
  * The built-in arrangement ids. Reserved, as are the names of the element's own engines.
- * AS BUILT in 2.6.1 this list omits "spiral" and "planar", which the catalogue publishes as
+ * AS BUILT in 2.6.1 this list omits "spiral" and "planar", which the catalog publishes as
  * built-in arrangements (README section 5 item 4); adding them is an additive fix.
  * "force-2d" is deprecated (see DEPRECATED_LAYOUT_IDS): it is no longer in `catalog.layouts()` and
- * is read as "force" drawn by its `arf` engine, until the next major release removes it.
+ * is read as "force" drawn by its `arf` engine, until an ordinary release that announces it removes it.
  */
 export declare const KNOWN_LAYOUT_IDS: readonly [
     "force",
@@ -35,7 +35,7 @@ export declare const KNOWN_LAYOUT_IDS: readonly [
     "random",
 ];
 
-/** The built-in layout ids kept only as aliases, removed at the next major release. */
+/** The built-in layout ids kept only as aliases, removed in an ordinary release that announces it. */
 export declare const DEPRECATED_LAYOUT_IDS: readonly ["force-2d"];
 
 /** A layout id: a built-in name or a registered one. OPEN UNION. */
@@ -86,14 +86,18 @@ export interface EdgePosition {
     dst: Position;
 }
 
-/** One layout, as the catalogue publishes it. */
+/** One layout, as the catalog publishes it. */
 export interface LayoutDescriptor {
     /** MUST equal the class's static type. */
     id: LayoutId;
     plainName: string;
     technicalName: string;
     description: string;
-    /** A grouping for pickers, e.g. "force-directed", "geometric", "hierarchical". */
+    /**
+     * The layout's family, a fact about its method: e.g. "force-directed", "geometric",
+     * "hierarchical". Whether and how a picker groups by it is the application's choice
+     * (2026-10-03 presentation-neutral rule), not graphty-element's.
+     */
     family: string;
     /** live: stepped until settled. batch: placed in one pass. */
     kind: "live" | "batch";
@@ -332,7 +336,7 @@ export interface LayoutReport {
     /** Nodes left unplaced because their data gave no position; drawn one element-defined way. */
     readonly unplaced: readonly NodeIdType[];
     readonly notes: readonly string[];
-    /** A carried scope that the engine could not honour and that was therefore dropped. */
+    /** A carried scope that the engine could not honor and that was therefore dropped. */
     readonly droppedScope: boolean;
 }
 

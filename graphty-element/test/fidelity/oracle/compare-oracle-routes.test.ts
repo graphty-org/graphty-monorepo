@@ -325,3 +325,22 @@ describe("a route judged where it runs between its own nodes", () => {
         assert.strictEqual(passRate(wide("oracle", 0), wide("graphty", 45), "edge.route"), 0);
     });
 });
+
+describe("an edge between two nodes the program drew on one another", () => {
+    const line = edge("p", "q", [
+        [300, 200],
+        [300, 300],
+    ]);
+    const g = scene("graphty", [node("p", 300, 180), node("q", 300, 320)], [line]);
+
+    it("is no extra edge of graphty's where the oracle's two nodes cover the whole line between them", () => {
+        // cx-radiation-bibliography 588 -> 90: the program's layout overlapped the two, its line and head under them
+        const o = scene("oracle", [node("p", 300, 200, { w: 60 }), node("q", 330, 215, { w: 60 })], []);
+        assert.strictEqual(passRate(o, g, "edge.extra"), 1);
+    });
+
+    it("is still one where the oracle draws the two apart and no line between them", () => {
+        const o = scene("oracle", [node("p", 300, 180), node("q", 300, 320)], []);
+        assert.strictEqual(passRate(o, g, "edge.extra"), 0);
+    });
+});

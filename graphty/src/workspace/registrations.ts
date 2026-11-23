@@ -21,11 +21,13 @@ import { registration as project } from "./project/commands";
 import { registration as replace } from "./replace/commands";
 import { registration as server } from "./server/commands";
 import { registration as settings } from "./settings/commands";
+import { registration as sourceSteps } from "./source-steps/commands";
 import { registration as start } from "./start/commands";
 import { registration as style } from "./style/commands";
 import { registration as table } from "./table/commands";
 import { registration as time } from "./time/commands";
 import { registration as toolbar } from "./toolbar/commands";
+import { registration as viewsPlace } from "./views-place/commands";
 
 export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
     frame,
@@ -39,6 +41,8 @@ export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
     layout,
     graphPlace,
     dataPlace,
+    sourceSteps,
+    viewsPlace,
     inspector,
     style,
     table,

@@ -57,11 +57,12 @@ afterEach(() => {
 /**
  * A device whose arithmetic counts iterations: a landed batch of `k` iterations moves node `i`
  * by `k * (i + 1)` along x, so where the nodes end says exactly how many iterations ran, whatever
- * the element does to centre and scale the arrangement. It settles once `SETTLE_AFTER` iterations
- * have landed. Two batches in flight at most, the oldest returned beyond that, as a GPU simulation
- * does.
+ * the element does to center and scale the arrangement. It settles once `SETTLE_AFTER` iterations
+ * have landed. Two batches in flight at most, the oldest returned beyond that, and a load discards
+ * the batches still in flight, as a GPU simulation does.
  *
- * On a SLOW device a pre-step chunk (any batch other than the frame's `iterationsPerStep`) lands
+ * On a SLOW device a pre-step chunk (any batch of other than `iterationsPerStep` iterations, as a
+ * frame's batch also is once it ramps up) lands
  * only after `TICKS_PER_CHUNK` ticks of the render loop, so frames are certain to run while one is
  * in flight; a frame's own batch lands at once. On a fast one every batch lands at once. Ticks,
  * not drawn frames: a device computes whether or not the element draws, and the element rightly
@@ -73,6 +74,8 @@ class CountingSimulation implements LayoutSimulation {
     #positions: Float32Array | null = null;
     #rows = 0;
     #done = 0;
+    /** Bumped by every load, so a batch submitted before it lands as nothing. */
+    #generation = 0;
 
     /** How many iterations have landed. */
     get landed(): number {
@@ -93,6 +96,7 @@ class CountingSimulation implements LayoutSimulation {
         this.#rows = snapshot.nodeCount;
         // A load starts the simulation over, as a GPU simulation's writes its initial state.
         this.#done = 0;
+        this.#generation++;
     }
 
     step(iterations = this.frameIterations ?? 1): Promise<void> {
@@ -109,6 +113,7 @@ class CountingSimulation implements LayoutSimulation {
     }
 
     async #land(iterations: number): Promise<void> {
+        const generation = this.#generation;
         if (this.slow !== null && iterations !== this.frameIterations) {
             const engine = this.slow();
             for (let tick = 0; tick < TICKS_PER_CHUNK; tick++) {
@@ -120,6 +125,10 @@ class CountingSimulation implements LayoutSimulation {
             }
         } else {
             await Promise.resolve();
+        }
+
+        if (generation !== this.#generation) {
+            return;
         }
 
         const positions = this.#positions;

@@ -29,7 +29,18 @@ import { afterAll, beforeAll, describe, it } from "vitest";
 import { browserProcesses, ENGINES, launch, profile } from "./engines";
 import { type Fixture, type PageCheck, startFixture } from "./fixture";
 
-const SIZES = [10_000, 50_000, 100_000];
+/**
+ * Every size with every node drawn at low detail (`detail=low`), so the rows compare the write and
+ * not the renderer; and 10,000 with the default detail too, so the drawing cost stays visible
+ * (issue #9548: at 10,000 full-detail nodes a software-rendered frame took seconds, and the write
+ * waited behind it).
+ */
+const SIZES: readonly (readonly [number, "low" | "default"])[] = [
+    [10_000, "default"],
+    [10_000, "low"],
+    [50_000, "low"],
+    [100_000, "low"],
+];
 const RUNS = 3;
 const LANDING_TRIALS = 5;
 
@@ -118,14 +129,15 @@ async function open(context: BrowserContext, params: Record<string, string | num
 }
 
 describe.each(ENGINES)("%s (recorded, never asserted)", (engine) => {
-    it.each(SIZES)("write cost at %i nodes", async (n) => {
+    it.each(SIZES)("write cost at %i nodes, %s detail", async (n, detail) => {
         const dir = profile(`bench-${engine}`);
         const test = { engine, nodes: n, dir, start: Date.now() };
         const context = await launch(engine, dir);
         step(test, "launched");
         try {
             const page = await context.newPage();
-            await page.goto(fx.url({ key: `bench-${n}`, tab: `bench-${engine}-${n}`, n }));
+            const tab = `bench-${engine}-${n}-${detail}`;
+            await page.goto(fx.url({ key: `bench-${n}-${detail}`, tab, n, ...(detail === "low" ? { detail } : {}) }));
             step(test, "loaded");
             await page.evaluate("fixture.ready()");
             step(test, "ready");
@@ -137,6 +149,7 @@ describe.each(ENGINES)("%s (recorded, never asserted)", (engine) => {
                     name: "autosave write (fixture)",
                     engine,
                     nodes: n,
+                    detail,
                     run,
                     dataMs: Math.round(data.ms),
                     dataState: data.problem ?? data.state,

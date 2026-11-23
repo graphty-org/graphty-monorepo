@@ -19,8 +19,12 @@ import type { GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { PendingSourceLoad } from "./sources/types";
 
-/** What a request would fetch. OPEN UNION: later releases add values. */
-export type NetworkRequestKind = "model" | "texture" | "source";
+/**
+ * What a request would fetch: a model, a texture, a saved network-source load, or the rows of a
+ * load a project saved as a reference (`data`, asked `by: "file"` while the project opens). OPEN
+ * UNION: later releases add values.
+ */
+export type NetworkRequestKind = "model" | "texture" | "source" | "data";
 
 /**
  * What asked for it: a layer from a project or style file or a template (`file`), a layer an AI
@@ -32,14 +36,23 @@ export type NetworkRequestAsker = "file" | "ai" | "data" | "source" | "supplied"
 
 /** A fetch waiting for the page's answer: `{ code, params }`, as every fact the element reports. */
 export interface NetworkRequest {
+    /** Always `W_URL_NEEDS_APPROVAL`: an address waits for the page to allow or deny it. */
     readonly code: Extract<GraphtyWarningCode, "W_URL_NEEDS_APPROVAL">;
+    /** The facts about the waiting fetch, for the page to show the reader in its own words. */
     readonly params: {
         /** The key `allow` and `deny` take. */
         readonly id: string;
         /** What would be fetched: origin and path, never the query or credentials. */
         readonly url: string;
+        /**
+         * The URL's host, with its port when it has one (`"models.example.com"`): allowing the
+         * request allows every fetch to this host for the rest of the session. Empty for a saved
+         * network-source load with no endpoint.
+         */
         readonly host: string;
+        /** What would be fetched: a model, a texture, a network-source load or saved data rows. */
         readonly kind: NetworkRequestKind;
+        /** What asked for the fetch: a file or template, an AI command, the data, a source or a supplied part. */
         readonly by: NetworkRequestAsker;
         /** The layers that name it, for a model or texture. */
         readonly layerIds: readonly LayerId[];
@@ -91,98 +104,8 @@ export interface NetworkApi {
     setPolicy(policy: NetworkPolicy): void;
 }
 
-/**
- * Whether dotted IPv4 octets are private, loopback, link-local, shared, benchmarking, reserved,
- * multicast or broadcast.
- * @param a - The first octet.
- * @param b - The second.
- * @param c - The third.
- * @returns True for such an address.
- */
-function privateV4(a: number, b: number, c: number): boolean {
-    return (
-        a === 0 ||
-        a === 10 ||
-        a === 127 ||
-        a >= 224 ||
-        (a === 100 && b >= 64 && b <= 127) ||
-        (a === 169 && b === 254) ||
-        (a === 172 && b >= 16 && b <= 31) ||
-        (a === 192 && b === 0 && c === 0) ||
-        (a === 192 && b === 168) ||
-        (a === 198 && (b === 18 || b === 19))
-    );
-}
-
-/**
- * An IPv6 address as its eight 16-bit groups.
- * @param name - The address, without brackets, as the URL parser writes it (no dotted tail).
- * @returns The groups, or undefined when it is not one.
- */
-function v6Groups(name: string): number[] | undefined {
-    const halves = name.split("::");
-    if (halves.length > 2) {
-        return undefined;
-    }
-
-    const read = (half: string): number[] => (half === "" ? [] : half.split(":").map((g) => Number.parseInt(g, 16)));
-    const head = read(halves[0]);
-    const tail = halves.length === 2 ? read(halves[1]) : [];
-    const groups =
-        halves.length === 2 ? [...head, ...new Array<number>(8 - head.length - tail.length).fill(0), ...tail] : head;
-    return groups.length === 8 && groups.every((g) => Number.isInteger(g) && g >= 0 && g <= 0xffff)
-        ? groups
-        : undefined;
-}
-
-/**
- * Whether an IPv6 address is private: loopback, unspecified, IPv4-compatible or mapped, unique
- * local, link-local, site-local or multicast, or a NAT64 or 6to4 address whose IPv4 is private.
- * @param name - The address, without brackets.
- * @returns True for such an address.
- */
-function privateV6(name: string): boolean {
-    const g = v6Groups(name);
-    if (g === undefined) {
-        return true; // Not readable as an address: refused rather than guessed.
-    }
-
-    const v4 = (high: number, low: number): boolean => privateV4(high >> 8, high & 0xff, low >> 8);
-    return (
-        g.slice(0, 5).every((x) => x === 0) ||
-        (g[0] & 0xfe00) === 0xfc00 ||
-        (g[0] & 0xffc0) === 0xfe80 ||
-        (g[0] & 0xffc0) === 0xfec0 ||
-        (g[0] & 0xff00) === 0xff00 ||
-        (g[0] === 0x64 && g[1] === 0xff9b && g.slice(2, 6).every((x) => x === 0) && v4(g[6], g[7])) ||
-        (g[0] === 0x2002 && v4(g[1], g[2]))
-    );
-}
-
-/**
- * Whether a host is private, loopback or link-local, which a fetch not from the page's code never
- * reaches. It reads the host as written: a public name that resolves to a private address is not
- * seen here, and only the reader's per-host answer stands in its way.
- * @param host - The URL's host name.
- * @returns True for such a host.
- */
-export function isPrivateHost(host: string): boolean {
-    const name = host
-        .replaceAll(/(?:^\[)|(?:\]$)/g, "")
-        .toLowerCase()
-        .replace(/\.$/, "");
-    // A trailing dot (`localhost.`) names the same host.
-    if (name === "localhost" || name.endsWith(".localhost") || name.endsWith(".local") || name === "0.0.0.0") {
-        return true;
-    }
-
-    const v4 = /^(\d+)\.(\d+)\.(\d+)\.\d+$/.exec(name);
-    if (v4 !== null) {
-        return privateV4(Number(v4[1]), Number(v4[2]), Number(v4[3]));
-    }
-
-    return name.includes(":") && privateV6(name);
-}
+/** Whether a host is private, loopback or link-local (from babylonjs-models, one copy for both). */
+export { isPrivateHost } from "babylonjs-models/detect";
 
 /** What a model or texture asks the gate. */
 export interface FetchQuestion {

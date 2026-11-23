@@ -7,7 +7,7 @@
  * untracked files git does not ignore. tools/test-select.mjs decides per test shard, with the gate's own
  * rules: "none" runs nothing, "files" runs one `vitest run` of the selected files with the shard's config and
  * --project filters (no coverage, no --shard slice), "all" runs the shard as CI does (tools/run-tests.sh).
- * The "never" shards (graphty-element-lifecycle) are left out, as the gate leaves them out. The packages the runs need are built first; every run takes a test slot.
+ * The "never" shards (graphty-element-lifecycle) are left out, as the gate leaves them out. The packages the runs need are built first; every run takes a test slot, and half the slots run side by side (parallelRuns).
  * A browser shard the selector runs whole runs only its file-level answer here, or nothing: a whole browser
  * shard holds about 7 GB of vitest and Chromium for an hour, and CI runs it (owner 2026-10-25, issue #8042).
  *
@@ -25,7 +25,7 @@
  *   --base     compare with another ref (default origin/master)
  */
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,6 +35,7 @@ import { config, readPlan } from "./results/client.mjs";
 import { projectGraph } from "./prepush-inputs.mjs";
 import { budget, explain, rankFiles } from "./test-history.mjs";
 import { planRuns, selectChange, selectedCommand } from "./test-select.mjs";
+import { slotCount } from "./test-slots.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -182,14 +183,64 @@ export function runArgs(p) {
     return ["--command", p.shard.shard, p.command + cap];
 }
 
+/**
+ * How many runs go at once: half the machine's test slots, at least one. Each run still takes its own slot
+ * (tools/test-slots.mjs), so this only keeps one check from queueing a ticket per shard ahead of every other
+ * session's runs. 0 slots (no limit) runs them all at once.
+ * @param [slots] the machine's test slot count
+ * @returns a whole number, at least 1
+ */
+export const parallelRuns = (slots = slotCount()) => (slots === 0 ? Infinity : Math.max(1, Math.floor(slots / 2)));
+
+/**
+ * The runs in the order they start: browser runs first, as they take longest (a graph-samples change on
+ * 2026-11-17: graphty-element storybook files 714 s, browser files 393 s, the next 248 s), so the pool does not
+ * end on one long run started last.
+ * @param todo planRuns() entries that run
+ * @returns a new array
+ */
+export const startOrder = (todo) =>
+    [...todo].sort((a, b) => Number(Boolean(b.shard["needs-browser"])) - Number(Boolean(a.shard["needs-browser"])));
+
+// One run, its output held and printed whole when it ends, so runs side by side do not interleave.
 function run(p) {
     const args = runArgs(p);
+    const name = p.covers.join(", ");
     const t0 = Date.now();
-    const r = spawnSync(process.execPath, ["tools/test-slots.mjs", "bash", "tools/run-tests.sh", ...args], {
-        cwd: ROOT,
-        stdio: "inherit",
+    return new Promise((resolve) => {
+        const child = spawn(process.execPath, ["tools/test-slots.mjs", "bash", "tools/run-tests.sh", ...args], {
+            cwd: ROOT,
+            stdio: ["ignore", "pipe", "pipe"],
+        });
+        const out = [];
+        child.stdout.on("data", (d) => out.push(d));
+        child.stderr.on("data", (d) => out.push(d));
+        child.on("close", (code) => {
+            const secs = Math.round((Date.now() - t0) / 1000);
+            process.stdout.write(`\n===== ${name} (${secs}s, exit ${code}) =====\n${Buffer.concat(out).toString()}`);
+            resolve({ name, ok: code === 0, secs });
+        });
     });
-    return { name: p.covers.join(", "), ok: r.status === 0, secs: Math.round((Date.now() - t0) / 1000) };
+}
+
+/**
+ * Runs `todo` with at most `limit` at once, in order.
+ * @param todo items
+ * @param limit how many at once
+ * @param one runs one item, returns a promise of its result
+ * @returns results in `todo`'s order
+ */
+export async function pool(todo, limit, one) {
+    const results = [];
+    let next = 0;
+    const worker = async () => {
+        while (next < todo.length) {
+            const i = next++;
+            results[i] = await one(todo[i]);
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(limit, todo.length) }, worker));
+    return results;
 }
 
 async function main(argv) {
@@ -230,7 +281,9 @@ async function main(argv) {
         console.log("The build failed; no tests ran.");
         return 1;
     }
-    const results = todo.map(run);
+    const limit = parallelRuns();
+    console.log(`Running ${todo.length} test run(s), ${limit === Infinity ? "all" : limit} at once...`);
+    const results = await pool(startOrder(todo), limit, run);
     for (const r of results) {
         console.log(`  [${r.ok ? "PASS" : "FAIL"}] ${r.name} (${r.secs}s)`);
     }

@@ -44,7 +44,6 @@ function resultOf(runId: string, shape: ResultShape, values: Record<string, numb
 function apiOf(...results: RunResult[]): ReturnType<typeof createResultsApi> {
     const entries: ResultsRunEntry[] = results.map((result) => ({
         id: result.runId,
-        label: result.runId,
         distinguishedBy: null,
         siblingsDifferBy: null,
         shape: result.shape,
@@ -109,6 +108,7 @@ describe("results.compare: two groupings", () => {
             return;
         }
         assert.strictEqual(c.agreement, 1);
+        assert.strictEqual(c.adjustedMutualInformation, 1);
         assert.deepEqual(c.moves, []);
         assert.deepEqual(c.groups, { a: 2, b: 2 });
         assert.deepEqual(c.overlaps, [
@@ -124,7 +124,9 @@ describe("results.compare: two groupings", () => {
             return;
         }
         assert.deepEqual(c.moves, [{ id: "c", a: 0, b: 6, mostOfGroup: 5 }]);
-        assert.ok((c.agreement ?? 1) < 1 && (c.agreement ?? -1) > 0);
+        // scikit-learn's adjusted_rand_score and adjusted_mutual_info_score on the same labels.
+        assert.closeTo(c.agreement ?? NaN, 0.32432432432432434, 1e-12);
+        assert.closeTo(c.adjustedMutualInformation ?? NaN, 0.355245321275764, 1e-12);
     });
 
     it("refuses a grouping against a measurement, and an unknown run", () => {

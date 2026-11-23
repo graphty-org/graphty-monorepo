@@ -1,5 +1,9 @@
 # Figma-Style Sidebar Design Specification
 
+Status: historical record. It specifies part of the graphty app's first shell, removed on
+2026-10-16 (commit 0895d66703); the app is now the workspace (`graphty/src/workspace/`), designed
+in [framework/](framework/README.md).
+
 This document captures the design analysis and implementation approach for creating a Figma-style properties sidebar in our React application using Mantine components.
 
 ## Reference Image

@@ -11,6 +11,8 @@ const ROOMY_WINDOW = 1200;
 const FILLS_BELOW = 640;
 /** The rail: 56 wide plus its 1 px border. */
 const RAIL = 57;
+/** The Data panel's width at the least while a source card is open (design 7.1). */
+const CARD_MIN = 320;
 /** What the Assistant leaves the canvas at the very least. */
 const CANVAS_MIN = 320;
 
@@ -47,9 +49,13 @@ export function useLeftPanel(): LeftPanel {
     const leftWidth = useWorkspaceState((state) => state.leftWidth);
     const rightWidth = useWorkspaceState((state) => state.rightWidth);
     const assistantWidth = useWorkspaceState((state) => state.assistantWidth);
+    const carded = useWorkspaceState(
+        (state) => state.page === "panels" && state.place === "data" && state.sourceCard !== null,
+    );
     if (!onAssistant) {
         return {
-            width: leftWidth,
+            // Widened, not resized: the reader's own width comes back when the card closes.
+            width: carded ? Math.max(leftWidth, CARD_MIN) : leftWidth,
             defaultWidth: PANEL_MIN,
             max: PANEL_MAX,
             fills: false,

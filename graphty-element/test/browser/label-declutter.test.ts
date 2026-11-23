@@ -2,8 +2,8 @@
  * @file Node labels that would overlap on screen are not drawn on top of each other.
  *
  * Every node label is its own plane, and nothing used to check whether two of them landed in the
- * same place, so two labelled nodes near each other drew their words over one another. With the
- * graph's `labels.declutter` behaviour on, the element thins them out: the label of the node with
+ * same place, so two labeled nodes near each other drew their words over one another. With the
+ * graph's `labels.declutter` behavior on, the element thins them out: the label of the node with
  * more edges is kept and the one it would cover is hidden. It is off by default, and off means
  * every label a style asks for is drawn.
  *
@@ -20,6 +20,7 @@ import { userEvent } from "vitest/browser";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { LabelDeclutter, type NodeLabelCounts } from "../../src/managers/LabelDeclutter";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 import { nextFrame, wheel } from "../helpers/real-input";
 
 const WIDTH = 640;
@@ -80,7 +81,7 @@ describe("node labels do not overlap", () => {
 
         await g.addNodes(nodes);
         await g.addEdges(EDGES);
-        await g.setLayout("fixed", { dim: 3 });
+        await g.setLayout("fixed", { dim: 3, spacing: 0 });
         await operationQueueOf(g).waitForCompletion();
         await g.getSession().styles.add({
             name: "labels",
@@ -245,7 +246,7 @@ describe("node labels do not overlap", () => {
     });
 
     function passOf(g: Graph): LabelDeclutter {
-        const found: unknown = g.scene.metadata?.labelDeclutter;
+        const found: unknown = (g.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
         if (!(found instanceof LabelDeclutter)) {
             assert.fail("a labelled scene has a declutter pass");
         }
@@ -364,7 +365,7 @@ describe("node labels do not overlap", () => {
     });
 
     it("never draws two labels whose words overlap, and keeps the selected one", async () => {
-        // A tight grid of forty labelled nodes: plenty of collisions to resolve.
+        // A tight grid of forty labeled nodes: plenty of collisions to resolve.
         const nodes = [];
         const ids: string[] = [];
         for (let i = 0; i < 40; i++) {
@@ -421,7 +422,7 @@ describe("nodeLabelCounts counts the labels drawn and why the rest are not", () 
         g.setLayoutBehavior({ labels: { declutter } });
         await g.addNodes(PILED);
         await g.addEdges(EDGES);
-        await g.setLayout("fixed", { dim: 3 });
+        await g.setLayout("fixed", { dim: 3, spacing: 0 });
         await operationQueueOf(g).waitForCompletion();
         await g.getSession().styles.add({
             name: "labels",
@@ -553,7 +554,7 @@ describe("the labels guide's example (docs/guide/labels.md)", () => {
             await operationQueueOf(g).waitForCompletion();
             await g.addNodes(PILED);
             await g.addEdges(EDGES);
-            await g.setLayout("fixed", { dim: 3 });
+            await g.setLayout("fixed", { dim: 3, spacing: 0 });
             await operationQueueOf(g).waitForCompletion();
             await tag.session.styles.add({
                 name: "labels",
@@ -614,7 +615,7 @@ describe("waitForStableFrame waits for the label counts to be announced", () => 
             await operationQueueOf(g).waitForCompletion();
             await g.addNodes(PILED);
             await g.addEdges(EDGES);
-            await g.setLayout("fixed", { dim: 3 });
+            await g.setLayout("fixed", { dim: 3, spacing: 0 });
             tag.layoutBehavior = { labels: { declutter: true } };
             await tag.session.styles.add({
                 name: "labels",
@@ -631,7 +632,9 @@ describe("waitForStableFrame waits for the label counts to be announced", () => 
             assert.deepEqual(heard.at(-1), tag.nodeLabelCounts);
             // Announced on the first still frame after the last pass, not after the ten-frame
             // debounce a gesture gets: each of those frames is most of a second on a software GPU.
-            const declutter = g.scene.metadata?.labelDeclutter as unknown as { quiet: number };
+            const declutter = (g.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter as unknown as {
+                quiet: number;
+            };
             assert.isBelow(declutter.quiet, 10);
         } finally {
             tag.remove();
@@ -663,7 +666,7 @@ describe("the label counts are published once the labels have settled, not after
             g.setLayoutBehavior({ labels: { declutter: true } });
             await g.addNodes(PILED);
             await g.addEdges(EDGES);
-            await g.setLayout("fixed", { dim: 3 });
+            await g.setLayout("fixed", { dim: 3, spacing: 0 });
             await g.getSession().styles.add({
                 name: "labels",
                 target: "node",
@@ -675,7 +678,7 @@ describe("the label counts are published once the labels have settled, not after
 
             // From here every frame is one this test draws.
             g.engine.stopRenderLoop();
-            const declutter: unknown = g.scene.metadata?.labelDeclutter;
+            const declutter: unknown = (g.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
             if (!(declutter instanceof LabelDeclutter)) {
                 throw new Error("the labels have no declutter pass");
             }

@@ -35,9 +35,9 @@ const EDGES = [
 /**
  * A PLUGIN ALGORITHM HAS NO RUN TO ANNOUNCE, so the element has to ask for its picture.
  *
- * A catalogue algorithm runs as a session run, and the session announcing that run's end is what
+ * A catalog algorithm runs as a session run, and the session announcing that run's end is what
  * brings the paint up to date. A plugin registered through `Algorithm.register` publishes no
- * catalogue descriptor, so it cannot be started by key and takes the 1.10 path instead: it writes
+ * catalog descriptor, so it cannot be started by key and takes the 1.10 path instead: it writes
  * straight onto the element's records, which the session reads as attributes. Nothing announces
  * that. Without the element asking for the repaint where the plugin wrote, a layer selecting on
  * what it wrote goes on showing the picture from before it ran -- silently, because the layer is
@@ -216,7 +216,7 @@ describe("session style paint", () => {
     /**
      * A reader's own layer and an algorithm's layer in one stack, painting together.
      *
-     * The reader's layer greys every edge and the algorithm's colours every node, so the picture
+     * The reader's layer grays every edge and the algorithm's colors every node, so the picture
      * has to carry both. This is the arrangement the stories in this package use for dimming
      * what an algorithm did not select: a layer of the reader's own, beneath the algorithm's.
      */
@@ -303,7 +303,7 @@ describe("session style paint", () => {
             await operationQueueOf(graph).waitForCompletion();
             graph.getUpdateManager().stepFrames(2);
 
-            // The degree layer writes node colours and says nothing about edge width, so the
+            // The degree layer writes node colors and says nothing about edge width, so the
             // reader's layer underneath is still what decides how wide an edge is drawn. A stack
             // where the top layer wins everything is the failure this replaces.
             for (const edge of graph.getDataManager().edges.values()) {

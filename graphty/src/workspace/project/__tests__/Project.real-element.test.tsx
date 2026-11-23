@@ -14,6 +14,8 @@ import { browserProjects, type GraphSession } from "@graphty/graphty-element/ses
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { watchDownloads } from "../../../test/downloads";
+import { withoutFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -161,29 +163,9 @@ async function closeFromMenu(): Promise<void> {
     await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
 }
 
-/**
- * Records every download the element starts, without saving a file.
- * @returns the downloads, filled as they happen.
- */
-function watchDownloads(): { name: string; blob: Blob }[] {
-    const downloads: { name: string; blob: Blob }[] = [];
-    const blobs = new Map<string, Blob>();
-    const create = URL.createObjectURL.bind(URL);
-    vi.spyOn(URL, "createObjectURL").mockImplementation((object: Blob | MediaSource) => {
-        const url = create(object);
-        if (object instanceof Blob) {
-            blobs.set(url, object);
-        }
-        return url;
-    });
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
-        const blob = blobs.get(this.href);
-        if (this.download !== "" && blob !== undefined) {
-            downloads.push({ name: this.download, blob });
-        }
-    });
-    return downloads;
-}
+// Saving through the name-only Save as and opening at once; version 2 save files replace both,
+// tested in SaveFilesV2.real-element.test.tsx.
+withoutFeatures(["save-files-v2"]);
 
 beforeEach(async () => {
     await clearRecent();

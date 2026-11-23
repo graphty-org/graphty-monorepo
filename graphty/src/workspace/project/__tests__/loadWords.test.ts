@@ -51,6 +51,11 @@ const WORDED: readonly [GraphtyErrorCode, Record<string, unknown>, string][] = [
     ["E_MISSING_PACKAGE", { package: "@graphty/graph-io" }, "it needs the @graphty/graph-io package"],
     ["E_AUTOSAVE_ENTRY_TAKEN", {}, "another tab has this work open"],
     ["E_AUTOSAVE_UNKNOWN_ENTRY", {}, "this browser no longer keeps that work"],
+    [
+        "E_AUTOSAVE_STALLED",
+        { afterMs: 10_000, step: "read" },
+        "the browser's storage did not answer; close other graphty tabs, then reload",
+    ],
     ["E_SUPERSEDED", {}, "another load took its place"],
     ["E_DISPOSED", {}, "the project closed before it finished"],
     ["E_SOURCE_NOT_FOUND", { origin: "https://api.example.org" }, "not found: api.example.org"],

@@ -9,7 +9,7 @@ import "../../src/graphty-element";
 
 import { assert, describe, test, vi } from "vitest";
 
-import type { Graphty } from "../../index.js";
+import type { Graphty, GraphtyForwardedEventMap as ForwardedEvent } from "../../index.js";
 import type { ImportReport } from "../../session.js";
 
 /**
@@ -27,7 +27,7 @@ async function createGraphtyElement(): Promise<{ element: Graphty; container: HT
     graphtyElement.style.display = "block";
     container.appendChild(graphtyElement);
 
-    // Wait for element to be connected and its graph initialised
+    // Wait for element to be connected and its graph initialized
     await graphtyElement.updateComplete;
     await vi.waitFor(() => {
         assert.isTrue(graphtyElement.graph.initialized, "the element initialised its graph");
@@ -120,7 +120,7 @@ describe("Event Forwarding Regression Tests", () => {
             // data-added should have been emitted
             assert.isTrue(dataAddedCallback.mock.calls.length >= 1);
 
-            const event = dataAddedCallback.mock.calls[0][0] as CustomEvent;
+            const event = dataAddedCallback.mock.calls[0][0] as ForwardedEvent["data-added"];
             assert.equal(event.type, "data-added");
             assert.equal(event.detail.dataType, "nodes");
             assert.equal(event.detail.count, 2);
@@ -149,8 +149,8 @@ describe("Event Forwarding Regression Tests", () => {
 
             // Should have received data-added for edges
             const edgeEvent = dataAddedCallback.mock.calls.find(
-                (call) => (call[0] as CustomEvent).detail.dataType === "edges",
-            ) as [CustomEvent] | undefined;
+                (call) => (call[0] as ForwardedEvent["data-added"]).detail.dataType === "edges",
+            ) as [ForwardedEvent["data-added"]] | undefined;
             assert.isDefined(edgeEvent);
             // Type assertion safe because assert.isDefined will throw if undefined
             assert.equal(edgeEvent[0].detail.count, 2);
@@ -173,11 +173,28 @@ describe("Event Forwarding Regression Tests", () => {
 
             assert.equal(errorCallback.mock.calls.length, 1);
 
-            const event = errorCallback.mock.calls[0][0] as CustomEvent;
+            const event = errorCallback.mock.calls[0][0] as ForwardedEvent["error"];
             assert.equal(event.type, "error");
             assert.equal(event.detail.error, testError);
             assert.equal(event.detail.context, "other");
             assert.deepEqual(event.detail.details, { customDetail: "value" });
+
+            cleanup(graphtyElement);
+        });
+
+        test("error event stops at the element and never reaches the window (#8231)", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
+            const onElement = vi.fn();
+            const onWindow = vi.fn();
+            graphtyElement.addEventListener("error", onElement);
+            // Where window.onerror, error reporters and test runners listen.
+            window.addEventListener("error", onWindow);
+
+            graphtyElement.graph.eventManager.emitGraphError(graphtyElement.graph, new Error("refused"), "layout");
+
+            window.removeEventListener("error", onWindow);
+            assert.equal(onElement.mock.calls.length, 1);
+            assert.equal(onWindow.mock.calls.length, 0);
 
             cleanup(graphtyElement);
         });
@@ -194,7 +211,7 @@ describe("Event Forwarding Regression Tests", () => {
 
             assert.equal(layoutCallback.mock.calls.length, 1);
 
-            const event = layoutCallback.mock.calls[0][0] as CustomEvent;
+            const event = layoutCallback.mock.calls[0][0] as ForwardedEvent["layout-initialized"];
             assert.equal(event.detail.layoutType, "force");
             assert.equal(event.detail.shouldZoomToFit, true);
 
@@ -218,7 +235,7 @@ describe("Event Forwarding Regression Tests", () => {
 
             assert.equal(loadedCallback.mock.calls.length, 1);
 
-            const event = loadedCallback.mock.calls[0][0] as CustomEvent;
+            const event = loadedCallback.mock.calls[0][0] as ForwardedEvent["data-loaded"];
             assert.equal(event.detail.details.chunksLoaded, 3);
             assert.equal(event.detail.details.dataSourceType, "json");
 
@@ -237,7 +254,7 @@ describe("Event Forwarding Regression Tests", () => {
 
             assert.equal(progressCallback.mock.calls.length, 1);
 
-            const event = progressCallback.mock.calls[0][0] as CustomEvent;
+            const event = progressCallback.mock.calls[0][0] as ForwardedEvent["data-loading-progress"];
             assert.equal(event.detail.format, "csv");
             assert.equal(event.detail.bytesProcessed, 1024);
             assert.equal(event.detail.totalBytes, 2048);
@@ -271,7 +288,7 @@ describe("Event Forwarding Regression Tests", () => {
 
             assert.equal(completeCallback.mock.calls.length, 1);
 
-            const event = completeCallback.mock.calls[0][0] as CustomEvent;
+            const event = completeCallback.mock.calls[0][0] as ForwardedEvent["data-loading-complete"];
             assert.equal(event.detail.format, "json");
             assert.equal(event.detail.nodesLoaded, 100);
             assert.equal(event.detail.edgesLoaded, 50);
@@ -294,7 +311,7 @@ describe("Event Forwarding Regression Tests", () => {
 
             assert.equal(errorCallback.mock.calls.length, 1);
 
-            const event = errorCallback.mock.calls[0][0] as CustomEvent;
+            const event = errorCallback.mock.calls[0][0] as ForwardedEvent["data-loading-error"];
             assert.equal(event.detail.error, testError);
             assert.equal(event.detail.context, "parsing");
             assert.equal(event.detail.line, 42);
@@ -381,7 +398,7 @@ describe("Event Forwarding Regression Tests", () => {
 
             graphtyElement.graph.eventManager.emitDataAdded("nodes", 42, true, false);
 
-            const event = callback.mock.calls[0][0] as CustomEvent;
+            const event = callback.mock.calls[0][0] as ForwardedEvent["data-added"];
 
             // Verify all properties are preserved in detail
             assert.equal(event.detail.type, "data-added");
@@ -413,17 +430,42 @@ describe("Event Forwarding Regression Tests", () => {
     });
 
     describe("real-world integration scenarios", () => {
+        test("a load forwards data-loaded, operation-queue-idle and graph-settled from real work", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
+            const seen = new Set<string>();
+            for (const type of ["data-loaded", "operation-queue-idle", "graph-settled"]) {
+                graphtyElement.addEventListener(type, () => seen.add(type));
+            }
+
+            graphtyElement.dataSource = "json";
+            graphtyElement.dataSourceConfig = {
+                data: JSON.stringify({
+                    nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+                    edges: [
+                        { source: "a", target: "b" },
+                        { source: "b", target: "c" },
+                    ],
+                }),
+            };
+
+            await vi.waitFor(() => {
+                assert.sameMembers([...seen], ["data-loaded", "operation-queue-idle", "graph-settled"]);
+            });
+
+            cleanup(graphtyElement);
+        });
+
         test("events fire during full graph lifecycle", async () => {
             const { element: graphtyElement } = await createGraphtyElement();
 
-            const dataAddedEvents: CustomEvent[] = [];
-            const settledEvents: CustomEvent[] = [];
+            const dataAddedEvents: ForwardedEvent["data-added"][] = [];
+            const settledEvents: ForwardedEvent["graph-settled"][] = [];
 
             graphtyElement.addEventListener("data-added", (e) => {
-                dataAddedEvents.push(e as CustomEvent);
+                dataAddedEvents.push(e);
             });
             graphtyElement.addEventListener("graph-settled", (e) => {
-                settledEvents.push(e as CustomEvent);
+                settledEvents.push(e);
             });
 
             // Add nodes and edges

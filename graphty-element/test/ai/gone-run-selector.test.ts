@@ -9,7 +9,7 @@ import { assistantSession, ScriptedAssistant } from "../helpers/assistant";
 
 describe("a selector over a run an Undo took back", () => {
     it("refuses with AI_UNKNOWN_RUN and hides nothing", async () => {
-        const session = await assistantSession(undefined, ["assistant"]);
+        const session = await assistantSession();
         const scripted = new ScriptedAssistant(session, { history: "memory", gate: false });
         await scripted.say("rank them", [{ tool: "run_algorithm", args: { action: "run", name: "degree" } }]);
         await session.undo();

@@ -1,5 +1,7 @@
 # The full test suite runs in CI; the local gate is light
 
+> Status: Superseded 2026-10-25 by 2026-10-25-channels-pipeline-adopted.md: `golden` and its local gate are retired. CI still runs the tests, on each pull request and in the 6-hour full run.
+
 Date: 2026-10-23
 Decided by: the owner
 Changes: where the full test suite runs on the way from a branch to master, as laid out in

@@ -1,5 +1,7 @@
 # The CI/CD plan is adopted: a batched merge queue, a batch-aware visual gate, a daily release train
 
+> Status: Superseded 2026-10-25 by 2026-10-25-channels-pipeline-adopted.md for how changes merge and ship; the release train described below was replaced by its channels as well.
+
 > Status: Deprecated 2026-10-21 by design/ci/fast-pipeline.md (issue #3262). Its pull request, merge queue, landing and deploy parts are replaced; sections 7, 9, 10, 11, 12 and 13 of design/ci/ci-cd-plan.md (the GPU, macOS and Windows lanes, flaky tests, the release train and ad hoc release, keeping master green, runner capacity and API budget) remain in force.
 
 > PARTLY SUPERSEDED 2026-10-18 by design/ci/golden-local.md: do not follow its pull request, merge queue and Mergify parts; the release train and the ad hoc release (sections 10 and 11 of design/ci/ci-cd-plan.md) are current.

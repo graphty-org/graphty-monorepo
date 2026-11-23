@@ -52,11 +52,11 @@ describe("XRPivotCameraController", () => {
         mockXRExperience = {
             input: {
                 onControllerAddedObservable: {
-                    add: vi.fn((handler) => {
+                    add: vi.fn((handler: (item: unknown) => void) => {
                         mockXRExperience.input.onControllerAddedObservable.handlers.push(handler);
                         return handler;
                     }),
-                    remove: vi.fn((handler) => {
+                    remove: vi.fn((handler: (item: unknown) => void) => {
                         const { handlers } = mockXRExperience.input.onControllerAddedObservable;
                         const index = handlers.indexOf(handler);
                         if (index >= 0) {
@@ -66,11 +66,11 @@ describe("XRPivotCameraController", () => {
                     handlers: [],
                 },
                 onControllerRemovedObservable: {
-                    add: vi.fn((handler) => {
+                    add: vi.fn((handler: (item: unknown) => void) => {
                         mockXRExperience.input.onControllerRemovedObservable.handlers.push(handler);
                         return handler;
                     }),
-                    remove: vi.fn((handler) => {
+                    remove: vi.fn((handler: (item: unknown) => void) => {
                         const { handlers } = mockXRExperience.input.onControllerRemovedObservable;
                         const index = handlers.indexOf(handler);
                         if (index >= 0) {
@@ -83,11 +83,11 @@ describe("XRPivotCameraController", () => {
             },
             baseExperience: {
                 onStateChangedObservable: {
-                    add: vi.fn((handler) => {
+                    add: vi.fn((handler: (state: WebXRState) => void) => {
                         mockXRExperience.baseExperience.onStateChangedObservable.handlers.push(handler);
                         return handler;
                     }),
-                    remove: vi.fn((handler) => {
+                    remove: vi.fn((handler: (state: WebXRState) => void) => {
                         const { handlers } = mockXRExperience.baseExperience.onStateChangedObservable;
                         const index = handlers.indexOf(handler);
                         if (index >= 0) {
@@ -97,11 +97,11 @@ describe("XRPivotCameraController", () => {
                     handlers: [],
                 },
                 onInitialXRPoseSetObservable: {
-                    add: vi.fn((handler) => {
+                    add: vi.fn((handler: (item: unknown) => void) => {
                         mockXRExperience.baseExperience.onInitialXRPoseSetObservable.handlers.push(handler);
                         return handler;
                     }),
-                    remove: vi.fn((handler) => {
+                    remove: vi.fn((handler: (item: unknown) => void) => {
                         const { handlers } = mockXRExperience.baseExperience.onInitialXRPoseSetObservable;
                         const index = handlers.indexOf(handler);
                         if (index >= 0) {

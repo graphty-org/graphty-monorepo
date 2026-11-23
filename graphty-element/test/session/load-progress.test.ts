@@ -96,6 +96,21 @@ describe("a prepare's progress", () => {
         session.dispose();
     });
 
+    it("hands each change to the call's own onProgress too", async () => {
+        const session = createGraphSession();
+        const seen = watch(session);
+        const mine: ProgressChange[] = [];
+
+        await session.data.prepare(
+            { config: { file: new File(["id\na\nb\n"], "few.csv") } },
+            { onProgress: (change) => mine.push(change) },
+        );
+
+        assert.deepEqual(mine, seen);
+        assert.deepInclude(mine.at(-1), { task: "prepare", phase: "end", outcome: "succeeded" });
+        session.dispose();
+    });
+
     it("counts a large CSV's rows while it is read, with the share of the file read", async () => {
         const session = createGraphSession();
         const seen = watch(session);
@@ -130,8 +145,8 @@ describe("a prepare's progress", () => {
     });
 });
 
-describe("a cancelled load's progress", () => {
-    it("ends saying it was cancelled, with no error (#902)", async () => {
+describe("a canceled load's progress", () => {
+    it("ends saying it was canceled, with no error (#902)", async () => {
         const session = createGraphSession();
         const seen = watch(session);
         // A fetch that never answers keeps the load running until undo cancels it.
@@ -142,13 +157,13 @@ describe("a cancelled load's progress", () => {
                 await new Promise((resolve) => setTimeout(resolve, 0));
             }
 
-            assert.strictEqual((await session.undo()).kind, "cancelled");
+            assert.strictEqual((await session.undo()).kind, "canceled");
             assert.isTrue(
                 await load.then(
                     () => false,
                     () => true,
                 ),
-                "the import settles as cancelled",
+                "the import settles as canceled",
             );
         } finally {
             vi.unstubAllGlobals();
@@ -157,7 +172,7 @@ describe("a cancelled load's progress", () => {
         assert.deepInclude(seen[0], { task: "load", phase: "progress", completed: 0 });
         const ends = seen.filter((change) => change.phase === "end");
         assert.lengthOf(ends, 1, "one end");
-        assert.deepInclude(ends[0], { task: "load", outcome: "cancelled" });
+        assert.deepInclude(ends[0], { task: "load", outcome: "canceled" });
         assert.isUndefined(ends[0]?.error, "a cancel is not a failure, so it carries no error");
         session.dispose();
     });

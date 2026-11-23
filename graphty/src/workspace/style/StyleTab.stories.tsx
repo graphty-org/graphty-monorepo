@@ -5,6 +5,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
+import { paintSettled } from "../../stories/paintSettled";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { fileStylesOn } from "../features";
 import type { WorkspaceStore } from "../state/store";
@@ -216,6 +217,9 @@ export const LabelEmpty: Story = styleStory(async (canvasElement) => {
     await waitFor(() => {
         expect(body().queryByRole("combobox", { name: "Find an attribute" })).toBeNull();
     });
+    // The status bar's WebGPU chip arrives a frame early or late: draw the page afresh once it is up.
+    await body().findByTestId("webgpu-chip");
+    await paintSettled(canvasElement.ownerDocument);
 });
 
 /** A label entry reading the name, with the element's count (`#/inspector-group-set-path-row/label-two`). */

@@ -2,7 +2,18 @@
  * @file Setup for the "llm-regression" vitest project.
  */
 
-import { afterAll, afterEach, beforeAll } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach } from "vitest";
+
+import { isSelected, readSelection } from "../../helpers/llm-regression-rotation";
+
+// The run's rotating slice (test/helpers/llm-regression-rotation.ts): a case outside it is skipped before any hook of
+// its file runs, so it sends nothing. With no LLM_REGRESSION_SELECTION every case runs.
+const selection = readSelection();
+beforeEach((context) => {
+    if (!isSelected(context.task.fullName, selection)) {
+        context.skip("not in this run's slice");
+    }
+});
 
 // Strict state: every session created in these tests checks that project state changes only
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).

@@ -50,6 +50,7 @@ interface EntryCommon {
     join?: Join; // for a joined table: how it was joined ("Joins")
     added: { nodes: number; edges: number }; // how many it added when it ran
     leftOut?: LeftOut; // the edge rows it left out because they named no node (LoadedSource.leftOut)
+    foundNodes?: (string | number)[]; // the nodes its rows named that the graph already held and no load supplied (an addNodes node): removing the load leaves them
     total?: { nodes?: number; edges?: number }; // what the source holds for it, when known
     extensions?: Record<string, unknown>;
 }
@@ -89,7 +90,10 @@ interface NetworkLoad extends EntryCommon {
 
 interface SampleLoad extends EntryCommon {
     kind: "sample";
-    sample: { generator: string; params: Record<string, unknown> } | { dataset: string; baseUrl?: string };
+    sample:
+        | { generator: string; params: Record<string, unknown> }
+        | { dataset: string; baseUrl?: string }
+        | { url: string }; // experimental: an application's own sample file kept as a reference
 }
 
 interface Join {
@@ -361,6 +365,24 @@ supplied lists both; an element no load supplied (added by hand, by an AI comman
    member applies, and the report carries `W_SOURCE_STEPS_IGNORED` with `{ graph }`, the data
    member's id (`null` for the file's one graph).
 4. Autosave always embeds: a recovered session must never depend on the network.
+5. **References (experimental).** `data: "references"` means some entries carry `copy:
+"reference"` and `rowsSha256`, and the data member holds a placeholder in place of each row
+   only such a load supplied and that the load reads unchanged: `{ id, "_source.ref": <entry> }`
+   for a node, `{ source, target, "_source.ref": <entry> }` for an edge, so every position stays.
+   An open reads each such entry again (after the page allows its host; the page's own origin is
+   never asked about), puts the records it gives
+   in the placeholders' places, reports `W_SOURCE_CHANGED { source }` when the rows' digest
+   differs (a placeholder the changed load no longer gives opens as nothing, and a selection, run
+   or provenance that named its position names nothing, never the next row), adds after the
+   file's rows every row the load gives that the file holds no place for and the entry's
+   `removedRows` (`{ nodes: [id], edges: [[source, target]] }`, the rows the reader removed) does not
+   list, so a source's new rows appear, and reports
+   `W_SOURCE_UNAVAILABLE { source, reason }` when it cannot read them; then the entry
+   and its placeholders are written back unchanged by the next save. An element that does not read
+   references refuses the member (`E_BAD_DOCUMENT` at `/data`). An element with the experiment
+   off still opens such a file whole, and its next save writes every load as a copy, with no
+   `copy`, placeholder or `data: "references"`, as a file that never held a reference; only a
+   reference the open could not read is written back as it was, so nothing is lost.
 
 ## Reopening
 
@@ -548,7 +570,7 @@ its `key`, `kind`, `added` and the description's `type`, `name`, `size` and `con
 1. A writer writes the member's `kind`, `version`, `data` (only when `"steps"`), `loads` and
    `extensions` in that order; inside an entry `id`, `kind`, `name`, `graph`, `loadedAt`, `mode`,
    `format`, the kind part, `options`, `mapping`, `tables`, `tableRows`, `joinedOnto`, `join`,
-   `added`, `leftOut`, `total`, `extensions`; inside a part and inside `join`, the order of the data model
+   `added`, `leftOut`, `foundNodes`, `total`, `extensions`; inside a part and inside `join`, the order of the data model
    above. The same session gives the same
    bytes.
 2. A writer writes the member whenever the session holds a load, and only then.
@@ -576,6 +598,10 @@ its `key`, `kind`, `added` and the description's `type`, `name`, `size` and `con
    it, and the schema of version 2 accepts it.
 2. **New optional members** of an entry or a part are not additions: entries are closed, so a
    member an older reader would ignore is a new entry kind, or sources version 3.
+   Two optional entry members were nonetheless added inside version 2, `leftOut` and then
+   `foundNodes`: a reader from before one of them finds an entry carrying it not runnable ("Reading"
+   rule 2): it keeps the entry, never runs it, and writes it back exactly as read. Only a member
+   whose loss of runnability an older reader can afford that way is added like this.
 3. The limits are fixed for version 2.
 
 ## Limits

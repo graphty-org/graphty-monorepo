@@ -6,7 +6,7 @@ Screenshots: the main checkout's `tmp/design-studio/tier5/panel/visual/s1/` (01 
 ## What the live app shows today
 
 - The two surfaces already draw one card two ways. Style's Which nodes card (s1/06): field name
-  9 px bold, count as plain grey "24 nodes", "Add a condition" outside the card, a Between select
+  9 px bold, count as plain gray "24 nodes", "Add a condition" outside the card, a Between select
   and a bare slider. The Filters card (s1/10): same 9 px name, count as a blue pill "16 of 24",
   "Add a condition" inside the card, and the effect segments "Select | Filter to | Filter out" at
   about 8 px, the smallest text on the panel for the most consequential choice.

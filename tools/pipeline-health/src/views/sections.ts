@@ -435,7 +435,7 @@ const LINES: { line: string; member?: string }[] = [
     { line: "llm", member: "cost.llm" },
     { line: "sentry" },
     { line: "github" },
-    { line: "cloudflare" },
+    { line: "cloudflare", member: "cost.cloudflare" },
     { line: "aws", member: "cost.aws" },
 ];
 

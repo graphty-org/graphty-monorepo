@@ -8,20 +8,14 @@
  * test runs under walk the whole history on every write by design, and would be counted here.
  */
 
-import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
 import type { GraphSession } from "../../src/session/types";
 import { assertScalesLinearly, type Growth, visitsDuring } from "../helpers/cost";
 import { makeSession, withConsumerStrictState } from "./helpers";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 /** The two graph sizes: big enough that a quadratic path is 16x, small enough to stay cheap. */
 const SIZES = [200, 800] as const;
@@ -129,6 +123,23 @@ vec4 shade(NodeInput n) {
 
 /** A saved view: one camera state, the same at any graph size. */
 const VIEW = { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } };
+/** A text annotation the annotation cases write. */
+const NOTE = {
+    id: "note",
+    kind: "text",
+    layer: "foreground",
+    z: 0,
+    rotation: 0,
+    text: "note",
+    at: { x: 0, y: 0 },
+    anchor: "center",
+    fontSize: 12,
+    fontFamily: "sans-serif",
+    bold: false,
+    italic: false,
+    color: "#000000",
+    opacity: 1,
+} as const;
 const BLUE = "#0000ff";
 
 /**
@@ -170,7 +181,7 @@ async function groupLayer(session: GraphSession): Promise<string> {
 }
 
 /**
- * A layer colouring every node by its group as categories, whose values take entries.
+ * A layer coloring every node by its group as categories, whose values take entries.
  * @param session - The session.
  * @returns The layer's id.
  */
@@ -317,7 +328,6 @@ const CASES: readonly Case[] = [
         method: "SelectionApi.peek",
         growth: "linear",
         prepare: (session, size) => {
-            setDefaultFeatures(["timeline", "assistant"]);
             return Promise.resolve(async () => {
                 await session.selection.peek({ nodes: ids(size) });
                 await session.styles.settled();
@@ -617,6 +627,17 @@ const CASES: readonly Case[] = [
             };
         },
     },
+    {
+        method: "StylesApi.duplicateRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.duplicateRow(id);
+                await session.styles.settled();
+            };
+        },
+    },
     // Notes: one note per node, so a write that walks every note grows with the graph. The write
     // itself does not (#1890, test/session/notes/scaling.test.ts), nor does the commit after it,
     // which no longer republishes the whole step list (#2733).
@@ -762,11 +783,31 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "FilterDraft.commit",
+        growth: "linear",
+        prepare: (session) => {
+            const draft = session.visibility.draft({ effect: "keep", rule: { kind: "degree", min: 2 } });
+            draft.update({ rule: { kind: "degree", min: 1 } });
+            return Promise.resolve(() => draft.commit());
+        },
+    },
+    {
         method: "VisibilityApi.removeCondition",
         growth: "linear",
         prepare: async (session) => {
             await session.visibility.addCondition({ id: "c", effect: "exclude", rule: { kind: "degree", min: 2 } });
             return () => session.visibility.removeCondition("c");
+        },
+    },
+    {
+        method: "VisibilityApi.moveStep",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.visibility.setConditions([
+                { id: "a", effect: "keep", rule: { kind: "degree", min: 1 } },
+                { id: "b", effect: "exclude", rule: { kind: "degree", min: 3 } },
+            ]);
+            return () => session.visibility.moveStep("b", 0);
         },
     },
     {
@@ -852,6 +893,104 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "SessionViews.rename",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.views.save([{ name: "Saved", camera: VIEW }]);
+            return () => session.views.rename("Saved", "Renamed");
+        },
+    },
+    {
+        method: "SessionViews.move",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.views.save([
+                { name: "Saved", camera: VIEW },
+                { name: "Second", camera: VIEW },
+            ]);
+            return () => session.views.move("Second", 0);
+        },
+    },
+    {
+        method: "SessionViews.setKey",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.views.save([
+                { name: "Saved", camera: VIEW, key: "1" },
+                { name: "Second", camera: VIEW },
+            ]);
+            return () => session.views.setKey("Second", "1");
+        },
+    },
+    {
+        method: "SessionViews.setStartingCameras",
+        growth: "constant",
+        prepare: (session) =>
+            Promise.resolve(() => session.views.setStartingCameras([{ name: "Top", follows: "topView", key: "1" }])),
+    },
+    {
+        method: "SessionTours.save",
+        growth: "constant",
+        prepare: (session) =>
+            Promise.resolve(() => session.tours.save([{ name: "Saved", tour: { stops: [{ view: "fitToGraph" }] } }])),
+    },
+    {
+        method: "SessionTours.remove",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.tours.save([{ name: "Saved", tour: { stops: [] } }]);
+            return () => session.tours.remove(["Saved"]);
+        },
+    },
+    {
+        method: "SessionTours.rename",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.tours.save([{ name: "Saved", tour: { stops: [] } }]);
+            return () => session.tours.rename("Saved", "Renamed");
+        },
+    },
+    {
+        method: "SessionTours.move",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.tours.save([
+                { name: "Saved", tour: { stops: [] } },
+                { name: "Second", tour: { stops: [] } },
+            ]);
+            return () => session.tours.move("Second", 0);
+        },
+    },
+    {
+        method: "SessionAnnotations.add",
+        growth: "constant",
+        prepare: (session) => Promise.resolve(() => session.annotations.add(NOTE)),
+    },
+    {
+        method: "SessionAnnotations.update",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.annotations.add(NOTE);
+            return () => session.annotations.update(NOTE.id, { text: "changed" });
+        },
+    },
+    {
+        method: "SessionAnnotations.remove",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.annotations.add(NOTE);
+            return () => session.annotations.remove(NOTE.id);
+        },
+    },
+    {
+        method: "SessionAnnotations.clear",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.annotations.add(NOTE);
+            return () => session.annotations.clear();
+        },
+    },
+    {
         method: "SessionConfig.set",
         growth: "linear",
         prepare: async (session) => {
@@ -930,7 +1069,7 @@ const CASES: readonly Case[] = [
             };
         },
     },
-    // Runs, highlight colour and playback
+    // Runs, highlight color and playback
     {
         method: "RunsApi.move",
         growth: "linear",
@@ -1073,7 +1212,6 @@ describe("the session's mutating methods do work in proportion to their reach", 
     afterEach(() => {
         vi.unstubAllGlobals();
         // Put back this file's default (the timeline on) after a case that switched more on.
-        setDefaultFeatures(["timeline"]);
     });
     for (const { method, growth, prepare } of CASES) {
         const reach = growth === "linear" ? "no more than linear in the graph" : "about the same at any size";

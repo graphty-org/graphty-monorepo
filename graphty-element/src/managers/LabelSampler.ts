@@ -273,12 +273,17 @@ export class LabelSampler {
         let unbuilt = plain.length;
         let hidden = 0;
         const table = this.context.getRowTable?.() ?? null;
+        const winners: NodeIdType[] = [];
         for (const { row, id } of plain) {
             if (this.plainWinners.has(id)) {
-                this.context.getUpdateManager?.().buildPlainRow(id);
+                winners.push(id);
             } else if (table?.isHidden(row) === true) {
                 hidden++;
             }
+        }
+
+        if (winners.length > 0) {
+            this.context.getUpdateManager?.().buildPlainRows(winners);
         }
 
         for (const node of this.candidates) {

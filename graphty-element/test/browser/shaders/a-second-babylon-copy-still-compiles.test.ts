@@ -20,7 +20,7 @@ import { afterAll, afterEach, assert, beforeAll, describe, it, vi } from "vitest
 
 import type { Graphty } from "../../../index.js";
 import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
-import { operationQueueOf } from "../../../src/Graph";
+import { operationQueueOf, renderManagerOf } from "../../../src/Graph";
 import type { RenderManager } from "../../../src/managers/RenderManager";
 import { defineShader } from "../../../src/simple/defineShader";
 import { presetId } from "../../../stories/shaders/edgePresets";
@@ -132,7 +132,7 @@ function compiled(element: Graphty, prefix: string): boolean {
  * @returns Its background, outline and bloom passes.
  */
 function passesOf(element: Graphty): ReturnType<RenderManager["shaderPasses"]> {
-    return (element.graph as unknown as { renderManager: RenderManager }).renderManager.shaderPasses();
+    return renderManagerOf(element.graph).shaderPasses();
 }
 
 /**

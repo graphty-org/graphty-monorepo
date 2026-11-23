@@ -10,7 +10,7 @@
 
 import "../../../../src/graphty-element";
 
-import { afterAll, afterEach, assert, describe, it } from "vitest";
+import { afterAll, afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../../../index.js";
 import { clearRegisteredShadersForTesting } from "../../../../src/catalog/shaderRegistry";
@@ -18,6 +18,7 @@ import type { ShaderParams } from "../../../../src/catalog/shaders";
 import type { LayerSpec } from "../../../../src/catalog/types";
 import { operationQueueOf } from "../../../../src/Graph";
 import { everyFrameAnimationsOn } from "../../../../src/managers/everyFrameAnimations";
+import type { RenderPath } from "../../../../src/meshes/NodeBatch";
 import { NodeShaderDrawing } from "../../../../src/meshes/NodeShaderDrawing";
 import { NODE_EFFECT_PRESETS, presetId } from "../../../../stories/shaders/nodeEffectPresets";
 import { drawnFrames } from "../../../helpers/drawn-frames";
@@ -46,10 +47,15 @@ const NODES = [
 /**
  * A mounted element drawing the three nodes in 2D, with layers added after them.
  * @param layers - The layers.
+ * @param renderPath - The render path; the element's default when absent.
  * @returns The element.
  */
-async function mounted(layers: readonly LayerSpec[]): Promise<Graphty> {
+async function mounted(layers: readonly LayerSpec[], renderPath?: RenderPath): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    if (renderPath !== undefined) {
+        element.renderPath = renderPath;
+    }
+
     element.style.display = "block";
     element.style.width = `${String(WIDTH)}px`;
     element.style.height = `${String(HEIGHT)}px`;
@@ -229,6 +235,64 @@ describe("the change flash", () => {
         await element.session.data.updateNodes([{ id: "b", values: { uncertainty: 0.9 } }]);
         await until(element, "the change plays", () => everyFrameAnimationsOn(scene) > 0);
         await until(element, "the flash ends and the graph rests", () => everyFrameAnimationsOn(scene) === 0);
+    });
+});
+
+describe("the shockwave on a node built from a stored row", () => {
+    const RINGS: LayerSpec = {
+        name: "Rings",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.shaders": [{ shader: presetId("shockwave") }] },
+    };
+
+    /**
+     * Stand the clock still from now on, for the rest of the test.
+     * @returns Moves the clock on by some milliseconds.
+     */
+    function stillClock(): (ms: number) => void {
+        let now = performance.now();
+        const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+        cleanups.push(() => {
+            clock.mockRestore();
+        });
+        return (ms) => {
+            now += ms;
+        };
+    }
+
+    it("plays no entrance when its layer is added, and asks for no frame", async () => {
+        // A graph drawn with the ring once already, so the next one's first painted node brings
+        // the shader drawing at once. Then the clock stands still, as on a machine that mounts the
+        // graph and adds the layer well inside the 0.4 s an arrival plays its entrance in: on
+        // "batched" a node's `Node` is built by the layer's style pass after the drawing exists,
+        // and that build must not count as the node arriving (issue #9447).
+        (await mounted([RINGS], "batched")).remove();
+        stillClock();
+        const element = await mounted([RINGS], "batched");
+        const scene = element.graph.getScene();
+        await until(element, "every node carries the ring", () => batchesHolding(element, NODES.length) === 1);
+        await drawnFrames(scene, 3);
+        assert.strictEqual(everyFrameAnimationsOn(scene), 0);
+    });
+
+    it("still plays its entrance for a node that arrives after the layer", async () => {
+        const element = await mounted([RINGS], "batched");
+        const scene = element.graph.getScene();
+        await until(element, "every node carries the ring", () => batchesHolding(element, NODES.length) === 1);
+        await until(element, "the graph rests", () => everyFrameAnimationsOn(scene) === 0);
+        const step = stillClock();
+
+        await element.session.data.addNodes([{ id: "d", uncertainty: 0, degree: 1, position: { x: 0, y: 3, z: 0 } }]);
+        await until(
+            element,
+            "the arriving node carries the ring",
+            () => batchesHolding(element, NODES.length + 1) === 1,
+        );
+        assert.isAbove(everyFrameAnimationsOn(scene), 0, "the arrival plays");
+
+        step(1000);
+        await until(element, "the ring ends and the graph rests", () => everyFrameAnimationsOn(scene) === 0);
     });
 });
 

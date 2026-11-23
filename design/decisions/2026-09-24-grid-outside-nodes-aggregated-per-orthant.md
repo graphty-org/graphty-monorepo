@@ -10,7 +10,7 @@ decision stands; only its "plus the outside pseudo-cell" term is replaced.
 
 The grid tier's extent is `min(bounding box, extentFactor x rms radius)`, so outlying nodes can fall
 outside the grid. They used to share ONE pseudo-cell (key `G^dim`), and every inside node felt that
-cell as one mass at its centroid. They now get one pseudo-cell per orthant about the grid centre:
+cell as one mass at its centroid. They now get one pseudo-cell per orthant about the grid center:
 key `G^dim + orthant`, bit `a` of the orthant set when the node's (clamped) cell coordinate on axis
 `a` is at least `G / 2` -- 4 pseudo-cells in 2D, 8 in 3D.
 
@@ -27,7 +27,7 @@ key `G^dim + orthant`, bit `a` of the orthant set when the node's (clamped) cell
 ## Why
 
 With outliers on opposite sides, the single centroid landed near the middle of the grid, where no
-node is: the core was pushed away from an empty point instead of feeling two roughly cancelling
+node is: the core was pushed away from an empty point instead of feeling two roughly canceling
 pushes. On a 2,000-node core with 50 outliers at x = +100 and 50 at x = -100 the grid tier's
 floored per-node RMS error against the exact tier was 0.80 (cap 0.05); per orthant it is 4.9e-3
 (`test/layouts/grid-exact.test.ts` case 6, `test/oracle/grid-field-accuracy.test.ts`).

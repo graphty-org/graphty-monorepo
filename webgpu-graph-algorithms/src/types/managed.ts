@@ -38,7 +38,9 @@ export interface AcquireAcceleratorOptions {
  * @public
  */
 export interface AcceleratorReady {
+    /** Always true: an accelerator was acquired. */
     readonly ok: true;
+    /** Always `"OK"`. */
     readonly code: "OK";
     /** The accelerator. Its `ctx.lost` resolves when the device is lost; the handle then acquires a new one. */
     readonly accelerator: GpuAccelerator;
@@ -50,6 +52,7 @@ export interface AcceleratorReady {
  * @public
  */
 export interface AcceleratorDeclined {
+    /** Always false: no accelerator was acquired. */
     readonly ok: false;
     /**
      * E_NO_WEBGPU: this runtime has no WebGPU (in Node: the optional `webgpu` package is missing);

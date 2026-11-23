@@ -946,7 +946,7 @@ export class XmlTokenizer {
             text = this.pendingHigh + text;
             this.pendingHigh = "";
         }
-        const last = text.charCodeAt(text.length - 1); // NOSONAR(S7758): reads UTF-16 code units on purpose
+        const last = text.charCodeAt(text.length - 1); // eslint-disable-line unicorn/prefer-code-point -- reads UTF-16 code units on purpose
         if (last >= 0xd800 && last <= 0xdbff) {
             // a text chunk may end between the two halves of an astral character
             this.pendingHigh = text.slice(-1);
@@ -1105,7 +1105,7 @@ export class XmlTokenizer {
      */
     private scanDoctype(pending: Pending, text: string, from: number): number {
         for (let i = from; i < text.length; i++) {
-            const c = text.charCodeAt(i); // NOSONAR(S7758): steps UTF-16 code units on purpose
+            const c = text.charCodeAt(i); // eslint-disable-line unicorn/prefer-code-point -- steps UTF-16 code units on purpose
             if (doctypeStep(pending, c)) {
                 pending.quote = 0;
                 pending.depth = 0;
@@ -1534,7 +1534,7 @@ export class XmlTokenizer {
         const { length } = buffer;
         let j = i;
         for (; j < length; j++) {
-            const c = buffer.charCodeAt(j); // NOSONAR(S7758): reads UTF-16 code units on purpose
+            const c = buffer.charCodeAt(j); // eslint-disable-line unicorn/prefer-code-point -- reads UTF-16 code units on purpose
             if (!isSpace(c)) {
                 break;
             }
@@ -1559,7 +1559,7 @@ export class XmlTokenizer {
         declaresNamespace: boolean,
     ): StartTag | null {
         const { buffer } = this;
-        const c = buffer.charCodeAt(i); // NOSONAR(S7758): reads UTF-16 code units on purpose
+        const c = buffer.charCodeAt(i); // eslint-disable-line unicorn/prefer-code-point -- reads UTF-16 code units on purpose
         if (c === GT) {
             return { name, attrs, selfClosing: false, declaresNamespace, end: i + 1 };
         }

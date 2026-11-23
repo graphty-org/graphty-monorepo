@@ -143,6 +143,7 @@ describe("sendAlerts", () => {
             [
                 "ci.runners_not_assigned",
                 "cost.aws",
+                "cost.cloudflare",
                 "cost.llm",
                 "cost.spend",
                 "cost.t4",
@@ -919,6 +920,7 @@ describe("messages", () => {
         "cost.t4": { value: 232.1, facts: { month_to_date: 150 } },
         "cost.llm": { value: 147.55, facts: { month_to_date: 130 } },
         "cost.aws": { value: 8.4, state: "WARNING", facts: { projected: 9.9 } },
+        "cost.cloudflare": { value: 9.8, facts: { month_to_date: 6.2 } },
         "data.sources_age": {
             value: 1,
             facts: { credential_error_ms: 70 * MIN },

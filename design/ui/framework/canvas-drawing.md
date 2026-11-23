@@ -75,10 +75,10 @@ opacity multiplier**. The multiplier:
   readback, aimed at composited edge mass at or under 1.5:1 against the canvas while the node gray
   keeps its 3:1; the curve and the 1.5:1 target are provisional until the pointing check
   ("Verification");
-- applies only to edges whose color and opacity no layer above Base style writes, and never to an
+- applies only to edges whose color and opacity no binding writes, and never to an
   edge carrying a state or object mark, which is drawn at full opacity with its casing; so a bound
   edge always matches its legend chit and table swatch (section 7);
-- stores nothing: it never writes Base style and never enters the file or the undo history, so a
+- stores nothing: it never writes a layer and never enters the file or the undo history, so a
   saved project does not depend on the zoom it was saved at; a reader's opacity layer ends it;
 - is named by the overdraw note in the legend (`element-needs.md`, "The edge-overdraw fade").
 
@@ -151,7 +151,7 @@ same drawing at chip size:
 | Constant | one chit | one chit |
 | Not a color | the channel's drawing (a shape glyph, a dash) | the channel's glyph |
 
-**Three no-color looks.** **Unstyled** is Base style's gray `#808080`, not a separate state. **No
+**Three no-color looks.** **Unstyled** is the gray `#808080` a new project's Everything layer is written with, not a separate state. **No
 value** paints nothing, so the layers beneath show through; its legend swatch is the paint beneath,
 as the element's legend returns it (`element-needs.md`, "A drawn default legend"): one chit when
 every no-value element resolves to one paint, otherwise the stacked-chit form with "varies".
@@ -366,10 +366,11 @@ font-family: system-ui, sans-serif; font-size: 12px }`, so a bare embed on a pag
 draws in the browser's serif default; only a page rule on the host element overrides it (`decided-doors.md`, "How the element learns theme and motion",
 which covers what the element inherits from its host),
 with tabular figures; each entry is a section 3 drawing or
-a mark drawn as on the canvas, then its words. **Its height is capped at a share of the canvas**;
-whole blocks that do not fit fold behind one "N more" entry, a row in secondary ink that opens the
-full list, and which blocks fold is `options-and-encodings.md` 6's; the share is `state-matrix.md`
-7's. The **not-drawn line** is the legend's last line, in the same type, and appears only while
+a mark drawn as on the canvas, then its words. **Its height cap is a consumer option**, unset by default so the
+legend shows every block; a host that sets a share of the canvas gets whole blocks that do not fit
+folded behind one "N more" entry, a row in secondary ink that opens the
+full list, and which blocks fold is `options-and-encodings.md` 6's; the graphty app's choice of share is
+`state-matrix.md` 7's. The **not-drawn line** is the legend's last line, in the same type, and appears only while
 something in scope is not drawn, including, in 3D, marked elements occluded by nearer nodes
 (section 14), and elements hidden by Hide on canvas, which it counts with Select and Show all: it is
 their home (`output-homes.md` 1), a DOM region in the keyboard's region order

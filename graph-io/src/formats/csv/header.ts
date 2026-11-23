@@ -60,6 +60,44 @@ export const TARGET_NAMES: readonly string[] = Object.freeze([
 export const ID_NAMES: readonly string[] = Object.freeze(["id", "node", "name", "key"]);
 
 /**
+ * Whether a header name ends in an `id` word: `person_id`, `person-id`, `personId`, `PersonID`,
+ * never `paid` or `valid`.
+ * @param name - the header name
+ * @returns true for an id word
+ */
+function isIdWord(name: string): boolean {
+    return /[_\-\s.]id$/i.test(name) || /[a-z]I[dD]$/.test(name);
+}
+
+/**
+ * The id column candidates of a node table header, best first: a column named `id`, then every
+ * column whose name ends in an `id` word (`person_id`, `person-id`, `personId`, `PersonID`, never
+ * `paid` or `valid`) in header order, then `node`, `key` and `name`. The importer keys the table by
+ * the first candidate whose values are all present and distinct.
+ * @param names - the header names
+ * @returns the column indices, best first
+ * @category Plugin helpers
+ */
+export function idCandidates(names: readonly string[]): number[] {
+    const out: number[] = [];
+    const add = (index: number): void => {
+        if (index >= 0 && !out.includes(index)) {
+            out.push(index);
+        }
+    };
+    add(findColumn(names, ["id"]));
+    names.forEach((name, i) => {
+        if (isIdWord(name)) {
+            add(i);
+        }
+    });
+    for (const name of ["node", "key", "name"]) {
+        add(findColumn(names, [name]));
+    }
+    return out;
+}
+
+/**
  * Header candidates of a label column (node or edge).
  * @category Plugin helpers
  */
@@ -76,6 +114,53 @@ export const EDGE_ID_NAMES: readonly string[] = Object.freeze(["id"]);
  * @category Plugin helpers
  */
 export const TYPE_NAME = "Type";
+
+/**
+ * A header dialect of a database download: the columns that hold its endpoints and its weight.
+ * @category Plugin helpers
+ */
+export interface CsvHeaderDialect {
+    /** The database the header comes from. */
+    readonly name: "string" | "biogrid";
+    /** The source column's header name. */
+    readonly source: string;
+    /** The target column's header name. */
+    readonly target: string;
+    /** The weight column's header name, or null when the dialect has none. */
+    readonly weight: string | null;
+}
+
+/**
+ * The header dialects the importer recognizes, each by every one of its endpoint and weight names:
+ * STRING's network export (`#node1 node2 ... combined_score`), STRING's bulk protein links
+ * (`protein1 protein2 ... combined_score`) and BioGRID TAB3 (`Official Symbol Interactor A`, ...).
+ */
+const HEADER_DIALECTS: readonly CsvHeaderDialect[] = Object.freeze([
+    { name: "string", source: "node1", target: "node2", weight: "combined_score" },
+    { name: "string", source: "protein1", target: "protein2", weight: "combined_score" },
+    {
+        name: "biogrid",
+        source: "Official Symbol Interactor A",
+        target: "Official Symbol Interactor B",
+        weight: null,
+    },
+]);
+
+/**
+ * The database dialect a header row belongs to, recognized by its exact endpoint and weight names
+ * (a leading `#` on the first name is ignored, as both databases write it).
+ * @param names - the header names
+ * @returns the dialect, or null
+ * @category Plugin helpers
+ */
+export function headerDialect(names: readonly string[]): CsvHeaderDialect | null {
+    const plain = new Set(names.map((name, i) => (i === 0 ? name.replace(/^#\s*/, "") : name)));
+    return (
+        HEADER_DIALECTS.find(
+            (d) => plain.has(d.source) && plain.has(d.target) && (d.weight === null || plain.has(d.weight)),
+        ) ?? null
+    );
+}
 
 /** Every name that marks a first row as a header when the caller leaves detection to the importer. */
 const HEADER_MARKERS: ReadonlySet<string> = new Set([
@@ -145,7 +230,8 @@ export function resolveColumnRef(names: readonly string[], ref: CsvColumnRef, op
 
 /**
  * Decide whether the first row of a file is a header when the caller left it to the importer: it
- * is when any cell is a known column name (source, target, id, label, weight, type...), or when
+ * is when any cell is a known column name (source, target, id, label, weight, type...) or ends in
+ * an id word (`person_id`, `personId`), or when
  * every cell is non-numeric text while the second row has a numeric cell (`u,v` over `1,2`);
  * a first row with a numeric cell is data, and so is one that looks exactly like the rows below it.
  * A two-column row holding a known name is still data when its second cell is the second row's
@@ -157,11 +243,14 @@ export function resolveColumnRef(names: readonly string[], ref: CsvColumnRef, op
  * @category Plugin helpers
  */
 export function looksLikeHeader(first: readonly string[], second: readonly string[] | null): boolean {
+    if (headerDialect(headerNames(first)) !== null) {
+        return true;
+    }
     let allText = true;
     let marker = false;
     for (const cell of first) {
         const text = cell.trim();
-        if (HEADER_MARKERS.has(text.toLowerCase())) {
+        if (HEADER_MARKERS.has(text.toLowerCase()) || isIdWord(text)) {
             marker = true;
         }
         if (text.length === 0 || inferTextDtype(text) !== "string") {
@@ -204,8 +293,10 @@ export function positionalNames(width: number): string[] {
  * @category Plugin helpers
  */
 export function headerNames(cells: readonly string[]): string[] {
+    const dialect = headerDialect(cells.map((cell) => cell.trim()));
     return cells.map((cell, i) => {
-        const name = cell.trim();
+        // STRING and BioGRID mark their header row as a comment: `#node1`, `#BioGRID Interaction ID`
+        const name = i === 0 && dialect !== null ? cell.trim().replace(/^#\s*/, "") : cell.trim();
         return name.length === 0 ? `column${i + 1}` : name;
     });
 }

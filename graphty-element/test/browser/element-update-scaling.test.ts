@@ -27,8 +27,12 @@ import type { Node } from "../../src/Node";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { assertScalesLinearly, type Growth, visitsDuring } from "../helpers/cost";
 
-/** The two graph sizes: big enough that a cost per call that grows with the graph is 4x. */
-const SIZES = [100, 400] as const;
+/**
+ * The two graph sizes: big enough that a cost per call that grows with the graph is 4x. Disposing a
+ * node's instance walks two lists of the scene, about 2 visits a node, beside a fixed cost of about
+ * 430 for a new mesh: at 100 and 400 nodes that left the 4x step at 1.95x (issue #9164).
+ */
+const SIZES = [250, 1000] as const;
 
 /**
  * Wait until every queued operation has run and the pass that derives it has drawn it.
@@ -40,8 +44,8 @@ async function settled(element: Graphty): Promise<void> {
 }
 
 /**
- * Mount a graphty-element with `size` nodes on a path, its render loop stopped and a static
- * layout, with one frame's update drawn so every edge has been placed once.
+ * Mount a graphty-element with `size` nodes on a path, its render loop stopped and a static,
+ * seeded layout, with one frame's update drawn so every edge has been placed once.
  * @param size - The node count.
  * @returns The element.
  */
@@ -57,7 +61,10 @@ async function mount(size: number): Promise<Graphty> {
     });
     const { graph } = element;
     graph.engine.stopRenderLoop();
-    await graph.setLayout("random");
+    // Seeded, so every run draws the same graph: unseeded, about one mount in sixty put two
+    // neighbors on the path so close that their spheres overlap, and an edge between overlapping
+    // nodes hides its arrowhead and never places it (#7759), so `Edge.update` saw it not move (#8466).
+    await graph.setLayout("random", { seed: 1 });
     const ids = Array.from({ length: size }, (_, at) => `n${String(at)}`);
     await graph.addNodes(ids.map((id) => ({ id })));
     await graph.addEdges(ids.slice(1).map((id, at) => ({ source: ids[at], target: id })));

@@ -709,6 +709,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "sequence",
                 "defaultValue",
                 "showBranches",
+                "showDraft",
                 "showingBranches",
                 "shownBranches",
             ],

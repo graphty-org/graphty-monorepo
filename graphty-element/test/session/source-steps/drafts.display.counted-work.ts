@@ -3,5 +3,5 @@ import type { CountedWork } from "../../cost-coverage/counted-work";
 
 export default {
     file: "test/session/source-steps/drafts-display-counted-work.test.ts",
-    methods: ["SourceDraft.display", "SourceDraft.show"],
+    methods: ["SourceDraft.display", "SourceDraft.show", "StylesApi.showDraft"],
 } satisfies CountedWork;

@@ -119,7 +119,8 @@ describe("every v2 number is Figma's number input", () => {
             assert.isNotNull(found);
             return found;
         });
-        assert.equal(input.value, "", "the Size starts unset");
+        // Unset, a number graphty-element names no one value for reads Auto, never empty (design "Input rules").
+        assert.equal(input.value, "Auto", "the Size starts unset");
         await userEvent.click(input);
         await userEvent.keyboard("{ArrowUp}");
         await waitFor(() => {

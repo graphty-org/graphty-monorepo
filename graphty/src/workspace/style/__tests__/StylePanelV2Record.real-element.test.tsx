@@ -65,7 +65,8 @@ describe("Style panel v2's Record", () => {
                 await userEvent.click(await screen.findByRole("button", { name: "Add field" }));
             }
             await userEvent.click(await screen.findByRole("textbox", { name: `Field ${String(at + 1)} text` }));
-            await userEvent.keyboard(`${words}{Enter}`);
+            // A new field starts with words (design "Input rules"), typed over.
+            await userEvent.keyboard(`{Control>}a{/Control}${words}{Enter}`);
             await waitFor(() => {
                 assert.lengthOf(
                     readChannelItems("node.shapeTexts", written(session, nodes, "node.shapeTexts")),

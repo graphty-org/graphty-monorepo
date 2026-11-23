@@ -780,6 +780,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "StepsReading", reason: "panel-state", kind: BY_DESIGN },
     { root: "SetsApi", members: ["pathKind"], reason: "covered-by", by: "sets.get", kind: BY_DESIGN },
     { root: "NotesApi", members: ["toDocument", "mergeDocument"], reason: "whole-document", kind: BY_DESIGN },
+    // How an editor holds a note being written across a reload; the assistant writes notes whole.
+    { root: "NotesApi", members: ["savedTarget"], reason: "panel-state", kind: BY_DESIGN },
     {
         root: "ProjectApi",
         members: ["save", "markSaved", "assetChoices", "describe", "inspect"],

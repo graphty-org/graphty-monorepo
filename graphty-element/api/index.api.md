@@ -7636,6 +7636,7 @@ export interface NotesApi {
     list(options?: NoteListOptions): readonly Note[];
     mergeDocument(document: unknown, options?: NoteMergeOptions): NotesReport;
     remove(id: NoteId): void;
+    savedTarget(target: NoteTargetInput): NoteTarget | undefined;
     status(id: NoteId): NoteStatus;
     // (undocumented)
     tags(): readonly string[];

@@ -3953,6 +3953,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             status: READ,
             authors: READ,
             tags: READ,
+            savedTarget: READ,
             counts: READ,
             toDocument: READ,
             mergeDocument: calls(

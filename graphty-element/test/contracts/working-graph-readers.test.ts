@@ -464,6 +464,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "notes.list()": "not the graph",
     "notes.mergeDocument()": "writes",
     "notes.remove()": "writes",
+    "notes.savedTarget()": "names its target",
     "notes.status()": "not the graph",
     "notes.toDocument()": "not the graph",
     "notes.update()": "writes",

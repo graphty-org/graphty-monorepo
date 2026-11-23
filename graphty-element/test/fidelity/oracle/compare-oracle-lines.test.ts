@@ -232,6 +232,16 @@ describe("line classes", () => {
         assert.strictEqual(dashClassOf([12, 6, 3, 6], 3, "round"), "dash-dot");
     });
 
+    it("reads a ring of dots whose corner dot takes the mitre as dotted, and a dash among dots not (#9768)", () => {
+        // cx2-syn-mappings 447: dots of 1.23 px on a 1.21 px ring, the one over a corner 2.37 px
+        const dots = (corner: number): number[] => [1.23, 1.14, 1.23, 1.14, corner, 0.71, 1.23, 1.14, 1.23, 1.14];
+        assert.strictEqual(dashClassOf(dots(2.37), 1.21), "dotted");
+        // a piece three dots long is a dash, not a dot over a corner
+        assert.strictEqual(dashClassOf(dots(3.69), 1.21), "dash-dot");
+        // a ring of dashes three widths long stays dashed
+        assert.strictEqual(dashClassOf([3.6, 1.2, 3.6, 1.2, 3.6, 1.2, 3.6, 1.2], 1.21), "dashed");
+    });
+
     it("fails dashes drawn as dots and a dash-dot drawn as dashes", () => {
         const line = (dashClass: PStroke["dashClass"]): PEdge => edge({ stroke: stroke("#0000ff", 2, { dashClass }) });
         assert.deepEqual(failing(scene("oracle", [line("dashed")]), scene("graphty", [line("dotted")])), ["edge.dash"]);

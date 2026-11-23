@@ -916,9 +916,16 @@ export function drawnPrimitives(
                           color: borderColor,
                           opacity: own?.opacity ?? 1,
                           width: borderWidth,
-                          dash: null,
-                          // the style the ring was built in: the scene folds a double border into "other"
-                          dashClass: LINE_CLASS[own?.style ?? n.border.style] ?? "other",
+                          dash: dashed(own?.style ?? n.border.style, null, own?.dashPx ?? null),
+                          // the style the ring was built in (the scene folds a double border into "other"), and a ring
+                          // cut into dashes or dots by the pieces it drew
+                          dashClass: drawnLineClass(
+                              own?.style ?? n.border.style,
+                              null,
+                              own?.dashPx ?? null,
+                              borderWidth,
+                              undefined,
+                          ),
                           ...(own?.screen === true ? { screen: true } : {}),
                           ...(waved === null ? {} : { line: waved }),
                       }
@@ -1040,8 +1047,14 @@ export function drawnPrimitives(
                           color: n.border.color,
                           opacity: d?.border?.opacity ?? 1,
                           width: n.border.width,
-                          dash: null,
-                          dashClass: LINE_CLASS[d?.border?.style ?? n.border.style] ?? "other",
+                          dash: dashed(d?.border?.style ?? n.border.style, null, d?.border?.dashPx ?? null),
+                          dashClass: drawnLineClass(
+                              d?.border?.style ?? n.border.style,
+                              null,
+                              d?.border?.dashPx ?? null,
+                              n.border.width,
+                              undefined,
+                          ),
                       }
                     : null,
             label: g.label !== null && d?.label ? textOf(d.label) : null,

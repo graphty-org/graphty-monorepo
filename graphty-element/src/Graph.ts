@@ -486,6 +486,8 @@ const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string
         "data.knownFields.edgeTimeParseZone",
         "data.knownFields.edgeTimeEndPath",
         "data.knownFields.edgeTimeSpellsPath",
+        "data.knownFields.nodeKindPath",
+        "data.knownFields.edgeKindPath",
     ]),
     graph: new Set(
         [ISSUES_VALUE, SOURCE_VALUE, SOURCES_VALUE, PROVENANCE_VALUE, COLUMNS_VALUE].map((name) => `v:${name}`),
@@ -1580,7 +1582,7 @@ export class Graph implements GraphContext {
                 this.layoutManager.running = false;
             },
             loadArrangement: (restoring, wrote, byReader) => {
-                this.layoutManager.loadArrangement(restoring, wrote, byReader);
+                const loaded = this.layoutManager.loadArrangement(restoring, wrote, byReader);
                 if (restoring) {
                     this.layoutManager.running = false;
                 }
@@ -1588,8 +1590,11 @@ export class Graph implements GraphContext {
                 // The edges are redrawn only when coordinates were written: a redraw re-fits
                 // every edge's arrowheads, and a graph step undone with nothing to place -- a
                 // removal, whose rows come back where they were -- would pay for all of them to
-                // move none.
-                this.updateManager.redrawArrangement(wrote);
+                // move none. The nodes are redrawn only when the engine took the lane again: with
+                // nothing moved, an undo of one value would walk every node (issue #9164).
+                if (loaded || wrote) {
+                    this.updateManager.redrawArrangement(wrote);
+                }
             },
             pin: (id, pinned) => {
                 const node = this.getNode(id);
@@ -1826,10 +1831,18 @@ export class Graph implements GraphContext {
                 this.#resident = event.next;
                 this.#rowTable?.replaced(event.report.nodeRemap, dataManagerInternals.builtNodes(this.dataManager));
                 this.#nodeBatches?.rowsMoved(event.report.nodeRemap);
+                this.stylePainter.rowsMoved(event.report.nodeRemap, event.report.edgeRemap, {
+                    nodes: event.next.nodeCount,
+                    edges: event.next.edgeCount,
+                });
                 this.#edgeRowLines?.rowsMoved(event.report.nodeRemap, event.report.edgeRemap);
                 // a pulled line is drawn from the row table, so there are none without one
                 if (event.report.nodeRemap !== null && this.#rowTable) {
                     this.updateManager.rowsRenumbered();
+                }
+
+                if (event.report.nodeRemap !== null) {
+                    this.updateManager.nodeRowsMoved(event.report.nodeRemap);
                 }
                 // The derived inputs of scoped runs are over the snapshot that has gone: released
                 // now unless a run still holds one, and then when it lets go.
@@ -5249,13 +5262,16 @@ export class Graph implements GraphContext {
         // so a run of queued adds repaints once, not once per add. Everything else -- undo,
         // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
         if (paintsWhole) {
-            // A forward add over a picture that is current names what it changed; undo, redo
-            // and a paint an earlier write left owed have no such list.
+            // An edit, an undo or a redo over a picture that is current names what it changed, as
+            // each touches the keys of the rows it moved; a restore, a rollback and a paint an
+            // earlier write left owed have no such list. The hook still paints the whole graph when
+            // the rows moved in a way it cannot follow (issue #9164).
             // Crossing `largeGraphThreshold` changes every node's detail, not only the rows it touched.
             const large = this.#overDetailBudget();
             const flipped = large !== this.#paintedLarge;
             this.#paintedLarge = large;
-            const changed = cause === "command" && !dispatcher.paintOwed && !flipped ? dirty : null;
+            const listed = cause === "command" || cause === "undo" || cause === "redo";
+            const changed = listed && !dispatcher.paintOwed && !flipped ? dirty : null;
             dispatcher.paintOwed = false;
             this.#passRepainted = true;
             await repaintGraphPass(this.session, changed, () => this.repaintFromSession());
@@ -11314,7 +11330,6 @@ export class Graph implements GraphContext {
      * Name a saved conversation, or clear its name so it is known by its first words again.
      * @param id - Its id.
      * @param name - The name, trimmed; null or "" clears it.
-     * @experimental assistant
      */
     async renameAiConversation(id: string, name: string | null): Promise<void> {
         await this.aiManager?.renameConversation(id, name);
@@ -11532,7 +11547,6 @@ export class Graph implements GraphContext {
      * @param options - Which keys.
      * @param options.provider - One provider's key; every provider's when absent.
      * @param options.prefix - `keyPersistence.prefix`, with no assistant enabled.
-     * @experimental assistant
      */
     async forgetAiKeys(
         options: { readonly provider?: import("./ai/providers").ProviderType; readonly prefix?: string } = {},

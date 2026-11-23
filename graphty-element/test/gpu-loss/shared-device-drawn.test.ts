@@ -46,6 +46,30 @@ describe("the layout filling the row table on a shared device", () => {
         assert.strictEqual(table.positionUploads - uploadsBeforeRead, 0);
     });
 
+    // A frame publishes whether or not a batch landed. While a software adapter's queue ran behind the page, every
+    // frame copied the one landing again and sent the rows told to the ring over it: an upload a frame (issue #9806).
+    it("copies a landing once, however many frames publish it before the next one lands", async () => {
+        const graph = await running("batched");
+        const table = graph.getRowTable();
+        assert.isNotNull(table);
+        await copied(graph);
+        const engine = layoutOf(graph);
+        // nothing lands between these calls: a landing is taken in a promise callback, and none runs here
+        engine.publishPositions();
+        table.flush();
+        const { copies } = table;
+        const uploads = table.positionUploads;
+        const landings = engine.landedBatchesPublished;
+        engine.publishPositions();
+        table.flush();
+        engine.publishPositions();
+        table.flush();
+
+        assert.strictEqual(engine.landedBatchesPublished, landings);
+        assert.strictEqual(table.copies - copies, 0);
+        assert.strictEqual(table.positionUploads - uploads, 0);
+    });
+
     it("touches no row on the CPU per landing, and publishes the rows when something reads them", async () => {
         const graph = await running("batched");
         const table = graph.getRowTable();

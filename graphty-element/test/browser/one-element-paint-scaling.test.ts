@@ -22,8 +22,12 @@ import { dispatcherOf } from "../../src/session/GraphSession";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
 import { mountElement, unmountElements } from "../helpers/mount-element";
 
-/** The two graph sizes: big enough that a cost per call that grows with the graph is 4x. */
-const SIZES = [100, 400] as const;
+/**
+ * The two graph sizes: big enough that a cost per call that grows with the graph is 4x. Disposing a
+ * node's instance walks two lists of the scene, about 2 visits a node, beside a fixed cost of about
+ * 430 for a new mesh: at 100 and 400 nodes that left the 4x step at 1.95x (issue #9164).
+ */
+const SIZES = [250, 1000] as const;
 
 /**
  * Mount a graphty-element with `size` nodes on a path, its render loop stopped and a static

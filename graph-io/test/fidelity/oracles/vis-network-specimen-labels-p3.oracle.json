@@ -3,7 +3,7 @@
     "program": "vis-network",
     "version": "vis-network 9.1.9 (standalone), svgcanvas 2.6.0",
     "command": "new vis.Network(<div 1200x900>, { nodes: file.nodes, edges: file.edges }, file.options); net.renderer._redraw() onto an svgcanvas Context",
-    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
+    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed (with the paths added to it), a clip keeps its evenodd rule, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. A destination-out stroke over the ring just stroked on the same path (a Cytoscape.js double border or outline) is recorded as a mask on that ring; no other globalCompositeOperation is recorded. Not recorded: a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
     "svgKind": "vector",
     "canvas": {
         "width": 1200,
@@ -29,6 +29,167 @@
             "x": 591.5,
             "y": 450
         }
+    },
+    "drawn": {
+        "about": "vis-network's own account of where it drew each node, for naming the SVG's shapes: each node's id, its center (net.getPositions() through net.canvasToDOM) and its bounding box's width and height and its corners (box: net.getBoundingBox through net.canvasToDOM; the box holds a label drawn below the shape, so it is not centered on the node), in the SVG's pixels",
+        "nodes": [
+            {
+                "id": "anchor-nw",
+                "x": 72.9885499116269,
+                "y": 53.47344962729582,
+                "w": 5.5329286098516945,
+                "h": 5.5329286098516945,
+                "box": {
+                    "x0": 70.22208560670106,
+                    "y0": 50.706985322369974,
+                    "x1": 75.75501421655275,
+                    "y1": 56.23991393222167
+                }
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1142.6880811496194,
+                "y": 53.47344962729582,
+                "w": 5.532928609851751,
+                "h": 5.5329286098516945,
+                "box": {
+                    "x0": 1139.9216168446937,
+                    "y0": 50.706985322369974,
+                    "x1": 1145.4545454545455,
+                    "y1": 56.23991393222167
+                }
+            },
+            {
+                "id": "anchor-sw",
+                "x": 72.9885499116269,
+                "y": 846.5265503727042,
+                "w": 5.5329286098516945,
+                "h": 5.532928609851751,
+                "box": {
+                    "x0": 70.22208560670106,
+                    "y0": 843.7600860677783,
+                    "x1": 75.75501421655275,
+                    "y1": 849.29301467763
+                }
+            },
+            {
+                "id": "anchor-se",
+                "x": 1142.6880811496194,
+                "y": 846.5265503727042,
+                "w": 5.532928609851751,
+                "h": 5.532928609851751,
+                "box": {
+                    "x0": 1139.9216168446937,
+                    "y0": 843.7600860677783,
+                    "x1": 1145.4545454545455,
+                    "y1": 849.29301467763
+                }
+            },
+            {
+                "id": "cap-default",
+                "x": 220.5333128410052,
+                "y": 473.97602397602395,
+                "w": 49.4865711211865,
+                "h": 17.52094059786367,
+                "box": {
+                    "x0": 195.79002728041195,
+                    "y0": 465.2155536770921,
+                    "x1": 245.27659840159845,
+                    "y1": 482.73649427495576
+                }
+            },
+            {
+                "id": "default",
+                "x": 220.5333128410052,
+                "y": 437.0898332436794,
+                "w": 44.498470279720266,
+                "h": 25.82033351264124,
+                "box": {
+                    "x0": 198.28407770114507,
+                    "y0": 424.17966648735876,
+                    "x1": 242.78254798086533,
+                    "y1": 450
+                }
+            },
+            {
+                "id": "cap-font-ital-shorthand",
+                "x": 478.7366479674172,
+                "y": 473.97602397602395,
+                "w": 89.8529055079535,
+                "h": 25.82033351264124,
+                "box": {
+                    "x0": 433.8101952134404,
+                    "y0": 461.06585721970333,
+                    "x1": 523.6631007213939,
+                    "y1": 486.8861907323446
+                }
+            },
+            {
+                "id": "font-ital-shorthand",
+                "x": 478.7366479674172,
+                "y": 405.7365711211865,
+                "w": 33.19757165911011,
+                "h": 49.796357488665194,
+                "box": {
+                    "x0": 462.13786213786216,
+                    "y0": 389.1377852916314,
+                    "x1": 495.33543379697227,
+                    "y1": 438.9341427802966
+                }
+            },
+            {
+                "id": "cap-font-boldital-shorthand",
+                "x": 736.9399830938293,
+                "y": 473.97602397602395,
+                "w": 86.93920262429879,
+                "h": 25.82033351264124,
+                "box": {
+                    "x0": 693.4703817816799,
+                    "y0": 461.06585721970333,
+                    "x1": 780.4095844059786,
+                    "y1": 486.8861907323446
+                }
+            },
+            {
+                "id": "font-boldital-shorthand",
+                "x": 736.9399830938293,
+                "y": 405.7365711211865,
+                "w": 33.19757165911017,
+                "h": 49.796357488665194,
+                "box": {
+                    "x0": 720.3411972642741,
+                    "y0": 389.1377852916314,
+                    "x1": 753.5387689233843,
+                    "y1": 438.9341427802966
+                }
+            },
+            {
+                "id": "cap-font-mono-shorthand",
+                "x": 995.1433182202412,
+                "y": 473.97602397602395,
+                "w": 79.56781799930843,
+                "h": 25.82033351264124,
+                "box": {
+                    "x0": 955.359409220587,
+                    "y0": 461.06585721970333,
+                    "x1": 1034.9272272198955,
+                    "y1": 486.8861907323446
+                }
+            },
+            {
+                "id": "font-mono-shorthand",
+                "x": 995.1433182202412,
+                "y": 405.7365711211865,
+                "w": 33.197571659110054,
+                "h": 49.796357488665194,
+                "box": {
+                    "x0": 978.5445323906862,
+                    "y0": 389.1377852916314,
+                    "x1": 1011.7421040497962,
+                    "y1": 438.9341427802966
+                }
+            }
+        ]
     },
     "pageErrors": []
 }

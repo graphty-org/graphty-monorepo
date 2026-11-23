@@ -10,7 +10,6 @@
 
 /** The id of an experiment, as `features="..."` and `createGraphSession({ features })` take it. */
 export type FeatureId =
-    | "assistant"
     | "data-management"
     | "location-map"
     | "cosmograph"
@@ -33,7 +32,6 @@ export interface FeatureDescriptor {
 
 /** Every experiment this build can switch on. */
 export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
-    { id: "assistant", plainName: "Assistant", issue: 2000, since: "2026-11-04" },
     // The graphty app's use of batched drawing and the long-edge fade and blending options;
     // graphty-element's `renderPath`, edge styles and layout options are not gated.
     { id: "cosmograph", plainName: "Cosmograph-inspired rendering", issue: 3247, since: "2026-11-06" },
@@ -59,4 +57,5 @@ export const GRADUATED_FEATURES: readonly string[] = Object.freeze([
     "timeline",
     "selection-workspace",
     "node-models",
+    "assistant",
 ]);

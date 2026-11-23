@@ -645,7 +645,9 @@ describe("GraphStore lifecycle", () => {
 describe("GraphStore edge-id index", () => {
     /** The private index's entry count: the only way to see what it holds. */
     function indexSize(store: GraphStore): number {
-        return (store as unknown as { indexByEdgeId: Map<number, number> }).indexByEdgeId.size;
+        // The map's entries, and the rows found by binary search while their ids rise with the row.
+        const index = store as unknown as { indexByEdgeId: Map<number, number>; risingRows: number };
+        return index.indexByEdgeId.size + index.risingRows;
     }
 
     it("stays proportional to the live edges over many add and remove cycles", () => {

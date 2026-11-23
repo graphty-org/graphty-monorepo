@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`AiController history > leaves the default exactly as it was: one conversation per message, no history event 1`] = `
+exports[`AiController history > keeps one conversation per message and sends no history event by default 1`] = `
 {
   "messages": [
     {
@@ -15,6 +15,7 @@ Attributes: data.id (node string), data.label (node string), data.type (node cat
         },
         {
           "origin": "reader",
+          "provenance": "<message>",
           "text": "add a node",
           "type": "text",
         },
@@ -59,7 +60,7 @@ Answer in a sentence or two: what you found, and what you changed.",
 }
 `;
 
-exports[`AiController history > leaves the default exactly as it was: one conversation per message, no history event 2`] = `
+exports[`AiController history > keeps one conversation per message and sends no history event by default 2`] = `
 {
   "messages": [
     {
@@ -74,6 +75,7 @@ Attributes: data.id (node string), data.label (node string), data.type (node cat
         },
         {
           "origin": "reader",
+          "provenance": "<message>",
           "text": "now another",
           "type": "text",
         },

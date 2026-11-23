@@ -1146,7 +1146,6 @@ export interface StylesApi {
      * a filter hides.
      * @param id - The layer.
      * @returns The count.
-     * @experimental assistant
      */
     drawnCount(id: LayerId): number;
     /**

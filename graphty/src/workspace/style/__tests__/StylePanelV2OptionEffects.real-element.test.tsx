@@ -16,7 +16,17 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { openGraph, openProject, openStyle, picture, pixelsApart, sectionOf, switchView, written } from "./v2Harness";
+import {
+    openAdvanced,
+    openGraph,
+    openProject,
+    openStyle,
+    picture,
+    pixelsApart,
+    sectionOf,
+    switchView,
+    written,
+} from "./v2Harness";
 
 /**
  * Waits for a thing's row in a section and opens its settings pop-over.
@@ -79,9 +89,11 @@ describe("Style panel v2: options that would change nothing", () => {
         const tab = await openStyle("Key people");
         const pop = await openSettings(sectionOf(tab, "node-shape"), "size", "Node size settings");
 
-        // Unset, the mode and the unit show what is drawn: graphty-element's defaults, Scale and Graph.
+        // Unset, the mode and the unit show what is drawn: graphty-element's defaults, Scale and Graph. The mode and
+        // the depth are rare settings: the pop-over's Advanced dialog's (design "Input rules").
+        const advanced = await openAdvanced(pop);
         const scale = within(
-            within(pop).getByRole("radiogroup", { name: "Node size mode" }),
+            within(advanced).getByRole("radiogroup", { name: "Node size mode" }),
         ).getByRole<HTMLInputElement>("radio", {
             name: "Scale",
         });
@@ -99,22 +111,25 @@ describe("Style panel v2: options that would change nothing", () => {
         assert.match(optionDim(pop, "Combine", "Multiply") ?? "", /^Same as Set over a .+ of 1$/);
         assert.isUndefined(optionDim(pop, "Combine", "Add"), "Add adds to the size beneath");
         // Uniform draws the default icosphere at the extent Scale draws it at already (valueDrawn).
-        assert.match(optionDim(pop, "Node size mode", "Uniform") ?? "", /^Only when /);
-        assert.isUndefined(optionDim(pop, "Node size mode", "Diameter"));
-        assert.equal(lineDim(pop, "node.depth"), "3D only");
+        assert.match(optionDim(advanced, "Node size mode", "Uniform") ?? "", /^Only when /);
+        assert.isUndefined(optionDim(advanced, "Node size mode", "Diameter"));
+        assert.equal(lineDim(advanced, "node.depth"), "3D only");
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
 
         await switchView("3D");
         const again = await openSettings(sectionOf(tab, "node-shape"), "size", "Node size settings");
         assert.isUndefined(optionDim(again, "Node size space", "Pivot"), "Pivot draws in 3D");
-        assert.isUndefined(lineDim(again, "node.depth"), "so does depth");
+        assert.isUndefined(lineDim(await openAdvanced(again), "node.depth"), "so does depth");
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
 
         // A box is drawn at its own extent under Scale: Uniform changes it.
         await session.styles.update(id, { set: { "node.color": "#E8590C", "node.size": 2, "node.shape": "box" } });
         await session.styles.settled();
         const box = await openSettings(sectionOf(tab, "node-shape"), "size", "Node size settings");
-        assert.isUndefined(optionDim(box, "Node size mode", "Uniform"), "Uniform draws a box anew");
+        assert.isUndefined(optionDim(await openAdvanced(box), "Node size mode", "Uniform"), "Uniform draws a box anew");
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
     });
 
@@ -182,11 +197,10 @@ describe("Style panel v2: options that would change nothing", () => {
         await session.styles.update(id, { set: { "node.color": "#E8590C", "node.size": 2 } });
         await session.styles.settled();
         const tab = await openStyle("Key people");
+        // Fit to label is a rare setting: always shown in the Advanced dialog, its Fit line dimmed while it draws nothing.
         const fitItem = async (): Promise<string | null> => {
             const pop = await openSettings(sectionOf(tab, "node-shape"), "size", "Node size settings");
-            await userEvent.click(within(pop).getByRole("button", { name: "Add to node size settings" }));
-            const item = await screen.findByRole("menuitem", { name: "Fit to label" });
-            const title = item.getAttribute("title");
+            const title = lineDim(await openAdvanced(pop), "node.labelFit") ?? null;
             await userEvent.keyboard("{Escape}");
             await userEvent.keyboard("{Escape}");
             return title;
@@ -213,9 +227,8 @@ describe("Style panel v2: options that would change nothing", () => {
         const waves = async (): Promise<string | null> => {
             const tab = await openStyle("Key people");
             const pop = await openSettings(sectionOf(tab, "node-effects"), "border", "Node border settings");
-            await userEvent.click(within(pop).getByRole("button", { name: "Add to node border settings" }));
-            const item = await screen.findByRole("menuitem", { name: "Waves" });
-            const title = item.getAttribute("title");
+            // Waves is a rare setting: always shown in the Advanced dialog, dimmed while it draws nothing.
+            const title = lineDim(await openAdvanced(pop), "node.borderWaveAmplitude") ?? null;
             await userEvent.keyboard("{Escape}");
             await userEvent.keyboard("{Escape}");
             return title;

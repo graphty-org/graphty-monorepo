@@ -29,7 +29,7 @@ import {
     type LabelGroup,
     type LabelLineSpec,
 } from "../v2/labelRubric";
-import { openGraph, openStyle, pickKind, picture, pixelsApart, sectionOf, written } from "./v2Harness";
+import { openAdvanced, openGraph, openStyle, pickKind, picture, pixelsApart, sectionOf, written } from "./v2Harness";
 
 type Style = Partial<Record<LabelField, unknown>>;
 
@@ -197,7 +197,8 @@ function placeOf(field: LabelField): Place | undefined {
         return { row: true, line: onRow, how: "field" };
     }
     for (const [group, lines] of shelves) {
-        if (group?.on === field) {
+        // A group all of whose lines are rare is the Advanced dialog's, always shown there: its switch is a line.
+        if (group?.on === field && !group.lines.every((line) => line.advanced === true)) {
             return { group, line: { field }, how: "on" };
         }
         for (const line of lines) {
@@ -357,6 +358,13 @@ describe("every label field is reachable from the Label row and draws (E673)", (
             });
         };
         const closeSettings = async (): Promise<void> => {
+            // Escape closes the Advanced dialog first, then the pop-over.
+            if (document.querySelector("[data-advanced]") !== null) {
+                await userEvent.keyboard("{Escape}");
+                await waitFor(() => {
+                    assert.isNull(document.querySelector("[data-advanced]"));
+                });
+            }
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
                 assert.isNull(document.querySelector("[data-thing-popover]"));
@@ -524,7 +532,12 @@ describe("every label field is reachable from the Label row and draws (E673)", (
             const pop = place.row === true ? undefined : await openSettings();
             try {
                 let root = pop === undefined ? await rowOf() : within(pop).getByRole("group", { name: "Main" });
-                if (pop !== undefined && place.group !== undefined) {
+                if (pop !== undefined && place.line.advanced === true) {
+                    // A rare line: under its group's name (Main's too) in the pop-over's Advanced dialog.
+                    root = await within(await openAdvanced(pop)).findByRole("group", {
+                        name: place.group?.name ?? "Main",
+                    });
+                } else if (pop !== undefined && place.group !== undefined) {
                     root = await legendOf(pop, place.group);
                 }
                 if (place.how === "on") {

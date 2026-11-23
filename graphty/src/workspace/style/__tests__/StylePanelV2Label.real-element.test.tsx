@@ -18,7 +18,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { LABEL_RUBRIC } from "../v2/labelRubric";
-import { openGraph, openProject, openStyle, picture, sectionOf, written } from "./v2Harness";
+import { openAdvanced, openGraph, openProject, openStyle, picture, sectionOf, written } from "./v2Harness";
 
 /**
  * The layer's label style object.
@@ -142,8 +142,10 @@ describe("Style panel v2's Text section", () => {
         const main = within(pop).getByRole("group", { name: "Main" });
         assert.deepEqual(
             [...main.querySelectorAll(".ws-row[data-line]")].map((line) => line.getAttribute("data-line")),
-            LABEL_RUBRIC.main.map((line) => `node.labelStyle.${line.field}${line.unit === undefined ? "" : ":unit"}`),
-            "Main holds Show to the size unit, and no second Size or Color",
+            LABEL_RUBRIC.main
+                .filter((line) => line.advanced !== true)
+                .map((line) => `node.labelStyle.${line.field}${line.unit === undefined ? "" : ":unit"}`),
+            "Main holds Font to Location (Show and the size unit are Advanced), and no second Size or Color",
         );
         await userEvent.keyboard("{Escape}");
 
@@ -169,9 +171,8 @@ describe("Style panel v2's Text section", () => {
             return found;
         });
         assert.isNull(within(pop).queryByRole("group", { name: "Background" }), "Background waits for '+'");
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Background" }));
-        const background = await within(pop).findByRole("group", { name: "Background" });
+        // Corners is a rare Background line: in the pop-over's Advanced dialog, always shown (design "Input rules").
+        const background = await within(await openAdvanced(pop)).findByRole("group", { name: "Background" });
         const corners = await lineOf(background, "node.labelStyle.cornerRadius");
         await typeInto(corners, "4");
         await waitFor(() => {
@@ -195,28 +196,20 @@ describe("Style panel v2's Text section", () => {
             assert.isNotNull(found);
             return found;
         });
-        // ia-design's nine groups, in their tiers: a divider after Position and after Box stroke.
+        // ia-design's groups, in their tiers; a group all of whose lines are rare (Position, Wrap, Callout) is the
+        // Advanced dialog's alone (design "Input rules").
         await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
         const menu = await screen.findByRole("menu");
         const order = [...menu.querySelectorAll('[role="menuitem"], .mantine-Menu-divider')].map((item) =>
             item.getAttribute("role") === "menuitem" ? (item.textContent ?? "") : "|",
         );
-        assert.deepEqual(order, [
-            "Position",
-            "|",
-            "Letters",
-            "Wrap",
-            "Background",
-            "Box stroke",
-            "|",
-            "Label shadow",
-            "Callout",
-            "Badge",
-            "Behavior",
-        ]);
+        assert.deepEqual(order, ["Letters", "Background", "Box stroke", "|", "Label shadow", "Badge", "Behavior"]);
         await userEvent.keyboard("{Escape}");
         assertNamedUncut(within(pop).getByRole("group", { name: "Main" }));
-        for (const group of LABEL_RUBRIC.groups) {
+        const shown = LABEL_RUBRIC.groups
+            .map((group) => ({ ...group, lines: group.lines.filter((line) => line.advanced !== true) }))
+            .filter((group) => group.lines.length > 0);
+        for (const group of shown) {
             await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: group.name }));
             const legend = await within(pop).findByRole("group", { name: group.name });
@@ -355,9 +348,8 @@ describe("Style panel v2's Text section", () => {
             return found;
         });
         const pop = await popoverOf(row);
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Box stroke" }));
-        const margin = await lineOf(pop, "node.labelStyle.marginTop");
+        // Margin is a rare Box stroke line: the pop-over's Advanced dialog's (design "Input rules").
+        const margin = await lineOf(await openAdvanced(pop), "node.labelStyle.marginTop");
         assert.isTrue(margin.hasAttribute("data-dimmed"), "dimmed while box padding is set");
         assert.match(margin.getAttribute("title") ?? "", /Box padding|padding/i, "its tooltip names what it waits on");
     });

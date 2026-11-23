@@ -13,7 +13,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { openGraph, openStyle, picture, pixelsApart, sectionOf, written } from "./v2Harness";
+import { openAdvanced, openGraph, openStyle, picture, pixelsApart, sectionOf, written } from "./v2Harness";
 
 /** How near (by RGB distance) a pixel must be to count as drawn in a color. */
 const NEAR = 90;
@@ -116,9 +116,11 @@ describe("Style panel v2's list things", () => {
             return found;
         });
         await userEvent.click(within(row).getByRole("button", { name: /^Node stripes settings/ }));
-        const share = await screen.findByRole("textbox", { name: "Stripe 1 share" });
+        // A number showing a value is a spin button.
+        const share = await screen.findByRole("spinbutton", { name: "Stripe 1 share" });
+        // Unset, the share shows the even split drawn (design "Input rules"): typed over.
         await userEvent.click(share);
-        await userEvent.keyboard("75{Tab}");
+        await userEvent.keyboard("{Control>}a{/Control}75{Tab}");
         await waitFor(() => {
             assert.deepEqual(
                 readChannelList("node.stripeSizes", written(session, nodes, "node.stripeSizes")).map(Number),
@@ -157,10 +159,9 @@ describe("Style panel v2's list things", () => {
             assert.isNotNull(found);
             return found;
         });
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to node stripes settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Frame" }));
-        await userEvent.click(await within(pop).findByRole("textbox", { name: "Frame top" }));
-        await userEvent.keyboard("0.2{Tab}");
+        // Frame is a rare setting: the pop-over's Advanced dialog's (design "Input rules"), each side showing 0.
+        await userEvent.click(await within(await openAdvanced(pop)).findByRole("spinbutton", { name: "Frame top" }));
+        await userEvent.keyboard("{Control>}a{/Control}0.2{Tab}");
         await waitFor(() => {
             assert.strictEqual(written(session, nodes, "node.stripeFrame"), "0.2 0 0 0");
             assert.isNotNull(fill.querySelector('[data-line="node.stripeFrame"]'), "the sidebar row shows the frame");
@@ -177,7 +178,7 @@ describe("Style panel v2's list things", () => {
                 `focus is on ${active?.getAttribute("aria-label") ?? active?.tagName ?? "nothing"}, in the pop-over: ${String(active?.closest("[data-thing-popover]") !== null)}`,
             );
         });
-        await userEvent.keyboard("0.3{Tab}");
+        await userEvent.keyboard("{Control>}a{/Control}0.3{Tab}");
         await waitFor(() => {
             assert.strictEqual(written(session, nodes, "node.stripeFrame"), "0.2 0.3 0 0", "the next side writes");
         });

@@ -15,7 +15,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { openProject, openStyle, sectionOf, written } from "./v2Harness";
+import { openAdvanced, openProject, openStyle, sectionOf, written } from "./v2Harness";
 
 /**
  * Waits for a thing's row in a section.
@@ -124,11 +124,16 @@ describe("Style panel v2's node things", () => {
             assert.equal(written(session, id, "node.borderPosition"), "inside");
         });
 
+        // The width's unit is a rare setting: the pop-over's Advanced dialog's (design "Input rules").
+        const pop = document.querySelector<HTMLElement>("[data-thing-popover]");
+        assert.isNotNull(pop);
+        await openAdvanced(pop);
         await clickSegment("Screen");
         await waitFor(() => {
             assert.equal(written(session, id, "node.borderScreenWidth"), 2, "the value moves to Screen");
             assert.isUndefined(written(session, id, "node.borderWidth"), "and leaves Graph");
         });
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
         await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
         await waitFor(() => {
@@ -234,8 +239,10 @@ describe("Style panel v2's node things", () => {
             assert.isString(written(session, id, "node.shapeTexts"), "Record starts with one field");
         });
         const words = await screen.findByRole("textbox", { name: "Field 1 text" });
+        // A new field starts with words (design "Input rules": no empty input), typed over.
+        assert.equal((words as HTMLInputElement).value, "Field 1");
         await userEvent.click(words);
-        await userEvent.keyboard("Hello{Enter}");
+        await userEvent.keyboard("{Control>}a{/Control}Hello{Enter}");
         await waitFor(() => {
             assert.deepEqual(JSON.parse(String(written(session, id, "node.shapeTexts"))), [["Hello"]], "no point");
         });

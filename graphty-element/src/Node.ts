@@ -89,7 +89,7 @@ import { noteImageDrawn, publishImageFailure, TextureCache } from "./models/Text
 import { NodeBehavior, NodeDragHandler, nodePointerRosterOf } from "./NodeBehavior";
 import { edgeDrawChanges } from "./render/EdgeIdTarget";
 import { rowScanOf } from "./render/PickService";
-import type { RowTable } from "./render/RowTable";
+import { exactOf, type RowTable } from "./render/RowTable";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
 import {
@@ -519,18 +519,6 @@ function namesShader(uses: readonly ShaderUse[] | undefined): boolean {
 function hexOf(value: unknown, fallback: string): { hex: string; alpha: number } {
     const { rgb, alpha } = readColor(typeof value === "string" ? value : undefined, fallback);
     return { hex: rgb.toHexString(), alpha };
-}
-
-/**
- * A batched row's measure as the CPU took it, when the row table's 32-bit copy is that measure rounded: the
- * object path works in the doubles it measured, and a last bit of difference moves a trimmed edge end by a
- * pixel (#6287).
- * @param stored - What the row table holds.
- * @param measured - What the node measured when it wrote the row, or null.
- * @returns The measure, or what the table holds when it holds something else (a shrink part of the way).
- */
-function exactOf(stored: number, measured: number | null): number {
-    return measured !== null && Math.fround(measured) === stored ? measured : stored;
 }
 
 /**

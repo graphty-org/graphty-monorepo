@@ -6,9 +6,11 @@
 import { Menu } from "@mantine/core";
 import { screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cdp, userEvent } from "vitest/browser";
+import { userEvent } from "vitest/browser";
 
 import { renderThemed, resetHarness } from "../../harness/measure";
+import { send, toPage } from "../../harness/mouse";
+import { tap } from "../../harness/touch";
 
 afterEach(resetHarness);
 
@@ -71,27 +73,6 @@ function expanded(name: string): boolean {
     );
 }
 
-/** The DevTools protocol session of the test's browser. */
-function devtools(): { send: (method: string, params?: Record<string, unknown>) => Promise<unknown> } {
-    return cdp() as unknown as { send: (method: string, params?: Record<string, unknown>) => Promise<unknown> };
-}
-
-/**
- * A point in the test page, in the coordinates of the browser window the protocol drives.
- * @param x - page x
- * @param y - page y
- * @returns the window point
- */
-function windowPoint(x: number, y: number): { x: number; y: number } {
-    const frame = window.frameElement;
-    if (frame === null) {
-        return { x, y };
-    }
-    const box = frame.getBoundingClientRect();
-    const scale = box.width / window.innerWidth;
-    return { x: box.left + frame.clientLeft * scale + x * scale, y: box.top + frame.clientTop * scale + y * scale };
-}
-
 /** Where the real mouse is, in page coordinates. */
 let mouseAt = { x: 0, y: 0 };
 
@@ -106,7 +87,7 @@ async function mouseTo(x: number, y: number): Promise<void> {
     const from = mouseAt;
     for (let i = 1; i <= steps; i++) {
         mouseAt = { x: from.x + ((x - from.x) * i) / steps, y: from.y + ((y - from.y) * i) / steps };
-        await devtools().send("Input.dispatchMouseEvent", { type: "mouseMoved", ...windowPoint(mouseAt.x, mouseAt.y) });
+        await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...toPage(mouseAt) });
     }
 }
 
@@ -117,14 +98,14 @@ async function mouseTo(x: number, y: number): Promise<void> {
 async function mouseOnto(element: Element): Promise<void> {
     const rect = element.getBoundingClientRect();
     mouseAt = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-    await devtools().send("Input.dispatchMouseEvent", { type: "mouseMoved", ...windowPoint(mouseAt.x, mouseAt.y) });
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...toPage(mouseAt) });
 }
 
 /** Click the real mouse where it is. */
 async function mouseClick(): Promise<void> {
-    const at = windowPoint(mouseAt.x, mouseAt.y);
-    await devtools().send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...at });
-    await devtools().send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...at });
+    const at = toPage(mouseAt);
+    await send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...at });
+    await send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...at });
 }
 
 /**
@@ -139,18 +120,6 @@ async function submenuOf(name: string): Promise<HTMLElement> {
         expect(dropdown).not.toBeNull();
         return dropdown as HTMLElement;
     });
-}
-
-/**
- * Tap an element with one finger, through the DevTools protocol: a touch, with no hover first.
- * @param element - what the finger lands on
- */
-async function tap(element: Element): Promise<void> {
-    const rect = element.getBoundingClientRect();
-    const { x, y } = windowPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    const session = devtools();
-    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
-    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 }
 
 describe("Menu.Sub.Item on a tap, a click and Enter", () => {

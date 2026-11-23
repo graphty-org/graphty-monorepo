@@ -7,7 +7,7 @@
 // Unsent counts from the last minute before 00:00 UTC are dropped with the day: at most FLUSH_EVERY per isolate.
 
 export const FLUSH_EVERY = 50;
-export const FLUSH_MS = 60_000;
+const FLUSH_MS = 60_000;
 
 const utcDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 

@@ -540,7 +540,7 @@ function WhichRow({
     const head = useHead(session, rows, side);
     const words = shown.map((each) => chipWords(session, each, rows.length));
     // Each chip's own count, as it draws it, so the row's name says it too (after Done as before).
-    const [counts, setCounts] = useState<Readonly<Record<string, number | undefined>>>({});
+    const [counts, setCounts] = useState<CardCountMap>({});
     const spoken = shown.map((each, at) => {
         const count = counts[each.key];
         const countWords = count === undefined ? "" : `, ${many(count, side)}`;
@@ -584,17 +584,7 @@ function WhichRow({
                     </Group>
                 </UnstyledButton>
             </Tooltip>
-            {shown.map((each) => (
-                <CardCount
-                    key={each.key}
-                    session={session}
-                    shown={each}
-                    side={side}
-                    onCount={(count) => {
-                        setCounts((now) => (now[each.key] === count ? now : { ...now, [each.key]: count }));
-                    }}
-                />
-            ))}
+            <CardCounts session={session} shown={shown} side={side} onCounts={setCounts} />
         </div>
     );
 }
@@ -673,6 +663,46 @@ function CardCount({
         onCount(count);
     }, [count, onCount]);
     return null;
+}
+
+/** Each card's own count, by card key. */
+type CardCountMap = Readonly<Record<string, number | undefined>>;
+
+/**
+ * Counts what each card keeps alone, into one map by card key; draws nothing.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.shown - the cards as drawn
+ * @param props.side - nodes or edges
+ * @param props.onCounts - the map's state setter
+ * @returns The counters
+ */
+function CardCounts({
+    session,
+    shown,
+    side,
+    onCounts,
+}: Readonly<{
+    session: GraphSession;
+    shown: readonly Shown[];
+    side: Side;
+    onCounts: React.Dispatch<React.SetStateAction<CardCountMap>>;
+}>): React.JSX.Element {
+    return (
+        <>
+            {shown.map((each) => (
+                <CardCount
+                    key={each.key}
+                    session={session}
+                    shown={each}
+                    side={side}
+                    onCount={(count) => {
+                        onCounts((now) => (now[each.key] === count ? now : { ...now, [each.key]: count }));
+                    }}
+                />
+            ))}
+        </>
+    );
 }
 
 /**
@@ -941,7 +971,8 @@ function Cards({
     const head = useHead(session, rows, side);
     const matched = rows.length === 1 ? session.styles.counts(rows[0].layer.id).matched : undefined;
     // Each card's own count, so Done says which card leaves nothing, or that only together they do.
-    const [counts, setCounts] = useState<Readonly<Record<string, number | undefined>>>({});
+    // on reload: fresh: read: each card counts again from the element's session
+    const [counts, setCounts] = useState<CardCountMap>({});
     let why: string | undefined;
     if (matched === 0 && list.length === 1) {
         why = `${cardName(list[0].card)} leaves none`;
@@ -1044,17 +1075,7 @@ function Cards({
                     />
                 ),
             )}
-            {list.map((each) => (
-                <CardCount
-                    key={each.key}
-                    session={session}
-                    shown={each}
-                    side={side}
-                    onCount={(count) => {
-                        setCounts((now) => (now[each.key] === count ? now : { ...now, [each.key]: count }));
-                    }}
-                />
-            ))}
+            <CardCounts session={session} shown={list} side={side} onCounts={setCounts} />
             {!standsAlone && (
                 <AddCondition
                     fields={fields}

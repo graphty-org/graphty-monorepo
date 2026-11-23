@@ -46,6 +46,8 @@ const main = dirname(commonDir.stdout.trim());
 // --features gets its own folder, so a run with an experiment on and one without can be compared
 // (compare-reports.mjs) and can run at once.
 let OUT = join(repo, "tmp/dry-run");
+// the experiments the app opens with (--features): serve() sends the start page's address to them
+let FEATURES = "";
 const GATE = join(repo, "design/ui/studio/tool/with-browser.sh");
 const FILES = join(repo, "design/ui/studio/tool/files");
 // The GPU flags the design studio's tool proved on this machine (design/ui/studio/tool/real.mjs):
@@ -98,6 +100,7 @@ function options(argv) {
         dist: resolve(v.dist),
     };
     if (o.features) OUT = `${OUT}-${o.features.replaceAll(",", "-")}`;
+    FEATURES = o.features;
     if (!Number.isInteger(o.workers) || o.workers < 1 || o.workers > 4) {
         console.error("--workers must be 1 to 4 (the machine's shared browser cap)");
         process.exit(2);
@@ -248,12 +251,17 @@ async function runAll(o) {
 
 /**
  * Serve a build of the app on a loopback port: every path that is not a file is the app's own page.
+ * With experiments to open with, the start page's plain address is sent on to `/?features=<them>`, as a
+ * reader turns one on.
  * @param dist the build
+ * @param features the experiments, comma separated, or "" for none
  * @returns the listening server
  */
-export function serve(dist) {
+export function serve(dist, features = FEATURES) {
     const http = createServer(async (req, res) => {
         const url = new URL(req.url, "http://x"); // eslint-disable-line sonarjs/no-clear-text-protocols -- parses the request's path; the server is loopback only
+        if (features && url.pathname === "/" && !url.searchParams.has("features"))
+            return res.writeHead(302, { location: `/?features=${features}` }).end();
         const path = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, "");
         const f = join(dist, path);
         if (f !== dist && !f.startsWith(dist + sep)) return res.writeHead(403).end();
@@ -372,8 +380,7 @@ async function runWorker(o) {
     // how long this worker waited for its browser slot before it started
     const slotWaitMs = Date.now() - Number(process.env.DRY_RUN_STARTED || Date.now());
     const http = await serve(o.dist);
-    const query = o.features ? `?features=${o.features}` : "";
-    const origin = `http://127.0.0.1:${http.address().port}/${query}`;
+    const origin = `http://127.0.0.1:${http.address().port}/`;
     try {
         for (const route of picked) {
             // claim the route: the first worker to create its claim file walks it

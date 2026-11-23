@@ -181,9 +181,11 @@ describe.each(VIEWS)("an arrowed edge on the batched path in %s", (view) => {
         const { engine } = element.graph;
         engine.beginFrame();
         element.graph.scene.render();
-        const read = engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight());
+        const width = engine.getRenderWidth();
+        const height = engine.getRenderHeight();
+        const read = engine.readPixels(0, 0, width, height);
         engine.endFrame();
-        assert.equal(pixelsOverBar(want, { pixels: (await read) as Uint8Array }), 0);
+        assert.equal(pixelsOverBar(want, { width, height, pixels: (await read) as Uint8Array }), 0);
     });
 });
 

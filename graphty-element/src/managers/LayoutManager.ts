@@ -2206,15 +2206,19 @@ export class LayoutManager implements Manager {
             // Under renderPath "batched" a row with no Node is something to step as well.
             const batched = this.dataManager.renderLimits?.batched() ?? false;
             const nothingToStep = batched ? this.dataManager.nodes.size === 0 : nodeArray.length === 0;
-            if (nothingToStep || this.sizesToCome(engine)) {
+            if (nothingToStep) {
                 // Owed even on a switch to 2D: an empty graph has no arrangement to keep.
                 this.preStepsOwed = true;
             } else if (this.flattens(engine, how)) {
                 // The arrangement it starts from is already laid out: stepping it before the first
                 // frame would move every node away from where the reader just saw it. Nor does the
-                // first frame step it: that frame draws the flattened arrangement as it is.
+                // first frame step it: that frame draws the flattened arrangement as it is. Not owed
+                // either while a node size is still to come: the engine takes the new size as it
+                // steps afterwards, and pre-steps paid then moved every node off its flattened spot.
                 this.preStepsOwed = false;
                 this.#holdOneFrame = true;
+            } else if (this.sizesToCome(engine)) {
+                this.preStepsOwed = true;
             } else if (!(await this.spendPreSteps(engine, how.live))) {
                 throw canceledBuild();
             }
@@ -2563,6 +2567,8 @@ export class LayoutManager implements Manager {
                     dimension === 3,
                 // Only the dimension changed, to 2D: `sameLayout` fell through because the engine
                 // redraws. Not to 3D, where a force engine started flat has no force out of the plane.
+                // Seeded too: the reader sees the drawing they just had, flattened (#9279), not the
+                // seed's own 2D picture.
                 flatten: sameLayout && !restoring && dimension === 2,
                 // A first layout, a restore and a 2D/3D switch place the nodes in one frame.
                 transition:

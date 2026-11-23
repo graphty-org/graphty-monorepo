@@ -126,6 +126,9 @@ describe("the ngraph layout's steps to settle", () => {
  * place now shortens its time step; one still coming to rest never does, so the other samples
  * settle at the very step they did before the fix (measured 2026-11-14, seed 1).
  *
+ * The exact counts were measured again on 2026-11-21, seed 1, when the start box grew with the node
+ * count (issue #9280): 701, 146, 168, 202, 188 and 300 steps before, in the order below.
+ *
  * Issue #7919: political-blogs in 3D also ran to the cap, though its stall was not read as one. Its
  * largest component kept its shape from about step 400 while the whole of it slid on, so its nodes
  * looked as if they were traveling. A stall now leaves out what every node moved together.
@@ -137,12 +140,12 @@ describe("the ngraph layout on graph-samples datasets", () => {
         { name: "knuth-miles", dim: 2, steps: 202, exact: false },
         // Before #7919's fix it hit the 1,000-step cap; 612 with it, given 10% here.
         { name: "political-blogs", dim: 3, steps: 612, exact: false },
-        { name: "political-blogs", dim: 2, steps: 701, exact: true },
-        { name: "football", dim: 3, steps: 146, exact: true },
-        { name: "football", dim: 2, steps: 168, exact: true },
-        { name: "political-books", dim: 2, steps: 202, exact: true },
-        { name: "dolphins", dim: 2, steps: 188, exact: true },
-        { name: "yeast-perturbation", dim: 2, steps: 300, exact: true },
+        { name: "political-blogs", dim: 2, steps: 504, exact: true },
+        { name: "football", dim: 3, steps: 152, exact: true },
+        { name: "football", dim: 2, steps: 193, exact: true },
+        { name: "political-books", dim: 2, steps: 205, exact: true },
+        { name: "dolphins", dim: 2, steps: 152, exact: true },
+        { name: "yeast-perturbation", dim: 2, steps: 330, exact: true },
     ];
 
     for (const { name, dim, steps: expected, exact } of cases) {

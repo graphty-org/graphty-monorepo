@@ -256,4 +256,91 @@ describe("an edge drawn with no line, only its heads", () => {
         assert.approximately(a[0], 383.3, 1);
         assert.approximately(b[0], 412, 1);
     });
+
+    describe("beside a line's own heads", () => {
+        let index = 0;
+        const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
+            index: index++,
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(over.points),
+            closed: true,
+            corners: 0,
+            fill: null,
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            ...over,
+        });
+        const RED = { color: "#cc0033", opacity: 1, gradient: null };
+        const box = ([, x0, y0, x1, y1]: [string, number, number, number, number]): Prim =>
+            prim({
+                corners: 4,
+                points: [
+                    [x0, y0],
+                    [x1, y0],
+                    [x1, y1],
+                    [x0, y1],
+                    [x0, y0],
+                ],
+                fill: WHITE,
+                stroke: BORDER,
+            });
+        const guideOf = (boxes: typeof BOXES, edges: PEdge[]): PScene => ({
+            side: "graphty",
+            width: 1200,
+            height: 900,
+            background: "#ffffff",
+            nodes: boxes.map(node),
+            edges,
+            groups: [],
+            texts: [],
+            strays: [],
+        });
+
+        it("runs a lone tee along the line between its nodes, not along its bar", () => {
+            // cx-radiation-bibliography 776->6: two boxes 0.6 px apart, only the tee's bar drawn, 5.45 px across the
+            // line and 0.55 px thick; read along the bar it was a head 5.5 px long and 1.1 px wide of no class
+            index = 0;
+            const boxes: typeof BOXES = [
+                ...BOXES.slice(0, 4),
+                ["m", 314.1, 375.9, 369.1, 389.9],
+                ["n", 346.1, 390.5, 401, 402.9],
+            ];
+            const [mx, my, nx, ny] = [341.6, 382.9, 373.55, 396.7];
+            const len = Math.hypot(nx - mx, ny - my);
+            const u: Pt = [(nx - mx) / len, (ny - my) / len];
+            const at: Pt = [360.93, 391.28];
+            const corner = (along: number, across: number): Pt => [
+                at[0] + u[0] * along - u[1] * across,
+                at[1] + u[1] * along + u[0] * across,
+            ];
+            const prims = [
+                prim({
+                    corners: 4,
+                    points: [
+                        corner(-0.275, -2.725),
+                        corner(0.275, -2.725),
+                        corner(0.275, 2.725),
+                        corner(-0.275, 2.725),
+                        corner(-0.275, -2.725),
+                    ],
+                    fill: RED,
+                }),
+                ...boxes.map(box),
+            ];
+            // graphty caps the file's target, which decides an end the tee lies about as near both outlines of
+            const capped: PEdge = {
+                ...edge("m", "n", "#cc0033"),
+                arrows: [{ end: "target", length: 0.55, width: 5.45, filled: true, shape: "tee", color: "#cc0033" }],
+            };
+            const o = associate(prims, 1200, 900, guideOf(boxes, [capped])).scene;
+            const e = o.edges.find((x) => x.source === "m" && x.target === "n");
+            assert.deepEqual(
+                e?.arrows.map((a) => [a.end, a.shape]),
+                [["target", "tee"]],
+            );
+        });
+    });
 });

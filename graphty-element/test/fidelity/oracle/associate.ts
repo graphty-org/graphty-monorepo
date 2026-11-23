@@ -4517,7 +4517,24 @@ export function associate(
             all.reduce((m, q) => (along(q) < along(m) ? q : m)),
             all.reduce((m, q) => (along(q) > along(m) ? q : m)),
         ];
-        const lone = capped1 === b ? probe : reversedOf(probe);
+        // a lone head drawn across its line, its far side off the line between its nodes' middles (a tee's bar:
+        // cx-radiation-bibliography 776->6, 5.45 px across and 0.55 px thick), runs along that line through its middle,
+        // as far as the head reaches along it: read along the bar, the tee was a head 5.5 px long and 1.1 px wide
+        const chordLength = Math.hypot(dir[0], dir[1]);
+        const unitDir: Pt = chordLength > 1e-9 ? [dir[0] / chordLength, dir[1] / chordLength] : [1, 0];
+        const axisLength = Math.hypot(tip[0] - mids[0][0], tip[1] - mids[0][1]);
+        const acrossLine =
+            !paired &&
+            axisLength > 1e-9 &&
+            Math.abs((tip[0] - mids[0][0]) * unitDir[0] + (tip[1] - mids[0][1]) * unitDir[1]) / axisLength <
+                Math.cos(Math.PI / 3);
+        const reach = Math.max(along(across[1]) - along(across[0]), 0) / Math.max(chordLength, 1e-9);
+        const barPath: Pt[] = [
+            [mids[0][0] - (unitDir[0] * reach) / 2, mids[0][1] - (unitDir[1] * reach) / 2],
+            [mids[0][0] + (unitDir[0] * reach) / 2, mids[0][1] + (unitDir[1] * reach) / 2],
+        ];
+        const aimed = capped1 === b ? probe : reversedOf(probe);
+        const lone = acrossLine ? barPath : aimed;
         // two heads unlike each other run along the line between their nodes' middles, from where the source head's tip
         // is to where the target head's is: a half head's barb, off to the line's side, starts a third of its length off
         // its node

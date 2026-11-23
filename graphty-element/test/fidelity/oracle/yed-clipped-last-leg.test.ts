@@ -35,18 +35,16 @@ describe("a head on a last leg clipped to a hair", () => {
         assert.closeTo(head.width, 8.4, 0.1);
     });
 
-    it("is read along the run where the last leg is a pixel or more", () => {
+    it("is read along a last leg of a pixel or more past a corner under it, as along the hair", () => {
         const long: Pt[] = [
             [20, 102],
             [100, 102],
             [100, 100],
         ];
-        // the run up is the line's own direction there: the same head, but now it is not under the end
+        // the corner lies under the head, and the 2 px leg up from it aims it (lastLegUnder): the same reading
         const head = measureArrow(convexHead(), long, "target", { filled: false, color: null });
-        assert.notStrictEqual(
-            head.width,
-            measureArrow(convexHead(), line, "target", { filled: false, color: null }).width,
-        );
+        assert.strictEqual(head.shape, "vee");
+        assert.closeTo(head.width, 8.4, 0.1);
     });
 
     it("is read along the run where the last step only turns back on it, a rounding of a curve's end", () => {

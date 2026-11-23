@@ -3318,6 +3318,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             structureValue: READ,
             histogram: READ,
             valueCounts: READ,
+            kinds: READ,
             overRepresented: READ,
             groupTable: READ,
             // The column commands, each one batch.

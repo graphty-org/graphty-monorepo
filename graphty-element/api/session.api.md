@@ -302,7 +302,7 @@ export interface AttributeDescriptor {
 export type AttributeLeafNodes = "all" | "ends" | "none";
 
 // @public
-export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city" | "x" | "y" | "z";
+export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId" | "kind" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city" | "x" | "y" | "z";
 
 // @public
 export type AttributeUse = {
@@ -1212,6 +1212,11 @@ export type EdgeRecordInput = Readonly<Record<string, unknown>>;
 export type EdgeRef = EdgeId | EdgeMember;
 
 // @public
+export interface ElementKinds extends ValueCounts {
+    readonly column: string;
+}
+
+// @public
 export interface ElementLayerSpec extends LayerSpec {
     source: Extract<LayerSource, {
         by: "element";
@@ -1779,6 +1784,12 @@ export interface GraphFraming {
     };
     readonly extent: "drawn" | "centers";
     readonly padding?: number;
+}
+
+// @public
+export interface GraphKinds {
+    readonly edges: ElementKinds | null;
+    readonly nodes: ElementKinds | null;
 }
 
 // @public
@@ -6850,6 +6861,7 @@ export interface SessionDataApi {
         readonly source?: SourceKey;
     }): readonly DataIssue[];
     joins(): readonly JoinRecord[];
+    kinds(): GraphKinds;
     lastImport(): LoadReport | null;
     lineage(ref: SourceElementRef): SourceLineage | null;
     listSource(source: SourceInput, query?: Omit<SourceListQuery<Record<string, unknown>>, "params">, options?: SourceLoadOptions): Promise<SourceListing>;

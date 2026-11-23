@@ -486,6 +486,8 @@ const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string
         "data.knownFields.edgeTimeParseZone",
         "data.knownFields.edgeTimeEndPath",
         "data.knownFields.edgeTimeSpellsPath",
+        "data.knownFields.nodeKindPath",
+        "data.knownFields.edgeKindPath",
     ]),
     graph: new Set(
         [ISSUES_VALUE, SOURCE_VALUE, SOURCES_VALUE, PROVENANCE_VALUE, COLUMNS_VALUE].map((name) => `v:${name}`),

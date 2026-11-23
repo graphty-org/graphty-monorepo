@@ -1308,6 +1308,7 @@ export const READ_ONLY: readonly string[] = [
     "SourceDraft.use",
     "SessionDataApi.types",
     "SessionDataApi.valueCounts",
+    "SessionDataApi.kinds",
     "SessionDataApi.overRepresented",
     "SessionDataApi.groupTable",
     "SessionDataApi.lastImport",

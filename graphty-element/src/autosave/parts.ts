@@ -36,7 +36,7 @@ import {
     viewStateMember,
 } from "../session/projectFile";
 import type { GraphSession } from "../session/types";
-import { filterDraftHooks, type SavedFilterDraft } from "../session/visibility/VisibilityApi";
+import { filterDraftHooks, type SavedFilterDraft } from "../session/visibility/draftHooks";
 import type { AutosaveEntryMeta, AutosaveParts } from "./types";
 
 /**

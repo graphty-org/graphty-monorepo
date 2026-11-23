@@ -8,7 +8,7 @@ import { assert, it } from "vitest";
 
 import { Autosaver } from "../../src/autosave/Autosaver";
 import { memoryAutosaveStore } from "../../src/autosave/memoryStore";
-import { reopenFilterDrafts } from "../../src/session/visibility/VisibilityApi";
+import { reopenFilterDrafts } from "../../src/session/visibility/draftHooks";
 import { baseSession } from "../helpers/project-session";
 import { FakeClock, FakeLocks } from "./fakes";
 

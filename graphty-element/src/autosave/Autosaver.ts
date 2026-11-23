@@ -32,7 +32,7 @@ import { ELEMENT_VERSION } from "../session/runs";
 import type { CodedFact } from "../session/shared";
 import { openingKeptWork } from "../session/sources/references";
 import type { GraphSession, ProjectSlice } from "../session/types";
-import { filterDraftHooks, reopenFilterDrafts, type SavedFilterDraft } from "../session/visibility/VisibilityApi";
+import { filterDraftHooks, reopenFilterDrafts, type SavedFilterDraft } from "../session/visibility/draftHooks";
 import { wholeGraph } from "../session/working/graphs";
 import { buildParts, draftsOf, EVERY_PART, type PartTag, PartTooLarge, reassemble, stashOf } from "./parts";
 import {

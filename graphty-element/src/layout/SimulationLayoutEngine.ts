@@ -532,6 +532,8 @@ interface DrawnTransform {
     readonly center: readonly [number, number, number];
     readonly scale: number;
     readonly target: readonly [number, number, number];
+    /** Sent only: each batch draws its own landing fitted to this radius, and reports the center and scale it took. */
+    readonly fit?: number;
 }
 
 /**
@@ -896,6 +898,22 @@ export class SimulationLayoutEngine extends LayoutEngine {
     deviceEnvelope = true;
     /** The simulation's array was written by the element since the last landing, so a device measure no longer holds. */
     #adoptedSinceLanding = false;
+    /**
+     * Bumped by every change to the simulation's array that `#landed` does not count: an adoption, a placed node, a
+     * pre-step batch awaited by `stepAsync`.
+     */
+    #simWrites = 0;
+    /** The last fit's envelope and what it was measured over, so an accelerated fit with nothing new reuses it. */
+    #lastFit: {
+        envelope: LayoutEnvelope;
+        /** Measured over every row: a fit that left held rows out is no envelope for one that measures them all. */
+        whole: boolean;
+        landed: number;
+        simWrites: number;
+        radius: number | null;
+        simPositions: F32;
+        simulation: LayoutSimulation | null;
+    } | null = null;
     #landedPublished = 0;
 
     /** Set by `LayoutManager` while it is not stepping this layout. See {@link paused}. */
@@ -1363,6 +1381,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
         try {
             await this.#simulation.step(iterations);
         } finally {
+            // The batch rewrote the simulation's array without the frame loop's landing count seeing it.
+            this.#simWrites += 1;
             this.#syncWork();
         }
     }
@@ -1502,6 +1522,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const scale = this.#envelopeScale;
+        this.#simWrites += 1;
         this.#simulation?.setPosition(
             row,
             (p.x - this.#targetCentre[0]) / scale + this.#simCentre[0],
@@ -2015,14 +2036,23 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * Sends the transform the next batches draw with: the envelope last measured.
+     * Sends the transform the next batches draw with: the envelope last measured, and, when the publish fits every row
+     * the device measures, the radius each batch fits its own landing to on the card.
+     *
+     * FITTED ON THE CARD, NOT FROM THE LAST LANDING. A batch is sent before the landings ahead of it are published, so
+     * the envelope last measured is a landing or two old, and while ForceAtlas2 ramps its batches up the arrangement
+     * doubles over two batches: two landing in one frame drew the second twice the size the layout measures
+     * (issue #9665). Fitted to its own rows, every landing is drawn at the size `#fitEnvelope` measures for it.
      * @param run - The run.
      */
     #sendDrawnTransform(run: DrawnRun): void {
+        const radius = this.#fitRadius();
+        const fit = this.#fixedRows.size === 0 && this.deviceEnvelope && radius !== null ? radius : undefined;
         const transform: DrawnTransform = {
             center: [this.#simCentre[0], this.#simCentre[1], this.#simCentre[2]],
             scale: this.#envelopeScale,
             target: [this.#targetCentre[0], this.#targetCentre[1], this.#targetCentre[2]],
+            ...(fit === undefined ? {} : { fit }),
         };
         run.simulation.setDrawnTransform(transform);
         const last = run.unstepped.at(-1);
@@ -2110,8 +2140,18 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const radii = this.#collisionRadii(snapshot.nodeCount);
         const radius = this.#fitRadius();
         const measured =
+            this.#unchangedFit(held === null, radius, simPositions) ??
             (held === null && this.deviceEnvelope ? this.#deviceEnvelope(snapshot.nodeCount, radius) : null) ??
             this.#walkEnvelope(simPositions, snapshot.nodeCount, radius, held);
+        this.#lastFit = {
+            envelope: measured,
+            whole: held === null,
+            landed: this.#landed,
+            simWrites: this.#simWrites,
+            radius,
+            simPositions,
+            simulation: this.#simulation,
+        };
         this.#simBox = measured.box;
 
         // NOTHING LEFT TO MEASURE KEEPS THE LAST MAP rather than resetting it to the identity. A
@@ -2138,6 +2178,32 @@ export class SimulationLayoutEngine extends LayoutEngine {
         if (radii !== null) {
             this.#setCollision(radii, this.#envelopeScale);
         }
+    }
+
+    /**
+     * The last fit's envelope when nothing it measured has changed since, or null.
+     *
+     * AN ACCELERATED ARRAY CHANGES ONLY WHEN A BATCH LANDS OR THE ELEMENT WRITES IT, so a fit with neither since the
+     * last one would measure the same rows again. The device queue can run hundreds of frames behind the page, and
+     * every one of those frames walked every row before the first landing (issue #9627). A CPU simulation rewrites
+     * its array on every step, so it always measures.
+     * @param whole - Whether this fit measures every row (none held).
+     * @param radius - The scene-unit radius this fit is published at, or null.
+     * @param simPositions - The simulation's coordinates, three per row.
+     * @returns The envelope to reuse, or null to measure.
+     */
+    #unchangedFit(whole: boolean, radius: number | null, simPositions: F32): LayoutEnvelope | null {
+        const last = this.#lastFit;
+        const unchanged =
+            whole &&
+            this.#accelerated &&
+            last?.whole === true &&
+            last.landed === this.#landed &&
+            last.simWrites === this.#simWrites &&
+            last.radius === radius &&
+            last.simPositions === simPositions &&
+            last.simulation === this.#simulation;
+        return unchanged ? last.envelope : null;
     }
 
     /**
@@ -2761,6 +2827,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         this.#simPositions = simPositions;
         this.#adoptedSinceLanding = true;
+        this.#simWrites += 1;
 
         return simPositions;
     }

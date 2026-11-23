@@ -1999,7 +1999,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * A window input with its bounds filled: from the current window, else the first window.
+     * A window input with its bounds filled: from the current window, else the first window, whose
+     * `to` moves to one step after a given `from`.
      * @param input - The window as given.
      * @returns The input with both bounds.
      */
@@ -2009,15 +2010,23 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         }
 
         const defined = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
-        const base =
-            visibility.window ??
-            firstWindow({
-                ...(input.step === undefined ? {} : { step: input.step }),
-                ...(input.mode === undefined ? {} : { mode: input.mode }),
-                ...zoned(input.timeZone),
-            });
+        if (visibility.window !== null) {
+            return { ...visibility.window, ...defined };
+        }
 
-        return { ...base, ...defined };
+        const first = firstWindow({
+            ...(input.step === undefined ? {} : { step: input.step }),
+            ...(input.mode === undefined ? {} : { mode: input.mode }),
+            ...zoned(input.timeZone),
+        });
+        if (input.from === undefined) {
+            return { ...first, ...defined };
+        }
+
+        const from = numericBound(input.from, boundZone(input.attribute ?? first.attribute));
+        const to = addSteps(from, stepOf(first), 1, zoneOf(undefined, first));
+
+        return { ...first, ...defined, to };
     };
 
     /**
@@ -2535,10 +2544,16 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * @param current - The window now.
      * @param next - The settings.
      * @param newZone - The zone the call set, which replaces the window's own.
+     * @param newStep - Whether the call set the step; otherwise the window keeps its own.
      * @returns The window.
      */
-    const windowUnder = (current: TimeWindow, next: TimeSettings, newZone: string | undefined): TimeWindow => {
-        const step = next.step === "auto" || (isCalendarStep(next.step) && ordinal()) ? autoStep() : next.step;
+    const windowUnder = (
+        current: TimeWindow,
+        next: TimeSettings,
+        newZone: string | undefined,
+        newStep: boolean,
+    ): TimeWindow => {
+        const step = newStep || current.step === undefined ? stepFor(next.step) : current.step;
         const extent = extentNow() as TimeExtent;
         const from = boundOf(current, "from");
         const to = boundOf(current, "to");
@@ -2969,7 +2984,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             const drawingOnly = Object.keys(patch).every((key) => key === "ageFade" || key === "outside");
             const moved =
                 current !== null && extentNow() !== null && !drawingOnly
-                    ? windowUnder(current, next, patch.timeZone)
+                    ? windowUnder(current, next, patch.timeZone, patch.step !== undefined)
                     : null;
             const before = masksNow();
             // How what lies outside draws lives in the style layers, never in the playback.

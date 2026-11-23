@@ -14,8 +14,7 @@ import { findNodes } from "../../../src/ai/commands/QueryCommands";
 import { CONNECTED_BY_SYNTAX, nodeScopeOf, SELECTOR_SYNTAX } from "../../../src/ai/commands/selectors";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createCommandGraph } from "../../helpers/session-graph";
-import { createMockContext } from "../../helpers/test-graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 import { makeSession } from "../../session/helpers";
 
 describe("AI command selectors", () => {
@@ -30,7 +29,7 @@ describe("AI command selectors", () => {
             // A headless session has no camera; zoomToNodes only hands it the nodes it matched.
             renderer: { applyCameraView: () => Promise.resolve() },
         });
-        context = createMockContext(graph);
+        context = createCommandContext(graph);
     });
 
     it("findNodes and zoomToNodes match the same nodes for the same data. selector", async () => {
@@ -85,6 +84,21 @@ describe("AI command selectors", () => {
 
         assert.deepStrictEqual([...ends.nodes].sort(), ["a", "b"]);
         assert.deepStrictEqual([...servers.nodes], ["a"]);
+    });
+
+    // A rule reads a bare name as the data column of that name (rulePath, parsePath), and the
+    // help every selector parameter carries says so (#9654).
+    it("a bare data-column name matches what its data. path matches", async () => {
+        const bare = await findNodes.execute(graph, { selector: "type == 'server'" }, context);
+        const dotted = await findNodes.execute(graph, { selector: "data.type == 'server'" }, context);
+        const zoomed = await zoomToNodes.execute(graph, { selector: "age > `30`" }, context);
+
+        assert.deepStrictEqual((bare.data as { nodeIds: string[] }).nodeIds, ["node-0", "node-2", "node-4"]);
+        assert.deepStrictEqual(
+            (bare.data as { nodeIds: string[] }).nodeIds,
+            (dotted.data as { nodeIds: string[] }).nodeIds,
+        );
+        assert.deepStrictEqual(zoomed.affectedNodes, ["node-4", "node-5"]);
     });
 
     // A bare name the graph carries as a data column reads that column, as a style rule reads it

@@ -18,7 +18,7 @@ import { z } from "zod";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
 import { resolveLayoutWeight } from "../algorithms/input/weight";
-import { LAYOUT_DESCRIPTORS, layoutAlias, layoutDescriptor } from "../catalog/layouts";
+import { layoutAlias, layoutDescriptor } from "../catalog/layouts";
 import { resolveOptionValues } from "../catalog/options";
 import type { AuthoredLayoutDescriptor, Scope, ScopeInput } from "../catalog/types";
 import type { GraphLayoutBehavior } from "../config/GraphBehavior";
@@ -59,6 +59,7 @@ import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
 import type { RowExtent as TableExtent } from "../render/RowTable";
+import { unknownLayout } from "../session/commands/layout";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
 import type { LayoutMotion } from "../session/types";
@@ -443,28 +444,6 @@ function ignoredOptions(
     ];
     const options = Object.keys(passed).filter((name) => !available.includes(name) && (lenient || name === "seed"));
     return options.length > 0 ? { options, available } : undefined;
-}
-
-/**
- * The refusal for a layout name nothing answers to.
- *
- * It used to be a bare `TypeError` whose message a consumer had to read to find out what had gone
- * wrong, and which said nothing about what could have been asked for instead.
- * @param type - The name that was asked for.
- * @returns The error to throw.
- */
-function unknownLayout(type: string): GraphtyError {
-    return new GraphtyError({
-        code: "E_UNKNOWN_LAYOUT",
-        message: `no layout named "${type}" is registered`,
-        source: "layout",
-        details: {
-            layout: type,
-            available: [
-                ...new Set([...LayoutEngine.getRegisteredTypes(), ...LAYOUT_DESCRIPTORS.map((entry) => entry.id)]),
-            ],
-        },
-    });
 }
 
 /** How one engine build is carried out. */

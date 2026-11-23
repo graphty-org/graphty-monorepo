@@ -105,6 +105,17 @@ export interface RowExtent {
     border: number;
 }
 
+/**
+ * A row's measure as the CPU took it, when the row table's 32-bit copy is that measure rounded: the object path
+ * works in the doubles it measured, and a last bit of difference moves a trimmed edge end by a pixel (#6287).
+ * @param stored - What the row table holds.
+ * @param measured - What the row measured when it was written, or null.
+ * @returns The measure, or what the table holds when it holds something else (a shrink part of the way).
+ */
+export function exactOf(stored: number, measured: number | null): number {
+    return measured !== null && Math.fround(measured) === stored ? measured : stored;
+}
+
 /** One float texture and the CPU copy it is uploaded from. */
 class RowTexture {
     floats: Float32Array<ArrayBuffer>;
@@ -813,6 +824,23 @@ export class RowTable {
      */
     seenThrough(row: number): boolean {
         return ((this.extents.floats[row * EXTENT_FLOATS + 3] ?? 0) & ROW_EXTENT_SEEN_THROUGH) !== 0;
+    }
+
+    /**
+     * {@link RowTable.extentOf} in the doubles a row's own measure gives, where the table holds them rounded: a row
+     * drawn with no `Node` trims its edges from these, as a `Node` does from its own (#6287).
+     * @param row - The row and its measure.
+     * @returns Its extent.
+     */
+    exactExtentOf(row: RowMeasure): RowExtent {
+        const stored = this.extentOf(row.index);
+        const { round, half } = stored;
+        const measured = row.drawnHalfExtents;
+        return {
+            ...stored,
+            round: round === null ? null : exactOf(round, row.roundRadius),
+            half: { x: exactOf(half.x, measured.x), y: exactOf(half.y, measured.y), z: exactOf(half.z, measured.z) },
+        };
     }
 
     /**

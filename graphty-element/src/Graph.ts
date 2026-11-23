@@ -249,6 +249,7 @@ import {
     type ModelPreviewOptions,
     PreviewEngines,
 } from "./meshes/ModelPreview";
+import { drawLast } from "./meshes/moveInstance";
 import { type ColumnRow, NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
@@ -1886,6 +1887,7 @@ export class Graph implements GraphContext {
         this.updateManager.fitAnnotations = () => {
             this.#annotations?.refit();
         };
+        this.updateManager.annotationMeshes = () => this.#annotations?.placedMeshes ?? [];
         this.updateManager.picturesLoading = () =>
             this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
         // Late-bound: a change of renderer replaces the render manager.
@@ -5640,11 +5642,6 @@ export class Graph implements GraphContext {
                 },
                 this.scene,
             );
-            // A node whose mesh was read on the objects path shares its look's source, which the batch hides.
-            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
-                node.holdOffBatch();
-            }
-
             this.#edgeRowLines = new EdgeRowLines({
                 scene: this.scene,
                 cache: this.dataManager.meshCache,
@@ -5692,6 +5689,11 @@ export class Graph implements GraphContext {
             this.#edgeRowLines = null;
             this.#nodeBatches.dispose();
             this.#nodeBatches = null;
+            const nodes = [...dataManagerInternals.builtNodes(this.dataManager)];
+            // Translucent instances blend in the order the scene lists them: in row order, as the objects path
+            // builds them, not with the Nodes built under batches (a read, a hover) before the rest.
+            nodes.sort((a, b) => a.index - b.index);
+            drawLast(nodes.flatMap((node) => node.drawnPickMesh ?? []));
         }
 
         // Plain edges are pulled on "batched" (`Edge.pullsLine`): repaint them when that changes.
@@ -8503,6 +8505,9 @@ export class Graph implements GraphContext {
                 this.renderManager.requestFrame();
             },
             () => this.session.styles.legend(),
+            () => {
+                this.renderManager.drawNow();
+            },
         );
         // Under antialias "at-rest" a screenshot is the multisampled picture, moving or not.
         const release = this.renderManager.holdSmooth();
@@ -9345,6 +9350,11 @@ export class Graph implements GraphContext {
      * reads `position`, `target`, `alpha`, `beta`, `radius`, `pivotRotation`, `cameraDistance` and
      * `fov`). `{}` fits both and changes nothing. A named view resolves first and is judged as the
      * state it resolves to.
+     *
+     * A 2D `zoom` never depends on the data: the same zoom draws the same half-width however the
+     * graph grows. The camera stays where it is placed until the next node add, load or layout
+     * change, which the element frames again on its own while auto-framing is on (see
+     * {@link setAutoFrame}); a caller that drives the camera while the data grows turns it off.
      * @param state - Camera state or preset name to apply
      * @param options - Optional animation configuration
      * @returns Settles once the camera has arrived.

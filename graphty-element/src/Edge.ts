@@ -4910,7 +4910,7 @@ export class Edge {
         const row = this.columnEnd(end);
         const table = row === undefined ? null : (this.context.getRowTable?.() ?? null);
         if (row !== undefined && table !== null) {
-            return surfaceReach(direction, table.extentOf(row.index).half, null);
+            return surfaceReach(direction, table.exactExtentOf(row).half, null);
         }
 
         return Edge.boxReachOf(end === "source" ? this.srcNode : this.dstNode, direction);
@@ -6623,7 +6623,7 @@ export class Edge {
         const nodeOf = (end: "source" | "target"): Node => (end === "source" ? this.srcNode : this.dstNode);
         const radiusOf = (end: "source" | "target"): number | null => {
             const row = column(end);
-            return row !== undefined && table !== null ? table.extentOf(row.index).round : nodeOf(end).roundRadius;
+            return row !== undefined && table !== null ? table.exactExtentOf(row).round : nodeOf(end).roundRadius;
         };
         const src = this.endPosition("source");
         const dst = this.endPosition("target");
@@ -6633,7 +6633,7 @@ export class Edge {
             if (row !== undefined && table !== null) {
                 // as `Node` measures a batched node, from the row table: a row drawn with no `Node` has no border,
                 // no glyph and no model (`ColumnRow.drawable`)
-                const { round, half } = table.extentOf(row.index);
+                const { round, half } = table.exactExtentOf(row);
                 const leaves = row.shapeType === "none";
                 const closed =
                     leaves ||

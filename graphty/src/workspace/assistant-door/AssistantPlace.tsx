@@ -2,7 +2,7 @@ import React, { Suspense, useEffect, useState } from "react";
 
 import { keptPlace } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { assistantOn, assistantShown } from "./commands";
+import { assistantShown } from "./commands";
 
 type PanelModule = typeof import("../assistant/AssistantPanel");
 /** The panel's code once it is in. */
@@ -52,23 +52,15 @@ export function AiProviderPage({
 }
 
 /**
- * The Assistant place: its panel while the element has the experiment on, nothing until the element
- * reports, and the Graph place when it reports off (a tab reloaded without `?features=assistant`
- * keeps this place in session storage).
+ * The Assistant place: its panel, or nothing until the element has come up.
  * @returns The panel, or nothing
  */
 export function AssistantPlace(): React.JSX.Element | null {
     const { element, store } = useWorkspace();
-    const on = assistantOn(element);
     // Code already in is drawn at once: a lazy component suspends on its first render even then,
     // and React holds a suspended reveal back about 300 ms, a gap in which the rail marks the place
     // and a click on it closes a panel the reader never saw. Chosen once, so the panel never remounts.
     const [Panel] = useState(() => loaded ?? AssistantPanel);
-    useEffect(() => {
-        if (on === false) {
-            store.set({ place: "graph" });
-        }
-    }, [on, store]);
     // A Talk press lasts as long as the place: one left waiting would open the microphone later.
     useEffect(
         () => () => {
@@ -78,9 +70,9 @@ export function AssistantPlace(): React.JSX.Element | null {
         },
         [store],
     );
-    return on === true ? (
+    return element === null ? null : (
         <Suspense fallback={null}>
             <Panel />
         </Suspense>
-    ) : null;
+    );
 }

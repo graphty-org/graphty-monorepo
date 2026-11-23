@@ -26,7 +26,7 @@ const APPLY = { tool: "style", args: { action: "apply_suggestion", run: "degree"
  * @returns The assistant.
  */
 async function assistant(): Promise<ScriptedAssistant> {
-    return new ScriptedAssistant(await assistantSession(undefined, ["assistant"]), { history: "memory", gate: false });
+    return new ScriptedAssistant(await assistantSession(), { history: "memory", gate: false });
 }
 
 /**

@@ -417,8 +417,9 @@ A session of tier 6 (a folder under `tier6/`, or `REAL_TIER=6`) runs the same pr
 the Assistant on and a real model behind it. Nothing changes for any other tier: production's `site.json`, no
 network route, and the warm pool as before. The code is in `tier6.mjs`.
 
-- **The flag.** The session's own server answers `/site.json` with `{ "features": ["assistant"] }`,
-  so the rail shows Assistant with nothing in the page address and no site chip. The app reads that
+- **The flag.** The session's own server answers `/site.json` with `{ "features": ["assistant"] }`.
+  Since the assistant graduated (2026-11-22, issue #9670) that id is accepted and changes nothing,
+  and the rail shows Assistant on every site; before, it was what made the rail show Assistant with nothing in the page address and no site chip. The app reads that
   file once, when it loads, and a warm browser loaded it before it had a session, so a tier 6 session
   never takes a warm browser and never starts one: it always starts cold. Check a takeover with no
   `REAL_TIER` set.

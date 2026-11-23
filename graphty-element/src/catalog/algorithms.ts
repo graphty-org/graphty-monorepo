@@ -1351,7 +1351,6 @@ export function algorithmKeyOf(
  * @param tool - The call's tool.
  * @param args - The call's arguments.
  * @returns The descriptor, or undefined when the call runs none.
- * @experimental assistant
  */
 export function calledAlgorithm(
     tool: string,

@@ -4632,8 +4632,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     const engine = query;
 
-    // Settled on first asking, as the session's `features` is.
-    let peekable: boolean | undefined;
     let peekLayers: readonly ElementLayerSpec[] = NO_LAYERS;
     selection = createSelectionApi({
         snapshot,
@@ -4734,10 +4732,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             peekLayers = peeked === null ? NO_LAYERS : peekLayersOf(peeked);
             advanceTick();
             repaintPeek(dirty);
-        },
-        canPeek: () => {
-            peekable ??= resolveFeatures(options.features?.()).has("assistant");
-            return peekable;
         },
         // The origin moved with no member: `selection:changed` stays a membership event, so the
         // origin has its own.

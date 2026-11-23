@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormatsModule from "ajv-formats";
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import type { RunId } from "../../../src/catalog/types";
@@ -164,6 +164,28 @@ function isEdgeRef(value: unknown): boolean {
 const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 describe("a version 1 project file, migrated", () => {
+    it("reads a session layout named by its engine as the arrangement, the engine's own options in drawnBy", async () => {
+        const session = await baseSession();
+        const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
+        const member = (v1.members as JsonObject[]).find((each) => each.kind === "graphty-session");
+        assert.isDefined(member);
+        member.layout = { id: "ngraph", options: { seed: 3, springLength: 20 }, dimension: "3d" };
+        const v2 = migrateDocument1(v1, []);
+        const { view } = v2?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(view), []);
+        const { engine, ...layout } = view.layout as JsonObject;
+        // Only the release that saved the file is known: no other package, no accelerator.
+        const { version } = v1.generator as { version: string };
+        assert.deepStrictEqual(engine, { packages: { "@graphty/graphty-element": version } });
+        assert.deepStrictEqual(layout, {
+            id: "force",
+            options: { seed: 3 },
+            drawnBy: { engine: "ngraph", options: { springLength: 20 } },
+            dimension: 3,
+        });
+        session.dispose();
+    });
+
     it("is a version 2 full file every section of which validates, each reported as upgraded", async () => {
         const session = await busySession();
         const { v2, sections, problems } = await migrated(session);
@@ -197,13 +219,13 @@ describe("a version 1 project file, migrated", () => {
         const keyOf = new Map(graph.nodes.map((node) => [node.id, node["graphty.key"]]));
         const ends = new Map(
             graph.links.map((link) => [
-                `${String(link["graphty.load"])}#${String(link["graphty.key"])}`,
+                `${String(link["graphty.load"])} ${String(link["graphty.key"])}`,
                 `${String(keyOf.get(link.source))}>${String(keyOf.get(link.target))}`,
             ]),
         );
         const endsOf = (ref: unknown): string | undefined => {
             const { load, key } = ref as { load: string; key: string };
-            return ends.get(`${load}#${key}`);
+            return ends.get(`${load} ${key}`);
         };
 
         // The selection named the edge at position 1 of `links`: b to c.
@@ -211,6 +233,8 @@ describe("a version 1 project file, migrated", () => {
         assert.lengthOf(selected, 1);
         assert.isTrue(isEdgeRef(selected[0]));
         assert.strictEqual(endsOf(selected[0]), "b>c");
+        // A link with no id is keyed by its ends, numbered over the links between them in order.
+        assert.strictEqual((selected[0] as { key: string }).key, "b|c#1");
 
         // Each run's edge values, by position in version 1, are now by reference, each an edge the data holds.
         const run = (results.runs as Record<string, { edges: { refs: unknown[] }; bindsTo: JsonObject }>).reader__links;
@@ -291,8 +315,10 @@ describe("a version 1 project file, migrated", () => {
             [["reader__links", "degree", "graph"]],
         );
         assert.include(view.layout as JsonObject, { dimension: 3 });
+        assert.notProperty(view.layout as JsonObject, "algorithm");
         assert.isUndefined(sections.recipe);
-        assert.strictEqual(settings.settings && (settings.settings as JsonObject)["layoutBehavior.preSteps"], 0);
+        assert.strictEqual((settings.settings as JsonObject).layoutStepsBeforeDraw, 0);
+        assert.notProperty(settings.settings as JsonObject, "layoutBehavior.preSteps");
 
         // Base64 columns are plain numbers; the pinned node is pinned, the rest is the layout's output.
         assert.deepStrictEqual(view.pinned, [{ node: { space, key: "a" }, position: { x: 1, y: 2, z: 3 } }]);
@@ -306,7 +332,7 @@ describe("a version 1 project file, migrated", () => {
         session.dispose();
     });
 
-    it("keys a file's loads, keeps their records, and keys its keyless rows by copy id and row", async () => {
+    it("keys a file's loads, keeps their records, and keys its keyless rows by their ends", async () => {
         const session = sessionWithRuns();
         await session.data.import({ type: "gml", config: { data: GML } });
         const { v1, sections } = await migrated(session);
@@ -315,9 +341,8 @@ describe("a version 1 project file, migrated", () => {
         const metadata = source.metadata as { "version-1": { loads: JsonObject } };
         const v1Sources = (v1.members as JsonObject[]).find((member) => member.kind === "graphty-sources");
         assert.deepStrictEqual(metadata["version-1"].loads, v1Sources);
-        const copy = String((source.origin as JsonObject).copy);
 
-        // Two parallel b-c edges, told apart by their rows. The graph is undirected and a multigraph.
+        // Two parallel 2-3 edges, told apart by their number. The graph is undirected and a multigraph.
         const graph = sections.data.graph as JsonObject;
         assert.isFalse(graph.directed);
         assert.isTrue(graph.multigraph);
@@ -327,9 +352,63 @@ describe("a version 1 project file, migrated", () => {
         );
         assert.deepStrictEqual(
             (graph.links as JsonObject[]).map((link) => link["graphty.key"]),
-            [`${copy}#0`, `${copy}#1`, `${copy}#2`],
+            ["1|2#1", "2|3#1", "2|3#2"],
         );
         session.dispose();
+    });
+
+    it("migrates a network load to one derived source with no format, options or ledger", async () => {
+        const url = "https://files.example.com/data/graph.csv";
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response("source,target\nAva,Ben\n", { status: 200 })));
+        try {
+            const session = createGraphSession(ON);
+            await session.data.import({ source: "url", config: { url } });
+            const { v1, sections } = await migrated(session);
+            assert.isDefined((v1.members as JsonObject[]).find((member) => member.kind === "graphty-sources"));
+            assert.deepStrictEqual(invalid(sections.data), []);
+            const loaded = (sections.data.sources as JsonObject[]).filter((source) => source.kind !== "reader");
+            assert.lengthOf(loaded, 1);
+            const [source] = loaded;
+            assert.strictEqual(source.kind, "derived");
+            assert.notProperty(source, "format");
+            assert.notProperty(source, "options");
+            assert.notProperty(source.origin as JsonObject, "ledger");
+            session.dispose();
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("opens a run of the version 1 key scc as components with strength strong, and saves components", async () => {
+        const session = await baseSession();
+        await session.runs.start("components", { strength: "strong" }, { as: "parts", style: false });
+        const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
+        session.dispose();
+        const runs = (v1.members as JsonObject[]).flatMap((member) =>
+            Array.isArray(member.runs) ? (member.runs as JsonObject[]) : [],
+        );
+        assert.isNotEmpty(runs);
+        for (const run of runs) {
+            run.algorithm = "scc";
+            delete (run.params as JsonObject).strength;
+        }
+
+        const reader = sessionWithRuns(ON.features);
+        const report = await reader.project.open(JSON.stringify(v1), { migrate: true });
+        assert.include(
+            report.problems.map((problem) => problem.code),
+            "W_NAME_UPGRADED",
+        );
+        const [run] = reader.runs.list();
+        assert.strictEqual(run.algorithm, "components");
+        assert.strictEqual(run.params.strength, "strong");
+        const saved = JSON.parse((await reader.project.save({ format: 2 })).text) as JsonObject;
+        const { view } = saved.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(
+            (view.runs as JsonObject[]).map((record) => record.algorithm),
+            ["components"],
+        );
+        reader.dispose();
     });
 
     it("writes the same file every time, so its ids and references are stable", async () => {
@@ -487,6 +566,40 @@ describe("a version 1 document of one kind, migrated", () => {
         });
     });
 
+    it("writes version 1 expressions and rootless paths the way version 2 reads them", () => {
+        const set = { "node.color": "#123456" };
+        const layers = [
+            { name: "P", selector: { match: "expression", where: "padj < 0.05" }, set },
+            { name: "Q", selector: { match: "expression", where: "confidence >= 0.4 && data.x == true" }, set },
+            {
+                name: "S",
+                selector: { match: "everything" },
+                encode: { "node.size": { by: "score", scale: "linear" } },
+                source: { by: "run", runId: "reader__links", algorithm: "degree" },
+            },
+            { name: "U", selector: { match: "expression", where: "data.a[0] == 1" }, set },
+        ];
+        const v2 = migrateDocument1({ kind: "graphty-style", version: 1, layers }, []);
+        const { style } = v2?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(style), []);
+        const [p, q, scored, unparsed] = style.layers as JsonObject[];
+        assert.deepEqual(p.selector, { match: "expression", where: "data.padj < `0.05`" });
+        assert.deepEqual(q.selector, { match: "expression", where: "data.confidence >= `0.4` && data.x == true" });
+        assert.deepEqual(scored.encode, { "node.size": { by: "data.score", scale: "linear" } });
+        assert.strictEqual((scored.source as JsonObject).by, "run");
+        assert.deepEqual(unparsed.selector, { match: "expression", where: "data.a[0] == 1" }, "carried as written");
+
+        const recipe = migrateDocument1(
+            { kind: "graphty-recipe", version: 1, commands: [{ op: "graph.filter", where: "padj < 0.05" }] },
+            [],
+        )?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(recipe.recipe), []);
+        assert.deepEqual((recipe.recipe.commands as JsonObject[])[0], {
+            op: "graph.filter",
+            where: "data.padj < `0.05`",
+        });
+    });
+
     it("keeps a version 1 recipe's id, drops its recipeVersion, and writes every run's style", () => {
         const v2 = migrateDocument1(
             {
@@ -503,9 +616,147 @@ describe("a version 1 document of one kind, migrated", () => {
         );
         const { recipe } = v2?.sections as Record<string, JsonObject>;
         assert.deepStrictEqual(invalid(recipe), []);
+        assert.deepStrictEqual((recipe.commands as JsonObject[])[1], { op: "layout.set", id: "force", dimension: 3 });
         assert.deepInclude(recipe, { id: "org.example.hubs" });
         assert.notProperty(recipe, "revision");
         assert.deepStrictEqual((recipe.commands as JsonObject[])[0].style, true);
+    });
+
+    it("keeps a version 1 recipe's unknown op that says narrows: false, and the replay goes on past it", async () => {
+        const v1 = {
+            kind: "graphty-recipe",
+            version: 1,
+            commands: [
+                { op: "org.example.motif-census", as: "motifs", narrows: false },
+                { op: "algo.run", algorithm: "degree", as: "hubs" },
+            ],
+        };
+        const v2 = migrateDocument1(structuredClone(v1), []);
+        const { recipe } = v2?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(recipe), []);
+        assert.deepStrictEqual((recipe.commands as JsonObject[])[0], v1.commands[0]);
+
+        const session = await baseSession(["save-files-v2"]);
+        const report = await session.recipes.apply(JSON.stringify(v1));
+        assert.deepInclude(
+            report.problems.map((problem) => problem.code),
+            "E_UNKNOWN_COMMAND",
+        );
+        assert.isTrue(
+            session.runs.list().some((run) => run.id.endsWith("__hubs")),
+            "the algo.run after it ran",
+        );
+        session.dispose();
+    });
+
+    it("carries terse run params and layout options as read; a save after the open writes them resolved", async () => {
+        const v1 = {
+            kind: "graphty-recipe",
+            version: 1,
+            commands: [
+                { op: "algo.run", algorithm: "pagerank", as: "rank", params: { dampingFactor: 0.5 } },
+                { op: "layout.set", id: "force", dimension: 3, options: { seed: 3 } },
+            ],
+        };
+        const v2 = migrateDocument1(structuredClone(v1), []);
+        const { recipe } = v2?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(recipe), []);
+        const commands = recipe.commands as JsonObject[];
+        assert.deepStrictEqual(commands[0].params, { dampingFactor: 0.5 });
+        assert.deepStrictEqual(commands[1].options, { seed: 3 });
+
+        const session = await baseSession(["save-files-v2"]);
+        await session.recipes.apply(JSON.stringify(v1));
+        const saved = JSON.parse((await session.project.save({ format: 2, rewriteRecipe: true })).text) as JsonObject;
+        const sections = saved.sections as Record<string, JsonObject>;
+        const written = (sections.recipe.commands as JsonObject[]).filter((command) => command.op !== "graph.filter");
+        const rank = written.find((command) => command.op === "algo.run");
+        assert.deepStrictEqual(rank?.params, {
+            dampingFactor: 0.5,
+            directed: true,
+            maxIterations: 100,
+            tolerance: 0.000001,
+            useDelta: true,
+        });
+        const layout = written.find((command) => command.op === "layout.set") as JsonObject;
+        const options = layout.options as JsonObject;
+        const engines = (layout.drawnBy as JsonObject).options as JsonObject;
+        assert.strictEqual(options.seed, 3);
+        assert.include(Object.keys(engines), "springLength", "the engine's defaults are written");
+        assert.notProperty(options, "dim", "the dimension says it");
+        session.dispose();
+    });
+
+    it("reads a version 1 layout named by a deprecated name as its arrangement, the engine in drawnBy", () => {
+        const v2 = migrateDocument1(
+            { kind: "graphty-recipe", version: 1, commands: [{ op: "layout.set", id: "force-2d" }] },
+            [],
+        );
+        const { recipe } = v2?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(recipe), []);
+        assert.deepStrictEqual((recipe.commands as JsonObject[])[0], {
+            op: "layout.set",
+            id: "force",
+            drawnBy: { engine: "arf" },
+            dimension: 3,
+        });
+    });
+
+    it("writes each saved view's camera as the neutral pose, with no camera state members", async () => {
+        const session = await baseSession();
+        const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
+        const member = (v1.members as JsonObject[]).find((each) => each.kind === "graphty-session");
+        assert.isDefined(member);
+        member.views = [
+            {
+                // What getCameraState gives: the orbit pivot beside a position an inset shifted.
+                name: "Orbit",
+                camera: {
+                    mode: "3d",
+                    type: "arcRotate",
+                    position: { x: 50, y: 50, z: 50 },
+                    target: { x: 0, y: 0, z: 0 },
+                    pivotRotation: { x: 0, y: Math.PI, z: 0 },
+                    cameraDistance: 10,
+                    fov: 0.8,
+                },
+            },
+            { name: "Flat", camera: { pan: { x: 1, y: 2 }, zoom: 2, rotation: 0.4 } },
+            { name: "Angles", camera: { alpha: 0, beta: Math.PI / 2, radius: 4, target: { x: 1, y: 0, z: 0 } } },
+            { name: "Zoom only", camera: { zoom: 2 } },
+        ];
+        const v2 = migrateDocument1(v1, []);
+        const { view } = v2?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(view), []);
+        const [orbit, flat, angles, ...rest] = view.views as { name: string; camera: JsonObject }[];
+        assert.deepStrictEqual(Object.keys(orbit.camera), [
+            "dimension",
+            "controller",
+            "position",
+            "target",
+            "up",
+            "fov",
+        ]);
+        assert.include(orbit.camera, { dimension: 3, controller: "orbit", fov: 0.8 });
+        // Yaw pi puts the eye on +z of the target: target - 10 * (0, 0, -1).
+        const position = orbit.camera.position as { x: number; y: number; z: number };
+        assert.closeTo(position.x, 0, 1e-9);
+        assert.closeTo(position.y, 0, 1e-9);
+        assert.closeTo(position.z, 10, 1e-9);
+        assert.deepStrictEqual(flat.camera, {
+            dimension: 2,
+            controller: "2d",
+            center: { x: 1, y: 2 },
+            halfWidth: 2.5,
+            rotation: 0.4,
+        });
+        const eye = angles.camera.position as { x: number; y: number; z: number };
+        assert.closeTo(eye.x, 5, 1e-9);
+        assert.closeTo(eye.y, 0, 1e-9);
+        assert.closeTo(eye.z, 0, 1e-9);
+        assert.notProperty(angles.camera, "fov", "version 1 had none");
+        assert.deepStrictEqual(rest, [], "a 2D zoom with no pan has no center, so it is left out");
+        session.dispose();
     });
 
     it("leaves alone what it does not migrate: a data file, an unknown kind, a version 2 file, notes with no data", () => {
@@ -622,6 +873,71 @@ describe("version 1 weight, time and location settings", () => {
         assert.notInclude(leftOut, "/config/data/knownFields/nodeTimePath");
         assert.notInclude(leftOut, "/config/data/knownFields/edgeWeightMeaning");
         session.dispose();
+    });
+});
+
+describe("the x, y and z position roles in a version 2 file", () => {
+    const POINTS = "id,px,py,pz\na,1,2,3\nb,10,0,0\n";
+
+    /**
+     * A version 2 save of the points, with the position roles when asked.
+     * @param roles - Whether to give px, py and pz the x, y and z roles.
+     * @returns The saved text and the node mapping of its source.
+     */
+    async function savedPoints(roles: boolean): Promise<{ text: string; nodes: JsonObject }> {
+        const session = createGraphSession(ON);
+        const draft = await session.data.prepare({ type: "csv", config: { data: POINTS }, name: "points.csv" });
+        await draft.load({ mapping: { rowsAre: "nodes", key: "id" } });
+        if (roles) {
+            await session.data.setRole({ kind: "node", name: "px" }, "x");
+            await session.data.setRole({ kind: "node", name: "py" }, "y");
+            await session.data.setRole({ kind: "node", name: "pz" }, "z");
+        }
+        const { text } = await session.project.save({ format: 2 });
+        session.dispose();
+        const { data } = (JSON.parse(text) as JsonObject).sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(data), []);
+        const source = (data.sources as JsonObject[]).find((each) => each.kind !== "reader") as JsonObject;
+        return { text, nodes: (source.mapping as JsonObject).nodes as JsonObject };
+    }
+
+    /**
+     * Open a version 2 file, keeping its recipe unapplied as every open does.
+     * @param text - The file.
+     * @returns The session and the problems other than the recipe kept unapplied.
+     */
+    async function reopen(text: string): Promise<{ opened: GraphSession; problems: unknown[] }> {
+        const opened = createGraphSession(ON);
+        const report = await opened.project.open(text);
+        return { opened, problems: report.problems.filter((each) => each.code !== "W_RECIPE_NOT_APPLIED") };
+    }
+
+    it("are written as the source's roles, and reopen placing the nodes there", async () => {
+        const { text, nodes } = await savedPoints(true);
+        assert.deepInclude(nodes, { x: "px", y: "py", z: "pz" });
+
+        const { opened, problems } = await reopen(text);
+        assert.deepEqual(problems, []);
+        const known = opened.config.data.knownFields as Record<string, unknown>;
+        assert.deepInclude(known, { nodeXPath: "px", nodeYPath: "py", nodeZPath: "pz" });
+        const out = { x: 0, y: 0, z: 0 };
+        opened.positions.read(opened.data.snapshot().ids.indexOf("a"), out);
+        assert.deepStrictEqual([out.x, out.y, out.z], [1, 2, 3]);
+        opened.dispose();
+    });
+
+    it("are absent from a file without them, which opens with none set", async () => {
+        const { text, nodes } = await savedPoints(false);
+        for (const role of ["x", "y", "z"]) {
+            assert.notProperty(nodes, role);
+        }
+        const { opened, problems } = await reopen(text);
+        assert.deepEqual(problems, []);
+        const known = opened.config.data.knownFields as Record<string, unknown>;
+        for (const field of ["nodeXPath", "nodeYPath", "nodeZPath"]) {
+            assert.notOk(known[field], field);
+        }
+        opened.dispose();
     });
 });
 

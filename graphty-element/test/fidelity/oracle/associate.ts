@@ -817,7 +817,7 @@ export function measureArrow(
     }
     dx /= len;
     dy /= len;
-    [dx, dy] = capAxis(outline, pts, [dx, dy]);
+    [dx, dy] = stubAxis(outline, pts, [dx, dy]) ?? capAxis(outline, pts, [dx, dy]);
     const along = outline.map(([x, y]) => x * dx + y * dy);
     const across = outline.map(([x, y]) => -x * dy + y * dx);
     const at = areaCentroid(outline) ?? [cx(box), cy(box)];
@@ -890,6 +890,42 @@ function shapeAlong(outline: readonly Pt[], pieces: readonly (readonly Pt[])[] |
 /** The least distance a line's end direction is read over: past a coordinate's rounding. */
 const END_RUN = 1;
 
+/** How far a point of a cap may lie from its mirror image across an axis for the cap to be symmetric about it, px. */
+const MIRROR_PX = 0.5;
+
+/**
+ * The direction of a line's last step when that step is shorter than END_RUN and turns across the run before it, and the
+ * cap on the end lies behind the end and mirrors itself across the step: yEd clips a line at its node's outline and
+ * aims the head along the line's last leg into the node, so a route run along the node's border and then into it
+ * leaves only a hair of that leg (gml-synthetic-coverage 27->28: along the bottom of v26, then 0.02 px up into it, the
+ * convex head under it pointing up). Read along the run before it, the head is lopsided.
+ * @param outline - the cap's points
+ * @param pts - the line, its end last
+ * @param dir - the line's unit end direction over its run
+ * @returns the step's unit direction, or null where the cap is read along the run
+ */
+function stubAxis(outline: readonly Pt[], pts: readonly Pt[], dir: Pt): Pt | null {
+    const end = pts.at(-1);
+    const from = [...pts].reverse().find((q) => end !== undefined && (q[0] !== end[0] || q[1] !== end[1]));
+    if (end === undefined || from === undefined || outline.length < 3) {
+        return null;
+    }
+    const step = Math.hypot(end[0] - from[0], end[1] - from[1]);
+    const axis: Pt = [(end[0] - from[0]) / step, (end[1] - from[1]) / step];
+    // a turn of under 45 degrees is the run's own direction, read well enough along the run; one of over 135 is a step
+    // back, a rounding of where a curve ends (dot-real-depcruise: 0.0006 px back along a Graphviz spline)
+    if (step >= END_RUN || Math.abs(axis[0] * dir[0] + axis[1] * dir[1]) > Math.SQRT1_2) {
+        return null;
+    }
+    const behind = outline.every(([x, y]) => (x - end[0]) * axis[0] + (y - end[1]) * axis[1] <= ON_LINE_PX);
+    const mirrored = outline.every(([x, y]) => {
+        const off = -(x - end[0]) * axis[1] + (y - end[1]) * axis[0];
+        const [mx, my] = [x + 2 * off * axis[1], y - 2 * off * axis[0]];
+        return outline.some(([u, v]) => Math.hypot(u - mx, v - my) <= MIRROR_PX);
+    });
+    return behind && mirrored ? axis : null;
+}
+
 /**
  * The centroid of a closed outline's area (shoelace), which a point repeated or a side sampled more finely than
  * another does not move.
@@ -939,6 +975,10 @@ function capRun(pts: readonly Pt[], outline: readonly Pt[]): [Pt, Pt] | undefine
         return [near, end];
     }
     const box = boxOfPoints(outline);
+    const corner = lastLegUnder(pts, box);
+    if (corner !== undefined) {
+        return [corner, end];
+    }
     const half = Math.max(bw(box), bh(box), END_RUN) / 2;
     const mid = areaCentroid(outline) ?? [cx(box), cy(box)];
     const gap = pts.map(([x, y]) => Math.hypot(x - mid[0], y - mid[1]));
@@ -946,6 +986,59 @@ function capRun(pts: readonly Pt[], outline: readonly Pt[]): [Pt, Pt] | undefine
     const before = endBack(pts.slice(0, at + 1), half) ?? pts[0];
     const after = endBack([...pts.slice(at)].reverse(), half) ?? end;
     return [before, after];
+}
+
+/** The most a straight leg's steps may turn off its last step, in radians: a coordinate's rounding along it. */
+const LEG_TURN = Math.PI / 18;
+
+/** The least a line turns under a cap, in radians, into the leg it ends on, for that leg to aim the cap. */
+const CORNER_TURN = Math.PI / 4;
+
+/**
+ * Where the straight leg a line ends on starts, when the line turns a corner under a cap on its end into that leg and
+ * the leg is at least END_RUN long: a program aims a head along the line's last leg however short it is (yEd's white
+ * diamond on gml-synthetic-coverage 39->50, its line turning down into the node 1 px before its end, under the head's
+ * middle; graphty's head on 19->30, past a corner rounded in steps of a few degrees), where a chord across the cap
+ * would run along the leg before the corner. A curve that bends gently under its cap has no such corner.
+ * @param pts - the line, its end last
+ * @param box - the cap's box
+ * @returns the leg's start, or undefined for no corner under the cap
+ */
+function lastLegUnder(pts: readonly Pt[], box: PBox): Pt | undefined {
+    // the points that differ from the one after them, so a point repeated (yEd's doubled bends) makes no step of its own
+    const at = pts.filter((q, i) => i === pts.length - 1 || q[0] !== pts[i + 1][0] || q[1] !== pts[i + 1][1]);
+    const end = at.at(-1);
+    const last = at.at(-2);
+    if (end === undefined || last === undefined) {
+        return undefined;
+    }
+    const unit = (u: Pt, v: Pt): Pt => {
+        const len = Math.hypot(v[0] - u[0], v[1] - u[1]);
+        return [(v[0] - u[0]) / len, (v[1] - u[1]) / len];
+    };
+    const dir = unit(last, end);
+    let i = at.length - 2;
+    while (i > 0) {
+        const step = unit(at[i - 1], at[i]);
+        if (step[0] * dir[0] + step[1] * dir[1] < Math.cos(LEG_TURN)) {
+            break;
+        }
+        i--;
+    }
+    const start = at[i];
+    if (i === 0 || Math.hypot(end[0] - start[0], end[1] - start[1]) < END_RUN || !inside(start, box, ON_LINE_PX)) {
+        return undefined;
+    }
+    // the line where it comes out from under the cap, or its first point
+    let j = i - 1;
+    while (j > 0 && inside(at[j], box, ON_LINE_PX)) {
+        j--;
+    }
+    // a turn of over 135 degrees is a step back, a rounding of where a curve ends under its cap (graphty's dot on a
+    // curved vis-network edge steps back to the dot's middle), not a leg the cap is aimed along
+    const into = unit(at[j], start);
+    const turn = into[0] * dir[0] + into[1] * dir[1];
+    return turn < Math.cos(CORNER_TURN) && turn > -Math.SQRT1_2 ? start : undefined;
 }
 
 /**
@@ -2404,6 +2497,23 @@ export function arrowheadEdge(
 }
 
 /**
+ * Whether a primitive is a small open stroke in a line's own color by one of its ends: an arm of a head a program draws
+ * in strokes (yEd's concave and convex arrows, two quadratic arms drawn right after the line).
+ * @param q - the primitive
+ * @param line - the line
+ * @param ends - the line's two ends
+ * @returns true for such an arm
+ */
+function strokedArm(q: Prim, line: Prim, ends: readonly [Pt, Pt]): boolean {
+    return (
+        openStroke(q) &&
+        q.stroke?.color === line.stroke?.color &&
+        Math.max(bw(q.box), bh(q.box)) <= 3 * OWN_HEAD_REACH &&
+        ends.some((end) => toBox(end, q.box) <= OWN_HEAD_REACH)
+    );
+}
+
+/**
  * Whether a primitive is a stroke with no fill, open at its ends.
  * @param p - the primitive
  * @returns true for one
@@ -2864,6 +2974,55 @@ const HEAD_MOST = 0.5;
 
 /** The arrowheads drawn with a line, by the end each caps: its source's, its target's. */
 type OwnHeads = readonly [readonly Prim[], readonly Prim[]];
+
+/**
+ * A line drawn in whole pieces of its pattern (Cytoscape desktop's arrows and slashes) stops where its last whole piece
+ * ends, up to a piece short of where the line itself ends (cx2-syn-mappings 327->333: eight arrows 18.7 px apart stop
+ * 8.6 px short of node 333, so its route and its label's place along it were read against a shorter line). An end with
+ * no arrowhead of its own is carried on along the line to its node's box where that lies within one piece; an end
+ * capped by an arrowhead stops at the head, and an end whose node lies farther off stays as read.
+ * @param points - the band's route
+ * @param nodes - the nodes it runs between
+ * @param own - the arrowheads drawn with it, at its first end and at its last
+ * @param piece - how far apart its pieces are, or undefined for a band of one outline
+ * @returns the route, each such end carried to its node
+ */
+function carriedToNodes(
+    points: readonly Pt[],
+    nodes: readonly [PNode, PNode],
+    own: OwnHeads,
+    piece: number | undefined,
+): Pt[] {
+    const out = [...points];
+    if (piece === undefined || !(piece > 0) || out.length < 2) {
+        return out;
+    }
+    const boxOf = (n: PNode): PBox => ({
+        x0: n.cx - n.w / 2,
+        y0: n.cy - n.h / 2,
+        x1: n.cx + n.w / 2,
+        y1: n.cy + n.h / 2,
+    });
+    const carry = (end: Pt, from: Pt, heads: readonly Prim[]): Pt => {
+        const d = Math.hypot(end[0] - from[0], end[1] - from[1]);
+        // the node at this end: the one whose box lies nearer it
+        const node = nodes.map((n) => ({ n, d: toBox(end, boxOf(n)) })).sort((a, b) => a.d - b.d)[0].n;
+        if (heads.length > 0 || d === 0 || inside(end, boxOf(node))) {
+            return end;
+        }
+        const [ux, uy] = [(end[0] - from[0]) / d, (end[1] - from[1]) / d];
+        for (let s = 0.25; s <= piece; s += 0.25) {
+            const q: Pt = [end[0] + ux * s, end[1] + uy * s];
+            if (inside(q, boxOf(node))) {
+                return q;
+            }
+        }
+        return end;
+    };
+    out[0] = carry(out[0], out[1], own[0]);
+    out[out.length - 1] = carry(out[out.length - 1], out[out.length - 2], own[1]);
+    return out;
+}
 
 /** What else places a line's ends: its own arrowheads, and how much farther than a line's end may lie from its node. */
 interface EndsBy {
@@ -3916,6 +4075,12 @@ export function associate(
         let caps = 0;
         for (let q = byIndex.get(p.index + 1); q !== undefined && caps < 2; q = byIndex.get(q.index + 1)) {
             const end = lineEndPiece(q, p, toBox(a, q.box) <= toBox(b, q.box) ? a : b);
+            // an arm of a head drawn in strokes at one end, in the line's color, is passed over to the cap after it,
+            // read with the stroked heads (gml-synthetic-coverage 23->33: yEd's convex source arms, then the target's
+            // filled head, which a line ending under it at the same node took)
+            if (!end && strokedArm(q, p, [a, b])) {
+                continue;
+            }
             if (!end && !headSet.has(q)) {
                 break;
             }
@@ -3953,7 +4118,7 @@ export function associate(
             ...p,
             kind: "path",
             closed: false,
-            points: band.route ?? band.ends,
+            points: carriedToNodes(band.route ?? band.ends, ends, own, band.piece),
             fill: null,
             stroke: {
                 color: p.fill.color,
@@ -5021,6 +5186,8 @@ function doubles(outer: Prim, inner: Prim): boolean {
 /**
  * Whether a shape is the box drawn behind a label: it holds the label's middle and most of its words, and reaches past
  * them by no more than two font sizes on any side (a node's body or a group box round a label reaches much further).
+ * A turned strip thinner than the words are tall is no box behind them, however much of their box its own box covers
+ * (Cytoscape desktop's T-bar head of xgmml-syn-mappings 1269915->1269931, tilted across edge 1269937->1269927's "e0").
  * @param p - the shape
  * @param t - the label
  * @returns true for a label background
@@ -5044,11 +5211,32 @@ function backsText(p: Prim, t: PText): boolean {
         (p.fill !== null || p.stroke !== null) &&
         inside([cx(t.box), cy(t.box)], b) &&
         (covered >= 0.6 || disc) &&
+        (disc || thicknessOf(p) >= THINNEST_BACKGROUND * t.sizePx) &&
         b.x0 >= t.box.x0 - reach &&
         b.y0 >= t.box.y0 - reach &&
         b.x1 <= t.box.x1 + reach &&
         b.y1 <= t.box.y1 + reach
     );
+}
+
+/** The thinnest a box behind words is, in font sizes: a box at least as tall as the words is half of one or more. */
+const THINNEST_BACKGROUND = 0.4;
+
+/**
+ * How thick a closed outline is: twice its area over its perimeter, a rectangle's w * h / (w + h), its shorter side's
+ * for a long strip. An outline with no area (an open path, too few points) counts as thick: nothing is told from it.
+ * @param p - the shape
+ * @returns its thickness, in pixels
+ */
+function thicknessOf(p: Prim): number {
+    const pts = p.points;
+    if (!p.closed || pts.length < 3) {
+        return Infinity;
+    }
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    const perimeter = pathLength(pts) + Math.hypot(first[0] - last[0], first[1] - last[1]);
+    return perimeter > 0 ? (2 * polygonArea(pts)) / perimeter : Infinity;
 }
 
 /**

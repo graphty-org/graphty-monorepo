@@ -98,14 +98,14 @@ describe("provider transcription", () => {
         assert.strictEqual(fake.contextsClosed, 1);
     });
 
-    it("cancel closes the microphone, transcribes nothing and ends AI_CANCELLED", async () => {
+    it("cancel closes the microphone, transcribes nothing and ends AI_CANCELED", async () => {
         const fake = installFakeSpeech();
         const engine = transcriber();
         const run = press("provider", engine);
         await flushMicrotasks();
         run.press.cancel();
         assert.strictEqual(fake.liveTracks(), 0);
-        assert.strictEqual((await run.ended).code, "AI_CANCELLED");
+        assert.strictEqual((await run.ended).code, "AI_CANCELED");
         await flushMicrotasks();
         assert.strictEqual(engine.voiceCalls.length, 0);
     });
@@ -244,13 +244,13 @@ describe("browser recognition", () => {
         assert.isTrue(fake.recognizers[0]?.processLocally);
     });
 
-    it("cancel ends AI_CANCELLED, not with what was heard", async () => {
+    it("cancel ends AI_CANCELED, not with what was heard", async () => {
         const fake = installFakeSpeech();
         const run = press("browser");
         await flushMicrotasks();
         fake.recognizers[0]?.hear("delete everything", true);
         run.press.cancel();
-        assert.strictEqual((await run.ended).code, "AI_CANCELLED");
+        assert.strictEqual((await run.ended).code, "AI_CANCELED");
         assert.strictEqual(fake.liveTracks(), 0);
     });
 

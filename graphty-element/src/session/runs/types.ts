@@ -330,6 +330,11 @@ export interface Caveats {
     /** The arithmetic that produced these numbers. */
     readonly precision: Precision;
     /**
+     * `"cpu"`, or the backend of the accelerator that computed these numbers (`"webgpu"`). Absent
+     * when unknown, as for a result restored from a file that does not say.
+     */
+    readonly accelerator?: ComputeBackend;
+    /**
      * Which method computed them, as an identifier: the algorithm's key unless the algorithm names
      * a method of its own, such as "dijkstra" or "stoer-wagner". Never reader-facing text; an
      * application names it.
@@ -422,24 +427,33 @@ export type RunLiveScope = NonNullable<RunScopeRecord["live"]>;
 /** What a run records about the set its scope named, beside the resolution. */
 export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading" | "dataDigest" | "window" | "live">;
 
-/** Which versions of which packages produced a result. */
+/**
+ * The hardware that computed a result or drew a layout: `"cpu"`, `"webgpu"`, or the backend a
+ * third party's accelerator names. An identifier, never reader-facing text.
+ */
+export type ComputeBackend = "cpu" | "webgpu" | (string & {});
+
+/**
+ * The code that produced a result or drew a layout: the packages whose code could have changed the
+ * numbers, at the versions that ran, and the hardware it ran on. A seed reproduces a result only
+ * under the same engine (spec/README.md 4.5 rule 6).
+ */
 export interface EngineVersions {
-    /** The graphty-element version. */
-    readonly element: string;
-    /** The algorithms package version. */
-    readonly algorithms: string;
-    /** The layout package version. */
-    readonly layout: string;
     /**
-     * The versions of any registered extensions that produced these numbers, by catalog key.
-     *
-     * WHY IT IS HERE. The three fixed fields above name the element and its two sibling packages,
-     * which is everything when the element's own algorithm did the work. A run of a THIRD PARTY's
-     * algorithm used to record those same three and nothing at all identifying the code that
-     * actually computed the result -- which is the field's whole purpose. Filled from an optional
-     * `static version` on the registered class, and absent when the class declares none.
+     * Package name to the version that ran, each read from the package itself:
+     * `"@graphty/graphty-element"`, `"@graphty/algorithms"` or `"@graphty/layout"`, the attached
+     * accelerator's package, and a registered extension that declares a `static version`, under
+     * its catalog key.
      */
-    readonly plugins?: Readonly<Record<string, string>>;
+    readonly packages: Readonly<Record<string, string>>;
+    /** `"cpu"`, or the backend that computed it (`"webgpu"`); absent when unknown. */
+    readonly accelerator?: ComputeBackend;
+    /**
+     * The code that consumed the seed, present only when it is not the one the record names (a
+     * layout's engine, a run's `caveats.method`), as when a session with no renderer steps a
+     * force layout recorded as drawn by another engine.
+     */
+    readonly method?: string;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -897,7 +911,7 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     /** Whether the total is knowable, so a consumer can choose a bar or a spinner. */
     readonly determinate: boolean;
     /** Whether it can be stopped. Distinct from whether it HAS been stopped. */
-    readonly cancellable: boolean;
+    readonly cancelable: boolean;
     /** Its place in the queue, counting from 0, or null when it is not waiting. */
     readonly queuePosition: number | null;
     /** When it started, as an ISO 8601 timestamp, or null while it is still queued. */

@@ -167,6 +167,7 @@
                     },
                     "mediaType": {
                         "type": "string",
+                        "default": "text/plain",
                         "minLength": 3,
                         "maxLength": 255
                     },

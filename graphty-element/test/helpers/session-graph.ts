@@ -12,8 +12,10 @@
  */
 import { AccelerationController, AcceleratorRegistry } from "../../src/acceleration";
 import { type AlgorithmData, type AlgorithmHost, algorithmHostOf } from "../../src/algorithms/host";
+import type { Graph } from "../../src/Graph";
+import { StylePainter } from "../../src/managers/StylePainter";
 import { createGraphSession } from "../../src/session/GraphSession";
-import type { GraphSession } from "../../src/session/types";
+import type { ElementSession, GraphSession } from "../../src/session/types";
 
 /** A node record: an id and any other attributes. */
 interface NodeData {
@@ -158,6 +160,51 @@ export async function createSessionGraph(opts: SessionGraphOpts = {}): Promise<S
         nodes,
         edges,
     };
+}
+
+/** The graph an AI command test runs on: a chain of nodes and the edges between them. */
+export interface CommandGraphOpts {
+    /** How many nodes, `node-0` onwards. Default: 10. */
+    nodeCount?: number;
+    /** How many edges, each from node `i` to node `i + 1`, wrapping round. Default: 15. */
+    edgeCount?: number;
+    /** A node's own fields, in place of `label` and `type` (read by a selector as `data.type`). */
+    nodeData?: (index: number) => Record<string, unknown>;
+    /** An edge's own fields, in place of a `weight` of `(index % 10) / 10`. */
+    edgeData?: (index: number) => Record<string, unknown>;
+    /**
+     * Renderer members a command calls that a headless session has no counterpart for: the camera
+     * (`setCameraState`, `applyCameraView`) and XR (`getXRHelper`, `exitImmersiveMode`). Nothing
+     * draws in a node test, so a test that reaches them hands in its own; the real ones run on a
+     * real element in test/browser/ai/commands-e2e.test.ts.
+     */
+    renderer?: Record<string, unknown>;
+}
+
+/**
+ * A real headless session holding a chain graph, behind the graph handle an AI command takes.
+ * The commands read the graph through `getSession()`; beside it the handle carries the
+ * renderer's style painter, bound to the session's own paint exactly as the element binds it, so
+ * a test reads what a layer painted, and any `renderer` members the test gives.
+ * @param opts - The graph.
+ * @returns The handle.
+ */
+export async function createCommandGraph(opts: CommandGraphOpts = {}): Promise<Graph> {
+    const { nodeCount = 10, edgeCount = 15, nodeData, edgeData, renderer } = opts;
+    const types = ["server", "client", "router"];
+    const nodes = Array.from({ length: nodeCount }, (_, i) => ({
+        id: `node-${String(i)}`,
+        ...(nodeData ? nodeData(i) : { label: `Node ${String(i)}`, type: types[i % 3] }),
+    }));
+    const edges = Array.from({ length: nodeCount === 0 ? 0 : edgeCount }, (_, i) => ({
+        srcId: nodes[i % nodeCount].id,
+        dstId: nodes[(i + 1) % nodeCount].id,
+        ...(edgeData ? edgeData(i) : { weight: (i % 10) / 10 }),
+    }));
+    const { session } = await createSessionGraph({ nodes, edges, loadedWeight: "weight" });
+    const painter = new StylePainter();
+    painter.bind((session as ElementSession).paint);
+    return { ...renderer, getSession: () => session, getStylePainter: () => painter } as unknown as Graph;
 }
 
 /**

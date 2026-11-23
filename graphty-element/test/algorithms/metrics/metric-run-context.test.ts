@@ -125,7 +125,7 @@ describe("walkInChunks", () => {
         }
     });
 
-    it("stops when the run is cancelled", async () => {
+    it("stops when the run is canceled", async () => {
         const controller = new AbortController();
         const recording = recordingContext(controller.signal);
         const seen: number[] = [];
@@ -200,7 +200,7 @@ describe("a metric run through a run context", () => {
         assert.isTrue(recording.reports.every((report) => report.message === undefined));
     });
 
-    it("refuses to start once the run has been cancelled", async () => {
+    it("refuses to start once the run has been canceled", async () => {
         const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const controller = new AbortController();
         const recording = recordingContext(controller.signal);

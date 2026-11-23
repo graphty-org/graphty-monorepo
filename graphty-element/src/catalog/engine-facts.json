@@ -1761,7 +1761,7 @@
                     "plainName": "Latitude",
                     "technicalName": "latitude",
                     "type": "string",
-                    "description": "The node attribute holding each node's latitude in degrees; empty reads the designated latitude field, else `latitude`",
+                    "description": "The node attribute holding each node's latitude in degrees; empty reads the designated latitude field, else the attribute named lat or latitude (any case), else `latitude`",
                     "default": null
                 },
                 {
@@ -1769,7 +1769,7 @@
                     "plainName": "Longitude",
                     "technicalName": "longitude",
                     "type": "string",
-                    "description": "The node attribute holding each node's longitude in degrees; empty reads the designated longitude field, else `longitude`",
+                    "description": "The node attribute holding each node's longitude in degrees; empty reads the designated longitude field, else the attribute named lon, lng or longitude (any case), else `longitude`",
                     "default": null
                 },
                 {

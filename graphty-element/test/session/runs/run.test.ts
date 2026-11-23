@@ -22,7 +22,7 @@ class ManualQueue {
 
     readonly progress: { percent?: number; phase?: string; message?: string }[] = [];
 
-    cancelled = 0;
+    canceled = 0;
 
     enqueue = (body: RunBody): RunTicket => {
         const index = this.bodies.length;
@@ -31,7 +31,7 @@ class ManualQueue {
 
         return {
             cancel: () => {
-                this.cancelled += 1;
+                this.canceled += 1;
                 this.controllers[index].abort(new DOMException("Operation canceled.", "AbortError"));
             },
         };
@@ -94,12 +94,12 @@ function makeRun(
 }
 
 describe("a run before it starts", () => {
-    it("is queued, indeterminate, cancellable and has no result", () => {
+    it("is queued, indeterminate, cancelable and has no result", () => {
         const { run } = makeRun(finishAtOnce);
 
         assert.strictEqual(run.status, "queued");
         assert.strictEqual(run.determinate, false);
-        assert.strictEqual(run.cancellable, true);
+        assert.strictEqual(run.cancelable, true);
         assert.strictEqual(run.startedAt, null);
         assert.strictEqual(run.durationMs, null);
         assert.strictEqual(run.result, undefined);
@@ -131,7 +131,7 @@ describe("a run that finishes", () => {
         assert.strictEqual(run.result, result);
         assert.isNotNull(run.startedAt);
         assert.isNotNull(run.durationMs);
-        assert.strictEqual(run.cancellable, false);
+        assert.strictEqual(run.cancelable, false);
         assert.strictEqual(run.partial, false);
     });
 
@@ -176,7 +176,7 @@ describe("a run that finishes", () => {
         assert.strictEqual(record.status, "succeeded");
         assert.strictEqual(record.scope.nodes, graph.nodes.size);
         assert.strictEqual(record.scope.digest, run.scope.digest);
-        assert.strictEqual(record.engine.element, ENGINE.element);
+        assert.deepStrictEqual(record.engine, { ...ENGINE, accelerator: "cpu" });
     });
 });
 
@@ -227,7 +227,7 @@ describe("progress", () => {
     });
 });
 
-describe("cancelling", () => {
+describe("canceling", () => {
     it("rejects with a DOMException named AbortError", async () => {
         const { run } = makeRun(finishAtOnce);
 
@@ -236,7 +236,7 @@ describe("cancelling", () => {
 
         try {
             await run;
-            assert.fail("a cancelled run must not resolve");
+            assert.fail("a canceled run must not resolve");
         } catch (error) {
             assert.instanceOf(error, DOMException);
             assert.strictEqual(error.name, "AbortError");
@@ -244,7 +244,7 @@ describe("cancelling", () => {
         }
 
         assert.strictEqual(run.status, "canceled");
-        assert.strictEqual(run.cancellable, false);
+        assert.strictEqual(run.cancelable, false);
     });
 
     it("tells the queue to drop the operation", () => {
@@ -253,7 +253,7 @@ describe("cancelling", () => {
         run.start();
         run.cancel();
 
-        assert.strictEqual(queue.cancelled, 1);
+        assert.strictEqual(queue.canceled, 1);
     });
 
     it("aborts the work's own signal, so a running algorithm stops", async () => {

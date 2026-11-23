@@ -142,7 +142,7 @@ can follow it from start to finish:
   file or URL is read. Show the loading state from here, not from the first record.
 - `source` is on every load change: `{ name, url }`, the name the load was given or the file's
   name or the URL's last part, and the URL when it came from one. Either may be absent.
-- `outcome` is on the end: `"succeeded"`, `"failed"` or `"cancelled"`. A failure that carried a
+- `outcome` is on the end: `"succeeded"`, `"failed"` or `"canceled"`. A failure that carried a
   code also has `error: { code, details }`, the same code and details the call that started the
   load rejected with -- for `E_TOO_LARGE`, the `limit`, the `count` and what it counted (`of`).
 

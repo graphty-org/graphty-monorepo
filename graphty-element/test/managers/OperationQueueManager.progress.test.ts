@@ -163,7 +163,7 @@ describe("Progress Tracking", () => {
         assert.isTrue(newEvents.every((e) => e.id === opId2));
     });
 
-    it("should handle progress for cancelled operations", async () => {
+    it("should handle progress for canceled operations", async () => {
         let started!: () => void;
         const running = new Promise<void>((resolve) => {
             started = resolve;
@@ -197,7 +197,7 @@ describe("Progress Tracking", () => {
         assert.notInclude(
             ours.map((e) => e.progress),
             100,
-            "a cancelled operation never reports itself complete",
+            "a canceled operation never reports itself complete",
         );
     });
 

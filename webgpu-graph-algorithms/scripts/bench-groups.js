@@ -59,6 +59,7 @@ const PACKAGE_PREFIX = "webgpu-graph-algorithms/";
  *   which no benchmarked route dispatches.
  */
 export const AFFECTS_EVERY_GROUP = Object.freeze([
+    "src/version.ts",
     "src/node/index.ts",
     "src/device/acquire.ts",
     "src/device/caps.ts",

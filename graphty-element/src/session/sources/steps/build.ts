@@ -12,6 +12,7 @@
 import { reduce } from "../../join";
 import { readTimeValue, type TimeUnit } from "../../time/parse";
 import type { JoinReduce, SourceRefreshIssue, SourceRoleName } from "../../types";
+import { escapeKey, keylessEdgeKeys, keylessNodeKeys } from "../rowKeys";
 import {
     type AddStep,
     type BuildInput,
@@ -83,7 +84,6 @@ export const copyKey = (src: Source): string => src.origin.rows ?? src.origin.co
  */
 export const nodeSpace = (src: Source): string => src.mapping.nodes?.space ?? ownSpace(src.id);
 
-const escapeKey = (k: string): string => k.replaceAll(/[\\|]/g, String.raw`\$&`);
 export const isEmpty = (v: Value | undefined): v is null | undefined | "" => v === undefined || v === null || v === "";
 const text = (v: CellValue | undefined): string => (v === undefined || v === null ? "" : String(v));
 
@@ -464,8 +464,18 @@ function aggregateFor(step: Step, column: string): JoinReduce | undefined {
 }
 
 type Held = [origin: string, value: Value];
-const isNumber = (v: Value | undefined): boolean => !isEmpty(v) && !Array.isArray(v) && !Number.isNaN(Number(v));
-const isDate = (v: Value | undefined): boolean => typeof v === "string" && parseTime(v) !== null;
+/**
+ * Whether a cell reads as a number, as the numeric clash rules read it.
+ * @param v - The cell.
+ * @returns True when it does.
+ */
+export const isNumber = (v: Value | undefined): boolean => !isEmpty(v) && !Array.isArray(v) && !Number.isNaN(Number(v));
+/**
+ * Whether a cell reads as a date, as `min` and `max` order it.
+ * @param v - The cell.
+ * @returns True when it does.
+ */
+export const isDate = (v: Value | undefined): boolean => typeof v === "string" && parseTime(v) !== null;
 /**
  * Whether a numeric clash rule fits these values (3.10): `mean` needs numbers, `min` and `max`
  * numbers or dates.
@@ -540,6 +550,7 @@ function newStats(step: Step, si: number): StepStats {
         merged: 0,
         typeDiffers: 0,
         untouched: 0,
+        keptNew: 0,
         groups: [],
         selfLoops: 0,
         emptyKey: 0,
@@ -588,22 +599,27 @@ function repeats(values: Iterable<readonly [string, DrillUnit]>): Map<string, Dr
 }
 
 /**
- * The key values a merge's node 2s fold by: each one's first row of the source, unless the step
- * leaves the row out or its key is empty.
+ * The key values a merge's node 2s fold by: one per row of the source each node 2 was made from,
+ * so a key two rows share (and the step's `repeated` settles) repeats, unless the step leaves the
+ * row out or its key is empty.
  * @param s - The merge.
  * @param node2s - Its node 2s.
- * @returns The keys, one per node 2, each with the node 2 and its row.
+ * @returns The keys, one per row, each with the node 2 and its row.
  */
 function mergeKeys(s: MergeStep, node2s: readonly BuiltNode[]): (readonly [string, DrillUnit])[] {
-    return node2s.flatMap((n2) => {
-        const t = n2.touch.find((t) => t.source === s.source && t.table === "nodes");
-        const r = t?.cells;
-        const v = r?.[s.read.key];
-        const out = r === undefined || isEmpty(v) || (s.except !== undefined && listed(s.except, r));
-        return out || t === undefined || (s.rows !== undefined && !listed(s.rows, r))
-            ? []
-            : [[text(v), { table: "nodes", row: t.row, element: n2.id }] as const];
-    });
+    return node2s.flatMap((n2) =>
+        n2.touch.flatMap((t) => {
+            if (t.source !== s.source || t.table !== "nodes") {
+                return [];
+            }
+            const r = t.cells;
+            const v = r[s.read.key];
+            const out = isEmpty(v) || (s.except !== undefined && listed(s.except, r));
+            return out || (s.rows !== undefined && !listed(s.rows, r))
+                ? []
+                : [[text(v), { table: "nodes", row: t.row, element: n2.id }] as const];
+        }),
+    );
 }
 
 const supply = (el: BuiltElement, src: string): void => {
@@ -1291,8 +1307,10 @@ class Builder {
         const empties = new Map<string, number>();
         const nodeRows = src.mapping.nodes ? this.rows(src, "nodes") : null;
         const seen = new Set<string>();
+        // a source with no key column keys its node rows by their content (spec 6.1)
+        const keyless = nodeRows && src.mapping.nodes?.key === undefined ? keylessNodeKeys(nodeRows) : [];
         nodeRows?.forEach((r, i) => {
-            this.addNodeRow(s, src, { si, st, seen, empties }, r, i);
+            this.addNodeRow(s, src, { si, st, seen, empties, keyless }, r, i);
         });
         const key = src.mapping.nodes?.key;
         if (nodeRows && key !== undefined) {
@@ -1317,13 +1335,19 @@ class Builder {
     private addNodeRow(
         s: AddStep,
         src: Source,
-        at: { si: number; st: StepStats; seen: Set<string>; empties: Map<string, number> },
+        at: {
+            si: number;
+            st: StepStats;
+            seen: Set<string>;
+            empties: Map<string, number>;
+            keyless: readonly string[];
+        },
         r: Row,
         i: number,
     ): void {
         const m = src.mapping.nodes ?? {};
         const { st, si } = at;
-        const key = m.key === undefined ? `${src.origin.copy}#${i}` : r[m.key];
+        const key = m.key === undefined ? at.keyless[i] : r[m.key];
         if (isEmpty(key)) {
             st.emptyKey++;
             this.mark(st, "emptyKey", { table: "nodes", row: i });
@@ -1331,7 +1355,13 @@ class Builder {
             this.fate(s.source, "nodes", i, "left-out:empty-key");
             return;
         }
-        const n = this.node(nodeSpace(src), text(key), { source: s.source }, r, st) as BuiltNode;
+        const space = nodeSpace(src);
+        const met = this.resolve(space, text(key));
+        // A row whose key names a node an earlier step built meets it, as an edge end does.
+        if (met !== undefined && !at.seen.has(met)) {
+            this.end(st, space, met, { table: "nodes", row: i });
+        }
+        const n = this.node(space, text(key), { source: s.source }, r, st) as BuiltNode;
         const repeat = at.seen.has(n.id);
         at.seen.add(n.id);
         this.touch(n, s, si, "nodes", r, i);
@@ -1375,6 +1405,7 @@ class Builder {
         const how = src.settings?.unmatched ?? "add";
         const own = src.mapping.nodes === undefined ? null : nodeSpace(src);
         const named = new Set<BuiltNode>();
+        const keyless = keylessEdgeKeys(rows, m);
         rows.forEach((r, i) => {
             const a = r[m.source];
             const b = r[m.target];
@@ -1405,7 +1436,7 @@ class Builder {
             reach(na, s.source);
             reach(nb, s.source);
             const id = m.edgeId === undefined ? undefined : r[m.edgeId];
-            const key = isEmpty(id) ? `${src.origin.copy}#${i}` : text(id);
+            const key = isEmpty(id) ? (keyless[i] as string) : text(id);
             const values = Object.entries(r).filter(([c]) => !moved.has(c) && (!s.columns || s.columns.includes(c)));
             this.addEdge(s, si, st, {
                 load: s.source,
@@ -1514,6 +1545,8 @@ class Builder {
         const tr = this.translator(s);
         const empties = new Map<string, number>();
         const loose = s.ignoreCase === true || s.ignoreSpaces === true ? new Map<string, Map<string, string>>() : null;
+        // keyless rows count over every row of the table, read by this step or not (spec 4.1.8 rule 3)
+        const keyless = keylessEdgeKeys(this.rows(src, table) ?? [], rd);
         for (const [r, i] of rows) {
             const here = { table, row: i };
             const a = this.edgeEnd(s, st, tr, r, "source", loose, here);
@@ -1533,7 +1566,7 @@ class Builder {
             const cols = s.columns ?? Object.keys(r).filter((c) => !skip.has(c));
             const made = this.addEdge(s, si, st, {
                 load: s.source,
-                key: edgeStepKey(s, src, r, i, a.n, b.n),
+                key: edgeStepKey(s, r, keyless[i], a.n, b.n),
                 from: a.n,
                 to: b.n,
                 row: r,
@@ -1543,7 +1576,11 @@ class Builder {
                 roles: src.mapping[table] ?? {},
                 read: rd,
                 table,
-                ends: { source: rd.source, target: rd.target },
+                // a row whose two ends read one column (a key met by the same column) keeps them apart
+                ends:
+                    rd.source === rd.target
+                        ? { source: "source", target: "target" }
+                        : { source: rd.source, target: rd.target },
                 repeated: s.repeated,
             });
             this.mark(st, "matched", { ...here, element: made });
@@ -1788,6 +1825,14 @@ class Builder {
             }
         }
         this.settleKept(st, space, kept);
+        // What the merge leaves of source 2 as nodes of their own: neither folded nor dropped.
+        const live = new Set(this.nodes.values());
+        for (const n2 of node2s) {
+            if (live.has(n2)) {
+                st.keptNew++;
+                this.mark(st, "keptNew", { element: n2.id, key: n2.key });
+            }
+        }
         const untouched = before.filter((id) => !reached.has(id) && this.nodes.has(id));
         for (const id of untouched) {
             this.mark(st, "untouched", { element: id });
@@ -1993,9 +2038,9 @@ function hubs(rows: [Row, number][], column: string): { value: string; rows: num
     return [...counts].filter(([, c]) => c > HUB_SHARE * rows.length).map(([value, c]) => ({ value, rows: c }));
 }
 
-// A join.edges row's key: <part>/<key>, <part>/<from>|<to> escaped when reduced, else <part>/<copy id>#<row> (section 10 item 4).
-function edgeStepKey(s: EdgesStep, src: Source, r: Row, i: number, from: BuiltNode, to: BuiltNode): string {
-    const keyless = `${s.part}/${src.origin.copy}#${i}`;
+// A join.edges row's key: <part>/<key>, <part>/<from>|<to> escaped when reduced, else <part>/<from>|<to>#<n> (spec 4.1.8 rule 3).
+function edgeStepKey(s: EdgesStep, r: Row, rowKey: string | undefined, from: BuiltNode, to: BuiltNode): string {
+    const keyless = `${s.part}/${rowKey ?? ""}`;
     if (s.read.edgeId !== undefined) {
         const v = r[s.read.edgeId];
         return isEmpty(v) ? keyless : `${s.part}/${text(v)}`;

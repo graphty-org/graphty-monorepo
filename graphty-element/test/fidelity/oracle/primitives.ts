@@ -510,6 +510,12 @@ export interface PArrow {
      * the barb meets it; graphty stopped it at the head's back, short of a barb that meets the line only near its tip.
      */
     lineGap?: number;
+    /**
+     * Drawn wholly under a node other than its edge's ends, which is painted over it, so this drawing shows it nowhere.
+     * The head is left out only where the other side's head at the same end of the paired edge is hidden too
+     * (`withoutHiddenInBoth`); a head hidden in one drawing and shown in the other is judged as any other.
+     */
+    hidden?: boolean;
 }
 
 /** An edge as drawn. */
@@ -538,6 +544,12 @@ export interface PEdge {
      * an end at a node drawn wholly under another at the same place is seen at the node over it. Absent: the same.
      */
     ownEnds?: { source: string; target: string };
+    /**
+     * The oracle's: ends with no arrowhead read where the drawing still has a filled head-sized piece at the line's
+     * end wholly under a node other than its ends, painted after it (`markHiddenHeads`), so the program's head there is
+     * hidden. Judged only beside graphty's head at the same end hidden too (`withoutHiddenInBoth`). Absent: none.
+     */
+    hiddenEnds?: ArrowEnd[];
 }
 
 /** A group box as drawn. */
@@ -1318,6 +1330,12 @@ export interface PaintedBand extends PaintedOutline {
      * straight and runs between its `ends`.
      */
     route?: Pt[];
+    /**
+     * How far apart its pieces are along it, where the band is drawn in pieces: a program that draws only whole pieces
+     * (Cytoscape desktop's arrows and slashes) stops the line up to this far short of where it ends. Absent for a band
+     * of one outline.
+     */
+    piece?: number;
 }
 
 /**
@@ -1382,7 +1400,9 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
             return [x + 2 * c * u[1], y - 2 * c * u[0]];
         },
     });
-    const result = { ...patternResult(dashClass, width, box), ends, across: spread };
+    const order = subpaths.map((q) => q.reduce((t, p) => t + alongOf(p), 0) / q.length).sort((a, b) => a - b);
+    const piece = median(order.slice(1).map((a, i) => a - order[i]));
+    const result = { ...patternResult(dashClass, width, box), ends, across: spread, piece };
     // A straight band reaches across its axis as far as one of its pieces does; one that reaches twice as far bends,
     // and is routed through its pieces' centers, in order along it, its ends the end pieces' centers carried out along
     // the axis to the band's ends.

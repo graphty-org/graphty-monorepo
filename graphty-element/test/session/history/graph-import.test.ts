@@ -192,13 +192,13 @@ describe("data.import", () => {
         const load = session.data.import({ type: "json", config: { data: DOCUMENT } });
         const outcome = await session.undo();
 
-        assert.strictEqual(outcome.kind, "cancelled");
+        assert.strictEqual(outcome.kind, "canceled");
         assert.isTrue(
             await load.then(
                 () => false,
                 () => true,
             ),
-            "the import settles as cancelled",
+            "the import settles as canceled",
         );
         assert.deepEqual(ids(session), ["n1", "n2", "n3"]);
         assert.lengthOf(session.history.steps, 0);
@@ -294,7 +294,7 @@ describe("data.import", () => {
         assert.strictEqual((await session.history.restoreTo(null)).kind, "nothing", "as undo does nothing");
         await load;
 
-        assert.deepEqual(ids(session), ["a", "b"], "the load was not cancelled");
+        assert.deepEqual(ids(session), ["a", "b"], "the load was not canceled");
         assert.lengthOf(session.history.steps, 0);
         session.dispose();
     });

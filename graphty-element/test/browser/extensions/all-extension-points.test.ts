@@ -769,11 +769,14 @@ describe("six extensions, one graph", () => {
 
         assert.isDefined(record, "the run is in the session's list of runs");
         assert.strictEqual(
-            record?.engine.plugins?.[ATLAS_ALGORITHM],
+            record?.engine.packages[ATLAS_ALGORITHM],
             "1.4.0",
             "a run of a third party's algorithm carries something identifying that third party's code",
         );
-        assert.isString(record?.engine.element, "beside the element's own version, which is unchanged");
+        assert.isString(
+            record?.engine.packages["@graphty/graphty-element"],
+            "beside the element's own version, which is unchanged",
+        );
     });
 
     it("painted the graph with the registered palette, landing on the anchors the palette declared", () => {

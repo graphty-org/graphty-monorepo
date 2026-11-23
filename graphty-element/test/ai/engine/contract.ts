@@ -481,18 +481,18 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
             assert.deepStrictEqual(seen()[0].tools, ["findNodes"]);
         });
 
-        it("ends an aborted turn with AI_CANCELLED and nothing after it", async () => {
+        it("ends an aborted turn with AI_CANCELED and nothing after it", async () => {
             const { engine, hang } = make();
             hang();
             const controller = new AbortController();
             const pending = events(engine, request(), controller.signal);
             controller.abort();
             const out = await pending;
-            assert.strictEqual(endsInError(out).code, "AI_CANCELLED");
+            assert.strictEqual(endsInError(out).code, "AI_CANCELED");
             assert.notOk(out.some((e) => e.type === "tool-call"));
         });
 
-        it("ends a turn whose provider answers after the abort with AI_CANCELLED, dropping the answer", async () => {
+        it("ends a turn whose provider answers after the abort with AI_CANCELED, dropping the answer", async () => {
             const { engine, answerAfterAbort } = make();
             answerAfterAbort({
                 text: "late",
@@ -502,7 +502,7 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
             const pending = events(engine, request(), controller.signal);
             controller.abort();
             const out = await pending;
-            assert.strictEqual(endsInError(out).code, "AI_CANCELLED");
+            assert.strictEqual(endsInError(out).code, "AI_CANCELED");
             assert.notOk(out.some((e) => e.type === "tool-call"));
         });
 

@@ -1,3 +1,4 @@
+import { mulberry32 } from "@graphty/algorithms";
 import {
     type GraphSnapshot,
     INVALID_INDEX,
@@ -489,6 +490,8 @@ interface BuildOptions {
      * and every build a consumer asks for (issue #9292).
      */
     readonly fromSeed?: boolean;
+    /** The same layout, switched from 2D to 3D: a simulation starts from the 2D drawing. See `liftIntoDepth`. */
+    readonly lift?: boolean;
     /**
      * A switch of the same layout from 3D to 2D: a force engine starts from the arrangement it
      * replaces, flattened onto the plane, with no pre-steps, so the first frame draws every node where
@@ -496,6 +499,22 @@ interface BuildOptions {
      */
     readonly flatten?: boolean;
 }
+
+/**
+ * How far off the plane a lifted node goes, as a fraction of the 2D drawing's width: see `liftIntoDepth`. At 5%
+ * a settled 25-node ngraph drawing kept that depth and settled in its first frame, since a flat equilibrium has
+ * almost no force out of the plane; at 25% the simulation holds about half the width in depth (issue #9372).
+ */
+const LIFT_DEPTH = 0.25;
+
+/** Over how many layout steps a lifted drawing rises to `LIFT_DEPTH`, so the rise is seen: about a second. */
+const RISE_STEPS = 60;
+
+/** An engine that cannot rise a step at a time is lifted in one go, this far: see `liftIntoDepth`. */
+const LIFT_JITTER = 0.05;
+
+/** The fixed seed of the lift's jitter, so a seeded layout lifts into the same 3D drawing every time. */
+const LIFT_SEED = 9372;
 
 /**
  * Whether two values of the `layout` slice draw the same arrangement: the same layout, options and
@@ -513,8 +532,8 @@ function sameArrangement(a: LayoutChoice, b: LayoutChoice): boolean {
  * canceled the build already knows.
  * @returns The error.
  */
-function cancelledBuild(): Error {
-    const error = new Error("The layout was cancelled or replaced before it finished building.");
+function canceledBuild(): Error {
+    const error = new Error("The layout was canceled or replaced before it finished building.");
     error.name = "AbortError";
     return error;
 }
@@ -1540,11 +1559,12 @@ export class LayoutManager implements Manager {
             this.holdBeforeInit(engine, members);
             await engine.init();
             if (!how.live()) {
-                throw cancelledBuild();
+                throw canceledBuild();
             }
 
             this.addLateArrivals(engine, nodeArray, edgeArray, edgeRows);
 
+            this.liftIntoDepth(engine, how);
             // A 2D/3D switch starts a force engine from where its nodes are drawn, not from the
             // seed's jumble around the origin, which the camera then framed as giant nodes (#9279).
             this.flattenOnSwitch(engine, how);
@@ -1595,11 +1615,114 @@ export class LayoutManager implements Manager {
 
             // Canceled or overtaken is not a failure: nothing is reported.
             if (!how.live()) {
-                throw cancelledBuild();
+                throw canceledBuild();
             }
 
             throw this.reportLayoutFailure(type, error, "initialised");
         }
+    }
+
+    /**
+     * Start a 3D simulation from the 2D drawing, every node at its X and Y, and lift it into depth.
+     *
+     * WHY. A force engine built for 3D placed fresh bodies near the origin: switching a settled 2D
+     * drawing to 3D showed a ball for seconds, which spread into another drawing, and the reader lost
+     * their mental map (issue #9372). Started on the plane, a settled drawing has next to no force
+     * out of it and stays flat, so each placed, unpinned node is given a seeded depth of up to
+     * `LIFT_DEPTH` of the drawing's width. An engine that can be woken (`wakeForLift`) rises to it
+     * over `RISE_STEPS` steps while it keeps stepping, so the reader sees the clusters rise; any
+     * other is put `LIFT_JITTER` off the plane at once. A Z the array already holds is kept.
+     * @param engine - The engine just built and initialized.
+     * @param how - The build; only one with `lift` set is lifted.
+     */
+    private liftIntoDepth(engine: LayoutEngine, how: BuildOptions): void {
+        this.#rise = null;
+        // A static engine computes its own 3D drawing; only a simulation starts from where nodes are.
+        if (how.lift !== true || engine instanceof StaticLayoutEngine) {
+            return;
+        }
+
+        const positions = this.dataManager[WRITABLE_LANE];
+        const rows = positions.count;
+        const at = { x: 0, y: 0, z: 0 };
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        for (let row = 0; row < rows; row++) {
+            if (positions.isPlaced(row)) {
+                positions.read(row, at);
+                minX = Math.min(minX, at.x);
+                maxX = Math.max(maxX, at.x);
+                minY = Math.min(minY, at.y);
+                maxY = Math.max(maxY, at.y);
+            }
+        }
+
+        const width = Math.max(maxX - minX, maxY - minY);
+        const rises = engine.wakeForLift();
+        const amplitude = (rises ? LIFT_DEPTH : LIFT_JITTER) * (width > 0 ? width : 1);
+        const random = mulberry32(LIFT_SEED);
+        const lifted: number[] = [];
+        const steps: number[] = [];
+        for (let row = 0; row < rows; row++) {
+            if (!positions.isPlaced(row) || positions.isPinned(row)) {
+                continue;
+            }
+
+            positions.read(row, at);
+            if (at.z !== 0) {
+                continue;
+            }
+
+            const z = (random() * 2 - 1) * amplitude;
+            if (rises) {
+                lifted.push(row);
+                steps.push(z / RISE_STEPS);
+            } else {
+                positions.write(row, at.x, at.y, z);
+            }
+        }
+
+        engine.loadArrangement();
+        if (lifted.length > 0) {
+            this.#rise = { engine, rows: lifted, steps, left: RISE_STEPS };
+        }
+    }
+
+    /**
+     * Take one step of a lift into depth (see `liftIntoDepth`): move every rising node its share of
+     * the way, hand the engine the moved bodies and wake it, so it steps from them.
+     * @param engine - The current engine.
+     */
+    private riseStep(engine: LayoutEngine | undefined): void {
+        const rise = this.#rise;
+        if (rise === null) {
+            return;
+        }
+
+        // A new layout ends it.
+        if (rise.engine !== engine) {
+            this.#rise = null;
+            return;
+        }
+
+        if (--rise.left === 0) {
+            this.#rise = null;
+        }
+
+        const positions = this.dataManager[WRITABLE_LANE];
+        const at = { x: 0, y: 0, z: 0 };
+        for (const [i, row] of rise.rows.entries()) {
+            // A node pinned or removed since the lift began stays where it is.
+            if (row < positions.count && positions.isPlaced(row) && !positions.isPinned(row)) {
+                positions.read(row, at);
+                positions.write(row, at.x, at.y, at.z + rise.steps[i]);
+            }
+        }
+
+        engine.loadArrangement();
+        engine.wakeForLift();
     }
 
     /**
@@ -1660,7 +1783,7 @@ export class LayoutManager implements Manager {
                 // engine exists, which is why it belongs in this try and not the next one.
                 await this.acceleration.ready();
                 if (!how.live()) {
-                    throw cancelledBuild();
+                    throw canceledBuild();
                 }
 
                 const init: SimulationEngineInit = {
@@ -1691,7 +1814,7 @@ export class LayoutManager implements Manager {
             }
         } catch (error) {
             if (!how.live()) {
-                throw cancelledBuild();
+                throw canceledBuild();
             }
 
             throw this.reportLayoutFailure(type, optionRefusal(type, error, layoutOpts) ?? error, "built");
@@ -2093,7 +2216,7 @@ export class LayoutManager implements Manager {
                 this.preStepsOwed = false;
                 this.#holdOneFrame = true;
             } else if (!(await this.spendPreSteps(engine, how.live))) {
-                throw cancelledBuild();
+                throw canceledBuild();
             }
 
             // PUBLISHING IS THE ELEMENT'S JOB. An engine's coordinates reach
@@ -2385,7 +2508,7 @@ export class LayoutManager implements Manager {
         const { signal, restoring } = options;
         const live = (): boolean => signal?.aborted !== true && (restoring || this.#generation === generation);
         if (!live()) {
-            throw cancelledBuild();
+            throw canceledBuild();
         }
 
         const built = this.#built;
@@ -2431,6 +2554,13 @@ export class LayoutManager implements Manager {
                 restoring,
                 live,
                 explicitScope: options.explicitScope === true,
+                // The same layout going from 2D to 3D lifts the drawing rather than starting over (#9372).
+                lift:
+                    !restoring &&
+                    built !== null &&
+                    sameArrangement(built, choice) &&
+                    this.engineDimension === 2 &&
+                    dimension === 3,
                 // Only the dimension changed, to 2D: `sameLayout` fell through because the engine
                 // redraws. Not to 3D, where a force engine started flat has no force out of the plane.
                 flatten: sameLayout && !restoring && dimension === 2,
@@ -2462,6 +2592,8 @@ export class LayoutManager implements Manager {
      *     restore landed on resumes the layout. Defaults to `restoring`.
      */
     loadArrangement(restoring: boolean, wrote = false, byReader = restoring): void {
+        // Coordinates written over a drawing rising into 3D end the rise where they put it.
+        this.#rise = null;
         if (restoring) {
             this.#generation++;
             this.#restoredByReader = byReader;
@@ -3384,6 +3516,10 @@ export class LayoutManager implements Manager {
         this.syncFollowers();
 
         const engine = this.layoutEngine;
+        if (this.running) {
+            this.riseStep(engine);
+        }
+
         if (engine && this.running && !engine.isSettled) {
             engine.step();
             // Under reduced motion the layout runs unseen and is drawn once, settled.
@@ -3412,6 +3548,9 @@ export class LayoutManager implements Manager {
 
     /** Set by a 2D/3D switch that flattened the arrangement, so the next frame draws it unstepped. */
     #holdOneFrame = false;
+
+    /** A 2D drawing rising into 3D: the rows, each one's move per step and the steps left. See `liftIntoDepth`. */
+    #rise: { engine: LayoutEngine; rows: number[]; steps: number[]; left: number } | null = null;
 
     /**
      * Whether this frame takes no layout steps, which is once after a 2D/3D switch flattened the
@@ -3480,7 +3619,8 @@ export class LayoutManager implements Manager {
      * @returns True when the engine has converged, or when there is no engine.
      */
     get isSettled(): boolean {
-        return this.layoutEngine?.isSettled ?? true;
+        // A drawing still rising into 3D is not final, whatever the engine says between its steps.
+        return (this.layoutEngine?.isSettled ?? true) && this.#rise === null;
     }
 
     /**

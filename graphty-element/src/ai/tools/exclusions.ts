@@ -415,10 +415,12 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             root: "SessionDataApi",
             members: [
                 "steps",
+                "staged",
                 "spaces",
                 "types",
                 "edits",
                 "ref",
+                "nodeRef",
                 "stage",
                 "declareType",
                 "removeEdit",
@@ -441,6 +443,9 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "currentDraft",
                 "matchCounts",
                 "matchValues",
+                "sourceTable",
+                "profile",
+                "setMapping",
             ],
         },
         {
@@ -461,6 +466,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "use",
                 "editStep",
                 "removeStep",
+                "moveStep",
                 "removeSource",
                 "removeEdit",
                 "setMapping",
@@ -472,6 +478,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "dispose",
                 "matchCounts",
                 "matchValues",
+                "sourceTable",
+                "profile",
                 "preview",
                 "pickAll",
                 "clearPicks",
@@ -484,6 +492,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "show",
             ],
         },
+        { root: "SourceTable", members: ["source", "summary", "profile"] },
         {
             root: "SourceDraftPreview",
             members: [
@@ -559,6 +568,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "SessionLayout", members: ["play", "pause", "tick", "settle"], reason: "in-flight", kind: BY_DESIGN },
+    // The package versions and hardware that draw the layout: what a save records, not a question a reader asks.
+    { root: "SessionLayout", members: ["provenance"], reason: "internal-handle", kind: BY_DESIGN },
     {
         root: "SessionConfig",
         members: ["backgroundColor"],
@@ -1302,6 +1313,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "setHoldMask",
             "wakeForResize",
             "wakeForClusters",
+            "wakeForLift",
         ],
         reason: "internal-handle",
         kind: BY_DESIGN,

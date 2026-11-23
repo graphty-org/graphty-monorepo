@@ -13,6 +13,7 @@ import { assert, describe, it } from "vitest";
 import { createGraphSession, type GraphSession, type SourceDraft, type SourceDraftChange } from "../../../src/session";
 import { dispatcherOf } from "../../../src/session/dispatchers";
 import { stateDigest } from "../../../src/session/project/digest";
+import type { LegendBlock } from "../../../src/session/styles/legend";
 import { ACCOUNTS, full, phase2 } from "./scenario";
 
 const ACCOUNTS_CSV = { type: "csv", config: { data: ACCOUNTS }, name: "accounts.csv" } as const;
@@ -276,6 +277,28 @@ describe("source-steps drafts: drawing a draft", () => {
         session.dispose();
     });
 
+    it("a listener told the draft was drawn otherwise counts what the graph draws", async () => {
+        const { session, d } = await foundingDraft();
+        const pv = d.preview();
+        const counted: { reason: SourceDraftChange["reason"]; nodes: number; edges: number }[] = [];
+        session.on("data:draft-changed", (change) => {
+            const { nodeCount, edgeCount } = session.data.statistics({ scope: "all" });
+            counted.push({ reason: change.reason, nodes: nodeCount, edges: edgeCount });
+        });
+        const after = { nodes: pv.after.nodes, edges: pv.after.edges };
+        const before = { nodes: pv.before.nodes, edges: pv.before.edges };
+        await d.display(true);
+        await d.show("before");
+        await d.show("after");
+        assert.deepStrictEqual(counted, [
+            { reason: "displayed", ...after },
+            { reason: "displayed", ...before },
+            { reason: "displayed", ...after },
+        ]);
+        d.dispose();
+        session.dispose();
+    });
+
     it("display and show record and save nothing, and the digest is the same once After comes off", async () => {
         const { session, b } = await full();
         const d = session.data.draft();
@@ -393,6 +416,28 @@ describe("source-steps drafts: drawing a draft", () => {
         d.dispose();
         session.dispose();
     });
+    it("the legend keys the Draft row by what the draft does, counted, in the row's color", async () => {
+        const { session, d } = await foundingDraft();
+        await session.config.set({ startingRows: true });
+        await session.styles.settled();
+        const node = session.styles.list().find((each) => each.name === "Draft" && each.target === "node");
+        const keyOf = (): LegendBlock[] => session.styles.legend().filter((block) => block.layerId === node?.id);
+        assert.deepStrictEqual(keyOf(), [], "nothing to key until a draft is drawn");
+        await d.display(true);
+        await session.styles.settled();
+        const blocks = keyOf();
+        assert.lengthOf(blocks, 1, "one block, not one per channel the row draws with");
+        assert.strictEqual(blocks[0]?.kind, "categorical");
+        assert.strictEqual(blocks[0]?.field?.path, "graphty.draft");
+        assert.strictEqual(blocks[0]?.field?.technicalName, "draft");
+        assert.deepStrictEqual(blocks[0]?.swatches, [{ value: "new", count: 6, color: "#7048e8" }], "six new entries");
+        await d.show("before");
+        await session.styles.settled();
+        assert.deepStrictEqual(keyOf(), [], "Before adds nothing to key");
+        d.dispose();
+        session.dispose();
+    });
+
     it("After gives every node it draws a mark when a staged source's keys overlap a committed type's and stay apart", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await session.data.import(csv("people.csv", "id,name\nX1,Ann\nX2,Bo"), { key: "id", type: "person" });

@@ -74,7 +74,7 @@ describe("data.import() honours its abort signal (#7914)", () => {
                 return Promise.resolve(new Response(BIG));
             });
             const before = await started();
-            const reason = new DOMException("The reader cancelled.", "AbortError");
+            const reason = new DOMException("The reader canceled.", "AbortError");
 
             const thrown = await rejection(before.session.data.import(source(), { signal: AbortSignal.abort(reason) }));
 
@@ -149,7 +149,7 @@ describe("data.import() honours its abort signal (#7914)", () => {
             );
 
             assertUnchanged(thrown, reason, before);
-            assert.strictEqual(requests, 1, "the request is cancelled, not retried");
+            assert.strictEqual(requests, 1, "the request is canceled, not retried");
             before.session.dispose();
         });
     }

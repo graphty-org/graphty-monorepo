@@ -153,7 +153,7 @@ export const Cancelled = errorStory(
     {
         text: {
             caption:
-                "A cancelled load: an NDEx download stopped by its AbortSignal as its first request starts. " +
+                "A canceled load: an NDEx download stopped by its AbortSignal as its first request starts. " +
                 "Below: what the load rejected with.",
             description:
                 "Every load takes a `signal`. Here the story aborts it the moment the first request to NDEx " +
@@ -177,23 +177,23 @@ await graph.loadFromSource(
                 controller.abort();
                 return inner(input, { ...init, signal: controller.signal });
             };
-            const cancelled: SourceLoadOptions = { ...options, fetch: cancelOnFirstRequest, signal: controller.signal };
+            const canceled: SourceLoadOptions = { ...options, fetch: cancelOnFirstRequest, signal: controller.signal };
             const outcome = await element.session.data
-                .import({ source: "ndex", config: { uuid: "86719f5b-1439-11f0-9806-005056ae3c32" } }, cancelled)
+                .import({ source: "ndex", config: { uuid: "86719f5b-1439-11f0-9806-005056ae3c32" } }, canceled)
                 .then(
                     () => null,
                     (error: unknown) => (error instanceof Error ? error : new Error(String(error))),
                 );
             const { data } = element.session;
             if (data.loads().length !== 0 || data.nodes().length !== 0) {
-                throw new Error("the cancelled load left rows or a load record behind");
+                throw new Error("the canceled load left rows or a load record behind");
             }
             if (outcome !== null) {
                 throw outcome;
             }
         },
     },
-    "the load is cancelled, so it draws no graph on purpose",
+    "the load is canceled, so it draws no graph on purpose",
 );
 
 /** A source that needs a login, given none and remembering none: refused before any request. */

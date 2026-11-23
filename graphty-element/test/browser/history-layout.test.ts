@@ -227,7 +227,7 @@ describe("the layout as a step", () => {
         await undone;
 
         assert.strictEqual(await refused, "AbortError");
-        assert.strictEqual(gate.published(), 0, "nothing the cancelled layout computed was published");
+        assert.strictEqual(gate.published(), 0, "nothing the canceled layout computed was published");
         assert.strictEqual(session.layout.engine, "circular");
         assert.strictEqual(graph.getLayoutManager().layoutType, "circular");
         assert.deepEqual(lane(session), before, "the nodes are where they were before the layout");

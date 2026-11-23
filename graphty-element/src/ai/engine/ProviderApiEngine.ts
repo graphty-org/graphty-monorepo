@@ -53,15 +53,15 @@ const MAX_HONORED_WAIT_MS = 60_000;
  */
 function wait(ms: number, signal: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
-        const cancelled = (): DOMException => new DOMException("The wait before a retry was cancelled.", "AbortError");
+        const canceled = (): DOMException => new DOMException("The wait before a retry was canceled.", "AbortError");
         if (signal.aborted) {
-            reject(cancelled());
+            reject(canceled());
             return;
         }
 
         const onAbort = (): void => {
             clearTimeout(timer);
-            reject(cancelled());
+            reject(canceled());
         };
         const timer = setTimeout(() => {
             signal.removeEventListener("abort", onAbort);

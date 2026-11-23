@@ -2807,8 +2807,11 @@ async function readProject(
             key === "set" && typeof held === "string" ? (setIds.get(held) ?? held) : held,
         ) as T;
     type SavedSet = { id: string; name: string; definition: unknown };
+    // An older timed file's "ghosted" meant the window, as its layers are told (`outsideWindowLayers`).
+    const oldGhosted = savedBeforeOutsideWindow(tx, state.visibility as Readonly<Record<string, unknown>> | undefined);
     const createSet = (set: SavedSet): void => {
-        setIds.set(set.id, tx.sets.create(remap(set.definition) as SetDefinitionInput, { name: set.name }));
+        const definition = remap(ghostedSetOutside(set.definition, oldGhosted));
+        setIds.set(set.id, tx.sets.create(definition as SetDefinitionInput, { name: set.name }));
     };
     // A set that reads a result cannot be made until its run is back; it is tried again after them.
     const waiting = ((state.sets ?? []) as SavedSet[]).filter((set) => {
@@ -2872,16 +2875,15 @@ async function readProject(
     // After the runs, whose results a computed column may read; before what may read it.
     await readDerived(opening, state.derived);
 
+    // A set the session refuses (a kept set reading a live state, say) is left out, and the reader
+    // is told its id and the refusal's reason; the rest of the project opens.
     for (const set of waiting) {
-        await attempt(
-            opening,
-            "sets",
-            () => {
-                createSet(set);
-                return Promise.resolve();
-            },
-            set.id,
-        );
+        try {
+            createSet(set);
+            opening.restored.add("sets");
+        } catch (error) {
+            problems.push(setRefused(set.id, error));
+        }
     }
 
     // The collapses, made again once the runs they group by are back, inside the open's own step.
@@ -3074,19 +3076,12 @@ async function outsideWindowLayers(
     tx: TransactionScope,
     visibility: Readonly<Record<string, unknown>> | undefined,
 ): Promise<void> {
-    const playback = visibility?.playback;
-    // Saved since, or never played: its layers stay as saved. A file saved with the timeline off
-    // holds no playback and no window of instants (`windowRaw` marked one of values), and its
-    // "ghosted" meant a held filter condition, never the window.
-    const played =
-        (playback !== undefined && playback !== null) ||
-        (visibility?.window !== undefined && visibility.window !== null && visibility.windowRaw !== true);
-    if (visibility?.outsideByLayers === true || !played || tx.time.field === null) {
+    if (!savedBeforeOutsideWindow(tx, visibility)) {
         return;
     }
 
+    const playback = visibility?.playback;
     await ghostedLayersOutside(tx);
-    ghostedSetsOutside(tx);
 
     // Saved before the drawing lived in the layers, when what lay outside was hidden unless the
     // playback said "ghost": the layers selecting it are written to draw it that way.
@@ -3109,19 +3104,54 @@ async function ghostedLayersOutside(tx: TransactionScope): Promise<void> {
 }
 
 /**
- * Rewrite every rule set reading `"ghosted"` to read `"outsideWindow"`.
- * @param tx - The transaction.
+ * Whether a file is a timed one saved before what lies outside the time window had a state of its
+ * own: no `outsideByLayers` mark (every save writes it), a time field, and a playback or a window
+ * saved. A file saved with the timeline off holds no playback and no window of instants
+ * (`windowRaw` marked one of values), and its `"ghosted"` meant a held filter condition.
+ * @param tx - The transaction, its settings read.
+ * @param visibility - The session member's `visibility`.
+ * @returns True when it is.
  */
-function ghostedSetsOutside(tx: TransactionScope): void {
-    for (const set of tx.sets.list()) {
-        const { definition } = set;
-        if (definition.kind === "rule" && typeof definition.where === "object") {
-            const where = ghostedLeavesOutside(definition.where);
-            if (where !== definition.where) {
-                tx.sets.redefine(set.id, { ...definition, where });
-            }
-        }
+function savedBeforeOutsideWindow(
+    tx: TransactionScope,
+    visibility: Readonly<Record<string, unknown>> | undefined,
+): boolean {
+    const playback = visibility?.playback;
+    const played =
+        (playback !== undefined && playback !== null) ||
+        (visibility?.window !== undefined && visibility.window !== null && visibility.windowRaw !== true);
+    return visibility?.outsideByLayers !== true && played && tx.time.field !== null;
+}
+
+/**
+ * A saved set's definition with what its rule read as `"ghosted"` reading `"outsideWindow"`, for
+ * a file {@link savedBeforeOutsideWindow}; read before the set is made, so it is checked as rewritten.
+ * @param definition - The saved definition.
+ * @param older - Whether the file is one.
+ * @returns It rewritten, or the same value when it reads no `"ghosted"` or the file is not one.
+ */
+function ghostedSetOutside(definition: unknown, older: boolean): unknown {
+    if (!older || !isObject(definition) || definition.kind !== "rule" || !isObject(definition.where)) {
+        return definition;
     }
+
+    const where = ghostedLeavesOutside(definition.where as unknown as RuleTree);
+    return where === definition.where ? definition : { ...definition, where };
+}
+
+/**
+ * The problem an open reports for a saved set the session refuses: its code, the set's id and,
+ * when the refusal gives one, its reason (`"live-selection"` for a kept set reading a live state).
+ * @param id - The saved set's id.
+ * @param error - What the session threw.
+ * @returns The problem.
+ */
+function setRefused(id: string, error: unknown): ProjectProblem {
+    const reason = isGraphtyError(error) ? error.details.reason : undefined;
+    return {
+        code: isGraphtyError(error) ? error.code : "E_INTERNAL",
+        params: { slice: "sets", id, ...(typeof reason === "string" ? { reason } : {}) },
+    };
 }
 
 /**

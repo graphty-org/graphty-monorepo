@@ -211,17 +211,6 @@ const SIZE_RUBRIC: ThingRubric = {
     ],
 };
 
-/**
- * Every Shape member's sub-groups: thing-wide (design 5). Mesh is the geometry the shape is built from (3D only);
- * how light falls on it is Fill's Finish (ia-design 2).
- */
-const SHAPE_GROUPS: readonly SubGroup[] = [
-    {
-        name: "Mesh",
-        lines: [{ channel: "node.meshDetail", name: "Detail", rule: "R5b" }, { channel: "node.wireframe" }],
-    },
-];
-
 /** A Finish's Shading (ia-design 2): Smooth, Flat or Unlit, each writing both of its channels. */
 const SHADING: readonly LineChoice[] = [
     { name: "Smooth", writes: { "node.flat": false, "node.unlit": false } },
@@ -231,11 +220,10 @@ const SHADING: readonly LineChoice[] = [
 
 /**
  * The Shape row while a shader draws in the shapes' place (design 7.1, "replace shader"): its
- * parameters stay the Shaders section's row's; the pop-over holds every Shape member's sub-groups.
+ * parameters stay the Shaders section's row's; the pop-over holds its Rotation.
  */
 export const SHAPE_REPLACE_RUBRIC: ThingRubric = {
     main: [{ channel: "node.shapeRotation", name: "Rotation" }],
-    groups: SHAPE_GROUPS,
 };
 
 /**
@@ -285,7 +273,6 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                     { channel: "node.shapeLineHaloWidth", name: "Inner line backing width" },
                 ],
             },
-            ...SHAPE_GROUPS,
         ],
     },
     "shape:node.model": {
@@ -316,7 +303,6 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                     },
                 ],
             },
-            ...SHAPE_GROUPS,
         ],
     },
     fill: { main: [] },

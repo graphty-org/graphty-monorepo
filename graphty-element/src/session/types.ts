@@ -6900,6 +6900,18 @@ export interface SessionEventMap {
         readonly notDrawn: readonly HiddenNotDrawn[];
     };
     /**
+     * A filter draft opened, changed, was committed or canceled (`visibility.draft()`), or autosave
+     * opened again the drafts it kept after a restore: a view of the open drafts
+     * (`visibility.openDrafts()`, `visibility.draftOf()`) reads them again.
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.60.0
+     * @beta
+     */
+    "visibility:draft-changed": {
+        /** The ids of the conditions the open drafts hold. */
+        readonly open: readonly string[];
+    };
+    /**
      * The time window moved through `session.time`: where it is now and what entered and left.
      * @beta
      */

@@ -3,7 +3,7 @@ import "./canvas.css";
 import type { BasemapStatusEvent, LayoutWarningEvent } from "@graphty/graphty-element";
 import type { GraphSession, LegendBlock, ProgressChange, RunStatus } from "@graphty/graphty-element/session";
 import { Button, Tooltip } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { APP_GLOBE_SOURCE } from "../../constants/globe";
 import { groupsAnnouncement, pathAnnouncement, topAnnouncement } from "../analyze/words";
@@ -56,9 +56,15 @@ const NOTHING: CanvasReading = { blocks: [], nodeCount: 0, edgeCount: 0, totalNo
 function useCanvasReading(session: GraphSession | null, paused: boolean): CanvasReading {
     const { store } = useWorkspace();
     const [reading, setReading] = useState<CanvasReading>(NOTHING);
+    // Whether the graph was read with nodes and a key in it: the pause below skips only the
+    // re-reads after such a reading. A workspace a reload brought back open (issue #9655) opens
+    // before the work is in, so the canvas reads until it is there rather than calling the graph
+    // empty or keyless, then pauses as it would under any open workspace.
+    const readOpen = useRef(false);
 
     useEffect(() => {
         if (session === null) {
+            readOpen.current = false;
             setReading(NOTHING);
             store.set({ keyHasEntries: false });
             return undefined;
@@ -72,12 +78,13 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
         const read = (): void => {
             // While the selection workspace draws its own key the canvas key is not drawn: it is
             // read again when the workspace closes, not on every edit (ws-polish 2).
-            if (paused) {
+            if (paused && readOpen.current) {
                 return;
             }
             const { nodeCount, edgeCount } = session.data.statistics();
             const totalNodes = session.data.statistics({ scope: "all" }).nodeCount;
             const blocks = keyBlocks(dataBlocks(session));
+            readOpen.current ||= nodeCount > 0 && blocks.length > 0;
             // The card names and groups each block from the session (a layer's or a run's name, a
             // run's folder), so its sections are part of what it draws: a rename changes no block.
             const key = JSON.stringify([

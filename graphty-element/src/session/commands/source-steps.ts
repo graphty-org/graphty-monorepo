@@ -10,6 +10,7 @@
  */
 
 import type { EdgeId } from "../../catalog/types";
+import { duplicateEdgeError } from "../../data/edgeIdentity";
 import type { LoadReport } from "../../data/report";
 import { featureOff } from "../../features/resolve";
 import type { HistoryCode, JoinChoices, JoinRecord, LoadedSource } from "../../session/types";
@@ -27,6 +28,7 @@ import {
     diffGraph,
     EMPTY_STEPS,
     type GraphDiff,
+    nodeIdsOf,
     openedAsBuilt,
     projectBuild,
     type ProjectedEdge,
@@ -40,7 +42,7 @@ import {
     type StepsEdit,
     type StepsSource,
 } from "../sources/steps/project";
-import { READER_SOURCE } from "../sources/steps/types";
+import { type BuildResult, READER_SOURCE } from "../sources/steps/types";
 import { type DataMutation, serviceOf, SOURCE_VALUE, SOURCES_VALUE } from "./data";
 import { refreshDerivedAfter } from "./derive";
 
@@ -552,7 +554,7 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         const edited = withRepeated(applyEdit(prior, command.edit, all), known?.repeatedEdges);
         const copies = copiesOf(edited, all);
         const idPath = known?.nodeIdPath ?? "id";
-        const after = projectBuild(buildOf(edited, copies), edited, idPath);
+        const after = projectBuild(refusingDuplicates(buildOf(edited, copies)), edited, idPath);
         const { edit } = command;
         // A restore starts from the graph a project file embedded, matched to the build; every
         // other edit from the build of the value it found.
@@ -604,6 +606,22 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         refreshDerivedAfter(ctx);
     },
 };
+
+/**
+ * A build, refused when it holds a repeated edge under `repeatedEdges` "error", as a load without the
+ * experiment refuses it.
+ * @param result - The build.
+ * @returns The build.
+ * @throws A `GraphtyError` with `E_DUPLICATE_EDGE` when it holds such a repeat.
+ */
+function refusingDuplicates(result: BuildResult): BuildResult {
+    if (result.duplicate !== undefined) {
+        const ids = nodeIdsOf(result);
+        const { from, to, repeat } = result.duplicate;
+        throw duplicateEdgeError(ids.get(from), ids.get(to), repeat);
+    }
+    return result;
+}
 
 /**
  * The value carrying the graph's `repeatedEdges`, which the build reduces repeated edges by, as a load

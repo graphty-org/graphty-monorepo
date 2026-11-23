@@ -551,6 +551,7 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
             [1, 0, "scene", "storage-ro", "array<f32>"],
             [1, 1, "skip", "storage-ro", "array<u32>"],
             [1, 2, "drawn", "storage", "array<vec4f>"],
+            [1, 3, "env", "storage", "array<vec4f>"],
             [2, 0, "P", "uniform", "DrawnParams"],
         ],
         overrideDecls: [],
@@ -558,7 +559,7 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         needs: [],
         snippetSlots: [],
         phase: "P4",
-        storageCount: 3,
+        storageCount: 4,
     },
     envelope: {
         entryPoint: "envelope",

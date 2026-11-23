@@ -6,11 +6,8 @@ import { assert, beforeEach, describe, it, vi } from "vitest";
 
 import { captureScreenshot } from "../../../src/ai/commands/CaptureCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
-
-// Type for the mock graph with screenshot functionality
-interface MockGraph {
-    captureScreenshot: ReturnType<typeof vi.fn>;
-}
+import type { Graph } from "../../../src/Graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 
 // Type for screenshot result data
 interface ScreenshotData {
@@ -41,43 +38,35 @@ class MockFileReader {
 // Set up FileReader mock before tests
 vi.stubGlobal("FileReader", MockFileReader);
 
-// Create a mock graph with screenshot functionality
-function createMockGraph(): MockGraph {
-    return {
-        // Mock screenshot method that returns a ScreenshotResult with blob
-        captureScreenshot: vi.fn().mockResolvedValue({
-            blob: new Blob(["fake-image-data"], { type: "image/png" }),
-            downloaded: false,
-            clipboardStatus: "not-supported",
-            metadata: {
-                width: 800,
-                height: 600,
-                format: "png",
-                byteSize: 12345,
-                captureTime: 100,
-            },
-        }),
-    };
-}
-
-function createMockContext(mockGraph: MockGraph): CommandContext {
-    return {
-        graph: mockGraph as unknown as CommandContext["graph"],
-        // Capture writes nothing, so it never reaches the transaction.
-        tx: {} as CommandContext["tx"],
-        abortSignal: new AbortController().signal,
-        emitEvent: vi.fn(),
-        updateStatus: vi.fn(),
-    };
+/**
+ * The renderer's screenshot: a headless session has no canvas, so the test hands one in that
+ * answers what the renderer's does, and checks what the command makes of the result.
+ * @returns The stand-in.
+ */
+function fakeScreenshot(): ReturnType<typeof vi.fn> {
+    return vi.fn().mockResolvedValue({
+        blob: new Blob(["fake-image-data"], { type: "image/png" }),
+        downloaded: false,
+        clipboardStatus: "not-supported",
+        metadata: {
+            width: 800,
+            height: 600,
+            format: "png",
+            byteSize: 12345,
+            captureTime: 100,
+        },
+    });
 }
 
 describe("CaptureCommands", () => {
-    let mockGraph: MockGraph;
+    let screenshot: ReturnType<typeof vi.fn>;
+    let graph: Graph;
     let context: CommandContext;
 
-    beforeEach(() => {
-        mockGraph = createMockGraph();
-        context = createMockContext(mockGraph);
+    beforeEach(async () => {
+        screenshot = fakeScreenshot();
+        graph = await createCommandGraph({ renderer: { captureScreenshot: screenshot } });
+        context = createCommandContext(graph);
     });
 
     describe("captureScreenshot", () => {
@@ -89,7 +78,6 @@ describe("CaptureCommands", () => {
         });
 
         it("captures screenshot with default options", async () => {
-            const graph = mockGraph as unknown as CommandContext["graph"];
             const result = await captureScreenshot.execute(graph, {}, context);
 
             assert.strictEqual(result.success, true);
@@ -99,7 +87,6 @@ describe("CaptureCommands", () => {
         });
 
         it("captures screenshot with PNG format", async () => {
-            const graph = mockGraph as unknown as CommandContext["graph"];
             const result = await captureScreenshot.execute(
                 graph,
                 {
@@ -115,7 +102,7 @@ describe("CaptureCommands", () => {
 
         it("captures screenshot with JPEG format", async () => {
             // Mock to return JPEG data
-            mockGraph.captureScreenshot.mockResolvedValueOnce({
+            screenshot.mockResolvedValueOnce({
                 blob: new Blob(["fake-jpeg-data"], { type: "image/jpeg" }),
                 downloaded: false,
                 clipboardStatus: "not-supported",
@@ -128,7 +115,6 @@ describe("CaptureCommands", () => {
                 },
             });
 
-            const graph = mockGraph as unknown as CommandContext["graph"];
             const result = await captureScreenshot.execute(
                 graph,
                 {
@@ -143,7 +129,6 @@ describe("CaptureCommands", () => {
         });
 
         it("captures screenshot with specified width and height", async () => {
-            const graph = mockGraph as unknown as CommandContext["graph"];
             const result = await captureScreenshot.execute(
                 graph,
                 {
@@ -155,11 +140,11 @@ describe("CaptureCommands", () => {
 
             assert.strictEqual(result.success, true);
             // Verify screenshot was called with size parameters
-            assert.ok(mockGraph.captureScreenshot.mock.calls.length > 0);
+            assert.ok(screenshot.mock.calls.length > 0);
         });
 
         it("captures screenshot with quality option for JPEG", async () => {
-            mockGraph.captureScreenshot.mockResolvedValueOnce({
+            screenshot.mockResolvedValueOnce({
                 blob: new Blob(["fake-jpeg-data"], { type: "image/jpeg" }),
                 downloaded: false,
                 clipboardStatus: "not-supported",
@@ -172,7 +157,6 @@ describe("CaptureCommands", () => {
                 },
             });
 
-            const graph = mockGraph as unknown as CommandContext["graph"];
             const result = await captureScreenshot.execute(
                 graph,
                 {
@@ -186,9 +170,8 @@ describe("CaptureCommands", () => {
         });
 
         it("handles screenshot failure gracefully", async () => {
-            mockGraph.captureScreenshot.mockRejectedValueOnce(new Error("Screenshot failed"));
+            screenshot.mockRejectedValueOnce(new Error("Screenshot failed"));
 
-            const graph = mockGraph as unknown as CommandContext["graph"];
             const result = await captureScreenshot.execute(graph, {}, context);
 
             assert.strictEqual(result.success, false);
@@ -196,7 +179,6 @@ describe("CaptureCommands", () => {
         });
 
         it("returns appropriate message with download:false", async () => {
-            const graph = mockGraph as unknown as CommandContext["graph"];
             const result = await captureScreenshot.execute(
                 graph,
                 {

@@ -1592,7 +1592,7 @@ export class Graphty extends LitElement {
     #featuresValue: readonly string[] | undefined;
 
     /**
-     * The experiments to switch on, space separated (`features="assistant location-map"`); `all`
+     * The experiments to switch on, space separated (`features="file-styles source-steps"`); `all`
      * switches on every one this build declares. Absent takes the page default
      * (`setDefaultFeatures`). Read once, when the element first renders; see `enabledFeatures`.
      * Features marked `@experimental` may change or disappear in a minor release.
@@ -7027,7 +7027,6 @@ export class Graphty extends LitElement {
      * @param id - Its id.
      * @param name - The name, trimmed; null or "" clears it.
      * @returns When it is saved; rejects when the store cannot save it.
-     * @experimental assistant
      * @example
      * ```ts
      * await element.renameAiConversation(id, "Color by department");
@@ -7057,7 +7056,6 @@ export class Graphty extends LitElement {
      * @param options.provider - One provider's key; every provider's when absent.
      * @param options.prefix - `keyPersistence.prefix`, with no assistant enabled.
      * @returns When they are forgotten.
-     * @experimental assistant
      */
     async forgetAiKeys(options?: Parameters<Graph["forgetAiKeys"]>[0]): Promise<void> {
         return this.#graph.forgetAiKeys(options);

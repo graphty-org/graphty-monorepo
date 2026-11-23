@@ -4,11 +4,6 @@
         "servers": ["visual-review-v3"],
         "test": "cd visual-review && npm run lint && npx vitest run"
     },
-    "gate": {
-        "worktree": ".worktrees/gate-live",
-        "servers": [],
-        "test": "pnpm run test:ci-workflows && pnpm run test:push-base"
-    },
     "land": {
         "worktree": ".worktrees/land-live",
         "servers": [],

@@ -38,7 +38,7 @@ function rows(document: string): string[] {
  * @returns The call's code and the document, if one was written.
  */
 async function exported(bound: boolean, args: Record<string, unknown>): Promise<{ code: string; data?: string }> {
-    const session = await assistantSession({ nodes: VOLUNTEERS, edges: RING }, ["assistant"]);
+    const session = await assistantSession({ nodes: VOLUNTEERS, edges: RING });
     await session.selection.apply({ ids: FIVE });
     const assistant = new ScriptedAssistant(session, { gate: false });
     assistant.engine.push(callsTurn([{ tool: "export_graph", args }]), textTurn("done"));
@@ -111,7 +111,7 @@ describe("export_graph writes what the message is about", () => {
     });
 
     it("refuses where selection when nothing is selected, and writes no file", async () => {
-        const session = await assistantSession({ nodes: VOLUNTEERS, edges: RING }, ["assistant"]);
+        const session = await assistantSession({ nodes: VOLUNTEERS, edges: RING });
         const assistant = new ScriptedAssistant(session, { gate: false });
         assistant.engine.push(
             callsTurn([{ tool: "export_graph", args: { ...NODES, where: "selection" } }]),

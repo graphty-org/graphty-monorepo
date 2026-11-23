@@ -20,7 +20,7 @@
             "paths": [],
             "catalogs": ["edgeArrows", "edgeLines"],
             "issue": 6504,
-            "finding": "Arrowheads, edge.style and edge.outlineStyle name built-in arrowheads and line patterns by id."
+            "finding": "Arrowheads, edge.style and edge.outlineStyle name built-in arrowheads and line patterns by id. Kept on purpose: the owner decided on 2026-11-13 that code-backed built-ins are named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "overflow-lists",
@@ -34,14 +34,14 @@
             "paths": [],
             "catalogs": [],
             "issue": 6506,
-            "finding": "Border styles, chart kinds, stripe directions, route, support model, image fit and repeat, model fit, center and up axis are closed lists saved by name, with no catalog table; the scan does not list their ids yet."
+            "finding": "Border styles, chart kinds, stripe directions, route, support model, image fit and repeat, model fit, center and up axis are closed lists saved by name, with no catalog table; the scan does not list their ids yet. Kept on purpose: the owner decided on 2026-11-13 that closed choices are code-backed built-ins, named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "transition",
             "paths": [],
             "catalogs": ["transitions"],
             "issue": 6507,
-            "finding": "layoutTransition in the configuration names a transition preset by id (glide)."
+            "finding": "layoutTransition in the configuration names a transition preset by id (glide). Kept on purpose: the owner decided on 2026-11-13 that code-backed built-ins are named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "sample-model",
@@ -55,14 +55,14 @@
             "paths": [],
             "catalogs": ["generators", "datasets"],
             "issue": 6509,
-            "finding": "A project's data source names a generator or dataset by name, resolved against the current generator catalog."
+            "finding": "A project's data source names a generator (with its params) or a dataset by name, resolved against the current generator catalog. The graph's records are carried in the graphty-data member, so opening the file never runs the generator or downloads the dataset; the name is the provenance of the load, and running it again is a reload the reader asks for. Kept on purpose: the owner decided on 2026-11-13 that a sample source is a behavior, named in save files and run again rather than saved as a result (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "row-template",
             "paths": [],
             "catalogs": ["rowTemplates"],
             "issue": 6510,
-            "finding": "The Starting, Ghost and Pinned rows carry template ids that code branches on."
+            "finding": "The Starting, Ghost and Pinned rows carry template ids that code branches on. Kept on purpose: the owner decided on 2026-11-13 that code-backed built-ins are named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "algorithm",
@@ -76,14 +76,14 @@
             "paths": ["graphty-session.layout.id"],
             "catalogs": ["layouts"],
             "issue": 6512,
-            "finding": "The layout is saved by id and engine and run again on open, plus the legacy layoutBehavior.type."
+            "finding": "The layout is saved by id, engine, options and dimension and run again on open, plus the legacy layoutBehavior.type. Kept on purpose: the owner decided on 2026-11-13 that behaviors are not saved as results; the file names them and the reading build runs them again on open (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "basemap",
             "paths": [],
             "catalogs": ["basemaps"],
             "issue": 6513,
-            "finding": "A map layout names its basemap by MapSourceId, and no map means the bundled world image."
+            "finding": "Kept on purpose: the owner decided on 2026-11-13 that code-backed built-ins are named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "style-tree-mode",
@@ -97,7 +97,7 @@
             "paths": [],
             "catalogs": [],
             "issue": 6517,
-            "finding": "Graphviz edge routes are not saved; they are computed again on open."
+            "finding": "Graphviz edge routes are not saved; the layout that lays them (edgeRoutes: graphviz) is saved and run again on open, which computes them again (with the optional package @hpcc-js/wasm-graphviz installed; without it the edges are drawn the element's way and W_ROUTES_NOT_LAID says so). Kept on purpose: the owner decided on 2026-11-13 that behaviors are not saved as results; the file names them and the reading build runs them again on open (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "gazetteer",

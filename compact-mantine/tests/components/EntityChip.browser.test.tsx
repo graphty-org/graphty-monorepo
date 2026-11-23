@@ -7,40 +7,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { EntityChip } from "../../src";
+import { contrast, over, rgba as parse } from "../harness/contrast";
 import { part, renderThemed, resetHarness } from "../harness/measure";
 
 afterEach(resetHarness);
-
-type Rgba = [number, number, number, number];
-
-/** A computed color as 0-255 channels and an alpha; reads rgb(), rgba() and color(srgb ...). */
-function parse(color: string): Rgba {
-    const numbers = (color.match(/[\d.]+/g) ?? []).map(Number);
-    if (color.startsWith("color(")) {
-        const [r, g, b, a = 1] = numbers;
-        return [r * 255, g * 255, b * 255, a];
-    }
-    const [r, g, b, a = 1] = numbers;
-    return [r, g, b, a];
-}
-
-/** A translucent color over an opaque one. */
-function over(top: Rgba, ground: Rgba): Rgba {
-    return [0, 1, 2].map((i) => top[i] * top[3] + ground[i] * (1 - top[3])).concat(1) as Rgba;
-}
-
-function luminance([r, g, b]: Rgba): number {
-    const [lr, lg, lb] = [r, g, b].map((c) => {
-        const v = c / 255;
-        return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
-}
-
-function contrast(a: Rgba, b: Rgba): number {
-    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
-}
 
 describe("EntityChip", () => {
     for (const scheme of ["light", "dark"] as const) {

@@ -839,6 +839,11 @@ export interface DrawnBorder {
     screen: boolean;
     /** The opacity it is drawn at: its material's alpha times the ring's visibility. */
     opacity: number;
+    /**
+     * A ring cut into dashes or dots: each piece's length and the gap after it, in turn, in render pixels, as drawn
+     * (`ringDashesPx`); absent for a ring in one piece.
+     */
+    dashPx?: number[];
 }
 
 /**
@@ -959,14 +964,88 @@ function readBorder(node: Node, p: Projector): DrawnBorder | null {
     const waved = NodeMesh.waveOf(drawnStyle?.border, 1) !== undefined && (style === "zigzag" || style === "sinewave");
     const lineWidthPx = waved ? frontThickness(source) * Math.abs(border.absoluteScaling.x) * p.pxPerWorld(at) : null;
     const material = materialColor(source.material);
+    const widthPx = drawnWidthPx(node, border, waved || MARK_RINGS.has(style) ? "marks" : style, p);
+    const dashPx = DASHED_RINGS.has(style) ? ringDashesPx(border, p, widthPx) : null;
     return {
         color: material ? hex(material.rgb) : null,
-        widthPx: drawnWidthPx(node, border, waved || MARK_RINGS.has(style) ? "marks" : style, p),
+        widthPx,
         lineWidthPx,
         style,
         screen: drawnStyle?.border?.screenWidth !== undefined,
         opacity: (material?.alpha ?? 1) * border.visibility,
+        ...(dashPx === null ? {} : { dashPx }),
     };
+}
+
+/** Border styles drawn as a ring cut into dashes or dots, whose pieces `ringDashesPx` measures. */
+const DASHED_RINGS: ReadonlySet<string> = new Set(["dashed", "dotted", "dash-dot"]);
+
+/**
+ * The dashes and gaps a ring cut into pieces is drawn with, on screen: its front face split where no triangle joins
+ * another, each piece as long as its area on screen over the ring's width (its length along the middle of the ring,
+ * however it bends, where a chord would read a square dot as long as its diagonal), and each gap as wide as the
+ * nearest two corners of a piece and the next round the ring.
+ * @param ring - the border ring
+ * @param p - the projector
+ * @param widthPx - the ring's width on screen, in render pixels
+ * @returns each piece's length and the gap after it, in turn, in render pixels; null for a ring in fewer than two pieces
+ */
+function ringDashesPx(ring: Placed, p: Projector, widthPx: number): number[] | null {
+    const { triangles } = frontFace(sourceOf(ring));
+    const keyOf = (q: Xyz): string => `${q[0].toFixed(5)},${q[1].toFixed(5)}`;
+    // the pieces: triangles joined by a shared corner, found with a union-find over the corners
+    const parent = new Map<string, string>();
+    const find = (k: string): string => {
+        let r = k;
+        while (parent.get(r) !== r) {
+            r = parent.get(r) ?? r;
+        }
+        parent.set(k, r);
+        return r;
+    };
+    const corners = new Map<string, Xyz>();
+    for (const tri of triangles) {
+        const keys = tri.map(keyOf);
+        tri.forEach((q, i) => {
+            corners.set(keys[i], q);
+            if (!parent.has(keys[i])) {
+                parent.set(keys[i], keys[i]);
+            }
+        });
+        parent.set(find(keys[1]), find(keys[0]));
+        parent.set(find(keys[2]), find(keys[0]));
+    }
+    const groups = new Map<string, Xyz[]>();
+    for (const [k, q] of corners) {
+        const root = find(k);
+        groups.set(root, [...(groups.get(root) ?? []), q]);
+    }
+    if (groups.size < 2 || widthPx <= 0) {
+        return null;
+    }
+    const area = new Map<string, number>();
+    for (const tri of triangles) {
+        const [a, b, c] = onScreen(ring, tri, p);
+        const root = find(keyOf(tri[0]));
+        area.set(root, (area.get(root) ?? 0) + Math.abs(twiceArea([a, b, c])) / 2);
+    }
+    const roots = [...groups.keys()];
+    const pieces = roots.map((root) => onScreen(ring, groups.get(root) ?? [], p));
+    const lengths = new Map(pieces.map((piece, i) => [piece, (area.get(roots[i]) ?? 0) / widthPx]));
+    const all = pieces.flat();
+    const [cx, cy] = [all.reduce((a, q) => a + q[0], 0) / all.length, all.reduce((a, q) => a + q[1], 0) / all.length];
+    const angleOf = (qs: readonly Xy[]): number =>
+        Math.atan2(
+            qs.reduce((a, q) => a + q[1], 0) / qs.length - cy,
+            qs.reduce((a, q) => a + q[0], 0) / qs.length - cx,
+        );
+    pieces.sort((a, b) => angleOf(a) - angleOf(b));
+    const far = (qs: readonly Xy[], rs: readonly Xy[], pick: (a: number, b: number) => number, start: number): number =>
+        qs.reduce((best, q) => rs.reduce((b, r) => pick(b, Math.hypot(q[0] - r[0], q[1] - r[1])), best), start);
+    return pieces.flatMap((piece, i) => [
+        lengths.get(piece) ?? 0,
+        far(piece, pieces[(i + 1) % pieces.length], Math.min, Infinity),
+    ]);
 }
 
 /**

@@ -71,6 +71,7 @@ function references(file, text) {
     // ponytail: an error's `details` or `params` names a capability, not a flag; skipped by line.
     add(/^(?!.*\b(?:details|params):).*?\bfeature:\s*["']([^"']+)["']/gm, "feature field");
     add(/\bfeatures\.has\(\s*["']([^"']+)["']/g, "features.has call");
+    add(/\benabled\.includes\(\s*["']([^"']+)["']/g, "enabled check");
     add(/\b(?:appFeatureOn|useAppFeature)\(\s*["']([^"']+)["']/g, "app gate");
     // Gates that read an app experiment under a name of their own: whoever retires the id finds them too.
     for (const [name, id] of Object.entries(GATE_ALIASES))
@@ -125,8 +126,12 @@ function referenceProblems(file, text, declared, files) {
     return problems;
 }
 
+// Graduated ids that are also ordinary words in this code (the assistant's chat role, its place and its
+// Settings section): a bare literal of one is a word, so only the gate forms references() reads fail on it.
+const WORD_IDS = new Set(["assistant"]);
+
 /**
- * The places a file still names a graduated flag, a command's `keywords` aside.
+ * The places a file still names a graduated flag, a command's `keywords` and the ids in WORD_IDS aside.
  * @param file - The file, relative to the root.
  * @param text - Its text.
  * @param graduated - The graduated flag ids.
@@ -137,6 +142,7 @@ function graduatedProblems(file, text, graduated) {
     // A command's search words are words, not flag ids: "timeline" stays a word a reader types.
     const searched = text.replaceAll(/\bkeywords:\s*\[[^\]\n]*\]/g, "");
     for (const id of graduated) {
+        if (WORD_IDS.has(id)) continue;
         const escaped = id.replaceAll(/[.*+?^${}()|[\]\\-]/g, String.raw`\$&`);
         const at = searched.search(new RegExp(`["'\`]${escaped}["'\`]`));
         if (at >= 0) problems.push(`${file}:${lineOf(searched, at)}: graduated feature "${id}" is still named`);

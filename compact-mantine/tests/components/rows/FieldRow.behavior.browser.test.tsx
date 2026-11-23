@@ -1,5 +1,5 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -9,15 +9,7 @@ import { FieldRow } from "../../../src/components/rows/FieldRow";
 import { PanelField } from "../../../src/components/rows/PanelField";
 import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
 import { PanelLabelsProvider } from "../../../src/context/PanelLabelsContext";
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRow(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
+import { renderCompact as renderRow } from "../../harness/render";
 
 /**
  * The pair the stories and the mockups both use: the smallest and the largest

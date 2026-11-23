@@ -32,29 +32,24 @@ export interface AiCallRecord {
     /** The facts behind the code. */
     readonly params: AiResultParams;
     /**
-     * How long it ran, in milliseconds, under the generated tools with the `assistant` experiment
-     * on; absent for a call that did not run.
-     * @experimental assistant
+     * How long it ran, in milliseconds, under the generated tools; absent for a call that did not
+     * run.
      */
     readonly durationMs?: number;
     /**
-     * What this call did, in order, under the generated tools with the `assistant` experiment on;
-     * absent for a call that did nothing to report. The message's `effects` holds every call's.
-     * @experimental assistant
+     * What this call did, in order, under the generated tools; absent for a call that did nothing to report. The message's `effects` holds every call's.
      */
     readonly effects?: readonly AiEffect[];
     /**
      * The model's own few words for what this call does, as it gave them in the generated tools'
      * `intent` argument; absent when it gave none. It is the model's claim about the call, not what
      * the call did: `effects` and `code` say that.
-     * @experimental assistant
      */
     readonly intent?: string;
     /**
      * What the model passed, each argument with its kind and its schema's default name, read
      * against the tool's own parameters (`action` and `intent` left out); absent when the
      * conversation is read without the tools (a list, an export) or the call passed nothing.
-     * @experimental assistant
      */
     readonly inputs?: readonly AiCallInput[];
 }
@@ -94,21 +89,18 @@ export type AiConversationMessage =
           readonly via: "text" | "voice";
           /**
            * What the message was about, when it was sent with a scope.
-           * @experimental assistant
            */
           readonly scope?: AiMessageScope;
           /**
            * The id its changes carry on the history (`step.provenance.message`), so an application
            * can tell whether `session.history.nextUndo` would take this message back. Under the
-           * generated tools with the `assistant` experiment on.
-           * @experimental assistant
+           * generated tools.
            */
           readonly provenance?: string;
           /**
            * Set once none of the message's changes stands: its steps were undone. It stays through
            * later edits and reloads, which drop those steps from `session.history`, and goes if they
            * are redone.
-           * @experimental assistant
            */
           readonly undone?: true;
       }
@@ -141,16 +133,14 @@ export type AiConversationMessage =
           /** The helper (`AiAgentRole.name`) that said it, when a helper did; absent for the assistant itself. */
           readonly agent?: string;
           /**
-           * What its calls did, in order, under the generated tools with the `assistant` experiment
-           * on; absent when they did nothing to report.
-           * @experimental assistant
+           * What its calls did, in order, under the generated tools; absent when they did nothing to
+           * report.
            */
           readonly effects?: readonly AiEffect[];
           /**
            * Set when `text` was said while earlier calls waited on the reader (an approval or a
            * question) and the reader has since decided, or the request ended: it describes the wait,
            * which no longer stands. Absent while the request still waits.
-           * @experimental assistant
            */
           readonly saidWhileHeld?: true;
       };
@@ -170,13 +160,11 @@ export interface AiConversationSnapshot {
     /**
      * The reader's own name for it (`renameAiConversation`), or null when they have not named it:
      * the reader's data.
-     * @experimental assistant
      */
     readonly name: string | null;
     /**
      * The reader's own first message, or null before there is one: the reader's data, as
      * `AiConversationSummary.firstWords`.
-     * @experimental assistant
      */
     readonly firstWords: string | null;
 }
@@ -200,13 +188,11 @@ export interface AiConversationSummary {
     /**
      * The reader's own first message, or null before there is one: the reader's data, for a list
      * of conversations to title it by.
-     * @experimental assistant
      */
     readonly firstWords: string | null;
     /**
      * The reader's own name for it (`renameAiConversation`), or null when they have not named it:
      * the reader's data.
-     * @experimental assistant
      */
     readonly name: string | null;
 }

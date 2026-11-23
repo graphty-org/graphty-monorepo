@@ -66,6 +66,7 @@ const allMembers = (vs: View[]): Member[] => [
 /** Members whose value is a fact about the dashboard's own store (rows today, sources' ages), not a source's data. */
 const SELF_IDS = new Set([
     "data-sources.write_budget",
+    "data-sources.read_budget",
     "data-sources.past_age",
     "data-sources.sources_not_ok",
     "data-sources.thin",

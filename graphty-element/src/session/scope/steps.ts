@@ -397,14 +397,25 @@ function nextColor(palette: readonly string[], used: Set<string>): string {
  * Every union leaf in a rule tree, at any depth, passed through `each`.
  * @param tree - The tree.
  * @param each - What to do with one leaf.
+ * A malformed part (not an object, or an "all" or "any" whose `of` is not a list) is left as it
+ * is, so the filter or scope check that runs after it refuses it with `E_BAD_COMMAND` (#9811).
  * @returns The tree, the same object when nothing changed.
  */
 export function mapUnions(tree: RuleTree, each: (leaf: UnionLeaf) => UnionLeaf): RuleTree {
+    if (typeof tree !== "object" || tree === null) {
+        return tree;
+    }
+
     switch (tree.kind) {
         case "union":
             return each(tree);
         case "all":
         case "any": {
+            const members: unknown = tree.of;
+            if (!Array.isArray(members)) {
+                return tree;
+            }
+
             const of = tree.of.map((member) => mapUnions(member, each));
             return of.every((member, at) => member === tree.of[at]) ? tree : { ...tree, of };
         }

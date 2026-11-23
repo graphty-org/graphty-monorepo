@@ -14,8 +14,9 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 
 import { failureHashes, issueKey } from "../../../results-service/src/signature.js";
-import { dynamoStore } from "../dynamo.js";
+import { dynamoStore, takeReadUnits } from "../dynamo.js";
 import { DAY, ttlAt } from "../model/index.js";
+import { readMeter } from "../model/raw.js";
 import { isLive, type Item, type Store } from "../model/store.js";
 
 /** A refusal, answered as the Worker answers it: the status and `{ error: <message> }`. */
@@ -1758,6 +1759,8 @@ const READS: Record<string, (q: URLSearchParams, db: Store, now: number) => Prom
 };
 
 let store: Store | undefined;
+/** The public reads' daily budget (model/items.ts DAILY_READ_LIMIT), shared with the Read Lambda's. */
+const meter = readMeter();
 
 /**
  * The results service's reads, answered as the results Worker answers them.
@@ -1765,9 +1768,26 @@ let store: Store | undefined;
  * @returns 200 with the answer, or the Worker's `{ error }` with its status
  */
 export async function handler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2> {
+    const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
+    if (await meter.spent(db, Date.now())) {
+        return json(429, { error: "read_budget" });
+    }
+    try {
+        return await serve(event, db);
+    } finally {
+        await meter.charge(db, takeReadUnits(), Date.now());
+    }
+}
+
+/**
+ * Answers one read inside the daily read budget.
+ * @param event - the HTTP API request
+ * @param db - the table
+ * @returns the JSON response
+ */
+async function serve(event: APIGatewayProxyEventV2, db: Store): Promise<APIGatewayProxyStructuredResultV2> {
     const q = new URLSearchParams(event.rawQueryString ?? "");
     try {
-        const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
         if (event.rawPath.startsWith(TESTS_PATH)) {
             return json(200, await getTestDurations(event.rawPath.slice(TESTS_PATH.length), db));
         }

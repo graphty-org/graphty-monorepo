@@ -13,7 +13,6 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { onUsageEvent } from "../../../lib/analytics";
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { forgetAutosave, reload } from "../../../test/reload";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
@@ -21,8 +20,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { effectLine } from "../words";
 
-/** The experiment on, as a site.json that lists it. */
-const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
 const COMPOSER = { name: "Message the assistant" };
 
 type Generate = MockLlmProvider["generate"];
@@ -211,10 +208,8 @@ function fakeSpeech(slow = false): () => void {
     };
 }
 
-/** A fresh page for the Assistant: the experiment on, nothing stored, the scripted model in place. */
+/** A fresh page for the Assistant: nothing stored, the scripted model in place. */
 async function freshAssistant(): Promise<void> {
-    resetSiteConfig();
-    await loadSiteConfig(SITE);
     await page.viewport(1440, 900);
     localStorage.clear();
     sessionStorage.clear();
@@ -235,7 +230,6 @@ describe("checking what the Assistant says", () => {
     afterEach(() => {
         vi.restoreAllMocks();
         vi.unstubAllGlobals();
-        resetSiteConfig();
         writeAssistantChoice(null);
     });
 
@@ -1248,7 +1242,6 @@ describe("usage counts of the Assistant", () => {
         offUsage();
         vi.restoreAllMocks();
         vi.unstubAllGlobals();
-        resetSiteConfig();
         writeAssistantChoice(null);
     });
 

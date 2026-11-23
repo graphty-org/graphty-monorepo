@@ -105,7 +105,7 @@ export const placedEnds = new Float64Array(9);
  * @param out - Written with the three points.
  * @returns False when the line has no ends (the nodes overlap).
  */
-export function roundEnds(places: Float64Array, ends: Float64Array, capBack: number, out: Float64Array): boolean {
+function roundEnds(places: Float64Array, ends: Float64Array, capBack: number, out: Float64Array): boolean {
     const r1 = ends[0];
     const reach1 = ends[1];
     const r2 = ends[2];

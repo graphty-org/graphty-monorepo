@@ -940,9 +940,23 @@ function Cards({
     );
     const head = useHead(session, rows, side);
     const matched = rows.length === 1 ? session.styles.counts(rows[0].layer.id).matched : undefined;
+    // Each card's own count, so Done says which card leaves nothing, or that only together they do.
+    const [counts, setCounts] = useState<Readonly<Record<string, number | undefined>>>({});
     let why: string | undefined;
-    if (matched === 0 && list.length > 0) {
-        why = list.length === 1 ? `${cardName(list[0].card)} leaves none` : "Each condition leaves some; together none";
+    if (matched === 0 && list.length === 1) {
+        why = `${cardName(list[0].card)} leaves none`;
+    } else if (matched === 0 && list.length > 1) {
+        const empty = list.filter((each) => counts[each.key] === 0).map((each) => cardName(each.card));
+        if (empty.length > 0) {
+            why = `${empty.join(", ")} ${empty.length === 1 ? "leaves" : "leave"} none`;
+        } else if (
+            // A card picked by hand, the Ends card or one not finished has no count of its own.
+            list.every(
+                (each) => isPicked(each.card) || styleLeafOf(each.card) === null || counts[each.key] !== undefined,
+            )
+        ) {
+            why = "Each condition leaves some; together none";
+        }
     }
     const standsAlone = list.some((each) => each.card.type === "fixed" && each.card.leaf === null);
 
@@ -1030,6 +1044,17 @@ function Cards({
                     />
                 ),
             )}
+            {list.map((each) => (
+                <CardCount
+                    key={each.key}
+                    session={session}
+                    shown={each}
+                    side={side}
+                    onCount={(count) => {
+                        setCounts((now) => (now[each.key] === count ? now : { ...now, [each.key]: count }));
+                    }}
+                />
+            ))}
             {!standsAlone && (
                 <AddCondition
                     fields={fields}

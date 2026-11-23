@@ -1,6 +1,7 @@
 /**
  * The Which picker's less traveled paths on the REAL graphty-element and Les Miserables, driven by
  * real clicks and keys: a rule the cards cannot draw that keeps no node says so on Done's tooltip,
+ * as do two conditions that keep some each but none together, or name the one that keeps none alone,
  * and Delete on its Remove button takes it off; the last finished card removed beside an unfinished
  * one is said with an Undo that puts it back where it was; Done drops two unfinished cards with one
  * word for both; a card added to two layers that leaves one of them with nothing names that one;
@@ -138,6 +139,46 @@ describe("the Which picker's side paths", () => {
         });
         await noticeSaying(/^Nobody now styles all 77 nodes: no condition is left/);
         assert.isNull(within(region).queryByRole("button", { name: /^Remove / }), "the card is gone");
+    });
+
+    it("two conditions that each keep some but together none say so on Done", async () => {
+        const session = await openMiserables();
+        await session.data.updateNodes(
+            session.data.nodes().map((node) => ({
+                id: node.id,
+                values: { madame: String(session.data.name(node.id)).includes("Mme") },
+            })),
+        );
+        // A rule the cards cannot draw keeps Valjean alone; a new true/false card keeps the madames.
+        await addLayer(session, "Valjean", { match: "expression", where: "data.name == 'Valjean'" });
+        await pickRow("Valjean");
+        const region = await openWhich();
+        const done = within(region).getByRole("button", { name: "Done" });
+        await waitFor(async () => {
+            assert.match(await tooltipOf(done), /^1 of 77 nodes$/);
+        });
+        await addField(region, "madame");
+        await waitFor(async () => {
+            assert.match(await tooltipOf(done), /^0 of 77 nodes, Each condition leaves some; together none$/);
+        });
+    });
+
+    it("of two conditions that together keep no node, Done names the one that keeps none alone", async () => {
+        const session = await openMiserables();
+        await session.data.updateNodes(
+            session.data.nodes().map((node) => ({
+                id: node.id,
+                values: { madame: String(session.data.name(node.id)).includes("Mme") },
+            })),
+        );
+        await addLayer(session, "Nobody", { match: "expression", where: "data.name == 'Nobody'" });
+        await pickRow("Nobody");
+        const region = await openWhich();
+        const done = within(region).getByRole("button", { name: "Done" });
+        await addField(region, "madame");
+        await waitFor(async () => {
+            assert.match(await tooltipOf(done), /^0 of 77 nodes, The rule leaves none$/);
+        });
     });
 
     it("Undo after the last finished card goes puts it back beside the unfinished one", async () => {

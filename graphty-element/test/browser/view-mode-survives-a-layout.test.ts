@@ -15,7 +15,7 @@
  * element.layout = "circular";
  * ```
  *
- * queued the switch and then cancelled it. Nothing threw, nothing was reported, and the element's
+ * queued the switch and then canceled it. Nothing threw, nothing was reported, and the element's
  * own `viewMode` getter went on answering `"2d"` because it answers from a field of its own --
  * while `graph.getViewMode()` said `"3d"` and the scene was drawn through a perspective camera.
  * Reversing the two lines worked. Setting the mode a second time, a moment later, worked. Twelve
@@ -114,7 +114,7 @@ describe("asking for a view and asking for a layout", () => {
             element.graph.getViewMode(),
             "2d",
             "the element was asked for the 2d view and then for a layout, and the graph came to rest in " +
-                "another view. The layout cancelled the view-mode switch: see the `view-mode` category in " +
+                "another view. The layout canceled the view-mode switch: see the `view-mode` category in " +
                 "src/managers/OperationQueueManager.ts.",
         );
         assert.equal(

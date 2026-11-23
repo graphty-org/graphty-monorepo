@@ -607,7 +607,12 @@ export class GEXFDataSource extends DataSource {
         }
 
         const fileStyles = this.config.styles === "file";
-        const { nodes, edges } = toRecords(imported, gexfMapping(snapshot, direction.directed, fileStyles), this);
+        const { nodes, edges } = toRecords(
+            imported,
+            gexfMapping(snapshot, direction.directed, fileStyles),
+            this,
+            this.config.styles,
+        );
         yield* this.chunkData(nodes, edges);
     }
 

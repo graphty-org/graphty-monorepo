@@ -29,7 +29,7 @@
   canvas toolbar, Views menu), 6.3, 6.10 (the floor), 6.11 (pop-outs). Cat social network in 3D, no
   activity panel open, nothing selected. The canvas toolbar is the VOCAB.md section 12 snippet, drawn
   first on Main.dc.html; 5.6's navigation cluster paragraph is now the canvas toolbar paragraph, and
-  the bar is centred on the LIVE CANVAS RECT with left: 50% and translateX(-50%), never on the window.
+  the bar is centered on the LIVE CANVAS RECT with left: 50% and translateX(-50%), never on the window.
   The Views trigger keeps its toggled state and the menu now opens UPWARD from the bar, no longer to
   the right of a left-edge column. Palette per VOCAB.md.
   Revision 1.7 on this board: TB-1 / TB-2 / TB-4 (the canvas toolbar replaces the 56 x 160 navigation
@@ -38,7 +38,7 @@
   points up, and it gains the Toolbar row), POP-6 (the Schema row becomes a door and gains its state
   mark), SAV-2 (Save view... becomes Save as view...; Load is retired and appears nowhere here).
   Revision 1.8 on this board, three changes and nothing else. B1 / B4, the anchor: the menu stops being
-  centred on its opener and inherits both axes from it -- an 8px gap on the side it opens from (menu bottom
+  centered on its opener and inherits both axes from it -- an 8px gap on the side it opens from (menu bottom
   824 against a Views button top of 832) and a shared edge line on the other axis (menu right 723 on the
   button's right 723), which moves it left 533 -> 427 in canvas coordinates and nowhere else. B1 and
   VOCAB 14.2, the caret: the menu is under 280 wide, so it gains an 8px caret on its bottom edge -- the edge
@@ -1377,7 +1377,7 @@
 
                                 <!-- CANVAS TOOLBAR (5.6, 5.1; TB-1, TB-2, TB-4), the VOCAB.md section 12 snippet verbatim, first
                drawn on Main.dc.html. It replaces the retired navigation cluster -- a 56px wide vertical stack
-               at left: 12px; bottom: 120px -- with the same six items, rotated, centred on the LIVE CANVAS RECT
+               at left: 12px; bottom: 120px -- with the same six items, rotated, centered on the LIVE CANVAS RECT
                with left: 50% and translateX(-50%), never on the window. 5.6's navigation cluster paragraph is
                now the canvas toolbar paragraph, and every later occurrence of the old name is renamed with it.
                246 x 36, derived as 3 + 60 + 12 + (28*4 + 2*3) + 12 + 36 + 3 + 2 borders; items 28 x 28 carrying
@@ -1389,7 +1389,7 @@
                82 with the time slider on, 272 with the Data table drawer open, 342 with both. This board draws
                neither the slider nor the drawer, so the floor is the canvas rect itself and the offset is the
                plain 12. The minimap and the legend keep that same 12px baseline.
-               TB-3, this board's clearances, measured: centred on 1112px of canvas the bar spans x 433 to 679.
+               TB-3, this board's clearances, measured: centered on 1112px of canvas the bar spans x 433 to 679.
                The minimap ends at 172 and the legend starts at 940, so the bar clears each of them by 261px.
                The two-line rule fires below 172 + 16 + 246 + 16 + 172 = 622px of canvas; 1112 is far above it,
                so nothing reflows and neither overlay rises. The 56 x 160 column the cluster vacated on the left
@@ -1399,7 +1399,7 @@
                (F), divider, Views. Zoom OUT precedes Zoom in because magnitude increases rightward on a
                horizontal bar, where in-above-out was already correct vertically; do not re-sort this to match
                the old column. The item set is FIXED -- nothing is added, removed or reordered per board, and
-               nothing appears or disappears with selection, because a centred container that changes width
+               nothing appears or disappears with selection, because a centered container that changes width
                moves every item under the pointer. Zoom to selection is therefore permanently drawn and merely
                DISABLED at #5f6873, carrying the register's exact disabled title, which is floor item 4's
                reason-a-disabled-control-is-disabled. Nothing is selected on this board.
@@ -1655,15 +1655,15 @@
                                     </div>
                                 </div>
 
-                                <!-- VIEWS MENU (5.6), open. TB-8: it now opens UPWARD from the bottom-centre canvas toolbar, its bottom
-               edge 4px above the bar and centred on the Views button, and the trigger's caret is the up form. This
+                                <!-- VIEWS MENU (5.6), open. TB-8: it now opens UPWARD from the bottom-center canvas toolbar, its bottom
+               edge 4px above the bar and centered on the Views button, and the trigger's caret is the up form. This
                board is the drawn proof of that: a menu whose opener sits at the bottom of the canvas grows away
                from the bottom edge, so the caret points the way the surface will travel.
-               The arithmetic, to be re-checked against any resize: the 246px bar is centred on an 1112px canvas,
+               The arithmetic, to be re-checked against any resize: the 246px bar is centered on an 1112px canvas,
                so its left edge is at x = 433; inside the bar the Views item starts at
                1 + 3 + 60 + 12 + (28*4 + 2*3) + 12 = 206 and is 36 wide, so it spans canvas x 639..675 and its
-               centre is x = 433 + 224 = 657.
-               B1 and B4, revision 1.8: the menu is no longer centred on that centre. A transient surface never
+               center is x = 433 + 224 = 657.
+               B1 and B4, revision 1.8: the menu is no longer centered on that center. A transient surface never
                chooses its own position, it inherits one from its opener on both axes. For a horizontal-overlay
                opener the GAP axis is vertical and the SHARED EDGE LINE is the near side edge, so: right edge on
                the button's right edge, canvas x 675, which puts the menu's left at 675 - 248 = 427 (absolute 475,
@@ -1679,15 +1679,15 @@
                names the direction a surface travels ("the right edge for an activity-panel one") while its
                snippet draws the edge that carries the caret (left: -6px, pointing back at the panel). The
                snippet is the spelling: a caret points at its opener.
-               The caret's own arithmetic: the button's centre is at canvas x 657 and the menu's left edge is
-               427, so the caret wants its centre at x 230 inside the menu; a 16px box centred there ends 10px
+               The caret's own arithmetic: the button's center is at canvas x 657 and the menu's left edge is
+               427, so the caret wants its center at x 230 inside the menu; a 16px box centered there ends 10px
                from the menu's right corner, inside 14.2's 12px clamp, so THE CLAMP FIRES and the box sits at
-               left: 220px, ending 12px in. The caret is therefore about 2px left of the button's true centre.
+               left: 220px, ending 12px in. The caret is therefore about 2px left of the button's true center.
                That is the clamp working, not a drafting error, and it is not to be nudged back.
                One measured footnote, so a later pass does not silently "fix" it: CSS positions an absolutely
                placed child against the PADDING box, and this menu carries a 1px border, so the rendered box lands
                at absolute x 696..712 against a menu right edge of 723 -- 11px inside the outer corner, not 12,
-               and its tip sits 1px left of the button's centre. The quoted left: 220px is kept anyway, because
+               and its tip sits 1px left of the button's center. The quoted left: 220px is kept anyway, because
                the whole set spells this caret the same way and the difference is the border, not the clamp.
                With the Toolbar row the menu is about 341 tall, so its top lands at y = 443 in an
                836-tall canvas: TB-8's "clamped 12px inside the canvas edges" does NOT fire on this board, and
@@ -1736,7 +1736,7 @@
                                     "
                                 >
                                     <!-- The 8px caret (VOCAB 14.2), on the bottom edge because the toolbar is below: it points back at
-                 the Views button. Centred on the button at x 230 inside the menu, then clamped to 12px inside the
+                 the Views button. Centered on the button at x 230 inside the menu, then clamped to 12px inside the
                  menu's right corner, so the box is at left: 220px. Filled in the menu's own #2a3035 with the
                  border on the two edges that continue the menu's outline. -->
                                     <div
@@ -2503,7 +2503,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -3060,7 +3060,7 @@
                    question a top-five list cannot answer. Two axis ends and nothing else: no caption, no legend, no
                    "min 2, median 3, max 4" line. Each bar carries its exact count in its title, and Copy reading,
                    Show in table and Export still hold the figures, which is the answer to risk R6. The empty
-                   1-link bin is not drawn, so the two labelled ends are the data's own min and max.
+                   1-link bin is not drawn, so the two labeled ends are the data's own min and max.
                    Drawn at RT-9's 64px histogram height rather than its 32px sparkline: at one pitch these three
                    bins are 6 to 23px tall, a picture of nothing, and this column has 380px of headroom. -->
                                         <div
@@ -3141,7 +3141,7 @@
                  Floor check (6.10): POP-6 puts no floor item behind this door. The reading, the counts, the
                  degree distribution, the legend and every id stay resident in this column; what moves is a
                  two-dimensional table that never had anywhere to render in a 256px band.
-                 REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). The permanent-door licence is WITHDRAWN
+                 REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). The permanent-door license is WITHDRAWN
                  and the POP-13(b) paragraph above is struck: there is no permanently-closed chevron, and a
                  chevron that reveals nothing is a defect. This is an ordinary collapsed section, closed because
                  the section is closed, and it opens IN PLACE onto the node-type rows with their counts (cat 17,

@@ -5,7 +5,7 @@
 // ones over the one-second rule kept their old members and paint and turned
 // stale: Communities (and its Groups, below it), Bridges, and Top 5 by Bridges
 // through its input. The six new nodes (35 to 40) are drawn in the default
-// grey: no stale object has a value for them yet.
+// gray: no stale object has a value for them yet.
 import { COMMUNITIES, DEGREE, BETWEENNESS } from "../karate.mjs";
 import { OKABE_4 } from "../palettes.mjs";
 

@@ -17,7 +17,7 @@ Thought: "Now open the Les Miserables sample."
 ## Step 3
 
 Command: `--click "Les Miserables"`
-Saw (03.png): the drawing opened right away -- blue dots and grey lines on a light canvas, no names anywhere. Left panel: a search box, "Selection", "Everything". Right panel: "Graph -- From Les Miserables", two tabs "Style" and "Values" (Values is showing numbers: Nodes 77, Edges 254, Density...). A small toolbar at the bottom with a flask icon, a chart-ish icon, "3D" and a magnifier.
+Saw (03.png): the drawing opened right away -- blue dots and gray lines on a light canvas, no names anywhere. Left panel: a search box, "Selection", "Everything". Right panel: "Graph -- From Les Miserables", two tabs "Style" and "Values" (Values is showing numbers: Nodes 77, Edges 254, Density...). A small toolbar at the bottom with a flask icon, a chart-ish icon, "3D" and a magnifier.
 Thought: "OK, it loaded fast, nice. No names, as promised. Names on dots feels like a look thing, so 'Style' is where I'd go."
 
 ## Step 4
@@ -43,13 +43,13 @@ Hesitation (brief): "'Attribute' is a techy word, but the choices are obvious --
 ## Step 7
 
 Command: `--click "name"`
-Saw (07.png): names appeared on the drawing right away -- Blacheville, Fameuil, Myriel, Napoleon, Perpetue... -- in small black text above the dots. The panel now reads "Label: Aa Above | Abc name" and under it, in small grey, "77 labels, 7 hidden" and a checkbox "Show all labels".
+Saw (07.png): names appeared on the drawing right away -- Blacheville, Fameuil, Myriel, Napoleon, Perpetue... -- in small black text above the dots. The panel now reads "Label: Aa Above | Abc name" and under it, in small gray, "77 labels, 7 hidden" and a checkbox "Show all labels".
 Thought: "Great, that was quick. But it says 7 are hidden, and I was asked for every character. Some in the crowded middle look missing. That checkbox is exactly what I need."
 
 ## Step 8
 
 Command: `--click "Show all labels"`
-Saw (08.png): checkbox ticked; the grey line now says just "77 labels" (no "hidden"). New names showed up in the middle (Gillenormand, Marguerite, Mother Innocent, Mlle Gillenormand, Mme Pontmercy...). Every dot I scan has some text beside it, though the middle is a tangle of tiny overlapping words.
+Saw (08.png): checkbox ticked; the gray line now says just "77 labels" (no "hidden"). New names showed up in the middle (Gillenormand, Marguerite, Mother Innocent, Mlle Gillenormand, Mme Pontmercy...). Every dot I scan has some text beside it, though the middle is a tangle of tiny overlapping words.
 Thought: "77 labels, 77 characters -- that matches. The center is hard to read on a laptop, so let me zoom in on the middle to make sure those dots really have names and not just a smudge."
 
 ## Step 9
@@ -69,5 +69,5 @@ Command: `node tool/real.mjs --end rounds/round-3/sessions/r3-s11`
 - **Where I hesitated or got confused:**
     - My first guess, the Style tab on the opening screen, was the wrong Style: it was background and "Spring length / Gravity", nothing about the dots. Two places called "Style" (one for the graph, one under "Everything") is confusing. I only found the right one because "Everything" on the left sounded like "all the dots".
     - "Label" with a small plus did not say "names"; I guessed. The popup said "Find an attribute" -- a word I don't use -- but "name" in the list made it obvious.
-    - After picking "name", the drawing quietly left 7 characters unnamed ("77 labels, 7 hidden" in small grey text). If I hadn't read that tiny line I would have thought I was done when I wasn't. The "Show all labels" box fixed it in one click.
+    - After picking "name", the drawing quietly left 7 characters unnamed ("77 labels, 7 hidden" in small gray text). If I hadn't read that tiny line I would have thought I was done when I wasn't. The "Show all labels" box fixed it in one click.
     - With every name on, the middle of the drawing is a pile of tiny overlapping words. Fine for this task, but I couldn't put it on a slide as-is.

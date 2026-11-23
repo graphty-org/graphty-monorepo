@@ -1,339 +1,109 @@
 /**
- * @file `@graphty/graphty-element/webgpu`: the entire WebGPU integration, as one import.
+ * @file `@graphty/graphty-element/webgpu`: registers the WebGPU accelerator at a known moment.
+ *
+ * Optional. The root entry point (`@graphty/graphty-element`) and `./bundle` find
+ * `@graphty/webgpu-graph-algorithms` themselves when it is installed, the first time the element
+ * probes for acceleration, so most consumers never write this import.
  *
  * ```js
  * import "@graphty/graphty-element";
- * import "@graphty/graphty-element/webgpu";   // this is all of it
+ * import "@graphty/graphty-element/webgpu";   // optional: registers now
  * ```
  *
- * Importing this module registers a WebGPU accelerator factory with the element and does
- * nothing else. After that line the element probes for an adapter, requests a context, builds
- * the accelerator, attaches it, watches for device loss, applies the `acceleration.minNodes`
- * threshold and publishes what it found. A software adapter is refused under `auto` and
- * accepted under `required` (`acceptSoftware`). A consumer writes no probe, no construction, no
- * injection and no device-loss code, because every one of those would be the same code in every
- * application that wanted a GPU.
+ * The peer still loads on first use, not with this entry point (issue #6389): the peer's 1 MB of
+ * kernels arrives while the first frame is being set up instead of before it.
  *
- * `@graphty/webgpu-graph-algorithms` is an OPTIONAL peer dependency, and this file is the only
- * one in the package that imports it. A consumer who never imports this entry point never
- * resolves the peer, so their build succeeds with the package absent and with no bundler
- * configuration. That is why activation is a separate entry point rather than a dynamic import
- * from the core: module resolution in a bundled application happens at build time, so an import
- * inside the core would break the build of everyone who did not install the peer.
+ * It stays the right choice for a toolchain where the root entry's optional import of the peer
+ * cannot work (webpack before 5.90.2; Vite 8 under Yarn Plug'n'Play while vitejs/vite#21881 is
+ * open), for a page that uses only the Node-safe entry points (`./session` and the rest never
+ * load the peer on their own), and for anyone who wants registration to happen at a known moment.
+ * It replaces the lazy registration the root entry made, without a warning.
  *
- * Nothing here leaks a GPU type into the element's published API. `GpuContext`, `ProbeResult`
- * and the rest stay on this side of the boundary; what crosses is a {@link GraphAccelerator},
- * which is plain names and functions, and failures arrive as codes on a `GraphtyError`.
- *
- * ## A GPU that answers, and answers wrongly
- *
- * An adapter being present is not the same as an adapter being right. The software renderer that
- * ships with Windows miscomputes shaders that pass a value across a workgroup barrier, so every
- * multi-workgroup prefix sum -- and the sort, the histogram and the grid layout tier above one --
- * comes back wrong, with plausible numbers and no error anywhere.
- *
- * So the peer's `acquireAccelerator` runs its own self-check -- a real prefix sum of known
- * numbers scanned through the shipped primitive and checked on the host -- before it hands a
- * device over, and before any of the graph goes near it. A wrong word comes back as an
- * `E_DEVICE_INCORRECT` decline, which this file turns into the element's `E_DEVICE_INCORRECT`
- * error; the element then reports acceleration unavailable with that code and draws the graph on
- * the CPU. The peer memoises the result per device, so the 14 to 20 milliseconds are paid once.
- *
- * That is detection, not a fallback: the decision is made before any accelerated work starts.
- * The peer also guards its own compute entry points, so a device that somehow gets past the
- * check still refuses rather than returning wrong numbers -- and the element lets go of it and
- * republishes rather than finishing that work anywhere else. Recorded in
- * `docs/decisions/device-computes-incorrectly.md`.
- *
- * That the ELEMENT reports `E_DEVICE_INCORRECT` on the Windows WARP renderer is inference, by
- * decision, not a test: no lane runs graphty-element on WARP. The host matrix (`hosts.yml`) runs
- * only webgpu-graph-algorithms there, whose own tests show the multi-block scan failing. This
- * file's side -- a failed check becomes `E_DEVICE_INCORRECT` and no accelerator is built -- is
- * pinned against a stubbed peer. Adding an
- * element job to the Windows lane is a CI cost that can be taken on later if the two halves ever
- * disagree.
- *
- * ## Detection is not a fallback
- *
- * Finding out, before anything runs, that this host has no WebGPU and letting the element take
- * the CPU path is correct and required. That is what this file does: the probe decides, once,
- * up front. What it must never do -- and what nothing in the element does -- is catch a failure
- * from a GPU run that had already started and quietly finish the work on the CPU. A failure
- * there is a real failure and is reported as one.
+ * Everything else -- the probe, the self-check, the software-adapter rule, the ceiling and device
+ * loss -- is `createWebGpuFactory` in `src/acceleration/webgpuFactory.ts`, shared with the lazy
+ * loader. Nothing here leaks a GPU type into the element's published API.
  */
 
-import type { GpuAccelerator } from "@graphty/webgpu-graph-algorithms";
-import type { AcceleratorDeclined } from "@graphty/webgpu-graph-algorithms/browser";
-
-import { type AcceleratorFactoryOptions, type GraphAccelerator, registerAccelerator } from "./src/acceleration";
+import { registerAccelerator } from "./src/acceleration";
+import type { AcceleratorFactory } from "./src/acceleration/types";
+import {
+    createWebGpuFactory,
+    createWebGpuSharesDevice,
+    setMeasureExactMaxNodes,
+    WEBGPU_ACCELERATOR_NAME,
+} from "./src/acceleration/webgpuFactory";
 import { GraphtyError } from "./src/errors";
-import { GraphtyLogger } from "./src/logging/GraphtyLogger";
 
-/**
- * The device the accelerator got and each step of its work: adapter, limits, uncaptured errors and
- * the GPU package's trace. Silent unless a consumer turns on the `acceleration` module.
- */
-const gpuLog = GraphtyLogger.getLogger(["graphty", "acceleration", "gpu"]);
-
-/** The device limits the GPU kernels plan against, logged as granted. */
-const LOGGED_LIMITS = [
-    "maxBufferSize",
-    "maxStorageBufferBindingSize",
-    "maxStorageBuffersPerShaderStage",
-    "maxComputeWorkgroupsPerDimension",
-    "maxComputeInvocationsPerWorkgroup",
-    "maxComputeWorkgroupSizeX",
-    "maxComputeWorkgroupStorageSize",
-    "maxUniformBufferBindingSize",
-] as const;
-
-/**
- * Logs the device an accelerator got, and routes its trace and its uncaptured errors to the log.
- * @param accelerator - The accelerator just acquired.
- * @returns Stops listening; called when the accelerator is released.
- */
-function watchDevice(accelerator: GpuAccelerator): () => void {
-    const { ctx } = accelerator;
-    const { caps, device } = ctx;
-    gpuLog.info("device", {
-        vendor: caps.vendor,
-        architecture: caps.architecture,
-        device: caps.device,
-        description: caps.description,
-        software: caps.software,
-        runtime: caps.runtime,
-        features: [...caps.features],
-        limits: Object.fromEntries(LOGGED_LIMITS.map((name) => [name, caps.limits[name]])),
-    });
-    ctx.trace = (event, facts): void => {
-        gpuLog.info(event, { ...facts });
-    };
-    const onError = (event: Event): void => {
-        const { error } = event as GPUUncapturedErrorEvent;
-        gpuLog.error("uncaptured error", undefined, { type: error.constructor.name, message: error.message });
-    };
-    device.addEventListener("uncapturederror", onError);
-    return (): void => {
-        ctx.trace = null;
-        device.removeEventListener("uncapturederror", onError);
-    };
+/** What {@link configureWebGpu} accepts. */
+export interface WebGpuOptions {
+    /**
+     * The node count up to which GPU layouts compute every pair of nodes exactly, above which they
+     * approximate (faster on large graphs, slightly less accurate):
+     *
+     * - `"default"` (the default) -- the shipped ceiling of 32,768 nodes, the same on every device.
+     * - `"measured"` -- the element times this device once its first accelerated work has finished
+     *   and uses the crossover it finds, usually far lower on a fast card, so large layouts get
+     *   faster and approximate sooner. The first frame and the first layout never wait for it, and
+     *   the answer is kept for every element on the page that uses the same device. A software
+     *   adapter is never measured and keeps the default.
+     *
+     * `capabilities.acceleration.exactMaxNodes` and `exactMaxNodesBasis` report the ceiling in use.
+     */
+    readonly exactMaxNodes?: "default" | "measured";
 }
 
 /**
- * The peer, loaded on first use rather than with this entry point (issue #6389): importing this
- * file registers the accelerator, and the peer's 1 MB of kernels arrives while the first frame is
- * being set up instead of before it. Both modules are fetched at most once.
+ * Configures the WebGPU integration for the whole page. Optional: every option has a neutral
+ * default. Applies to accelerators built after the call, however the peer was loaded, so call it
+ * next to the import, before an element attaches one.
+ * @example Measuring the exact-tier ceiling on the reader's own GPU
+ * ```js
+ * import "@graphty/graphty-element";
+ * import { configureWebGpu } from "@graphty/graphty-element/webgpu";
+ *
+ * configureWebGpu({ exactMaxNodes: "measured" });
+ * ```
+ * @param options - The options; a member left out keeps its current value.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` for a value the option does not take.
  */
-let peer:
-    | Promise<
-          [typeof import("@graphty/webgpu-graph-algorithms"), typeof import("@graphty/webgpu-graph-algorithms/browser")]
-      >
+export function configureWebGpu(options: WebGpuOptions): void {
+    const { exactMaxNodes } = options;
+    if (exactMaxNodes === undefined) {
+        return;
+    }
+
+    if (exactMaxNodes !== "default" && exactMaxNodes !== "measured") {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: `exactMaxNodes must be "default" or "measured", not ${String(exactMaxNodes)}`,
+            source: "acceleration",
+            details: { option: "exactMaxNodes", value: exactMaxNodes, expected: ["default", "measured"] },
+        });
+    }
+
+    setMeasureExactMaxNodes(exactMaxNodes === "measured");
+}
+
+/** The peer's browser module and the factory built over the peer, once, on first use. */
+let loaded:
+    | Promise<{ factory: AcceleratorFactory; browser: typeof import("@graphty/webgpu-graph-algorithms/browser") }>
     | undefined;
 
 /**
- * Loads the peer's root and browser entry points, once.
- * @returns Both modules.
+ * Loads the peer's root and browser entry points, once, and builds the factory over them.
+ * @returns The factory and the browser module.
  */
-function loadPeer(): NonNullable<typeof peer> {
-    peer ??= Promise.all([
+function load(): NonNullable<typeof loaded> {
+    loaded ??= Promise.all([
         import("@graphty/webgpu-graph-algorithms"),
         import("@graphty/webgpu-graph-algorithms/browser"),
-    ]);
-    return peer;
-}
-
-/** The name the WebGPU accelerator is registered and reported under. */
-const WEBGPU_ACCELERATOR_NAME = "webgpu-graph-algorithms";
-
-/**
- * Members of the peer's accelerator that do not cross into {@link GraphAccelerator}.
- *
- * `ctx` and `options` carry GPU types and stay on this side of the boundary; `kind` is spelled
- * `backend` here; `dispose` is written below so the element controls the lifetime. Everything
- * else -- every accelerated algorithm and layout the peer implements, now and in every future
- * minor of it -- is forwarded by name, which is what keeps this file from needing an edit each
- * time the peer ports another algorithm.
- *
- * `verify` is named although the peer has no such member today: the device was already checked
- * when it was acquired, and a future peer member of that name must not become a second check
- * that reports something other than `E_DEVICE_INCORRECT`.
- */
-const NOT_FORWARDED = new Set(["kind", "ctx", "options", "dispose", "verify"]);
-
-/** A forwarded member of the peer's accelerator, typed as loosely as the boundary allows. */
-type ForwardedMember = (...args: readonly unknown[]) => unknown;
-
-/**
- * Copies the peer accelerator's callable members onto the element's accelerator.
- * @param source - The peer's accelerator.
- * @param target - The record that becomes the element's accelerator.
- */
-function forwardMembers(source: GpuAccelerator, target: GraphAccelerator): void {
-    for (const [key, value] of Object.entries(source) as readonly [string, unknown][]) {
-        if (NOT_FORWARDED.has(key) || typeof value !== "function") {
-            continue;
-        }
-
-        target[key] = (value as ForwardedMember).bind(source);
-    }
-}
-
-/**
- * Turns a device that got the peer's self-check wrong into the element's error.
- * @param declined - The peer's `E_DEVICE_INCORRECT` decline.
- * @returns The error the factory throws.
- */
-function deviceIncorrect(declined: AcceleratorDeclined): GraphtyError {
-    const { check } = declined;
-    const mismatch = check?.mismatch ?? null;
-    if (check === null || mismatch === null) {
-        return new GraphtyError({
-            code: "E_DEVICE_INCORRECT",
-            message: `this GPU computes incorrectly: ${declined.reason}`,
-            source: "acceleration",
-            recoverable: false,
-            details: { accelerator: WEBGPU_ACCELERATOR_NAME },
-        });
-    }
-
-    const observed = mismatch.poison
-        ? `${mismatch.where} was never written at all`
-        : `${mismatch.where} came back as ${String(mismatch.actual)} where ${String(mismatch.expected)} was required`;
-
-    return new GraphtyError({
-        code: "E_DEVICE_INCORRECT",
-        message:
-            `this GPU computes multi-workgroup shaders incorrectly: a prefix sum of ` +
-            `${String(check.count)} known numbers came back wrong -- ${observed}. The graph is being ` +
-            `computed on the processor instead, because every number this device produced would be unreliable`,
-        source: "acceleration",
-        recoverable: false,
-        details: {
-            accelerator: WEBGPU_ACCELERATOR_NAME,
-            check: check.check,
-            where: mismatch.where,
-            expected: mismatch.expected,
-            actual: mismatch.actual,
-            poison: mismatch.poison,
-            count: check.count,
-            blocks: check.blocks,
-            workgroupSize: check.workgroupSize,
-            ms: check.ms,
-            adapter: {
-                vendor: check.vendor,
-                architecture: check.architecture,
-                description: check.description,
-            },
-        },
-    });
-}
-
-/**
- * Turns the peer's decline into the sentence and the code the element publishes.
- * @param declined - Why the peer handed over no accelerator.
- * @returns The error the factory throws, which becomes `capabilities.acceleration.reason` and
- * `.code`.
- */
-function declineFailure(declined: AcceleratorDeclined): GraphtyError {
-    if (declined.code === "E_DEVICE_INCORRECT") {
-        return deviceIncorrect(declined);
-    }
-
-    const insecure = typeof globalThis.isSecureContext === "boolean" && !globalThis.isSecureContext;
-    const messages = {
-        E_NO_WEBGPU: insecure ? "WebGPU requires a secure context (https or localhost)" : "this browser has no WebGPU",
-        E_NO_ADAPTER: "WebGPU is present but no graphics adapter would answer",
-        E_SOFTWARE_ONLY: "the only WebGPU adapter here is a software renderer, which is slower than the CPU path",
-    };
-
-    return new GraphtyError({
-        code: declined.code,
-        message: messages[declined.code],
-        source: "acceleration",
-        recoverable: false,
-        details: { accelerator: WEBGPU_ACCELERATOR_NAME, probe: declined.reason },
-    });
-}
-
-/**
- * Wraps the peer's accelerator as the element's, keeping every GPU type on this side.
- * @param accelerator - The peer's accelerator, already checked against its device.
- * @param release - Releases the device; the element calls it through `dispose`.
- * @returns The accelerator the element attaches.
- */
-function toGraphAccelerator(accelerator: GpuAccelerator, release: () => void): GraphAccelerator {
-    const { ctx } = accelerator;
-    const { caps } = ctx;
-    const wrapped: GraphAccelerator = {
-        name: WEBGPU_ACCELERATOR_NAME,
-        backend: "webgpu",
-        device: {
-            vendor: caps.vendor,
-            architecture: caps.architecture,
-            description: caps.description === "" ? caps.device : caps.description,
-        },
-        // Every GPU kernel in the peer computes in single precision, which is why a run that
-        // used one is labelled f32 and the same run on the CPU path is labelled f64.
-        precision: "f32",
-        // The element watches this. A device the element itself destroyed also resolves it, and
-        // the controller ignores a loss reported for an accelerator it has already released.
-        lost: ctx.lost.then((info) => ({ reason: info.message === "" ? info.reason : info.message })),
-        dispose: release,
-    };
-
-    forwardMembers(accelerator, wrapped);
-    return wrapped;
-}
-
-/**
- * Acquires a checked WebGPU accelerator, or says why there is none.
- *
- * Declining is up-front detection: no work has started, and the element runs the CPU path
- * having reported the reason. It is never a fallback from a run that had already begun. The
- * element's controller owns when to ask and what to do after a device loss, so each call here
- * is one acquisition.
- * @param options - The ceiling the element will ask this accelerator to respect.
- * @returns The accelerator.
- * @throws A `GraphtyError` carrying `E_NO_WEBGPU`, `E_NO_ADAPTER`, `E_SOFTWARE_ONLY`,
- * `E_DEVICE_INCORRECT` or `E_TOO_LARGE`, which the element publishes on
- * `capabilities.acceleration`.
- */
-async function createWebGpuAccelerator(options?: AcceleratorFactoryOptions): Promise<GraphAccelerator | null> {
-    const [{ EXACT_MAX_NODES }, { acquireAccelerator }] = await loadPeer();
-    const { exactMaxNodes } = options ?? {};
-    if (exactMaxNodes !== undefined && exactMaxNodes > EXACT_MAX_NODES) {
-        throw new GraphtyError({
-            code: "E_TOO_LARGE",
-            message: `the WebGPU accelerator computes exactly up to ${String(EXACT_MAX_NODES)} nodes, not ${String(exactMaxNodes)}`,
-            source: "acceleration",
-            details: { accelerator: WEBGPU_ACCELERATOR_NAME, exactMaxNodes, limit: EXACT_MAX_NODES },
-        });
-    }
-
-    const gpu = acquireAccelerator({
-        acceptSoftware: options?.acceptSoftware ?? false,
-        accelerator: exactMaxNodes === undefined ? undefined : { layout: { exactMaxNodes } },
-        ...(options?.device === undefined ? {} : { device: options.device as GPUDevice }),
-    });
-    const result = await gpu.current();
-    if (!result.ok) {
-        throw declineFailure(result);
-    }
-
-    const unwatch = watchDevice(result.accelerator);
-    return toGraphAccelerator(result.accelerator, () => {
-        unwatch();
-        gpu.dispose();
-    });
+    ]).then(([root, browser]) => ({ factory: createWebGpuFactory(root, browser), browser }));
+    return loaded;
 }
 
 registerAccelerator({
     name: WEBGPU_ACCELERATOR_NAME,
     backend: "webgpu",
-    factory: createWebGpuAccelerator,
-    // A software adapter draws a frame slower with the layout on the same device than beside it.
-    sharesDevice: async (adapter) => {
-        const [, { summarizeAdapter }] = await loadPeer();
-        return !summarizeAdapter(adapter as GPUAdapter).software;
-    },
+    factory: async (options) => (await load()).factory(options),
+    sharesDevice: async (adapter) => createWebGpuSharesDevice((await load()).browser)(adapter),
 });

@@ -13,10 +13,14 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// A second source opens the join screen only with sources and steps off: on, it is staged.
+withoutFeatures(["source-steps"]);
 
 /** Eleven gauges, read as nodes. */
 const GAUGES = [
@@ -311,6 +315,49 @@ describe("the join screen on the real element", () => {
         assert.isUndefined(session.data.node("TP53")?.tissue);
     });
 
+    it("edits the Match row: a second key pair and its removal, Ignore spaces, and what the rows are", async () => {
+        await projectWith("tp53-interactions.tsv", 60);
+        const join = await joinScreenFor("tumor-expression.tsv");
+
+        // + adds a key pair on the first column no pair uses yet, matched against the node id.
+        await userEvent.click(within(join).getByRole("button", { name: "Add key pair" }));
+        await waitFor(() => {
+            assert.strictEqual(valueOf(join, "Match 2 column"), "log2fc");
+        });
+        assert.strictEqual(valueOf(join, "Match 2 graph value"), "Id");
+        await userEvent.click(within(join).getByRole("combobox", { name: "Match 2 column" }));
+        await userEvent.click(await screen.findByRole("option", { name: "tissue" }));
+        await waitFor(() => {
+            assert.strictEqual(valueOf(join, "Match 2 column"), "tissue");
+        });
+        await userEvent.click(within(join).getByRole("button", { name: "Remove Match 2" }));
+        await waitFor(() => {
+            assert.isNull(within(join).queryByLabelText("Match 2 column"));
+        });
+        assert.strictEqual(valueOf(join, "Match column"), "symbol");
+
+        await userEvent.click(within(join).getByRole("checkbox", { name: "Ignore spaces +1" }));
+        await waitFor(() => {
+            assert.isTrue(within(join).getByRole("checkbox", { name: "Ignore spaces" }).matches(":checked"));
+        });
+
+        // Edges take a Source and a Target pair, and no + for another pair.
+        await userEvent.click(within(join).getByRole("combobox", { name: "Rows are" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Edges" }));
+        await waitFor(() => {
+            assert.isDefined(within(join).getByLabelText("Source column"));
+        });
+        assert.isDefined(within(join).getByLabelText("Target column"));
+        assert.isNull(within(join).queryByRole("button", { name: "Add key pair" }));
+
+        await userEvent.click(within(join).getByRole("combobox", { name: "Rows are" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Node values" }));
+        await waitFor(() => {
+            assert.isDefined(within(join).getByLabelText("Match column"));
+        });
+        assert.isNull(within(join).queryByLabelText("Source column"));
+    });
+
     it("sizes incoming columns to their names", async () => {
         await projectWith("tp53-interactions.tsv", 60);
         const join = await joinScreenFor("tumor-expression.tsv");
@@ -365,6 +412,48 @@ describe("the join screen on the real element", () => {
             });
             assert.strictEqual(session.data.nodes().length, 12, "G12, the unknown end, is added");
             assert.isAbove(session.data.issues().length, 0, "the unknown end is reported");
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("joins a picked table's columns onto nodes by the key the reader chooses, and counts the rows that match nothing", async () => {
+        const { session } = await projectWith(new File([GAUGES], "gauges.csv"), 11);
+        // site matches the nodes' station on six rows, gauge their id on five: the reader keys on gauge.
+        const DEPTHS = [
+            "site,gauge,depth",
+            "S1,G01,1.5",
+            "S2,G02,2.5",
+            "S3,G03,3.5",
+            "S4,G04,4.5",
+            "S5,G05,5.5",
+            "S6,G99,9.5",
+        ];
+        vi.stubGlobal("showOpenFilePicker", undefined);
+        try {
+            await commands.chooseNextFile("depths.csv", "text/csv", DEPTHS.join("\n"));
+            await userEvent.keyboard("{Control>}k{/Control}");
+            await userEvent.click(await screen.findByRole("option", { name: /Add data\.\.\./ }));
+            const join = await screen.findByRole("region", { name: "Join depths.csv" });
+
+            await userEvent.click(within(join).getByRole("combobox", { name: "Match column" }));
+            await userEvent.click(await screen.findByRole("option", { name: "gauge" }));
+            await userEvent.click(within(join).getByRole("combobox", { name: "Match graph value" }));
+            await userEvent.click(await screen.findByRole("option", { name: "Id" }));
+            await waitFor(() => {
+                assert.strictEqual(valueOf(join, "Match column"), "gauge");
+                assert.strictEqual(valueOf(join, "Match graph value"), "Id");
+                assert.includeMembers(chips(join), ["5 matched", "1 not in graph"]);
+            });
+
+            await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+            await waitFor(() => {
+                assert.strictEqual(String(session.data.node("G03")?.depth), "3.5");
+            });
+            assert.isUndefined(session.data.node("G06")?.depth, "a node without a row gets no value");
+            assert.isUndefined(session.data.node("G99"), "a row that matches nothing adds no node");
+            const [joined] = session.data.joins();
+            assert.strictEqual(joined.matched, 5);
         } finally {
             vi.unstubAllGlobals();
         }

@@ -1,4 +1,11 @@
-import { render, RenderOptions, screen, type waitForOptions } from "@testing-library/react";
+import {
+    type BoundFunctions,
+    type queries,
+    render,
+    RenderOptions,
+    screen,
+    type waitForOptions,
+} from "@testing-library/react";
 import { ReactElement } from "react";
 
 import { AllProviders } from "./test-providers";
@@ -32,6 +39,12 @@ export function queryValuePicker(): HTMLElement | null {
         screen.queryByRole("combobox", { name: "Find an attribute" })?.closest<HTMLElement>(".cm-quick-actions") ?? null
     );
 }
+
+/**
+ * What `within(element)` returns with the default queries. `ReturnType<typeof within>` resolves
+ * `within`'s generic to its constraint, whose queries are all `any`.
+ */
+export type Within = BoundFunctions<typeof queries>;
 
 export * from "@testing-library/react";
 export { customRender as render };

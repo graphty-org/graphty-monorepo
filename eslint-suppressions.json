@@ -268,11 +268,6 @@
       "count": 2
     }
   },
-  "tools/test-changed.mjs": {
-    "unicorn/no-array-callback-reference": {
-      "count": 1
-    }
-  },
   "tools/test-history.mjs": {
     "unicorn/prefer-set-has": {
       "count": 1
@@ -324,11 +319,6 @@
   "tools/vitest-time-budget.mjs": {
     "unicorn/no-array-callback-reference": {
       "count": 3
-    }
-  },
-  "vite.shared.config.ts": {
-    "unicorn/prefer-node-protocol": {
-      "count": 1
     }
   },
   "vitest.babylon-compilers.mjs": {

@@ -232,6 +232,10 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "graphty-spiral.equidistant": {
         doc: "Space consecutive nodes the same distance apart along the spiral, instead of by equal angles.",
     },
+    "graphty-spiral.height": {
+        default: "`1`",
+        doc: "Read only with `dim: 3`: how far the spiral rises per unit of radius, so the nodes lie on a cone. A 3D run is projected onto the x-y plane, so the rise itself is not drawn; with `equidistant: true` it changes the spacing along the spiral.",
+    },
     "graphty-shell.nlist": {
         doc: "The shells, innermost first. They are evenly spaced out to the edge of the fitted result, and a first shell of exactly one node goes at the center of the drawing. The fit then moves the centroid of all nodes to the center of `boundingBox`, so that node is at the box's center only when the drawing is symmetric. Absent: every node on one circle. A node in no shell is not placed and keeps its position.",
     },
@@ -355,6 +359,10 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "csv-export.delimiter": { default: '`","`', doc: "The field delimiter." },
     "csv-export.newline": { default: '`"\\n"`', doc: "The line terminator." },
     "csv-export.header": { default: "`true`", doc: "Write the header row; an adjacency table never has one." },
+    "csv-export.spreadsheetSafe": {
+        default: "`false`",
+        doc: "Prefix `'` to cells a spreadsheet would run as a formula (starting with `=`, `+`, `-`, `@`, a tab or a CR; not plain numbers); the round trip is then no longer exact.",
+    },
     "json-export.dialect": {
         default: '`"cytoscape"`',
         doc: 'The dialect to write. `"cytoscape"` is what `cy.json()` and `cy.add()` use and keeps edge ids, compound parents and positions; `"node-link"` is the NetworkX shape.',
@@ -380,6 +388,10 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "neo4j-export.weightColumn": {
         default: '`"weight"`',
         doc: "The property that receives the edge weights (`<name>:double`); null writes no weights.",
+    },
+    "neo4j-export.spreadsheetSafe": {
+        default: "`false`",
+        doc: "Prefix `'` to cells a spreadsheet would run as a formula (starting with `=`, `+`, `-`, `@`, a tab or a CR; not plain numbers); the round trip is then no longer exact.",
     },
     "cx2-import.zAs": { doc: Z_AS },
     "cx-import.zAs": { doc: Z_AS },
@@ -1312,7 +1324,7 @@ function datasets(): string[] {
         "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ];
     for (const d of Object.values(DATASETS)) {
-        const bytes = d.bytes ?? 0;
+        const { bytes } = d;
         const download = bytes < 1e6 ? `${Math.ceil(bytes / 1000)} kB` : `${(bytes / 1e6).toFixed(1)} MB`;
         // datasetElements makes a drawn dataset's x and y the node positions
         const drawn = "x" in d.attributes && "y" in d.attributes;

@@ -1,6 +1,6 @@
 /**
  * @file The screenshot presets as plain data: what each preset sets when `captureScreenshot({
- * preset })` names it. The capture code reads this table, and the catalogue publishes it
+ * preset })` names it. The capture code reads this table, and the catalog publishes it
  * (`session.catalog.screenshotPresets()`, and `SCREENSHOT_PRESET_DESCRIPTORS` from the `./catalog`
  * entry), so an export dialog can show what a preset sets without copying it.
  *
@@ -12,6 +12,7 @@ export type ScreenshotPresetId = "print" | "web-share" | "thumbnail" | "document
 
 /** One screenshot preset: its id and the capture options it sets. Frozen. */
 export interface ScreenshotPreset {
+    /** The preset's id, as `captureScreenshot({ preset })` takes it. */
     readonly id: ScreenshotPresetId;
     /** The image format. */
     readonly format: "png" | "jpeg" | "webp";
@@ -28,7 +29,12 @@ export interface ScreenshotPreset {
     /** The background left transparent. */
     readonly transparentBackground?: boolean;
     /** Where the image goes by default. */
-    readonly destination?: { readonly download?: boolean; readonly clipboard?: boolean };
+    readonly destination?: {
+        /** Saved as a file download. */
+        readonly download?: boolean;
+        /** Copied to the clipboard. */
+        readonly clipboard?: boolean;
+    };
 }
 
 const freeze = <T extends object>(value: T): Readonly<T> => Object.freeze(value);

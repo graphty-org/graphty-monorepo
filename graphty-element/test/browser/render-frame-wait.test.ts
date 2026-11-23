@@ -3,6 +3,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { renderManagerOf } from "../../src/Graph";
 import { EventManager } from "../../src/managers/EventManager";
 import { RenderManager } from "../../src/managers/RenderManager";
 import { takeCaughtErrors } from "../helpers/caught-errors";
@@ -164,7 +165,7 @@ describe("a play waiting for frames on a real element", () => {
         };
         await made.waitForSettled();
 
-        return { element: made, manager: Reflect.get(made.graph, "renderManager") as RenderManager };
+        return { element: made, manager: renderManagerOf(made.graph) };
     }
 
     /**

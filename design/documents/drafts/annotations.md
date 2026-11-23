@@ -315,7 +315,7 @@ the dropped history> }` in its `extensions` under `graphty.revisions-dropped`, s
    binds; only the caller can override a document's `exact-data`, explicitly. Without either,
    notes whose targets exist bind and the rest orphan. Short integer ids (`1`, `17`) are common in
    case data, so an evidence application SHOULD pass `requireDigest`. `binding` is part of version
-   1, so every reader of version 1 honours it.
+   1, so every reader of version 1 honors it.
 10. **Digests are checked.** A note whose `digest` does not match its content (edited in a text
     editor) is kept, shown with a warning (`W_DIGEST_MISMATCH`), and listed in the binding report;
     it is never silently trusted. A note with no `digest` (hand-written) is the one schema failure
@@ -336,7 +336,7 @@ the dropped history> }` in its `extensions` under `graphty.revisions-dropped`, s
 1. `text`, `tags`, `author` and quoted values are plain text. A renderer MUST display them as text
    and MUST NOT interpret them as HTML or Markdown that can load resources or run script. A
    consumer that renders Markdown does so at its own risk and MUST sanitize.
-2. Notes may carry sensitive judgements ("suspect", "confirmed ring member"). A writer MUST let
+2. Notes may carry sensitive judgments ("suspect", "confirmed ring member"). A writer MUST let
    the caller choose which notes to write, without retracted notes and without revisions
    ("Writing" rule 1), because a rewritten note's first revision and a retracted allegation
    otherwise travel verbatim to everyone a file is shared with. Notes are not written into a

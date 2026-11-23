@@ -10,15 +10,24 @@ const EVIDENCE = "('pr','full','bisect','base')"; // what reuse and history may 
 const MASTER_EVIDENCE = "('full','bisect','base')"; // master's own code: the only kinds that excuse or pass a quarantine
 const QUARANTINE_PASSES = 20;
 const PLAN_VARIANTS_MAX = 100;
+// Variants a plan read asks D1 about at once. D1 runs one query at a time and refuses a call whose queue grows too
+// long: a light check's ~47 variants at once (about 100 queries) answered HTTP 500 (#8208). Each variant's two or
+// three queries run in turn, so at most this many queries wait.
+export const PLAN_PARALLEL = 4;
 // A variant's per-file durations read only its newest invocations: file_run is never pruned, and reading a variant's
 // whole history grew until a light check's plan read overloaded D1 (HTTP 500), its bins were packed without
 // history and pull requests ran about five times as many test jobs (#5404). A selected run's bin holds about 7
 // files, so 1,000 bins still give most files their 9 runs; a whole run's parts give every file far more.
 export const HISTORY_INVOCATIONS = 1000;
+// How long a variant's computed fileMs is answered again before it is computed anew (variantFileMs)
+export const FILE_MS_TTL = 6 * 3_600_000;
 // GPU tests, and the style fidelity slices: a sample judged differently on the same inputs is a determinism
 // defect in the drawing or the comparator (#4270)
 const NEVER_QUARANTINED = /^(webgpu-graph-algorithms|graphty-element-fidelity)/;
 
+// The inputs placeholder a client sends when it knows no inputs key: every client does today (tools/results), and
+// no record carries it, so its pair clause and reuse lookup are skipped rather than run to match nothing (#7269)
+const NO_INPUTS = "-";
 const list = (value) => (value ?? "").split(",").filter(Boolean);
 const placeholders = (values) => values.map(() => "?").join(",");
 const all = async (db, sql, ...args) =>
@@ -122,7 +131,7 @@ export async function trackedIssues(db, family, now) {
 // in the variant's newest full run (6.3): a master break shows there before any base check runs on a pull
 // request's own base (#8051). Another variant's failure (flags=on for a flags=off run) excuses nothing.
 async function failingOnBase(db, base, pairs, changed) {
-    // 1 + 4 parameters a variant: chunks of 24 stay under D1's 100 (an everything run asks about ~55 variants)
+    // 1 + 4 parameters a variant at most: chunks of 24 stay under D1's 100 (an everything run asks about ~55 variants)
     const rows = [];
     for (let i = 0; i < pairs.length; i += 24)
         rows.push(...(await failingOnBaseChunk(db, base, pairs.slice(i, i + 24))));
@@ -130,12 +139,15 @@ async function failingOnBase(db, base, pairs, changed) {
 }
 
 // The newest full run's failures are a second SELECT driven from each variant's newest full commit, joined by the
-// inv_sha index. As a third OR term with a correlated subquery, the newest commit was looked up again for every
+// inv_sha_variant index. As a third OR term with a correlated subquery, the newest commit was looked up again for every
 // failed master invocation of the variants, and the read held the single-threaded D1 database long enough that
-// half of pull request plan reads answered HTTP 500 (#8208). UNION keeps DISTINCT across both halves.
+// half of pull request plan reads answered HTTP 500 (#8208). UNION keeps DISTINCT across both halves. Each variant's
+// newest full commit is read backwards through inv_variant_started, stopping at the first full run: a GROUP BY over
+// the variant read every invocation it ever had (#9784).
 async function failingOnBaseChunk(db, base, pairs) {
     const variants = pairs.map(([v]) => v);
-    const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
+    const keyed = pairs.filter(([, k]) => k !== NO_INPUTS);
+    const same = keyed.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
     const columns = "i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue";
     return all(
         db,
@@ -146,27 +158,30 @@ async function failingOnBaseChunk(db, base, pairs) {
            AND ((i.sha = ? AND i.variant IN (${placeholders(variants)}))${same})
          UNION
          SELECT ${columns}
-         FROM (SELECT variant, sha, max(started_at) FROM invocation
-               WHERE kind = 'full' AND variant IN (${placeholders(variants)}) GROUP BY variant) n
-         JOIN invocation i ON i.sha = n.sha AND i.variant = n.variant
+         FROM json_each(?) v CROSS JOIN invocation i ON i.variant = v.value
+           AND i.sha = (SELECT n.sha FROM invocation n WHERE n.variant = v.value AND n.kind = 'full'
+                        ORDER BY n.started_at DESC LIMIT 1)
          JOIN failure f ON f.invocation = i.id
          LEFT JOIN tracked_issue t ON t.signature = f.signature
          WHERE i.kind = 'full' AND i.outcome = 'failed'`,
         base ?? "",
         ...variants,
-        ...pairs.flat(),
-        ...variants,
+        ...keyed.flat(),
+        JSON.stringify(variants),
     );
 }
 
 async function variantFacts(db, variant, inputs, now) {
-    const passed = await db
-        .prepare(
-            `SELECT id FROM invocation WHERE variant = ? AND inputs = ? AND outcome = 'passed' AND kind IN ${EVIDENCE}
+    const passed =
+        inputs === NO_INPUTS
+            ? null
+            : await db
+                  .prepare(
+                      `SELECT id FROM invocation WHERE variant = ? AND inputs = ? AND outcome = 'passed' AND kind IN ${EVIDENCE}
              ORDER BY started_at DESC LIMIT 1`,
-        )
-        .bind(variant, inputs)
-        .first();
+                  )
+                  .bind(variant, inputs)
+                  .first();
     const order = await all(
         db,
         `SELECT f.file, max(i.started_at) AS at FROM failure f JOIN invocation i ON i.id = f.invocation
@@ -175,6 +190,23 @@ async function variantFacts(db, variant, inputs, now) {
         variant,
         now - 7 * DAY,
     );
+    return {
+        passedWithInputs: passed?.id ?? null,
+        order: order.map((r) => r.file),
+        fileMs: await variantFileMs(db, variant, now),
+    };
+}
+
+// A variant's fileMs, as computed at most FILE_MS_TTL ago (#9784): computing it reads the variant's newest 1,000
+// invocations and every file row of each, for each of a light check's ~48 variants, and every test group of a full
+// run asks again for its own. ponytail: a time-to-live, not invalidation on each record (a full run posts a record
+// per group, so that would recompute as often as now); a few hours of new runs barely move a median of 9.
+async function variantFileMs(db, variant, now) {
+    const kept = await db
+        .prepare("SELECT body FROM file_ms WHERE variant = ? AND at > ?")
+        .bind(variant, now - FILE_MS_TTL)
+        .first();
+    if (kept) return JSON.parse(kept.body);
     const runs = await all(
         db,
         `SELECT file, ms FROM (SELECT r.file, r.ms, row_number() OVER (PARTITION BY r.file ORDER BY i.started_at DESC) AS n
@@ -189,7 +221,11 @@ async function variantFacts(db, variant, inputs, now) {
     );
     const byFile = Map.groupBy(runs, (r) => r.file);
     const fileMs = Object.fromEntries([...byFile].map(([file, rs]) => [file, median(rs.map((r) => r.ms))]));
-    return { passedWithInputs: passed?.id ?? null, order: order.map((r) => r.file), fileMs };
+    await db
+        .prepare("INSERT OR REPLACE INTO file_ms (variant, body, at) VALUES (?, ?, ?)")
+        .bind(variant, JSON.stringify(fileMs), now)
+        .run();
+    return fileMs;
 }
 
 // The files' history over every variant, for a caller that names files and no variants (test-changed.mjs's
@@ -241,17 +277,24 @@ export async function getPlan(q, who, db, now) {
     if (variants.length > PLAN_VARIANTS_MAX) refuse(400, `a plan reads at most ${PLAN_VARIANTS_MAX} variants`);
     const pairs = variants.map((v, i) => [v, inputs[i]]);
     const families = [...new Set(variants.map((v) => v.split("|")[0]))];
-    // in parallel: one after another, an everything run's ~55 variants took past the client's wait, so its bins
-    // were packed without history, about eight times too many test jobs, and they queued pull requests for an hour
-    const facts = Object.fromEntries(
-        await Promise.all(pairs.map(async ([v, k]) => [v, await variantFacts(db, v, k, now)])),
-    );
+    // a few variants at a time: one after another, an everything run's ~55 variants took past the client's wait
+    // (bins packed without history, about eight times too many test jobs); all at once, their ~100 queries queued in
+    // D1 together and it refused the read with HTTP 500 from about 30 variants up (#8208)
+    const facts = new Array(pairs.length);
+    let next = 0;
+    const worker = async () => {
+        while (next < pairs.length) {
+            const i = next++;
+            facts[i] = await variantFacts(db, pairs[i][0], pairs[i][1], now);
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(PLAN_PARALLEL, pairs.length) }, worker));
     const files = list(q.get("files"));
     if (files.length > ROWS_MAX) refuse(400, `a plan reads at most ${ROWS_MAX} files`);
     return {
         quarantine: (await activeQuarantine(db, families, now)).map((q) => ({ ...q, since: undefined })),
         failingOnBase: await failingOnBase(db, q.get("base"), pairs, new Set(files)),
-        variants: facts,
+        variants: Object.fromEntries(pairs.map(([v], i) => [v, facts[i]])),
         ...(pairs.length === 0 && files.length ? await fileFacts(db, files, now) : {}),
     };
 }
@@ -283,7 +326,7 @@ const latestVerdict = (db, sha) =>
 export async function getCandidate(q, who, db, now) {
     const candidate = await newestSite(db);
     // every commit's latest verdict of the last 30 days: the pick walks master's first parents through them for a
-    // restart's own commit, a judgement by inheritance and the bisect's last green commit
+    // restart's own commit, a judgment by inheritance and the bisect's last green commit
     const recent = await all(
         db,
         `SELECT v.sha, v.state, v.lane, v.issue, v.run_id AS runId, v.at FROM verdict v
@@ -310,8 +353,11 @@ export async function getFailures(q, who, db) {
     if (!/^\d+$/.test(run)) refuse(400, "run must be a run id");
     const rows = await all(
         db,
-        `SELECT DISTINCT f.invocation, f.file, f.name FROM failure f WHERE f.invocation LIKE ? || '.%' ORDER BY f.file, f.name`,
-        run,
+        // a key range on the primary key, every id `<run>.` starts: LIKE read the whole table (#9784)
+        `SELECT DISTINCT f.invocation, f.file, f.name FROM failure f WHERE f.invocation >= ? AND f.invocation < ?
+         ORDER BY f.file, f.name`,
+        `${run}.`,
+        `${run}/`, // '/' sorts just after '.'
     );
     // the id is <run>.<attempt>.<job>.<shard>.<try> (tools/results/run-group.mjs)
     const seen = new Map();
@@ -464,7 +510,7 @@ function judgeTrend(rows, budgetSeconds) {
 /**
  * Master's median seconds per key (budgets 1.5), for a pull request's "slower than master" comment: over the
  * last `n` runs (10, at most 50) of `kind` (full: master's own ci.yml and release.yml runs) of the asked
- * workflows in 30 days, cancelled runs left out. Asked by workflow, not by key: a run has hundreds of keys,
+ * workflows in 30 days, canceled runs left out. Asked by workflow, not by key: a run has hundreds of keys,
  * more than a URL holds.
  * @param query `workflows` (comma list), `kind`, `n`
  * @param _who the caller
@@ -568,7 +614,7 @@ export async function summariesReady(db) {
 /**
  * Each key's last sample within a run kind, and how many runs of its workflow and kind came after it (#5176): a
  * key that stops getting samples (its job or step was renamed or removed) has an alarm the trend never judges
- * again, and the posting `timings` job closes it once the key has missed enough runs. 30 days, cancelled rows
+ * again, and the posting `timings` job closes it once the key has missed enough runs. 30 days, canceled rows
  * left out; a key with no sample in the window is not named at all.
  * @param db the D1 database
  * @param kind the run kind
@@ -601,15 +647,20 @@ export async function lastSeenFor(db, kind, workflows, now) {
 
 // Tests two master-evidence runs of one variant, commit and inputs key disagree on: one failed the test, the other
 // ran its file to the end (the same test count and skip count) without failing it (6.1): a file that did not load
-// or was cut short is no pass of the test. Only pairs that include `id` are asked.
-const DISAGREE = `SELECT DISTINCT a.variant, f.file, f.name, f.signature, f.status, a.id AS failedIn, b.id AS passedIn,
+// or was cut short is no pass of the test. Only pairs that include `id` (?1) are asked: `p` lists them both ways
+// round, from the record's own commit, variant and inputs key (inv_sha_variant). Written as `a.id = ? OR b.id = ?`
+// over the join, D1 scanned the whole failure table for every master record (#9784).
+const DISAGREE = `WITH o AS (SELECT y.id FROM invocation x JOIN invocation y INDEXED BY inv_sha_variant
+       ON y.sha = x.sha AND y.variant = x.variant AND y.inputs = x.inputs AND y.id != x.id WHERE x.id = ?1),
+     p AS (SELECT ?1 AS a, id AS b FROM o UNION SELECT id, ?1 FROM o)
+     SELECT DISTINCT a.variant, f.file, f.name, f.signature, f.status, a.id AS failedIn, b.id AS passedIn,
        min(a.started_at, b.started_at) AS at
-     FROM invocation a JOIN failure f ON f.invocation = a.id
+     FROM p CROSS JOIN invocation a ON a.id = p.a JOIN failure f ON f.invocation = a.id
      JOIN file_run ra ON ra.invocation = a.id AND ra.file = f.file
-     JOIN invocation b ON b.sha = a.sha AND b.variant = a.variant AND b.inputs = a.inputs AND b.id != a.id
+     JOIN invocation b ON b.id = p.b
      JOIN file_run rb ON rb.invocation = b.id AND rb.file = f.file AND coalesce(rb.skipped, 0) = coalesce(ra.skipped, 0)
        AND coalesce(rb.passed, 0) + coalesce(rb.failed, 0) = coalesce(ra.passed, 0) + coalesce(ra.failed, 0)
-     WHERE (a.id = ? OR b.id = ?) AND a.kind IN ${MASTER_EVIDENCE} AND b.kind IN ${MASTER_EVIDENCE}
+     WHERE a.kind IN ${MASTER_EVIDENCE} AND b.kind IN ${MASTER_EVIDENCE}
        AND a.outcome IN ('passed','failed') AND b.outcome IN ('passed','failed')
        AND NOT EXISTS (SELECT 1 FROM failure g WHERE g.invocation = b.id AND g.file = f.file AND g.name = f.name)`;
 
@@ -625,7 +676,7 @@ const DISAGREE = `SELECT DISTINCT a.variant, f.file, f.name, f.signature, f.stat
  *   invocations), had
  */
 export async function concludeFlaky(db, id, now) {
-    const found = await all(db, DISAGREE, id, id);
+    const found = await all(db, DISAGREE, id);
     const out = [];
     for (const t of found) {
         const family = t.variant.split("|")[0];

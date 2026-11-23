@@ -26,6 +26,7 @@ import {
     type WorkflowState,
 } from "../model/snapshots.js";
 import { failureGroups } from "./snapshots.js";
+import type { CloudflareRate } from "./usage.js";
 
 // ---------------------------------------------------------------------------------------------------------------
 // The REST shapes the collector reads (only the fields it uses).
@@ -266,12 +267,12 @@ export interface CheckRunNote {
 export type CancelClass = NonNullable<RunItem["cancelClass"]>;
 
 /**
- * Why a cancelled run was cancelled, from its check runs' annotations.
+ * Why a canceled run was canceled, from its check runs' annotations.
  * @param checkRuns - the run's check runs with their annotations
  * @returns "superseded", "by-hand" or "red"
  */
 export function classifyCancel(checkRuns: CheckRunNote[]): CancelClass {
-    // No job was ever created: the run was cancelled while it waited, because a newer push or dispatch replaced it
+    // No job was ever created: the run was canceled while it waited, because a newer push or dispatch replaced it
     // in its concurrency group (ci.yml since #3855/#3940). It never ran, so it says nothing about the commit.
     if (!checkRuns.length) {
         return "superseded";
@@ -569,6 +570,8 @@ export interface GqlPr {
     mergedAt: string | null;
     closedAt: string | null;
     autoMergeRequest: { enabledAt: string } | null;
+    /** MERGEABLE, CONFLICTING or UNKNOWN (only on the open list). */
+    mergeable?: string;
     /** Null for a deleted account. */
     author?: { login: string } | null;
     labels: { nodes: { name: string }[] };
@@ -792,7 +795,10 @@ export function prStages(runs: PrRun[], mergedAt: number): PrStages | undefined 
 export interface PrStocks {
     open: number;
     oldestOpenMs: number;
-    /** Armed, green and still unmerged 2 h after arming. */
+    /**
+     * Armed, green, not in conflict with its base and still unmerged 2 h after arming. A conflicting one needs its
+     * base merged in, its own state: automerge_armed_long counts it once armed 24 h.
+     */
     autoMergeGreenStuck: number;
     /** Armed 24 h or more, green or not. */
     autoMergeArmedLong: number;
@@ -850,7 +856,7 @@ export function prStocks(open: GqlPr[], nowMs: number, masterFailing?: ReadonlyS
         }
         const rollup = p.commits?.nodes[0]?.commit.statusCheckRollup;
         const armed = p.autoMergeRequest ? nowMs - Date.parse(p.autoMergeRequest.enabledAt) : -1;
-        if (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS") {
+        if (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS" && p.mergeable !== "CONFLICTING") {
             s.autoMergeGreenStuck++;
             s.prs.greenStuck.push(p.number);
         }
@@ -1066,8 +1072,8 @@ export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
         lanes.publish = "not in this mode";
         // A failed job inside a lane can be non-gating (continue-on-error: CI's Performance Benchmarks, Story tests
         // parity), which the jobs API does not say. "Red early (<lane>)" runs only when the lane's result is failure,
-        // so a lane whose Red early job skipped passed. Not in a cancelled run (!cancelled() skips every Red early
-        // job) and not over a cancelled or timed-out job, which continue-on-error does not cover.
+        // so a lane whose Red early job skipped passed. Not in a canceled run (!cancelled() skips every Red early
+        // job) and not over a canceled or timed-out job, which continue-on-error does not cover.
         for (const [lane, name] of Object.entries(names) as [Lane, string][]) {
             const early = jobs.find((j) => j.name === `Red early (${name})`);
             const onlyFailures = jobsOf(jobs, name).every(
@@ -1127,7 +1133,7 @@ export function coverageAsOf(builtAt: number, attempts: { at: number; created?: 
 // The release channels (#4460): canary's deploys and production's promotions. Nightly's are release attempts.
 
 /**
- * A finished run's outcome as a channel attempt: success is ok, a cancel is cancelled, anything else failed.
+ * A finished run's outcome as a channel attempt: success is ok, a cancel is canceled, anything else failed.
  * @param conclusion - the run's conclusion
  * @returns the attempt's outcome
  */
@@ -1205,9 +1211,9 @@ export function failedStreak(runs: GhRun[]): GhRun[] {
 }
 
 /**
- * The cancelled runs a newer run of the same workflow took the place of: a newer run was created before the cancel
- * (a concurrency group replacing a waiting run, or a stuck run cancelled by hand after its successor started).
- * Neutral: neither failed nor a skipped train. A run cancelled with no successor yet still counts as it did.
+ * The canceled runs a newer run of the same workflow took the place of: a newer run was created before the cancel
+ * (a concurrency group replacing a waiting run, or a stuck run canceled by hand after its successor started).
+ * Neutral: neither failed nor a skipped train. A run canceled with no successor yet still counts as it did.
  * @param runs - one workflow's runs
  * @returns the ids of the replaced runs
  */
@@ -1364,6 +1370,10 @@ export interface Rates {
         paidConclusions: string[];
     };
     fixedMonthly: Record<string, { usd: number } | null>;
+    /** Cloudflare's usage past the Workers Paid plan (collector/usage.ts cloudflareOverage), by usage metric. */
+    cloudflareUsage?: Record<string, CloudflareRate>;
+    /** Each AWS usage metric's daily allowance (collector/usage.ts allowances). */
+    awsUsage?: Record<string, { perDay: number }>;
 }
 
 const dayOf = (msTime: number): number => Math.floor(msTime / DAY) * DAY;

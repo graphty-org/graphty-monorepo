@@ -145,12 +145,34 @@ export default tseslint.config(
         rules: { "local/node-mesh-funnel": ["error", { allow: ["Graph.getNodeMesh"] }] },
     },
     {
-        // Stories and shared test helpers: a read of Node.mesh holds that node off the batch, so a
-        // play function or helper that read it would quietly turn a batched run into an objects one.
-        files: ["stories/**/*.ts", "test/helpers/*.ts"],
+        // Stories, shared test helpers and the fidelity harness: a read of Node.mesh holds that node
+        // off the batch, so a play function, helper or fidelity reading that read it would quietly
+        // turn a batched run into an objects one (#9180). fidelity.test.ts plants renderer defects by
+        // writing to meshes on purpose, which is what a held mesh is for.
+        files: ["stories/**/*.ts", "test/helpers/*.ts", "test/fidelity/**/*.ts"],
+        ignores: ["test/fidelity/fidelity.test.ts"],
         // Not "local": the root config already names its test-timing plugin that for test files.
         plugins: { element: local },
         rules: { "element/node-mesh-funnel": "error" },
+    },
+
+    // ============================================
+    // STRICT TYPE RULES (#7284)
+    // ============================================
+    // The root config switches the no-unsafe-* rules off and turns them back on package by package
+    // ("STRICT TYPE RULES, PACKAGE BY PACKAGE"); its globs are root-relative, so this package lists
+    // its rules here. Add the rest as their findings are fixed.
+    {
+        files: ["src/**/*.ts", "test/**/*.ts", "stories/**/*.ts"],
+        // Scripts and benchmarks are linted without type information (the root config's block).
+        ignores: ["**/scripts/**", "**/benchmarks/**", "**/*.config.ts"],
+        rules: {
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+        },
     },
 
     // ============================================
@@ -177,7 +199,6 @@ export default tseslint.config(
                                 "LayoutImplementation",
                                 "OptionDescriptor",
                                 "ExportResult",
-                                "OperationCancelledEvent",
                                 "CostEstimate",
                                 "RunRecord",
                                 "ScopeApi",

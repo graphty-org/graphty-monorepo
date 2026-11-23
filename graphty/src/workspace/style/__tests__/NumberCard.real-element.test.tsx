@@ -111,6 +111,24 @@ function topOf(session: GraphSession, id: string): number | undefined {
     return leaf?.kind === "threshold" ? leaf.top : undefined;
 }
 
+/**
+ * Switches the card to Highest and waits for the layer to take its first count, 10.
+ * @param session - The session.
+ * @param id - The layer.
+ * @param card - The card.
+ * @param name - The field's name.
+ * @returns the count's box.
+ */
+async function pickHighest(session: GraphSession, id: string, card: HTMLElement, name: string): Promise<HTMLElement> {
+    await userEvent.click(within(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }));
+    await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
+    const top = await within(card).findByRole("textbox", { name: `${name}: how many` });
+    await waitFor(() => {
+        assert.strictEqual(topOf(session, id), 10);
+    });
+    return top;
+}
+
 /** The inspector never fell to its fallback. */
 function panelShown(): void {
     assert.isNull(screen.queryByText("This panel could not be shown"), "the inspector is still drawn");
@@ -280,12 +298,7 @@ describe("number card", () => {
 
     it("refuses a Highest count above the node count, saying how to keep all of them", async () => {
         const { session, id, card, name } = await openCard();
-        await userEvent.click(within(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }));
-        await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
-        const top = await within(card).findByRole("textbox", { name: `${name}: how many` });
-        await waitFor(() => {
-            assert.strictEqual(topOf(session, id), 10);
-        });
+        const top = await pickHighest(session, id, card, name);
         await userEvent.click(top);
         await userEvent.keyboard("10000");
         await userEvent.tab();
@@ -309,7 +322,7 @@ describe("number card", () => {
         });
         await userEvent.click(screen.getByRole("button", { name: "Done" }));
         const row = await screen.findByRole("button", { name: /^Which nodes, / });
-        assert.include((row.textContent ?? "").replaceAll("\u00a0", " "), `${name}: all ${total}, ${total} nodes`);
+        assert.include(row.getAttribute("aria-label") ?? "", `${name}: all ${total}, ${total} nodes`);
         panelShown();
     });
 
@@ -324,10 +337,7 @@ describe("number card", () => {
         const row = await screen.findByRole("button", { name: /^Which nodes, / });
         const kept = session.styles.counts(id).matched;
         await waitFor(() => {
-            assert.include(
-                (row.textContent ?? "").replaceAll("\u00a0", " "),
-                `top 10 by ${name}, ${String(kept)} nodes`,
-            );
+            assert.include(row.getAttribute("aria-label") ?? "", `top 10 by ${name}, ${String(kept)} nodes`);
         });
         assert.include(row.getAttribute("aria-label") ?? "", `top 10 by ${name}, ${String(kept)} nodes`);
     });
@@ -399,5 +409,18 @@ describe("number card", () => {
         assert.lengthOf(within(card).getAllByRole("slider"), 2);
         assert.lengthOf(within(card).queryAllByRole("slider", { name: new RegExp(`${name} (from|to)`) }), 0);
         assert.lengthOf(within(card).getAllByRole("textbox", { name: new RegExp(`^${name} from`) }), 1);
+    });
+
+    it("refuses a Highest count that is no whole number of 1 or more, and keeps the count it took", async () => {
+        const { session, id, card, name } = await openCard();
+        const top = await pickHighest(session, id, card, name);
+        for (const typed of ["2.5", "0"]) {
+            await userEvent.click(top);
+            await userEvent.keyboard(typed);
+            await userEvent.tab();
+            const alert = await within(card).findByRole("alert");
+            assert.include(alert.textContent ?? "", "Type a whole number of 1 or more.", typed);
+            assert.strictEqual(topOf(session, id), 10, `${typed} is not written`);
+        }
     });
 });

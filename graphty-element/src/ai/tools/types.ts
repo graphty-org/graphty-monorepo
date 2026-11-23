@@ -113,21 +113,44 @@ export interface SettleContext {
     readonly host: ToolHost;
 }
 
+/** The session codes that mean a step cause `AI_TOOL_CAUSE_CODES` already names, by that cause. */
+const SESSION_CAUSES: Readonly<Record<string, string>> = {
+    E_BAD_SELECTOR: "AI_BAD_SELECTOR",
+    E_UNKNOWN_ATTRIBUTE: "AI_UNKNOWN_COLUMN",
+    E_UNSUPPORTED: "AI_NOT_AVAILABLE",
+    E_UNKNOWN_RUN: "AI_UNKNOWN_RUN",
+    E_OPTION_RANGE: "AI_ARG_OUT_OF_RANGE",
+};
+
+/**
+ * A step's cause under its one code: a session code with an `AI_*` twin becomes the twin, so a
+ * cause reads the same whichever route reported it.
+ * @param code - The cause code or a session `E_*` code.
+ * @returns The cause.
+ */
+export function stepCause(code: string): string {
+    return SESSION_CAUSES[code] ?? code;
+}
+
 /**
  * A coded refusal an action throws: the model reads `{ code, params }` and can fix the call in
  * one retry. Never thrown for a bug; a bug is an ordinary error and fails the message.
  */
 export class ToolRefusal extends Error {
+    /** The cause code (`AI_TOOL_CAUSE_CODES`), or a session `E_*` code that has no `AI_*` twin. */
+    readonly code: string;
+
     /**
      * A refusal.
-     * @param code - The cause code (`AI_TOOL_CAUSE_CODES`) or a session `E_*` code.
+     * @param code - The cause code or a session `E_*` code; one with an `AI_*` twin is stored as the twin.
      * @param params - The facts the model needs to fix the call.
      */
     constructor(
-        readonly code: string,
+        code: string,
         readonly params: JsonObject = {},
     ) {
-        super(code);
+        super(stepCause(code));
+        this.code = stepCause(code);
         this.name = "ToolRefusal";
     }
 }
@@ -249,7 +272,7 @@ export interface MessageState {
     /**
      * Set while a helper runs beside others (`"parallel-helper"`) or a program the model wrote
      * calls a tool (`"in-page-code"`): every call that does not only read (a write, an undo or
-     * redo, a selection, the view, cancelling a run) is refused (`AI_TOOL_DENIED_BY_POLICY` with
+     * redo, a selection, the view, canceling a run) is refused (`AI_TOOL_DENIED_BY_POLICY` with
      * this as `reason`), before the policy is asked.
      */
     readonly readOnly?: "parallel-helper" | "in-page-code";
@@ -278,7 +301,7 @@ export interface MessageState {
     readonly hostedUses?: Record<string, number>;
     /** The running totals of what the message's writes did since its last approved batch. */
     readonly totals: { removeNodes: number; removeEdges: number; changedValues: number };
-    /** Record what calls did (`AiEffect`) and what a held batch names (the assistant experiment). */
+    /** Record what calls did (`AiEffect`) and what a held batch names, under the generated tools. */
     readonly evidence?: boolean;
     /**
      * The selection every target of this message is limited to, when it was sent with one, until

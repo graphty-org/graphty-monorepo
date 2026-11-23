@@ -8,7 +8,7 @@
 //   introduced it, so the revert is of that commit. When the failure looks external (outsideCause: an outside
 //   service's error, a lost runner, or the same job failing on an earlier commit with a pass in between), it
 //   does not revert: it re-runs the failed jobs once and files the issue with the evidence.
-// - CI cancelled or never started on a master commit (`cancelled`, `startup_failure`; a job that runs into its
+// - CI canceled or never started on a master commit (`cancelled`, `startup_failure`; a job that runs into its
 //   timeout-minutes ends the run `cancelled`): the same red-master issue, with no revert, since no
 //   failed step names a culprit. Not when a newer master push replaced it (superseded): ci.yml lets a newer push
 //   replace a waiting master build (a running one finishes, #3938), which is expected and never a red master.
@@ -23,6 +23,8 @@
 // Every step is attempted even when an earlier one fails; the run then exits 1 so the failure is seen.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+
+import { githubRequest } from "./lib/github.mjs";
 
 export const RED_PREFIX = "Red master: CI failed on ";
 export const DEPLOY = "Deploy to GitHub Pages";
@@ -130,7 +132,7 @@ export function decide(run) {
  * Whether a stopped master CI run was superseded: it was still waiting, with no job started, when a push run for
  * another commit replaced it. Every first attempt of a master push run shares one concurrency group (ci.yml) that
  * never cancels a running build (#3938): a newer push only replaces the waiting one. So a run that started a job and
- * then stopped (a job ran into its timeout, or a person cancelled it) is never superseded, and alarms. A re-run has
+ * then stopped (a job ran into its timeout, or a person canceled it) is never superseded, and alarms. A re-run has
  * its commit's own group, so it is never superseded either.
  * @param gh - Calls the repository's REST API: gh(path, init).
  * @param run - The workflow_run payload's run.
@@ -447,26 +449,8 @@ async function main() {
             return undefined;
         }
     };
-    const call = async (base, token, path, init = {}) => {
-        const res = await fetch(`${base}${path}`, {
-            ...init,
-            headers: {
-                authorization: `Bearer ${token}`,
-                accept: "application/vnd.github+json",
-                "content-type": "application/json",
-            },
-        });
-        if (!res.ok) {
-            throw new Error(`${init.method ?? "GET"} ${path}: ${res.status} ${await res.text()}`);
-        }
-        if (res.status === 204) {
-            return null;
-        }
-        // a job's log is text (fetch drops the authorization header on the redirect to the log's storage)
-        return res.headers.get("content-type")?.includes("json") ? res.json() : res.text();
-    };
-    const gh = (path, init, token = process.env.GITHUB_TOKEN) =>
-        call("https://api.github.com", token, `/repos/${repo}${path}`, init);
+    const gh = (path, init = {}, token = process.env.GITHUB_TOKEN) =>
+        githubRequest(init.method ?? "GET", `/repos/${repo}${path}`, init.body, { token });
     const labels = (effort) => ["bug", "priority:critical", `effort:${effort}`];
 
     const action = decide(run);

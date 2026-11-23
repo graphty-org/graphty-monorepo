@@ -91,7 +91,7 @@ interface Measurement {
 function searchesDuring(work: () => void): number {
     const { search: original } = jmespath;
     let calls = 0;
-    jmespath.search = (data, expression) => {
+    jmespath.search = (data, expression): unknown => {
         calls++;
         return original(data, expression);
     };

@@ -33,6 +33,33 @@ const ELEMENT_LOSS_CODES = [
 ] as const satisfies readonly ExportLossCode[];
 
 /**
+ * The codes of losses that are a format's normal behavior: a kind of information the format (or
+ * the table chosen) has no place for at all, so every graph that holds it loses it there, such as
+ * positions in CSV or styles in a format that writes none. The nodes, edges, ids and attribute
+ * values the file does hold are written as they are. Every other code changes or drops part of
+ * the data itself (ids rewritten, edges or columns dropped, values that read back differently)
+ * or refuses the export. `ExportLoss.expected` reads this list.
+ */
+export const EXPECTED_EXPORT_LOSS_CODES: ReadonlySet<string> = new Set([
+    "W_POSITIONS_DROPPED",
+    "W_VIZ_DROPPED",
+    "W_GRAPH_ATTRIBUTES_DROPPED",
+    "W_DEFAULT_DROPPED",
+    "W_OPTIONS_DROPPED",
+    "W_EDGE_IDS_DROPPED",
+    "W_EDGE_IDS_GENERATED",
+    "W_NODE_ORDER",
+    "W_CSV_NODE_TABLE",
+    "W_CSV_ISOLATED_NODES",
+    "W_CSV_DIRECTION_DROPPED",
+    "W_GRAPHTY_COLUMN_DROPPED",
+    "W_GRAPHTY_NOTES",
+    "W_STYLES_NOT_EXPORTED",
+    "W_STYLE_NOT_WRITTEN",
+    "W_STYLE_RULES_NOT_KEPT",
+] as const satisfies readonly ExportLossCode[]);
+
+/**
  * Every `ExportLossCode` a built-in writer can report, each once. A writer registered with
  * `registerFormatWriter` reports its own codes, which this list does not hold.
  */

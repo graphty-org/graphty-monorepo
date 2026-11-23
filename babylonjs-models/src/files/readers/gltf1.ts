@@ -2,14 +2,17 @@
  * @file glTF 1.0 upgraded to glTF 2.0 JSON, so the one structure checker and Babylon's glTF 2.0
  * loader read both versions.
  *
- * Modeled on gltf-pipeline's `updateVersion`, limited to what a node draws: buffers, buffer views,
- * accessors, meshes, materials, textures, images, samplers, nodes and scenes. Id-keyed objects
- * become arrays; each accessor gets a buffer view of its own (glTF 1.0 kept the stride on the
- * accessor); attribute names gain their set index (`TEXCOORD` to `TEXCOORD_0`); a material's
- * `diffuse` (a color or a texture, in `values` or `KHR_materials_common`) becomes its
- * `pbrMetallicRoughness` base color with no metal. Techniques, programs, shaders, skins,
- * animations, cameras and lights are dropped: custom GLSL is never compiled, so a 1.0 model draws
- * with its diffuse color or texture, in its rest pose.
+ * Modeled on gltf-pipeline's `updateVersion`, limited to what a node draws and how it moves:
+ * buffers, buffer views, accessors, meshes, materials, textures, images, samplers, nodes, scenes,
+ * skins and animations. Id-keyed objects become arrays; each accessor gets a buffer view of its own
+ * (glTF 1.0 kept the stride on the accessor); attribute names gain their set index (`TEXCOORD` to
+ * `TEXCOORD_0`, `JOINT` to `JOINTS_0`); a `COLOR` attribute is kept only when the material's
+ * technique reads it (glTF 2.0 multiplies the base color by `COLOR_0`, so an unread all-zero one
+ * would draw black); a material's `diffuse` (a color or a texture, in `values` or
+ * `KHR_materials_common`) becomes its `pbrMetallicRoughness` base color with no metal. A skin's
+ * joint names become joint node indices, and its `bindShapeMatrix` is folded into its inverse bind
+ * matrices when the buffer bytes are given. Techniques, programs, shaders, cameras and lights are
+ * dropped: custom GLSL is never compiled, so a 1.0 model draws with its diffuse color or texture.
  *
  * A GLB version 1 (`KHR_binary_glTF`) keeps its body as buffer 0. Babylon-free and DOM-free.
  */
@@ -83,12 +86,13 @@ const TYPE_COMPONENTS: Readonly<Record<string, number>> = {
  * @returns The 2.0 name, or undefined for an attribute that is dropped.
  */
 function attributeName(semantic: string): string | undefined {
-    const match = /^(POSITION|NORMAL|TEXCOORD|COLOR)(?:_(\d+))?$/.exec(semantic);
+    const match = /^(POSITION|NORMAL|TEXCOORD|COLOR|JOINT|WEIGHT)(?:_(\d+))?$/.exec(semantic);
     if (match === null) {
         return undefined;
     }
 
-    return match[1] === "POSITION" || match[1] === "NORMAL" ? match[1] : `${match[1]}_${match[2] ?? "0"}`;
+    const plural = match[1] === "JOINT" || match[1] === "WEIGHT" ? "S" : "";
+    return match[1] === "POSITION" || match[1] === "NORMAL" ? match[1] : `${match[1]}${plural}_${match[2] ?? "0"}`;
 }
 
 /**
@@ -134,9 +138,15 @@ export function readGlb1(bytes: Uint8Array): { text: string; body: Uint8Array } 
  * @param json - The glTF 1.0 JSON.
  * @param bodyUri - For a GLB version 1, the name its body is served under (none: buffer 0 has
  *   no `uri`, as a GLB version 2's binary chunk).
+ * @param bytesOf - A buffer's bytes, by its 1.0 id and object (the GLB body is `binary_glTF`);
+ *   without it, or when it returns undefined, a skin's `bindShapeMatrix` is not folded in.
  * @returns glTF 2.0 JSON.
  */
-export function upgradeGltf1(json: Json, bodyUri?: string): Json {
+export function upgradeGltf1(
+    json: Json,
+    bodyUri?: string,
+    bytesOf?: (id: string, buffer: Json) => Uint8Array | undefined,
+): Json {
     // The KHR_binary_glTF body first, so it is buffer 0.
     const buffers = entries(json.buffers).sort(([a], [b]) => Number(b === "binary_glTF") - Number(a === "binary_glTF"));
     const bufferIds = idsOf(buffers);
@@ -196,6 +206,7 @@ export function upgradeGltf1(json: Json, bodyUri?: string): Json {
     const materialIds = idsOf(materials);
     const meshes = entries(json.meshes);
     const meshIds = idsOf(meshes);
+    const colorReaders = colorReadingMaterials(json);
 
     const out: Json = {
         asset: { version: "2.0", generator: "babylonjs-models glTF 1.0 upgrade" },
@@ -227,7 +238,8 @@ export function upgradeGltf1(json: Json, bodyUri?: string): Json {
                 const attributes: Json = {};
                 for (const [semantic, accessor] of Object.entries(isObject(p.attributes) ? p.attributes : {})) {
                     const name = attributeName(semantic);
-                    if (name !== undefined) {
+                    const unread = name?.startsWith("COLOR") === true && !colorReaders.has(String(p.material));
+                    if (name !== undefined && !unread) {
                         attributes[name] = ref(accessorIds, accessor);
                     }
                 }
@@ -243,8 +255,308 @@ export function upgradeGltf1(json: Json, bodyUri?: string): Json {
         })),
     };
 
-    upgradeNodes(json, out, meshIds);
+    const nodeIds = upgradeNodes(json, out, meshIds);
+    upgradeSkins(json, out, { nodeIds, accessorIds, buffers, bytesOf });
+    upgradeAnimations(json, out, { nodeIds, accessorIds, buffers, bytesOf });
     return out;
+}
+
+/**
+ * The materials whose technique reads a `COLOR` attribute.
+ * @param json - The 1.0 JSON.
+ * @returns Their ids.
+ */
+function colorReadingMaterials(json: Json): Set<string> {
+    const techniques = new Map(entries(json.techniques));
+    const readers = new Set<string>();
+    for (const [id, material] of entries(json.materials)) {
+        const technique = techniques.get(String(material.technique));
+        const parameters = isObject(technique?.parameters) ? technique.parameters : {};
+        const read = Object.values(isObject(technique?.attributes) ? technique.attributes : {}).some((name) => {
+            const parameter = parameters[String(name)];
+            return isObject(parameter) && /^COLOR(?:_\d+)?$/.test(String(parameter.semantic));
+        });
+        if (read) {
+            readers.add(id);
+        }
+    }
+
+    return readers;
+}
+
+/** What {@link upgradeSkins} and {@link upgradeAnimations} read besides the JSON. */
+interface SkinInputs {
+    readonly nodeIds: Ids;
+    readonly accessorIds: Ids;
+    readonly buffers: readonly [string, Json][];
+    readonly bytesOf: ((id: string, buffer: Json) => Uint8Array | undefined) | undefined;
+}
+
+/**
+ * Upgrade skins: joint names to joint node indices (searched under the skinned node's skeleton
+ * roots first), and `skin` on each skinned node and the children it gained for its extra meshes.
+ * @param json - The 1.0 JSON.
+ * @param out - The 2.0 JSON, written into (its nodes already upgraded).
+ * @param inputs - The node and accessor ids, the buffers and their bytes.
+ */
+function upgradeSkins(json: Json, out: Json, inputs: SkinInputs): void {
+    const skins = entries(json.skins);
+    if (skins.length === 0) {
+        return;
+    }
+
+    const skinIds = idsOf(skins);
+    const nodes = entries(json.nodes);
+    const nodes2 = out.nodes as Json[];
+    const byJointName = new Map<string, number>();
+    nodes.forEach(([, n], i) => {
+        if (typeof n.jointName === "string" && !byJointName.has(n.jointName)) {
+            byJointName.set(n.jointName, i);
+        }
+    });
+
+    const roots = new Map<number, number[]>();
+    nodes.forEach(([, n], i) => {
+        const skin = ref(skinIds, n.skin);
+        if (skin === undefined) {
+            return;
+        }
+        const node = nodes2[i];
+        node.skin = skin;
+        for (const child of (node.children as number[] | undefined) ?? []) {
+            if (child >= nodes.length) {
+                nodes2[child].skin = skin;
+            }
+        }
+        const skeletons = (Array.isArray(n.skeletons) ? n.skeletons : []).map((s) => ref(inputs.nodeIds, s));
+        roots.set(
+            skin,
+            skeletons.filter((s) => s !== undefined),
+        );
+    });
+
+    out.skins = skins.map(([, skin], k) => {
+        const under = jointNamesUnder(roots.get(k) ?? [], nodes, nodes2);
+        const joints = (Array.isArray(skin.jointNames) ? skin.jointNames : []).map(
+            (name) => under.get(String(name)) ?? byJointName.get(String(name)),
+        );
+        const skin2: Json = { joints };
+        const skeleton = roots.get(k)?.[0];
+        if (skeleton !== undefined) {
+            skin2.skeleton = skeleton;
+        }
+        const inverse = ref(inputs.accessorIds, skin.inverseBindMatrices);
+        const folded = foldBindShape(out, skin.bindShapeMatrix, inverse, joints.length, inputs);
+        if (folded !== undefined) {
+            skin2.inverseBindMatrices = folded;
+        } else if (inverse !== undefined) {
+            skin2.inverseBindMatrices = inverse;
+        }
+        return skin2;
+    });
+}
+
+/**
+ * The nodes under some roots (the roots included), by joint name.
+ * @param roots - The root node indices.
+ * @param nodes - The 1.0 nodes.
+ * @param nodes2 - The 2.0 nodes (their children by index).
+ * @returns Joint name to node index.
+ */
+function jointNamesUnder(
+    roots: readonly number[],
+    nodes: readonly [string, Json][],
+    nodes2: readonly Json[],
+): Map<string, number> {
+    const found = new Map<string, number>();
+    const seen = new Set<number>();
+    const stack = [...roots];
+    while (stack.length > 0) {
+        const i = stack.pop() ?? 0;
+        if (seen.has(i) || i >= nodes.length) {
+            continue;
+        }
+        seen.add(i);
+        const name = nodes[i][1].jointName;
+        if (typeof name === "string" && !found.has(name)) {
+            found.set(name, i);
+        }
+        stack.push(...((nodes2[i].children as number[] | undefined) ?? []));
+    }
+
+    return found;
+}
+
+/**
+ * Fold a skin's `bindShapeMatrix` into its inverse bind matrices (each becomes `IBM * BSM`), written
+ * as a new buffer with a `data:` URL, since glTF 2.0 has no bind shape matrix.
+ * @param out - The 2.0 JSON, written into.
+ * @param bindShape - The 1.0 `bindShapeMatrix`.
+ * @param inverse - The inverse bind matrices' accessor index (none: each is the identity).
+ * @param joints - How many joints.
+ * @param inputs - The buffers and their bytes.
+ * @returns The new accessor's index, or undefined when the matrix is absent or the identity, or
+ *   the inverse bind matrices cannot be read.
+ */
+function foldBindShape(
+    out: Json,
+    bindShape: unknown,
+    inverse: number | undefined,
+    joints: number,
+    inputs: SkinInputs,
+): number | undefined {
+    if (
+        !Array.isArray(bindShape) ||
+        bindShape.length !== 16 ||
+        bindShape.every((v, i) => v === (i % 5 === 0 ? 1 : 0)) ||
+        !bindShape.every((v) => typeof v === "number")
+    ) {
+        return undefined;
+    }
+
+    const accessors = out.accessors as Json[];
+    const views = out.bufferViews as Json[];
+    const matrices = inverseBindMatrices(out, inverse, joints, inputs);
+    if (matrices === undefined) {
+        return undefined;
+    }
+
+    const bsm = bindShape;
+    const folded = new Float32Array(joints * 16);
+    for (let at = 0; at < folded.length; at++) {
+        const base = at - (at % 16);
+        const column = Math.floor((at % 16) / 4);
+        const row = at % 4;
+        folded[at] = [0, 1, 2, 3].reduce((sum, k) => sum + matrices[base + k * 4 + row] * bsm[column * 4 + k], 0);
+    }
+
+    const raw = new Uint8Array(folded.buffer);
+    let binary = "";
+    for (const byte of raw) {
+        binary += String.fromCodePoint(byte);
+    }
+    const buffers = out.buffers as Json[];
+    const buffer =
+        buffers.push({ byteLength: raw.length, uri: `data:application/octet-stream;base64,${btoa(binary)}` }) - 1;
+    const view = views.push({ buffer, byteOffset: 0, byteLength: raw.length }) - 1;
+    return accessors.push({ bufferView: view, componentType: 5126, count: joints, type: "MAT4" }) - 1;
+}
+
+/**
+ * A skin's inverse bind matrices, read from its buffer (none: each is the identity).
+ * @param out - The 2.0 JSON.
+ * @param inverse - Their accessor index.
+ * @param joints - How many joints.
+ * @param inputs - The buffers and their bytes.
+ * @returns The matrices, column-major, or undefined when they cannot be read.
+ */
+function inverseBindMatrices(
+    out: Json,
+    inverse: number | undefined,
+    joints: number,
+    inputs: SkinInputs,
+): Float32Array | undefined {
+    const matrices = new Float32Array(joints * 16);
+    if (inverse === undefined) {
+        matrices.forEach((_, k) => (matrices[k] = (k % 16) % 5 === 0 ? 1 : 0));
+        return matrices;
+    }
+
+    const floats = floatsOf(out, inverse, inputs);
+    return floats !== undefined && floats.length >= matrices.length ? floats.subarray(0, matrices.length) : undefined;
+}
+
+/**
+ * A float accessor's values, read from its buffer (the stride of its view honored).
+ * @param out - The 2.0 JSON.
+ * @param at - The accessor's index.
+ * @param inputs - The buffers and their bytes.
+ * @returns Its values, or undefined when they cannot be read.
+ */
+function floatsOf(out: Json, at: number, inputs: SkinInputs): Float32Array | undefined {
+    const accessor = (out.accessors as Json[])[at] as Json | undefined;
+    const view = (out.bufferViews as Json[])[accessor?.bufferView as number] as Json | undefined;
+    const buffer = inputs.buffers[view?.buffer as number] as [string, Json] | undefined;
+    const bytes = buffer === undefined ? undefined : inputs.bytesOf?.(buffer[0], buffer[1]);
+    if (accessor?.componentType !== 5126 || view === undefined || bytes === undefined) {
+        return undefined;
+    }
+
+    const components = TYPE_COMPONENTS[accessor.type as string] ?? 1;
+    const count = accessor.count as number;
+    const stride = typeof view.byteStride === "number" ? view.byteStride : components * 4;
+    const offset = view.byteOffset as number;
+    if (count > 0 && offset + stride * (count - 1) + components * 4 > bytes.length) {
+        return undefined;
+    }
+
+    const data = new DataView(bytes.buffer, bytes.byteOffset);
+    const values = new Float32Array(count * components);
+    return values.map((_, k) =>
+        data.getFloat32(offset + Math.floor(k / components) * stride + (k % components) * 4, true),
+    );
+}
+
+/**
+ * Upgrade animations, all into one: glTF 1.0 exporters wrote an animation per animated node, and
+ * glTF 2.0 plays each animation as a clip of its own, so they are one clip. Samplers and channels
+ * go by index, a sampler's `input` and `output` from its animation's parameters to accessor
+ * indices, and a channel's target node by index. An input with no `min` and `max` (glTF 2.0
+ * requires them; the clip's length is read from them) gets them from its values.
+ * @param json - The 1.0 JSON.
+ * @param out - The 2.0 JSON, written into.
+ * @param inputs - The node and accessor ids, the buffers and their bytes.
+ */
+function upgradeAnimations(json: Json, out: Json, inputs: SkinInputs): void {
+    const animations = entries(json.animations);
+    if (animations.length === 0) {
+        return;
+    }
+
+    const samplers2: Json[] = [];
+    const channels2: Json[] = [];
+    for (const [, animation] of animations) {
+        const parameters = isObject(animation.parameters) ? animation.parameters : {};
+        const samplers = entries(animation.samplers);
+        const first = samplers2.length;
+        samplers2.push(
+            ...samplers.map(([, s]) => ({
+                input: ref(inputs.accessorIds, parameters[String(s.input)]),
+                output: ref(inputs.accessorIds, parameters[String(s.output)]),
+                interpolation: typeof s.interpolation === "string" ? s.interpolation : "LINEAR",
+            })),
+        );
+        const samplerIds = new Map([...idsOf(samplers)].map(([id, i]) => [id, first + i]));
+        for (const c of (Array.isArray(animation.channels) ? animation.channels : []).filter(isObject)) {
+            const target = isObject(c.target) ? c.target : {};
+            channels2.push({
+                sampler: ref(samplerIds, c.sampler),
+                target: { node: ref(inputs.nodeIds, target.id), path: target.path },
+            });
+        }
+    }
+
+    timeRanges(out, samplers2, inputs);
+    out.animations = [{ samplers: samplers2, channels: channels2 }];
+}
+
+/**
+ * Give each sampler input with no `max` its `min` and `max`, read from its values.
+ * @param out - The 2.0 JSON, written into.
+ * @param samplers - The 2.0 samplers.
+ * @param inputs - The buffers and their bytes.
+ */
+function timeRanges(out: Json, samplers: readonly Json[], inputs: SkinInputs): void {
+    const accessors = out.accessors as Json[];
+    for (const input of new Set(samplers.map((s) => s.input as number | undefined))) {
+        const accessor = input === undefined ? undefined : accessors[input];
+        const times =
+            accessor === undefined || Array.isArray(accessor.max) ? undefined : floatsOf(out, input as number, inputs);
+        if (accessor !== undefined && times !== undefined && times.length > 0) {
+            accessor.min = [times.reduce((a, b) => Math.min(a, b))];
+            accessor.max = [times.reduce((a, b) => Math.max(a, b))];
+        }
+    }
 }
 
 /**
@@ -274,8 +586,9 @@ function upgradeMaterial(id: string, material: Json, textureIds: Ids): Json {
  * @param json - The 1.0 JSON.
  * @param out - The 2.0 JSON, written into.
  * @param meshIds - The meshes' ids.
+ * @returns The nodes' ids.
  */
-function upgradeNodes(json: Json, out: Json, meshIds: Ids): void {
+function upgradeNodes(json: Json, out: Json, meshIds: Ids): Ids {
     const nodes = entries(json.nodes);
     const nodeIds = idsOf(nodes);
     const nodes2: Json[] = nodes.map(([, n]) => {
@@ -318,4 +631,6 @@ function upgradeNodes(json: Json, out: Json, meshIds: Ids): void {
     if (scene !== undefined) {
         out.scene = scene;
     }
+
+    return nodeIds;
 }

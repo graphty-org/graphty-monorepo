@@ -95,6 +95,21 @@ describe("GraphtyLogger", () => {
     });
 
     describe("logging when disabled", () => {
+        test("sends warnings and errors to the console until something configures logging", async () => {
+            const logger = GraphtyLogger.getLogger(["graphty", "graph"]);
+            logger.info("not shown");
+            logger.warn("a warning");
+            logger.error("an error", new Error("boom"));
+
+            assert.strictEqual(consoleInfoSpy.mock.calls.length, 0, "info stays quiet");
+            assert.include(String(vi.mocked(console.warn).mock.calls[0]?.[0]), "a warning");
+            assert.include(String(vi.mocked(console.error).mock.calls[0]?.[0]), "an error");
+
+            await GraphtyLogger.configure({ enabled: false });
+            logger.error("silenced");
+            assert.strictEqual(vi.mocked(console.error).mock.calls.length, 1, "a configured page decides");
+        });
+
         test("should not log when disabled", async () => {
             await GraphtyLogger.configure({
                 enabled: false,

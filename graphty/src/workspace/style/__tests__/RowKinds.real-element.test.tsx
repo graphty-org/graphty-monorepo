@@ -115,13 +115,15 @@ describe("folders, several rows and the draft on the real element", () => {
         }
         await userEvent.click(await row("Annotations"));
 
-        // The tree lists the folder's rows; the panel says what an edit of the folder reaches.
-        await screen.findByText("2 layers in Annotations. Layers added later are not changed.");
+        // The tree lists the folder's rows; the panel draws no line about what an edit reaches (#8739).
+        await screen.findByRole("heading", { level: 2, name: "Annotations" });
+        await screen.findByTestId("style-tab");
+        assert.isNull(screen.queryByText(/layers in Annotations/));
         assert.isNull(screen.queryByRole("list", { name: "In Annotations" }));
         assert.isNull(screen.queryByRole("heading", { name: "Selection colors" }));
     });
 
-    it("two rows of different sizes show each one; the minus takes it off both in one Undo; a locked row is counted and left out", async () => {
+    it("two rows of different sizes show each one; the minus takes it off both in one Undo; a locked row is left out", async () => {
         const { session, key, degree, ring } = await openProject();
         // The line shows what each layer paints now, and Degree over every node would paint over
         // all of Key people's size: on the other two nodes, each row's size is drawn somewhere.
@@ -135,7 +137,6 @@ describe("folders, several rows and the draft on the real element", () => {
         await userEvent.click(await row("Ring"));
         await userEvent.keyboard("{/Control}");
         await screen.findByRole("heading", { level: 2, name: "3 layers" });
-        await screen.findByText("3 layers: 1 locked and skipped.");
 
         const tab = await screen.findByTestId("style-tab");
         const kinds = within(tab).getByRole("tablist", { name: "Style for" });
@@ -146,8 +147,10 @@ describe("folders, several rows and the draft on the real element", () => {
             assert.isNotNull(found);
             return found;
         });
-        const values = (size.querySelector("[data-varied-line]")?.textContent ?? "").split(", ");
-        assert.sameMembers(values, ["3", "1"], "each row's own size, none borrowed");
+        // Each row's own size, none borrowed, named in the pill (no line under it, #8739).
+        const pill = within(size).getByRole("button", { name: /^Node size: / });
+        assert.match(pill.getAttribute("aria-label") ?? "", /\b3\b/);
+        assert.match(pill.getAttribute("aria-label") ?? "", /\b1\b/);
 
         await userEvent.click(within(size).getByRole("button", { name: "Remove node size from every layer" }));
         await waitFor(() => {
@@ -183,7 +186,10 @@ describe("folders, several rows and the draft on the real element", () => {
         });
         const shape = within(tab).getByRole("group", { name: "Shape" });
         const glow = shape.querySelector<HTMLElement>('.ws-row[data-line="node.glow"]');
-        assert.equal(glow?.querySelector("[data-breakdown]")?.textContent, "1 layer sets glow; not set: Degree");
+        assert.equal(
+            glow?.querySelector("[data-notes]")?.getAttribute("data-notes"),
+            "1 layer sets glow; not set: Degree",
+        );
 
         await userEvent.click(within(shape).getByRole("button", { name: "Remove node glow from every layer" }));
         await waitFor(() => {
@@ -230,5 +236,21 @@ describe("folders, several rows and the draft on the real element", () => {
                 ["Layer 1"],
             );
         });
+    });
+
+    it("two rows that each style only nodes keep the Style nodes switch on, saying why (#9685)", async () => {
+        const { session, key, degree } = await openProject();
+        await userEvent.click(await row("Key people"));
+        await userEvent.keyboard("{Control>}");
+        await userEvent.click(await row("Degree"));
+        await userEvent.keyboard("{/Control}");
+        await screen.findByRole("heading", { level: 2, name: "2 layers" });
+
+        const nodes = await screen.findByRole("checkbox", { name: "Style nodes" });
+        assert.isTrue((nodes as HTMLInputElement).checked);
+        assert.isTrue((nodes as HTMLInputElement).disabled, "no layer can drop its only kind");
+        assert.equal(nodes.getAttribute("aria-description"), "Stays on: style edges first to stop styling nodes");
+        assert.isDefined(session.styles.parts(key)?.node);
+        assert.isDefined(session.styles.parts(degree)?.node);
     });
 });

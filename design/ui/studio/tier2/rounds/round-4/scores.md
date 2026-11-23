@@ -237,7 +237,7 @@ severity 3: a rule on a column that does not exist runs and says only "Nothing m
 
 **Counts.** The specialists' own totals rose from 139 to 153: controls 42 to 42, visual 34 to 42,
 accessibility 25 to 31, audit 38 to 38. Each specialist says most of the rise is ground walked for
-the first time (cancelling a note, an off step's editor, Undo of a Rerun, a bare number that is not
+the first time (canceling a note, an off step's editor, Undo of a Rerun, a bare number that is not
 a value, the toolbar's Filters door) and round 4's own new rows ("or more", the toolbar button); each
 also lists what closed (round 3's two "Start here" badges, edge-blind filter counts, the cut Values
 row, the Replace button naming the old file, Made with after Undo, focus after picking Shortest

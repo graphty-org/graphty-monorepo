@@ -143,7 +143,7 @@ While a write is outstanding or failing, the element asks the reader before the 
 asks and stays eligible for the browser's back/forward cache.
 
 The same listener keeps Firefox from unloading the tab to save memory while its work is unwritten:
-Firefox's low-memory tab unloader skips a background tab whose `beforeunload` is cancelled, and
+Firefox's low-memory tab unloader skips a background tab whose `beforeunload` is canceled, and
 unloads it once the work is saved; selecting the tab again loads the page and restores the work.
 
 - `unloadGuard: "unexported"` asks whenever the work was never saved to a file.
@@ -184,6 +184,24 @@ textarea.value = element.autosaver.stashed("org.example.note-draft") ?? "";
 
 The value is any small JSON value, under a reverse-domain name. **Never stash API keys, passwords
 or other secrets:** the stash is stored unencrypted in the reader's browser.
+
+## Open filter drafts
+
+A filter condition being edited in a draft (`session.visibility.draft(...)`) is the reader's
+unfinished edit, so autosave keeps every open draft with the work and opens it again after a
+restore, still uncommitted: nothing shown changes until it is committed. Pick it up by the
+condition's id instead of opening a new draft:
+
+```javascript
+await element.autosaver.ready;
+const { visibility } = element.session;
+const draft = visibility.draftOf("c1") ?? visibility.draft("c1");
+// a draft of a new condition comes back too, under the id it was opened with:
+const unwritten = visibility.openDrafts().filter((each) => !visibility.conditions.some((c) => c.id === each.id));
+```
+
+A draft that cannot be opened again (the condition it edited is gone) is dropped, and the restore's
+report lists it as `W_FILTER_DRAFT_DROPPED` with the condition's `id`.
 
 ## The entries
 

@@ -84,7 +84,7 @@ and `styles.validate()` and the `style:changed` change report it as a `W_UNKNOWN
 `{ match: "member", of: scope }` paints the members of a kept [set](./sets), or of anything else a
 scope names (`"selection"`, `{ define }`). The layer follows its scope: redefine the set, change
 the data a rule set reads, or re-run the run a followed set reads, and the layer repaints the
-elements that joined or left without being touched. A set has no colour of its own -- colouring
+elements that joined or left without being touched. A set has no color of its own -- coloring
 one is this layer. A layer naming a set that was removed keeps painting the members the set's
 kept record names, so removing a set never blanks a layer.
 
@@ -216,14 +216,15 @@ await element.session.styles.add({
 A path that starts `graphty.` reads a value the element itself provides, not a column of your
 data:
 
-| Path                                        | Value                                                                                                                     |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `graphty.notes.count`                       | How many notes name a node or an edge; no value when none do                                                              |
-| `graphty.notes.latest`                      | The text of the newest of those notes                                                                                     |
-| `graphty.notes.latestTime`                  | The `time` of the newest of those notes                                                                                   |
-| `graphty.degree`                            | How many edges a node has, as the graph stands now; no value on an edge                                                   |
-| `graphty.inDegree`, `graphty.outDegree`     | How many edges reach a node, and how many leave it                                                                        |
-| `graphty.style.<format>.<node\|edge>.<key>` | A value a load with `styles: "file"` wrote for the element; see [Styles from Files](./file-styles#values-the-load-writes) |
+| Path                                        | Value                                                                                                                                   |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `graphty.notes.count`                       | How many notes name a node or an edge; no value when none do                                                                            |
+| `graphty.notes.latest`                      | The text of the newest of those notes                                                                                                   |
+| `graphty.notes.latestTime`                  | The `time` of the newest of those notes                                                                                                 |
+| `graphty.degree`                            | How many edges a node has, as the graph stands now; no value on an edge                                                                 |
+| `graphty.inDegree`, `graphty.outDegree`     | How many edges reach a node, and how many leave it                                                                                      |
+| `graphty.members`                           | How many nodes a group holds directly; no value on a node that holds none. See [Groups](./data-sources#groups-nodes-inside-other-nodes) |
+| `graphty.style.<format>.<node\|edge>.<key>` | A value a load with `styles: "file"` wrote for the element; see [Styles from Files](./file-styles#values-the-load-writes)               |
 
 They work in a layer's `selector` and in a binding's `by`. A label or tooltip bound to one is drawn
 as literal text: a note reading `<bold>x</bold>` shows the tags, never bold text. See
@@ -253,11 +254,11 @@ A channel is one visual property with one name. These are all of them:
 
 | Node channel                  | Takes                                                                                                                                            |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `node.color`                  | any CSS colour                                                                                                                                   |
-| `node.gradientColor`          | any CSS colour: fills the node with a gradient from `node.color` into it                                                                         |
+| `node.color`                  | any CSS color                                                                                                                                    |
+| `node.gradientColor`          | any CSS color: fills the node with a gradient from `node.color` into it                                                                          |
 | `node.gradientDirection`      | 0 to 360: which way that gradient runs; 0 left to right, 90 downward                                                                             |
-| `node.gradientColors`         | CSS colours separated by spaces: every colour the gradient runs through, start to end, in place of the two above                                 |
-| `node.gradientStops`          | fractions 0 to 1 separated by spaces, one per gradient colour: where each sits (otherwise evenly spaced)                                         |
+| `node.gradientColors`         | CSS colors separated by spaces: every color the gradient runs through, start to end, in place of the two above                                   |
+| `node.gradientStops`          | fractions 0 to 1 separated by spaces, one per gradient color: where each sits (otherwise evenly spaced)                                          |
 | `node.gradientKind`           | `linear` (the default) or `radial`: out from the node's middle to its edge                                                                       |
 | `node.gradientCenterX`        | a radial gradient's middle across the node, 0 (left) to 1 (right); 0.5 by default                                                                |
 | `node.gradientCenterY`        | a radial gradient's middle down the node, 0 (top) to 1 (bottom); 0.5 by default                                                                  |
@@ -273,7 +274,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.planar`                 | true or false: draw the node thin, as a flat shape, even in 3D                                                                                   |
 | `node.zIndex`                 | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes                                                                          |
 | `node.drawOrder`              | 0 to 100: in 2D, which of two overlapping nodes is drawn on top                                                                                  |
-| `node.borderColor`            | a colour; black when unset                                                                                                                       |
+| `node.borderColor`            | a color; black when unset                                                                                                                        |
 | `node.borderWidth`            | 0 or more, in the units of `node.size`; 0 draws no border                                                                                        |
 | `node.borderStyle`            | `solid`, `dashed`, `dotted`, `dash-dot`, `double`, `zigzag`, `sinewave`, `forward-slash`, `backward-slash`, `vertical-slash` or `separate-arrow` |
 | `node.cornerRadius`           | 0 or more: a round-rectangle's largest corner radius, in `node.size` units                                                                       |
@@ -285,7 +286,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.shapeLineHaloWidth`     | 0 or more: how wide that line under `node.shapeLines` is, in the units of `node.borderWidth`; unset or 0, none                                   |
 | `node.label`                  | the words to draw                                                                                                                                |
 | `node.labelStyle`             | `{font, sizePx, weight, color, background, outline, padding, ...}`                                                                               |
-| `node.labelColor`             | any CSS colour: the label's colour                                                                                                               |
+| `node.labelColor`             | any CSS color: the label's color                                                                                                                 |
 | `node.labelSize`              | a number: the label's font size                                                                                                                  |
 | `node.labelLetterSize`        | a number: how tall the letters (one font size) are drawn, in scene units                                                                         |
 | `node.labelFont`              | a font family                                                                                                                                    |
@@ -293,6 +294,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.labelItalic`            | true or false                                                                                                                                    |
 | `node.labelWrapWidth`         | a number: how wide a line may be before its words wrap, in scene units                                                                           |
 | `node.labelWrapTrailingSpace` | true or false: a word must fit with the space after it, as Cytoscape wraps                                                                       |
+| `node.labelWrapSkipEndSpace`  | true or false: with the above, a line's last word is measured without a space after it, as Cytoscape.js wraps                                    |
 | `node.labelWrapEllipsis`      | true or false: a line wider than the wrap width is cut to fit with an ellipsis, in place of wrapping                                             |
 | `node.labelWrapAnywhere`      | true or false: a line may break between any two letters, not only at spaces                                                                      |
 | `node.labelWrapSpaceCount`    | 0 or more: how many blanks a blank between two words counts as against the wrap width (vis-network counts 3)                                     |
@@ -304,12 +306,12 @@ A channel is one visual property with one name. These are all of them:
 | `node.tooltip`                | the words to show on hover                                                                                                                       |
 | `node.tooltipStyle`           | as `node.labelStyle`, for the tooltip                                                                                                            |
 | `node.opacity`                | 0 to 1                                                                                                                                           |
-| `node.outline`                | a colour                                                                                                                                         |
+| `node.outline`                | a color                                                                                                                                          |
 | `node.outlineWidth`           | 0 to 10: the outline's width, a multiple of its own (1); unset, `layoutBehavior.node.outlineWidth`; alone it draws none                          |
-| `node.glow`                   | a colour                                                                                                                                         |
+| `node.glow`                   | a color                                                                                                                                          |
 | `node.glowStrength`           | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow                                                                                 |
 | `node.halo`                   | true or false: the selection highlight around the node, in its own shape                                                                         |
-| `node.haloColor`              | a colour; the selection highlight's when unset (blue, `#0077BB`)                                                                                 |
+| `node.haloColor`              | a color; the selection highlight's when unset (blue, `#0077BB`)                                                                                  |
 | `node.haloScale`              | above 0: how many times the node's size the halo is drawn at (1.45)                                                                              |
 | `node.haloOpacity`            | 0 to 1 (1)                                                                                                                                       |
 | `node.wireframe`              | true or false                                                                                                                                    |
@@ -318,9 +320,10 @@ A channel is one visual property with one name. These are all of them:
 
 | Edge channel                  | Takes                                                                                                            |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `edge.color`                  | any CSS colour                                                                                                   |
+| `edge.color`                  | any CSS color                                                                                                    |
 | `edge.width`                  | 0 or more; 0 draws no line (the caps and label still draw)                                                       |
 | `edge.opacity`                | 0 to 1                                                                                                           |
+| `edge.drawOrder`              | 0 to 100: which of two crossing lines is drawn on top                                                            |
 | `edge.fadeEnd`                | CSS pixels: a line this long on screen or longer draws at `edge.fadeOpacity` times its opacity; unset, no fade   |
 | `edge.fadeStart`              | CSS pixels: a line this long on screen or shorter does not fade (0)                                              |
 | `edge.fadeOpacity`            | 0 to 1: what the fade multiplies the longest lines' opacity by (0.25)                                            |
@@ -334,7 +337,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.arrowHead`              | `normal`, `inverted`, `diamond`, `none`, ...                                                                     |
 | `edge.arrowHeadSize`          | 0 or more, 1 being the element's own size; 0 draws no head                                                       |
 | `edge.arrowHeadPosition`      | 0 to 1: how far back along the line the head sits; 0 at the node, 0.5 mid                                        |
-| `edge.arrowHeadColor`         | a colour                                                                                                         |
+| `edge.arrowHeadColor`         | a color                                                                                                          |
 | `edge.arrowHeadOpacity`       | 0 to 1                                                                                                           |
 | `edge.arrowHeadText`          | words drawn beside the head cap                                                                                  |
 | `edge.arrowHeadTextStyle`     | as `node.labelStyle`                                                                                             |
@@ -344,7 +347,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.arrowTail`              | the same arrows                                                                                                  |
 | `edge.arrowTailSize`          | 0 or more; 0 draws no tail                                                                                       |
 | `edge.arrowTailPosition`      | 0 to 1: how far along the line from the source the tail sits                                                     |
-| `edge.arrowTailColor`         | a colour                                                                                                         |
+| `edge.arrowTailColor`         | a color                                                                                                          |
 | `edge.arrowTailOpacity`       | 0 to 1                                                                                                           |
 | `edge.arrowTailText`          | words drawn beside the tail cap                                                                                  |
 | `edge.arrowTailTextStyle`     | as `node.labelStyle`                                                                                             |
@@ -362,6 +365,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.labelItalic`            | as `node.labelItalic`                                                                                            |
 | `edge.labelWrapWidth`         | as `node.labelWrapWidth`                                                                                         |
 | `edge.labelWrapTrailingSpace` | as `node.labelWrapTrailingSpace`                                                                                 |
+| `edge.labelWrapSkipEndSpace`  | as `node.labelWrapSkipEndSpace`                                                                                  |
 | `edge.labelWrapEllipsis`      | as `node.labelWrapEllipsis`                                                                                      |
 | `edge.labelWrapAnywhere`      | as `node.labelWrapAnywhere`                                                                                      |
 | `edge.labelWrapSpaceCount`    | as `node.labelWrapSpaceCount`                                                                                    |
@@ -404,7 +408,7 @@ full strength, so `edge.opacity` and the fade have no effect on it, and a line u
 not drawn fainter.
 
 Writing `node.label` or `edge.label` is what switches a label on. To switch node labels on
-without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labelled
+without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labeled
 with its own id.
 
 ```typescript
@@ -423,7 +427,7 @@ at 24 px, and each field takes the value from the highest layer that set it.
 A whole label style can only be `set`. To draw each label from your data -- a size from a column,
 a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`, `node.labelLetterSize`,
 `node.labelFont`, `node.labelWeight`, `node.labelItalic`, `node.labelWrapWidth`,
-`node.labelWrapTrailingSpace`, `node.labelWrapEllipsis`, `node.labelWrapAnywhere`, `node.labelWrapSpaceCount`, `node.labelRunAlign`, `node.labelMinScreenSize`, `node.labelOnTop`, `node.labelDeclutter`, `node.labelRotation`, and the same on
+`node.labelWrapTrailingSpace`, `node.labelWrapSkipEndSpace`, `node.labelWrapEllipsis`, `node.labelWrapAnywhere`, `node.labelWrapSpaceCount`, `node.labelRunAlign`, `node.labelMinScreenSize`, `node.labelOnTop`, `node.labelDeclutter`, `node.labelRotation`, and the same on
 edges but `labelDeclutter`). Each lands
 in the same label style, field by field, in layer order, beside whatever `node.labelStyle` layers
 write. A binding on the whole `node.labelStyle` paints nothing, and `validate()` warns about it with
@@ -477,15 +481,24 @@ Edges end at their outline.
 In a 2D view, `node.zIndex` puts a node behind the rest of the drawing: a node below 0 is drawn
 behind every edge and every node with a higher value, so a group (compound) node at -1 never
 hides the nodes inside it, and an outer group at -2 stays behind an inner one. Loading a file
-with `styles: "file"` sets it on the file's group nodes. A 3D view draws by real depth and
-ignores it.
+with `styles: "file"` sets it on the file's group nodes. A 3D view moves a flat shape (a
+rectangle, an ellipse, any `node.planar` node) back the same way, so a flat group is drawn
+behind its members there too, and draws a solid shape by real depth.
 
 `node.drawOrder` decides which of two overlapping nodes is drawn on top in a 2D view: the one with
 the higher value, from 0 to 100. A node with a draw order is drawn in front of every edge and of
 every node without one; a node without one is drawn as before. Loading a file with
-`styles: "file"` sets it from the file's own order, so a node later in the file is drawn on top,
-as the program that wrote it draws it. Each distinct value is its own source mesh, so use a few
+`styles: "file"` sets it as the program that wrote the file stacks its nodes: by Cytoscape's
+stored `z` (XGMML, CX, CX2 and sessions) or Cytoscape.js's `z-index` where the file has one, and
+otherwise by the file's own order, a node later in the file on top. Each distinct value is its own source mesh, so use a few
 levels on a large graph. A 3D view draws by real depth and ignores it.
+
+`edge.drawOrder` decides which of two crossing lines is drawn on top: the one with the higher value, from 0 to 100.
+A line without one is drawn over every line with one, and lines without one keep the order they always had, so give
+every line that may cross a value. Loading a Cytoscape.js file with `styles: "file"` sets it on every edge from the
+file's `z-index` where its edges have different ones, a later edge on top among equal ones. It orders lines among
+lines only: a node is never hidden behind a line by it. A line drawn as a row of shapes (dots, stars, boxes) is
+not ordered.
 
 The numbers behind the default look -- the default edge width
 (`EDGE_CONSTANTS.DEFAULT_LINE_WIDTH`), arrow sizes, line pattern spacing and node shape
@@ -745,7 +758,7 @@ a value in the data, through a scale:
 
 ```typescript
 await element.session.styles.add({
-    name: "Colour by community",
+    name: "Color by community",
     target: "node",
     selector: { match: "has", path: "data.community" },
     encode: { "node.color": { by: "data.community", scale: "ordinal", palette: "tableau10" } },
@@ -763,14 +776,14 @@ A binding takes `by` (the path), `scale` (`linear`, `log`, `sqrt`, `bins`, `quan
 `passthrough`, ...), and optionally a `palette`, a `domain`, a `clamp`, a `range`, a `map`, an
 `overflow` policy and a `missing` rule. `missing` defaults to `skip`, which leaves an element with
 no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"shape"`,
-`"pattern"` or `"extend"`) says what a categorical colour does with more groups than its palette has colours;
-`encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colours).
+`"pattern"` or `"extend"`) says what a categorical color does with more groups than its palette has colors;
+`encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colors).
 
 When every value in the column is the same (a regular graph where every node has degree 3), a
 numeric scale has no spread to place anything in, so it paints the **middle** of its range or
 palette rather than either end, and the binding's legend block carries the fact
 `{ code: "legend.no-spread", params: { value } }` so a legend can say there is no spread. The
-legend's swatch shows the same middle colour the canvas paints.
+legend's swatch shows the same middle color the canvas paints.
 
 ### A table of values, and what it leaves alone
 
@@ -890,8 +903,8 @@ pins, a reader's lock and hidden rows. The tree is the paint order. See
 Every graph starts with two layers the element owns, with `source: { by: "element" }`: the
 defaults every node and edge is drawn from (`reason: "default"`), and the one that paints the
 selection. How elements outside a time window look is never one of them: that is an ordinary
-layer selecting `{ match: "state", state: "outsideWindow" }`, such as the Timeline Hidden starting
-row. See [What lies outside the window](./timeline.md#what-lies-outside-the-window).
+layer selecting `{ match: "state", state: "outsideWindow" }`, such as the Timeline Hidden row the
+timeline adds. See [What lies outside the window](./timeline.md#what-lies-outside-the-window).
 
 They are `locked`: removing, editing or moving one is refused with `E_PROTECTED`, and `add()` will
 not mint an element source at all. You paint over them by adding your own layer on top, which is
@@ -978,8 +991,7 @@ for (const entry of channels) {
 `styles.applyTemplate()` reports the layers it could not bind in `unbound`, each with a `fact`:
 `layer.unanswered` (`layerId`, `name`, `paths`: what the layer reads that nothing in this session
 answers) or `layer.detached` (`layerId`, `name`, `error`: the error code its set scope was refused
-with). New codes may be added in a minor release: word an unknown one generically. The English
-`reason` on both is deprecated and goes in the next major release.
+with). New codes may be added in a minor release: word an unknown one generically.
 
 ### Several elements at once
 

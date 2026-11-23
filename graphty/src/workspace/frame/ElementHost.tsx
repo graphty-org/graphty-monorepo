@@ -109,6 +109,7 @@ export function ElementHost({
     const lighting = useWorkspaceState((state) => state.lighting);
     const autoRotate = useWorkspaceState((state) => state.autoRotate);
     const layoutShownOnly = useWorkspaceState((state) => state.layoutShownOnly);
+    const followSelection = useWorkspaceState((state) => state.followSelection);
     const layoutBehavior = useMemo<NonNullable<GraphtyElement["layoutBehavior"]>>(
         () => ({
             labels: { declutter: !allLabelsShown, avoidNodesAndEdges: labelsAvoid },
@@ -117,25 +118,25 @@ export function ElementHost({
             layout: { visibleOnly: layoutShownOnly },
             // A pick moves the camera; a filter card's Select or an undo does not. The inspector
             // opens beside the canvas and narrows it, before or after the first framing is final;
-            // framing again on a resize draws the same picture either way (#5097).
-            camera: { pivotOnSelection: true, pivotOnSelectionCauses: ["user", "api"], refitOnResize: true },
+            // framing again on a resize draws the same picture either way (#5097). Camera > Follow
+            // selection turns the gliding off.
+            camera: { pivotOnSelection: followSelection, pivotOnSelectionCauses: ["user", "api"], refitOnResize: true },
         }),
-        [allLabelsShown, labelsAvoid, sizeSpace, layoutShownOnly],
+        [allLabelsShown, labelsAvoid, sizeSpace, layoutShownOnly, followSelection],
     );
-    // A reader who prefers less motion gets camera moves without the glide, and the globe is drawn
-    // as the earth from space (constants/globe.ts). View settings, written on the element; they
-    // record no step.
-    const still = useReducedMotion();
+    // The element follows the system's reduced-motion setting itself (no glides, no auto-rotate, a
+    // running layout shown once settled), and the globe is drawn as the earth from space
+    // (constants/globe.ts). View settings, written on the element; they record no step.
     useEffect(() => {
         const element = ref.current;
         if (element === null || hosted === null) {
             return undefined;
         }
 
-        element.cameraTransitionDuration = still ? 0 : undefined;
+        element.reducedMotion = "auto";
         element.globeLook = APP_GLOBE_LOOK;
         return undefined;
-    }, [hosted, still]);
+    }, [hosted]);
 
     // A large graph is smoothed only once the view is still: the app reads the element's edge count
     // and chooses the threshold, the element does the switching. A view setting: it records no step.
@@ -213,6 +214,8 @@ export function ElementHost({
     return (
         <graphty-element
             ref={ref}
+            // Usage data never captures a click on the drawing, and a replay shows it blank.
+            className="ph-no-capture"
             aria-label="Graph drawing"
             layout={LAYOUT_ID}
             layoutConfig={LAYOUT_CONFIG}
@@ -220,7 +223,7 @@ export function ElementHost({
             lighting={lighting}
             // Camera > Auto-rotate at the app's own speed, the start page's; never for a reader who
             // prefers less motion.
-            autoRotate={autoRotate && !still ? AUTO_ROTATE_SPEED : 0}
+            autoRotate={autoRotate ? AUTO_ROTATE_SPEED : 0}
             // The app's own Undo and Redo take these keys everywhere, the drawing included, so
             // every step taken back is named in a notice.
             historyKeys={false}
@@ -237,26 +240,4 @@ export function ElementHost({
             style={{ display: "block", width: "100%", height: "100%" }}
         />
     );
-}
-
-/**
- * Whether the reader asked for less motion, following the system setting as it changes.
- * @returns True when the system says so.
- */
-function useReducedMotion(): boolean {
-    const query = useMemo(() => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)"), []);
-    const [still, setStill] = useState(query?.matches ?? false);
-    useEffect(() => {
-        if (query === undefined) {
-            return undefined;
-        }
-        const changed = (): void => {
-            setStill(query.matches);
-        };
-        query.addEventListener("change", changed);
-        return () => {
-            query.removeEventListener("change", changed);
-        };
-    }, [query]);
-    return still;
 }

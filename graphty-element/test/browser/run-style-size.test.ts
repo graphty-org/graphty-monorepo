@@ -136,8 +136,8 @@ describe("sizing nodes by a run with style: { size }", () => {
 
     it("draws each node in its colour from before the run once the run is removed", async () => {
         /**
-         * The per-instance colour the renderer draws each node in.
-         * @returns Each node's drawn colour as "r,g,b", by id.
+         * The per-instance color the renderer draws each node in.
+         * @returns Each node's drawn color as "r,g,b", by id.
          */
         async function drawnColours(): Promise<Map<string, string>> {
             await drawnRadii();

@@ -142,6 +142,43 @@ describe("a figure's own outline", () => {
         );
     });
 
+    it("cuts graphty's line at the figure where the program stops its own on the figure's outline", () => {
+        // Cytoscape desktop stops a line at a vee's corner, which lies out past the ellipse the vee's box holds, and
+        // graphty runs its line under the vee to the middle: cut at that ellipse, graphty's ended 31 px short of the
+        // corner both drawings stop at (xgmml-networkportal-nsoxphos -236 -> -348)
+        const corners: Pt[] = [
+            [-1, -1],
+            [0, -1 / 3],
+            [1, -1],
+            [0, 1],
+        ];
+        const box = { cx: PLUS_AT[0], cy: PLUS_AT[1], w: 150, h: 150 };
+        const figure = figureOf(
+            corners.map(([u, v]): Pt => [box.cx + u * 75, box.cy + v * 75]),
+            box,
+        );
+        assert.isDefined(figure, "a vee has a dent");
+        const vee = node("p", PLUS_AT[0], PLUS_AT[1], { w: 150, h: 150, shape: "other", figure });
+        const q = node("q", 180, 80);
+        const stopped = edge([
+            [225, 125],
+            [194.14, 94.14],
+        ]);
+        const underneath = edge([PLUS_AT, [180, 80]]);
+        assert.deepEqual(
+            routeFails(scene("oracle", [vee, q], [stopped]), scene("graphty", [vee, q], [underneath])),
+            [],
+        );
+        // a line graphty starts 21 px out past the corner, off the vee, still fails
+        const short = edge([
+            [210, 110],
+            [194.14, 94.14],
+        ]);
+        assert.deepEqual(routeFails(scene("oracle", [vee, q], [stopped]), scene("graphty", [vee, q], [short])), [
+            "p->q",
+        ]);
+    });
+
     describe("whose box is not centered where its lines meet", () => {
         // the oracle's plus is read from its box, 4 px above where its line meets it, as Pajek's woman is; graphty's
         // sits where its line meets it

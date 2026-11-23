@@ -30,7 +30,7 @@ async function lesMiserables(): Promise<Harness> {
 /**
  * Check the promise every recommendation has to keep, whatever rule produced it.
  *
- * An arrangement the catalogue does not list cannot be set at all; one that declares a
+ * An arrangement the catalog does not list cannot be set at all; one that declares a
  * structural input refuses without a root, a partition or an ordering nobody supplied, so
  * recommending it hands a consumer a name that throws.
  * @param advice - What was recommended.
@@ -45,7 +45,6 @@ function assertServable(advice: LayoutRecommendation | undefined, statistics: Gr
     assert.deepStrictEqual(advice?.layout.structuralInputs, [], "nothing that needs a root or a partition");
     assert.isString(advice?.layout.engine);
     assert.isAbove((advice?.layout.engine ?? "").length, 0, "the engine name setLayout takes");
-    assert.isAbove((advice?.reason ?? "").length, 0, "a sentence saying why");
     assert.strictEqual(advice?.fact.code, `recommend.${advice?.layout.id}`, "a code naming the rule that chose it");
 
     if (advice !== undefined && advice.layout.sizeRating !== "any") {

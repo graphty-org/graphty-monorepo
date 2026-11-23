@@ -54,10 +54,10 @@ function viewNow(inputs: OverviewInputs): ViewNow | null {
 }
 
 /**
- * The centre and half size, in view space, of what the camera shows at a depth.
+ * The center and half size, in view space, of what the camera shows at a depth.
  * @param camera - The camera.
  * @param depth - The depth along the view axis (perspective only).
- * @returns Centre and half extents.
+ * @returns Center and half extents.
  */
 function shown(camera: Camera, depth: number): { cx: number; cy: number; hw: number; hh: number } {
     const engine = camera.getEngine();
@@ -114,7 +114,7 @@ export class OverviewSource {
 
         const { cx, cy, hw, hh } = this.shownAt(inputs, now, projection);
         const { m } = now.local;
-        // The viewport centre on the rotation-only axes the points use.
+        // The viewport center on the rotation-only axes the points use.
         const corner = toFrame(projection.frame, cx - m[12] - hw, cy - m[13] + hh);
         const { size } = projection.frame;
         return {
@@ -126,7 +126,7 @@ export class OverviewSource {
     }
 
     /**
-     * How far to move the camera, in world units, so the view is centred on an overview point.
+     * How far to move the camera, in world units, so the view is centered on an overview point.
      * @param inputs - The graph's scene, root, lane and camera target.
      * @param point - The point, in the overview frame.
      * @param point.x - Frame x.

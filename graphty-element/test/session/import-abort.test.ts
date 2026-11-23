@@ -1,5 +1,5 @@
 /**
- * @file `session.data.import()` honours its signal for inline data, a file and a URL (#7914):
+ * @file `session.data.import()` honors its signal for inline data, a file and a URL (#7914):
  * aborting it before the load starts, while the file is read or the URL fetched, or between two
  * chunks rejects with the caller's own reason and leaves the graph and the history as they were.
  */
@@ -74,7 +74,7 @@ describe("data.import() honours its abort signal (#7914)", () => {
                 return Promise.resolve(new Response(BIG));
             });
             const before = await started();
-            const reason = new DOMException("The reader cancelled.", "AbortError");
+            const reason = new DOMException("The reader canceled.", "AbortError");
 
             const thrown = await rejection(before.session.data.import(source(), { signal: AbortSignal.abort(reason) }));
 
@@ -149,7 +149,7 @@ describe("data.import() honours its abort signal (#7914)", () => {
             );
 
             assertUnchanged(thrown, reason, before);
-            assert.strictEqual(requests, 1, "the request is cancelled, not retried");
+            assert.strictEqual(requests, 1, "the request is canceled, not retried");
             before.session.dispose();
         });
     }

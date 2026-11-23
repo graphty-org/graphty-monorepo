@@ -31,12 +31,14 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 | `layout-progress`                                              | A layout reported how far its arrangement has got                                                                                                                                                                                                                   | `{ layoutType, fraction, message? }`                             |
 | `graph-started`                                                | The render loop started                                                                                                                                                                                                                                             | `{ timestamp }`                                                  |
 | `layout-changed`                                               | A new layout is now running                                                                                                                                                                                                                                         | `{ layoutType, options }`                                        |
+| `layout-updated`                                               | The running layout moved the nodes after nodes were added                                                                                                                                                                                                           | `{ nodeCount }`                                                  |
 | `layout-warning`                                               | A layout could not place every node (`W_NO_POSITION`) or ignored options (`W_UNKNOWN_OPTION`), a 2D view replaced `dim` (`W_DIMENSION_OVERRIDDEN`), or an edge weight's meaning was assumed or unreadable (`W_WEIGHT_MEANING_ASSUMED`, `W_WEIGHT_MEANING_MISMATCH`) | `{ layoutType, code, params }`                                   |
-| `operation-cancelled`                                          | A queued operation was aborted: the whole queue was cleared (`queue-cleared`) or this one operation was cancelled (`cancelled`)                                                                                                                                     | `{ id, code }`                                                   |
+| `operation-canceled`                                           | A queued operation was aborted: the whole queue was cleared (`queue-cleared`) or this one operation was canceled (`canceled`)                                                                                                                                       | `{ id, code }`                                                   |
 | `stats-update`                                                 | Every 60 graph updates, with the performance counters                                                                                                                                                                                                               | `{ totalUpdates, stats }`                                        |
 | `input-enabled-changed`                                        | `setInputEnabled()` switched canvas input on or off                                                                                                                                                                                                                 | `{ enabled }`                                                    |
 | `xr-session-started`                                           | A VR or AR session started                                                                                                                                                                                                                                          | `{ mode, requestedReferenceSpace, referenceSpace }`              |
 | `xr-session-ended`                                             | A VR or AR session ended, left by the element or ended by the headset                                                                                                                                                                                               | `{ mode, cause }`                                                |
+| `xr-menu-select`                                               | The reader pressed an item of the in-headset menu (`xr.menu`)                                                                                                                                                                                                       | `{ id }`                                                         |
 | `input:pointer-down`, `input:pointer-move`, `input:pointer-up` | A pointer pressed, moved or released on the canvas                                                                                                                                                                                                                  | `{ x, y }` (the DOM event's `clientX`, `clientY`)                |
 | `input:wheel`                                                  | The wheel turned over the canvas                                                                                                                                                                                                                                    | `{ deltaX, deltaY, deltaZ, deltaMode }`                          |
 | `input:touch-start`, `input:touch-move`                        | Touches started or moved on the canvas                                                                                                                                                                                                                              | `{ array: [{ x, y }, ...] }`                                     |
@@ -53,13 +55,11 @@ or removed the rows: `"undo"`, `"redo"`, `"restore"` or `"rollback"`. A listener
 when data arrives should skip those, or it starts the work again on every undo. See
 [Undo and History](./undo#following-changes).
 
-`code` on `operation-cancelled` says why the operation stopped: `"queue-cleared"` or
-`"cancelled"`. Write the words you show from it. The detail also carries `reason`, an English
-sentence (`"Queue cleared"`, `"Manual cancellation"`); it is deprecated and is removed in the next
-major release, so read `code` instead.
+`code` on `operation-canceled` says why the operation stopped: `"queue-cleared"` or
+`"canceled"`. Write the words you show from it.
 
 There is no edge-click event. Edge meshes are not pickable, so nothing could emit one; it returns,
-with a serialisable detail, when edge picking lands.
+with a serializable detail, when edge picking lands.
 
 ### The two load events count different things, and say so in their field names
 
@@ -98,6 +98,13 @@ about that load -- `data-loading-progress`, `data-loading-complete`, `data-loadi
 `data-loaded` (in `details.loadId`) -- carries the same `loadId`. A load started by assigning the
 `dataSource` / `dataSourceConfig` pair has an id too, on its events. When two loads overlap, the id
 says which one a report is about.
+
+### `source:loaded` or `data-loaded`
+
+Use the session's `source:loaded` (`graphty-source-loaded` on the element) to react to a load you
+or the reader asked for, and `data-loaded` to react to the graph's data changing for any reason.
+`data-loaded` also fires when undo, redo or a restore brings data back; `source:loaded` never does,
+and neither does opening a project. See [graphty-source-loaded](#graphty-source-loaded).
 
 ## JavaScript API
 
@@ -235,6 +242,11 @@ element.addEventListener("graphty-selection-change", (e) => {
     // `added` and `removed` are the ids that moved; `nodes` and `edges` are how many the
     // selection holds NOW.
     console.log(`${nodes} nodes and ${edges} edges selected`, added, removed);
+    // A reader's change on the canvas says how it was made: `cause` is "user" and `via` is
+    // "click" (a node, an edge or empty canvas), "box" (a Shift-drag region) or "keys" (Escape
+    // through attachKeymap). An API call has no `via`, even one made with { cause: "user" }.
+    const { cause, via } = e.detail;
+    if (cause === "user" && via !== undefined) console.log("the reader selected by", via);
 });
 
 // A filter, the time window or the context flag changed what is showing. Every producer arrives
@@ -313,6 +325,38 @@ element.addEventListener("graphty-project-status", (e) => {
 ```
 
 On the session the same change is `project:status`. See [Project Files](./project-file).
+
+### graphty-source-loaded
+
+A load you or the reader asked for added a source to the graph, or replaced one in place: one
+event per source, once the load is in. The detail says which source it was and where it came
+from, never what it holds: no file name, URL or parameters.
+
+| Field       | What it is                                                                                          |
+| ----------- | --------------------------------------------------------------------------------------------------- |
+| `source`    | The source's key in `session.data.sources()`                                                        |
+| `kind`      | `"file"`, `"url"`, `"server"`, `"sample"` or `"join"`, the same kind `sources()` lists              |
+| `format`    | For a file or a URL: the format read, such as `"graphml"`                                           |
+| `sourceId`  | For a network source: its id                                                                        |
+| `mode`      | `"replace"` or `"merge"`                                                                            |
+| `sample`    | For a catalog sample: `{ datasetId }`, `{ generatorId }` or, for a network example, `{ exampleId }` |
+| `callerKey` | The `callerKey` you passed to the load, unchanged                                                   |
+| `replaced`  | For a source replaced in place under the same key: `"replaceSource"` or `"reloadSource"`            |
+
+```javascript
+element.addEventListener("graphty-source-loaded", (e) => {
+    const { kind, format, sample, callerKey } = e.detail;
+    if (callerKey === "tutorial") showNextStep();
+    console.log(kind, format ?? sample);
+});
+```
+
+Every load method publishes it: `session.data.import`, a prepared draft's `load()`, `loadExample`,
+`loadDataset` and `generate`. `replaceSource` publishes it with `replaced: "replaceSource"` and
+`mode: "merge"`, and `reloadSource` and `remap` with `replaced: "reloadSource"`. Opening a
+project, undo, redo, a restore and `runPendingSourceLoad` (which fills a source a project already
+listed) publish none. A failed load publishes none; it ends `progress:changed` with an `error`
+instead. On the session the same event is `source:loaded`.
 
 ### Autosave events
 

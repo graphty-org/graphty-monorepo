@@ -19,8 +19,12 @@ import type { GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { PendingSourceLoad } from "./sources/types";
 
-/** What a request would fetch. OPEN UNION: later releases add values. */
-export type NetworkRequestKind = "model" | "texture" | "source";
+/**
+ * What a request would fetch: a model, a texture, a saved network-source load, or the rows of a
+ * load a project saved as a reference (`data`, asked `by: "file"` while the project opens). OPEN
+ * UNION: later releases add values.
+ */
+export type NetworkRequestKind = "model" | "texture" | "source" | "data";
 
 /**
  * What asked for it: a layer from a project or style file or a template (`file`), a layer an AI
@@ -32,14 +36,23 @@ export type NetworkRequestAsker = "file" | "ai" | "data" | "source" | "supplied"
 
 /** A fetch waiting for the page's answer: `{ code, params }`, as every fact the element reports. */
 export interface NetworkRequest {
+    /** Always `W_URL_NEEDS_APPROVAL`: an address waits for the page to allow or deny it. */
     readonly code: Extract<GraphtyWarningCode, "W_URL_NEEDS_APPROVAL">;
+    /** The facts about the waiting fetch, for the page to show the reader in its own words. */
     readonly params: {
         /** The key `allow` and `deny` take. */
         readonly id: string;
         /** What would be fetched: origin and path, never the query or credentials. */
         readonly url: string;
+        /**
+         * The URL's host, with its port when it has one (`"models.example.com"`): allowing the
+         * request allows every fetch to this host for the rest of the session. Empty for a saved
+         * network-source load with no endpoint.
+         */
         readonly host: string;
+        /** What would be fetched: a model, a texture, a network-source load or saved data rows. */
         readonly kind: NetworkRequestKind;
+        /** What asked for the fetch: a file or template, an AI command, the data, a source or a supplied part. */
         readonly by: NetworkRequestAsker;
         /** The layers that name it, for a model or texture. */
         readonly layerIds: readonly LayerId[];

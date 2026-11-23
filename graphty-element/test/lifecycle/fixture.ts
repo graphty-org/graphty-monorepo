@@ -16,7 +16,7 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterAll, afterEach, beforeAll, onTestFailed } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, onTestFailed } from "vitest";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BUNDLE = path.resolve(here, "../../dist/graphty.bundle.js");
@@ -61,7 +61,9 @@ export interface Fixture {
      *   `delay` (the debounce in ms; a large one leaves a write to the lifecycle events), `list` (`1`: report
      *   `listAutosaves` before the element mounts, as `listed`), and for a page
      *   that drives itself, `auto` (edits to make and save) and `tail` (`1`: one more edit, left pending);
-     *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle.
+     *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle;
+     *   `detail` (`low`: a layer draws every node at low detail, so a benchmark compares the same
+     *   geometry at every size whatever `fullDetailTriangleBudget` chooses).
      */
     url(params: Record<string, string | number>): string;
     /** The reports of one tab. */
@@ -230,8 +232,10 @@ el.addEventListener("graphty-autosave-at-risk", (e) => report("at-risk", { param
 // whole decision from one report whatever order the reports arrive in.
 const available = [];
 el.addEventListener("graphty-autosave-available", (e) => {
-    available.push({ reason: e.detail.reason, id: e.detail.entry.id });
-    report("available", { reason: e.detail.reason, id: e.detail.entry.id });
+    // The problem's code only for a failed restore, so the other reasons read { reason, id }.
+    const why = { reason: e.detail.reason, id: e.detail.entry.id, ...(e.detail.problem ? { problem: e.detail.problem.code } : {}) };
+    available.push(why);
+    report("available", why);
 });
 const rows = () => { el.nodeData = nodes; el.edgeData = edges; };
 // rows=none: the page loads no data of its own, as an app reopening kept work.
@@ -245,6 +249,22 @@ const summary = (r) => r && { revision: r.revision, entry: r.entry.id, wasDiscar
 const ready = el.autosaver.ready.then(async (restored) => {
     if (params.get("rows") === "late") rows();
     await el.waitForSettled();
+    // detail=low: every node drawn at low detail, the same geometry at every size.
+    // On a large graph the new meshes land over many frames: wait for them, then check the frame
+    // drew every node at 20 triangles, so a write is never timed beside a half-drawn scene (#9632).
+    // The edge batches are thin-instance meshes, left out of the count.
+    if (params.get("detail") === "low") {
+        await el.session.styles.add({ name: "Low detail", target: "node", selector: { match: "everything" }, set: { "node.meshDetail": "low" } });
+        await el.waitForPainted();
+        await el.waitForStableFrame();
+        const active = el.graph.scene.getActiveMeshes();
+        let triangles = 0;
+        for (let i = 0; i < active.length; i++) if (!active.data[i].hasThinInstances) triangles += active.data[i].getTotalIndices() / 3;
+        if (triangles !== n * 20) {
+            report("not-ready", { triangles, expected: n * 20, n });
+            throw new Error("drew " + triangles + " node triangles of " + n * 20);
+        }
+    }
     const { nodeCount, edgeCount } = el.session.data.snapshot();
     if (nodeCount < n || edgeCount < n) {
         report("not-ready", { nodeCount, edgeCount, n });
@@ -306,6 +326,17 @@ window.fixture = {
         return { status: el.autosaver.status, restored: summary(el.autosaver.restored), nodes: el.session.data.snapshot().nodeCount, probes: [...probes], entries, guard: window.__unloadListeners.size > 0 };
     },
     flush: () => el.autosaver.flush(),
+    // Start recording a tour that holds until it is stopped, and report how it ended as
+    // "recorded" { code, reason }; resolves once the tour holds at its stop, so the recording runs.
+    async record() {
+        await ready;
+        const holding = new Promise((resolve) => el.addListener("tour-progress", (e) => { if (e.phase === "hold") resolve(true); }));
+        el.captureAnimation({ tour: [{ view: "fitToGraph", hold: Number.MAX_SAFE_INTEGER }] }).then(
+            (result) => report("recorded", { code: null, bytes: result.blob.size }),
+            (error) => report("recorded", { code: error?.code ?? String(error), reason: error?.details?.reason ?? null }),
+        );
+        return holding;
+    },
     loseContext() {
         const canvas = el.shadowRoot?.querySelector("canvas") ?? el.querySelector("canvas");
         const gl = canvas?.getContext("webgl2") ?? canvas?.getContext("webgl");
@@ -404,6 +435,34 @@ export const HOLD_PARTS = `new Promise((resolve, reject) => {
         spin();
     };
 })`;
+
+/**
+ * Where the saved work is when a page reopened on its key restored nothing: the ready report must
+ * say why, and the entry must still hold the work (issue #4148). Either another tab claimed the
+ * entry first, or another tab of the origin holds the database in an unfinished transaction -- a
+ * tab the browser suspended mid-listing, as iOS does to a tab Safari reloads in the background --
+ * so the restore's write stalled and was refused with `E_AUTOSAVE_STALLED`, leaving the entry as
+ * it was for a later reopen. Anything else is a lost restore.
+ * @param ready - The page's ready report, with `restored` null.
+ * @param entry - The entry the work was saved to.
+ * @returns The kept entry's revision, and who keeps it.
+ */
+export function keptWork(ready: LogEvent, entry: string): { revision: number; by: string } {
+    const held = (ready.entries as { id: string; revision: number; live: boolean }[]).find((e) => e.id === entry);
+    assert.isDefined(held, `the saved entry is still listed: ${JSON.stringify(ready.entries)}`);
+    const said = JSON.stringify(ready.available);
+    if (said === JSON.stringify([{ reason: "held-by-other-tab", id: entry }])) {
+        assert.isTrue(held.live, `the saved entry is held by the other tab: ${JSON.stringify(ready.entries)}`);
+        return { revision: held.revision, by: "held by the other tab" };
+    }
+
+    assert.deepEqual(
+        ready.available,
+        [{ reason: "restore-failed", id: entry, problem: "E_AUTOSAVE_STALLED" }],
+        `the page restored nothing, so it must be told the other tab holds the work or the database: ${JSON.stringify(ready)}`,
+    );
+    return { revision: held.revision, by: "kept while another tab held the database" };
+}
 
 /**
  * Start the fixture server on a free loopback port.
@@ -551,7 +610,7 @@ export interface LifecycleFixture {
 }
 
 /**
- * Start the fixture server for a test file, and after each test close the browsers it tracked, remove
+ * Start the fixture server for a test file, and after each test close the browsers it tracked, then remove
  * their profiles and drop its pending waits (with LIFECYCLE_DEBUG=1, print the whole log first).
  * @param options - As {@link startFixture}.
  * @param options.bundles - More builds by name.
@@ -574,8 +633,15 @@ export function useLifecycleFixture(options: { bundles?: Record<string, string> 
         }
 
         fx.dropWaits();
-        for (const { close, dir } of open.splice(0)) {
+        const tracked = open.splice(0);
+        for (const { close } of tracked) {
             await close().catch(() => undefined);
+        }
+
+        // A test that relaunches a profile tracks it once per browser: it is removed only after every
+        // browser on it has closed, or removing it after the first (killed) one races the relaunched
+        // browser, still running and writing into it (ENOTEMPTY, issue #9025).
+        for (const dir of new Set(tracked.map((entry) => entry.dir))) {
             // A browser's helpers may still be writing as it exits.
             rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
         }

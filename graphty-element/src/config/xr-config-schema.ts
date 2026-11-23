@@ -184,22 +184,47 @@ export const xrConfigSchema = z
          */
         ai: z
             .object({
+                /** Holding talk. */
                 pushToTalk: z
                     .object({
+                        /** The buttons held to talk; default `["b", "y"]`, empty for none. */
                         buttons: z.array(xrControllerButton).optional(),
+                        /** With hands, pinch and hold a microphone orb on the wrist to talk; default true. */
                         wristOrb: z.boolean().optional(),
                     })
                     .optional(),
+                /** The buttons that answer a pending approval. */
                 pendingButtons: z
                     .object({
+                        /** The buttons that approve; default `["a"]`, empty for none. */
                         approve: z.array(xrControllerButton).optional(),
+                        /** The buttons that deny; default `["x"]`, empty for none. */
                         deny: z.array(xrControllerButton).optional(),
                     })
                     .optional(),
+                /** Draw approve and deny, or one control per question choice, in the scene; default true. */
                 pendingControl: z.boolean().optional(),
+                /** Draw the transcript and the answer in the scene; default true. */
                 panel: z.boolean().optional(),
+                /** The words drawn in the scene, keyed by code; a code with no label is drawn as its icon only. */
                 labels: z.record(z.string(), z.string()).optional(),
             })
+            .optional(),
+
+        /**
+         * The in-headset menu (XRMenuItem): one pressable card per item, drawn beside the reader
+         * when a session starts. Pressing one emits `xr-menu-select` with its `id`. Optional with
+         * no default; absent or empty, no menu is drawn.
+         */
+        menu: z
+            .array(
+                z.object({
+                    /** What `xr-menu-select` reports when this card is pressed. */
+                    id: z.string(),
+                    /** The words drawn on the card. */
+                    label: z.string(),
+                }),
+            )
             .optional(),
     })
     .prefault({});

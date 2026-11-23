@@ -5,19 +5,18 @@
 
 import { assert, describe, it } from "vitest";
 
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { LinkPredictionAlgorithm } from "../../../src/algorithms/LinkPredictionAlgorithm";
-import type { Graph } from "../../../src/Graph";
-import { InputGraph } from "../input/harness";
-import { describeScopedAdapter, runScoped, runWhole } from "./harness";
+import { describeScopedAdapter, runScoped, runWhole, type ScopedGraph, scopedGraph } from "./harness";
 
-const predict = (graph: Graph): LinkPredictionAlgorithm => new LinkPredictionAlgorithm(graph, { topK: 100 });
+const predict = (graph: AlgorithmHost): LinkPredictionAlgorithm => new LinkPredictionAlgorithm(graph, { topK: 100 });
 
 describeScopedAdapter("link-prediction", predict);
 
 describe("link prediction over a scope", () => {
-    /** a and c share b in the scope; x, outside it, is a neighbour a and c share with d too. */
-    const build = (): InputGraph =>
-        new InputGraph(
+    /** a and c share b in the scope; x, outside it, is a neighbor a and c share with d too. */
+    const build = (): Promise<ScopedGraph> =>
+        scopedGraph(
             ["a", "b", "c", "x", "d"],
             [
                 ["a", "b"],
@@ -35,15 +34,15 @@ describe("link prediction over a scope", () => {
         );
 
     it("pairs only nodes of the scope, over the scope's edges", async () => {
-        const graph = build();
+        const graph = await build();
         const result = await runScoped(predict, graph, graph.scope(["a", "b", "c", "d"]));
 
         assert.deepStrictEqual(pairsOf(result?.graph), ["a-c"]);
-        assert.includeMembers(pairsOf((await runWhole(predict, build()))?.graph), ["a-d", "c-d"]);
+        assert.includeMembers(pairsOf((await runWhole(predict, await build()))?.graph), ["a-d", "c-d"]);
     });
 
     it("writes no predicted edge into the graph", async () => {
-        const graph = build();
+        const graph = await build();
         const before = [...graph.edges.values()].map((edge) => ({ ...edge }));
         const { edgeCount } = graph.snapshot();
         await runScoped(predict, graph, graph.scope(["a", "b", "c", "d"]));

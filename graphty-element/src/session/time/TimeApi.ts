@@ -21,9 +21,11 @@ import type { StylePatchCommand } from "../commands/style";
 import type { Dispatcher } from "../project/Dispatcher";
 import { RevisionCache } from "../revision";
 import type { Run } from "../runs";
+import type { ManagedRun } from "../runs/Run";
 import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
 import type { CodedFact } from "../shared";
+import type { StepsEdit } from "../sources/steps/project";
 import type { CompiledLayer } from "../styles/Layer";
 import type { Selector } from "../styles/selector";
 import { drawsOutsideWindow, drawsOutsideWindowOf, paintedStack } from "../styles/tree";
@@ -130,7 +132,9 @@ export interface TimeSource {
  * @beta
  */
 export interface TimeField {
+    /** The nodes' time column; absent when nodes carry no designated time. */
     readonly nodes?: TimeSource;
+    /** The edges' time column; absent when edges carry no designated time. */
     readonly edges?: TimeSource;
 }
 
@@ -171,8 +175,11 @@ export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.uni
  * @beta
  */
 export interface TimeFieldResult {
+    /** The field now designated; null when none is. */
     readonly field: TimeField | null;
+    /** How many nodes have a usable time; absent when the field is not on nodes. */
     readonly nodes?: TimeCounts;
+    /** How many edges have a usable time; absent when the field is not on edges. */
     readonly edges?: TimeCounts;
     /**
      * `time.unparsed` (`{ path, count, examples }`; in a column mostly of date text, a bare number
@@ -191,9 +198,13 @@ export interface TimeFieldResult {
  * @beta
  */
 export interface TimeExtent {
+    /** The first instant, in milliseconds since the epoch (or ordinal units for ordinal time). */
     readonly from: number;
+    /** Just past the last instant, in the same units as `from`. */
     readonly to: number;
+    /** How many nodes have a usable time. */
     readonly nodes: TimeCounts;
+    /** How many edges have a usable time. */
     readonly edges: TimeCounts;
 }
 
@@ -203,9 +214,13 @@ export interface TimeExtent {
  * @beta
  */
 export interface TimeBin {
+    /** Where the bar starts, inclusive, in the units of {@link TimeExtent.from}. */
     readonly start: number;
+    /** Where the bar ends, exclusive. */
     readonly end: number;
+    /** How many nodes count in the bar. */
     readonly nodes: number;
+    /** How many edges count in the bar. */
     readonly edges: number;
     /** The bins' width, when they were made by a step or a `maxCount` budget. */
     readonly step?: TimeStep;
@@ -241,8 +256,11 @@ export interface TimeBinsOptions {
      * edges at the given nodes count too, so a node selection over edge time shows its edges' activity.
      */
     readonly of?: {
+        /** The nodes to count. */
         readonly nodes?: readonly NodeId[];
+        /** The edges to count. */
         readonly edges?: readonly EdgeId[];
+        /** Whether the edges at the given nodes count too. */
         readonly incident?: boolean;
     };
     /** The IANA zone calendar bins align in; default the current window's, else the setting's. */
@@ -254,7 +272,9 @@ export interface TimeBinsOptions {
  * @beta
  */
 export interface TimeIds {
+    /** The node ids. */
     readonly nodes: readonly NodeId[];
+    /** The edge ids. */
     readonly edges: readonly EdgeId[];
 }
 
@@ -263,7 +283,9 @@ export interface TimeIds {
  * @beta
  */
 export interface TimeChanges {
+    /** What came into the window. */
     readonly entered: TimeIds;
+    /** What went out of the window. */
     readonly left: TimeIds;
 }
 
@@ -272,7 +294,9 @@ export interface TimeChanges {
  * @beta
  */
 export interface TimeCountPair {
+    /** How many nodes. */
     readonly nodes: number;
+    /** How many edges. */
     readonly edges: number;
 }
 
@@ -283,11 +307,15 @@ export interface TimeCountPair {
 export interface TimeStepEvent {
     /** Step number from the start of the data, by the window's step. */
     readonly index: number;
+    /** Where the window now starts, inclusive, in the units of {@link TimeExtent.from}. */
     readonly from: number;
+    /** Where the window now ends, exclusive. */
     readonly to: number;
     /** What every filter keeps inside the window: what is drawn as in it, never a visibility count. */
     readonly visible: TimeCountPair;
+    /** How many came into the window on this move. */
     readonly entered: TimeCountPair;
+    /** How many went out of the window on this move. */
     readonly left: TimeCountPair;
     /** Elements of a timed kind with no usable time: kept in every window unless `missing` is `"outside"`. */
     readonly untimed: TimeCountPair;
@@ -306,8 +334,11 @@ export interface TimeStepEvent {
  * @beta
  */
 export type TimeWindowInput = Omit<TimeWindow, "attribute" | "from" | "to"> & {
+    /** The attribute carrying the instant; absent, the designated field's. */
     readonly attribute?: Path;
+    /** The first instant inside the window: a number, or a string `Date.parse` understands. */
     readonly from?: number | string;
+    /** The first instant past the window, in the same form as `from`. */
     readonly to?: number | string;
 };
 
@@ -335,7 +366,8 @@ export interface TimePlayOptions {
      * its step times the time elapsed over `interval`, so elements come and go as its edges pass
      * them; `"steps"` jumps one whole step every `interval`. Smooth falls back to steps under
      * `prefers-reduced-motion`, where there are no animation frames (Node), and with the
-     * `"rerun"` results setting, which re-runs algorithms on each step.
+     * `"rerun"` results setting, which re-runs algorithms as the window steps. A play does not wait
+     * for them: one re-run runs at a time, and the steps it missed are caught up by one more.
      */
     readonly motion?: "smooth" | "steps";
     /** The IANA zone calendar steps read in; default the window's, else the setting's. */
@@ -483,7 +515,12 @@ export interface TimeApi {
         readonly nodes?: readonly NodeId[];
         readonly edges?: readonly EdgeId[];
         readonly incident?: boolean;
-    }): { readonly from: number; readonly to: number } | null;
+    }): {
+        /** Where the span starts, inclusive. */
+        readonly from: number;
+        /** Just past where the span ends. */
+        readonly to: number;
+    } | null;
     /**
      * The ids that entered and left the visible graph on the last move made through this API.
      * @returns The ids; empty before the first move.
@@ -554,7 +591,7 @@ export interface TimeApi {
      * screen or touching history. Step, mode and zone left out come from the window in force, else
      * the settings; `from` and `to` default to the start and end of the data.
      * @param options - Step, mode, range, zone and measures.
-     * @returns A run resolving to the rows, one per window; it can be cancelled. It rejects with
+     * @returns A run resolving to the rows, one per window; it can be canceled. It rejects with
      *     `E_NO_TIME_FIELD` when nothing is designated, `E_OPTION_RANGE` past 10,000 windows or for a
      *     `from` or `to` that is not finite, and `E_BAD_COMMAND` (`reason: "measure"`) for a measure it does not have.
      */
@@ -622,7 +659,7 @@ export interface TimeSources {
     readonly columns: () => readonly { readonly kind: "node" | "edge"; readonly name: string }[];
     readonly dispatcher: Dispatcher;
     readonly visibility: SessionVisibilityApi;
-    readonly runs: () => readonly Run[];
+    readonly runs: () => readonly ManagedRun[];
     readonly digestOf: (spec: Scope) => string;
     readonly emit: <K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]) => void;
     /**
@@ -630,6 +667,12 @@ export interface TimeSources {
      * any other column. Its dispatch is made before its first await. Absent, `asDates` does nothing.
      */
     readonly asDates?: (kind: "node" | "edge", column: string) => Promise<void> | undefined;
+    /**
+     * Under source-steps, the role edit a `data.knownFields` write makes: the time settings are
+     * views of the sources' time roles (design 3.9). Throws `E_ROLE_TARGET_AMBIGUOUS` when several
+     * sources could take the role. Absent, or null, the write sets only the setting.
+     */
+    readonly settingRoles?: (knownFields: Readonly<Record<string, unknown>>) => StepsEdit | null;
     /**
      * Settles on the next drawn frame, or at once when no frame is coming. Absent with no renderer.
      * Asked only by a stepped play with `waitForRender`.
@@ -1137,6 +1180,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let staleBefore = new Set<RunId>();
     const accepted = new Map<RunId, { readonly from: string; readonly to: string; readonly window: string }>();
     let reruns: Promise<unknown> = Promise.resolve();
+    /** Whether a re-run is under way, and whether a move came while it ran. */
+    let rerunning = false;
+    let rerunAgain = false;
     /** The unit the reader last gave each column, so designating it again keeps it. */
     const units = new Map<string, TimeUnit>();
     /** The last `bins({ scope: "visible" })` counts, and what they were counted from. */
@@ -1953,7 +1999,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * A window input with its bounds filled: from the current window, else the first window.
+     * A window input with its bounds filled: from the current window, else the first window, whose
+     * `to` moves to one step after a given `from`.
      * @param input - The window as given.
      * @returns The input with both bounds.
      */
@@ -1963,15 +2010,23 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         }
 
         const defined = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
-        const base =
-            visibility.window ??
-            firstWindow({
-                ...(input.step === undefined ? {} : { step: input.step }),
-                ...(input.mode === undefined ? {} : { mode: input.mode }),
-                ...zoned(input.timeZone),
-            });
+        if (visibility.window !== null) {
+            return { ...visibility.window, ...defined };
+        }
 
-        return { ...base, ...defined };
+        const first = firstWindow({
+            ...(input.step === undefined ? {} : { step: input.step }),
+            ...(input.mode === undefined ? {} : { mode: input.mode }),
+            ...zoned(input.timeZone),
+        });
+        if (input.from === undefined) {
+            return { ...first, ...defined };
+        }
+
+        const from = numericBound(input.from, boundZone(input.attribute ?? first.attribute));
+        const to = addSteps(from, stepOf(first), 1, zoneOf(undefined, first));
+
+        return { ...first, ...defined, to };
     };
 
     /**
@@ -2081,7 +2136,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * @param next - The window.
      * @param cause - What moved it.
      * @param ownStep - Record it as its own step, never merged into the window step before it.
-     * @returns The event, once the masks and any re-runs the results setting started have settled.
+     * @returns The event, once the masks have settled, and any re-runs the results setting started
+     * too unless a play moved it: a play keeps its pace and the re-runs catch up (see `rerunAll`).
      */
     const move = async (next: TimeWindow, cause: TimeStepEvent["cause"], ownStep = false): Promise<TimeStepEvent> => {
         const slide = slides;
@@ -2100,7 +2156,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         }
 
         const event = published(counts, next, cause);
-        await reruns;
+        if (cause !== "play") {
+            await reruns;
+        }
 
         return event;
     };
@@ -2208,6 +2266,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     /** One playback step, then the next one on the timer. */
     const tick = async (): Promise<void> => {
         timer = null;
+        // A `time:play` listener can pause or dispose the play before `play()` arms this timer.
         if (!playing || disposed) {
             return;
         }
@@ -2362,34 +2421,60 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * Re-run the runs a window move left out of date, and say which could not.
+     * Re-run the runs a window move left out of date, and say which could not. One re-run at a
+     * time: moves that come while one runs are caught up by one more re-run over the newest window,
+     * so a play stepping faster than an algorithm (Betweenness is O(nm)) re-runs it at most once
+     * per finished re-run, never once per step.
      * @param runs - The runs.
      */
-    const rerunAll = (runs: readonly Run[]): void => {
+    const rerunAll = (runs: readonly ManagedRun[]): void => {
+        if (rerunning) {
+            rerunAgain = true;
+            return;
+        }
+
+        rerunning = true;
+        const rerunOne = async (run: ManagedRun): Promise<void> => {
+            try {
+                // Marked as the session's own re-run, so `run:changed` says the window did it.
+                await run.rerun("time-window");
+            } catch (error) {
+                // A cancel is not a failure (`RunStatus`): the run reports it as "canceled".
+                if (error instanceof Error && error.name === "AbortError") {
+                    return;
+                }
+
+                sources.emit("time:rerun-failed", {
+                    run: run.id,
+                    error: isGraphtyError(error)
+                        ? { code: error.code, params: (error.details ?? {}) as CodedFact["params"] }
+                        : // A re-run canceled while it runs rejects with an AbortError.
+                          { code: "E_INTERNAL", params: {} },
+                });
+            }
+        };
         // Started after the pass that announced the move, not inside it.
-        reruns = Promise.resolve().then(async () =>
-            Promise.all(
-                runs.map(async (run) => {
-                    try {
-                        await run.rerun();
-                    } catch (error) {
-                        sources.emit("time:rerun-failed", {
-                            run: run.id,
-                            error: isGraphtyError(error)
-                                ? { code: error.code, params: (error.details ?? {}) as CodedFact["params"] }
-                                : { code: "E_INTERNAL", params: {} },
-                        });
-                    }
-                }),
-            ),
-        );
+        reruns = Promise.resolve().then(async () => {
+            let batch = runs;
+            for (;;) {
+                await Promise.all(batch.map(async (run) => rerunOne(run)));
+                if (!rerunAgain || disposed) {
+                    rerunning = false;
+                    rerunAgain = false;
+                    return;
+                }
+
+                rerunAgain = false;
+                batch = movedRuns();
+            }
+        });
     };
 
     /**
      * The runs over the visible graph that a filter or window move left out of date.
      * @returns The runs.
      */
-    const movedRuns = (): readonly Run[] =>
+    const movedRuns = (): readonly ManagedRun[] =>
         sources.runs().filter((run) => run.stale?.reason === "scope-changed" || run.stale?.reason === "window-moved");
 
     /**
@@ -2459,10 +2544,16 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * @param current - The window now.
      * @param next - The settings.
      * @param newZone - The zone the call set, which replaces the window's own.
+     * @param newStep - Whether the call set the step; otherwise the window keeps its own.
      * @returns The window.
      */
-    const windowUnder = (current: TimeWindow, next: TimeSettings, newZone: string | undefined): TimeWindow => {
-        const step = next.step === "auto" || (isCalendarStep(next.step) && ordinal()) ? autoStep() : next.step;
+    const windowUnder = (
+        current: TimeWindow,
+        next: TimeSettings,
+        newZone: string | undefined,
+        newStep: boolean,
+    ): TimeWindow => {
+        const step = newStep || current.step === undefined ? stepFor(next.step) : current.step;
         const extent = extentNow() as TimeExtent;
         const from = boundOf(current, "from");
         const to = boundOf(current, "to");
@@ -2602,6 +2693,21 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
         }
 
+        const knownFields = {
+            nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
+            nodeTimeUnit: nodes?.unit ?? null,
+            nodeTimeParseZone: nodes?.parseZone ?? null,
+            nodeTimeEndPath: optionalColumn(nodes?.end) ?? null,
+            nodeTimeSpellsPath: optionalColumn(nodes?.spells) ?? null,
+            edgeTimePath: edges === undefined ? null : columnOf(edges.start),
+            edgeTimeUnit: edges?.unit ?? null,
+            edgeTimeParseZone: edges?.parseZone ?? null,
+            edgeTimeEndPath: optionalColumn(edges?.end) ?? null,
+            edgeTimeSpellsPath: optionalColumn(edges?.spells) ?? null,
+        };
+        // Refused here, before anything changes, when several sources could take the time role.
+        const roles = sources.settingRoles?.(knownFields) ?? null;
+
         const before = fieldNow();
         const column = (edges ?? nodes)?.start;
         const changed = !sameReading(before?.nodes, nodes) || !sameReading(before?.edges, edges);
@@ -2626,25 +2732,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                     }
                 }
 
-                await tx.dispatch({
-                    op: "config.set",
-                    values: {
-                        data: {
-                            knownFields: {
-                                nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
-                                nodeTimeUnit: nodes?.unit ?? null,
-                                nodeTimeParseZone: nodes?.parseZone ?? null,
-                                nodeTimeEndPath: optionalColumn(nodes?.end) ?? null,
-                                nodeTimeSpellsPath: optionalColumn(nodes?.spells) ?? null,
-                                edgeTimePath: edges === undefined ? null : columnOf(edges.start),
-                                edgeTimeUnit: edges?.unit ?? null,
-                                edgeTimeParseZone: edges?.parseZone ?? null,
-                                edgeTimeEndPath: optionalColumn(edges?.end) ?? null,
-                                edgeTimeSpellsPath: optionalColumn(edges?.spells) ?? null,
-                            },
-                        },
-                    },
-                });
+                if (roles !== null) {
+                    await tx.dispatch({ op: "data.steps-set", edit: roles });
+                }
+                await tx.dispatch({ op: "config.set", values: { data: { knownFields } } });
                 // Another field, or another reading of it, is another timeline: the window goes.
                 if (changed && visibility.window !== null) {
                     await tx.dispatch({ op: "visibility.window", window: null });
@@ -2893,7 +2984,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             const drawingOnly = Object.keys(patch).every((key) => key === "ageFade" || key === "outside");
             const moved =
                 current !== null && extentNow() !== null && !drawingOnly
-                    ? windowUnder(current, next, patch.timeZone)
+                    ? windowUnder(current, next, patch.timeZone, patch.step !== undefined)
                     : null;
             const before = masksNow();
             // How what lies outside draws lives in the style layers, never in the playback.

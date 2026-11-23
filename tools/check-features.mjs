@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // The features check (design/ci/channels-pipeline/features.md, section 4): every experiment id the code,
-// the stories and the site configurations name is a row of graphty-element's FEATURES, every row has its
+// the stories and the site configurations name is a row of graphty-element's FEATURES (or, for an experiment
+// of the graphty app alone, of graphty/src/features.ts's APP_FEATURES, features.md section 5.3), every row has its
 // tracking issue, no graduated id lingers, every flagged descriptor field carries its `@experimental` tag,
 // and the features module reads no host URL, storage or environment. Experimental items may appear in the
 // public API report: `@experimental` promises no compatibility (owner, 2026-10-25; features.md section 11).
@@ -12,6 +13,8 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REGISTRY = "graphty-element/src/features/registry.ts";
+// The graphty app's own experiments, with no element part (features.md section 5.3): its APP_FEATURES rows.
+const APP_REGISTRY = "graphty/src/features.ts";
 const FEATURES_DIR = "graphty-element/src/features";
 const SCAN_DIRS = ["graphty-element/src", "graphty-element/stories", "graphty/src", "graphty/sites"];
 const SOURCE = /\.(?:[cm]?[jt]sx?|json|mdx)$/;
@@ -37,19 +40,24 @@ const lineOf = (text, index) => text.slice(0, index).split("\n").length;
 
 /**
  * The FEATURES rows and GRADUATED_FEATURES ids, read from the registry's source.
- * @param text - The source of graphty-element/src/features/registry.ts.
+ * @param text - The source of graphty-element/src/features/registry.ts, or the app's graphty/src/features.ts.
+ * @param rowsName - The name of the exported rows: FEATURES, or the app's APP_FEATURES.
  * @returns What it declares.
  */
-export function readRegistry(text) {
+export function readRegistry(text, rowsName = "FEATURES") {
     const block = (name) =>
         text.match(new RegExp(String.raw`export const ${name}\b[^=]*=\s*Object\.freeze\(\[([\s\S]*?)\]\)`))?.[1];
-    const rows = [...(block("FEATURES") ?? "").matchAll(/\{[^{}]*\}/g)].map((m) => ({
+    const rows = [...(block(rowsName) ?? "").matchAll(/\{[^{}]*\}/g)].map((m) => ({
         id: m[0].match(/\bid:\s*["']([^"']+)["']/)?.[1],
         issue: Number(m[0].match(/\bissue:\s*(\d+)/)?.[1] ?? 0),
         since: m[0].match(/\bsince:\s*["']([^"']+)["']/)?.[1],
     }));
     return { rows, graduated: quoted(block("GRADUATED_FEATURES") ?? "") };
 }
+
+// The app's gates named for what they decide rather than for their experiment, with the id each reads.
+// Empty while no app experiment has one; a name added here is matched by the references below.
+const GATE_ALIASES = {};
 
 // Every place a file names an experiment id: [{ id, line, kind }].
 function references(file, text) {
@@ -63,6 +71,11 @@ function references(file, text) {
     // ponytail: an error's `details` or `params` names a capability, not a flag; skipped by line.
     add(/^(?!.*\b(?:details|params):).*?\bfeature:\s*["']([^"']+)["']/gm, "feature field");
     add(/\bfeatures\.has\(\s*["']([^"']+)["']/g, "features.has call");
+    add(/\benabled\.includes\(\s*["']([^"']+)["']/g, "enabled check");
+    add(/\b(?:appFeatureOn|useAppFeature)\(\s*["']([^"']+)["']/g, "app gate");
+    // Gates that read an app experiment under a name of their own: whoever retires the id finds them too.
+    for (const [name, id] of Object.entries(GATE_ALIASES))
+        add(new RegExp(String.raw`\b${name}\(`, "g"), "app gate", () => [id]);
     if (/\.stories\.[cm]?[jt]sx?$/.test(file))
         add(/\bfeatures:\s*\[([^\]]*)\]/g, "story features parameter", (m) => quoted(m[1]));
     if (file.startsWith("graphty/sites/") && file.endsWith(".json")) {
@@ -93,7 +106,10 @@ function referenceProblems(file, text, declared, files) {
         if (declared.has(ref.id)) files.get(ref.id).add(file);
         else if (ref.kind === "unreadable site configuration") problems.push(`${file}: not valid JSON`);
         else if (ref.id === "") problems.push(`${file}:${ref.line}: @experimental names no feature id`);
-        else problems.push(`${file}:${ref.line}: ${ref.kind} names "${ref.id}", which is not in FEATURES`);
+        else
+            problems.push(
+                `${file}:${ref.line}: ${ref.kind} names "${ref.id}", which is not in FEATURES or APP_FEATURES`,
+            );
         // ponytail: "its tag" means within the 30 lines above the field; a real AST walk if that misfires.
         if (
             ref.kind === "feature field" &&
@@ -110,8 +126,12 @@ function referenceProblems(file, text, declared, files) {
     return problems;
 }
 
+// Graduated ids that are also ordinary words in this code (the assistant's chat role, its place and its
+// Settings section): a bare literal of one is a word, so only the gate forms references() reads fail on it.
+const WORD_IDS = new Set(["assistant"]);
+
 /**
- * The places a file still names a graduated flag, a command's `keywords` aside.
+ * The places a file still names a graduated flag, a command's `keywords` and the ids in WORD_IDS aside.
  * @param file - The file, relative to the root.
  * @param text - Its text.
  * @param graduated - The graduated flag ids.
@@ -122,6 +142,7 @@ function graduatedProblems(file, text, graduated) {
     // A command's search words are words, not flag ids: "timeline" stays a word a reader types.
     const searched = text.replaceAll(/\bkeywords:\s*\[[^\]\n]*\]/g, "");
     for (const id of graduated) {
+        if (WORD_IDS.has(id)) continue;
         const escaped = id.replaceAll(/[.*+?^${}()|[\]\\-]/g, String.raw`\$&`);
         const at = searched.search(new RegExp(`["'\`]${escaped}["'\`]`));
         if (at >= 0) problems.push(`${file}:${lineOf(searched, at)}: graduated feature "${id}" is still named`);
@@ -153,19 +174,30 @@ function moduleProblems(file, text) {
  */
 export function checkFeatures(root) {
     const problems = [];
-    const { rows, graduated } = readRegistry(
-        existsSync(join(root, REGISTRY)) ? readFileSync(join(root, REGISTRY), "utf8") : "",
-    );
+    const read = (file) => (existsSync(join(root, file)) ? readFileSync(join(root, file), "utf8") : "");
+    const element = readRegistry(read(REGISTRY));
+    const { rows: app, graduated: appGraduated } = readRegistry(read(APP_REGISTRY), "APP_FEATURES");
+    const graduated = [...element.graduated, ...appGraduated];
+    const rows = [...element.rows, ...app];
     const declared = new Set(rows.map((r) => r.id));
     const files = new Map(rows.map((r) => [r.id, new Set()]));
 
-    for (const row of rows) {
-        if (row.issue <= 0)
-            problems.push(`${REGISTRY}: FEATURES row "${row.id}" names no tracking issue (issue: <number>)`);
+    for (const [file, list, name] of [
+        [REGISTRY, element.rows, "FEATURES"],
+        [APP_REGISTRY, app, "APP_FEATURES"],
+    ]) {
+        for (const row of list) {
+            if (row.issue <= 0)
+                problems.push(`${file}: ${name} row "${row.id}" names no tracking issue (issue: <number>)`);
+        }
+    }
+    for (const row of app) {
+        if (element.rows.some((each) => each.id === row.id))
+            problems.push(`${APP_REGISTRY}: APP_FEATURES row "${row.id}" is also a graphty-element FEATURES row`);
     }
 
     for (const file of SCAN_DIRS.flatMap((dir) => walk(root, dir))) {
-        if (file === REGISTRY) continue;
+        if (file === REGISTRY || file === APP_REGISTRY) continue;
         const text = readFileSync(join(root, file), "utf8");
         problems.push(
             ...referenceProblems(file, text, declared, files),

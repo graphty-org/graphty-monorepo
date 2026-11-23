@@ -36,6 +36,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { git as runGit } from "../lib/git.mjs";
 import { diffCommits } from "../release-diff.mjs";
 import { call, config } from "../results/client.mjs";
 import { HOLD_TITLE } from "./hold.mjs";
@@ -116,7 +117,7 @@ export function resumeDecision({
     };
 }
 
-const git = (...args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+const git = (...args) => runGit(args, { stdio: ["ignore", "pipe", "ignore"] });
 const gitOk = (...args) => {
     try {
         git(...args);

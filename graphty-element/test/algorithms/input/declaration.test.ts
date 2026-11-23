@@ -9,14 +9,15 @@
 import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { withRunInput } from "../../../src/algorithms/input/ScopedInput";
 import { detachedRunContext } from "../../../src/algorithms/results";
-import type { Graph } from "../../../src/Graph";
 import type { RunResult } from "../../../src/session/results";
 import { createFakeAccelerator } from "../../../src/testing/fakeAccelerator";
 import {
     idsOf,
-    InputGraph,
+    type InputGraph,
+    inputGraph,
     WholeBFS,
     WholeComponents,
     WholeDegree,
@@ -59,10 +60,10 @@ class ScopedReader extends WholeReader {
 }
 
 /** Six nodes in a ring, so a scope of three cuts it. */
-function ring(): InputGraph {
+async function ring(): Promise<InputGraph> {
     const ids = ["a", "b", "c", "d", "e", "f"];
 
-    return new InputGraph(
+    return inputGraph(
         ids,
         ids.map((id, index) => [id, ids[(index + 1) % ids.length], index + 1] as const),
     );
@@ -70,9 +71,9 @@ function ring(): InputGraph {
 
 describe("the declaration decides what both seams hand over", () => {
     it("a declaring algorithm reads its scope from both seams", async () => {
-        const graph = ring();
+        const graph = await ring();
         const scope = graph.scope(["a", "b", "c"]);
-        const algorithm = new ScopedReader(graph.asGraph());
+        const algorithm = new ScopedReader(graph);
         const seen = await withRunInput(
             algorithm,
             graph,
@@ -85,9 +86,9 @@ describe("the declaration decides what both seams hand over", () => {
     });
 
     it("the same algorithm without the declaration reads the whole snapshot under the same scoped run", async () => {
-        const graph = ring();
+        const graph = await ring();
         const scope = graph.scope(["a", "b", "c"]);
-        const algorithm = new WholeReader(graph.asGraph());
+        const algorithm = new WholeReader(graph);
         const seen = await withRunInput(
             algorithm,
             graph,
@@ -100,8 +101,8 @@ describe("the declaration decides what both seams hand over", () => {
     });
 
     it("a declaring algorithm outside a run reads the whole graph, and so does one after its run", async () => {
-        const graph = ring();
-        const algorithm = new ScopedReader(graph.asGraph());
+        const graph = await ring();
+        const algorithm = new ScopedReader(graph);
         assert.strictEqual(algorithm.seams().subgraph, 6);
 
         await withRunInput(
@@ -167,7 +168,7 @@ function ownFields(published: Published): Published {
 }
 
 /** Every built-in with an accelerated seam, and Degree, each undeclared, with the options each needs. */
-const BUILT_INS: readonly (readonly [string, (g: Graph) => Algorithm])[] = [
+const BUILT_INS: readonly (readonly [string, (g: AlgorithmHost) => Algorithm])[] = [
     ["pagerank", (g) => new WholePageRank(g)],
     ["degree", (g) => new WholeDegree(g)],
     ["connected components", (g) => new WholeComponents(g)],
@@ -179,10 +180,10 @@ const BUILT_INS: readonly (readonly [string, (g: Graph) => Algorithm])[] = [
 describe("an algorithm that declares no scoped input computes on the whole graph and is masked back", () => {
     for (const [name, build] of BUILT_INS) {
         it(`${name} bound to a three-node scope publishes its whole-graph values for the scope only`, async () => {
-            const graph = ring();
-            const unbound = publishedOf(await build(graph.asGraph()).publishResult(detachedRunContext(), "r"), graph);
+            const graph = await ring();
+            const unbound = publishedOf(await build(graph).publishResult(detachedRunContext(), "r"), graph);
 
-            const scoped = build(graph.asGraph());
+            const scoped = build(graph);
             const members = new Set(["a", "b", "c"]);
             const scope = graph.scope([...members]);
             const bound = publishedOf(
@@ -203,7 +204,9 @@ describe("an algorithm that declares no scoped input computes on the whole graph
                 edges: Object.fromEntries(
                     [...graph.edges.values()].map((edge) => [
                         edge.id,
-                        members.has(edge.srcId) && members.has(edge.dstId) ? unbound.edges[edge.id] : undefined,
+                        members.has(String(edge.srcId)) && members.has(String(edge.dstId))
+                            ? unbound.edges[edge.id]
+                            : undefined,
                     ]),
                 ),
             };
@@ -218,10 +221,10 @@ describe("an algorithm that declares no scoped input computes on the whole graph
     }
 
     it("the accelerated ones hand the accelerator the whole graph under a scoped run", async () => {
-        const graph = ring();
+        const graph = await ring();
         const fake = createFakeAccelerator();
         graph.acceleration.setAccelerator(fake);
-        const pagerank = new WholePageRank(graph.asGraph());
+        const pagerank = new WholePageRank(graph);
         const scope = graph.scope(["a", "b", "c"]);
         await withRunInput(
             pagerank,

@@ -6,13 +6,13 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { MEANING_WORDS } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
+import { TIME_FIELD_EVENTS, useSessionEvents } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { AddButton, type AddOption } from "../style/Section";
 import { failWords } from "../table/columns";
 import { designate, unitOf } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
-import { useTimeFieldVersion } from "../time/useTimeVersion";
 import { pickEnd } from "./commands";
 import { FiltersSection } from "./Filters";
 import { TypeGlyphIcon } from "./TypeGlyphIcon";
@@ -31,7 +31,6 @@ import {
     kindChoices,
     loadValue,
     LOCATION_ENTRIES,
-    remap,
     roleHolder,
     ROWS_ARE,
     sidesOf,
@@ -60,6 +59,9 @@ const ENTRY_GLYPHS: Readonly<Record<EntryId, (typeof GLYPHS)[keyof typeof GLYPHS
     country: GLYPHS.location,
     region: GLYPHS.location,
     city: GLYPHS.location,
+    x: GLYPHS.layout,
+    y: GLYPHS.layout,
+    z: GLYPHS.layout,
     edgeId: GLYPHS.key,
     sourceKind: GLYPHS.category,
     targetKind: GLYPHS.category,
@@ -75,6 +77,9 @@ const ENTRY_TYPES: Partial<Readonly<Record<EntryId, ValueType>>> = {
     time: "date",
     latitude: "number",
     longitude: "number",
+    x: "number",
+    y: "number",
+    z: "number",
 };
 
 /**
@@ -495,7 +500,7 @@ function SideGroup({
         if (!ready) {
             return;
         }
-        const field = group.current?.querySelector<HTMLElement>(`[data-entry="${wantedHere ?? ""}"] input`);
+        const field = group.current?.querySelector<HTMLElement>(`[data-entry="${wantedHere}"] input`);
         if (field !== null && field !== undefined) {
             field.scrollIntoView({ block: "nearest" });
             focusWithRing(field);
@@ -522,7 +527,7 @@ function SideGroup({
             const key = entry.load;
             if (key !== undefined) {
                 if (source !== undefined) {
-                    onReload({ mapping: remap(source, side, { [key]: picked }) });
+                    onReload({ mapping: { [side]: { [key]: picked } } });
                 }
             } else if (entry.id === "time") {
                 designateTime(session, store, side, picked);
@@ -564,7 +569,7 @@ function SideGroup({
                     onRemove={() => {
                         focusPlus();
                         if (source !== undefined) {
-                            onReload({ mapping: remap(source, side, { [key]: null }) });
+                            onReload({ mapping: { [side]: { [key]: null } } });
                         }
                     }}
                 />
@@ -860,7 +865,7 @@ function SourceFields({
                     value={value}
                     choices={columnChoices(attributes, source, side, value)}
                     onPick={(picked) => {
-                        reload({ mapping: remap(source, side, { [row.key]: picked }) });
+                        reload({ mapping: { [side]: { [row.key]: picked } } });
                     }}
                 />
             );
@@ -881,7 +886,7 @@ function SourceFields({
                         if (picked === "edges") {
                             store.set({ ends: { load: source.key, source: null, target: null } });
                         } else if (ends === null) {
-                            reload({ mapping: remap(source, "edges", { rowsAre: "nodes" }) });
+                            reload({ mapping: { rowsAre: "nodes" } });
                         } else {
                             store.set({ ends: null });
                         }
@@ -957,7 +962,7 @@ export function Fields({
 }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const held = useWorkspaceState((state) => state.ends);
-    useTimeFieldVersion(session);
+    useSessionEvents(session, TIME_FIELD_EVENTS);
     // The groups the reader opened or closed; a group they never touched is open only while its load
     // is selected. A new pick forgets the reader's choice for that group, so it opens.
     const [opened, setOpened] = useState<Readonly<Record<string, boolean>>>({});

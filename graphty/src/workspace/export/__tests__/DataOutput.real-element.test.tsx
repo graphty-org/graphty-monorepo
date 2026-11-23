@@ -48,21 +48,25 @@ async function warningsFor(
     format: FormatId,
     options: Parameters<PageElement["exportGraph"]>[1],
 ): Promise<string[]> {
-    const { lossNotes } = await element.exportGraph(format, options);
-    assert.isNotEmpty(lossNotes, `${format} reports what it cannot hold`);
-    const note = await within(dialog).findByRole("note", {});
-    // The rows sit behind the one-line summary's Details (R14).
-    const details = within(note).getByRole("button", { name: "Details" });
-    if (details.getAttribute("aria-expanded") !== "true") {
-        await userEvent.click(details);
-    }
-    // Each row's words; its column and count chips name the file's own columns.
-    const lines = within(note)
-        .getAllByRole("listitem")
-        .map((item) => item.querySelector("span")?.textContent ?? "");
-    const text = dialog.textContent;
-    for (const { message } of lossNotes) {
-        assert.notInclude(text, message, "the element's own sentence never reaches the screen");
+    const { losses } = await element.exportGraph(format, options);
+    assert.isNotEmpty(losses, `${format} reports what it cannot hold`);
+    // A warning (note) for what changes the data, a quiet status line for what the format never holds.
+    await waitFor(() => {
+        assert.isNotEmpty(within(dialog).queryAllByRole("status").concat(within(dialog).queryAllByRole("note")));
+    });
+    const lines: string[] = [];
+    for (const box of [...within(dialog).queryAllByRole("status"), ...within(dialog).queryAllByRole("note")]) {
+        // The rows sit behind the one-line summary's Details (R14).
+        const details = within(box).getByRole("button", { name: "Details" });
+        if (details.getAttribute("aria-expanded") !== "true") {
+            await userEvent.click(details);
+        }
+        // Each row's words; its column and count chips name the file's own columns.
+        lines.push(
+            ...within(box)
+                .getAllByRole("listitem")
+                .map((item) => item.querySelector("span")?.textContent ?? ""),
+        );
     }
     for (const line of lines) {
         assert.notMatch(line, /[`]|\b[WE]_[A-Z_]+\b|\b(results|style)\.[a-z]/, `plain words: ${line}`);
@@ -90,7 +94,7 @@ describe("Export > Data: what a format cannot hold, in the app's words", () => {
 
         await userEvent.keyboard("{Control>}e{/Control}");
         const dialog = await screen.findByRole("dialog", { name: "Export" });
-        await userEvent.click(within(dialog).getByText("Data"));
+        await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"));
 
         await pick(dialog, "Format", "CSV");
         await pick(dialog, "Table", "Edges");
@@ -117,10 +121,35 @@ describe("Export > Data: what a format cannot hold, in the app's words", () => {
         await warningsFor(dialog, element, "graphml", {});
 
         await pick(dialog, "Format", "Graphty JSON");
-        const { lossNotes } = await element.exportGraph("graphty", {});
-        for (const { message } of lossNotes) {
-            assert.notInclude(dialog.textContent, message);
-        }
+        assert.isEmpty((await element.exportGraph("graphty", {})).losses);
+    });
+
+    it("notes what CSV never holds quietly, and warns only where a format changes the data", async () => {
+        const { dialog, element } = await openData((session) =>
+            session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } }),
+        );
+        await pick(dialog, "Format", "CSV");
+        await pick(dialog, "Table", "Edges");
+        const { losses } = await element.exportGraph("csv", { table: "edges" });
+        assert.isNotEmpty(losses);
+        assert.isTrue(
+            losses.every((loss) => loss.expected),
+            losses.map((loss) => loss.code).join(" "),
+        );
+        const line = await within(dialog).findByRole("status");
+        assert.match(line.textContent, /^Not in CSV: /);
+        assert.isNull(within(dialog).queryByRole("note"), "no warning for what CSV never holds");
+        assert.isNull(within(dialog).queryByRole("alert"));
+
+        // Pajek numbers the nodes 1 to N: the ids themselves change, which is a warning.
+        await pick(dialog, "Format", /^Pajek/);
+        const pajek = await element.exportGraph("pajek", {});
+        assert.isTrue(
+            pajek.losses.some((loss) => !loss.expected),
+            pajek.losses.map((loss) => loss.code).join(" "),
+        );
+        const warning = await within(dialog).findByRole("note");
+        assert.match(warning.textContent, /^Lost in Pajek/);
     });
 });
 
@@ -145,7 +174,7 @@ async function openData(
     await load(session);
     await userEvent.keyboard("{Control>}e{/Control}");
     const dialog = await screen.findByRole("dialog", { name: "Export" });
-    await userEvent.click(within(dialog).getByText("Data"));
+    await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"));
     return { dialog, element };
 }
 
@@ -225,13 +254,10 @@ describe("Export > Data on the real element: preview, settings and refusals", ()
         await userEvent.click(styles);
         const alert = await within(dialog).findByRole("alert");
         assert.include(alert.textContent, "Not written");
-        const { losses, lossNotes } = await element.exportGraph("pajek", {});
+        const { losses } = await element.exportGraph("pajek", {});
         assert.isTrue(
             losses.some((loss) => loss.code.startsWith("E_")),
             "the element refuses a label with a double quote",
         );
-        for (const { message } of lossNotes) {
-            assert.notInclude(alert.textContent, message, "the element's own sentence never reaches the screen");
-        }
     });
 });

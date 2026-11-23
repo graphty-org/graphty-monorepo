@@ -17,8 +17,11 @@ function makeManager(batched: boolean): { dm: DataManager; asked: () => number }
     dm.setGraphContext({} as unknown as GraphContext);
     dm.renderLimits = { ceilings: () => undefined, batched: () => batched };
     let asked = 0;
-    const between = dm.getEdgesBetween.bind(dm);
-    dm.getEdgesBetween = (source, target) => {
+    // The ingest host's pair question. It reads the store directly rather than through the public
+    // `getEdgesBetween`, which builds the `Edge` of every row it finds.
+    const host = dm as unknown as { existingBetween: (source: string, target: string) => unknown };
+    const between = host.existingBetween.bind(dm);
+    host.existingBetween = (source, target) => {
         asked++;
         return between(source, target);
     };

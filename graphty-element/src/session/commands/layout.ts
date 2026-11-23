@@ -2,7 +2,7 @@
  * @file The layout ops: which layout draws the graph and in how many dimensions, and the two
  * exempt controls beside them.
  *
- * - `layout.set`: choose the layout (a catalogue id, the engine that draws it, its options, and
+ * - `layout.set`: choose the layout (a catalog id, the engine that draws it, its options, and
  *   optionally what it runs over). One undoable step.
  * - `layout.rerun`: run the current layout again from the start, as choosing it again would, with
  *   its own step (`layout.rerun`), so undo names a re-run rather than a change of layout.
@@ -18,12 +18,13 @@
  *
  * `layout.set` and `view.dimension` are slot-holding writers (design/undo/undo-design.md section
  * 4.7): they take the arrangement they began from, write the slice, then have the renderer build
- * the engine and spend its pre-steps inside their slot. Cancelled or made obsolete while the
+ * the engine and spend its pre-steps inside their slot. Canceled or made obsolete while the
  * pre-steps run, they publish nothing, and the rollback puts the previous layout and the previous
  * coordinates back. See design sections 3.2, 4.7, 6.4 and 11.4.
  */
 
-import { layoutAlias, layoutDescriptor, layoutIdForEngine } from "../../catalog/layouts";
+import { registeredLayoutDescriptors } from "../../catalog/layoutRegistry";
+import { LAYOUT_CATALOG, layoutAlias, layoutDescriptor, layoutIdForEngine } from "../../catalog/layouts";
 import type { LayoutId, NodeId, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { ExemptDefinition, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
@@ -33,9 +34,9 @@ import type { PositionEntry } from "../types";
 /** `layout.set`: choose the layout that draws the graph. */
 export interface LayoutSetCommand {
     readonly op: "layout.set";
-    /** The catalogue id, such as `"force"`. A registered engine name is read as the id it serves. */
+    /** The catalog id, such as `"force"`. A registered engine name is read as the id it serves. */
     readonly id: LayoutId;
-    /** The engine that draws it, such as `"d3"`; the catalogue's default engine for `id` when absent. */
+    /** The engine that draws it, such as `"d3"`; the catalog's default engine for `id` when absent. */
     readonly engine?: string;
     /** The engine's options. */
     readonly options?: Readonly<Record<string, unknown>>;
@@ -97,7 +98,7 @@ export interface LayoutService {
      * Build or reconfigure the engine for a choice just written, and spend its pre-steps, inside
      * the command's slot: the `layout` hook, run inline.
      * @param choice - The choice, as the slice now holds it.
-     * @param signal - Fires when the command is cancelled or made obsolete; the pre-steps then
+     * @param signal - Fires when the command is canceled or made obsolete; the pre-steps then
      *     stop without publishing anything.
      * @param explicitScope - Whether the command named the scope, the only case in which a scope
      *     the engine cannot hold, or that holds nothing, is refused.
@@ -122,6 +123,12 @@ export interface LayoutService {
      * @returns True when it does.
      */
     followsFilters?(): boolean;
+    /**
+     * The hardware the layout in force computes on: `"cpu"`, or the accelerator's backend. Absent
+     * reads `"cpu"`.
+     * @returns The backend.
+     */
+    accelerator?(): string;
 }
 
 /**
@@ -208,6 +215,55 @@ async function applyChoice(choice: LayoutChoice, ctx: UndoableContext, explicitS
     await ctx.services.layout?.apply(choice, ctx.signal, explicitScope);
 }
 
+/**
+ * The refusal for a layout or engine name nothing answers to: the same with or without a
+ * renderer, and listing what could have been asked for instead.
+ * @param name - The name that was asked for.
+ * @returns The error to throw.
+ */
+export function unknownLayout(name: string): GraphtyError {
+    return new GraphtyError({
+        code: "E_UNKNOWN_LAYOUT",
+        message: `no layout named "${name}" is registered`,
+        source: "layout",
+        details: {
+            layout: name,
+            available: [
+                ...new Set([
+                    ...LAYOUT_CATALOG.flatMap((entry) => [
+                        entry.descriptor.id,
+                        ...entry.implementations.map((each) => each.engine),
+                    ]),
+                    ...registeredLayoutDescriptors().map((descriptor) => descriptor.id),
+                ]),
+            ],
+        },
+    });
+}
+
+/**
+ * Refuse a choice whose layout or engine the catalog does not know, before anything is written.
+ * An engine slot holding a layout id or a deprecated name is known: it stands for that layout's
+ * default engine.
+ * @param choice - The choice a `layout.set` makes.
+ */
+function assertKnownLayout(choice: LayoutChoice): void {
+    if (layoutDescriptor(choice.id) === undefined) {
+        throw unknownLayout(choice.id);
+    }
+
+    // `setLayout("force")` passes the name as both id and engine: a layout id or a deprecated
+    // name in the engine slot means its default engine, as the renderer's layout manager reads it.
+    const { engine } = choice;
+    if (
+        layoutIdForEngine(engine) === undefined &&
+        layoutDescriptor(engine) === undefined &&
+        layoutAlias(engine) === undefined
+    ) {
+        throw unknownLayout(engine);
+    }
+}
+
 const layoutSet: UndoableDefinition<LayoutSetCommand> = {
     op: "layout.set",
     // Takes the arrangement it began from: the new layout moves every node.
@@ -222,6 +278,9 @@ const layoutSet: UndoableDefinition<LayoutSetCommand> = {
     },
     execute: async (command, ctx) => {
         const choice = choiceOf(command, ctx.state.layout);
+        // Checked here, the one place every caller's choice passes, so a session with no renderer
+        // refuses a name the same way the renderer's layout manager does.
+        assertKnownLayout(choice);
         ctx.draft.layout = choice;
         await applyChoice(choice, ctx, choice.scope !== undefined && command.scope !== undefined);
     },

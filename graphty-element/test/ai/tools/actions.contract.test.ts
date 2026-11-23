@@ -44,12 +44,14 @@ const RENDERER = {
             metadata: { width: 10, height: 10, format: "webm", duration: 1000 },
         }),
     cancelAnimationCapture: () => false,
+    playTour: () => Promise.resolve({ reason: "finished" }),
+    stopAnimationCapture: () => false,
     isVRSupported: () => Promise.resolve(false),
     isARSupported: () => Promise.resolve(false),
     exportGraph: () => Promise.resolve({ text: () => Promise.resolve("<graphml/>"), losses: [] }),
 };
 
-/** A renderer whose layout behaviour fetches a node's neighbors: node "a" is joined to a new "x". */
+/** A renderer whose layout behavior fetches a node's neighbors: node "a" is joined to a new "x". */
 const EXPANDING = {
     ...RENDERER,
     getNode: (id: string) => ({ id }),
@@ -129,6 +131,10 @@ const seededSession = async (): Promise<GraphSession> => {
     return session;
 };
 /** A run of degree, for the actions that read one. */
+/** One triangle as an ASCII STL, for a model to give settings to. */
+const ONE_TRIANGLE_STL =
+    "solid t\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid t\n";
+
 const withRun = async (session: GraphSession): Promise<unknown> => session.runs.start("degree");
 /** A set, for the sets actions. */
 const withSet = (session: GraphSession): Promise<unknown> =>
@@ -192,10 +198,11 @@ const withSample = (): void => {
 };
 
 /**
- * Answers every download with a two-node dataset file, until the test ends.
- * @returns When the file is ready.
+ * Answers every download with a two-node dataset file, until the test ends. It is sent unzipped,
+ * as a server using `Content-Encoding: gzip` delivers it: a made-up gzip file would fail the
+ * dataset's published checksum.
  */
-async function answerDownloads(): Promise<void> {
+function answerDownloads(): void {
     const bytes = fromEdgeArrays({
         directed: false,
         nodeCount: 2,
@@ -203,10 +210,7 @@ async function answerDownloads(): Promise<void> {
         dst: new Uint32Array([1]),
         ids: ["d1", "d2"],
     }).toBytes();
-    const zipped = await new Response(
-        new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip")),
-    ).arrayBuffer();
-    vi.stubGlobal("fetch", () => Promise.resolve(new Response(zipped)));
+    vi.stubGlobal("fetch", () => Promise.resolve(new Response(bytes.slice())));
 }
 
 /** A reference call for every action, by `tool.action`. */
@@ -350,7 +354,7 @@ const ROWS: Record<string, Row> = {
     "layout.unpin": { args: { action: "unpin", ids: ["a"] }, setup: (s) => s.positions.pin(["a"]) },
     "layout.set_positions": { args: { action: "set_positions", positions: [{ id: "a", x: 1, y: 2 }] } },
     "view.dimension": { args: { action: "dimension", dimension: "2d" } },
-    "view.camera": { args: { action: "camera", preset: "topView" }, code: "E_UNSUPPORTED" },
+    "view.camera": { args: { action: "camera", preset: "topView" }, code: "AI_NOT_AVAILABLE" },
     "view.zoom_to": { args: { action: "zoom_to", where: "data.type == 'server'" } },
     "view.fit": { args: { action: "fit" } },
     "hidden.hide": { args: { action: "hide", ids: ["a"] } },
@@ -358,14 +362,34 @@ const ROWS: Record<string, Row> = {
     "view.save": { args: { action: "save", name: "overview" } },
     "view.restore": {
         args: { action: "restore", name: "kept" },
-        setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 } }]),
-        code: "E_UNSUPPORTED",
+        // Brings back what the view keeps; a session that draws nothing has no camera to move.
+        setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 }, hidden: ["a"] }]),
     },
     "view.remove_saved": {
         args: { action: "remove_saved", name: "kept" },
         setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 } }]),
     },
     "view.list_saved": { args: { action: "list_saved" } },
+    "view.rename": {
+        args: { action: "rename", name: "kept", to: "hub" },
+        setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 } }]),
+    },
+    "tour.list": {
+        args: { action: "list" },
+        setup: (s) => s.tours.save([{ name: "intro", tour: { stops: [{ view: "fitToGraph" }] } }]),
+    },
+    "tour.save": {
+        args: {
+            action: "save",
+            name: "intro",
+            stops: [{ view: "fitToGraph", hold: 500 }, { pause: 250 }],
+            easing: "linear",
+        },
+    },
+    "tour.play": {
+        args: { action: "play", name: "intro" },
+        setup: (s) => s.tours.save([{ name: "intro", tour: { stops: [{ view: "fitToGraph" }] } }]),
+    },
     "edit_data.add_nodes": { args: { action: "add_nodes", records: [{ id: "f", type: "client" }] } },
     "edit_data.add_edges": { args: { action: "add_edges", records: [{ source: "Alpha", target: "e" }] } },
     "edit_data.update_nodes": {
@@ -453,6 +477,13 @@ const ROWS: Record<string, Row> = {
     "conditions.update": { args: { action: "update", id: "c1", enabled: false }, setup: withCondition },
     "conditions.remove": { args: { action: "remove", id: "c1" }, setup: withCondition },
     "conditions.clear": { args: { action: "clear" }, setup: withCondition },
+    "conditions.move_step": {
+        args: { action: "move_step", id: "c2", index: 0 },
+        setup: async (session: GraphSession) => {
+            await withCondition(session);
+            await session.visibility.addCondition({ id: "c2", effect: "exclude", rule: { kind: "degree", max: 0 } });
+        },
+    },
     "conditions.set_steps": { args: { action: "set_steps", steps: [{ id: "s1", where: "data.load > `0.5`" }] } },
     "columns.list": { args: { action: "list" } },
     "columns.values": { args: { action: "values", column: "team" } },
@@ -473,6 +504,7 @@ const ROWS: Record<string, Row> = {
     "columns.set_type": { args: { action: "set_type", column: "load", type: "text" } },
     "columns.set_role": { args: { action: "set_role", column: "team", role: "label" } },
     "columns.compute": { args: { action: "compute", column: "heavy", expression: "data.load > `0.5`" } },
+    "columns.score": { args: { action: "score", column: "weighted", terms: [{ path: "data.load", weight: 2 }] } },
     "columns.hide": { args: { action: "hide", columns: ["team"] } },
     "columns.label_value": { args: { action: "label_value", column: "team", value: "red", label: "Reds" } },
     "sources.list": { args: { action: "list" }, setup: withLoad },
@@ -521,6 +553,14 @@ const ROWS: Record<string, Row> = {
     "import_data.last_import": { args: { action: "last_import" } },
     "export_graph.export": { args: { format: "graphml" } },
     "project.settings": { args: { action: "settings", runAlgorithmsOnLoad: true } },
+    "project.model_settings": {
+        args: { action: "model_settings", model: "asset:tool-model", values: { "node.modelTurn": 90 } },
+        setup: (s) =>
+            s.assets.add(
+                { files: new Map([["tool.stl", new TextEncoder().encode(ONE_TRIANGLE_STL)]]) },
+                { name: "asset:tool-model" },
+            ),
+    },
     "project.generate_background": {
         args: { action: "generate_background", prompt: "a starry night" },
         image: true,
@@ -533,8 +573,9 @@ const ROWS: Record<string, Row> = {
     "capture.screenshot": { args: { action: "screenshot", width: 100, height: 100 } },
     "capture.animation": { args: { action: "animation", seconds: 1 } },
     "capture.cancel": { args: { action: "cancel" } },
-    "immersive.enter": { args: { action: "enter", mode: "vr" }, code: "E_UNSUPPORTED" },
-    "immersive.exit": { args: { action: "exit" }, code: "E_UNSUPPORTED" },
+    "capture.stop": { args: { action: "stop" } },
+    "immersive.enter": { args: { action: "enter", mode: "vr" }, code: "AI_NOT_AVAILABLE" },
+    "immersive.exit": { args: { action: "exit" }, code: "AI_NOT_AVAILABLE" },
     "immersive.support": { args: { action: "support" } },
 };
 
@@ -765,6 +806,35 @@ describe("every generated action", () => {
         assert.strictEqual(refused.params.path, "result.op");
     });
 
+    it("saves a keyed following view and a tour with a pause, and lists both back", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        await assistant.say("save", [
+            { tool: "view", args: { action: "save", name: "above", preset: "topView", key: "7" } },
+            {
+                tool: "tour",
+                args: { action: "save", name: "walk", stops: [{ view: "above", hold: 100 }, { pause: 400 }] },
+            },
+        ]);
+        assert.deepStrictEqual(
+            assistant.lastResults().map((each) => each.code),
+            ["AI_OK", "AI_OK"],
+        );
+        assert.deepStrictEqual(session.views.get("above"), { follows: "topView", key: "7" });
+
+        await assistant.say("list", [
+            { tool: "view", args: { action: "list_saved" } },
+            { tool: "tour", args: { action: "list" } },
+        ]);
+        const [views, tours] = assistant.lastResults();
+        const listed = views.data as { following: Record<string, string>; keys: Record<string, string> };
+        assert.deepStrictEqual(listed.following, { above: "topView" });
+        assert.deepStrictEqual(listed.keys, { above: "7" });
+        assert.deepStrictEqual(tours.data, {
+            tours: [{ name: "walk", stops: [{ view: "above", hold: 100 }, { pause: 400 }] }],
+        });
+    });
+
     it("describes an entry by its name alone when only one kind has it", async () => {
         const session = await assistantSession();
         const assistant = new ScriptedAssistant(session);
@@ -932,6 +1002,17 @@ const MORE: Record<string, Row[]> = {
                 text: 'graph [ node [ id 1 graphics [ fill "#ff0000" ] ] node [ id 2 ] edge [ source 1 target 2 ] ]',
             },
         },
+        // A replacing load of a file with an annotation (a DOT diagram's title) writes the annotations.
+        {
+            args: {
+                action: "import",
+                format: "dot",
+                mode: "replace",
+                styles: "file",
+                text: 'digraph { graph [bb="0,0,300,100", label="The title"]; a [pos="50,50"]; b [pos="250,50"]; a -> b; }',
+            },
+            gate: false,
+        },
     ],
     "results.cancel": [{ args: { action: "cancel", run: "degree" }, setup: withRun, gate: false }],
     "edit_data.delete_all": [{ args: { action: "delete_all" }, gate: false }],
@@ -949,6 +1030,12 @@ const MORE: Record<string, Row[]> = {
         },
     ],
     "view.camera": [{ args: { action: "camera", preset: "topView", options: {} } }],
+    "capture.animation": [
+        {
+            args: { action: "animation", tour: "intro" },
+            setup: (s) => s.tours.save([{ name: "intro", tour: { stops: [{ view: "fitToGraph" }] } }]),
+        },
+    ],
     "results.summary": [
         {
             args: { action: "summary", run: "degree" },
@@ -990,7 +1077,7 @@ const MORE: Record<string, Row[]> = {
     "hidden.show": [{ args: { action: "show", where: "all" }, setup: (s) => s.hidden.add(["a"]) }],
     // The layout the session already has, so it is run again; a session with no renderer has no
     // layout to run.
-    "layout.set": [{ args: { action: "set", name: "force" }, code: "E_UNSUPPORTED" }],
+    "layout.set": [{ args: { action: "set", name: "force" }, code: "AI_NOT_AVAILABLE" }],
     "run_algorithm.run": [
         {
             // A class registered with no descriptor runs by its address, through the legacy op.
@@ -1008,13 +1095,13 @@ const MORE: Record<string, Row[]> = {
                 return assistantSession();
             },
             // A session with no renderer has nothing to run a legacy class on.
-            code: "E_UNSUPPORTED",
+            code: "AI_NOT_AVAILABLE",
         },
     ],
 };
 
 /**
- * A session whose runs never finish until cancelled: a run read while it is going.
+ * A session whose runs never finish until canceled: a run read while it is going.
  * @returns The session.
  */
 async function stalledSession(): Promise<GraphSession> {

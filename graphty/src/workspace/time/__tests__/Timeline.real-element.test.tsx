@@ -14,7 +14,7 @@ import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { dragAcross } from "../../../test/real-pointer";
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { tooltipOf } from "../../../test/tooltip";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -77,7 +77,7 @@ async function open(
  * The Data place.
  * @returns queries inside it.
  */
-function dataPlace(): ReturnType<typeof within> {
+function dataPlace(): Within {
     return within(screen.getByRole("region", { name: "Data place" }));
 }
 
@@ -108,7 +108,7 @@ async function pickField(column: string, row: "Edge time" | "Node time" = "Edge 
  * Opens the timeline's settings from the dock's settings button, opening the dock first.
  * @returns queries inside the settings.
  */
-async function timeCard(): Promise<ReturnType<typeof within>> {
+async function timeCard(): Promise<Within> {
     if (screen.queryByTestId("time-card") === null) {
         const dock = await openDock();
         await userEvent.click(within(dock).getByRole("button", { name: "Timeline settings" }));
@@ -160,11 +160,14 @@ function readout(dock: HTMLElement): string {
     return within(dock).getByTestId("time-readout").textContent ?? "";
 }
 
-describe("the timeline on the real element", () => {
-    beforeAll(async () => {
-        await page.viewport(1366, 768);
-    });
+// Both blocks: in Vitest's default 414 x 896 frame the side panels leave the canvas no width and cover
+// the canvas toolbar's Timeline button, so a test of the second block run alone (-t) never landed its
+// click (#9650, #9677).
+beforeAll(async () => {
+    await page.viewport(1366, 768);
+});
 
+describe("the timeline on the real element", () => {
     it("designates the time field from the Data place's Fields, and the dock shows the data's span", async () => {
         const { session } = await open();
         assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
@@ -274,7 +277,12 @@ describe("the timeline on the real element", () => {
         await waitFor(() => {
             assert.isAtLeast(waits(), before + 2);
         });
-        await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        // The sample is about 26 weeks, so on a slow machine the play can reach the end of the data
+        // before a click on Pause lands, and the button reads Play again. Stop it whichever way it
+        // stands: pausing an ended play does nothing. The Pause button has its own test above.
+        act(() => {
+            session.time.pause();
+        });
         listening.mockRestore();
     });
 
@@ -628,6 +636,77 @@ describe("the Overview and the import of time", () => {
         });
     });
 
+    it("picks the time field in the time card, and None takes the timeline away", async () => {
+        const { session, store } = await open();
+        await designateSent(session);
+        // A node column with no times is refused, and the field stays as it was.
+        await pickIn("Time field", "team");
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "team has no times");
+        });
+        assert.deepEqual(session.time.field, { edges: { start: "sent" } });
+        await pickIn("Time field", "None");
+        await waitFor(() => {
+            assert.isNull(session.time.field);
+            assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
+        });
+    });
+
+    it("sets a number column's unit, the step, Untimed and Mode from the time card, both ways", async () => {
+        const store = createWorkspaceStore({ project: { name: "Numbers", id: 1 }, place: "data" });
+        render(<Workspace store={store} registrations={REGISTRATIONS} />);
+        const session = await waitFor(() => {
+            const found = document.querySelector("graphty-element")?.session;
+            assert.isDefined(found);
+            return found;
+        });
+        // One edge has no time, so the card offers Untimed.
+        const data = "source,target,t\na,b,1\nb,c,7\nc,d,20\nd,e,\n";
+        await session.data.import({ type: "csv", config: { data }, name: "Numbers" });
+        await pickField("t");
+        await openDock();
+        const radio = async (group: string, label: string): Promise<void> => {
+            await userEvent.click(within((await timeCard()).getByRole("radiogroup", { name: group })).getByText(label));
+        };
+
+        await radio("Unit", "Epoch s");
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "t", unit: "s" } });
+        });
+        await radio("Unit", "Number");
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "t", unit: "ordinal" } });
+        });
+
+        // A number column steps by counts; Auto hands the step back to the element.
+        await pickIn("Step", "5");
+        await waitFor(() => {
+            assert.strictEqual(session.time.settings.step, 5);
+        });
+        await pickIn("Step", /^Auto/);
+        await waitFor(() => {
+            assert.strictEqual(session.time.settings.step, "auto");
+        });
+
+        await radio("Untimed", "Hide");
+        await waitFor(() => {
+            assert.strictEqual(session.time.settings.missing, "outside");
+        });
+        await radio("Untimed", "Show");
+        await waitFor(() => {
+            assert.strictEqual(session.time.settings.missing, "inside");
+        });
+
+        await radio("Mode", "Grow");
+        await waitFor(() => {
+            assert.strictEqual(session.time.settings.mode, "cumulative");
+        });
+        await radio("Mode", "Slide");
+        await waitFor(() => {
+            assert.strictEqual(session.time.settings.mode, "sliding");
+        });
+    });
+
     it("shows and hides the timeline from its toolbar button and the T key", async () => {
         const { session } = await open();
         assert.isNull(screen.queryByRole("button", { name: "Timeline" }), "no toggle without a time field");
@@ -813,8 +892,8 @@ describe("the Overview and the import of time", () => {
         const to = from + span * 0.1;
         await act(async () => {
             await session.time.window({ from, to, step: "week" });
-            // Window edits recorded within a second of each other merge into one step; an undo
-            // and a redo end that, so the drag below is counted on its own however fast it runs.
+            // Consecutive window edits merge into one step; an undo and a redo end that, so the
+            // drag below is counted on its own.
             await session.undo();
             await session.redo();
         });
@@ -908,5 +987,38 @@ describe("the Overview and the import of time", () => {
 
         const reads = (readsAt.get(12) ?? 0) - (readsAt.get(4) ?? 0);
         assert.isBelow(reads, 8, `the columns were read ${String(reads)} times in 8 frames`);
+    });
+});
+
+// #9677: in a 1200 x 900 window with both side panels open, every canvas toolbar button lies inside
+// the canvas the panels leave, and nothing covers it: Timeline's click lands and opens the dock.
+describe("the canvas toolbar in a 1200 x 900 window with the side panels open", () => {
+    beforeAll(async () => {
+        await page.viewport(1200, 900);
+    });
+
+    it("leaves every toolbar button uncovered, and Timeline opens the dock", async () => {
+        const { session } = await open(MARVEL, "graph");
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        await userEvent.click(await inspector.findByRole("button", { name: "Set in Data" }));
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "released" } });
+        });
+        assert.isAbove(screen.getByRole("complementary", { name: "Left panel" }).clientWidth, 0);
+        const canvas = screen.getByTestId("canvas").getBoundingClientRect();
+        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+        const buttons = within(toolbar).getAllByRole("button");
+        assert.isNotEmpty(buttons);
+        for (const button of buttons) {
+            const box = button.getBoundingClientRect();
+            const name = button.getAttribute("aria-label") ?? button.textContent ?? "";
+            assert.isAtLeast(box.left, canvas.left, `${name} starts inside the canvas`);
+            assert.isAtMost(box.right, canvas.right, `${name} ends inside the canvas`);
+            const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+            assert.isTrue(button.contains(top), `nothing lies over ${name}`);
+        }
+
+        await userEvent.click(screen.getByRole("button", { name: "Timeline" }));
+        await screen.findByRole("region", { name: "Timeline" });
     });
 });

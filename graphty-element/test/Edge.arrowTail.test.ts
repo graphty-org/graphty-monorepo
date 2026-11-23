@@ -3,16 +3,13 @@ import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import type { EdgeStyleConfig } from "../src/config";
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
-import { MeshCache } from "../src/meshes/MeshCache";
 
 describe("Arrow Tail Support", () => {
     let scene: Scene;
-    let meshCache: MeshCache;
 
     beforeEach(() => {
         const engine = new NullEngine();
         scene = new Scene(engine);
-        meshCache = new MeshCache();
     });
 
     afterEach(() => {
@@ -28,8 +25,6 @@ describe("Arrow Tail Support", () => {
 
         // Create arrow head
         const arrowHead = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-head",
             {
                 type: style.arrowHead?.type ?? "none",
                 width: style.line?.width ?? 0.25,
@@ -42,8 +37,6 @@ describe("Arrow Tail Support", () => {
 
         // Create arrow tail
         const arrowTail = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-tail",
             {
                 type: style.arrowTail?.type ?? "none",
                 width: style.line?.width ?? 0.25,
@@ -69,8 +62,6 @@ describe("Arrow Tail Support", () => {
 
         // Create arrow head
         const arrowHead = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-head-2",
             {
                 type: style.arrowHead?.type ?? "none",
                 width: style.line?.width ?? 0.25,
@@ -83,8 +74,6 @@ describe("Arrow Tail Support", () => {
 
         // Create arrow tail
         const arrowTail = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-tail-2",
             {
                 type: style.arrowTail?.type ?? "none",
                 width: style.line?.width ?? 0.25,
@@ -106,8 +95,6 @@ describe("Arrow Tail Support", () => {
 
     test("none type returns null for arrow tail", () => {
         const arrowTail = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-none",
             {
                 type: "none",
                 width: 0.5,
@@ -128,8 +115,6 @@ describe("Arrow Tail Support", () => {
 
         // Both should respect the size parameter
         const arrowHead = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-head-sized",
             {
                 type: style.arrowHead?.type ?? "none",
                 width: style.line?.width ?? 0.25,
@@ -141,8 +126,6 @@ describe("Arrow Tail Support", () => {
         );
 
         const arrowTail = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-tail-sized",
             {
                 type: style.arrowTail?.type ?? "none",
                 width: style.line?.width ?? 0.25,

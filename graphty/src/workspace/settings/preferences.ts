@@ -53,7 +53,7 @@ export const OPEN_PROJECT_URLS = {
 
 /**
  * Default timeline style (Settings > General): the look the
- * Timeline Hidden row starts with when a new project gets it, as graphty-element's
+ * Timeline Hidden row starts with when a project's timeline first turns on, as graphty-element's
  * `timelineHiddenLook`. It never rewrites a row a project already has.
  */
 export const TIMELINE_STYLE = {
@@ -207,5 +207,69 @@ export function rememberProjectHost(projectId: string, host: string): void {
         localStorage.setItem(PROJECT_HOSTS_KEY, JSON.stringify(all));
     } catch {
         // Storage blocked: the choice holds for this page view only.
+    }
+}
+
+/**
+ * How the reader arranged the workspace (the panel widths, the table dock's height and whether it
+ * is open, the legend switch), kept in this browser so the next visit opens the same way. Each
+ * field names the workspace state field it restores and the type it must hold.
+ */
+export const WORKSPACE_LAYOUT = {
+    key: "graphty.workspaceLayout.v1",
+    fields: {
+        leftWidth: "number",
+        assistantWidth: "number",
+        rightWidth: "number",
+        dockHeight: "number",
+        dockOpen: "boolean",
+        legendShown: "boolean",
+        legendAsked: "boolean",
+    },
+} as const;
+
+/** The workspace arrangement kept in this browser: whichever fields it holds. */
+export type WorkspaceLayout = {
+    -readonly [K in keyof typeof WORKSPACE_LAYOUT.fields]?: (typeof WORKSPACE_LAYOUT.fields)[K] extends "number"
+        ? number
+        : boolean;
+};
+
+/**
+ * Takes the layout fields out of any object, each only when it holds the type the field must.
+ * @param from - a stored or a live state.
+ * @returns the layout fields it holds.
+ */
+export function layoutOf(from: object): WorkspaceLayout {
+    const { fields }: { readonly fields: Readonly<Record<string, string>> } = WORKSPACE_LAYOUT;
+    return Object.fromEntries(
+        Object.entries(from).filter(
+            ([key, value]) => typeof value === fields[key] && (typeof value !== "number" || Number.isFinite(value)),
+        ),
+    );
+}
+
+/**
+ * Reads the workspace arrangement the reader left on an earlier visit.
+ * @returns the fields kept; empty when none are, or storage is blocked or holds something unknown.
+ */
+export function readWorkspaceLayout(): WorkspaceLayout {
+    try {
+        const stored: unknown = JSON.parse(localStorage.getItem(WORKSPACE_LAYOUT.key) ?? "{}");
+        return typeof stored === "object" && stored !== null ? layoutOf(stored) : {};
+    } catch {
+        return {};
+    }
+}
+
+/**
+ * Keeps the workspace arrangement for the next visit.
+ * @param layout - the fields to keep.
+ */
+export function writeWorkspaceLayout(layout: WorkspaceLayout): void {
+    try {
+        localStorage.setItem(WORKSPACE_LAYOUT.key, JSON.stringify(layout));
+    } catch {
+        // Storage blocked: the arrangement holds for this page view only.
     }
 }

@@ -6,7 +6,6 @@
  */
 
 import {
-    fileStyleOf,
     type GraphSession,
     type LayerId,
     RESULT_SHAPE_CONTRACTS,
@@ -17,7 +16,6 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { count } from "../inspector/words";
-import { fileStyleLayerWords } from "../styles/fileStyleWords";
 
 /**
  * A run's kind, the one the inspector's header reads: a grouping, or a run whose primary field is
@@ -177,8 +175,7 @@ export function rowsHeading(session: GraphSession, ids: readonly string[]): stri
 }
 
 /**
- * A tree row's name, or "Gone": for a layer row made from a file's styles, the app's words for
- * its facts (`fileStyleOf`); otherwise the row's own name.
+ * A tree row's name, or "Gone".
  * @param session - the element's session.
  * @param id - the row's id.
  * @returns the name.
@@ -187,14 +184,6 @@ export function rowName(session: GraphSession, id: string): string {
     const found = findTreeRow(session.styles.tree(), id);
     if (found === undefined) {
         return "Gone";
-    }
-    for (const layerId of found.row.kind === "layer" ? rowLayers(session, id) : []) {
-        const layer = session.styles.get(layerId);
-        const origin = layer === undefined ? null : fileStyleOf(layer);
-        if (origin !== null) {
-            const column = session.data.attributes().find((attribute) => attribute.path === origin.column);
-            return fileStyleLayerWords(origin, column?.plainName);
-        }
     }
     return found.row.name;
 }
@@ -317,8 +306,8 @@ export function paintsOf(session: GraphSession, row: StyleRow): Paints {
     const parts = builtParts(session, row.id);
     const read = (layer: string | undefined): ReturnType<GraphSession["styles"]["counts"]> | undefined =>
         layer === undefined ? undefined : session.styles.counts(layer);
-    const node = read(parts?.node);
-    const edge = read(parts?.edge);
+    const node = read(parts.node);
+    const edge = read(parts.edge);
     const painted = [node, edge].flatMap((c) => (c === undefined ? [] : Object.values(c.painted)));
     // A row that matches nothing paints nothing, so nothing of it is painted over.
     const matched = (node?.matched ?? 0) + (edge?.matched ?? 0);

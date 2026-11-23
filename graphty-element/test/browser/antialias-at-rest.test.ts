@@ -11,7 +11,7 @@ import { CreateScreenshotAsync } from "@babylonjs/core/Misc/screenshotTools.js";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { operationQueueOf } from "../../src/Graph";
+import { operationQueueOf, renderManagerOf } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
 import type { Antialias } from "../../src/meshes/PulledLineBatch";
 import type { CodedFact } from "../../src/session/shared";
@@ -58,7 +58,7 @@ interface FrameLog {
  * @returns Its render manager.
  */
 function loopOf(element: Graphty): RenderManager {
-    return (element.graph as unknown as { renderManager: RenderManager }).renderManager;
+    return renderManagerOf(element.graph);
 }
 
 /**
@@ -176,26 +176,30 @@ function differing(a: Uint8ClampedArray, b: Uint8ClampedArray): number {
  * Drag node 4 with the mouse.
  * @param element - The element.
  * @param frames - The element's frame log.
- * @returns Where in the log the button went down: the mouse's move onto the node before it is
- *     a motion of its own, which may end in a held frame.
+ * @returns Where in the log the button went down (`down`: the mouse's move onto the node before it
+ *     is a motion of its own, which may end in a held frame), and the loop's multisampled frame count
+ *     then (`smooth`). Both are read as the button goes down, not after the drag returns: the reply
+ *     to the release can reach the test after the loop has already drawn the held frame (issue #9481).
  */
-async function dragNode(element: Graphty, frames: readonly FrameLog[]): Promise<number> {
+async function dragNode(element: Graphty, frames: readonly FrameLog[]): Promise<{ down: number; smooth: number }> {
     const node = element.graph.getNode(4);
     assert.isDefined(node);
     const from = element.worldToScreen(node.drawnWorldPosition);
     const { x } = node.drawnPosition;
     let down = -1;
+    let smooth = -1;
     element.addEventListener(
         "pointerdown",
         () => {
             down = frames.length;
+            ({ smooth } = loopOf(element).ticks);
         },
         { once: true, capture: true },
     );
     await drag(element, from, { x: from.x + 40, y: from.y + 30 });
     assert.notEqual(node.drawnPosition.x, x, "the drag moved the node");
     assert.isAtLeast(down, 0, "the button went down on the element");
-    return down;
+    return { down, smooth };
 }
 
 /**
@@ -241,8 +245,7 @@ describe('antialias "at-rest"', () => {
             const { element, frames } = await loaded("at-rest", renderer, viewMode);
             await untilHeld(element);
             const { ticks } = loopOf(element);
-            const down = await dragNode(element, frames);
-            const smoothAtDown = ticks.smooth;
+            const { down, smooth: smoothAtDown } = await dragNode(element, frames);
             await untilHeld(element);
 
             const drawn = frames.slice(down);
@@ -339,7 +342,7 @@ describe('antialias "at-rest"', () => {
         element.antialias = "at-rest";
         assert.strictEqual(element.antialias, "at-rest");
         await untilHeld(element);
-        const down = await dragNode(element, frames);
+        const { down } = await dragNode(element, frames);
         await untilHeld(element);
         assert.isTrue(
             frames.slice(down, -1).every((frame) => frame.lean && frame.fast),

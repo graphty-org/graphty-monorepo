@@ -68,6 +68,21 @@ export interface EdgePosition {
      */
     bends?: readonly number[];
     /**
+     * The curve the layout laid the edge along, sampled, with how far along it the layout measures each sample, when it
+     * measures its curves otherwise than by length -- whether or not it drew the edge straight (no `bends`). Graphviz
+     * measures its spline so when it splits a line into color bands (`color="red;0.3:blue"`): each Bezier piece takes a
+     * share as long as its control polygon, its parameter spread evenly over that share. A line painted in a gradient
+     * places its colors by this measure between its two ends, so a band ends where the layout ends it. Absent, the
+     * colors are placed by length along the drawn line.
+     * @since 3.40.0
+     */
+    laidCurve?: {
+        /** The samples, `along, across` pairs, flat, as `line.bends` holds them. */
+        readonly points: readonly number[];
+        /** How far along the curve each sample is, from 0 at its start to 1 at its end, rising: one per sample. */
+        readonly params: readonly number[];
+    };
+    /**
      * Where the layout put the edge's label, when it placed one (Graphviz's `lp`, or `xlp` for an external label): `along` of the way from the source
      * to the target and `across` that length to the left of the line, as one pair of `bends` is given. Absent, the
      * label goes at the middle of the edge's line.
@@ -135,20 +150,31 @@ const layoutEngineRegistry = new SharedImplementationMap<LayoutEngineClass>("lay
 type RegisterableLayout = LayoutEngineClass & Partial<LayoutEngineStatics>;
 
 /**
+ * Whether a layout class reads edge weights, under either spelling of the static: the deprecated
+ * British `honoursWeights` when the class sets it, otherwise `honorsWeights`.
+ * @param cls - The engine class.
+ * @returns True when the engine arranges a weighted graph differently.
+ */
+export function honorsWeights(cls: Partial<Pick<LayoutEngineStatics, "honorsWeights" | "honoursWeights">>): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- reading the alias is what keeps old engines working
+    return cls.honoursWeights ?? cls.honorsWeights ?? false;
+}
+
+/**
  * The engine names the element itself ships, which is also the list of names a third party may
  * not take.
  *
- * WHY IT IS SPELLED OUT HERE rather than read from the layout catalogue, which is where the
- * element's editorial answer lives: the catalogue module imports all nineteen engine classes so it
+ * WHY IT IS SPELLED OUT HERE rather than read from the layout catalog, which is where the
+ * element's editorial answer lives: the catalog module imports all nineteen engine classes so it
  * can emit their options, and every one of those imports this module in order to extend
- * {@link LayoutEngine}. Importing the catalogue from here would close that loop, and a class
+ * {@link LayoutEngine}. Importing the catalog from here would close that loop, and a class
  * evaluated before its own base class is a "Cannot access before initialization" crash at import
- * time rather than a type error. The list is pinned against the catalogue by
+ * time rather than a type error. The list is pinned against the catalog by
  * `test/browser/extensions/layout-extension.test.ts`, so the copy cannot drift in silence.
  *
  * These nineteen are also the one exemption from the descriptor requirement: the arrangements they
  * serve are authored centrally in `src/catalog/layouts.ts`, where five engines can sit behind one
- * public arrangement name, which is a judgement the element makes about its own implementations
+ * public arrangement name, which is a judgment the element makes about its own implementations
  * and not a shape a plugin declares.
  */
 const BUILT_IN_LAYOUT_ENGINES: readonly string[] = Object.freeze([
@@ -158,6 +184,7 @@ const BUILT_IN_LAYOUT_ENGINES: readonly string[] = Object.freeze([
     "circular",
     "d3",
     "fixed",
+    "geographic",
     "forceatlas2",
     "graphviz-circo",
     "graphviz-dot",
@@ -206,6 +233,12 @@ export interface LayoutEngineStatics {
      * picker can tell a reader which arrangements the `weighted` option actually does something
      * for, instead of offering it on seventeen layouts that ignore it.
      */
+    honorsWeights?: boolean;
+    /**
+     * The British spelling of {@link LayoutEngineStatics.honorsWeights}, still read when a class
+     * declares it.
+     * @deprecated Declare `honorsWeights`. Removed in the next major.
+     */
     honoursWeights?: boolean;
     /**
      * Whether this engine can lay out a set of nodes while holding every other node still, which is
@@ -227,7 +260,7 @@ export interface LayoutEngineStatics {
      */
     scoped?: boolean;
     /**
-     * What the catalogue publishes about this layout, so a picker can offer it.
+     * What the catalog publishes about this layout, so a picker can offer it.
      *
      * REQUIRED OF A THIRD PARTY'S ENGINE and absent from the element's own nineteen, whose
      * arrangements are authored in `src/catalog/layouts.ts` instead. `descriptor.id` must equal
@@ -342,6 +375,13 @@ export const layoutEngineInternals = {} as {
      * hands it to the engine. Undefined when an end has no position.
      */
     edgePositionOf(engine: LayoutEngine, e: Edge): EdgePosition | undefined;
+    /**
+     * Tell the engine whether the element has stopped stepping it (settled, paused or stopped). A
+     * resting engine lets go of its publish scratch and allocates it again on its next publish.
+     */
+    rest(engine: LayoutEngine, resting: boolean): void;
+    /** How many doubles the engine's publish scratch holds. */
+    scratchHeld(engine: LayoutEngine): number;
 };
 
 /**
@@ -408,6 +448,13 @@ export abstract class LayoutEngine {
             engine.unpin(n);
         };
         layoutEngineInternals.positions = (engine) => engine.writablePositions;
+        layoutEngineInternals.rest = (engine, resting) => {
+            engine.resting = resting;
+            if (resting) {
+                engine.releasePublishScratch();
+            }
+        };
+        layoutEngineInternals.scratchHeld = (engine) => engine.scratchRows.length + engine.scratchCoords.length;
         // An edge the working graph hides is drawn and, by design, never held.
         layoutEngineInternals.edgeProblems = (engine, drawn) =>
             engine.edgeProblems(
@@ -476,13 +523,21 @@ export abstract class LayoutEngine {
     static maxDimensions: number;
 
     /**
-     * Whether this engine reads edge weights. See {@link LayoutEngineStatics.honoursWeights}.
+     * Whether this engine reads edge weights. See {@link LayoutEngineStatics.honorsWeights}.
      *
      * False here because most layouts have no weight channel at all: of the element's own
      * nineteen, only Kamada-Kawai and ForceAtlas2 can read one, and the other seventeen would be
      * advertising a control that changes nothing.
      */
-    static honoursWeights = false;
+    static honorsWeights = false;
+
+    /**
+     * The British spelling of {@link LayoutEngine.honorsWeights}. Undefined unless a class sets
+     * it; when one does, it wins over `honorsWeights`, so an engine written against the old name
+     * keeps its weight channel.
+     * @deprecated Declare `static honorsWeights`. Removed in the next major.
+     */
+    static readonly honoursWeights?: boolean;
 
     /**
      * Whether this engine accepts a scope. See {@link LayoutEngineStatics.scoped}, which states the
@@ -497,7 +552,7 @@ export abstract class LayoutEngine {
      * What a picker reads about this layout. See {@link LayoutEngineStatics.descriptor}.
      *
      * A third party's engine declares one and {@link LayoutEngine.register} publishes it to the
-     * catalogue; the element's own engines leave it undefined because their arrangements are
+     * catalog; the element's own engines leave it undefined because their arrangements are
      * authored centrally.
      */
     static descriptor?: AuthoredLayoutDescriptor;
@@ -549,6 +604,8 @@ export abstract class LayoutEngine {
 
     private scratchRows = new Float64Array(0);
     private scratchCoords = new Float64Array(0);
+    /** Whether the element has stopped stepping this engine; see `layoutEngineInternals.rest`. */
+    private resting = false;
 
     /**
      * The box the last {@link LayoutEngine.publishColumn} left the rows it was handed in: min x, y, z
@@ -627,12 +684,33 @@ export abstract class LayoutEngine {
     abstract get isSettled(): boolean;
 
     /**
+     * How many edges {@link LayoutEngine.edges} holds, or -1 when it is not an array: what the frame loop reads to
+     * notice an edge taken up late, without reading the list itself.
+     * @returns The count.
+     * @internal
+     */
+    get edgeCount(): number {
+        const { edges } = this;
+        return Array.isArray(edges) ? edges.length : -1;
+    }
+
+    /**
      * Start the layout again because a node's drawn size changed, when it keeps nodes apart by that size (`nodeGap`):
      * a node that grew after the layout came to rest may now cover another.
      * @returns True when the frame loop has to start stepping this layout again.
      * @internal
      */
     wakeForResize(): boolean {
+        return false;
+    }
+
+    /**
+     * Step again from where the bodies are, because the layout manager moved them: a 2D drawing
+     * rising into 3D a step at a time (issue #9372). An engine that cannot is lifted in one go.
+     * @returns True when the engine was woken and steps from the moved bodies.
+     * @internal
+     */
+    wakeForLift(): boolean {
         return false;
     }
 
@@ -942,6 +1020,26 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Whether a {@link LayoutEngine.publishColumn} that may place a row for the first time leaves this
+     * row as the lane holds it, judged without writing a publish the lane owes.
+     * @param lane - The lane.
+     * @param row - The row, inside the lane's live count.
+     * @param x - The x the publish carries for it.
+     * @param y - The y.
+     * @param z - The z.
+     * @returns True when the publish would not write the row.
+     * @internal
+     */
+    protected publishLeavesRow(lane: ElementPositions, row: number, x: number, y: number, z: number): boolean {
+        if (!isPublishable(row, x, y, z)) {
+            return true;
+        }
+
+        const placed = isStorableCoordinate(lane.unsettledView()[POSITION_COMPONENTS * row]);
+        return placed && this.keptInPlace(row, placed, lane.isPinned(row), this.holdsAny) !== null;
+    }
+
+    /**
      * Whether a publish leaves a row where it is: one the working graph hides keeps its place
      * undrawn, and a pinned or held row keeps its place drawn.
      * @param row - The row.
@@ -967,6 +1065,20 @@ export abstract class LayoutEngine {
      * @internal
      */
     clusterColumn: ClusterColumn | null = null;
+
+    /**
+     * The stored record of a row with no `Node`, which the layout manager fills in; read for `clusterBy` under
+     * renderPath "batched".
+     * @internal
+     */
+    rowRecord: ((row: number) => unknown) | null = null;
+
+    /**
+     * The store's row of a node id, which the layout manager fills in; read for `clusterBy` under renderPath
+     * "batched", where a row the engine holds may have no `Node` to ask.
+     * @internal
+     */
+    storeRowOf: ((id: NodeIdType) => number) | null = null;
 
     /**
      * Read `clusterBy` again because a run's results changed, and start the layout again when the communities did.
@@ -1066,10 +1178,12 @@ export abstract class LayoutEngine {
      * @param out.x - receives the scene-unit x
      * @param out.y - receives the scene-unit y
      * @param out.z - receives the scene-unit z
+     * @param lane - The element's array the row is in, adopted as a `Node`'s is when no array is
+     *     attached: an engine handed only rows has met no `Node` to adopt it from.
      * @returns true when the row is placed
      */
-    protected readRowPosition(row: number, out: { x: number; y: number; z: number }): boolean {
-        const positions = this.writablePositions;
+    protected readRowPosition(row: number, out: { x: number; y: number; z: number }, lane?: ElementPositions): boolean {
+        const positions = lane === undefined ? this.writablePositions : this.positionsFor(lane);
         if (!positions.isPlaced(row)) {
             return false;
         }
@@ -1224,6 +1338,30 @@ export abstract class LayoutEngine {
         count: number,
         firstPlacement = false,
     ): void {
+        this.#publishColumn(n, rows, coords, count, firstPlacement);
+        // A settled or stopped simulation publishes seldom if ever again, so the scratch (42 MiB at
+        // a million nodes) is let go rather than kept for the life of the graph; a running one
+        // reuses it every frame.
+        if (rows === this.scratchRows && (this.resting || this.isSettled)) {
+            this.releasePublishScratch();
+        }
+    }
+
+    /**
+     * {@link LayoutEngine.publishColumn}, before the scratch is let go.
+     * @param n - see {@link LayoutEngine.publishColumn}
+     * @param rows - see {@link LayoutEngine.publishColumn}
+     * @param coords - see {@link LayoutEngine.publishColumn}
+     * @param count - see {@link LayoutEngine.publishColumn}
+     * @param firstPlacement - see {@link LayoutEngine.publishColumn}
+     */
+    #publishColumn(
+        n: Parameters<LayoutEngine["publishColumn"]>[0],
+        rows: Float64Array,
+        coords: Float64Array,
+        count: number,
+        firstPlacement: boolean,
+    ): void {
         if (n === undefined) {
             return;
         }
@@ -1235,6 +1373,8 @@ export abstract class LayoutEngine {
         let pins = positions.pinnedView(live);
         let written = 0;
         let changed = 0;
+        // The rows that now hold something else, so a frame updates their nodes and no other (issue #9164).
+        const changedRows = new ChangedRows(live);
         const box = this.publishedBox;
         box.fill(Infinity, 0, 3);
         box.fill(-Infinity, 3, 6);
@@ -1272,6 +1412,7 @@ export abstract class LayoutEngine {
                 array[base + 1] !== Math.fround(y) ||
                 array[base + 2] !== Math.fround(z)
             ) {
+                changedRows.note(row);
                 changed++;
             }
 
@@ -1281,7 +1422,7 @@ export abstract class LayoutEngine {
             written++;
         }
 
-        positions.moved(written, changed);
+        positions.moved(written, changed, changedRows.rows ?? undefined);
         this.publishedBoxHolds = box[0] <= box[3];
     }
 
@@ -1367,17 +1508,17 @@ export abstract class LayoutEngine {
 
     /**
      * File a layout engine class under the name it declares, and publish what it says about
-     * itself to the catalogue.
+     * itself to the catalog.
      *
      * WHAT CHANGED AND WHY. This used to read `cls.type` through a cast and put the class in a
      * map, which meant a class with no `static type` registered under the string "undefined", a
      * second class under a taken name silently replaced the first, and a registered engine
-     * reached no catalogue at all -- so a third party's layout could run but could never be
+     * reached no catalog at all -- so a third party's layout could run but could never be
      * offered by a picker, described in a reader's language, or found by `layoutIdForEngine`.
      *
      * A third party's class must declare a `static descriptor` whose `id` equals its
      * `static type`. The element's own nineteen are the one exemption, because their arrangements
-     * are authored centrally in the layout catalogue where several engines may sit behind one
+     * are authored centrally in the layout catalog where several engines may sit behind one
      * public name.
      * @param cls - The layout engine class.
      * @param options - How to register it; `strict` refuses a different layout under a taken id.
@@ -1448,15 +1589,17 @@ export abstract class LayoutEngine {
         // an engine reachable by name whose descriptor nothing carries is exactly the half-built
         // state this check exists to prevent.
         //
-        // `honoursWeights` and `scoped` are taken from the class rather than from the descriptor the author
+        // `honorsWeights` and `scoped` are taken from the class rather than from the descriptor the author
         // wrote, because the engine is where the fact is true: a descriptor that claimed weights
         // for an engine whose arrangement ignores them would put a live control in front of a
         // reader that changes nothing.
+        const weightsHonored = honorsWeights(declared);
         publishLayoutDescriptor(
             {
                 descriptor: {
                     ...descriptor,
-                    honoursWeights: declared.honoursWeights ?? false,
+                    honorsWeights: weightsHonored,
+                    honoursWeights: weightsHonored,
                     scoped: declared.scoped ?? false,
                 },
                 type,
@@ -1553,6 +1696,18 @@ export const SimpleLayoutConfig = z.looseObject({
 export type SimpleLayoutConfigType = z.infer<typeof SimpleLayoutConfig>;
 export type SimpleLayoutOpts = Partial<SimpleLayoutConfigType>;
 
+/**
+ * The configuration fields a geometric layout that runs in 2D or 3D around a center shares
+ * (circular, spiral): no entry point exports it.
+ */
+export const centeredLayoutConfigShape = {
+    ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(80),
+    scale: z.number().positive().default(1),
+    center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
+    dim: z.number().default(2),
+};
+
 /** What a static engine reads the graph through: the element's data manager, or nothing. */
 interface GraphSource {
     getSnapshot(): GraphSnapshot;
@@ -1620,7 +1775,8 @@ interface LoadedGraph {
 interface SnapshotReplacement {
     readonly previous: GraphSnapshot | null;
     readonly next: GraphSnapshot;
-    readonly report: { readonly nodeRemap: Uint32Array | null };
+    // The edge remap is optional: a caller that leaves it out takes the walk over every edge.
+    readonly report: { readonly nodeRemap: Uint32Array | null; readonly edgeRemap?: Uint32Array | null };
 }
 
 /**
@@ -1712,6 +1868,137 @@ function pairCounts(
 }
 
 /**
+ * {@link existingRows} when nothing was renumbered: every row kept its index and the new ones were
+ * appended, so the old edges are the first rows with their ends unchanged. Only an appended edge can
+ * join two old nodes, and only those are looked at -- not every edge of a million-edge graph.
+ * @param previous - The graph before the freeze.
+ * @param next - The graph after it.
+ * @returns One set bit per existing row, or null when an appended edge joins two of them.
+ */
+function appendedOnly(previous: GraphSnapshot, next: GraphSnapshot): NodeMask | null {
+    for (let e = previous.edgeCount; e < next.edgeCount; e++) {
+        if (next.edgeSource(e) < previous.nodeCount && next.edgeTarget(e) < previous.nodeCount) {
+            return null;
+        }
+    }
+
+    const old = makeMask(next.nodeCount);
+    for (let i = 0; i < previous.nodeCount; i++) {
+        maskSet(old, i, true);
+    }
+
+    return old;
+}
+
+/**
+ * The rows a publish changed, let go of past a sixteenth of the rows, where a frame reads every row
+ * anyway.
+ */
+class ChangedRows {
+    /** The rows, or null once there were too many. */
+    rows: number[] | null = [];
+
+    /** The most rows listed. */
+    private readonly most: number;
+
+    /**
+     * An empty list.
+     * @param live - The rows the lane holds.
+     */
+    constructor(live: number) {
+        this.most = Math.max(4096, live >>> 4);
+    }
+
+    /**
+     * List a row.
+     * @param row - The row.
+     */
+    note(row: number): void {
+        if (this.rows !== null) {
+            this.rows.push(row);
+            this.rows = this.rows.length > this.most ? null : this.rows;
+        }
+    }
+}
+
+/**
+ * Whether the edges between the old nodes are the old edges, read through a freeze's edge remap: every
+ * old edge kept, joining the same two nodes, and every other edge touching a new node. An undo that
+ * puts a node back between others renumbers every row after it, and pairing a million edges up in a
+ * Map took 0.6 s of that undo (issue #9164).
+ * @param previous - the snapshot before
+ * @param next - the snapshot after
+ * @param nodeRemap - old node row to new, or null for the same rows
+ * @param edgeRemap - old edge row to new, or null for the same rows; undefined when not reported
+ * @param old - the new rows of the old nodes
+ * @returns whether they are, or null when the remap does not name every old edge
+ */
+function sameEdgesThroughRemap(
+    previous: GraphSnapshot,
+    next: GraphSnapshot,
+    nodeRemap: Readonly<Uint32Array> | null,
+    edgeRemap: Readonly<Uint32Array> | null | undefined,
+    old: NodeMask,
+): boolean | null {
+    if (
+        edgeRemap === undefined ||
+        (edgeRemap === null ? previous.edgeCount : edgeRemap.length) !== previous.edgeCount
+    ) {
+        return null;
+    }
+
+    const before = previous.edgeList();
+    const after = next.edgeList();
+    const node = (row: number): number => (nodeRemap === null ? row : nodeRemap[row]);
+    const kept = new Uint8Array(next.edgeCount);
+    for (let e = 0; e < previous.edgeCount; e++) {
+        const moved = edgeRemap === null ? e : edgeRemap[e];
+        if (moved === INVALID_INDEX || moved >= next.edgeCount) {
+            return false;
+        }
+
+        const a = node(before.src[e]);
+        const b = node(before.dst[e]);
+        const c = after.src[moved];
+        const d = after.dst[moved];
+        if (!((a === c && b === d) || (a === d && b === c))) {
+            return null;
+        }
+
+        kept[moved] = 1;
+    }
+
+    for (let e = 0; e < next.edgeCount; e++) {
+        if (kept[e] === 0 && maskTest(old, after.src[e]) && maskTest(old, after.dst[e])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * The new rows of the old nodes, as a mask over the new rows.
+ * @param before - the old node count
+ * @param after - the new node count
+ * @param remap - old node row to new, or null for the same rows
+ * @returns the mask, or null when an old node was dropped
+ */
+function oldRowsMask(before: number, after: number, remap: Readonly<Uint32Array> | null): NodeMask | null {
+    const old = makeMask(after);
+    for (let i = 0; i < before; i++) {
+        const row = remap === null ? i : remap[i];
+        if (row === INVALID_INDEX) {
+            return null;
+        }
+
+        maskSet(old, row, true);
+    }
+
+    return old;
+}
+
+/**
  * The rows of `next` that were already nodes of `previous`, when the freeze only ADDED to the graph:
  * no node left, and the edges between two nodes that were already there are exactly the ones that
  * were there before.
@@ -1730,21 +2017,26 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
         return null;
     }
 
-    const old = makeMask(next.nodeCount);
     const remap = report.nodeRemap;
-    for (let i = 0; i < previous.nodeCount; i++) {
-        const row = remap === null ? i : remap[i];
-        if (row === INVALID_INDEX) {
-            return null;
-        }
+    if (remap === null && report.edgeRemap === null && next.edgeCount >= previous.edgeCount) {
+        return appendedOnly(previous, next);
+    }
 
-        maskSet(old, row, true);
+    const old = oldRowsMask(previous.nodeCount, next.nodeCount, remap);
+    if (old === null) {
+        return null;
     }
 
     // The edges between existing nodes must be the SAME edges, not merely as many: a freeze that
-    // swaps one for another rewires the picture as surely as one that adds an edge. Compared as
-    // unordered pairs with their multiplicity, because a static layout reads neither direction nor
-    // edge identity.
+    // swaps one for another rewires the picture as surely as one that adds an edge. Followed through
+    // the freeze's own edge remap when it names every old edge, in typed passes; otherwise compared
+    // as unordered pairs with their multiplicity, because a static layout reads neither direction
+    // nor edge identity.
+    const followed = sameEdgesThroughRemap(previous, next, remap, report.edgeRemap, old);
+    if (followed !== null) {
+        return followed ? old : null;
+    }
+
     const n = next.nodeCount;
     const pair = (a: number, b: number): number => Math.min(a, b) * n + Math.max(a, b);
     const before = pairCounts(previous, remap, pair);
@@ -1774,7 +2066,7 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
  *
  * A re-run after an add arranges the whole enlarged graph, and its existing rows land somewhere
  * other than where they are held: a circle of ten is rotated against the circle of nine it
- * replaces, and Kamada-Kawai re-centres and rescales its answer. Taking a newcomer's coordinate
+ * replaces, and Kamada-Kawai re-centers and rescales its answer. Taking a newcomer's coordinate
  * from that other frame as it stands can put it on top of a held node. So the re-run is moved onto
  * the held picture -- shifted centroid onto centroid, turned about z (mirrored first when that
  * fits better) by the least-squares rotation, and scaled by the ratio of the two spreads -- and
@@ -1922,7 +2214,7 @@ export const simpleLayoutInternals = {
  * edges to the ones already drawn -- and no file is still loading, a re-run of an engine that
  * reads `graph` places only the new nodes and leaves every existing one where it was. The
  * existing coordinates are also offered to the layout as its start (`startPositions`), which is
- * what lets Kamada-Kawai and ARF place a newcomer among its neighbours rather than from scratch.
+ * what lets Kamada-Kawai and ARF place a newcomer among its neighbors rather than from scratch.
  * The new nodes' coordinates are then carried into the frame the existing nodes are drawn in, by
  * the turn (or mirror), scale and shift that best map the re-run's existing nodes onto their held
  * places.
@@ -2207,6 +2499,22 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         } else {
             this.#keep = loading ? null : this.#keptWhilePaused(change, grown);
         }
+
+        if (this.rearrangesAfter(change.next, change.previous)) {
+            this.#keep = null;
+        }
+    }
+
+    /**
+     * Whether this freeze re-runs the whole arrangement even when it only added, because what the
+     * engine drew the existing nodes from has changed with it. None of the shipped engines but the
+     * fixed layout says so, whose spread is read from the edges (#9257).
+     * @param _next - the graph as frozen now
+     * @param _previous - the graph as frozen before, or null on the first freeze
+     * @returns true to keep no node where it is
+     */
+    protected rearrangesAfter(_next: GraphSnapshot, _previous: GraphSnapshot | null): boolean {
+        return false;
     }
 
     /**
@@ -2408,9 +2716,61 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * the next read and write over what was restored.
      */
     override loadArrangement(): void {
+        this.keepArrangement();
+        super.loadArrangement();
+        this.#adoptRows();
+    }
+
+    /**
+     * Keep the arrangement in the array, as {@link StaticLayoutEngine.loadArrangement} does, when this
+     * engine already holds the array as it is.
+     * @internal
+     */
+    keepArrangement(): void {
         this.stale = false;
         this.#deferred = false;
-        super.loadArrangement();
+    }
+
+    /**
+     * Take the element's array into the answer row by row, as {@link StaticLayoutEngine.setNodePosition} does for a
+     * node with a `Node`. Under renderPath "batched" a row has no `Node`, so without this the answer kept what it
+     * computed before a `positions.set` or a restore, and its next publish (owed pre-steps paid on a later frame)
+     * wrote that back over the rows.
+     *
+     * ponytail: one pass over every row per call, as the base pass over every `Node` is on renderPath "objects",
+     * so n single-node sets each awaited on their own cost O(n^2) on both paths; pass the rows a set wrote if that
+     * pattern shows up in a profile.
+     */
+    #adoptRows(): void {
+        const lane = this.#elementLane();
+        const loaded = this.#loaded;
+        const source = loaded?.source;
+        if (lane === undefined || !source) {
+            return;
+        }
+
+        const column = this.#column;
+        const at = { x: 0, y: 0, z: 0 };
+        for (let row = 0; row < source.nodeCount; row++) {
+            const element = loaded.origin === null ? row : loaded.origin[row];
+            if (!lane.isPlaced(element)) {
+                continue;
+            }
+
+            lane.read(element, at);
+            if (3 * row + 2 < column.length) {
+                column[3 * row] = at.x;
+                column[3 * row + 1] = at.y;
+                column[3 * row + 2] = at.z;
+            }
+
+            // An id-keyed answer is published from `positions`, in layout units.
+            const id = source.ids.idOf(row);
+            if (id in this.positions) {
+                const s = this.scalingFactor;
+                this.positions[id] = [at.x / s, at.y / s, at.z / s];
+            }
+        }
     }
 
     // properties
@@ -2428,6 +2788,16 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      */
     get edges(): Iterable<Edge> {
         return this._edges;
+    }
+
+    /**
+     * The edges held, less those marked removed: counted with no sweep of the list, which a read of
+     * {@link StaticLayoutEngine.edges} after a removal is (issue #9164).
+     * @returns The count.
+     * @internal
+     */
+    override get edgeCount(): number {
+        return this.#edges.length - this.#goneEdges.size;
     }
 
     /**

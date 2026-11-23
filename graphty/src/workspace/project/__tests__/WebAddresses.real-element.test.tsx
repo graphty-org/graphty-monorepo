@@ -18,14 +18,16 @@ import { withoutFeatures } from "../../../test/features";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { OPEN_PROJECT_URLS, PROJECT_HOSTS_KEY, readPreference, readProjectHosts } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
-import { addModel, openCustom, openShapes, written } from "../../style/__tests__/modelHarness";
+import { addModel, openCustom, openModels, openShapes, written } from "../../style/__tests__/modelHarness";
 import { dotPng, quadGlb } from "../../style/__tests__/quadGlb";
 import { Workspace } from "../../Workspace";
 import { clearRecent } from "../recent";
 
 // These tests drive the Style panel the app shows with file styles off; the panel by part of the
 // drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
+// They save through the name-only Save as; version 2 save files replace it, tested in
+// SaveFilesV2.real-element.test.tsx.
+withoutFeatures(["file-styles", "save-files-v2"]);
 
 const MODEL = "https://models.example.com/kit/panel.glb";
 const PICTURE = "https://pictures.example.com/dot.png";
@@ -214,7 +216,7 @@ async function keptEntries(): Promise<Record<string, unknown>[]> {
     return saved.members.find((member) => member.kind === "graphty-assets")?.assets ?? [];
 }
 
-describe("web addresses in the Style tab, with the node models experiment", () => {
+describe("web addresses in the Style tab, with node models", () => {
     it("draws a model pasted by URL in the Load custom model dialog, asking nothing", async () => {
         const { session, tab } = await openShapes();
         await pasteModel(session, tab);
@@ -269,6 +271,31 @@ describe("web addresses in the Style tab, with the node models experiment", () =
         assert.equal(again?.stored, "url");
     });
 
+    it("names a model added by URL from the Main menu by its URL when picked in the project, so Save asks", async () => {
+        await clearRecent();
+        const { session, tab } = await openShapes();
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Add custom model..." }));
+        const dialog = await screen.findByRole("dialog", { name: "Load custom model" });
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${MODEL}{Enter}`);
+        await addModel(dialog, "Add to project");
+
+        const models = await openModels(tab);
+        const own = within(models).getByRole("group", { name: "In this project" });
+        await userEvent.click(within(own).getByRole("button", { name: "panel" }));
+        await waitFor(() => {
+            assert.equal(written(session, "node.model"), MODEL);
+        });
+        await reaches(session, MODEL, "drawn");
+
+        await userEvent.keyboard("{Control>}s{/Control}");
+        const saveAs = await screen.findByRole("dialog", { name: "Save Models as" });
+        await userEvent.click(within(saveAs).getByRole("button", { name: "Save" }));
+        const keep = await screen.findByRole("dialog", { name: "Save files from the web" });
+        assert.isNotNull(within(keep).getByTitle(MODEL));
+        await userEvent.click(within(keep).getByRole("button", { name: "Cancel" }));
+    });
+
     it("Cancel in the question saves nothing and keeps the project's name", async () => {
         await clearRecent();
         const { session, tab, store } = await openShapes();
@@ -316,12 +343,12 @@ describe("web addresses in the Style tab, with the node models experiment", () =
 
         await userEvent.keyboard("{Control>}{Shift>}s{/Shift}{/Control}");
         const again = await screen.findByRole("dialog", { name: "Save Models as" });
-        assert.equal(store.get().project?.name, "Models", "the cancelled save's name is taken back");
+        assert.equal(store.get().project?.name, "Models", "the canceled save's name is taken back");
         await userEvent.click(within(again).getByRole("button", { name: "Save" }));
         const asked = await screen.findByRole("dialog", { name: "Save files from the web" });
         assert.isTrue(
             within(asked).getByLabelText<HTMLInputElement>("Embed model").checked,
-            "the cancelled question's answer is not carried over",
+            "the canceled question's answer is not carried over",
         );
         await userEvent.click(within(asked).getByRole("button", { name: "Save" }));
         await waitFor(() => {
@@ -329,6 +356,35 @@ describe("web addresses in the Style tab, with the node models experiment", () =
         });
         const [entry] = await keptEntries();
         assert.isDefined(entry?.files, "embedded, as the second question was answered");
+    });
+
+    it("Save local copy... asks too: Cancel downloads nothing, and the answer downloads the project", async () => {
+        const { session, tab } = await openShapes();
+        await pasteModel(session, tab);
+        const downloads: string[] = [];
+        vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+            downloads.push(this.download);
+        });
+        const saveCopy = async (): Promise<HTMLElement> => {
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Save local copy..." }));
+            return screen.findByRole("dialog", { name: "Save files from the web" });
+        };
+
+        await userEvent.click(within(await saveCopy()).getByRole("button", { name: "Cancel" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog"));
+        });
+        assert.deepEqual(downloads, []);
+
+        const keep = await saveCopy();
+        await userEvent.click(within(keep).getByText("Use URL"));
+        await userEvent.click(within(keep).getByRole("button", { name: "Save" }));
+        await waitFor(() => {
+            assert.deepEqual(downloads, ["Models.graphty.json"]);
+        });
+        assert.isTrue(session.project.dirty, "a copy leaves the project unsaved");
+        assert.lengthOf(await browserProjects.list(), 0);
     });
 
     it("asks again for a project opened in the session's place", async () => {

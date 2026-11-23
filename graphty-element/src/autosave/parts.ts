@@ -12,6 +12,7 @@
  * | `rest` | the document's head, the session, style, notes and view-state members, the results' head, the assets member without its files |
  * | `asset:<sha256>` | the files of one embedded model, written once per digest |
  * | `stash` | the consumer's stash |
+ * | `drafts` | the filter drafts still open, reopened after a restore |
  * @module autosave
  */
 
@@ -35,16 +36,17 @@ import {
     viewStateMember,
 } from "../session/projectFile";
 import type { GraphSession } from "../session/types";
+import { filterDraftHooks, type SavedFilterDraft } from "../session/visibility/draftHooks";
 import type { AutosaveEntryMeta, AutosaveParts } from "./types";
 
 /**
  * What a change left unwritten. `runs` rewrites the runs that changed since they were written;
  * `allRuns` rewrites every run (the graph under them changed).
  */
-export type PartTag = "data" | "arrangement" | "rest" | "runs" | "allRuns" | "stash";
+export type PartTag = "data" | "arrangement" | "rest" | "runs" | "allRuns" | "stash" | "drafts";
 
 /** Every part: what a new entry, or a change to the graph, has to write. */
-export const EVERY_PART: readonly PartTag[] = ["data", "arrangement", "rest", "runs", "allRuns", "stash"];
+export const EVERY_PART: readonly PartTag[] = ["data", "arrangement", "rest", "runs", "allRuns", "stash", "drafts"];
 
 /** The `rest` part. */
 interface RestPart {
@@ -145,7 +147,7 @@ function buildRestPart(
         });
         const rest: RestPart = {
             head: documentAround(session, [], {}),
-            session: sessionMember(sources, idsNow),
+            session: sessionMember(sources),
             results: resultsMember(session, []),
             style: styleMember(session),
             notes: notesMember(session),
@@ -167,7 +169,6 @@ function buildRestPart(
  * Build a `run:` part for each finished run that is new or changed (or every one), and a null
  * (delete) for each stored run that is no longer finished.
  * @param sources - The session's project sources.
- * @param idsNow - The session's graph ids, built on first use.
  * @param all - Whether every finished run is rewritten.
  * @param written - The run entries already in the store, by id.
  * @param parts - The parts being built, written into.
@@ -175,7 +176,6 @@ function buildRestPart(
  */
 function buildRunParts(
     sources: ProjectSources,
-    idsNow: () => GraphIds,
     all: boolean,
     written: ReadonlyMap<RunId, unknown>,
     parts: Record<string, string | null>,
@@ -184,7 +184,7 @@ function buildRunParts(
     const finished = sources.dispatcher.state.runs;
     for (const [id, entry] of finished) {
         if (all || written.get(id) !== entry) {
-            parts[`run:${id}`] = attempt(`run:${id}`, () => JSON.stringify(runEntry(sources, id, idsNow())));
+            parts[`run:${id}`] = attempt(`run:${id}`, () => JSON.stringify(runEntry(sources, id)));
             runs.set(id, entry);
         }
     }
@@ -244,11 +244,15 @@ export function buildParts(
     const assets = tags.has("rest") ? buildRestPart(session, sources, idsNow, parts, writtenAssets) : undefined;
 
     if (tags.has("runs") || tags.has("allRuns")) {
-        buildRunParts(sources, idsNow, tags.has("allRuns"), written, parts, runs);
+        buildRunParts(sources, tags.has("allRuns"), written, parts, runs);
     }
 
     if (tags.has("stash")) {
         parts.stash = attempt("stash", () => JSON.stringify(Object.fromEntries(stash)));
+    }
+
+    if (tags.has("drafts")) {
+        parts.drafts = attempt("drafts", () => JSON.stringify(filterDraftHooks(session.visibility)?.saved() ?? []));
     }
 
     return { parts, runs, order: [...finished.keys()], ...(assets === undefined ? {} : { assets }) };
@@ -323,4 +327,14 @@ export function reassemble(meta: AutosaveEntryMeta, parts: AutosaveParts): Recor
 export function stashOf(parts: AutosaveParts): Map<string, unknown> {
     const text = parts.stash;
     return new Map(typeof text === "string" ? Object.entries(JSON.parse(text) as Record<string, unknown>) : []);
+}
+
+/**
+ * The open filter drafts an entry holds; an entry written before drafts were kept holds none.
+ * @param parts - The entry's parts.
+ * @returns The drafts.
+ */
+export function draftsOf(parts: AutosaveParts): SavedFilterDraft[] {
+    const text = parts.drafts;
+    return typeof text === "string" ? (JSON.parse(text) as SavedFilterDraft[]) : [];
 }

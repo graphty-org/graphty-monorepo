@@ -1,6 +1,6 @@
 /**
  * @file Counted-work scaling of the calls that repaint or dispose ONE node or edge: a node
- * repainted onto a new mesh, a node disposed and an edge repainted with a new line colour. Each
+ * repainted onto a new mesh, a node disposed and an edge repainted with a new line color. Each
  * touches one element, so each is run on the middle element of a graph of n and of 4n nodes and
  * the elements it visits (Map, Set and Array iterator steps and array scans, see `visitsDuring`)
  * may grow at most 2x, never 4x (issue #2894). Counted, never timed (issue #1643).
@@ -22,8 +22,12 @@ import { dispatcherOf } from "../../src/session/GraphSession";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
 import { mountElement, unmountElements } from "../helpers/mount-element";
 
-/** The two graph sizes: big enough that a cost per call that grows with the graph is 4x. */
-const SIZES = [100, 400] as const;
+/**
+ * The two graph sizes: big enough that a cost per call that grows with the graph is 4x. Disposing a
+ * node's instance walks two lists of the scene, about 2 visits a node, beside a fixed cost of about
+ * 430 for a new mesh: at 100 and 400 nodes that left the 4x step at 1.95x (issue #9164).
+ */
+const SIZES = [250, 1000] as const;
 
 /**
  * Mount a graphty-element with `size` nodes on a path, its render loop stopped and a static

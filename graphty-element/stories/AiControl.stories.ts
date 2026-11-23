@@ -8,9 +8,6 @@
  * - Error retry functionality
  */
 
-// encrypt-storage, as the ./ai and ./credentials entry points register it
-import "../src/ai/keys/withEncryptStorage";
-
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html, type TemplateResult } from "lit";
 import { userEvent, waitFor } from "storybook/test";
@@ -343,9 +340,9 @@ async function setupShowcase(): Promise<void> {
     }
 
     // Load persisted keys
-    const loadPersistedKey = (): void => {
+    const loadPersistedKey = async (): Promise<void> => {
         try {
-            keyManager.enablePersistence({
+            await keyManager.enablePersistence({
                 encryptionKey: PERSISTENCE_KEY,
                 storage: "localStorage",
             });
@@ -380,7 +377,7 @@ async function setupShowcase(): Promise<void> {
 
         // Load persisted key for cloud providers
         if (isCloud) {
-            loadPersistedKey();
+            void loadPersistedKey();
         }
     };
 
@@ -537,7 +534,7 @@ async function setupShowcase(): Promise<void> {
 
                     // Save key if requested
                     if (ui.rememberKeyCheckbox?.checked && ui.apiKeyInput) {
-                        keyManager.enablePersistence({
+                        await keyManager.enablePersistence({
                             encryptionKey: PERSISTENCE_KEY,
                             storage: "localStorage",
                         });
@@ -2048,7 +2045,12 @@ export const RunCode: Story = {
 
         // The model was sent the program's value, and it is the graph's own mean degree.
         const provider = element?.getAiManager()?.getProvider() as QueuedProvider | undefined;
-        const sent = (provider?.sent.at(-1) ?? []).find((message) => message.toolCallId === "code1")?.content ?? "";
+        // The engine gives each call its own id, so find the run_code call by name, then its result.
+        const history = provider?.sent.at(-1) ?? [];
+        const callId = history
+            .flatMap((message) => message.toolCalls ?? [])
+            .find((call) => call.name === "run_code")?.id;
+        const sent = history.find((message) => message.toolCallId === callId)?.content ?? "";
         const json = sent.slice(sent.indexOf("{"), sent.lastIndexOf("}") + 1);
         const value = (JSON.parse(json === "" ? "{}" : json) as { data?: { value?: unknown } }).data?.value;
         const { nodes, edges } = before.session.status.counts;

@@ -81,3 +81,46 @@ describe("a file's dash patterns", () => {
         }
     });
 });
+
+describe("a file's own dash lengths", () => {
+    it("draws vis-network's dash arrays and Cytoscape.js's dots in the lengths the file gives, in widths", async () => {
+        const vis = JSON.stringify({
+            nodes: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }],
+            // round caps: [10, 5] at width 2 draws dashes 12 long with gaps of 3
+            edges: [
+                { from: "a", to: "b", width: 2, dashes: [10, 5] },
+                { from: "c", to: "d" },
+            ],
+        });
+        const visSession = await load("json", new TextEncoder().encode(vis));
+        try {
+            assert.deepEqual(dashOf(visSession, "a", "b"), [6, 1.5]);
+            assert.deepEqual(dashOf(visSession, "c", "d"), [undefined, undefined]);
+        } finally {
+            visSession.dispose();
+        }
+        // Cytoscape.js draws dotted 1 px on and 1 off (its own pattern) at any width: at width 3 a third of a width
+        // each
+        const cyjs = JSON.stringify({
+            elements: {
+                nodes: ["a", "b", "c", "d"].map((id) => ({ data: { id } })),
+                edges: [
+                    { data: { id: "e0", source: "a", target: "b" }, style: { "line-style": "dotted", width: 1 } },
+                    { data: { id: "e1", source: "c", target: "d" }, style: { "line-style": "dotted", width: 3 } },
+                    // dashed 6 3 at width 6 reads as dotted, still drawn 6 on and 3 off
+                    { data: { id: "e2", source: "a", target: "d" }, style: { "line-style": "dashed", width: 6 } },
+                ],
+            },
+        });
+        const cyjsSession = await load("json", new TextEncoder().encode(cyjs));
+        try {
+            assert.deepEqual(dashOf(cyjsSession, "a", "b"), [1, 1]);
+            const [dash, gap] = dashOf(cyjsSession, "c", "d");
+            assert.closeTo(Number(dash), 1 / 3, 1e-6);
+            assert.closeTo(Number(gap), 1 / 3, 1e-6);
+            assert.deepEqual(dashOf(cyjsSession, "a", "d"), [1, 0.5]);
+        } finally {
+            cyjsSession.dispose();
+        }
+    });
+});

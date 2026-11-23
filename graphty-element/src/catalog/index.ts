@@ -1,8 +1,8 @@
 /**
- * @file The catalogue: descriptor types, and the one emitter that produces option descriptors.
+ * @file The catalog: descriptor types, and the one emitter that produces option descriptors.
  *
  * Everything exported here is plain data or a pure function over plain data. Nothing reaches
- * the renderer, the DOM or a graph, which is what lets a catalogue be built, serialised and
+ * the renderer, the DOM or a graph, which is what lets a catalog be built, serialized and
  * inspected without a canvas.
  */
 
@@ -48,7 +48,6 @@ export type {
     Channel,
     ChannelValue,
     CostClass,
-    DeprecatedAlgorithm,
     DeprecatedCatalogMethod,
     DrawingMode,
     EdgeId,
@@ -113,7 +112,6 @@ export type {
 export {
     ATTRIBUTE_TYPES,
     COST_CLASSES,
-    DEPRECATED_ALGORITHMS,
     DEPRECATED_LAYOUT_IDS,
     isAttributeType,
     isCostClass,

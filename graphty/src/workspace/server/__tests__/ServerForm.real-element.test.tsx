@@ -10,14 +10,24 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { credentials, defineSource, type GraphSession, registerSource } from "@graphty/graphty-element/session";
+import {
+    credentials,
+    defineSource,
+    type ExpandRequest,
+    type GraphSession,
+    registerSource,
+} from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// A second file by address opens the join screen only with sources and steps off: on, it is staged.
+withoutFeatures(["source-steps"]);
 
 /** The element, as the tag map names it. */
 type ElementTag = HTMLElementTagNameMap["graphty-element"];
@@ -204,6 +214,45 @@ registerSource(
         records: async (_params, ctx) => {
             await ctx.fetchJson("/graph");
             return { nodes: [], edges: [] };
+        },
+    }),
+);
+
+/** What the tuned server was last asked: the params of its load and its last expansion. */
+const tuned: { params?: Record<string, unknown>; request?: ExpandRequest<unknown> } = {};
+
+/** A server with a param of every kind the form draws as a row, and an expansion that records what it was asked. */
+const TUNED = "test-tuned-server";
+
+registerSource(
+    defineSource({
+        id: TUNED,
+        descriptor: {
+            plainName: "Tuned server",
+            defaultEndpoint: "https://tuned.example",
+            features: ["expand"],
+            params: [
+                { name: "verbose", plainName: "Verbose", type: "boolean" },
+                { name: "retries", plainName: "Retries", type: "integer", min: 0, max: 9 },
+                {
+                    name: "format",
+                    plainName: "Format",
+                    type: "enum",
+                    values: [
+                        { value: "json", label: "JSON" },
+                        { value: "xml", label: "XML" },
+                    ],
+                },
+                { name: "region", plainName: "Region", type: "string" },
+            ],
+        },
+        records: (params: Record<string, unknown>) => {
+            tuned.params = params;
+            return Promise.resolve({ nodes: [{ id: "t0" }, { id: "t1" }], edges: [{ source: "t0", target: "t1" }] });
+        },
+        expand: (request, _sink, ctx) => {
+            tuned.request = request;
+            return Promise.resolve(ctx.finish({ next: null }));
         },
     }),
 );
@@ -712,5 +761,39 @@ describe("server sources on the real element", () => {
         await waitFor(() => {
             assert.equal(testButton.getAttribute("aria-disabled"), "false");
         });
+    });
+
+    it("sends each of a source's own rows and the expansion's depth, direction, edge types and limit", async () => {
+        const { element, session } = await openDataPlace();
+        const form = await openForm();
+        await pick(form, "Kind", "Tuned server");
+        await userEvent.click(within(form).getByRole("checkbox", { name: "Verbose" }));
+        await userEvent.type(within(form).getByRole("textbox", { name: "Retries" }), "3{Tab}");
+        await pick(form, "Format", "XML");
+        await userEvent.type(within(form).getByRole("textbox", { name: "Region" }), "eu");
+        const depth = within(form).getByRole("spinbutton", { name: "Depth" });
+        await userEvent.clear(depth);
+        await userEvent.type(depth, "2{Tab}");
+        // A segmented control's radio is drawn by its label; the reader clicks the label.
+        const direction = within(form).getByRole<HTMLInputElement>("radio", { name: "In" });
+        await userEvent.click(direction.labels?.[0] ?? direction);
+        await userEvent.type(within(form).getByRole("textbox", { name: "Edge types" }), "knows");
+        const expandLimit = within(form).getByRole("spinbutton", { name: "Expand limit" });
+        await userEvent.clear(expandLimit);
+        await userEvent.type(expandLimit, "4{Tab}");
+
+        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await waitFor(() => {
+            assert.lengthOf(session.data.nodes(), 2);
+        });
+        assert.deepInclude(tuned.params, { verbose: true, retries: 3, format: "xml", region: "eu" });
+
+        // A double-click expands with what the form's expansion rows say.
+        await userEvent.dblClick(element, { position: await pointOn(element, "t0") });
+        await waitFor(() => {
+            assert.deepEqual(tuned.request?.ids, ["t0"]);
+        });
+        assert.include(tuned.request, { depth: 2, direction: "in", limit: 4 });
+        assert.deepEqual(tuned.request?.relationshipTypes, ["knows"]);
     });
 });

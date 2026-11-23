@@ -70,6 +70,7 @@ export const EdgeArrowTypes = z.enum([
 ]);
 
 const ArrowStyle = z.strictObject({
+    /** The shape of the cap, one of `EdgeArrowTypes`; "none" draws no cap. Default "normal", a filled triangle. */
     type: EdgeArrowTypes.default("normal").optional(),
     /** 0 draws no cap, and the line runs as it would with none (EdgeMesh.createArrowHead). */
     size: z.number().nonnegative().default(1).optional(),
@@ -102,13 +103,15 @@ const ArrowStyle = z.strictObject({
     /**
      * How far from its node the cap is drawn, as a multiple of the cap's own length along its line; the line stops
      * there too, leaving the gap empty (Cytoscape desktop draws its T bar four of its lengths off the node, its half
-     * circles one). Unset or 0, the cap touches the node. A cap drawn part-way along (`position`) ignores it.
+     * circles one). Unset or 0, the cap touches the node; below 0 it overlaps the node by that much, its tip inside
+     * it (Pajek draws a part-way arrowhead on a short line with its tip past the target's outline). A cap drawn
+     * part-way along (`position`) ignores it.
      */
-    gap: z.number().nonnegative().optional(),
+    gap: z.number().optional(),
     /**
      * More caps drawn in a row behind this one, as Graphviz draws `boxdotnormal` and `lteeoldiamond`: cap types
      * separated by spaces, nearest this one first, each drawn from where the one before it ends, pointing the same way,
-     * in this cap's colour and opacity; the line stops at the last. A type may be followed by `:left` or `:right` for
+     * in this cap's color and opacity; the line stops at the last. A type may be followed by `:left` or `:right` for
      * the half it keeps (as `side`), then `*` and its size (as `size`; unset, this cap's), then `x` and its width (as
      * `width`), then `o` and its outline width (as `outlineWidth`; unset, this cap's): `"dot normal"`,
      * `"open-diamond:left*1.2x0.7"`, `"tee open-diamond:lefto2"`. A word that is not a cap type draws nothing. Unset,
@@ -117,22 +120,23 @@ const ArrowStyle = z.strictObject({
      */
     stack: z.string().optional(),
     /**
-     * The colour to draw the cap in, or unset to follow the line it caps.
+     * The color to draw the cap in, or unset to follow the line it caps.
      *
      * NO DEFAULT, DELIBERATELY, and the absence is load-bearing. `Edge` draws a cap with
-     * `style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF"`, so an unset colour is how an
+     * `style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF"`, so an unset color is how an
      * arrow is told to follow its line -- and a default here fills one in whenever the arrow key
      * is present at all, which made that fallback unreachable for the head. With the head pinned
      * and the tail (optional, and absent from the element's defaults) unpinned, one magenta edge
-     * with caps at both ends was drawn with a magenta tail and a grey head.
+     * with caps at both ends was drawn with a magenta tail and a gray head.
      */
     color: ColorStyle.optional(),
     /**
-     * The colour an open cap's inside is filled with (open-normal, open-diamond, open-dot, open-inverted, open-box),
+     * The color an open cap's inside is filled with (open-normal, open-diamond, open-dot, open-inverted, open-box),
      * inside its outline, which stays in `color`: yEd's framed edges fill their arrowheads so. Unset, the inside is left
      * empty. Other cap types ignore it.
      */
     fillColor: ColorStyle.optional(),
+    /** How opaque the cap is drawn, from 0 (invisible) to 1 (solid). Default 1. */
     opacity: z.number().min(0).max(1).default(1).optional(),
     /**
      * The picture an `image` cap draws, a URL or a data URL: stretched over the cap with its top
@@ -141,6 +145,7 @@ const ArrowStyle = z.strictObject({
      * draws nothing. Drawn flat, turned along its line, in 3D as in 2D.
      */
     image: z.string().optional(),
+    /** A caption drawn beside this end of the edge, with its own text, font, color and placement. */
     text: RichTextStyle.optional(),
     /**
      * Where the caption (`text`) sits along the line: unset, beside the cap at this end; set,
@@ -183,7 +188,12 @@ export const EdgeLineTypes = z.enum([
 export const EdgeOutlineTypes = z.enum(["solid", "dash", "dot", "dash-dot"]);
 
 const LineStyle = z.strictObject({
+    /** The line's pattern, one of `EdgeLineTypes` (solid, dot, dash, zigzag, ...). Default "solid". */
     type: EdgeLineTypes.optional(),
+    /**
+     * How fast a moving pattern runs along the line, as a multiple of the element's normal pace. Unset or 0, the
+     * line does not move. Default 0.
+     */
     animationSpeed: z.number().min(0).optional(),
     /** 0 draws no line, unless `minScreenWidth` is set; the arrow caps and the label are still drawn (Edge.createLine). */
     width: z.number().nonnegative().optional(),
@@ -193,9 +203,15 @@ const LineStyle = z.strictObject({
      */
     minScreenWidth: z.number().nonnegative().optional(),
     /**
+     * Which of two crossing lines is drawn on top: the higher, from 0 to 100. A line with none is drawn over every
+     * line with one, and lines with none keep the order they always had. A line drawn as a row of shapes (dots,
+     * stars, boxes) is not ordered.
+     */
+    drawOrder: z.number().min(0).max(100).optional(),
+    /**
      * How many pattern elements (dots, dashes, ...) to draw along a patterned edge.
      *
-     * Unset means "as many as the spacing rule asks for", which is the historical behaviour:
+     * Unset means "as many as the spacing rule asks for", which is the historical behavior:
      * the elements sit one and a half element-widths apart, so a longer edge gets more of
      * them and a THINNER line gets more of them too. Each element is a real mesh with its
      * own draw call, so on a large graph at a small line width that count can reach tens of
@@ -230,7 +246,8 @@ const LineStyle = z.strictObject({
     /**
      * How long each dash of a "dash" line is, in the line's own width units. Unset, 3. On a "dot" line with a
      * `dashGap`, the length of each dot in a program's pattern: the dot is still drawn round, one width across, and
-     * the dots repeat every `dashLength + dashGap` widths, as the program's do. Unset there, 1.
+     * the dots repeat every `dashLength + dashGap` widths, as the program's do; a dot shorter than 1 is drawn as a
+     * square-ended dash that long, as a disc that short would not show. Unset there, 1.
      * @experimental file-styles
      */
     dashLength: z.number().nonnegative().optional(),
@@ -242,7 +259,24 @@ const LineStyle = z.strictObject({
      * @experimental file-styles
      */
     dashGap: z.number().nonnegative().optional(),
+    /**
+     * A pattern of several dash lengths: dashes and gaps alternating from the line's start, in the line's own width
+     * units, separated by spaces or commas ("8 1 2 1" draws a dash 8 widths long, a gap of 1, a dash of 2 and a gap of
+     * 1, then repeats). An odd count is repeated once, as an SVG dash array is; up to 8 numbers are drawn. Set on a
+     * "dash", "dot" or "dash-dot" line, the line is drawn as these square-ended dashes in place of its own elements,
+     * `dashLength`, `dashGap` and `patternCount`; unset, or on any other line type, it changes nothing.
+     * @experimental file-styles
+     */
+    dashArray: z.string().optional(),
+    /** The line's color, any CSS color. Default "darkgrey". */
     color: ColorStyle.optional(),
+    /**
+     * Draw the line in the color the style layers painted one of its nodes: "source" its source node's, "target" its
+     * target node's, in place of `color`. Kept current: a later layer that recolors the node recolors the line. An end
+     * node no layer colored leaves the line its own `color`. "none", or unset, draws the line in `color`.
+     */
+    colorFrom: z.enum(["source", "target", "none"]).optional(),
+    /** How opaque the line is drawn, from 0 (invisible) to 1 (solid). Unset, 1. */
     opacity: z.number().min(0).max(1).optional(),
     /**
      * Fade the line with its length on screen, in CSS pixels (cosmos.gl's
@@ -254,8 +288,11 @@ const LineStyle = z.strictObject({
      */
     fade: z
         .strictObject({
+            /** The on-screen length in CSS pixels up to which the line draws at full `opacity`. Default 0. */
             start: z.number().nonnegative().optional(),
+            /** The on-screen length in CSS pixels from which the line draws at its faded opacity. Unset, no fade. */
             end: z.number().nonnegative().optional(),
+            /** The share of the line's `opacity` a line of `end` pixels or longer keeps, from 0 to 1. Default 0.25. */
             opacity: z.number().min(0).max(1).optional(),
         })
         .optional(),
@@ -276,9 +313,15 @@ const LineStyle = z.strictObject({
      */
     outline: z
         .strictObject({
+            /** The outline band's color, any CSS color. */
             color: ColorStyle.optional(),
+            /**
+             * How much wider than the line the band is, in the line's width units, half on each side. Unset or 0, no band.
+             */
             width: z.number().nonnegative().optional(),
+            /** How opaque the band is drawn, from 0 (invisible) to 1 (solid). */
             opacity: z.number().min(0).max(1).optional(),
+            /** The band's pattern, one of `EdgeOutlineTypes`. Default "solid". */
             type: EdgeOutlineTypes.optional(),
         })
         .optional(),
@@ -289,16 +332,22 @@ const LineStyle = z.strictObject({
      */
     underlay: z
         .strictObject({
+            /** The band's color, any CSS color. */
             color: ColorStyle.optional(),
+            /** How opaque the band is drawn, from 0 (invisible) to 1 (solid). Unset or 0, no band. */
             opacity: z.number().min(0).max(1).optional(),
+            /** How far the band reaches on each side of the line's middle, in the line's width units. */
             padding: z.number().nonnegative().optional(),
         })
         .optional(),
     /** The same band drawn over the line (Cytoscape.js `overlay-*`). */
     overlay: z
         .strictObject({
+            /** The band's color, any CSS color. */
             color: ColorStyle.optional(),
+            /** How opaque the band is drawn, from 0 (invisible) to 1 (solid). Unset or 0, no band. */
             opacity: z.number().min(0).max(1).optional(),
+            /** How far the band reaches on each side of the line's middle, in the line's width units. */
             padding: z.number().nonnegative().optional(),
         })
         .optional(),
@@ -312,11 +361,37 @@ const LineStyle = z.strictObject({
      */
     gradient: z
         .strictObject({
+            /** The gradient's CSS colors, separated by spaces, from the start of the gradient to its end. */
             colors: z.string().optional(),
+            /** Where each color sits, as fractions from 0 to 1 separated by spaces. Unset, evenly spaced. */
             stops: z.string().optional(),
+            /**
+             * "linear" from the source end to the target end (the default), "radial" out from the middle, or "none".
+             */
             kind: z.enum(["linear", "radial", "none"]).optional(),
         })
         .optional(),
+    /**
+     * Draw the line as parallel strands side by side, one per color, in place of its `color` (Graphviz's color list
+     * with no fractions, `color="red:green:blue"`): `colors` are CSS colors separated by spaces, the first strand on
+     * the right of the line's direction from its source to its target and the last on its left, each drawn over the
+     * one before; `spacing` is how far apart the strands' middles are, in the line's own width units (unset, 1:
+     * strands that touch). Each strand is as wide as the line. Fewer than two colors draw the line as it is. Drawn
+     * on solid lines; in 3D the strands are laid apart in the layout's plane.
+     * @experimental file-styles
+     */
+    strands: z
+        .strictObject({
+            /** The strands' CSS colors, separated by spaces, first on the right. */
+            colors: z.string().optional(),
+            /** How far apart the strands' middles are, in the line's width units (unset, 1). */
+            spacing: z.number().nonnegative().optional(),
+        })
+        .optional(),
+    /**
+     * True draws the line as a smooth curve: through its `bends` with rounded corners, or bowed apart from other
+     * edges between the same two nodes. Unset or false, a straight line.
+     */
     bezier: z.boolean().optional(),
     /**
      * The points the line passes through between its two nodes, as `along,across` pairs separated
@@ -330,6 +405,11 @@ const LineStyle = z.strictObject({
     bends: z.string().optional(),
     /** The width at the target as a multiple of the width at the source; 1 draws no taper. */
     taper: z.number().min(0).max(4).optional(),
+    /**
+     * The width at the source as a multiple of the line's width; 1 draws no taper there. When it and `taper` are both
+     * below 1, the line is its full width at the middle and narrows straight to each end.
+     */
+    taperSource: z.number().min(0).max(4).optional(),
     /** How far the route's middle rises out of a flat layout's plane in the 3D view, world units. */
     lift: z.number().optional(),
     /**
@@ -464,7 +544,9 @@ const LineStyle = z.strictObject({
  * which is the point of removing them in a major rather than leaving them accepted and ignored.
  */
 export const EdgeStyle = z.strictObject({
+    /** The cap at the target end of the edge. Unset, no cap, except on a directed graph, which draws a "normal" one. */
     arrowHead: ArrowStyle.optional(),
+    /** The cap at the source end of the edge. Unset, no cap. */
     arrowTail: ArrowStyle.optional(),
     /**
      * A cap drawn part-way along the line, pointing toward the target, besides any at the ends
@@ -474,7 +556,12 @@ export const EdgeStyle = z.strictObject({
     arrowMiddleHead: MidArrowStyle.optional(),
     /** The same, pointing toward the source (Cytoscape.js `mid-source-arrow-*`); `position` from the source end. */
     arrowMiddleTail: MidArrowStyle.optional(),
+    /** How the line between the two nodes is drawn: its pattern, width, color, curve and route. */
     line: LineStyle.optional(),
+    /**
+     * The edge's label: its text, font, color and where it sits. Drawn above the line's middle unless `location`
+     * says otherwise.
+     */
     label: RichTextStyle.prefault({ location: "top" }).optional(),
     /**
      * A second label drawn beside the line's middle (Graphviz's `xlabel` on an edge that also has a label), switched
@@ -485,13 +572,16 @@ export const EdgeStyle = z.strictObject({
     xlabel: RichTextStyle.optional(),
     /**
      * A wider line drawn behind the edge's own, as a casing: the selection look, as a style.
-     * Drawn only when it names a colour. `scale` is a multiple of twice the line's width; the
+     * Drawn only when it names a color. `scale` is a multiple of twice the line's width; the
      * `edge.band*` channels write it.
      */
     band: z
         .strictObject({
+            /** The casing's color, any CSS color. Unset, no casing is drawn. */
             color: ColorStyle.optional(),
+            /** How wide the casing is, as a multiple of twice the line's width. Default 2.5. */
             scale: z.number().nonnegative().optional(),
+            /** How opaque the casing is drawn, from 0 (invisible) to 1 (solid). Default 1. */
             opacity: z.number().min(0).max(1).optional(),
         })
         .optional(),
@@ -504,7 +594,12 @@ export const EdgeStyle = z.strictObject({
     // effects: glow // https://playground.babylonjs.com/#H1LRZ3#35
 });
 
+/** The settings one edge is drawn with: the TypeScript type of what `EdgeStyle` accepts. */
 export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
+/**
+ * The look every edge starts from before any style layer: a solid dark gray line of width 8, not animated,
+ * with no arrow caps (a directed graph adds a target cap).
+ */
 export const defaultEdgeStyle: EdgeStyleConfig = {
     line: {
         type: "solid",

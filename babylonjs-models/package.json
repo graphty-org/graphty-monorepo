@@ -2,7 +2,7 @@
     "name": "babylonjs-models",
     "version": "0.0.0",
     "private": false,
-    "description": "Load 3D models into Babylon.js scenes from URLs, files, folders, zips or bytes: glTF and GLB with Draco, meshopt and KTX2, OBJ with MTL, STL, PLY, Gaussian splats and .babylon, every file checked first and nothing fetched from a CDN",
+    "description": "Load 3D models into Babylon.js scenes from URLs, files, folders, zips or bytes: glTF and GLB with Draco, meshopt and KTX2, OBJ with MTL, STL, PLY, .babylon, FBX and USD/USDZ, every file checked first and nothing fetched from a CDN",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
     "main": "dist/index.js",
@@ -87,23 +87,26 @@
         "obj",
         "stl",
         "ply",
-        "gaussian-splat",
         "draco",
-        "ktx2"
+        "ktx2",
+        "fbx",
+        "usd",
+        "usdz",
+        "openusd"
     ],
     "license": "MIT",
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/babylonjs-models#readme",
+    "homepage": "https://graphty.app/docs/babylonjs-models/",
     "dependencies": {
-        "@babylonjs/ktx2decoder": "8.56.2",
+        "@babylonjs/ktx2decoder": "9.37.0",
         "fflate": "^0.8.3",
         "meshoptimizer": "^1.3.0"
     },
     "peerDependencies": {
-        "@babylonjs/core": "^8.0.0",
-        "@babylonjs/loaders": "^8.0.0"
+        "@babylonjs/core": "^9.37.0",
+        "@babylonjs/loaders": "^9.37.0"
     },
     "peerDependenciesMeta": {
         "@babylonjs/core": {
@@ -114,8 +117,8 @@
         }
     },
     "devDependencies": {
-        "@babylonjs/core": "^8.36.1",
-        "@babylonjs/loaders": "8.56.2",
+        "@babylonjs/core": "^9.37.0",
+        "@babylonjs/loaders": "9.37.0",
         "@gltf-transform/core": "^4.5.1",
         "@gltf-transform/extensions": "^4.5.1",
         "@storybook/addon-docs": "^9.1.21",

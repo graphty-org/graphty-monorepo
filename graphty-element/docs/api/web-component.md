@@ -38,7 +38,7 @@ The Web Component exposes these properties for declarative configuration:
 | Property                 | Attribute                  | Type                           | Description                                                                                                                                           |
 | ------------------------ | -------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'` | Rendering mode                                                                                                                                        |
-| `background`             | `background`               | `GraphBackgroundConfig`        | A flat colour, or a skybox image                                                                                                                      |
+| `background`             | `background`               | `GraphBackgroundConfig`        | A flat color, or a skybox image                                                                                                                       |
 | `startingCameraDistance` | `starting-camera-distance` | `number`                       | How far the camera starts out. Unset (the default) frames the graph to fit; set, it places the camera and turns automatic framing off                 |
 | `autoFrame`              | `auto-frame`               | `boolean`                      | Frame the graph after each load and layout change. On by default; `auto-frame="false"` leaves the camera where it is. `zoomToFit()` frames either way |
 | `zoomToPointer`          | `zoom-to-pointer`          | `boolean`                      | The mouse wheel zooms toward the point under the pointer. Off by default (toward the view's center); a view preference, not saved in a project        |
@@ -102,6 +102,7 @@ The Web Component provides these methods for imperative control:
 | `canCaptureScreenshot(options?)`    | `ScreenshotOptions` | `Promise<CapabilityCheck>`  | Check screenshot support |
 | `captureAnimation(options)`         | `AnimationOptions`  | `Promise<AnimationResult>`  | Capture video            |
 | `cancelAnimationCapture()`          | -                   | `boolean`                   | Cancel ongoing capture   |
+| `stopAnimationCapture()`            | -                   | `boolean`                   | Stop and keep the video  |
 | `isAnimationCapturing()`            | -                   | `boolean`                   | Check if capturing       |
 | `estimateAnimationCapture(options)` | `AnimationOptions`  | `Promise<CaptureEstimate>`  | Estimate capture         |
 

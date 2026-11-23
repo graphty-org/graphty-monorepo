@@ -39,6 +39,7 @@ import {
     type DrawnOutput,
     type DrawnTransform,
     type GpuLayoutSimulation,
+    type LandedEnvelope,
     type LayoutStatsBase,
     type ResolvedLayoutTuning,
     type RunOptions,
@@ -52,7 +53,7 @@ import {
 } from "../types/options.js";
 import { ClusterStage } from "./clusters.js";
 import { CollisionStage, type CollisionUpdate } from "./collision.js";
-import { type DrawnRecord, DrawnStage } from "./drawn.js";
+import { type DrawnRecord, DrawnStage, ENVELOPE_BYTES } from "./drawn.js";
 import { type ResolvedWeights } from "./inputs.js";
 import { seedPositions } from "./seed.js";
 
@@ -117,7 +118,7 @@ export interface ModelInputs {
  * debugRunStages / inspect); `params` (the model's uniform block, which must declare the shared
  * field names n, dim, flags, iterationIndex, seed, scale, center, settleThreshold, so the simulation can write
  * them); `state` and `trace` (the model's generated Fa2State / Fa2Trace blocks, so the simulation allocates,
- * initialises and decodes the state buffer through the model's own layouts); `specs` (the module specs of an
+ * initializes and decodes the state buffer through the model's own layouts); `specs` (the module specs of an
  * override set, for warm() and the compile matrix); `bind` (the model compiles and binds after load(), when the
  * buffers exist); `inputs` (mass and weight resolution need the model's option names -- nodeMass / weight are
  * ForceAtlas2Options, not CommonLayoutOptions -- so the simulation calls it at load() and derives USE_PERM /
@@ -551,11 +552,50 @@ interface PendingBatch {
     stateOffset: number;
     /** Where the drawn slot's rows sit in the readback, or -1 when the batch reads none back. */
     drawnOffset: number;
+    /** Where the batch's envelope sits in the readback, or -1 without a drawn ring. */
+    envelopeOffset: number;
+    /** The spare buffer the readback is copied into, or null before the submit. */
+    into: ArrayBuffer | null;
     profile: ReadbackRequest | null;
     /** Whether this batch carried the collision's settling sweeps. */
     sweptCollision: boolean;
     /** The drawn ring slot this batch wrote and the transform it drew with, or null. */
     drawn: DrawnRecord | null;
+}
+
+/** How many unused readback buffers a simulation keeps: one per batch in flight at the depth a frame loop reaches. */
+const SPARE_READBACKS = 3;
+
+/**
+ * The envelope a batch's `envelope` dispatches wrote, decoded from its readback.
+ * @param bytes - the batch's readback
+ * @param offset - where the envelope sits in it
+ * @returns the envelope
+ */
+function envelopeOf(bytes: ArrayBuffer, offset: number): LandedEnvelope {
+    const f = new Float32Array(bytes, offset, ENVELOPE_BYTES / 4);
+    return {
+        placed: f[3],
+        sum: [f[0], f[1], f[2]],
+        box: [f[4], f[5], f[6], f[8], f[9], f[10]],
+        furthestSquared: f[12],
+    };
+}
+
+/**
+ * The transform a batch drew with: the one it was sent with, or for a fitted one the center and scale `to-drawn`
+ * took from the batch's own envelope, as the device wrote them.
+ * @param sent - the transform the batch was sent with
+ * @param bytes - the batch's readback
+ * @param offset - where the envelope sits in it
+ * @returns the transform
+ */
+function drewWith(sent: DrawnTransform, bytes: ArrayBuffer, offset: number): DrawnTransform {
+    if (sent.fit === undefined || sent.fit <= 0) {
+        return sent;
+    }
+    const f = new Float32Array(bytes, offset + 80, 4);
+    return { center: [f[0], f[1], f[2]], scale: f[3], target: sent.target };
 }
 
 /**
@@ -587,6 +627,8 @@ function createPending(k: number, generation: number): PendingBatch {
         startedAt: 0,
         sceneOffset: 0,
         drawnOffset: -1,
+        envelopeOffset: -1,
+        into: null,
         stateOffset: 0,
         profile: null,
         sweptCollision: false,
@@ -779,6 +821,14 @@ export class ForceSimulation<
     private landedDrawnValue: GPUBuffer | null = null;
     private landedDrawnTransformValue: DrawnTransform | null = null;
     private landedDrawnRowsValue: Float32Array<ArrayBuffer> | null = null;
+    private landedEnvelopeValue: LandedEnvelope | null = null;
+    /**
+     * Readback buffers no batch or landing holds, reused so a landing copies its bytes into warm memory instead of a
+     * new buffer every batch (issue #8801: 28 MB a landing at a million rows). At most {@link SPARE_READBACKS}.
+     */
+    private readonly spareBytes: ArrayBuffer[] = [];
+    /** The readback `landedDrawnRows` views, held until a later landing replaces it. */
+    private landedBytes: ArrayBuffer | null = null;
     private collisionDirty = false;
     private collisionRadiiDirty = false;
     /** The run is over and its settling sweeps are owed, so it does not read settled yet. */
@@ -1068,6 +1118,9 @@ export class ForceSimulation<
         this.landedDrawnValue = null;
         this.landedDrawnTransformValue = null;
         this.landedDrawnRowsValue = null;
+        this.spare(this.landedBytes);
+        this.landedBytes = null;
+        this.landedEnvelopeValue = null;
         this.discardPending();
         const resized = this.buffers === null || n !== this.n || snapshot.serial !== this.serial;
         this.snapshot = snapshot;
@@ -1453,6 +1506,7 @@ export class ForceSimulation<
         ]);
         this.ctx.device.queue.writeBuffer(buffers.positions, 16 * index, layout);
         this.overrideList.set(index, this.lastSubmittedBatchIdValue);
+        this.landedEnvelopeValue = null;
         this.reheat();
     }
 
@@ -1555,11 +1609,23 @@ export class ForceSimulation<
     /**
      * The rows of {@link landedDrawn} as the batch's own readback brought them to the host (stride 4, x, y, z, w
      * per node), when {@link setDrawn} asked for `readBack`; else null. For a renderer on another device, which
-     * sends them to its texture as they are instead of copying the slot on the card.
+     * sends them to its texture as they are instead of copying the slot on the card. Valid until the next landing,
+     * {@link setDrawn} or {@link load}: the buffer behind them is reused for a later batch's readback, so a caller
+     * that keeps the rows past that copies them first.
      * @returns the rows, or null
      */
     get landedDrawnRows(): Float32Array<ArrayBuffer> | null {
         return this.landedDrawnRowsValue;
+    }
+
+    /**
+     * The scene rows of the last batch that landed, measured on the device (count, sums, box and the furthest squared
+     * distance from their mean), when a drawn ring is set ({@link setDrawn}) and no {@link setPosition} overrode a row of
+     * that landing or came after it; else null. Holds while the owner's array holds that landing.
+     * @returns the envelope, or null
+     */
+    get landedEnvelope(): LandedEnvelope | null {
+        return this.landedEnvelopeValue;
     }
 
     /**
@@ -1598,7 +1664,15 @@ export class ForceSimulation<
         if (!Number.isFinite(transform.scale)) {
             throw invalidArgument("scale", transform.scale, "a finite number", "setDrawnTransform: scale");
         }
-        this.drawnTransform = { center: [...transform.center], scale: transform.scale, target: [...transform.target] };
+        if (transform.fit !== undefined && !Number.isFinite(transform.fit)) {
+            throw invalidArgument("fit", transform.fit, "a finite number", "setDrawnTransform: fit");
+        }
+        this.drawnTransform = {
+            center: [...transform.center],
+            scale: transform.scale,
+            target: [...transform.target],
+            ...(transform.fit === undefined ? {} : { fit: transform.fit }),
+        };
         this.drawnStage?.transform(this.drawnTransform);
     }
 
@@ -1645,7 +1719,7 @@ export class ForceSimulation<
     // ---------------------------------------------------------------- private: the batch driver
 
     /**
-     * The serialised submission of one pending batch: awaits the bind / warm promise and allocator.check(), then
+     * The serialized submission of one pending batch: awaits the bind / warm promise and allocator.check(), then
      * records and submits unless the record went stale meanwhile; wires the readback handlers. A record that went
      * stale while waiting (a load() or dispose() superseded it) RESOLVES even when the wait rejected (the
      * rejection belongs to the superseded generation -- a bind that failed E_SHADER_COMPILE, or
@@ -1735,9 +1809,12 @@ export class ForceSimulation<
             record.drawn !== null && this.drawnRows?.readBack === true
                 ? batch.readback(record.drawn.buffer, 0, 16 * this.n).offset
                 : -1;
+        record.envelopeOffset =
+            record.drawn === null ? -1 : batch.readback(record.drawn.envelope, 0, ENVELOPE_BYTES).offset;
         const { profiler } = this.ctx;
         const profile = profiler === null ? null : profiler.resolveInto(batch);
-        const submitted = batch.submit();
+        record.into = this.takeSpare(batch.readbackBytes);
+        const submitted = batch.submit(record.into);
         record.submitted = submitted;
         record.id = submitted.id;
         record.sceneOffset = scene.offset;
@@ -1764,6 +1841,7 @@ export class ForceSimulation<
         this.finish(record);
         const { owner } = this;
         if (this.isStale(record) || owner === null) {
+            this.spare(record.into);
             record.resolve();
             return;
         }
@@ -1776,14 +1854,20 @@ export class ForceSimulation<
             );
             if (bytes.byteLength < needed) {
                 // a discarded readback resolves with an empty buffer
+                this.spare(record.into);
                 record.resolve();
                 return;
             }
+            // The device measured the scene rows, which are the owner's only when no write overrode one of them.
+            const measured = record.envelopeOffset >= 0 && !this.overridden(record);
             this.copyScene(owner, bytes, record);
+            this.landedEnvelopeValue = measured ? envelopeOf(bytes, record.envelopeOffset) : null;
             this.landedDrawnValue = record.drawn?.buffer ?? null;
-            this.landedDrawnTransformValue = record.drawn?.transform ?? null;
+            this.landedDrawnTransformValue =
+                record.drawn === null ? null : drewWith(record.drawn.transform, bytes, record.envelopeOffset);
             this.landedDrawnRowsValue =
                 record.drawnOffset < 0 ? null : new Float32Array(bytes, record.drawnOffset, 4 * n);
+            const keep = this.landedDrawnRowsValue === null ? null : bytes;
             const header = new DataView(bytes, record.stateOffset, STATE_HEADER_BYTES);
             const trace = new DataView(bytes, record.stateOffset + STATE_HEADER_BYTES, k * this.traceBytes);
             this.writer.absorb(header);
@@ -1798,9 +1882,43 @@ export class ForceSimulation<
             this.settledCountValue = record.id <= this.reheatedAfterBatchId ? 0 : settledCount;
             this.collisionSwept ||= record.sweptCollision && record.id > this.reheatedAfterBatchId;
             this.settledValue = this.computeSettled();
+            // Every view into the bytes was read above but the landed rows, which the bytes back until replaced.
+            if (keep !== this.landedBytes) {
+                this.spare(this.landedBytes);
+            }
+            this.landedBytes = keep;
+            if (keep === null) {
+                this.spare(bytes);
+            }
             record.resolve();
         } catch (err) {
             record.reject(asError(err));
+        }
+    }
+
+    /**
+     * A readback buffer of at least `byteLength` bytes from the spares, or a new one.
+     * @param byteLength - what the batch reads back
+     * @returns the buffer
+     */
+    private takeSpare(byteLength: number): ArrayBuffer {
+        // A spare too small for this batch is too small for every later one until the graph shrinks: drop it, so a
+        // load with more rows does not leave the pool full of buffers no batch can use.
+        for (let at = this.spareBytes.length - 1; at >= 0; at--) {
+            if (this.spareBytes[at].byteLength < byteLength) {
+                this.spareBytes.splice(at, 1);
+            }
+        }
+        return this.spareBytes.pop() ?? new ArrayBuffer(byteLength);
+    }
+
+    /**
+     * Hands a readback buffer nothing views any longer back to the spares.
+     * @param bytes - the buffer, or null
+     */
+    private spare(bytes: ArrayBuffer | null): void {
+        if (bytes !== null && bytes.byteLength > 0 && this.spareBytes.length < SPARE_READBACKS) {
+            this.spareBytes.push(bytes);
         }
     }
 
@@ -1812,6 +1930,7 @@ export class ForceSimulation<
      */
     private onFailed(record: PendingBatch, err: unknown): void {
         this.finish(record);
+        this.spare(record.into);
         if (hasErrorCode(err, "E_ABORTED") && this.isStale(record)) {
             record.resolve();
             return;
@@ -1829,7 +1948,21 @@ export class ForceSimulation<
     }
 
     /**
-     * Copies the scene bytes of a landed batch into the owner's array, honouring the override list.
+     * Whether a write overrides a row of this batch's landing, so the owner keeps a row the batch did not compute.
+     * @param record - the batch
+     * @returns true when one does
+     */
+    private overridden(record: PendingBatch): boolean {
+        for (const after of this.overrideList.values()) {
+            if (after >= record.id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Copies the scene bytes of a landed batch into the owner's array, honoring the override list.
      * @param owner - the owner's array
      * @param bytes - the readback
      * @param record - the batch
@@ -2053,7 +2186,7 @@ export class ForceSimulation<
 
     /**
      * Allocates the shared buffers (sizes) and the model's BufferSpecs through the allocator (every buffer
-     * labelled); a `zero: true` spec must carry COPY_DST so it can be re-zeroed when kept across loads. The state buffer is STATE_HEADER_BYTES + MAX_ITERATIONS_PER_STEP x model.trace.byteLength:
+     * labeled); a `zero: true` spec must carry COPY_DST so it can be re-zeroed when kept across loads. The state buffer is STATE_HEADER_BYTES + MAX_ITERATIONS_PER_STEP x model.trace.byteLength:
      * the model's trace block (32 bytes, TRACE_RECORD_BYTES, for FA2) is what the simulation decodes the trace
      * with, so it is the general rule and the constant is not imported here.
      * @param n - the node count (> 0)
@@ -2425,7 +2558,7 @@ export class ForceSimulation<
 
     /**
      * Chains the compile + bind promise the next step() awaits on the PREVIOUS one (binds are
-     * serialised on `ready` for load() and setParams() alike, so a superseded load()'s bind either fails its
+     * serialized on `ready` for load() and setParams() alike, so a superseded load()'s bind either fails its
      * generation check before model.bind() or completes before its successor's bind starts -- it can never bind
      * the model to destroyed buffers AFTER the new bind finished). The previous promise's rejection is swallowed by
      * the chain (it belonged to the superseded generation); this promise's rejection is kept for the next step()
@@ -2602,6 +2735,9 @@ export class ForceSimulation<
         this.landedDrawnValue = null;
         this.landedDrawnTransformValue = null;
         this.landedDrawnRowsValue = null;
+        this.spare(this.landedBytes);
+        this.landedBytes = null;
+        this.landedEnvelopeValue = null;
         if (stage !== null) {
             this.drawnStage = null;
             this.afterInFlight(() => {
@@ -2721,6 +2857,10 @@ export class ForceSimulation<
         }
         this.torndown = true;
         this.discardPending();
+        // the readbacks go with the simulation, not with whatever still references it
+        this.spareBytes.length = 0;
+        this.landedBytes = null;
+        this.landedDrawnRowsValue = null;
         this.destroyBuffers();
         this.afterInFlight(() => {
             this.ring.destroy();

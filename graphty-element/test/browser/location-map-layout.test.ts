@@ -16,6 +16,8 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import type { Edge } from "../../src/Edge";
 import type { LayoutWarningEvent } from "../../src/events";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import type { LocationMapFrame } from "../../src/layout/locationMap/place";
+import { LocationMapLayout } from "../../src/layout/LocationMapLayoutEngine";
 import { drawnFrames } from "../helpers/drawn-frames";
 
 /**
@@ -25,6 +27,32 @@ import { drawnFrames } from "../helpers/drawn-frames";
 async function local(): Promise<Response> {
     const served = await import("../../../graph-samples/dist/data/v1/openflights.gsnp.gz?url");
     return fetch(served.default);
+}
+
+/**
+ * The graph's location map layout.
+ * @param graph - The graph.
+ * @returns Its layout engine, asserted to be the location map.
+ */
+function mapEngineOf(graph: Graph): LocationMapLayout {
+    const engine = graph.getLayoutManager().layoutEngine;
+    assert.instanceOf(engine, LocationMapLayout);
+    return engine;
+}
+
+/**
+ * How the location map laid the map in the scene, asserted to be on the surface asked for.
+ * @param graph - The graph.
+ * @param surface - The surface expected: a flat map or a globe.
+ * @returns The frame.
+ */
+function mapFrameOf<S extends LocationMapFrame["surface"]>(
+    graph: Graph,
+    surface: S,
+): Extract<LocationMapFrame, { surface: S }> {
+    const frame = mapEngineOf(graph).geoFrame;
+    assert(frame?.surface === surface, `the map was laid out ${surface === "flat" ? "flat" : "on a globe"}`);
+    return frame as Extract<LocationMapFrame, { surface: S }>;
 }
 
 const FLIGHTS: GraphSnapshot = await openflights({ fetch: local });
@@ -124,12 +152,7 @@ describe("the location map layout", () => {
         await graph.setViewMode("2d");
         await placeAirports();
 
-        const engine = graph.getLayoutManager().layoutEngine as unknown as {
-            geoFrame: { surface: string; bounds: [[number, number], [number, number]] } | null;
-        };
-        assert.equal(engine.geoFrame?.surface, "flat");
-        const bounds = engine.geoFrame?.bounds;
-        assert.isDefined(bounds);
+        const { bounds } = mapFrameOf(graph, "flat");
         const frame = createMapFrame({ projection: "web-mercator", bounds, size: 100 });
         for (const row of [0, 57, 199, AIRPORTS - 1]) {
             const id = String(FLIGHTS.ids.idOf(row));
@@ -200,9 +223,7 @@ describe("the location map layout", () => {
         await settled();
         await drawnFrames(graph.getScene(), 2);
         const p = at(id);
-        const globe = (graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { radius?: number } | null })
-            .geoFrame;
-        const radius = globe?.radius ?? Number.NaN;
+        const { radius } = mapFrameOf(graph, "globe");
         // the radius makes the data span `size` units of arc; a node sits half its size above it
         assert.closeTo(Math.hypot(p.x, p.y, p.z), radius, 2, "on the globe's surface");
         const globeArc = longestCurve(edges);
@@ -222,8 +243,7 @@ describe("the location map layout", () => {
         await graph.setViewMode("2d");
         await settled();
         await drawnFrames(graph.getScene(), 2);
-        const engine = graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { surface: string } | null };
-        assert.equal(engine.geoFrame?.surface, "flat");
+        mapFrameOf(graph, "flat");
         assert.isNull(longestCurve(edges));
     });
 
@@ -258,8 +278,7 @@ describe("the location map layout", () => {
             await graph.setLayout("location-map", { mapScale });
             await settled();
             await drawnFrames(graph.getScene(), 2);
-            const frame = (graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { radius: number } })
-                .geoFrame;
+            const frame = mapFrameOf(graph, "globe");
             const p = at(id);
             const mesh = graph.getNode(id)?.mesh;
             assert.isDefined(mesh);
@@ -314,9 +333,7 @@ describe("the location map layout", () => {
             await graph.setLayout("location-map", { mapScale });
             await settled();
             await drawnFrames(graph.getScene(), 2);
-            const frame = (
-                graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { mapFrame: { height: number } } }
-            ).geoFrame;
+            const frame = mapFrameOf(graph, "flat");
             const camera = graph.getScene().activeCamera;
             const [a, b] = ids.map((id) => at(id));
             const mesh = graph.getNode(ids[0])?.mesh;
@@ -368,10 +385,7 @@ describe("the location map layout", () => {
     it("still builds from a saved nodeScale, which node.sizeSpace replaced, and drops it", async () => {
         await graph.setViewMode("2d");
         await placeAirports({ nodeScale: "screen" });
-        const engine = graph.getLayoutManager().layoutEngine as unknown as {
-            geoFrame: unknown;
-            config: Record<string, unknown>;
-        };
+        const engine = mapEngineOf(graph);
         assert.isNotNull(engine.geoFrame, "the map was laid out");
         assert.notProperty(engine.config, "nodeScale");
         assert.strictEqual(graph.getNode(String(FLIGHTS.ids.idOf(0)))?.drawnScale, 1, "nothing sizes it on screen");
@@ -387,11 +401,7 @@ describe("the location map layout", () => {
         ]);
         await graph.setLayout("location-map", { mapDimension: "2d", mapScale: 6 });
         await settled();
-        const frame = (
-            graph.getLayoutManager().layoutEngine as unknown as {
-                geoFrame: { mapFrame: ReturnType<typeof createMapFrame> };
-            }
-        ).geoFrame.mapFrame;
+        const frame = mapFrameOf(graph, "flat").mapFrame;
         const [[west], [east]] = frame.bounds;
         const center = (west + east) / 2;
         const max = frame.projection.maxLatitude;
@@ -434,8 +444,7 @@ describe("the location map layout", () => {
         while (!tiles().some((m) => m.name.includes("green"))) {
             await drawnFrames(graph.getScene(), 1);
         }
-        const { radius } = (graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { radius: number } })
-            .geoFrame;
+        const { radius } = mapFrameOf(graph, "globe");
         const camera = graph.getScene().activeCamera;
         assert.isNotNull(camera);
         const pushes = tiles().map((m) => m.material?.zOffsetUnits ?? 0);
@@ -466,6 +475,53 @@ describe("the location map layout", () => {
         assert.isBelow(at("lost").y, lowestPlaced);
         assert.isBelow(at("blank").y, lowestPlaced);
         assert.isFalse(at("lost").x === 0 && at("lost").y === 0, "never at latitude 0, longitude 0");
+    });
+
+    it("keeps nodes with no usable location off the canvas with unplaced: hide, still reporting them", async () => {
+        await graph.addNodes([
+            { id: "JFK", where: "40.64, -73.78" },
+            { id: "LHR", where: "51.47, -0.45" },
+            { id: "lost", where: "somewhere" },
+        ]);
+        await graph.addEdges([
+            { src: "JFK", dst: "LHR" },
+            { src: "JFK", dst: "lost" },
+        ]);
+        /** Whether the node and the edge to it are drawn, and the reported unplaced nodes. */
+        const seen = async (): Promise<{ node: boolean; edge: boolean; kept: boolean; unplaced: unknown }> => {
+            await settled();
+            await operationQueueOf(graph).waitForCompletion();
+            await drawnFrames(graph.getScene(), 1);
+            const edges = [...graph.getDataManager().edges.values()];
+            const toLost = edges.find((e) => e.dstId === "lost");
+            const kept = edges.find((e) => e.dstId === "LHR");
+            assert.isDefined(toLost);
+            assert.isDefined(kept);
+            return {
+                node: graph.getNode("lost")?.getRenderState() === "visible" && graph.getNode("lost")?.isDrawn === true,
+                edge: toLost.isRenderVisible(),
+                kept: kept.isRenderVisible() && graph.getNode("JFK")?.getRenderState() === "visible",
+                unplaced: graph.mapFrame?.unplaced,
+            };
+        };
+
+        // In the tray first, so the node has a place it would still be drawn at.
+        await graph.setLayout("location-map", { location: "where", unplaced: "tray" });
+        assert.deepEqual(await seen(), { node: true, edge: true, kept: true, unplaced: ["lost"] });
+        assert.isBelow(at("lost").y, Math.min(at("JFK").y, at("LHR").y));
+
+        warnings.length = 0;
+        await graph.setLayout("location-map", { location: "where", unplaced: "hide" });
+        assert.deepEqual(await seen(), { node: false, edge: false, kept: true, unplaced: ["lost"] });
+        const unparsed = warnings.find((w) => w.code === "W_LOCATION_UNPARSED");
+        assert.deepInclude(unparsed?.params, { unparsed: 1, unplaced: 1, total: 3 });
+
+        // Another layout draws it again.
+        await graph.setLayout("circular");
+        await settled();
+        await operationQueueOf(graph).waitForCompletion();
+        await drawnFrames(graph.getScene(), 1);
+        assert.strictEqual(graph.getNode("lost")?.getRenderState(), "visible");
     });
 
     it("saves the map with the layout, and an undo brings back the map it replaced", async () => {

@@ -5,7 +5,7 @@
  * INTERNING BY SCANNING IS THE DEFECT THIS REPLACES. `Styles.getNodeIdForStyle` walks every style
  * ever minted and compares it with a deep equality check until one matches, so minting the Sth
  * distinct style costs S comparisons and minting S of them costs S squared. Measured on this
- * machine: 515 ms for 500 distinct styles, 2.1 s for 1,000. A continuous colour encoding makes S
+ * machine: 515 ms for 500 distinct styles, 2.1 s for 1,000. A continuous color encoding makes S
  * the element count, which is how one layer edit came to cost seconds.
  *
  * A HASH IS NOT A SCAN. The values of a style are folded into one 32-bit number as they are
@@ -16,12 +16,12 @@
  * NOTHING IS ALLOCATED PER ELEMENT. The pushed values go into a scratch array reused for every
  * element and copied only when a style turns out to be genuinely new, and the style object itself
  * is built by a factory that {@link StyleInterner.end} calls ONLY on a mint. That is the design's
- * columnar rule meeting its structural-hash rule: the 23-key object is materialised once per
+ * columnar rule meeting its structural-hash rule: the 23-key object is materialized once per
  * DISTINCT style instead of once per element.
  *
  * COLOUR AND OPACITY ARE NOT PART OF A MESH'S IDENTITY. They are per-instance GPU state -- one
  * buffer write against an instance that already exists -- so a graph whose nodes are all spheres
- * of one size needs ONE source mesh however many colours it is painted in. Folding colour into
+ * of one size needs ONE source mesh however many colors it is painted in. Folding color into
  * the key is what turns a viridis ramp into fifty thousand meshes, and it is what the element
  * does today. {@link channelRole} is where that split is written down, and
  * {@link meshChannelsFor} is the list a repaint pushes.
@@ -87,8 +87,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.flat": "mesh",
     "node.unlit": "mesh",
     // Width, height, depth and flatness are baked into the source mesh like the size. A border is
-    // its own source mesh keyed under the node's, its colour in its material: like an outline's,
-    // a colour per style rather than per instance.
+    // its own source mesh keyed under the node's, its color in its material: like an outline's,
+    // a color per style rather than per instance.
     "node.width": "mesh",
     "node.height": "mesh",
     "node.depth": "mesh",
@@ -217,6 +217,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelFitQuantum": "mesh",
     "node.labelFitImage": "mesh",
     "node.labelFitImagePadding": "mesh",
+    "node.imageAspect": "mesh",
     // A gradient fill is a ramp texture in the source mesh's material, not per-instance state:
     // each distinct gradient is its own source mesh (NodeMesh interns the ramps).
     "node.gradientColor": "mesh",
@@ -229,7 +230,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.gradientRadius": "mesh",
     // A model and the options that change its geometry pick the template a node is drawn from.
     // Tint is keyed too: "replace" swaps the materials, and on or off decides whether the node's
-    // colour is written into the model's instances (Node.applyInstanceColor).
+    // color is written into the model's instances (Node.applyInstanceColor).
     "node.model": "mesh",
     "node.modelSourceUp": "mesh",
     "node.modelTurn": "mesh",
@@ -245,13 +246,13 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.texture": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
     // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
-    // source. So two nodes that share a source mesh cannot be given two glow colours --
+    // source. So two nodes that share a source mesh cannot be given two glow colors --
     // whichever was applied last is what both are drawn in. A source mesh per distinct effect
-    // colour is therefore not a cost this table is choosing to pay, it is the only granularity
+    // color is therefore not a cost this table is choosing to pay, it is the only granularity
     // the renderer can express, and it is exactly the one `NodeEffects.resolveRenderedMesh`
     // describes: one source mesh is precisely the set of nodes sharing one effect configuration.
     "node.outline": "mesh",
-    // The ring's width picks its cached ring source, keyed by colour and width (NodeEffects).
+    // The ring's width picks its cached ring source, keyed by color and width (NodeEffects).
     "node.outlineWidth": "mesh",
     "node.glow": "mesh",
     // A glow's STRENGTH is keyed the same way. `NodeEffects.syncGlowStrengths` gives each SOURCE
@@ -272,6 +273,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.haloOpacity": "content",
     "edge.width": "mesh",
     "edge.minScreenWidth": "mesh",
+    // Places the line's piece in its pulled batch's draw order (PulledLineBatch.acquire).
+    "edge.drawOrder": "mesh",
     "edge.fadeStart": "mesh",
     "edge.fadeEnd": "mesh",
     "edge.fadeOpacity": "mesh",
@@ -282,13 +285,14 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.wavePeriod": "mesh",
     "edge.dashLength": "mesh",
     "edge.dashGap": "mesh",
+    "edge.dashArray": "mesh",
     "edge.curvature": "mesh",
     "edge.animationSpeed": "mesh",
 
     // An arrow cap is its own mesh with its own material, built per edge by
     // `EdgeMesh.createArrowHead` out of the style the paint carries. Nothing about it is
     // per-instance state, and the renderer rebuilds a cap only when the edge's mesh key changes
-    // -- so a size, a colour or an opacity left out of the key is a change that never reaches
+    // -- so a size, a color or an opacity left out of the key is a change that never reaches
     // the screen.
     "edge.arrowHead": "mesh",
     "edge.arrowHeadSize": "mesh",
@@ -339,6 +343,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.color": "instance",
     "node.opacity": "instance",
     "edge.color": "instance",
+    // Read by the renderer as the end node's color in place of `edge.color` (GraphSession's paint), so it keys what
+    // `edge.color` keys.
+    "edge.colorFrom": "instance",
     "edge.opacity": "instance",
     // The outline is a batch of its own, keyed by its color, width and opacity.
     "edge.outlineColor": "mesh",
@@ -355,6 +362,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.gradientColors": "mesh",
     "edge.gradientStops": "mesh",
     "edge.gradientKind": "mesh",
+    "edge.strandColors": "mesh",
+    "edge.strandSpacing": "mesh",
 
     // Drawn beside the mesh, and per element by nature: the halo is an overlay instance, the band
     // its own line batch, each rebuilt by the paint that carries it.
@@ -377,9 +386,12 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelItalic": "content",
     "node.labelWrapWidth": "content",
     "node.labelWrapTrailingSpace": "content",
+    "node.labelWrapSkipEndSpace": "content",
     "node.labelWrapEllipsis": "content",
     "node.labelWrapAnywhere": "content",
     "node.labelWrapSpaceCount": "content",
+    "node.labelMaxLines": "content",
+    "node.labelMaxLinesEllipsis": "content",
     "node.labelRunAlign": "content",
     "node.labelMinScreenSize": "content",
     "node.labelOnTop": "content",
@@ -400,6 +412,15 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelPadding": "content",
     "node.labelCornerRadius": "content",
     "node.labelLineHeight": "content",
+    "node.labelLineBox": "content",
+    "node.labelBorderAlign": "content",
+    "node.labelBorderStyle": "content",
+    "node.labelBackgroundShape": "content",
+    "node.labelImage": "content",
+    "node.labelImageWidth": "content",
+    "node.labelImageHeight": "content",
+    "node.labelImageOffsetX": "content",
+    "node.labelImageOffsetY": "content",
     "node.labelOffsetX": "content",
     "node.labelOffsetY": "content",
     "node.labelShiftX": "content",
@@ -417,9 +438,12 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelLocation": "content",
     "edge.labelWrapWidth": "content",
     "edge.labelWrapTrailingSpace": "content",
+    "edge.labelWrapSkipEndSpace": "content",
     "edge.labelWrapEllipsis": "content",
     "edge.labelWrapAnywhere": "content",
     "edge.labelWrapSpaceCount": "content",
+    "edge.labelMaxLines": "content",
+    "edge.labelMaxLinesEllipsis": "content",
     "edge.labelRunAlign": "content",
     "edge.labelMinScreenSize": "content",
     "edge.labelOnTop": "content",
@@ -437,6 +461,15 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelTable": "content",
     "edge.labelCornerRadius": "content",
     "edge.labelLineHeight": "content",
+    "edge.labelLineBox": "content",
+    "edge.labelBorderAlign": "content",
+    "edge.labelBorderStyle": "content",
+    "edge.labelBackgroundShape": "content",
+    "edge.labelImage": "content",
+    "edge.labelImageWidth": "content",
+    "edge.labelImageHeight": "content",
+    "edge.labelImageOffsetX": "content",
+    "edge.labelImageOffsetY": "content",
     "edge.labelOffsetX": "content",
     "edge.labelOffsetY": "content",
     "edge.labelShiftX": "content",
@@ -497,7 +530,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowTailTextRotation": "content",
     "edge.arrowTailTextOffsetX": "content",
     "edge.arrowTailTextOffsetY": "content",
-    // A text's size, colour and background are fields of the same rich-text block its style
+    // A text's size, color and background are fields of the same rich-text block its style
     // writes, rebuilt by the same content sync.
     "node.tooltipSize": "content",
     "node.tooltipColor": "content",
@@ -520,6 +553,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // Per edge by nature, like the bends: a taper is drawn from the line batch's per-slot static
     // attributes and a lift is the route, so neither keys a line batch (Edge.syncShading).
     "edge.taper": "content",
+    "edge.taperSource": "content",
     "edge.lift": "content",
     // A second label, drawn beside the node by the label renderer like the first.
     "node.xlabel": "content",
@@ -527,6 +561,11 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.xlabelLocation": "content",
     "node.xlabelOffsetX": "content",
     "node.xlabelOffsetY": "content",
+    "node.xlabelTextAlign": "content",
+    "node.xlabelColor": "content",
+    "node.xlabelFont": "content",
+    "node.xlabelWeight": "content",
+    "node.xlabelItalic": "content",
     "edge.xlabel": "content",
     "edge.xlabelStyle": "content",
     "edge.xlabelLocation": "content",
@@ -663,7 +702,7 @@ function finish(hash: number): number {
  * is the sequence and not a set of named fields.
  *
  * THE FACTORY RUNS ONLY ON A MINT. {@link end} takes a function that builds the style object and
- * calls it only when the sequence has not been seen before, so the cost of materialising a style
+ * calls it only when the sequence has not been seen before, so the cost of materializing a style
  * is paid once per distinct style rather than once per element. The factory must not call back
  * into the interner.
  */
@@ -679,7 +718,7 @@ export interface StyleInterner<T> {
     pushAbsent(): void;
     /**
      * Add a number.
-     * @param value - The number. `NaN` and `-0` are normalised, so two styles that differ only in
+     * @param value - The number. `NaN` and `-0` are normalized, so two styles that differ only in
      *     which `NaN` or which zero they carry are one style.
      */
     pushNumber(value: number): void;
@@ -937,7 +976,7 @@ export function createStyleInterner<T>(): StyleInterner<T> {
         },
 
         pushNumber(value: number): void {
-            // Both normalisations are about identity rather than arithmetic: every NaN is the
+            // Both normalizations are about identity rather than arithmetic: every NaN is the
             // same "not a number" to a reader, and -0 and 0 draw the same element, so a style
             // that differs only in one of those is not a second style.
             FLOAT_VIEW[0] = Number.isNaN(value) ? Number.NaN : value + 0;

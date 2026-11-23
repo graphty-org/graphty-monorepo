@@ -10,6 +10,7 @@ import { type GpuContext } from "../../src/context.js";
 import { createForceAtlas2 } from "../../src/layouts/forceatlas2.js";
 import { type DrawnTransform, type GpuLayoutSimulation, type LayoutStatsBase } from "../../src/types/layout.js";
 import { readF32 } from "../helpers/device.js";
+import { pathEdges, snapshotOf } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { storyGraph } from "../helpers/story-graph.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
@@ -110,6 +111,44 @@ describe("the drawn ring", () => {
         });
     }
 
+    // A batch sent with `fit` draws its own landing: mean at the target, furthest row `fit` out (issue #9665).
+    it("fits a batch sent with fit to its own landing, and reports the transform it drew with", async (t) => {
+        requireGpu(t);
+        const simulation = ringed(ctx, 3);
+        const scene = new Float32Array(3 * n).fill(Number.NaN);
+        simulation.load(snapshot, scene);
+        simulation.setDrawn({ slots: 2, rows: new Float32Array(4 * n) });
+        simulation.setDrawnTransform({ ...TRANSFORM, fit: 50 });
+        for (let batch = 0; batch < 3; batch++) {
+            await simulation.step(4);
+        }
+        await simulation.flush();
+        const landed = simulation.landedDrawn;
+        const via = simulation.landedDrawnTransform;
+        assert.ok(landed !== null && via !== null && via !== undefined);
+        assert.strictEqual(via.fit, undefined, "the transform drawn with, not the one sent");
+        const drawn = await readF32(ctx, landed, 4 * n);
+        simulation.dispose();
+
+        let far = 0;
+        for (let i = 0; i < n; i++) {
+            for (let axis = 0; axis < 3; axis++) {
+                const want = (scene[3 * i + axis] - via.center[axis]) * via.scale + TRANSFORM.target[axis];
+                const got = drawn[4 * i + axis];
+                assert.ok(Math.abs(got - want) <= 1e-5 * Math.max(1, Math.abs(want)), `row ${i}: ${got} vs ${want}`);
+            }
+            far = Math.max(
+                far,
+                Math.hypot(
+                    drawn[4 * i] - TRANSFORM.target[0],
+                    drawn[4 * i + 1] - TRANSFORM.target[1],
+                    drawn[4 * i + 2] - TRANSFORM.target[2],
+                ),
+            );
+        }
+        assert.ok(Math.abs(far - 50) < 1e-3, `the furthest row is drawn ${far} out`);
+    });
+
     it("a batch in flight across a load never lands as the drawn buffer", async (t) => {
         requireGpu(t);
         const simulation = ringed(ctx, 2);
@@ -163,6 +202,43 @@ describe("the drawn ring", () => {
         const { host, card } = await rowsOf(true);
         assert.ok(host !== null);
         expectBitwiseEqual(host, card, "the host rows are the landed slot");
+    });
+
+    it("reuses its readback buffers across landings, each landing's host rows still the slot it landed (issue #8801)", async (t) => {
+        requireGpu(t);
+        const simulation = ringed(ctx, 2);
+        /**
+         * Ten landings with two batches in flight, as a frame loop keeps them, over a freshly loaded graph.
+         * @param graph - the graph to load
+         * @returns how many distinct buffers the landed rows came in
+         */
+        const landings = async (graph: GraphSnapshot): Promise<number> => {
+            const rows = graph.nodeCount;
+            simulation.load(graph, new Float32Array(3 * rows).fill(Number.NaN));
+            simulation.setDrawn({ slots: 2, rows: new Float32Array(4 * rows).fill(1), readBack: true });
+            simulation.setDrawnTransform(TRANSFORM);
+            const buffers = new Set<ArrayBufferLike>();
+            for (let batch = 0; batch < 10; batch++) {
+                const first = simulation.step(1);
+                await simulation.step(1);
+                await first;
+                const host = simulation.landedDrawnRows;
+                const landed = simulation.landedDrawn;
+                assert.ok(host !== null && landed !== null);
+                buffers.add(host.buffer);
+                expectBitwiseEqual(host, await readF32(ctx, landed, 4 * rows), `landing ${String(batch)}`);
+            }
+            return buffers.size;
+        };
+        assert.isAtMost(
+            await landings(snapshot),
+            4,
+            "the readbacks come from a few reused buffers, not one per landing",
+        );
+        // a load with more rows: the smaller spares are dropped, not kept while every landing allocates anew
+        const grown = snapshotOf(pathEdges(4 * n + 50));
+        assert.isAtMost(await landings(grown), 4, "after the graph grows the readbacks are reused again");
+        simulation.dispose();
     });
 
     it("without a ring nothing is drawn and the positions are those of a run with one", async (t) => {

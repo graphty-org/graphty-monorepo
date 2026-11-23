@@ -65,9 +65,12 @@ export const STYLE_PROPERTIES: {
         ["labelSize", "number"],
         ["labelWrapWidth", "number"],
         ["labelWrapTrailingSpace", "boolean"],
+        ["labelWrapSkipEndSpace", "boolean"],
         ["labelWrapEllipsis", "boolean"],
         ["labelWrapAnywhere", "boolean"],
         ["labelWrapSpaceCount", "number"],
+        ["labelMaxLines", "number"],
+        ["labelMaxLinesEllipsis", "boolean"],
         ["labelKeepBlankLines", "boolean"],
         ["labelRunAlign", "text"],
         ["labelOffsetX", "signed"],
@@ -126,6 +129,11 @@ export const STYLE_PROPERTIES: {
         ["xlabel", "text"],
         ["xlabelOffsetX", "signed"],
         ["xlabelOffsetY", "signed"],
+        ["xlabelTextAlign", "textAlign"],
+        ["xlabelColor", "color"],
+        ["xlabelFont", "text"],
+        ["xlabelWeight", "weight"],
+        ["xlabelItalic", "boolean"],
         ["labelFont", "text"],
         ["labelWeight", "weight"],
         ["labelItalic", "boolean"],
@@ -149,6 +157,15 @@ export const STYLE_PROPERTIES: {
         ["labelPadding", "number"],
         ["labelCornerRadius", "number"],
         ["labelLineHeight", "number"],
+        ["labelLineBox", "text"],
+        ["labelBorderAlign", "text"],
+        ["labelBorderStyle", "text"],
+        ["labelBackgroundShape", "text"],
+        ["labelImage", "text"],
+        ["labelImageWidth", "number"],
+        ["labelImageHeight", "number"],
+        ["labelImageOffsetX", "signed"],
+        ["labelImageOffsetY", "signed"],
         ["labelBox", "labelBox"],
         ["image", "text"],
         ["imageFit", "text"],
@@ -164,6 +181,7 @@ export const STYLE_PROPERTIES: {
         ["imageSmoothing", "boolean"],
         ["imageAutoSize", "text"],
         ["imageOpacity", "opacity"],
+        ["imageAspect", "boolean"],
         ["glyph", "text"],
         ["glyphFont", "text"],
         ["glyphSize", "number"],
@@ -210,6 +228,14 @@ export const STYLE_PROPERTIES: {
         ["groupMinWidthBiasLeft", "number"],
         ["groupMinHeightBiasTop", "number"],
         ["groupIncludeLabels", "boolean"],
+        ["cornerRadiusCap", "number"],
+        ["cornerFraction", "number"],
+        ["borderScreenWidth", "number"],
+        ["labelScreenSize", "number"],
+        ["sizeMode", "text"],
+        ["labelShiftOf", "text"],
+        ["labelGapOf", "text"],
+        ["drawOrder", "number"],
         ["visible", "boolean"],
     ]),
     edge: new Map<string, StyleValueKind>([
@@ -222,6 +248,7 @@ export const STYLE_PROPERTIES: {
         ["opacity", "opacity"],
         ["width", "number"],
         ["minScreenWidth", "number"],
+        ["drawOrder", "number"],
         ["outlineWidth", "number"],
         ["outlineColor", "color"],
         ["outlineOpacity", "opacity"],
@@ -235,6 +262,8 @@ export const STYLE_PROPERTIES: {
         ["gradientColors", "text"],
         ["gradientStops", "text"],
         ["gradientKind", "text"],
+        ["strandColors", "text"],
+        ["strandSpacing", "number"],
         ["labelSize", "number"],
         ["arrowSize", "number"],
         ["sourceArrowSize", "number"],
@@ -242,8 +271,8 @@ export const STYLE_PROPERTIES: {
         ["targetArrowLength", "number"],
         ["sourceArrowWidth", "number"],
         ["targetArrowWidth", "number"],
-        ["sourceArrowGap", "number"],
-        ["targetArrowGap", "number"],
+        ["sourceArrowGap", "signed"],
+        ["targetArrowGap", "signed"],
         ["sourceArrowSide", "arrowSide"],
         ["targetArrowSide", "arrowSide"],
         ["sourceArrowParts", "text"],
@@ -253,6 +282,7 @@ export const STYLE_PROPERTIES: {
         ["waveAmplitude", "number"],
         ["wavePeriod", "number"],
         ["taper", "number"],
+        ["taperSource", "number"],
         ["sourceArrow", "arrow"],
         ["targetArrow", "arrow"],
         ["midTargetArrow", "arrow"],
@@ -297,6 +327,8 @@ export const STYLE_PROPERTIES: {
         ["labelWrapEllipsis", "boolean"],
         ["labelWrapAnywhere", "boolean"],
         ["labelWrapSpaceCount", "number"],
+        ["labelMaxLines", "number"],
+        ["labelMaxLinesEllipsis", "boolean"],
         ["labelKeepBlankLines", "boolean"],
         ["labelRunAlign", "text"],
         ["labelPosition", "position"],
@@ -318,6 +350,10 @@ export const STYLE_PROPERTIES: {
         ["labelTable", "text"],
         ["labelCornerRadius", "number"],
         ["labelLineHeight", "number"],
+        ["labelLineBox", "text"],
+        ["labelBorderAlign", "text"],
+        ["labelBorderStyle", "text"],
+        ["labelBackgroundShape", "text"],
         ["sourceLabel", "text"],
         ["targetLabel", "text"],
         ["sourceLabelOffset", "number"],
@@ -336,6 +372,29 @@ export const STYLE_PROPERTIES: {
         ["targetLabelFont", "text"],
         ["labelMinScreenSize", "number"],
         ["labelOnTop", "boolean"],
+        ["labelScreenSize", "number"],
+        ["sourceLabelScreenSize", "number"],
+        ["targetLabelScreenSize", "number"],
+        ["labelShiftOf", "text"],
+        ["sourceLabelWeight", "weight"],
+        ["targetLabelWeight", "weight"],
+        ["sourceLabelOpacity", "opacity"],
+        ["targetLabelOpacity", "opacity"],
+        ["dashLength", "number"],
+        ["dashGap", "number"],
+        ["dashArray", "text"],
+        ["sourceArrowExtent", "number"],
+        ["targetArrowExtent", "number"],
+        ["midSourceArrowExtent", "number"],
+        ["midTargetArrowExtent", "number"],
+        ["sourceArrowBreadth", "number"],
+        ["targetArrowBreadth", "number"],
+        ["midSourceArrowBreadth", "number"],
+        ["midTargetArrowBreadth", "number"],
+        ["sourceArrowOutlineWidth", "number"],
+        ["targetArrowOutlineWidth", "number"],
+        ["midSourceArrowOutlineWidth", "number"],
+        ["midTargetArrowOutlineWidth", "number"],
         ["visible", "boolean"],
     ]),
     graph: new Map<string, StyleValueKind>([
@@ -343,6 +402,67 @@ export const STYLE_PROPERTIES: {
         ["rotation", "number"],
     ]),
 });
+
+/**
+ * The node shapes beyond the basic ones that a file's own shape is settled into: graphty's names for Pajek's cross,
+ * house, man and woman, the rounded polygons and the barrel, rectangles rounded on one side, and the database
+ * (cylinder).
+ */
+const GENERIC_SHAPES = [
+    "cross",
+    "house",
+    "man",
+    "woman",
+    "round-triangle",
+    "round-diamond",
+    "round-pentagon",
+    "round-hexagon",
+    "round-octagon",
+    "round-polygon",
+    "barrel",
+    "top-round-rectangle",
+    "bottom-round-rectangle",
+    "database",
+] as const;
+
+/** The stroke patterns beyond the basic ones that a line or border style is settled into. */
+const STROKES = ["forward-slash", "backward-slash", "vertical-slash", "separate-arrow", "contiguous-arrow"] as const;
+
+/** The line styles beyond the basic ones. */
+const GENERIC_LINE_STYLES = STROKES;
+
+/** The border styles beyond the basic ones. */
+const GENERIC_BORDER_STYLES = ["zigzag", "sinewave", ...STROKES] as const;
+
+/**
+ * The arrow shapes beyond the basic ones that a file's own arrow is settled into: a half arrow drawn as one thin barb
+ * on either side, a vee turned round, a half arrow on the line's other side, half circles and curves, compound and
+ * crossed arrows, an open square and an open inverted triangle, a picture, the kite, the deltoid and the open vee, and
+ * the stem and slash pieces of an arrow drawn in several pieces.
+ */
+const GENERIC_ARROWS = [
+    "half-barb",
+    "half-barb-flipped",
+    "inverted-vee",
+    "half-open-flipped",
+    "half-circle",
+    "open-half-circle",
+    "curve",
+    "triangle-tee",
+    "triangle-cross",
+    "circle-triangle",
+    "open-box",
+    "open-inverted",
+    "cross-delta",
+    "open-cross-delta",
+    "image",
+    "cross",
+    "kite",
+    "deltoid",
+    "open-vee",
+    "stem",
+    "slash",
+] as const;
 
 /**
  * The values of each enumeration kind. A value outside the list is valid only as `other:<raw>` (where the
@@ -367,11 +487,15 @@ export const STYLE_ENUMS: ReadonlyMap<StyleValueKind, readonly string[]> = new M
             "vee",
             "polygon",
             "none",
+            ...GENERIC_SHAPES,
         ],
     ],
-    ["borderStyle", ["solid", "dashed", "dotted", "dash-dot", "double"]],
+    ["borderStyle", ["solid", "dashed", "dotted", "dash-dot", "double", ...GENERIC_BORDER_STYLES]],
     ["borderPosition", ["inside", "center", "outside"]],
-    ["lineStyle", ["solid", "dashed", "dotted", "dash-dot", "long-dash", "double", "zigzag", "sinewave"]],
+    [
+        "lineStyle",
+        ["solid", "dashed", "dotted", "dash-dot", "long-dash", "double", "zigzag", "sinewave", ...GENERIC_LINE_STYLES],
+    ],
     [
         "arrow",
         [
@@ -388,10 +512,11 @@ export const STYLE_ENUMS: ReadonlyMap<StyleValueKind, readonly string[]> = new M
             "crow",
             "half",
             "inverted",
+            ...GENERIC_ARROWS,
         ],
     ],
     ["arrowSide", ["left", "right"]],
-    ["weight", ["normal", "bold"]],
+    ["weight", ["normal", "bold", "100", "200", "300", "500", "600", "800", "900"]],
     ["textAlign", ["left", "center", "right"]],
     ["labelFit", ["inside", "bounds"]],
     ["labelBox", ["words", "words-at-side", "target-width"]],

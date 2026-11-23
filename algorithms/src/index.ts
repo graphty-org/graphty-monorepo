@@ -10,9 +10,14 @@
 
 // The algorithms, their options and their results.
 export * from "./indexed/index.js";
+// The alpha a Katz run without one uses, for a caller that reports it.
+export { katzAlpha } from "./indexed/katz.js";
 
 // Id-keyed views of results, for a caller holding its own node ids.
 export { groupsById, type Partition, pathIds, scoresById } from "./indexed/by-id.js";
+
+// How far two groupings of the same elements agree (adjusted Rand index, adjusted mutual information).
+export { type PartitionAgreement, partitionAgreement } from "./indexed/partition-agreement.js";
 
 /**
  * The algorithms under their 2.x namespace, types included (`indexed.PageRankResult`).
@@ -78,3 +83,6 @@ export {
     type GraphDirection,
     type WeightUse,
 } from "./catalog.js";
+
+// ==================== version
+export { VERSION } from "./version.js";

@@ -53,15 +53,15 @@ describe("site.json", () => {
 
     it("hands the site's experiments and the address's to the element, and names the site", async () => {
         const url = new URL(address);
-        url.searchParams.set("features", "Location-Map,assistant");
+        url.searchParams.set("features", "Location-Map,cosmograph");
         globalThis.history.replaceState(null, "", url.href);
-        const config = await loadSiteConfig(siteFile({ site: "nightly", features: ["assistant"] }));
-        assert.deepEqual(config.features, ["assistant", "location-map"]);
+        const config = await loadSiteConfig(siteFile({ site: "nightly", features: ["cosmograph"] }));
+        assert.deepEqual(config.features, ["cosmograph", "location-map"]);
 
         const element = await mountElement();
-        assert.deepEqual(element.features, ["assistant", "location-map"]);
-        // This build has the assistant and not the map, so the element reports only the map as unknown.
-        assert.deepEqual(element.enabledFeatures.enabled, ["assistant"]);
+        assert.deepEqual(element.features, ["cosmograph", "location-map"]);
+        // This build has cosmograph and not the map, so the element reports only the map as unknown.
+        assert.deepEqual(element.enabledFeatures.enabled, ["cosmograph"]);
         assert.deepEqual(element.enabledFeatures.unknown, ["location-map"]);
         // The status bar names the site, directly right of the WebGPU chip; the header does not.
         const status = screen.getByRole("contentinfo", { name: "Status" });
@@ -86,21 +86,26 @@ describe("site.json", () => {
     });
 
     it("switches every experiment off when the site answers site.json with a page", async () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
         const config = await loadSiteConfig("data:text/html,<!doctype html><title>Graphty</title>");
+        const lines = warn.mock.calls.map((call) => String(call[0]));
+        warn.mockRestore();
         assert.deepEqual(config, { site: "unknown", features: [] });
+        // Names the cause, never a JSON syntax error from parsing the page (#8224).
+        assert.include(lines.join("\n"), "served an HTML page, not a site configuration");
     });
 
     it("switches every experiment off when site.json is invalid", async () => {
-        const config = await loadSiteConfig(siteFile({ site: "staging", features: ["assistant"] }));
+        const config = await loadSiteConfig(siteFile({ site: "staging", features: ["cosmograph"] }));
         assert.deepEqual(config, { site: "unknown", features: [] });
 
         const element = await mountElement();
         assert.deepEqual(element.features, []);
     });
 
-    it("accepts the graduated timeline id from a link, switching nothing on", async () => {
+    it("accepts the graduated timeline and assistant ids from a link, switching nothing on", async () => {
         const url = new URL(address);
-        url.searchParams.set("features", "timeline");
+        url.searchParams.set("features", "timeline,assistant");
         globalThis.history.replaceState(null, "", url.href);
         await loadSiteConfig(siteFile({ site: "nightly", features: [] }));
 
@@ -109,11 +114,11 @@ describe("site.json", () => {
     });
 
     it("keeps the experiments of a site.json that names no site, and names no site", async () => {
-        const config = await loadSiteConfig(siteFile({ features: ["assistant"] }));
-        assert.deepEqual(config, { site: "unknown", features: ["assistant"] });
+        const config = await loadSiteConfig(siteFile({ features: ["cosmograph"] }));
+        assert.deepEqual(config, { site: "unknown", features: ["cosmograph"] });
 
         const element = await mountElement();
-        assert.deepEqual(element.features, ["assistant"]);
+        assert.deepEqual(element.features, ["cosmograph"]);
         assert.isNull(screen.queryByLabelText(/^Site: /));
     });
 });

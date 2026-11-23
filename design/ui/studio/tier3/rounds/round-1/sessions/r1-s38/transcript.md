@@ -4,7 +4,7 @@ Task: open Les Miserables sample; make ties with >=5 shared chapters thick and b
 
 ## Step 1
 Command: --start empty
-Saw: a welcome page with a big green "Open a file", "Samples" and a pretty coloured network. Says nothing leaves my computer - good.
+Saw: a welcome page with a big green "Open a file", "Samples" and a pretty colored network. Says nothing leaves my computer - good.
 Next: I need the ready-made Les Miserables network. Clicking "Samples".
 
 ## Step 2
@@ -24,7 +24,7 @@ Saw: a sample library; first card "Les Miserables -- 77 nodes, 254 edges". That'
 Command: --step --click-at 183,410
 at 183,410: button "Open the Les Miserables sample"
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/tmp/studio-sessions/tier3/rounds/round-1/sessions/r1-s38/04.png
-Saw: network open, 77 nodes, 254 edges, all blue dots with grey lines. Left side has "Style layers" with a plus. I need to change some ties' look, so the plus next to Style layers seems the place.
+Saw: network open, 77 nodes, 254 edges, all blue dots with gray lines. Left side has "Style layers" with a plus. I need to change some ties' look, so the plus next to Style layers seems the place.
 
 ## Step 5
 Command: --step --click-at 276,122
@@ -81,13 +81,13 @@ Saw: menu Color, Width, Pattern, Pattern count, Curved. Color first.
 Command: --step --click-at 1340,376
 at 1340,376: menuitem "Color"
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/tmp/studio-sessions/tier3/rounds/round-1/sessions/r1-s38/14.png
-Saw: a Color row with "A9A9A9" and a little grey square. I don't speak in codes; I'll click the little colour square hoping for a palette.
+Saw: a Color row with "A9A9A9" and a little gray square. I don't speak in codes; I'll click the little color square hoping for a palette.
 
 ## Step 15
 Command: --step --click-at 1268,374
 at 1268,374: button "Pick edge color"
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/tmp/studio-sessions/tier3/rounds/round-1/sessions/r1-s38/15.png
-Saw: a colour picker with a few swatches at the bottom; the third one is a plain blue. Clicking that.
+Saw: a color picker with a few swatches at the bottom; the third one is a plain blue. Clicking that.
 
 ## Step 16
 Command: --step --click-at 1031,736
@@ -109,7 +109,7 @@ Saw: a Width box with "8" in it, but the blue lines look as thin as before. 8 of
 ## Step 19
 Command: --step --key Control+a --type "20" --key Enter
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/tmp/studio-sessions/tier3/rounds/round-1/sessions/r1-s38/19.png
-Saw: at 20 the blue ties are now visibly thicker; the other ties are still thin grey and the characters are still the same purple-blue dots. The key top-left says "Edge color: Layer 1, 51 of 254 edges". I'm stopping here: the job is done.
+Saw: at 20 the blue ties are now visibly thicker; the other ties are still thin gray and the characters are still the same purple-blue dots. The key top-left says "Edge color: Layer 1, 51 of 254 edges". I'm stopping here: the job is done.
 
 ## End (in character, Tom)
 
@@ -121,7 +121,7 @@ What went well: Samples was right on the front page and Les Miserables was the f
 
 What confused me:
 - Width came in at "8" and nothing on the picture looked any different. "8 of what?" I only saw a change when I typed 20, and I still don't know what 20 means or whether 8 had done anything at all.
-- The colour box opened showing a code, "A9A9A9". I found the swatches by clicking the little square; if I hadn't, I'd have been stuck.
+- The color box opened showing a code, "A9A9A9". I found the swatches by clicking the little square; if I hadn't, I'd have been stuck.
 - I had to know to click a plus next to "Style layers", then "Layer", then switch to "Edge". Nothing said "change the ties here"; I guessed.
 - The new thing is called "Layer 1" and the key on the picture says "Edge color: Layer 1". The PI won't know what "Layer 1" is, and the key says nothing about them being thicker or meaning 5 or more chapters. I'd have to stand next to the slide and explain it.
 - "Between 5 to 31" - I only wanted "at least 5". It worked because 31 is the top, but I had to think about it.

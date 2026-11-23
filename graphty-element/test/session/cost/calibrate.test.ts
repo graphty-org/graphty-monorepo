@@ -156,7 +156,7 @@ describe("calibrateCost: measuring this machine", () => {
         }
     });
 
-    it("degrades an estimate to modelled when it could not measure", async () => {
+    it("degrades an estimate to modeled when it could not measure", async () => {
         const calibration = await calibrateCost({ budgetMs: 0 });
         const estimate = estimateCost({
             algorithm: "degree",
@@ -165,7 +165,7 @@ describe("calibrateCost: measuring this machine", () => {
             calibration,
         });
 
-        assert.equal(estimate.confidence, "modelled");
+        assert.equal(estimate.confidence, "modeled");
     });
 });
 
@@ -292,7 +292,7 @@ describe("CostMeasurementLog: what runs actually took", () => {
             measurements: log.entries,
         });
 
-        assert.equal(before.confidence, "modelled");
+        assert.equal(before.confidence, "modeled");
         assert.equal(after.confidence, "measured");
         assert.closeTo(after.seconds, 0.02, 1e-12);
     });

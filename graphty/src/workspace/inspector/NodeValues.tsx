@@ -8,12 +8,15 @@ import {
     UiGlyph,
 } from "@graphty/compact-mantine";
 import type { GraphSession, NodeId, SelectionDirection, SelectionStatistics } from "@graphty/graphty-element/session";
-import { Button, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { writeCondition } from "../data-place/filterCards";
-import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
+import { copyText } from "../data-place/resultItems";
 import { focusInspectorTitle } from "../frame/focus";
+import { GLYPHS } from "../glyphs";
+import { orNotice } from "../graph-place/actions";
+import { useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { edgeEnds } from "../table/columns";
@@ -244,6 +247,61 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
     );
 }
 
+/** The element's events after which a node may be pinned or let go: a pin, a drag, an undo, a load. */
+const PIN_EVENTS = ["history:changed", "project:changed"] as const;
+
+/**
+ * A node's header buttons: Pin (or Unpin) holds it where it is through graphty-element's
+ * `session.positions`, so a layout leaves it there; Copy id puts its id on the clipboard.
+ * @param props - Component props
+ * @param props.id - The node, or undefined when no single node is inspected
+ * @returns The buttons, or nothing
+ */
+export function NodeHeaderActions({ id }: Readonly<{ id: NodeId | undefined }>): React.JSX.Element | null {
+    const { session, store } = useWorkspace();
+    useSessionEvents(session, PIN_EVENTS);
+    if (session === null || id === undefined) {
+        return null;
+    }
+    const pinned = session.positions.pinned.has(id);
+    const pinWord = pinned ? "Unpin" : "Pin";
+    const PinGlyph = pinned ? GLYPHS.unpin : GLYPHS.pin;
+    return (
+        <>
+            <Tooltip label={pinWord}>
+                <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    ml="auto"
+                    aria-label={pinWord}
+                    onClick={() => {
+                        const { positions } = session;
+                        void orNotice(
+                            store,
+                            pinWord.toLowerCase(),
+                            pinned ? positions.unpin([id]) : positions.pin([id]),
+                        );
+                    }}
+                >
+                    <PinGlyph size={14} />
+                </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Copy id">
+                <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    aria-label="Copy id"
+                    onClick={() => {
+                        copyText(store, "id", String(id));
+                    }}
+                >
+                    <GLYPHS.copy size={14} />
+                </ActionIcon>
+            </Tooltip>
+        </>
+    );
+}
+
 /** The Follow control's choices, shown only on a directed graph. */
 const FOLLOW: readonly { value: SelectionDirection; label: string }[] = [
     { value: "out", label: "Out" },
@@ -303,7 +361,7 @@ export function NeighborList({
 }: Readonly<{ center: NodeId; hops?: number; direction?: SelectionDirection }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     // Filter to neighbors reads the steps, so it follows each change to them.
-    useVisibilityVersion(session);
+    useSessionEvents(session, VISIBILITY_EVENTS);
     const heading = useRef<HTMLElement>(null);
     const hopsLabel = `neighbor-hops-${nodeKey(center)}`;
     // The list takes focus as it opens. A Hops or Follow change keeps focus on the control that

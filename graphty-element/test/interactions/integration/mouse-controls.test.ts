@@ -87,10 +87,10 @@ describe("the wheel in 3D", () => {
         const element = await mounted("3d");
         const center = { x: WIDTH / 2, y: HEIGHT / 2 };
         const distance = (): number => element.getCameraState().cameraDistance ?? Number.NaN;
-        // Whether each real wheel event reaching the page was cancelled, read once it is handled.
-        const cancelled: boolean[] = [];
+        // Whether each real wheel event reaching the page was canceled, read once it is handled.
+        const canceled: boolean[] = [];
         const onWheel = (event: WheelEvent): void => {
-            cancelled.push(event.defaultPrevented);
+            canceled.push(event.defaultPrevented);
         };
         globalThis.addEventListener("wheel", onWheel);
         onCleanup(() => {
@@ -104,8 +104,8 @@ describe("the wheel in 3D", () => {
         await wheel(element, center, 100);
         await applied(element);
 
-        assert.lengthOf(cancelled, 2, "the page got both wheel turns");
-        assert.deepEqual(cancelled, [true, true], "the element kept the wheel from scrolling the page");
+        assert.lengthOf(canceled, 2, "the page got both wheel turns");
+        assert.deepEqual(canceled, [true, true], "the element kept the wheel from scrolling the page");
         assert.isBelow(zoomedIn, start * 0.95, "wheel up moved the camera closer");
         assert.isAbove(zoomedIn, start * 0.5, "one notch did not jump the camera");
         assert.isAbove(distance(), zoomedIn, "wheel down moved the camera away");

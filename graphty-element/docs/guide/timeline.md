@@ -188,8 +188,8 @@ await time.seek("end"); // to the last window
 await time.window(null); // clear it
 ```
 
-Each of these is undoable, and the window is saved in the project. Moves made in quick succession
-merge into one undo step, as a drag does; `await time.commit()` always records its own step. `play`
+Each of these is undoable, and the window is saved in the project. Consecutive moves merge into
+one undo step, as a drag does; `await time.commit()` always records its own step. `play`
 records one step for the whole play. It takes `step`, `mode` (`"sliding"`, or `"cumulative"` to grow from the start),
 `interval` (milliseconds per step, default 1000), `loop`, `motion`, `timeZone` and `waitForRender`.
 
@@ -222,7 +222,14 @@ await time.setSettings({ step: "week", mode: "cumulative", results: "rerun", mis
 - `mode`: `"sliding"` (the default) or `"cumulative"`, a window that grows from the start of the data.
 - `results`: what a window move does to algorithm results computed over the visible graph.
   `"stale"` (the default) marks them out of date, `"keep"` leaves them current, and `"rerun"` runs
-  them again over each new window, a play waiting for them at every step.
+  them again over each new window. A step or a window set waits for them; a play keeps its pace and
+  does not: one re-run runs at a time, and the steps that came while it ran are caught up by one
+  more over the newest window, so a slow algorithm such as Betweenness runs at most once per
+  finished re-run instead of once per step, and is out of date only while it catches up. A run the
+  window re-ran (a play, a step, a window drag, or switching to `"rerun"`) publishes `run:changed` with
+  `trigger: "time-window"`, so a listener can tell it from a run a caller started, which has no
+  `trigger`. A re-run that fails publishes `time:rerun-failed` with the run and the error's
+  `{ code, params }`; one canceled with `run.cancel()` is not a failure and publishes nothing.
 - `missing`: `"inside"` (the default) keeps elements with no time in every window; `"outside"` hides
   them.
 - `outside`: `"hide"` or `"ghost"`, read from and written to the style layers. See [What lies outside the window](#what-lies-outside-the-window).
@@ -240,7 +247,8 @@ nothing differently. `time.inside` counts what every filter keeps inside the win
 `visible`.
 
 With the project setting `startingRows` on, the element adds one such row for you, Timeline Hidden,
-directly below Selected. The project setting `timelineHiddenLook` picks how it starts:
+directly below Selected, the first time the project's timeline turns on (a time field is set, or
+data that declares one is loaded). The project setting `timelineHiddenLook` picks how it starts:
 
 - `"hidden"` (the default): `visible: false`, so what lies outside the window is not drawn at all;
 - `"ghost"`: `visible: true`, grey at low opacity, so it stays on screen as context.
@@ -249,9 +257,10 @@ directly below Selected. The project setting `timelineHiddenLook` picks how it s
 await g.session.config.set({ startingRows: true, timelineHiddenLook: "ghost" });
 ```
 
-Timeline Hidden is an ordinary row: edit it, hide it or delete it like any other. It is added only
-when no layer already selects `"outsideWindow"`, so it never
-comes twice, and a project file brings back exactly the rows it saved. Changing
+Timeline Hidden is an ordinary row: edit it, hide it or delete it like any other. It is added once:
+the project setting `timelineHiddenAdded` records that it was, so turning the timeline off and on
+again, or deleting the row, never brings it back, and a project file brings back exactly the rows
+it saved. Changing
 `timelineHiddenLook` later never rewrites a row that is already there. You can also write the row
 yourself:
 

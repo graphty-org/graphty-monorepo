@@ -17,13 +17,12 @@ const KEY = "sk-test-0123456789abcdefghij";
 const PREFIX = "@graphty-test-fresh-element";
 
 /**
- * An element on the page with the assistant experiment on.
+ * An element on the page.
  * @returns It, settled.
  */
 async function mount(): Promise<Graphty> {
     const made = document.createElement("graphty-element");
     made.style.cssText = "display:block;width:300px;height:200px";
-    made.features = ["assistant"];
     document.body.appendChild(made);
     await made.waitForSettled();
     return made;

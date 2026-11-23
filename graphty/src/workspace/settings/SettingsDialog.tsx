@@ -1,6 +1,7 @@
 import { ModalFooter, PageList, SegmentedControl } from "@graphty/compact-mantine";
 import type { AccelerationStatus } from "@graphty/graphty-element/session";
 import {
+    Anchor,
     Button,
     Input,
     type MantineColorScheme,
@@ -16,11 +17,11 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { siteFileStyles } from "../../siteConfig";
 import { AiProviderPage, type PageCommit } from "../assistant-door/AssistantPlace";
-import { AI_PROVIDER_SECTION, assistantOn } from "../assistant-door/commands";
+import { AI_PROVIDER_SECTION } from "../assistant-door/commands";
 import { providerDisclosure } from "../assistant-door/provider";
 import { fileStylesOn } from "../features";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";
-import { answerUsageData, useUsageAnswer } from "../privacy/usageData";
+import { ANONYMOUS_COUNTS, answerUsageData, useAnalyticsSends, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
 import { useAssistantSendsTo } from "../privacy/useAssistantSendsTo";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -44,9 +45,10 @@ const SECTIONS = [
     { id: "privacy", name: "Privacy" },
     { id: "accessibility", name: "Accessibility and input" },
     { id: "performance", name: "Performance" },
+    AI_PROVIDER_SECTION,
 ] as const;
 
-type SectionId = (typeof SECTIONS)[number]["id"] | typeof AI_PROVIDER_SECTION.id;
+type SectionId = (typeof SECTIONS)[number]["id"];
 
 /**
  * Your name: kept in this browser and written on the open project's author setting, which
@@ -141,6 +143,11 @@ function General(): React.JSX.Element {
                         const next = TIMELINE_STYLE.values.find((v) => v === value) ?? TIMELINE_STYLE.fallback;
                         setTimelineStyle(next);
                         writePreference(TIMELINE_STYLE, next);
+                        // The open project's row comes when its timeline first turns on, so the
+                        // choice applies to it too; a row already there is never rewritten.
+                        if (session !== null && session.config.timelineHiddenLook !== next) {
+                            void session.config.set({ timelineHiddenLook: next });
+                        }
                     }}
                     data={[
                         { value: "hidden", label: "Hidden" },
@@ -176,13 +183,20 @@ function General(): React.JSX.Element {
 
 /**
  * Privacy: the usage data switch with the owner's words, and where the reader's data goes. With
- * the assistant experiment on and a provider saved, the provider is named and no line says otherwise.
+ * a provider saved, the provider is named and no line says otherwise.
  * @returns The section
  */
 function Privacy(): React.JSX.Element {
     const on = useUsageAnswer() === "share";
     const sendsTo = useAssistantSendsTo();
-    const usageOff = sendsTo === null ? "Usage data: off. Nothing is sent." : "Usage data: off.";
+    const analytics = useAnalyticsSends();
+    let usageOff = sendsTo === null ? "Usage data: off. Nothing is sent." : "Usage data: off.";
+    if (analytics) {
+        usageOff =
+            sendsTo === null
+                ? `Usage data: off. Anonymous counts are still sent: ${ANONYMOUS_COUNTS}.`
+                : "Usage data: off. Anonymous counts are still sent.";
+    }
     return (
         <Stack gap="md">
             <Stack gap={6}>
@@ -209,6 +223,16 @@ function Privacy(): React.JSX.Element {
                 <Text size="xs">
                     {on ? "Usage data: sent with content masked, only while Share usage data is on." : usageOff}
                 </Text>
+                {analytics && !on ? (
+                    <Text size="xs">
+                        Anonymous counts: while Share is off, with no cookies or stored id (PostHog, US).
+                    </Text>
+                ) : null}
+                {analytics ? (
+                    <Anchor href="/privacy.html" target="_blank" rel="noopener noreferrer" size="xs">
+                        Privacy details
+                    </Anchor>
+                ) : null}
             </Stack>
         </Stack>
     );
@@ -298,12 +322,11 @@ function Performance(): React.JSX.Element {
  * @returns The dialog
  */
 export function SettingsDialog(): React.JSX.Element {
-    const { store, element } = useWorkspace();
+    const { store } = useWorkspace();
     const dialog = useWorkspaceState((state) => state.dialog);
     const opened = dialog === "settings" || (dialog?.startsWith("settings:") ?? false);
     const asked = dialog?.split(":")[1];
-    const sections = assistantOn(element) === true ? [...SECTIONS, AI_PROVIDER_SECTION] : SECTIONS;
-    const section: SectionId = sections.find((s) => s.id === asked)?.id ?? "general";
+    const section: SectionId = SECTIONS.find((s) => s.id === asked)?.id ?? "general";
     const close = (): void => {
         store.set({ dialog: null });
     };
@@ -335,7 +358,7 @@ export function SettingsDialog(): React.JSX.Element {
 
     // Opened from the start page (no project open), it takes the page's look: start.css.
     const onStart = useWorkspaceState((state) => state.project === null);
-    const title = sections.find((s) => s.id === section)?.name ?? "";
+    const title = SECTIONS.find((s) => s.id === section)?.name ?? "";
     return (
         <Modal
             opened={opened}
@@ -352,7 +375,7 @@ export function SettingsDialog(): React.JSX.Element {
             <div className="ws-dialog-columns">
                 <PageList
                     label="Settings sections"
-                    items={sections}
+                    items={SECTIONS}
                     current={section}
                     onCurrentChange={(id) => {
                         store.set({ dialog: `settings:${id}` });

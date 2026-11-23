@@ -417,9 +417,6 @@
     }
   },
   "src/managers/EventManager.ts": {
-    "eslint-comments/require-description": {
-      "count": 2
-    },
     "unicorn/no-array-callback-reference": {
       "count": 1
     },
@@ -495,9 +492,6 @@
   },
   "src/meshes/EdgeMesh.ts": {
     "sonarjs/cognitive-complexity": {
-      "count": 1
-    },
-    "unicorn/prefer-modern-math-apis": {
       "count": 1
     }
   },
@@ -620,6 +614,16 @@
   "src/session/data.ts": {
     "unicorn/no-array-callback-reference": {
       "count": 5
+    }
+  },
+  "src/session/document2/codecs/style.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 3
+    }
+  },
+  "src/session/document2/framing.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 2
     }
   },
   "src/session/groups.ts": {
@@ -840,14 +844,11 @@
     }
   },
   "src/session/styles/StylesApi.ts": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
-    },
     "sonarjs/use-type-alias": {
       "count": 1
     },
     "unicorn/no-array-callback-reference": {
-      "count": 4
+      "count": 2
     }
   },
   "src/session/styles/channels.ts": {
@@ -990,7 +991,7 @@
   },
   "stories/helpers.ts": {
     "eslint-comments/require-description": {
-      "count": 2
+      "count": 1
     }
   },
   "test/algorithms/options/algorithm-options.test.ts": {

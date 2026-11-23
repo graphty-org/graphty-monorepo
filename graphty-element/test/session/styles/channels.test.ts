@@ -44,9 +44,12 @@ const DECLARED = [
     "node.labelItalic",
     "node.labelWrapWidth",
     "node.labelWrapTrailingSpace",
+    "node.labelWrapSkipEndSpace",
     "node.labelWrapEllipsis",
     "node.labelWrapAnywhere",
     "node.labelWrapSpaceCount",
+    "node.labelMaxLines",
+    "node.labelMaxLinesEllipsis",
     "node.labelRunAlign",
     "node.labelMinScreenSize",
     "node.labelOnTop",
@@ -63,6 +66,15 @@ const DECLARED = [
     "node.labelPadding",
     "node.labelCornerRadius",
     "node.labelLineHeight",
+    "node.labelLineBox",
+    "node.labelBorderAlign",
+    "node.labelBorderStyle",
+    "node.labelBackgroundShape",
+    "node.labelImage",
+    "node.labelImageWidth",
+    "node.labelImageHeight",
+    "node.labelImageOffsetX",
+    "node.labelImageOffsetY",
     "node.labelOffsetX",
     "node.labelOffsetY",
     "node.labelShiftX",
@@ -210,6 +222,7 @@ const DECLARED = [
     "node.labelFitQuantum",
     "node.labelFitImage",
     "node.labelFitImagePadding",
+    "node.imageAspect",
     "node.gradientColor",
     "node.gradientDirection",
     "node.gradientColors",
@@ -230,8 +243,10 @@ const DECLARED = [
     "node.modelCenter",
     "node.texture",
     "edge.color",
+    "edge.colorFrom",
     "edge.width",
     "edge.minScreenWidth",
+    "edge.drawOrder",
     "edge.opacity",
     "edge.fadeEnd",
     "edge.fadeStart",
@@ -253,12 +268,15 @@ const DECLARED = [
     "edge.gradientColors",
     "edge.gradientStops",
     "edge.gradientKind",
+    "edge.strandColors",
+    "edge.strandSpacing",
     "edge.style",
     "edge.patternCount",
     "edge.waveAmplitude",
     "edge.wavePeriod",
     "edge.dashLength",
     "edge.dashGap",
+    "edge.dashArray",
     "edge.curvature",
     "edge.bends",
     "edge.fanSpacing",
@@ -368,9 +386,12 @@ const DECLARED = [
     "edge.labelItalic",
     "edge.labelWrapWidth",
     "edge.labelWrapTrailingSpace",
+    "edge.labelWrapSkipEndSpace",
     "edge.labelWrapEllipsis",
     "edge.labelWrapAnywhere",
     "edge.labelWrapSpaceCount",
+    "edge.labelMaxLines",
+    "edge.labelMaxLinesEllipsis",
     "edge.labelRunAlign",
     "edge.labelMinScreenSize",
     "edge.labelOnTop",
@@ -386,6 +407,15 @@ const DECLARED = [
     "edge.labelPadding",
     "edge.labelCornerRadius",
     "edge.labelLineHeight",
+    "edge.labelLineBox",
+    "edge.labelBorderAlign",
+    "edge.labelBorderStyle",
+    "edge.labelBackgroundShape",
+    "edge.labelImage",
+    "edge.labelImageWidth",
+    "edge.labelImageHeight",
+    "edge.labelImageOffsetX",
+    "edge.labelImageOffsetY",
     "edge.labelOffsetX",
     "edge.labelOffsetY",
     "edge.labelShiftX",
@@ -396,12 +426,18 @@ const DECLARED = [
     "node.shaders",
     "edge.shaders",
     "edge.taper",
+    "edge.taperSource",
     "edge.lift",
     "node.xlabel",
     "node.xlabelStyle",
     "node.xlabelLocation",
     "node.xlabelOffsetX",
     "node.xlabelOffsetY",
+    "node.xlabelTextAlign",
+    "node.xlabelColor",
+    "node.xlabelFont",
+    "node.xlabelWeight",
+    "node.xlabelItalic",
     "edge.labelTable",
     "edge.xlabel",
     "edge.xlabelStyle",
@@ -434,9 +470,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and ten node channels and one hundred and sixty-nine edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 210);
-        assert.strictEqual(channelsFor("edge").length, 169);
+    it("splits into two hundred and twenty-eight node channels and one hundred and eighty-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 228);
+        assert.strictEqual(channelsFor("edge").length, 187);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -501,7 +537,7 @@ describe("what the element can really draw", () => {
         // than implemented -- the renderer never read either -- so the sentence named two fields
         // a consumer cannot write, which is the same documented lie as a field with no renderer
         // pointing the other way. A caveat is published: a settings panel, a plugin or a model
-        // reading the catalogue sees it.
+        // reading the catalog sees it.
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.labelStyle"].caveat);
         assert.isUndefined(CHANNEL_DESCRIPTORS["edge.labelStyle"].caveat);
         assert.notInclude(LABEL_STYLE_FIELDS as string[], "maxWidth");
@@ -682,6 +718,11 @@ describe("what a style editor needs to draw a row", () => {
         "node.xlabelLocation",
         "node.xlabelOffsetX",
         "node.xlabelOffsetY",
+        "node.xlabelTextAlign",
+        "node.xlabelColor",
+        "node.xlabelFont",
+        "node.xlabelWeight",
+        "node.xlabelItalic",
         // Unset, an edge has no external label, and one that has sits beside its middle or where the layout put it.
         "edge.xlabel",
         "edge.xlabelStyle",
@@ -698,8 +739,10 @@ describe("what a style editor needs to draw a row", () => {
         "node.depth",
         // Unset, a border is as wide as `node.borderWidth` says, in the scene's units.
         "node.borderScreenWidth",
-        // Unset, a node is drawn where it always was, with no order among its neighbours.
+        // Unset, a node is drawn where it always was, with no order among its neighbors.
         "node.drawOrder",
+        // Unset, a line is drawn over every line with an order, in the order it always was.
+        "edge.drawOrder",
         // Unset, a round-rectangle's corners are a quarter of its shorter side.
         "node.cornerRadius",
         // Unset, a polygon is drawn as its box.
@@ -734,7 +777,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.stripeFrame",
         // Unset, a node is the size it states rather than its label's.
         "node.labelFit",
-        // Unset, a node is filled flat with its colour.
+        // Unset, a node is filled flat with its color.
         "node.gradientColor",
         // Unset, a node draws its shape and no model.
         "node.model",
@@ -749,6 +792,8 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, a dash is three widths long and the elements spread from end to end.
         "edge.dashLength",
         "edge.dashGap",
+        // Unset, a line draws its own elements.
+        "edge.dashArray",
         "node.borderWaveAmplitude",
         "node.borderWavePeriod",
         // Unset, an underlay's or an overlay's shape is the node's own, its corners the node's.
@@ -797,6 +842,8 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, a line is painted in its color.
         "edge.gradientColors",
         "edge.gradientStops",
+        // Unset, a line is one strand in its color.
+        "edge.strandColors",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
         "edge.arrowHeadTextLetterSize",
@@ -839,9 +886,12 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelLetterSize",
         "node.labelWrapWidth",
         "node.labelWrapTrailingSpace",
+        "node.labelWrapSkipEndSpace",
         "node.labelWrapEllipsis",
         "node.labelWrapAnywhere",
         "node.labelWrapSpaceCount",
+        "node.labelMaxLines",
+        "node.labelMaxLinesEllipsis",
         "node.labelRunAlign",
         "node.labelMinScreenSize",
         "node.labelOnTop",
@@ -860,6 +910,15 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelPadding",
         "node.labelCornerRadius",
         "node.labelLineHeight",
+        "node.labelLineBox",
+        "node.labelBorderAlign",
+        "node.labelBorderStyle",
+        "node.labelBackgroundShape",
+        "node.labelImage",
+        "node.labelImageWidth",
+        "node.labelImageHeight",
+        "node.labelImageOffsetX",
+        "node.labelImageOffsetY",
         "node.labelOffsetX",
         "node.labelOffsetY",
         "node.labelShiftX",
@@ -872,9 +931,12 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelLocation",
         "edge.labelWrapWidth",
         "edge.labelWrapTrailingSpace",
+        "edge.labelWrapSkipEndSpace",
         "edge.labelWrapEllipsis",
         "edge.labelWrapAnywhere",
         "edge.labelWrapSpaceCount",
+        "edge.labelMaxLines",
+        "edge.labelMaxLinesEllipsis",
         "edge.labelRunAlign",
         "edge.labelMinScreenSize",
         "edge.labelOnTop",
@@ -890,6 +952,15 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelPadding",
         "edge.labelCornerRadius",
         "edge.labelLineHeight",
+        "edge.labelLineBox",
+        "edge.labelBorderAlign",
+        "edge.labelBorderStyle",
+        "edge.labelBackgroundShape",
+        "edge.labelImage",
+        "edge.labelImageWidth",
+        "edge.labelImageHeight",
+        "edge.labelImageOffsetX",
+        "edge.labelImageOffsetY",
         "edge.labelOffsetX",
         "edge.labelOffsetY",
         "edge.labelShiftX",
@@ -1028,6 +1099,7 @@ describe("colour channels", () => {
             "edge.arrowTailTextBackground",
             "edge.labelOutline",
             "edge.labelBorder",
+            "node.xlabelColor",
         ];
 
         assert.deepEqual([...COLOR_CHANNELS], fromTheType);

@@ -43,18 +43,18 @@ function withoutProgram(): Plugin {
 }
 
 /**
- * Leaves the Draco decoder and the KTX2 transcoders out of `./bundle`: one file cannot carry their
- * WebAssembly beside it, and inlined they would add close to 1 MB to every page. babylonjs-models'
- * two decoder modules are replaced by ones that say `available = false`, so a model that needs one
- * reports `E_MODEL_DECODER_UNAVAILABLE` with `reason: "missing"` (a glTF that only uses KTX2 draws
- * its fallback images). meshopt's decoder carries its WebAssembly inside its JavaScript and stays.
+ * Leaves the Draco decoder, the KTX2 transcoders and the OpenUSD importer out of `./bundle`: one
+ * file cannot carry their WebAssembly beside it, and inlined they would add close to 1 MB (10 MB
+ * with OpenUSD) to every page. babylonjs-models' three decoder modules are replaced by ones that say
+ * `available = false`, so a model that needs one reports `E_MODEL_DECODER_UNAVAILABLE` with
+ * `reason: "missing"` (a glTF that only uses KTX2 draws its fallback images). meshopt's decoder carries its WebAssembly inside its JavaScript and stays.
  * @returns The plugin.
  */
 function withoutDecoders(): Plugin {
     return {
         name: "graphty-bundle-without-decoders",
         load(id): string | undefined {
-            return /\/babylonjs-models\/dist\/decoders\/(?:draco|ktx2)\.js$/.test(id)
+            return /\/babylonjs-models\/dist\/decoders\/(?:draco|ktx2|usd)\.js$/.test(id)
                 ? "export const available = false;"
                 : undefined;
         },
@@ -101,6 +101,9 @@ export default defineConfig({
         ),
     },
     build: {
+        // The browsers README.md "Browser Support" promises; Vite 8's default, pinned so a Vite major
+        // cannot move it without the README.
+        target: ["chrome111", "edge111", "firefox114", "safari16.4", "ios16.4"],
         // The library build owns dist/. This one adds a file to it rather than replacing it.
         emptyOutDir: false,
         lib: {
@@ -122,7 +125,17 @@ export default defineConfig({
             // neo4j-driver, graph-io's optional peer for Cypher over Bolt, is left out the same
             // way: a page maps it in an import map, and without one a Bolt load rejects with
             // `E_SOURCE_RUNTIME` (`reason: "needs-peer-dependency"`). The Query API needs nothing.
-            external: ["@mlc-ai/web-llm", "@hpcc-js/wasm-graphviz", "neo4j-driver"],
+            // The optional GPU package is left out the same way: a page that maps
+            // `@graphty/webgpu-graph-algorithms` and its `/browser` subpath in an import map gets
+            // WebGPU acceleration, and without one `capabilities.acceleration` reports
+            // `E_MISSING_PACKAGE` and nothing is printed.
+            external: [
+                "@mlc-ai/web-llm",
+                "@hpcc-js/wasm-graphviz",
+                "neo4j-driver",
+                "@graphty/webgpu-graph-algorithms",
+                "@graphty/webgpu-graph-algorithms/browser",
+            ],
             output: {
                 // Vite 8 warns that this is deprecated in favour of `codeSplitting: false`,
                 // but that key is not in the Rollup types this workspace resolves, so using it

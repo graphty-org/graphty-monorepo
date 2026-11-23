@@ -7,25 +7,16 @@
 import "../../src/graphty-element";
 import "../../webgpu";
 
-import { Logger } from "@babylonjs/core";
 import { afterEach, assert, vi } from "vitest";
 
 import { Graph } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
-import type { RecoveringWebGPUEngine } from "../../src/managers/RecoveringWebGPUEngine";
+import { mounted, unmount } from "./device-helpers";
 
-const NODES = Array.from({ length: 200 }, (_, i) => ({ id: `n${String(i)}` }));
-const EDGES = NODES.map((_, i) => ({ src: `n${String(i)}`, dst: `n${String((i * 7 + 1) % 200)}` }));
+export { countUncaptured, deviceOf, mounted, unmount } from "./device-helpers";
 
-export const mounted: { graph: Graph; container: HTMLElement }[] = [];
-
-/** Disposes every graph the test built. */
-export function unmount(): void {
-    for (const { graph, container } of mounted.splice(0)) {
-        graph.dispose();
-        container.remove();
-    }
-}
+/** Nodes in the graph a layout runs on, unless a test asks for more. */
+const NODE_COUNT = 200;
 
 afterEach(() => {
     unmount();
@@ -101,6 +92,19 @@ export function layoutOf(graph: Graph): SimulationLayoutEngine {
 }
 
 /**
+ * Fails a wait for the layout's accelerator once the graph has none and will look for none: the acceleration state
+ * `"unavailable"` or `"off"`. Nothing can land after that, so a wait that went on would only end at the file guard
+ * (issue #9731). A loss in progress (`"error"`) is not the end: the element is bringing the accelerator back.
+ * @param graph - The graph.
+ */
+export function assertCanLand(graph: Graph): void {
+    const { state, code, reason } = graph.acceleration.status;
+    if (state === "unavailable" || state === "off") {
+        assert.fail(`no batch can land: acceleration is ${state} (${code ?? "no code"}: ${reason ?? "no reason"})`);
+    }
+}
+
+/**
  * Waits for a frame, the only thing a layout's batches move on.
  * @returns After the next frame.
  */
@@ -114,9 +118,10 @@ export async function nextFrame(): Promise<void> {
  * Starts a layout that will not come to rest during the test, and waits for its batches to land.
  * @param graph - The graph.
  * @param maxIter - Iterations before it rests; by default more than any test waits for.
+ * @param nodeCount - Nodes in the graph.
  */
-export async function startLayout(graph: Graph, maxIter = 1_000_000): Promise<void> {
-    await submitLayout(graph, maxIter);
+export async function startLayout(graph: Graph, maxIter = 1_000_000, nodeCount = NODE_COUNT): Promise<void> {
+    await submitLayout(graph, maxIter, undefined, nodeCount);
     await landed(graph);
 }
 
@@ -125,8 +130,15 @@ export async function startLayout(graph: Graph, maxIter = 1_000_000): Promise<vo
  * its first batch, without waiting for one to land.
  * @param graph - The graph.
  * @param maxIter - Iterations before it rests; by default more than any test waits for.
+ * @param seed - The layout's seed, for a test that compares two runs; unseeded by default.
+ * @param nodeCount - Nodes in the graph, each with one edge.
  */
-export async function submitLayout(graph: Graph, maxIter = 1_000_000): Promise<void> {
+export async function submitLayout(
+    graph: Graph,
+    maxIter = 1_000_000,
+    seed?: number,
+    nodeCount = NODE_COUNT,
+): Promise<void> {
     // Boxes and no arrowheads, not the default icosphere and arrows: on SwiftShader with two cores the
     // icosphere's 960 vertices a node cost about 70 ms of a 90 ms frame and the arrows another 15, and
     // the device queue runs some 300 frames behind the page, so every landing waited out 300 of those
@@ -143,10 +155,15 @@ export async function submitLayout(graph: Graph, maxIter = 1_000_000): Promise<v
         selector: { match: "everything" },
         set: { "edge.arrowHead": "none" },
     });
-    await graph.addNodes(NODES);
-    await graph.addEdges(EDGES);
-    await graph.setLayout("forceatlas2", { maxIter });
+    const nodes = Array.from({ length: nodeCount }, (_, i) => ({ id: `n${String(i)}` }));
+    await graph.addNodes(nodes);
+    await graph.addEdges(nodes.map((_, i) => ({ src: `n${String(i)}`, dst: `n${String((i * 7 + 1) % nodeCount)}` })));
+    // Rest comes from `maxIter` alone: at the default settle threshold a run whose batches ramp up converges within a few
+    // landings, and a test still waiting for one would wait forever.
+    const options = { maxIter, settleThreshold: 1e-12 };
+    await graph.setLayout("forceatlas2", seed === undefined ? options : { ...options, seed });
     while (!layoutOf(graph).isAccelerated || layoutOf(graph).iterationsDone === 0) {
+        assertCanLand(graph);
         await nextFrame();
     }
 }
@@ -158,7 +175,31 @@ export async function submitLayout(graph: Graph, maxIter = 1_000_000): Promise<v
 export async function landed(graph: Graph): Promise<void> {
     const before = layoutOf(graph).landedBatchesPublished;
     while (!layoutOf(graph).isAccelerated || layoutOf(graph).landedBatchesPublished <= before) {
+        assertCanLand(graph);
         await nextFrame();
+    }
+}
+
+/** Batches a layout keeps in flight, plus one: a row told to its ring is sent again over that many landings at most. */
+const TOLD_LANDINGS = 5;
+/** Landings {@link toldRowsLanded} waits through before it gives up and lets the test's assertions say why. */
+const TOLD_GIVE_UP = 40;
+
+/**
+ * Waits until the rows a test's own setup told the layout's ring (a style's first paints, measured a frame or two
+ * apart) have stopped being sent again: no row was told over the landings of every batch that could have been in
+ * flight. Under load more batches are in flight and a paint lands later, so a fixed count of landings is not
+ * enough. A row told every frame never goes quiet: the wait then ends after {@link TOLD_GIVE_UP} landings.
+ * @param graph - The graph.
+ */
+export async function toldRowsLanded(graph: Graph): Promise<void> {
+    const table = graph.getRowTable();
+    assert.isNotNull(table);
+    let quiet = 0;
+    for (let i = 0; i < TOLD_GIVE_UP && quiet < TOLD_LANDINGS; i++) {
+        const told = table.rowsTold;
+        await landed(graph);
+        quiet = table.rowsTold === told ? quiet + 1 : 0;
     }
 }
 
@@ -173,26 +214,9 @@ export async function copied(graph: Graph): Promise<void> {
     assert.isNotNull(table);
     const before = table.copies;
     while (table.copies <= before) {
+        assertCanLand(graph);
         await nextFrame();
     }
-}
-
-/**
- * Counts Babylon's reports of an uncaptured device error from now on.
- * @returns The number so far.
- */
-export function countUncaptured(): () => number {
-    const warn = vi.spyOn(Logger, "Warn");
-    return () => warn.mock.calls.filter(([message]) => String(message).includes("uncaptured error")).length;
-}
-
-/**
- * The device the graph draws on.
- * @param graph - The graph.
- * @returns The device.
- */
-export function deviceOf(graph: Graph): Promise<GPUDevice> {
-    return (graph.engine as RecoveringWebGPUEngine).drawingDevice();
 }
 
 /**
@@ -213,17 +237,19 @@ export function errorsOf(graph: Graph): Error[] {
  * @param path - The render path.
  * @param maxIter - Iterations before the layout rests; by default more than any test waits for.
  * @param renderer - The renderer: WebGPU shares the layout's device, WebGL does not.
+ * @param nodeCount - Nodes in the graph.
  * @returns The graph.
  */
 export async function running(
     path: "objects" | "batched",
     maxIter?: number,
     renderer: "webgpu" | "webgl" = "webgpu",
+    nodeCount = NODE_COUNT,
 ): Promise<Graph> {
     adapterSays("test-hardware");
     const graph = await open("auto", renderer);
     graph.setRenderPath(path);
-    await startLayout(graph, maxIter);
+    await startLayout(graph, maxIter, nodeCount);
     assert.strictEqual(graph.rendererStatus?.layoutDevice, renderer === "webgpu" ? "shared" : "separate");
     return graph;
 }

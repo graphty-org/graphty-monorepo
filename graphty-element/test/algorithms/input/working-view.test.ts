@@ -20,7 +20,7 @@ import {
 } from "../../../src/algorithms/input/ScopedInput";
 import { detachedRunContext } from "../../../src/algorithms/results";
 import { createFakeAccelerator } from "../../../src/testing/fakeAccelerator";
-import { idsOf, InputGraph, WholeDegree, WholePageRank } from "./harness";
+import { idsOf, type InputGraph, inputGraph, WholeDegree, WholePageRank } from "./harness";
 
 /** Reads its input through both seams, and declares nothing. */
 class WholeReader extends Algorithm {
@@ -44,17 +44,17 @@ class WholeReader extends Algorithm {
 }
 
 /** Six nodes in a ring, so a scope of three cuts it. */
-function ring(): InputGraph {
+async function ring(): Promise<InputGraph> {
     const ids = ["a", "b", "c", "d", "e", "f"];
 
-    return new InputGraph(
+    return inputGraph(
         ids,
         ids.map((id, index) => [id, ids[(index + 1) % ids.length], index + 1] as const),
         true,
     );
 }
 
-/** What is shown: three neighbours on the ring. */
+/** What is shown: three neighbors on the ring. */
 const SHOWN = ["a", "b", "c"];
 
 /**
@@ -84,8 +84,8 @@ function shareView(graph: InputGraph): () => GraphSnapshot | undefined {
 
 let graph: InputGraph;
 
-beforeEach(() => {
-    graph = ring();
+beforeEach(async () => {
+    graph = await ring();
     scopedInputCounters.derivations = 0;
 });
 
@@ -96,7 +96,7 @@ afterEach(() => {
 describe("an algorithm that declares no scoped input, over the working view", () => {
     it("reads the shared view through both seams, and derives nothing of its own", async () => {
         const viewOf = shareView(graph);
-        const algorithm = new WholeReader(graph.asGraph());
+        const algorithm = new WholeReader(graph);
         const scope = graph.scope(SHOWN);
 
         const seen = await withRunInput(
@@ -114,7 +114,7 @@ describe("an algorithm that declares no scoped input, over the working view", ()
 
     it("still reads the whole graph under a scope the store does not share", async () => {
         shareView(graph);
-        const algorithm = new WholeReader(graph.asGraph());
+        const algorithm = new WholeReader(graph);
         const scope = graph.scope(["a", "b"]);
 
         const seen = await withRunInput(
@@ -131,7 +131,7 @@ describe("an algorithm that declares no scoped input, over the working view", ()
 
     it("publishes the view's values and says it computed on a subgraph", async () => {
         shareView(graph);
-        const degree = new WholeDegree(graph.asGraph());
+        const degree = new WholeDegree(graph);
         const scope = graph.scope(SHOWN);
 
         const result = await withRunInput(
@@ -143,7 +143,7 @@ describe("an algorithm that declares no scoped input, over the working view", ()
         );
 
         assert.isDefined(result);
-        // On the whole ring every node has degree 2; on the view a and c have one neighbour each.
+        // On the whole ring every node has degree 2; on the view a and c have one neighbor each.
         assert.deepStrictEqual(
             ["a", "b", "c", "d"].map((id) => result.node(id)?.value),
             [1, 2, 1, undefined],
@@ -160,7 +160,7 @@ describe("an algorithm that declares no scoped input, over the working view", ()
         const viewOf = shareView(graph);
         const fake = createFakeAccelerator();
         graph.acceleration.setAccelerator(fake);
-        const pagerank = new WholePageRank(graph.asGraph());
+        const pagerank = new WholePageRank(graph);
         const scope = graph.scope(SHOWN);
 
         const result = await withRunInput(

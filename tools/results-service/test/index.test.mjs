@@ -11,8 +11,8 @@ import { describe, it } from "node:test";
 
 import { failureHashes as ledgerHashes } from "../../test-ledger.mjs";
 import { failureHashes, issueKey } from "../src/signature.js";
-import { HISTORY_INVOCATIONS } from "../src/queries.js";
-import { AUDIENCE, handle, keyCache } from "../src/service.js";
+import { FILE_MS_TTL, HISTORY_INVOCATIONS, PLAN_PARALLEL } from "../src/queries.js";
+import { AUDIENCE, handle, keyCache, usageMeter } from "../src/service.js";
 import { d1 } from "./d1-shim.mjs";
 
 const NOW = Date.UTC(2026, 9, 24, 12);
@@ -61,6 +61,7 @@ const pr = (claims = {}) =>
 function service({ fetch: doFetch = fetch } = {}) {
     const DB = d1();
     const keys = keyCache();
+    const meter = usageMeter();
     const env = {
         DB,
         REPOSITORY_ID: "1122477634",
@@ -74,7 +75,7 @@ function service({ fetch: doFetch = fetch } = {}) {
             headers,
             body: body && JSON.stringify(body),
         });
-        const res = await handle(request, env, { fetch: doFetch, now, keys });
+        const res = await handle(request, env, { fetch: doFetch, now, keys, meter });
         return { status: res.status, body: await res.json() };
     };
     const rows = (sql) =>
@@ -113,7 +114,7 @@ describe("GET /v1/health", () => {
     });
     it("answers 500 when the database does not", async () => {
         const { env } = service();
-        env.DB = { prepare: () => ({ first: async () => Promise.reject(new Error("D1 down")) }) };
+        env.DB = { prepare: () => ({ all: async () => Promise.reject(new Error("D1 down")) }) };
         const res = await handle(new Request("https://graphty-results.test/v1/health"), env, { fetch, now: NOW });
         assert.equal(res.status, 500);
     });
@@ -628,9 +629,59 @@ describe("GET /v1/plan", () => {
         assert.ok(seen.size > 0);
         for (const sql of seen) {
             const steps = env.DB.sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all();
+            // a subquery per asked variant (json_each over the request's own list) is bounded by the request; one
+            // per stored row is what #8208 was
             const correlated = steps.filter((s) => /CORRELATED/.test(s.detail));
-            assert.deepEqual(correlated, [], sql);
+            if (!/json_each/.test(sql)) assert.deepEqual(correlated, [], sql);
         }
+    });
+
+    it("#8208: asks D1 at most a few queries at once, however many variants", async () => {
+        // all ~47 variants of a light check at once queued about 100 queries in D1, which answered HTTP 500
+        const { call, env } = service();
+        let open = 0;
+        let most = 0;
+        const prepare = env.DB.prepare;
+        const counted = (s) => ({
+            bind: (...a) => counted(s.bind(...a)),
+            ...Object.fromEntries(
+                ["all", "first", "run"].map((m) => [
+                    m,
+                    async () => {
+                        most = Math.max(most, ++open);
+                        await new Promise(setImmediate);
+                        try {
+                            return await s[m]();
+                        } finally {
+                            open--;
+                        }
+                    },
+                ]),
+            ),
+        });
+        env.DB.prepare = (sql) => counted(prepare(sql));
+        const variants = Array.from({ length: 47 }, (_, i) => `family-${i}|off`);
+        const res = await plan(call, { variants: variants.join(","), inputs: variants.map(() => "-").join(",") });
+        assert.equal(res.status, 200);
+        assert.deepEqual(Object.keys(res.body.variants), variants);
+        assert.ok(most <= PLAN_PARALLEL, `${most} queries at once`);
+    });
+
+    it("#7269: runs no inputs query for the placeholder inputs key", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.inv("dash", { kind: "pr", inputs: "-" });
+        const seen = [];
+        const prepare = env.DB.prepare;
+        env.DB.prepare = (sql) => (seen.push(sql), prepare(sql));
+        const res = await plan(call, { base: "base1", variants: BROWSER, inputs: "-" });
+        assert.equal(res.status, 200);
+        assert.equal(res.body.variants[BROWSER].passedWithInputs, null);
+        assert.ok(seen.length > 0);
+        assert.deepEqual(
+            seen.filter((sql) => /inputs = \?/.test(sql)),
+            [],
+        );
     });
 
     it("answers reuse, recent failures first and per-file durations per variant", async () => {
@@ -652,6 +703,8 @@ describe("GET /v1/plan", () => {
         s.fail("f2", { file: "b.test.ts" });
         s.inv("f3", { outcome: "failed", at: NOW - 8 * DAY });
         s.fail("f3", { file: "too-old.test.ts" });
+        // the first read kept the variant's then empty fileMs for FILE_MS_TTL (its own test below)
+        env.DB.sqlite.exec("DELETE FROM file_ms");
         const v = (await plan(call, { variants: BROWSER, inputs: "k1" })).body.variants[BROWSER];
         assert.equal(v.passedWithInputs, "reuse");
         assert.deepEqual(v.order, ["b.test.ts", "a.test.ts"]);
@@ -661,6 +714,20 @@ describe("GET /v1/plan", () => {
         assert.deepEqual(flat.order, ["b.test.ts", "a.test.ts"]);
         assert.deepEqual(flat.fileMs, { [X]: 106 });
         assert.equal((await plan(call, { variants: BROWSER, inputs: "k1" })).body.order, undefined);
+    });
+
+    it("#9784: answers a variant's fileMs computed within FILE_MS_TTL, and computes it again after", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.inv("a", { at: NOW - DAY });
+        s.file("a", X, 100);
+        const fileMs = async () => (await plan(call, { variants: BROWSER, inputs: "-" })).body.variants[BROWSER].fileMs;
+        assert.deepEqual(await fileMs(), { [X]: 100 });
+        s.inv("b", { at: NOW - DAY + 1 });
+        s.file("b", X, 300);
+        assert.deepEqual(await fileMs(), { [X]: 100 });
+        env.DB.sqlite.exec(`UPDATE file_ms SET at = ${NOW - FILE_MS_TTL}`);
+        assert.deepEqual(await fileMs(), { [X]: 200 });
     });
 
     it("reads per-file durations from the variant's newest invocations only", async () => {
@@ -1572,7 +1639,7 @@ describe("GET /v1/durations/medians", () => {
             token: pr(),
         });
         assert.equal(status, 200);
-        // runs 7 to 10 (107..110 s): 11 is cancelled, 0 and 1 are older than the last 4
+        // runs 7 to 10 (107..110 s): 11 is canceled, 0 and 1 are older than the last 4
         assert.deepEqual(body, { "job:ci.yml:Build": 108.5, "job:ci.yml:Lint": 60 });
         assert.equal((await call("GET", "/v1/durations/medians?kind=full", { token: pr() })).status, 400);
         assert.equal((await call("GET", "/v1/durations/medians?workflows=ci.yml")).status, 401);
@@ -1983,6 +2050,8 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
         // ponytail: the consumers early-capture.md 4c allows
         const allowed = [
             /^tools\/results-service\//,
+            // the store itself on AWS (#3607): its routes, records and tests
+            /^tools\/pipeline-health\/(README\.md|infra\/health-stack\.ts|(src\/handlers|test)\/(ingest|results|handlers\.test|stack\.test)\.ts)$/,
             /^tools\/channel\/story-slices\.mjs$/,
             /^tools\/channel\/rolling\.mjs$/,
             /^tools\/full-run\.mjs$/,
@@ -2066,5 +2135,120 @@ describe("GitHub's key set", () => {
         gh.answer = () => Response.json(jwks);
         assert.equal(await status(call, pr(), NOW + 60_000), 200);
         assert.equal(gh.fetches, 2);
+    });
+});
+
+describe("#9784: the daily D1 caps and GET /v1/usage", () => {
+    it("counts each route's requests and rows by UTC day, public", async () => {
+        const { call } = service();
+        await call("POST", "/v1/invocations", { token: pr(), body: record() });
+        await call("GET", "/v1/health");
+        // counts reach usage_day once a minute: the next request after it adds them
+        const later = NOW + 61_000;
+        await call("GET", "/v1/health", { now: later });
+        const { status, body } = await call("GET", "/v1/usage?days=2", { now: later });
+        assert.equal(status, 200);
+        assert.deepEqual(body.caps, { rowsRead: null, rowsWritten: null });
+        assert.equal(body.days.length, 1);
+        const [today] = body.days;
+        assert.equal(today.day, "2026-10-24");
+        const posted = today.routes["POST /v1/invocations"];
+        assert.equal(posted.requests, 1);
+        assert.ok(posted.rowsWritten >= 3, JSON.stringify(posted)); // the invocation, its file and its failure
+        assert.equal(today.routes["GET /v1/health"].requests, 2);
+        assert.equal(today.rowsWritten >= posted.rowsWritten, true);
+    });
+
+    it("answers 429 past a cap until the next UTC day, but still /v1/health and /v1/usage", async () => {
+        const { call, env } = service();
+        env.DAILY_ROWS_WRITTEN_CAP = "3";
+        env.DAILY_ROWS_READ_CAP = "1000000";
+        assert.equal((await call("POST", "/v1/invocations", { token: pr(), body: record() })).status, 200);
+        const refused = await call("POST", "/v1/invocations", {
+            token: pr(),
+            body: record({ id: "4010.1.graphty-element-browser-3.0.2" }),
+        });
+        assert.equal(refused.status, 429);
+        assert.match(refused.body.error, /daily D1 cap is spent \(rows written/);
+        assert.equal(refused.body.caps.rowsWritten, 3);
+        assert.equal((await call("GET", "/v1/plan", { token: pr() })).status, 429);
+        assert.equal((await call("GET", "/v1/health")).status, 200);
+        const usage = await call("GET", "/v1/usage");
+        assert.equal(usage.status, 200);
+        assert.deepEqual(usage.body.caps, { rowsRead: 1_000_000, rowsWritten: 3 });
+        // the next UTC day starts from nothing
+        const tomorrow = Date.UTC(2026, 9, 25, 0, 1);
+        const token = oidc({
+            event_name: "pull_request",
+            sha: "merge7",
+            exp: tomorrow / 1000 + 300,
+            nbf: tomorrow / 1000 - 10,
+        });
+        const next = await call("POST", "/v1/invocations", {
+            token,
+            body: record({ id: "4010.1.graphty-element-browser-3.0.3" }),
+            now: tomorrow,
+        });
+        assert.equal(next.status, 200);
+    });
+});
+
+// Every statement the tests above prepared, planned on the migrated schema: a full SCAN of a table reads every row
+// of it on every call, and that is what D1 bills (#9784: 56 billion rows read in a month). A table may be scanned
+// only when it stays small, and says why here.
+const SMALL_TABLES = {
+    quarantine: "the entries in force and those that left: a few dozen a month",
+    story_capture: "pruned on every write to each story's newest row plus 7 days",
+    story_unit: "pruned on every write to each unit's newest row plus 7 days",
+    story_notify: "one row per notice kind (2)",
+    candidate: "one row at most",
+    duration_backfill: "one row",
+};
+const SQL_WORDS = new Set([
+    "WHERE",
+    "ON",
+    "JOIN",
+    "LEFT",
+    "CROSS",
+    "INNER",
+    "GROUP",
+    "ORDER",
+    "LIMIT",
+    "UNION",
+    "INDEXED",
+]);
+
+describe("#9784: query plans", () => {
+    it("scans no table in full, except the small ones", async () => {
+        const { prepared } = await import("./d1-shim.mjs");
+        const { sqlite } = d1();
+        const tables = new Set(
+            sqlite
+                .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+                .all()
+                .map((r) => r.name),
+        );
+        assert.ok(prepared.size > 50, `${prepared.size} statements`);
+        const found = [];
+        for (const sql of prepared) {
+            // `FROM table alias` and `JOIN table alias`: the plan names a table by its alias
+            const alias = new Map();
+            for (const [, table, name] of sql.matchAll(/\b(?:FROM|JOIN)\s+(\w+)(?:\s+(?:AS\s+)?(\w+))?/gi)) {
+                if (!tables.has(table)) continue;
+                alias.set(table, table);
+                if (name && !SQL_WORDS.has(name.toUpperCase())) alias.set(name, table);
+            }
+            for (const { detail } of sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all()) {
+                const table = alias.get(/^SCAN (\w+)/.exec(detail)?.[1]);
+                // an index walked in order and cut by LIMIT, with nothing filtered out, reads only the rows it answers
+                const limited =
+                    /USING (COVERING )?INDEX/.test(detail) &&
+                    !/WHERE/i.test(sql) &&
+                    /ORDER BY .* LIMIT \d+$/s.test(sql);
+                if (table && !limited && !Object.hasOwn(SMALL_TABLES, table))
+                    found.push(`${table} (${detail}): ${sql.slice(0, 120)}`);
+            }
+        }
+        assert.deepEqual(found, []);
     });
 });

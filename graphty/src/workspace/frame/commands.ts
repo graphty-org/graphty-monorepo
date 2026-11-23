@@ -1,17 +1,40 @@
 import { KEYMAP_DESCRIPTORS, type KeymapAction } from "@graphty/graphty-element/catalog";
+import type { GraphSession } from "@graphty/graphty-element/session";
 
 import { defineRegistration } from "../commands/registry";
+import { sourceStepsOn } from "../features";
 import { selectionClearedWords } from "../inspector/words";
 import { unlessUnsaved } from "../project/actions";
-import { newProjectId } from "../state/store";
+import { previewing } from "../source-steps/join";
+import { askIfDraftOpen, undoInCard } from "../source-steps/preview";
+import { newProjectId, type WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
-import { nothingDrawn } from "../toolbar/useSessionVersion";
+import { nothingDrawn } from "../toolbar/disabledReasons";
 import { cyclePanel } from "./focus";
 import { historyTip, undoOrRedo } from "./historyWords";
 
 /**
+ * Undo or Redo, asking Commit / Discard / Cancel when a source card's draft holds the history
+ * (`E_DRAFT_OPEN`, the source-steps experiment).
+ * @param session - the element's session.
+ * @param undo - true for Undo.
+ * @param workspace - the workspace store.
+ * @returns settles once done or asked.
+ */
+async function historyStep(session: GraphSession, undo: boolean, workspace: WorkspaceStore): Promise<void> {
+    try {
+        await undoOrRedo(session, undo, workspace);
+    } catch (error) {
+        if (!askIfDraftOpen(workspace, error, () => historyStep(session, undo, workspace))) {
+            throw error;
+        }
+    }
+}
+
+/**
  * The keys graphty-element publishes for one of its graph keys, so Undo, Redo and Clear selection
- * show and answer exactly the keys the element's keymap does.
+ * show exactly the keys the element's keymap answers. The keys themselves are answered by that
+ * keymap (`attachKeymap`, attached by `useCommandKeys`), never dispatched as these commands.
  * @param action - The keymap action.
  * @returns Its keys.
  */
@@ -63,10 +86,16 @@ export const registration = defineRegistration({
             disabled: ({ session }) => (session?.canUndo === true ? null : "Nothing to undo"),
             tooltip: ({ session }) => historyTip(session, true),
             run: async ({ session, workspace }) => {
-                // Undo names the step it took back (tier2-design.md section 1).
-                if (session !== null) {
-                    await undoOrRedo(session, true, workspace);
+                if (session === null) {
+                    return;
                 }
+                // While the Join card previews, Undo takes back the draft's newest change.
+                if (sourceStepsOn(session) && previewing(workspace.get().sourceCard)) {
+                    undoInCard(workspace, session);
+                    return;
+                }
+                // Undo names the step it took back (tier2-design.md section 1).
+                await historyStep(session, true, workspace);
             },
         },
         {
@@ -78,7 +107,7 @@ export const registration = defineRegistration({
             tooltip: ({ session }) => historyTip(session, false),
             run: async ({ session, workspace }) => {
                 if (session !== null) {
-                    await undoOrRedo(session, false, workspace);
+                    await historyStep(session, false, workspace);
                 }
             },
         },
@@ -132,7 +161,8 @@ export const registration = defineRegistration({
         },
         {
             // Esc closes the innermost open thing first (each menu and dialog takes its own Esc),
-            // then clears the selection, leaving the graph's panel open (tier1-design.md 2.3).
+            // then clears the selection, leaving the graph's panel open (tier1-design.md 2.3):
+            // graphty-element's keymap answers it, and this command is the menus' Clear selection.
             id: "selection.clear",
             label: "Clear selection",
             group: "Selection",

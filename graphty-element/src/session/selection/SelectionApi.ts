@@ -9,7 +9,7 @@
  * THE SETS ARE MASKS, one byte per element, addressed by the dense index every node and edge
  * already carries. That is what makes selecting forty thousand nodes cost forty thousand bytes
  * rather than forty thousand ids, and it is what makes `has()` an array read a render loop can
- * afford to do once per element per frame. The id arrays are a lazy materialisation of the masks
+ * afford to do once per element per frame. The id arrays are a lazy materialization of the masks
  * and are identity-stable: the same frozen array comes back until the contents change, so a
  * consumer can hold the previous answer and test `previous === next`.
  *
@@ -139,7 +139,20 @@ export interface SelectionDelta {
     readonly skipped?: number;
     /** Who asked. */
     readonly cause: SelectionCause;
+    /**
+     * How the canvas input that caused this change was made: `"click"` (a click or tap on a node,
+     * an edge or empty canvas), `"box"` (a region drawn on the canvas) or `"keys"` (a graph key,
+     * such as Escape through `attachKeymap`). Absent for an API call, including one made with
+     * `cause: "user"`.
+     *
+     * OPEN UNION: values may be added in a minor release; handle one you do not know.
+     * @since 3.40.0
+     */
+    readonly via?: "click" | "box" | "keys";
 }
+
+/** How a reader's canvas input changed the selection: {@link SelectionDelta.via}. */
+export type SelectionVia = NonNullable<SelectionDelta["via"]>;
 
 /**
  * A path a rule reads that nothing in this session answers, and the readable values it may have
@@ -173,7 +186,7 @@ export interface RuleCheck {
     readonly suggestion?: Query;
 }
 
-/** One attribute of the selected nodes, summarised against the same attribute across the graph. */
+/** One attribute of the selected nodes, summarized against the same attribute across the graph. */
 export interface SelectionAttributeStatistics {
     /** The attribute's published path, such as "data.department". */
     readonly path: Path;
@@ -206,10 +219,10 @@ export interface SelectionAttributeStatistics {
     readonly direction?: "above" | "below" | "equal";
 }
 
-/** What {@link SelectionApi.statistics} summarises. */
+/** What {@link SelectionApi.statistics} summarizes. */
 export interface SelectionStatisticsOptions {
     /**
-     * Summarise this scope's nodes and edges instead of the selection: `"visible"`, `"graph"`, a
+     * Summarize this scope's nodes and edges instead of the selection: `"visible"`, `"graph"`, a
      * kept set `{ set: id }` or any other scope a selection target takes. The selection when absent.
      */
     readonly scope?: ScopeInput;
@@ -464,7 +477,6 @@ export interface SelectionApi {
     previewHover(on: boolean): void;
     /**
      * The elements a {@link SelectionApi.peek} is showing now, or null.
-     * @experimental assistant
      */
     readonly peeked: { readonly nodes: number; readonly edges: number } | null;
     /**
@@ -479,9 +491,7 @@ export interface SelectionApi {
      * ```
      * @param target - What to point at, read as `apply` reads it; null for nothing.
      * @returns How many nodes and edges it names.
-     * @throws A `GraphtyError` coded `E_FEATURE_OFF` while the `assistant` experiment is off, or the
-     *   same error as `apply` for a target it refuses.
-     * @experimental assistant
+     * @throws The same error as `apply` for a target it refuses.
      */
     peek(target: SelectionTarget | null): Promise<{ readonly nodes: number; readonly edges: number }>;
     /**
@@ -506,7 +516,7 @@ export interface SelectionApi {
      * const cost = attributes.find((a) => a.path === "data.cost");
      * console.log(cost?.sum, cost?.min, cost?.max);
      * ```
-     * @param options - What to summarise instead of the selection, such as `{ scope: "visible" }`.
+     * @param options - What to summarize instead of the selection, such as `{ scope: "visible" }`.
      * @returns The statistics.
      * @throws A `GraphtyError` (as a rejection) when the scope is not one this session holds.
      */
@@ -540,6 +550,14 @@ export interface SelectionOwner extends SelectionApi {
      * @param cause - Who asked.
      */
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void;
+    /**
+     * Run `fn` as the handling of one canvas input: every change it makes with `cause: "user"`,
+     * synchronously, carries `via` on its delta.
+     * @param via - How the input was made.
+     * @param fn - The input's handling.
+     * @returns What `fn` returned.
+     */
+    byInput<T>(via: SelectionVia, fn: () => T): T;
     /**
      * Whether taking edges out of the selection would change nothing: no edge is selected (or,
      * given the edges, none of them is), no change is waiting, and the cap has truncated nothing.
@@ -686,8 +704,6 @@ export interface SelectionSources {
         dirty: { readonly node: readonly number[]; readonly edge: readonly number[] },
         peeked: { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null,
     ) => void;
-    /** Whether peeking is on: the `assistant` experiment. Absent, it is off. */
-    readonly canPeek?: () => boolean;
     /**
      * Called when the hover preview turns on or off, with the nodes whose hovered state it moved.
      * @param nodes - The selected nodes.
@@ -925,6 +941,9 @@ class Selection implements SelectionOwner {
 
     /** What the last emptying took away, by id; see {@link SelectionApi.previous}. */
     #previous: { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null = null;
+
+    /** The canvas input being handled, while {@link Selection.byInput} runs. */
+    #via: SelectionVia | undefined = undefined;
 
     /** A change {@link Selection.applyAtNextRead} is holding for the next read. */
     #pending: { readonly target: SelectionTarget; readonly op: SelectionOp; readonly cause: SelectionCause } | null =
@@ -1239,6 +1258,16 @@ class Selection implements SelectionOwner {
         this.#pending = { target, op, cause };
     }
 
+    byInput<T>(via: SelectionVia, fn: () => T): T {
+        const outer = this.#via;
+        this.#via = via;
+        try {
+            return fn();
+        } finally {
+            this.#via = outer;
+        }
+    }
+
     edgeRemovalChangesNothing(ids?: readonly EdgeId[]): boolean {
         if (this.#pending !== null || this.#truncated) {
             return false;
@@ -1305,17 +1334,6 @@ class Selection implements SelectionOwner {
     }
 
     peek(target: SelectionTarget | null): Promise<{ readonly nodes: number; readonly edges: number }> {
-        if (this.#sources.canPeek?.() !== true) {
-            return Promise.reject(
-                new GraphtyError({
-                    code: "E_FEATURE_OFF",
-                    message: `Peeking needs the "assistant" experiment.`,
-                    source: "run",
-                    details: { feature: "assistant", key: "selection.peek" },
-                }),
-            );
-        }
-
         try {
             this.#sync();
             const members = target === null ? null : resolveTarget(target, this.#context());
@@ -1437,7 +1455,7 @@ class Selection implements SelectionOwner {
 
     /**
      * What the current selection, or a scope, adds up to.
-     * @param options - What to summarise instead of the selection.
+     * @param options - What to summarize instead of the selection.
      * @returns The statistics.
      */
     statistics(options?: SelectionStatisticsOptions): Promise<SelectionStatistics> {
@@ -1449,7 +1467,7 @@ class Selection implements SelectionOwner {
 
     /**
      * What the selection, or a scope, adds up to, now.
-     * @param options - What to summarise instead of the selection.
+     * @param options - What to summarize instead of the selection.
      * @returns The statistics.
      */
     #statisticsNow(options: SelectionStatisticsOptions | undefined): SelectionStatistics {
@@ -1544,7 +1562,7 @@ class Selection implements SelectionOwner {
 
     /**
      * What a target resolution reads.
-     * @returns The context, built around the frame the selection is synchronised to.
+     * @returns The context, built around the frame the selection is synchronized to.
      */
     #context(): TargetContext {
         const { scope, results, match, find, note, layer, region, defaultScope, filterKeeps, records } = this.#sources;
@@ -1688,6 +1706,7 @@ class Selection implements SelectionOwner {
             unresolvedPaths: Object.freeze([...unresolvedPaths]),
             ...(skipped === undefined ? {} : { skipped }),
             cause,
+            ...(cause === "user" && this.#via !== undefined ? { via: this.#via } : {}),
         });
 
         if (added.length > 0 || removed.length > 0) {
@@ -1705,7 +1724,7 @@ class Selection implements SelectionOwner {
      * The graph-wide average is computed the same way as the members' -- the same function over
      * the values in the same order -- so a selection of every element reports `"equal"` rather than
      * a direction invented by the last bits of two different summations.
-     * @param members - The nodes or the edges to summarise.
+     * @param members - The nodes or the edges to summarize.
      * @param kind - Which of the two they are.
      * @returns The entries, in the order the attribute names were first seen.
      */
@@ -1757,7 +1776,7 @@ class Selection implements SelectionOwner {
     }
 
     /**
-     * Every graph-wide value of the attributes the selection summarised numerically.
+     * Every graph-wide value of the attributes the selection summarized numerically.
      * @param bagOf - Reads one element's attribute bag by row.
      * @param count - How many elements of that kind the graph holds.
      * @param wanted - The attribute names to gather.
@@ -1892,4 +1911,17 @@ function assertOp(op: SelectionOp): void {
  */
 export function createSelectionApi(sources: SelectionSources): SelectionOwner {
     return new Selection(sources);
+}
+
+/**
+ * Run `fn` as the handling of one canvas input on a session's selection, so its reader changes
+ * carry `via`: {@link SelectionOwner.byInput} when the selection is a session's own, else `fn`
+ * as it is.
+ * @param selection - The selection, as a public session hands it out.
+ * @param via - How the input was made.
+ * @param fn - The input's handling.
+ * @returns What `fn` returned.
+ */
+export function selectByInput<T>(selection: SelectionApi, via: SelectionVia, fn: () => T): T {
+    return selection instanceof Selection ? selection.byInput(via, fn) : fn();
 }

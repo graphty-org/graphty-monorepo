@@ -27,6 +27,13 @@ Set `render-path="batched"` as an attribute, or `renderPath = "batched"` as a pr
 The path can be changed at any time; `"objects"` is the default. Everything else -- styles,
 selection, hover, dragging, layouts, algorithms, events, undo -- works the same on both paths.
 
+One thing differs while a layout runs on the GPU: the batched path skips the frames between two
+landings of the layout's batches, even with `render-on-demand` off, because such a frame shows the
+same positions again and takes GPU time from the layout. A camera move, hover or restyle still draws
+at once, and a settled graph is drawn every frame unless `render-on-demand` is on. A property your own
+code sets on something already in the Babylon.js scene (through `graph.scene`) is drawn at the
+layout's next landing; use `"objects"` if it must show at once.
+
 ## What it covers
 
 `rowCounts` tells you how each node and edge is being drawn: `batchedNodes` and `pulledEdges`
@@ -61,6 +68,36 @@ On `"objects"` the `limits` are ignored and the element fires `limits-warning` w
 `W_LIMITS_IGNORED`. See [Renderer](./renderer.md#loading-past-the-size-caps) for the caps on
 how many object rows a batched graph may hold.
 
+## Less detail past a triangle budget
+
+Round node shapes are drawn at full detail until the nodes would draw more than
+`limits.fullDetailTriangleBudget` triangles (1,000,000 by default), each node counted as the
+default shape's 320 -- so past 3,125 nodes. Past the budget a node whose style layers set no
+`node.meshDetail` is drawn as if they set `"low"` (a 20-triangle icosphere), and it goes back to
+full detail when the graph shrinks under the budget. The default was measured: 30 frames a second
+held to about 8 million node triangles on an RTX 4070 SUPER and to about 130,000 in software
+rendering, and the default leaves room for a GPU ten times slower than that card.
+
+On a fast GPU, raise the budget (honored on both render paths):
+
+```js
+graph.limits = { fullDetailTriangleBudget: 8_000_000 };
+```
+
+Or choose the detail yourself in a layer, which wins at any size:
+
+```js
+await graph.session.styles.add({
+    name: "Full detail",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.meshDetail": "full" },
+});
+```
+
+Past `DEFAULT_LIMITS.largeGraphThreshold` nodes (10,000), `session.recommendLayout()` suggests a
+random layout rather than a force simulation.
+
 ## Loading the fastest way
 
 If your graph is already arrays (edge endpoints as row numbers), hand them over with
@@ -78,7 +115,9 @@ await graph.session.data.importColumns({
 ## Faster frames with many edges
 
 With a million edges, most of each frame is smoothing the lines. `antialias="false"` turns
-smoothing off, for harder edges and faster frames; see [Renderer](./renderer.md#smoothing-antialias).
+smoothing off, for harder edges and faster frames. `antialias="shader"` costs about as little and
+keeps plain straight lines smooth, though nodes stay hard-edged; see
+[Renderer](./renderer.md#smoothing-antialias).
 
 ```html
 <graphty-element render-path="batched" antialias="false"></graphty-element>

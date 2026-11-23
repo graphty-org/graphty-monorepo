@@ -1,7 +1,6 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 import {
     type CommonImportOptions,
-    type FileLayout,
     type GraphChoiceOptions,
     type GraphImporter,
     type GraphListing,
@@ -10,6 +9,7 @@ import {
     ImportReportBuilder,
     loadFromSource,
     readText,
+    type RequestedLayout,
 } from "@graphty/graph-io";
 import { extractStyles } from "@graphty/graph-io/styles";
 import { z } from "zod";
@@ -34,11 +34,11 @@ import {
     emptyLoad,
     importWhole,
     readerImport,
+    rememberMetaExtra,
     sourceGraph,
     toRecords,
-    withoutStyleSlots,
 } from "./graph-io-import.js";
-import { readOrRefuse, type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
+import { keepFetched, readOrRefuse, type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
 
 /** What every reader is configured with, whatever its format. */
 export interface BaseDataSourceConfig {
@@ -51,7 +51,15 @@ export interface BaseDataSourceConfig {
     file?: File;
     /** A URL to fetch, as bytes. */
     url?: string;
+    /**
+     * How many nodes the reader hands the graph at a time while it loads, so a large file draws
+     * as it arrives. Defaults to {@link DataSource.DEFAULT_CHUNK_SIZE}.
+     */
     chunkSize?: number;
+    /**
+     * How many invalid nodes and edges the reader skips before it stops reading the file.
+     * Defaults to 100.
+     */
     errorLimit?: number;
     /**
      * Which graph to read from a file that holds several, by its 0-based position. The first
@@ -70,9 +78,10 @@ export interface BaseDataSourceConfig {
     /**
      * `"recommended"` chooses a layout for what was loaded, once it is loaded: the `fixed` layout,
      * which draws each node where the file put it, when every node arrived with a position, and a
-     * computed one otherwise. `"keep"` (the default) leaves the layout as it is.
+     * computed one otherwise. `"placed"` chooses the `fixed` layout in the same case and otherwise
+     * leaves the layout as it is. `"keep"` (the default) leaves the layout as it is.
      */
-    layout?: "recommended" | "keep";
+    layout?: "recommended" | "placed" | "keep";
 }
 
 /**
@@ -81,13 +90,13 @@ export interface BaseDataSourceConfig {
  * All three are `unknown` because registration is handed a class it has no reason to trust. A
  * class that forgot its `static type` used to be filed under the string "undefined", which is a
  * name a consumer can neither type nor debug; a class with no `static descriptor` used to be
- * filed as a format no picker could offer and no dropped file could be recognised as. Both are
+ * filed as a format no picker could offer and no dropped file could be recognized as. Both are
  * now refused at the door, where the author can see them.
  */
 interface FormatStatics {
     /** The name the class registers under, and the name a host asks for the format by. */
     readonly type?: unknown;
-    /** What the catalogue publishes about the format. */
+    /** What the catalog publishes about the format. */
     readonly descriptor?: unknown;
     /** The optional content sniffer, asked after every built-in one. */
     readonly detect?: unknown;
@@ -147,10 +156,10 @@ function refuseRegistration(field: string, message: string): never {
 }
 
 /**
- * Check the description a reader class carries before the catalogue publishes it.
+ * Check the description a reader class carries before the catalog publishes it.
  *
  * Everything checked here is something a consumer would otherwise meet much later and much
- * further away: a format with no extensions is one no dropped file can be recognised as, and a
+ * further away: a format with no extensions is one no dropped file can be recognized as, and a
  * format claiming it can be written is a "Save as" menu entry that saves nothing, because there
  * is no writer seam to register into.
  * @param type - The name the class registers under.
@@ -257,8 +266,14 @@ function readGraphLister(type: string, value: unknown): GraphLister | undefined 
     return value as GraphLister;
 }
 
+/**
+ * One batch of a load: the nodes and edges a reader yields together. A custom reader yields these
+ * from {@link DataSource.sourceFetchData}.
+ */
 export interface DataSourceChunk {
+    /** The batch's nodes, one record each. */
     nodes: AdHocData[];
+    /** The batch's edges, one record each. An edge may name a node from an earlier or later batch. */
     edges: AdHocData[];
 }
 
@@ -301,6 +316,22 @@ export interface ImporterSourceOptions<Opts> {
 const READER_SIGNALS = new WeakMap<object, AbortSignal>();
 
 /**
+ * The options a reader settled that its load left out (the sheet a workbook load read when it named
+ * none), set once the reader has read. A load records them with its source, so a save reads the
+ * file the same way again. Kept beside the reader, as READER_SIGNALS is.
+ */
+const SETTLED_OPTIONS = new WeakMap<object, Readonly<Record<string, unknown>>>();
+
+/**
+ * The options a reader settled that its load left out (see SETTLED_OPTIONS).
+ * @param reader - the reader
+ * @returns the options, or undefined when it settled none
+ */
+export function settledOptionsOf(reader: unknown): Readonly<Record<string, unknown>> | undefined {
+    return typeof reader === "object" && reader !== null ? SETTLED_OPTIONS.get(reader) : undefined;
+}
+
+/**
  * Sets the cancel signal of the load a reader is read for (see READER_SIGNALS).
  * @param reader - the reader
  * @param signal - the load's cancel signal
@@ -339,7 +370,9 @@ const READER_KEYS: ReadonlySet<string> = new Set(["chunkSize", "errorLimit"]);
 
 /** The registrable reader {@link DataSource.fromImporter} returns. */
 export type ImporterDataSourceClass = (new (config: BaseDataSourceConfig) => DataSource) & {
+    /** The format's id, which a load names it by. */
     readonly type: string;
+    /** What the catalog publishes about the format. See {@link DataSource.descriptor}. */
     readonly descriptor: FormatDescriptor;
 };
 
@@ -468,17 +501,19 @@ function attemptError(error: unknown, timeout: number, last: { timeoutMs?: numbe
  * Provides common functionality for validation, chunking, error handling, and data fetching.
  */
 export abstract class DataSource {
+    /** The format's id, which a load names it by (`"json"`, `"graphml"`). A subclass sets it. */
     static readonly type: string;
+    /** How many nodes a reader hands the graph at a time when the config sets no `chunkSize`. */
     static readonly DEFAULT_CHUNK_SIZE = 1000;
 
     /**
-     * What the catalogue publishes about this format: its plain name, the extensions and media
+     * What the catalog publishes about this format: its plain name, the extensions and media
      * types its files carry, and the options a host can configure reading it with.
      *
      * REQUIRED OF A REGISTERED FORMAT and refused without it, because a reader filed with no
      * description is one a picker cannot offer, `formatDescriptor` cannot find and a dropped file
-     * cannot be recognised as. It is a static on the class so that one registration is the only
-     * registration: a description filed separately from its reader would be a catalogue entry a
+     * cannot be recognized as. It is a static on the class so that one registration is the only
+     * registration: a description filed separately from its reader would be a catalog entry a
      * consumer can see, select, and then be told does not exist.
      *
      * The element's own seven do not set it -- their descriptions are the frozen built-in table
@@ -506,7 +541,15 @@ export abstract class DataSource {
      */
     static listGraphs?: GraphLister;
 
+    /**
+     * A schema every edge must match, or null (the default) to take every edge. An edge that
+     * fails it is skipped and counts toward `errorLimit`.
+     */
     edgeSchema: z.core.$ZodObject | null = null;
+    /**
+     * A schema every node must match, or null (the default) to take every node. A node that
+     * fails it is skipped and counts toward `errorLimit`.
+     */
     nodeSchema: z.core.$ZodObject | null = null;
     protected errorAggregator: ErrorAggregator;
     protected chunkSize: number;
@@ -522,8 +565,8 @@ export abstract class DataSource {
     private timeField: TimeField | null = null;
     /** Backing field of {@link declaredGraphValues}; written only by {@link declareGraphValues}. */
     private graphValues: Readonly<Record<string, unknown>> | null = null;
-    /** Backing field of {@link declaredFileLayout}; written only by {@link declareFileLayout}. */
-    private fileLayout: FileLayout | null = null;
+    /** Backing field of {@link requestedLayout}; written only by {@link declareRequestedLayout}. */
+    private requested: RequestedLayout | null = null;
 
     /**
      * Creates a new DataSource instance.
@@ -535,7 +578,12 @@ export abstract class DataSource {
         this.chunkSize = chunkSize;
     }
 
-    // abstract init(): Promise<void>;
+    /**
+     * Reads the source and yields its nodes and edges in batches. A custom reader implements it;
+     * the element validates each batch against {@link nodeSchema} and {@link edgeSchema} and draws
+     * it. A reader holding the whole graph at once can yield `this.chunkData(nodes, edges)`.
+     * @yields the batches, in order
+     */
     abstract sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown>;
 
     /**
@@ -696,9 +744,10 @@ export abstract class DataSource {
 
         if (config.url) {
             const response = await this.fetchWithRetry(config.url);
-            const bytes = await readOrRefuse(response.arrayBuffer(), { url: config.url });
+            const bytes = new Uint8Array(await readOrRefuse(response.arrayBuffer(), { url: config.url }));
             cancel?.throwIfAborted();
-            return new Uint8Array(bytes);
+            keepFetched(config.url, bytes, response);
+            return bytes;
         }
 
         throw new GraphtyError({
@@ -718,7 +767,7 @@ export abstract class DataSource {
      * @returns The choice, with only the keys the caller set.
      * @throws A `GraphtyError` with `E_OPTION_RANGE` for a `graphIndex` that is not a
      * non-negative integer, a `graphName` that is not a string, both at once, or a choice this
-     * format cannot honour.
+     * format cannot honor.
      */
     protected graphChoice(): GraphChoiceOptions {
         const { graphIndex, graphName } = this.getConfig() as { graphIndex?: unknown; graphName?: unknown };
@@ -771,7 +820,7 @@ export abstract class DataSource {
      * ONE OPTIONS MECHANISM. A format declares its options as `OptionDescriptor[]` on its
      * `static descriptor`, which is the same plain-JSON declaration `session.catalog.formats()`
      * hands a host building an import dialog, and this checks the host's values against that one
-     * declaration. The form a host renders, the catalogue entry it renders from and the values
+     * declaration. The form a host renders, the catalog entry it renders from and the values
      * this accepts therefore cannot disagree, and a failure is reported in the one vocabulary
      * every other extension point uses: `E_UNKNOWN_OPTION` with the declared names and the
      * nearest few, `E_OPTION_RANGE` with the range and the value passed.
@@ -914,23 +963,26 @@ export abstract class DataSource {
     }
 
     /**
-     * The layout the file asks to be drawn with, as graph-io's importer read it, or null when the
-     * file names none or the source has not parsed yet. Read it after the last chunk.
-     * @returns the layout
-     * @since 3.35.0
+     * The layout the data asks to be drawn with: a graphty layout id and its options, as graph-io's
+     * `requestedLayout()` gives it, or null when it asks for none or the source has not parsed yet.
+     * Read it after the last chunk.
+     * @returns the request
      */
-    get declaredFileLayout(): FileLayout | null {
-        return this.fileLayout;
+    get requestedLayout(): RequestedLayout | null {
+        return this.requested;
     }
 
     /**
-     * Record the layout the file being parsed asks for (graph-io's `importer.layout(snapshot)`). A
-     * load that asks for the recommended layout draws the file with it.
-     * @param layout - the layout, or null when the file names none
-     * @since 3.35.0
+     * Record the layout the data being parsed asks for. A load that asks for the recommended layout
+     * draws the graph with it when it can.
+     * @param layout - the request, or null when the data asks for none
+     * @example
+     * ```ts
+     * this.declareRequestedLayout({ layout: "circular", options: {} });
+     * ```
      */
-    protected declareFileLayout(layout: FileLayout | null): void {
-        this.fileLayout = layout;
+    protected declareRequestedLayout(layout: RequestedLayout | null): void {
+        this.requested = layout;
     }
 
     /**
@@ -944,14 +996,18 @@ export abstract class DataSource {
      * parses a file itself answers null. Not an extension point: a format gets styles by being
      * read with a graph-io importer.
      * @internal
-     * @param options - Whether the defaults of the program that wrote the file are added (true
-     *     by default), and a cancel signal.
-     * @param options.toolDefaults - Whether the writing program's defaults are added.
+     * @param options - Passed to graph-io as it reads the styles, uninterpreted.
+     * @param options.toolDefaults - Whether a property the file leaves unset gets its reader's default.
+     * @param options.viewport - The canvas the drawing is first framed in, in CSS px, or null without one.
      * @param options.signal - Cancels the reading.
      * @returns The styles, or null when the file carries none or nothing has been read yet.
      */
     async fileStyles(
-        options: { readonly toolDefaults?: boolean; readonly signal?: AbortSignal } = {},
+        options: {
+            readonly toolDefaults?: boolean;
+            readonly viewport?: { readonly width: number; readonly height: number } | null;
+            readonly signal?: AbortSignal;
+        } = {},
     ): Promise<FileStylesRead | null> {
         const pending = readerImport(this);
         if (pending === null) {
@@ -962,38 +1018,27 @@ export abstract class DataSource {
         const { imported } = held;
         const extracted = extractStyles(imported.importer, imported.snapshot, imported.report, {
             ...(options.toolDefaults === undefined ? {} : { toolDefaults: options.toolDefaults }),
+            ...(options.viewport === undefined || options.viewport === null ? {} : { viewport: options.viewport }),
             ...(options.signal === undefined ? {} : { signal: options.signal }),
         });
         if (extracted === null) {
             return null;
         }
 
-        const { format, dialect } = extracted.styles.source;
         const positions = filePositionsOf(imported);
         const pxPerUnit = positions?.pxPerUnit;
-        const fit = positions?.viewerFit;
-        const box = positions?.bounds;
+        const padding = positions?.viewerFit?.padding;
+        const frame = positions?.viewerFrame;
         const annotations = imported.importer.annotations?.(imported.snapshot) ?? [];
         return {
             extracted,
             snapshot: imported.snapshot,
             ...(annotations.length === 0 ? {} : { annotations }),
             path: (kind, column) => held.path(kind, column),
-            // A JSON dialect graph-io names (it names none for plain JSON) keeps its styles under its own name.
-            format: format === "json" && dialect !== null ? dialect : format,
             ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
             positionsStored: positions?.usable === true,
-            ...(fit === undefined || box === null || box === undefined
-                ? {}
-                : {
-                      positionFit: {
-                          padding: fit.padding,
-                          width: box.max[0] - box.min[0],
-                          height: box.max[1] - box.min[1],
-                          center: [(box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2],
-                          ...(positions === null ? {} : { coords: positions.coords }),
-                      },
-                  }),
+            ...(padding === undefined ? {} : { framingPadding: padding }),
+            ...(frame === undefined ? {} : { framingBox: frame }),
         };
     }
 
@@ -1062,7 +1107,7 @@ export abstract class DataSource {
      * `static descriptor` is what puts it in `session.catalog.formats()`, in `formatDescriptor`,
      * in `formatsForExtension` and in detection. They happen together because a reader with no
      * description is invisible to every picker and to every dropped file, and a description
-     * without its reader is a catalogue entry a consumer can see, select, and then be told does
+     * without its reader is a catalog entry a consumer can see, select, and then be told does
      * not exist.
      *
      * THE ELEMENT'S OWN SEVEN TAKE THE OTHER BRANCH. A class registering under a name that is
@@ -1108,7 +1153,7 @@ export abstract class DataSource {
         const listGraphs = readGraphLister(type, cls.listGraphs);
 
         // Published BEFORE the class is filed, so a refusal leaves neither half registered: a
-        // reader loadable by name that no catalogue lists is the state this whole seam exists to
+        // reader loadable by name that no catalog lists is the state this whole seam exists to
         // end, and half-succeeding here would recreate it.
         const descriptor = readFormatDescriptor(type, cls.descriptor);
         assertReaderAgreesWithWriter(descriptor);
@@ -1145,7 +1190,7 @@ export abstract class DataSource {
      * Throw the `ImportError` re-exported by `@graphty/graphty-element/extend`, not one from your
      * own copy of graph-io, or the element cannot tell a refusal from a crash.
      * @param importer - the graph-io importer
-     * @param descriptor - the format's catalogue entry; its `id` is the name the class registers under
+     * @param descriptor - the format's catalog entry; its `id` is the name the class registers under
      * @param options - fixed importer options, how the file states its direction, and its time
      * @returns a `DataSource` subclass whose `type` is `descriptor.id`
      * @throws A `GraphtyError` with `E_BAD_COMMAND`, `details.field: "importer"`, when `importer` has
@@ -1227,6 +1272,23 @@ export abstract class DataSource {
                     { firstDeclarationWins: true },
                 );
                 const { snapshot, report } = imported;
+                // A declared option the load left out that the importer reports the value of. A
+                // workbook's sheet chosen by graphIndex or graphName is not left out: recording it
+                // beside them would choose the sheet twice, which the importer refuses.
+                const passed = this.#config as unknown as Record<string, unknown>;
+                const graphChosen = passed.graphIndex !== undefined || passed.graphName !== undefined;
+                const settled = Object.fromEntries(
+                    Object.entries(report.resolved ?? {}).filter(
+                        ([name]) =>
+                            passed[name] === undefined &&
+                            !(name === "sheet" && graphChosen) &&
+                            described.options.some((option) => option.name === name),
+                    ),
+                );
+                if (Object.keys(settled).length > 0) {
+                    SETTLED_OPTIONS.set(this, Object.freeze(settled));
+                }
+
                 const words = statedBy?.(snapshot, report) ?? null;
                 if (words !== null) {
                     this.declareDirection(snapshot.directed, words, report.counts.expandedMixed);
@@ -1237,14 +1299,7 @@ export abstract class DataSource {
                     this.declareTime(declared);
                 }
 
-                const { nodes, edges } = toRecords(
-                    imported,
-                    // A load drawing the file's styles leaves the file's own style slots to the layers.
-                    this.#config.styles === "file"
-                        ? withoutStyleSlots(snapshot, columnsMapping(snapshot))
-                        : columnsMapping(snapshot),
-                    this,
-                );
+                const { nodes, edges } = toRecords(imported, columnsMapping(snapshot), this, this.#config.styles);
                 yield* this.chunkData(nodes, edges);
             }
         };
@@ -1300,6 +1355,7 @@ export abstract class DataSource {
                 const { snapshot } = loaded;
                 // ponytail: the whole load is held, then chunked; hand each page to the ingest as it
                 // arrives once a paged source is big enough for that to matter
+                rememberMetaExtra(this, snapshot);
                 const { nodes, edges } = toRecords(sourceGraph(loaded), columnsMapping(snapshot));
                 yield* this.chunkData(nodes, edges);
             }

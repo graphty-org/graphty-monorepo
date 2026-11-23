@@ -299,11 +299,11 @@ issue-round was forbidden to do it.
 
 **Unarmed agent pull requests**, every round: `node tools/armable-prs.mjs` (one paged GraphQL query) prints
 `armable: #n <priority>, ...`, the open graphty-agent pull requests that are CLEAN with checks SUCCESS, auto-merge
-off, never turned off by anyone but graphty-agent (pr-open.sh turns it off on each re-run, which is no hold), with no
-breaking commit and no file holding an approval the owner keeps, critical first, then high, then oldest by the
-issues each closes; and `green, held for the owner: ...` for the rest. While master is green, arm the first
-(`gh pr merge <n> --auto --merge`) unless a comment on it records a hold (auto-merge stays off, or it needs the
-owner); a `GUARD_PATHS` hold from pr-open alone is not one (step 7). One at a time: the next round arms the next. A
+off and never turned off (any disable is a hold: pr-open.sh's for the owner, issue-round's send-back for changes),
+with no breaking commit, no file holding an approval the owner keeps and no `GUARD_PATHS` file (the owner merges
+those), critical first, then high, then oldest by the issues each closes; and `green, held for the owner: ...` for
+the rest. While master is green, arm the first (`gh pr merge <n> --auto --merge`) unless a comment on it records a
+hold (auto-merge stays off, or it needs the owner). One at a time: the next round arms the next. A
 green pull request with auto-merge on that conflicts with master gets a fix subagent that merges `origin/master`
 (same as a red one above). The round's last line names every pull request armed and every conflicted one sent to a
 fix, by number.

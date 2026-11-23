@@ -354,10 +354,9 @@ the 6-hour full run to nightly.graphty.app and npm `next`; only the owner's `pro
    "Before opening a pull request"). Never wait for CI.
 4. A red pull request stays open with auto-merge armed: fix it with ordinary commits and push them once. Never
    merge past a check, never `--admin`.
-5. The owner merges only a `!` commit, a pull request someone else opened, and one that writes an approval he keeps
-   (`visual-review/passkeys.json`, `release-approvals.json`, a hand-added quarantine entry). A change to a file
-   guarding the owner (`GUARD_PATHS` in `pr-open.sh`) opens with auto-merge off and pipeline-round arms it once green;
-   any other change to CI merges like any other (owner, 2026-10-25). `Lint PR Title` fails a `!` commit until the owner adds
+5. Auto-merge stays off, and the owner merges, for a change to a file guarding the owner (`GUARD_PATHS` in
+   `pr-open.sh`) and a pull request someone else opened. Any other change to CI or to what guards the owner merges
+   like any other once green (owner, 2026-10-25). `Lint PR Title` fails a `!` commit until the owner adds
    `breaking-go`, so commits carry no `!`.
 
 - **Never copy, always merge.** Never cherry-pick or rebase; the hooks refuse both.

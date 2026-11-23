@@ -266,8 +266,7 @@ rounds had closed 161 low bugs and 160 high ones in 7 days while 13 of 20 open c
       (when the rubric of step 3 puts it in that group), since it costs no extra slot.
 - [ ] When the top critical or high issue is not startable, skip to the next critical or high one, never silently
       lower. The round's last line names why the top is blocked, as `top of queue #<n> <priority> <reason>`, the
-      reason one of owner-only, needs-decision, `waits on #<m>`, `waits on armable #<m>` (a green pull request
-      only its guarded path holds, which pipeline-round arms) or `file collision with #<m>`. Only when no critical
+      reason one of owner-only, needs-decision, `waits on #<m>` or `file collision with #<m>`. Only when no critical
       or high issue is startable may medium and low jobs start; idle slots go first to diagnoses of the blocked
       critical and high issues (step 1).
 - [ ] An `unjustified blocks:` line from `jobs` names critical or high issues the scan blocked with no `due` time

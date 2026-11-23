@@ -834,6 +834,26 @@ export const LABEL_STYLE_DEFAULTS: Readonly<LabelStyle> = Object.freeze({
     // A label cut at maxLines ends its last line in an ellipsis unless this is false.
     maxLinesEllipsis: defaultRichTextLabelStyle.maxLinesEllipsis ?? true,
     gradientColors: DEFAULT_LABEL_GRADIENT_COLORS,
+    // What the label draws while these are unset, as each field's own documentation says.
+    opacity: 1,
+    backgroundOpacity: 1,
+    borderOpacity: 1,
+    outlineOpacity: 1,
+    offsetX: 0,
+    offsetY: 0,
+    shiftX: 0,
+    shiftY: 0,
+    shiftOf: "box",
+    gapOf: "box",
+    box: "words",
+    runAlign: "baseline",
+    lineBox: "font",
+    borderAlign: "outside",
+    borderStyle: "solid",
+    backgroundShape: "rectangle",
+    imageOffsetX: 0,
+    imageOffsetY: 0,
+    wrapSpaceCount: 1,
 });
 
 /** What kind of value a label style field takes: what a control for it has to offer. */

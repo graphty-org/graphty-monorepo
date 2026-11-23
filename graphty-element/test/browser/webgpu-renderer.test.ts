@@ -135,8 +135,11 @@ async function animateEdges(graph: Graph): Promise<void> {
 }
 
 /**
- * Waits for the picture to be final and takes a screenshot with `captureScreenshot`, with the
- * real Babylon copy in place of the one-pixel stub test/setup.ts puts there for every other test.
+ * Waits for the picture to be final and takes a screenshot with the element's own
+ * `captureScreenshot`.
+ *
+ * test/setup.ts replaces Babylon's `CreateScreenshotAsync`, the call `captureScreenshot` makes,
+ * with a one-pixel stub for every other test, so the real one stands in for the stub once here.
  * The PNG is kept under tmp/webgpu-renderer/ for a person to look at.
  * @param graph - The graph to read.
  * @param name - The PNG's name.
@@ -150,7 +153,7 @@ async function screenshot(graph: Graph, name: string, skipCopyTick = false): Pro
     vi.mocked(CreateScreenshotAsync).mockImplementationOnce((engine, ...rest) => {
         if (skipCopyTick) {
             const loop = renderManagerOf(graph);
-            const drawHeld = loop.drawHeld;
+            const { drawHeld } = loop;
             loop.drawHeld = () => true;
             engine.onEndFrameObservable.addOnce(() => {
                 loop.drawHeld = drawHeld;
@@ -160,10 +163,13 @@ async function screenshot(graph: Graph, name: string, skipCopyTick = false): Pro
         return real.CreateScreenshotAsync(engine, ...rest);
     });
     const { blob } = await graph.captureScreenshot();
-    const dataUrl = await new Promise<string>((resolve) => {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
-            resolve(reader.result as string);
+            resolve(typeof reader.result === "string" ? reader.result : "");
+        };
+        reader.onerror = () => {
+            reject(reader.error ?? new Error("the screenshot could not be read"));
         };
         reader.readAsDataURL(blob);
     });
@@ -194,8 +200,12 @@ function compare(one: Uint8ClampedArray, other: Uint8ClampedArray): { differ: nu
         }
 
         differ += largest > PIXEL_TOLERANCE ? 1 : 0;
-        // The default background is #F5F5F5.
-        ink += Math.abs(one[at] - 0xf5) + Math.abs(one[at + 1] - 0xf5) + Math.abs(one[at + 2] - 0xf5) > 24 ? 1 : 0;
+        // The default background is #F5F5F5. A transparent pixel is no picture at all, not ink.
+        ink +=
+            one[at + 3] > 0 &&
+            Math.abs(one[at] - 0xf5) + Math.abs(one[at + 1] - 0xf5) + Math.abs(one[at + 2] - 0xf5) > 24
+                ? 1
+                : 0;
     }
 
     const pixels = one.length / 4;
@@ -790,7 +800,7 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         const height = HEIGHT + 100;
         // The element's own ResizeObserver calls graph.resize(); this one stands in for it and
         // reads the canvas in the same rendering step, before it is painted.
-        const opaque = new Promise<number>((resolve) => {
+        const painted = new Promise<number>((resolve) => {
             const observer = new ResizeObserver(([entry]) => {
                 if (entry.contentRect.height !== height) {
                     return;
@@ -810,7 +820,7 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         });
         container.style.height = `${String(height)}px`;
 
-        assert.isAbove(await opaque, 0.99, "the canvas holds a frame, not the texture the resize cleared");
+        assert.isAbove(await painted, 0.99, "the canvas holds a frame, not the texture the resize cleared");
         // The frame drawn for the resize ended inside its own frame, so the loop's next frames
         // reach the canvas too: no command buffer refers to a texture already presented.
         await drawnFrames(graph.scene, 2);

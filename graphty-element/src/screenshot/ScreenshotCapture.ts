@@ -75,6 +75,8 @@ export class ScreenshotCapture {
      * @param requestFrame - Asks the render loop to draw the next frame, even when the picture
      *     looks final: a graph drawn on demand draws none for a background cleared for a moment
      * @param readLegend - The element's legend (`session.styles.legend()`), for `legend: true`
+     * @param drawNow - Draws a frame now, outside the render loop, so a copy of a canvas that keeps
+     *     no frame is taken at the end of a frame that drew
      */
     constructor(
         private readonly engine: Engine | WebGPUEngine,
@@ -83,6 +85,7 @@ export class ScreenshotCapture {
         private readonly graph: Graph,
         private readonly requestFrame: () => void = () => undefined,
         private readonly readLegend: () => readonly LegendBlock[] = () => [],
+        private readonly drawNow: () => void = () => undefined,
     ) {}
 
     /**
@@ -842,16 +845,22 @@ export class ScreenshotCapture {
                 // keeps no frame (WebGPU, or WebGL without preserveDrawingBuffer) holds a picture
                 // only at the end of a frame that drew one, and the loop ends ticks that draw
                 // nothing: one skipped while the GPU is behind, the frame guard's half rate, a held
-                // draw, or any tick of a graph drawn on demand. So a frame is asked for, and the
-                // copy is asked for from inside it once it has drawn, and taken at its end (#9732).
-                dataUrl = this.keepsFrames()
-                    ? await CreateScreenshotAsync(this.engine, camera, size)
-                    : await new Promise<string>((resolve, reject) => {
-                          this.scene.onAfterRenderObservable.addOnce(() => {
-                              CreateScreenshotAsync(this.engine, camera, size).then(resolve, reject);
-                          });
-                          this.requestFrame();
-                      });
+                // draw, or any tick of a graph drawn on demand. A copy taken there is transparent
+                // (#9730, #9732). So the copy is asked for from inside a frame that draws, and a
+                // frame is drawn now; a loop whose frames are held draws the requested one when
+                // the hold ends.
+                if (this.keepsFrames()) {
+                    dataUrl = await CreateScreenshotAsync(this.engine, camera, size);
+                } else {
+                    const copied = new Promise<string>((resolve, reject) => {
+                        this.scene.onAfterRenderObservable.addOnce(() => {
+                            CreateScreenshotAsync(this.engine, camera, size).then(resolve, reject);
+                        });
+                    });
+                    this.requestFrame();
+                    this.drawNow();
+                    dataUrl = await copied;
+                }
             } else {
                 const scale = captureWidth / this.canvas.width;
                 CustomLineRenderer.setPixelScale(this.scene, scale);

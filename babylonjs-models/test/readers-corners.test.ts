@@ -379,6 +379,9 @@ describe("a GLB version 1", () => {
     });
 });
 
+/** glTF 1.0's names, as the format spells them: a GLB's body, its embedded picture, the common material. */
+const [BODY, BINARY, COMMON] = ["binary_glTF", "KHR_binary_glTF", "KHR_materials_common"];
+
 describe("the glTF 1.0 upgrade at its corners", () => {
     it("reads dictionaries written as arrays, and keeps the GLB body as buffer 0 under the name given", () => {
         const json = {
@@ -391,9 +394,9 @@ describe("the glTF 1.0 upgrade at its corners", () => {
         // The accessor's view index names nothing in the array of views, so it has none.
         assert.notProperty((upgraded.accessors as object[])[0], "bufferView");
 
-        const glb = upgradeGltf1({ buffers: { other: { byteLength: 4 }, binary_glTF: { byteLength: 8 } } }, "body.bin");
+        const glb = upgradeGltf1({ buffers: { other: { byteLength: 4 }, [BODY]: { byteLength: 8 } } }, "body.bin");
         assert.deepStrictEqual(glb.buffers, [{ byteLength: 8, uri: "body.bin" }, { byteLength: 4 }]);
-        const unnamed = upgradeGltf1({ buffers: { binary_glTF: { byteLength: 8 } } });
+        const unnamed = upgradeGltf1({ buffers: { [BODY]: { byteLength: 8 } } });
         assert.deepStrictEqual(unnamed.buffers, [{ byteLength: 8 }]);
     });
 
@@ -430,13 +433,13 @@ describe("the glTF 1.0 upgrade at its corners", () => {
         const upgraded = upgradeGltf1({
             bufferViews: { pic: { buffer: "binary_glTF" } },
             images: {
-                inside: { extensions: { KHR_binary_glTF: { bufferView: "pic", mimeType: "image/png" } } },
+                inside: { extensions: { [BINARY]: { bufferView: "pic", mimeType: "image/png" } } },
                 outside: { uri: "wood.png" },
             },
             samplers: { s: { magFilter: 9729, minFilter: "linear", wrapS: 10497 } },
             textures: { inside: { source: "inside", sampler: "s" }, outside: { source: "outside" } },
             materials: {
-                common: { extensions: { KHR_materials_common: { values: { diffuse: "outside" } } } },
+                common: { extensions: { [COMMON]: { values: { diffuse: "outside" } } } },
                 named: { name: "Named", values: { diffuse: [0.5, "red"] } },
                 missing: { values: { diffuse: "no such texture" } },
             },

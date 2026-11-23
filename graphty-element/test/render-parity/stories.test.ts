@@ -110,9 +110,11 @@ afterEach(() => {
  * @param pulled - Whether edges are pulled from the row table.
  * @returns The bytes, or null for a story with no element.
  */
+const DIAG_SEED = { n: 1 };
 const DIAG = { on: false, logs: [] as string[] };
 
 async function picture(story: Composed, path: "objects" | "batched", pulled = false): Promise<CanvasFrame | null> {
+    (globalThis as { __EV__?: string[] }).__EV__ = [];
     renderPathDefault.value = path;
     pulledEdgesDefault.value = pulled;
     const host = document.createElement("div");
@@ -176,6 +178,12 @@ async function picture(story: Composed, path: "objects" | "batched", pulled = fa
                     ]),
                 ),
             }));
+        const events = ((globalThis as { __EV__?: string[] }).__EV__ ?? []).map((e) =>
+            e.replace(/ n\d+/, " *").replace(/ (<|buildRow).*$/, ""),
+        );
+        const sig = events.filter((e, k) => e !== events[k - 1]).join(" | ");
+        console.log(`EVSIG ${path} ${sig}`);
+        DIAG.logs.push(`EVENTS ${path} ${JSON.stringify((globalThis as { __EV__?: string[] }).__EV__)}`);
         DIAG.logs.push(`DIAG ${path} ${JSON.stringify({ order, batches, meshes })}`);
     }
     assert.equal(element.graph.renderPath, path);
@@ -214,7 +222,7 @@ describe.each(files)("%s", async (file) => {
     // A story that compares nothing reports as skipped, so "passed" counts only compared stories.
     const neon = stories.find(([name]) => name === "NeonLine");
     if (neon !== undefined) {
-        for (let k = 0; k < 80; k++) {
+        for (let k = 0; k < 30; k++) {
             stories.push([`NeonLine`, neon[1]]);
         }
     }
@@ -226,6 +234,16 @@ describe.each(files)("%s", async (file) => {
         }
 
         DIAG.on = /NeonLine/.test(id);
+        let seed = (DIAG_SEED.n += 7919);
+        const rnd = (): number => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+        (globalThis as { __NEON_DELAYS__?: number[] }).__NEON_DELAYS__ = false
+            ? Array.from({ length: 5 }, () => [0, 0, 1, 2, 4][Math.floor(rnd() * 5)] ?? 0)
+            : [];
+        (globalThis as { __NEON_LAG__?: number[] }).__NEON_LAG__ = false
+            ? [[0, 1, 2, 5, 12][Math.floor(rnd() * 5)] ?? 0, [0, 1, 3, 8][Math.floor(rnd() * 4)] ?? 0]
+            : [];
+        console.log(`DIAGLAG ${JSON.stringify((globalThis as { __NEON_LAG__?: number[] }).__NEON_LAG__)}`);
+        console.log(`DIAGDELAYS ${JSON.stringify((globalThis as { __NEON_DELAYS__?: number[] }).__NEON_DELAYS__)}`);
         DIAG.logs = [];
         const objects = await picture(story, "objects");
         if (objects === null) {

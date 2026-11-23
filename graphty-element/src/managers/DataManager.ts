@@ -2822,6 +2822,17 @@ export class DataManager implements Manager {
             n.takeDrawnPaint(look.paint);
         }
         this.builtNodes++;
+        (globalThis as { __EV__?: string[] }).__EV__?.push(
+            `build ${String(nodeId)} ${
+                String(nodeId) === "n0"
+                    ? (new Error().stack ?? "")
+                          .split("\n")
+                          .slice(1, 14)
+                          .map((l) => l.replace(/@.*\/src\//, "@"))
+                          .join(" < ")
+                    : ""
+            }`,
+        );
         placeNodeRow(n, index);
         this.nodeCache.set(nodeId, n);
         this.nodeMap.set(nodeId, n);

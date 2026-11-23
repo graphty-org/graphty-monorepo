@@ -1669,6 +1669,9 @@ export class NodeBatches {
         }
 
         group.batched = batched;
+        (globalThis as { __EV__?: string[] }).__EV__?.push(
+            `settle batched=${String(batched)} frame=${String(group.source.getScene().getFrameId())} members=${String(group.members.size)}`,
+        );
         // Each member trades its mesh for an anchor, or back: together, or it costs the scene's size each (#3247).
         const source = batched ? group.source : null;
         handOverTogether(group.source.getScene(), this.host.root(), group.members, (node) => {

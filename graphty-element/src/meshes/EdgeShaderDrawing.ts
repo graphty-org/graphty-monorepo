@@ -436,7 +436,11 @@ export class EdgeShaderDrawing {
             this.made.add(batch);
             const known = this.known.get(id);
             known?.waiting.add(edge);
-            void batch.ready.then((ok) => {
+            void batch.ready.then(async (ok) => {
+                const lag = (globalThis as { __NEON_LAG__?: number[] }).__NEON_LAG__?.[0] ?? 0;
+                for (let k = 0; k < lag; k++) {
+                    await new Promise((resolve) => requestAnimationFrame(resolve));
+                }
                 this.ready.set(batch, ok);
                 runtime.noteDrawn([shader.hash]);
                 if (known !== undefined && ok) {
@@ -478,7 +482,11 @@ export class EdgeShaderDrawing {
             "a edge shader is still loading",
             Promise.all([controller.drawable(id), this.load(host)]),
         ).then(
-            ([shader]) => {
+            async ([shader]) => {
+                const lag = (globalThis as { __NEON_LAG__?: number[] }).__NEON_LAG__?.[1] ?? 0;
+                for (let k = 0; k < lag; k++) {
+                    await new Promise((resolve) => requestAnimationFrame(resolve));
+                }
                 this.resolving.delete(id);
                 if (this.disposed) {
                     return;

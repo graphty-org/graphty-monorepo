@@ -70,6 +70,14 @@ function render(layer: LayerSpec, width = 8): Element {
     element.layout = "fixed";
     element.layoutConfig = { dim: 3 };
     void (async () => {
+        const delays = ((globalThis as { __NEON_DELAYS__?: number[] }).__NEON_DELAYS__ ?? []).slice();
+        const pause = async (): Promise<void> => {
+            const n = delays.shift() ?? 0;
+            for (let k = 0; k < n; k++) {
+                await new Promise((resolve) => requestAnimationFrame(resolve));
+            }
+        };
+        await pause();
         await element.session.styles.add({
             name: "Groups",
             target: "node",
@@ -77,6 +85,7 @@ function render(layer: LayerSpec, width = 8): Element {
             set: { "node.size": 1.1 },
             encode: { "node.color": { by: "data.group", palette: "okabe-ito", scale: "ordinal" } },
         });
+        await pause();
         await element.session.styles.add({
             name: "Edge groups",
             target: "edge",
@@ -84,18 +93,21 @@ function render(layer: LayerSpec, width = 8): Element {
             set: { "edge.width": width },
             encode: { "edge.color": { by: "data.group", palette: "okabe-ito", scale: "ordinal" } },
         });
+        await pause();
         await element.session.styles.add({
             name: "Curved",
             target: "edge",
             selector: { match: "has", path: "data.curved" },
             set: { "edge.curvature": true },
         });
+        await pause();
         await element.session.styles.add({
             name: "Bent",
             target: "edge",
             selector: { match: "has", path: "data.bent" },
             set: { "edge.bends": "0.5,0.3" },
         });
+        await pause();
         await element.session.styles.add(layer);
     })();
     return element;

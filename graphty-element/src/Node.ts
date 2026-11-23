@@ -1919,6 +1919,9 @@ export class Node implements ModelUser {
      * @internal
      */
     drawInBatch(source: AbstractMesh | null, opacity = 1): void {
+        (globalThis as { __EV__?: string[] }).__EV__?.push(
+            `drawInBatch ${String(this.id)} ${source === null ? "null" : "batch"} frame=${String(this.context.getScene().getFrameId())}`,
+        );
         this.batchOpacity = opacity;
         // Leaving the batch, the row takes its anchor's place with it: bring it to the table first.
         if (source === null) {

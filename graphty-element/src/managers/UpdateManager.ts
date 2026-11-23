@@ -4418,6 +4418,9 @@ export class UpdateManager implements Manager {
         // (#9739: every batched Node of a load was missed, and its edges kept the place they were first given).
         const built = dataManagerInternals.nodesBuilt(this.dataManager);
         const rowsStill = moves !== -1 && moves === this.lastRowMoves && built === this.lastNodesBuilt;
+        (globalThis as { __EV__?: string[] }).__EV__?.push(
+            `walk frame=${String(this.graphContext.getScene().getFrameId())} rowsStill=${String(rowsStill)} moves=${String(moves)} built=${String(built)}`,
+        );
         this.lastRowMoves = moves;
         this.lastNodesBuilt = built;
         // A drag places its Node's row alone: a row with no Node moved only by a write of the table's other kinds, so

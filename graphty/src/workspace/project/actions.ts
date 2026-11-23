@@ -31,7 +31,7 @@ import { saveFilesV2On, sourceReferencesOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { runHeld, withHeldShaders } from "../settings/heldShaders";
 import { addSource, incomingFiles } from "../start/open";
-import { newProjectId, type Notice, openRun, type SettleOpen, type WorkspaceStore } from "../state/store";
+import { askingDialog, newProjectId, type Notice, openRun, type SettleOpen, type WorkspaceStore } from "../state/store";
 import { chipLine } from "../style/modelWords";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
@@ -41,8 +41,9 @@ import { notReadWords, referenceWords } from "./words";
 
 /** The dialog ids this package opens in the workspace's one dialog slot. */
 export const SAVE_AS_DIALOG = "save-as";
-export const DISCARD_DIALOG = "discard";
-export const KEEP_ASSETS_DIALOG = "keep-assets";
+// These two ask about an open or a save under way, which a reload ends: it does not reopen them.
+export const DISCARD_DIALOG = askingDialog("discard");
+export const KEEP_ASSETS_DIALOG = askingDialog("keep-assets");
 
 /** How to keep each model or picture a layer names by web address, by that address. */
 export type AssetChoices = Record<string, AssetStorage>;

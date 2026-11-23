@@ -208,6 +208,39 @@ describe("usage: the summary", () => {
         expect(summarize(readUsage(file, 200000)).sessions.n).toBe(1);
     });
 
+    it("says what it cannot measure in a short session, and names what an event left out", () => {
+        const s = summarize([
+            { type: "press", at: 5, s: "x", c: "key-Z" },
+            { type: "decide", at: 5, s: "x", d: "accept", was: "reject", ms: 100 },
+        ]);
+        const text = formatUsage(s);
+        for (const line of [
+            "Sessions: 1 (0 touch, 1 mouse)",
+            "  0 reviews, 0 items shown, 1 decisions",
+            "Items: 0 shown (0 distinct); backtracking -",
+            "  images drawn after: median -, p90 - (0)",
+            "Decisions: 1 (1 one by one, 0 in bulk), - per active minute",
+            "  accept 1; 1 changed, 0 undone",
+            "    project unknown: median 0.1 s, p90 0.1 s (1)",
+            "    view unknown: median 0.1 s, p90 0.1 s (1)",
+            "View changes: - view or zoom switches per item",
+            "Controls shown but never used: none",
+            "Keys: Z 1",
+            "Errors shown: 0 (0.0 per session)",
+            "Stale captures: 0 of 0 projects opened (-)",
+        ]) {
+            expect(text).toContain(line);
+        }
+        expect(text).toMatch(/Z {2}0 min {2}mouse {2}0 reviews/);
+        const bulkOnly = formatUsage(summarize([{ type: "decide", at: 1, s: "y", d: "accept", n: 4, bulk: "all" }]));
+        expect(bulkOnly).toContain("  none one by one; 0 changed, 0 undone");
+        expect(bulkOnly).toContain("Keys: none");
+    });
+
+    it("fails on a log it cannot read for a reason other than its absence", () => {
+        expect(() => readUsage(tempDir("vr-usage-"))).toThrow(/EISDIR/);
+    });
+
     it("says so when nothing was recorded", () => {
         const s = summarize(readUsage(join(tempDir("vr-usage-"), "none.jsonl")));
         expect(formatUsage(s)).toBe("No usage events recorded.");

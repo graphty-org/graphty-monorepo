@@ -1,5 +1,5 @@
-import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
+import { MantineProvider } from "@mantine/core";
+import { screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -8,28 +8,7 @@ import { compactTheme } from "../../../src";
 import { ToggleRow, ToggleRowGroup } from "../../../src/components/rows/ToggleRow";
 import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
 import { PANEL_GRID, PANEL_INK } from "../../../src/constants/panel";
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRow(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
-
-/**
- * Render inside the compact theme with text running right to left.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRtl(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(
-        <DirectionProvider initialDirection="rtl" detectDirection={false}>
-            <MantineProvider theme={compactTheme}>{ui}</MantineProvider>
-        </DirectionProvider>,
-    );
-}
+import { renderCompact as renderRow, renderRtl } from "../../harness/render";
 
 /**
  * A change handler typed the way the component declares it, so the event

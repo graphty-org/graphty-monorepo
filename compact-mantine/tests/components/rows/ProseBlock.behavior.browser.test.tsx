@@ -1,35 +1,11 @@
-import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
-import React from "react";
+import { screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { compactTheme } from "../../../src";
 import { ProseBlock } from "../../../src/components/rows/ProseBlock";
 import { PANEL_GRID, PANEL_INK } from "../../../src/constants/panel";
 import { LabelsProvider } from "../../../src/i18n";
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderProse(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
-
-/**
- * Render inside the compact theme with the text direction reversed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRtl(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(
-        <DirectionProvider initialDirection="rtl" detectDirection={false}>
-            <MantineProvider theme={compactTheme}>{ui}</MantineProvider>
-        </DirectionProvider>,
-    );
-}
+import { renderCompact as renderProse, renderRtl } from "../../harness/render";
 
 const READING =
     "17 cats, 2 humans and 1 dog, connected by 43 relationships. Everyone is connected to everyone else through at most 4 steps.";

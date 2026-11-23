@@ -3,7 +3,7 @@
     "program": "vis-network",
     "version": "vis-network 9.1.9 (standalone), svgcanvas 2.6.0",
     "command": "new vis.Network(<div 1200x900>, { nodes: file.nodes, edges: file.edges }, file.options); net.renderer._redraw() onto an svgcanvas Context",
-    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
+    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed (with the paths added to it), a clip keeps its evenodd rule, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. A destination-out stroke over the ring just stroked on the same path (a Cytoscape.js double border or outline) is recorded as a mask on that ring; no other globalCompositeOperation is recorded. Not recorded: a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
     "svgKind": "vector",
     "canvas": {
         "width": 1200,
@@ -29,6 +29,375 @@
             "x": 600,
             "y": 450
         }
+    },
+    "drawn": {
+        "about": "vis-network's own account of where it drew each node, for naming the SVG's shapes: each node's id, its center (net.getPositions() through net.canvasToDOM) and its bounding box's width and height and its corners (box: net.getBoundingBox through net.canvasToDOM; the box holds a label drawn below the shape, so it is not centered on the node), in the SVG's pixels",
+        "nodes": [
+            {
+                "id": "anchor-nw",
+                "x": 57.352253235615194,
+                "y": 47.692187743645775,
+                "w": 5.613597380321224,
+                "h": 5.613597380321224,
+                "box": {
+                    "x0": 54.54545454545459,
+                    "y0": 44.88538905348517,
+                    "x1": 60.15905192577581,
+                    "y1": 50.498986433806394
+                }
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1142.647746764385,
+                "y": 47.692187743645775,
+                "w": 5.613597380321153,
+                "h": 5.613597380321224,
+                "box": {
+                    "x0": 1139.8409480742243,
+                    "y0": 44.88538905348517,
+                    "x1": 1145.4545454545455,
+                    "y1": 50.498986433806394
+                }
+            },
+            {
+                "id": "anchor-sw",
+                "x": 57.352253235615194,
+                "y": 852.3078122563543,
+                "w": 5.613597380321224,
+                "h": 5.613597380321153,
+                "box": {
+                    "x0": 54.54545454545459,
+                    "y0": 849.5010135661937,
+                    "x1": 60.15905192577581,
+                    "y1": 855.1146109465149
+                }
+            },
+            {
+                "id": "anchor-se",
+                "x": 1142.647746764385,
+                "y": 852.3078122563543,
+                "w": 5.613597380321153,
+                "h": 5.613597380321153,
+                "box": {
+                    "x0": 1139.8409480742243,
+                    "y0": 849.5010135661937,
+                    "x1": 1145.4545454545455,
+                    "y1": 855.1146109465149
+                }
+            },
+            {
+                "id": "cap-default",
+                "x": 141.5562139404335,
+                "y": 474.32558864805867,
+                "w": 38.98361969826915,
+                "h": 17.776391704350544,
+                "box": {
+                    "x0": 122.06440409129895,
+                    "y0": 465.4373927958834,
+                    "x1": 161.0480237895681,
+                    "y1": 483.21378450023394
+                }
+            },
+            {
+                "id": "default-s",
+                "x": 106.00343053173245,
+                "y": 436.90160611258386,
+                "w": 7.48479650709497,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 102.26103227818497,
+                    "y0": 433.15920785903637,
+                    "x1": 109.74582878527994,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "default-t",
+                "x": 177.1089973491346,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 173.3665990955871,
+                    "y0": 433.15920785903637,
+                    "x1": 180.8513956026821,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "cap-value-1",
+                "x": 272.5401528145954,
+                "y": 474.32558864805867,
+                "w": 86.23322499220333,
+                "h": 17.776391704350544,
+                "box": {
+                    "x0": 229.4235403184937,
+                    "y0": 465.4373927958834,
+                    "x1": 315.65676531069704,
+                    "y1": 483.21378450023394
+                }
+            },
+            {
+                "id": "value-1-s",
+                "x": 236.9873694058943,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 233.2449711523468,
+                    "y0": 433.15920785903637,
+                    "x1": 240.7297676594418,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "value-1-t",
+                "x": 308.0929362232964,
+                "y": 436.90160611258386,
+                "w": 7.484796507094927,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 304.350537969749,
+                    "y0": 433.15920785903637,
+                    "x1": 311.8353344768439,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "cap-value-4",
+                "x": 403.5240916887572,
+                "y": 474.32558864805867,
+                "w": 86.2332249922033,
+                "h": 17.776391704350544,
+                "box": {
+                    "x0": 360.40747919265556,
+                    "y0": 465.4373927958834,
+                    "x1": 446.64070418485886,
+                    "y1": 483.21378450023394
+                }
+            },
+            {
+                "id": "value-4-s",
+                "x": 367.9713082800562,
+                "y": 436.90160611258386,
+                "w": 7.484796507094927,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 364.2289100265087,
+                    "y0": 433.15920785903637,
+                    "x1": 371.7137065336036,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "value-4-t",
+                "x": 439.0768750974583,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 435.3344768439108,
+                    "y0": 433.15920785903637,
+                    "x1": 442.8192733510058,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "cap-value-10",
+                "x": 534.5080305629191,
+                "y": 474.32558864805867,
+                "w": 91.59053753118661,
+                "h": 17.776391704350544,
+                "box": {
+                    "x0": 488.71276179732575,
+                    "y0": 465.4373927958834,
+                    "x1": 580.3032993285124,
+                    "y1": 483.21378450023394
+                }
+            },
+            {
+                "id": "value-10-s",
+                "x": 498.955247154218,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 495.2128489006705,
+                    "y0": 433.15920785903637,
+                    "x1": 502.6976454077655,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "value-10-t",
+                "x": 570.0608139716202,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 566.3184157180726,
+                    "y0": 433.15920785903637,
+                    "x1": 573.8032122251676,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "cap-scaling-min-max",
+                "x": 665.4919694370809,
+                "y": 474.32558864805867,
+                "w": 95.72672817908938,
+                "h": 17.776391704350544,
+                "box": {
+                    "x0": 617.6286053475362,
+                    "y0": 465.4373927958834,
+                    "x1": 713.3553335266256,
+                    "y1": 483.21378450023394
+                }
+            },
+            {
+                "id": "scaling-min-max-s",
+                "x": 629.9391860283798,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 626.1967877748324,
+                    "y0": 433.15920785903637,
+                    "x1": 633.6815842819274,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "scaling-min-max-t",
+                "x": 701.044752845782,
+                "y": 436.90160611258386,
+                "w": 7.48479650709487,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 697.3023545922346,
+                    "y0": 433.15920785903637,
+                    "x1": 704.7871510993294,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "cap-label-scaling",
+                "x": 796.4759083112427,
+                "y": 474.32558864805867,
+                "w": 61.934132816154715,
+                "h": 26.196787774832387,
+                "box": {
+                    "x0": 765.5088419031654,
+                    "y0": 461.2271947606425,
+                    "x1": 827.4429747193201,
+                    "y1": 487.42398253547486
+                }
+            },
+            {
+                "id": "label-scaling-s",
+                "x": 760.9231249025416,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 757.1807266489942,
+                    "y0": 433.15920785903637,
+                    "x1": 764.6655231560892,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "label-scaling-t",
+                "x": 832.0286917199438,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 828.2862934663964,
+                    "y0": 433.15920785903637,
+                    "x1": 835.7710899734914,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "cap-width-6-reset",
+                "x": 927.4598471854046,
+                "y": 474.32558864805867,
+                "w": 75.43225796234208,
+                "h": 26.196787774832387,
+                "box": {
+                    "x0": 889.7437182042336,
+                    "y0": 461.2271947606425,
+                    "x1": 965.1759761665757,
+                    "y1": 487.42398253547486
+                }
+            },
+            {
+                "id": "width-6-reset-s",
+                "x": 891.9070637767036,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 888.164665523156,
+                    "y0": 433.15920785903637,
+                    "x1": 895.649462030251,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "width-6-reset-t",
+                "x": 963.0126305941056,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 959.2702323405582,
+                    "y0": 433.15920785903637,
+                    "x1": 966.7550288476532,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "cap-width-6-value",
+                "x": 1058.4437860595665,
+                "y": 474.32558864805867,
+                "w": 83.06735342273498,
+                "h": 17.776391704350544,
+                "box": {
+                    "x0": 1016.910109348199,
+                    "y0": 465.4373927958834,
+                    "x1": 1099.977462770934,
+                    "y1": 483.21378450023394
+                }
+            },
+            {
+                "id": "width-6-value-s",
+                "x": 1022.8910026508654,
+                "y": 436.90160611258386,
+                "w": 7.484796507094984,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 1019.1486043973179,
+                    "y0": 433.15920785903637,
+                    "x1": 1026.6334009044128,
+                    "y1": 440.6440043661313
+                }
+            },
+            {
+                "id": "width-6-value-t",
+                "x": 1093.9965694682674,
+                "y": 436.90160611258386,
+                "w": 7.48479650709487,
+                "h": 7.484796507094927,
+                "box": {
+                    "x0": 1090.25417121472,
+                    "y0": 433.15920785903637,
+                    "x1": 1097.7389677218148,
+                    "y1": 440.6440043661313
+                }
+            }
+        ]
     },
     "pageErrors": []
 }

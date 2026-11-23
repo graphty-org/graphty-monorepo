@@ -2,38 +2,14 @@
  * Scrubbing a field with the real mouse: the press, each move and the release are made by the
  * browser (tests/harness/mouse.ts), so pointer capture and the coordinates are the browser's own.
  */
-import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { compactTheme } from "../../../src";
 import { PanelField } from "../../../src/components/rows/PanelField";
 import { moveBy, press, release } from "../../harness/mouse";
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderField(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
-
-/**
- * Render with the text direction reversed, the way a right-to-left app consumes
- * the package.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRtl(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(
-        <DirectionProvider initialDirection="rtl" detectDirection={false}>
-            <MantineProvider theme={compactTheme}>{ui}</MantineProvider>
-        </DirectionProvider>,
-    );
-}
+import { renderCompact as renderField, renderRtl } from "../../harness/render";
 
 /**
  * The field's own input element.

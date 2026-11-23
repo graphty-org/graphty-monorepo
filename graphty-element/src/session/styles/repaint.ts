@@ -708,6 +708,111 @@ function moveColumn(column: ChannelColumn, sourceOf: Int32Array, capacity: numbe
 }
 
 /**
+ * The rows from one to another.
+ * @param from - The first.
+ * @param to - One past the last.
+ * @returns They, ascending.
+ */
+function rowsBetween(from: number, to: number): number[] {
+    const rows: number[] = [];
+    for (let row = from; row < to; row++) {
+        rows.push(row);
+    }
+
+    return rows;
+}
+
+/**
+ * The rows an order-keeping removal drops below `carried`, ascending: each kept row moves down to the next free
+ * row, in order. Null when the remap moves rows any other way.
+ * @param remap - Old index to new; an index at or past `count` is dropped.
+ * @param carried - How many rows, from zero, the remap reaches.
+ * @param count - The new row count.
+ * @returns The dropped rows, or null.
+ */
+function droppedRows(remap: ArrayLike<number>, carried: number, count: number): number[] | null {
+    const dropped: number[] = [];
+    let next = 0;
+    for (let from = 0; from < carried; from++) {
+        const to = remap[from];
+        if (to >= count) {
+            dropped.push(from);
+        } else if (to === next) {
+            next++;
+        } else {
+            return null;
+        }
+    }
+
+    return dropped;
+}
+
+/**
+ * Close up an array in place over an order-keeping removal: the rows between the dropped ones move down in runs,
+ * and what the move frees, up to `used`, is written with the empty value.
+ * @param values - The array: typed, or a plain one.
+ * @param dropped - The dropped rows, ascending, all below `carried`.
+ * @param carried - How many rows, from zero, are kept or dropped; those from it on are dropped too.
+ * @param used - How many rows held values before.
+ * @param empty - The value of a row nothing painted.
+ */
+function closeUp(
+    values: Float64Array | Uint8Array | unknown[],
+    dropped: readonly number[],
+    carried: number,
+    used: number,
+    empty: unknown,
+): void {
+    if (Array.isArray(values)) {
+        // A plain array's own `splice` moves its rows natively, where its `copyWithin` visits each one; the length
+        // it gives back reads as holes, which are rows nothing painted.
+        const { length } = values;
+        values.splice(carried, Math.max(0, used - carried));
+        for (let at = dropped.length - 1; at >= 0; at--) {
+            values.splice(dropped[at], 1);
+        }
+
+        values.length = length;
+        return;
+    }
+
+    let to = dropped.length === 0 ? carried : dropped[0];
+    for (let at = 0; at < dropped.length; at++) {
+        const from = dropped[at] + 1;
+        const end = at + 1 < dropped.length ? dropped[at + 1] : carried;
+        if (end > from) {
+            values.copyWithin(to, from, end);
+            to += end - from;
+        }
+    }
+
+    if (used > to) {
+        values.fill(empty as number, to, used);
+    }
+}
+
+/**
+ * Close up one column in place over an order-keeping removal ({@link closeUp}), keeping the column object,
+ * which prepared layers hold, and its arrays: no array of the graph's length is made again.
+ * @param column - The column.
+ * @param dropped - The dropped rows, ascending.
+ * @param carried - How many rows the remap reaches.
+ * @param used - How many rows held values before.
+ */
+function closeUpColumn(column: ChannelColumn, dropped: readonly number[], carried: number, used: number): void {
+    if (column.kind === "number") {
+        closeUp(column.values, dropped, carried, used, Number.NaN);
+    } else if (column.kind === "flag") {
+        closeUp(column.values, dropped, carried, used, FLAG_ABSENT);
+    } else {
+        closeUp(column.values, dropped, carried, used, undefined);
+        if (column.kind === "ref" && column.plainText !== null) {
+            closeUp(column.plainText, dropped, carried, used, 0);
+        }
+    }
+}
+
+/**
  * What one column holds for one element.
  * @param column - The column.
  * @param index - The element's dense index.
@@ -2266,8 +2371,16 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             }
 
             const store = stores[entry.layer.target];
+            const reach = Math.min(record.length, remap.length);
+            // An order-keeping removal closes the record up in place, as the columns are.
+            const dropped = record.length === store.capacity ? droppedRows(remap, reach, store.count) : null;
+            if (dropped !== null) {
+                closeUp(record, dropped, reach, record.length, 0);
+                continue;
+            }
+
             const carried = new Uint8Array(store.capacity);
-            for (let from = 0; from < Math.min(record.length, remap.length); from++) {
+            for (let from = 0; from < reach; from++) {
                 if (record[from] === 1 && remap[from] < store.count) {
                     carried[remap[from]] = 1;
                 }
@@ -2287,6 +2400,43 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     };
 
     /**
+     * Carry one kind of element's paint through an order-keeping removal, in place: every array keeps its buffer
+     * and its rows close up in runs between the dropped ones, so a removal from a million-element graph allocates
+     * nothing of the graph's length (issue #9164).
+     * @param store - The store.
+     * @param dropped - The rows dropped below `carried`, ascending.
+     * @param carried - How many rows the remap reaches; those from it on are dropped.
+     * @param count - How many elements there are now.
+     * @returns The new indices nothing was carried to.
+     */
+    const closeUpStore = (store: TargetStore, dropped: readonly number[], carried: number, count: number): number[] => {
+        const used = store.count;
+        // Gone, or not worth carrying: the mesh each was drawn from loses it.
+        const release = (from: number): void => {
+            if (store.meshKeys[from] !== 0) {
+                store.meshes.release(store.meshKeys[from]);
+            }
+        };
+        for (const from of dropped) {
+            release(from);
+        }
+        for (let from = carried; from < used; from++) {
+            release(from);
+        }
+
+        closeUp(store.meshKeys, dropped, carried, used, 0);
+        closeUp(store.painted, dropped, carried, used, 0);
+        for (const column of store.columns.values()) {
+            closeUpColumn(column, dropped, carried, used);
+        }
+
+        store.count = count;
+        store.stamps.fill(0);
+        store.dirty.fill(0);
+        return rowsBetween(carried - dropped.length, count);
+    };
+
+    /**
      * Carry one kind of element's paint through a renumbering.
      * @param store - The store.
      * @param remap - Old index to new; an index at or past the new count is dropped.
@@ -2295,13 +2445,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @returns The new indices nothing was carried to.
      */
     const follow = (store: TargetStore, remap: ArrayLike<number> | null, kept: number, count: number): number[] => {
-        const holes: number[] = [];
         if (remap === null) {
-            for (let row = Math.min(kept, count); row < count; row++) {
-                holes.push(row);
-            }
-
-            return holes;
+            return rowsBetween(Math.min(kept, count), count);
         }
 
         let { capacity } = store;
@@ -2309,10 +2454,15 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             capacity *= 2;
         }
 
+        const carried = Math.min(kept, store.count, remap.length);
+        const dropped = capacity === store.capacity ? droppedRows(remap, carried, count) : null;
+        if (dropped !== null) {
+            return closeUpStore(store, dropped, carried, count);
+        }
+
         const sourceOf = new Int32Array(count).fill(-1);
         const meshKeys = new Float64Array(capacity);
         const painted = new Uint8Array(capacity);
-        const carried = Math.min(kept, store.count, remap.length);
         for (let from = 0; from < store.count; from++) {
             const to = from < carried ? remap[from] : count;
             if (to < count) {
@@ -2335,6 +2485,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         store.painted = painted;
         store.stamps = new Int32Array(capacity);
         store.dirty = new Uint32Array(capacity);
+        const holes: number[] = [];
         for (let row = 0; row < count; row++) {
             if (sourceOf[row] < 0) {
                 holes.push(row);
@@ -2356,10 +2507,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             still: () => boolean,
         ): Promise<RepaintReport> {
             return exclusively(async () => {
+                // A pass that paints every element is not one whose rows are all that changed.
+                const whole: RepaintContext = {
+                    signal: context.signal,
+                    report: (progress) => {
+                        context.report(progress);
+                    },
+                };
                 if (!still()) {
                     appliedTo = new WeakMap<CompiledLayer, Uint8Array>();
-                    return runPass(stack, context, markEverything, null);
+                    return runPass(stack, whole, markEverything, null);
                 }
+
+                let everything = false;
 
                 const holes = {
                     node: follow(stores.node, moved.node, kept.node, sources.nodeCount()),
@@ -2368,9 +2528,18 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 followApplied(stack, moved);
                 return runPass(
                     stack,
-                    context,
+                    {
+                        signal: context.signal,
+                        report: (progress) => {
+                            context.report(progress);
+                        },
+                        get rowsOnly() {
+                            return context.rowsOnly === true && !everything;
+                        },
+                    },
                     () => {
                         if (stack.some(settledDifferently)) {
+                            everything = true;
                             markEverything();
                             return;
                         }

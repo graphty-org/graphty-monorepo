@@ -11,13 +11,11 @@ import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { readAssistantChoice, writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
 const KEY = "AIza-a-key-of-the-right-shape";
 
 /** Every enable reaches the mock model instead of the network; a given key goes to the key store. */
@@ -49,8 +47,6 @@ async function openKeyPage(): Promise<HTMLElement> {
 
 describe("the AI provider page", () => {
     beforeEach(async () => {
-        resetSiteConfig();
-        await loadSiteConfig(SITE);
         await page.viewport(1440, 900);
         localStorage.clear();
         sessionStorage.clear();
@@ -60,7 +56,6 @@ describe("the AI provider page", () => {
     afterEach(() => {
         cleanup();
         vi.restoreAllMocks();
-        resetSiteConfig();
         writeAssistantChoice(null);
     });
 

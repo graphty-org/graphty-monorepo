@@ -202,6 +202,15 @@ export class NGraphEngine extends LayoutEngine {
     edgeMapping = new Map<Edge, NGraphLink>();
     /** The link carrying each edge stored with no `Edge`, by edge id. See {@link NGraphEngine.addEdgeRows}. */
     private readonly rowLinks = new Map<string, NGraphLink>();
+    /**
+     * The middle of the box a new body starts in: the origin, or after a removal the middle of the
+     * bodies left. A removal leaves its survivors where the larger drawing had them, far from the
+     * origin, and a body started at the origin was pulled across the old drawing's width: each add
+     * after removing most of a 3,214-node graph took hundreds of steps (issue #9421).
+     */
+    private placeAround = { x: 0, y: 0, z: 0 };
+    /** A body left since {@link placeAround} was read: read it again before the next placement. */
+    private placeAroundStale = false;
     /** The one link between two nodes, keyed by both ids in the order the first edge gave them. */
     private readonly pairLinks = new Map<NodeIdType, Map<NodeIdType, NGraphLink>>();
     _settled = true;
@@ -881,13 +890,37 @@ export class NGraphEngine extends LayoutEngine {
             return;
         }
 
+        if (this.placeAroundStale) {
+            this.placeAroundStale = false;
+            this.placeAround = this.middleOfBodies(id);
+        }
+
         const { springLength } = this.ngraphLayout.simulator.settings;
         const perAxis = Math.pow(this.ngraph.getNodeCount(), 1 / dim) * (dim === 3 ? START_SPREAD_3D : START_SPREAD_2D);
         const side = springLength * Math.max(1, perAxis);
         const coord = (): number => (rng.nextDouble() - 0.5) * side;
-        const x = coord();
-        const y = coord();
-        this.ngraphLayout.setNodePosition(id, x, y, dim === 3 ? coord() : 0);
+        const x = this.placeAround.x + coord();
+        const y = this.placeAround.y + coord();
+        this.ngraphLayout.setNodePosition(id, x, y, dim === 3 ? this.placeAround.z + coord() : 0);
+    }
+
+    /**
+     * The mean position of the bodies in the simulation, leaving one out.
+     * @param skip - The id of the body being placed.
+     * @returns Their middle; the origin when there are none.
+     */
+    private middleOfBodies(skip: NodeIdType): { x: number; y: number; z: number } {
+        const sum = { x: 0, y: 0, z: 0 };
+        let count = 0;
+        this.ngraphLayout.forEachBody((body, bodyId) => {
+            if (bodyId !== skip) {
+                sum.x += body.pos.x;
+                sum.y += body.pos.y;
+                sum.z += body.pos.z ?? 0;
+                count++;
+            }
+        });
+        return count === 0 ? sum : { x: sum.x / count, y: sum.y / count, z: sum.z / count };
     }
 
     /**
@@ -1296,6 +1329,7 @@ export class NGraphEngine extends LayoutEngine {
 
         this.ngraph.removeNode(ngraphNode.id);
         this._settled = false;
+        this.placeAroundStale = true;
     }
 
     /**

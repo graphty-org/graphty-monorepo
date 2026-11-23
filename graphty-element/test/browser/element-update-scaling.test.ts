@@ -27,8 +27,12 @@ import type { Node } from "../../src/Node";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { assertScalesLinearly, type Growth, visitsDuring } from "../helpers/cost";
 
-/** The two graph sizes: big enough that a cost per call that grows with the graph is 4x. */
-const SIZES = [100, 400] as const;
+/**
+ * The two graph sizes: big enough that a cost per call that grows with the graph is 4x. Disposing a
+ * node's instance walks two lists of the scene, about 2 visits a node, beside a fixed cost of about
+ * 430 for a new mesh: at 100 and 400 nodes that left the 4x step at 1.95x (issue #9164).
+ */
+const SIZES = [250, 1000] as const;
 
 /**
  * Wait until every queued operation has run and the pass that derives it has drawn it.

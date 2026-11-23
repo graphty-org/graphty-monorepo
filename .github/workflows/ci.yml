@@ -15,20 +15,15 @@ on:
     # the history to work around a scheduling hiccup.
     # The release train (release.yml) calls this workflow on the commit it is about to release: the full
     # suite, every shard of every package, and the builds it publishes (design/ci/ci-cd-plan.md, section 10).
-    # (golden-verify.yml, removed, also called it; a caller that takes the ref from a dispatch input would run any
-    # commit in master's cache scope, so tools/ci-workflows.test.mjs allows only the release train.)
-    # `verify` leaves out the benchmarks, and `shards` (a CI bisect point) runs only the named test shards.
+    # A caller that takes the ref from a dispatch input would run any commit in master's cache scope, so
+    # tools/ci-workflows.test.mjs allows only the release train.
+    # `shards` (a CI bisect point) runs only the named test shards.
     workflow_call:
         inputs:
             ref:
                 description: "the commit to test and build"
                 type: string
                 required: true
-            verify:
-                description: "a verification run of golden: skip the Performance benchmarks, which gate nothing"
-                type: boolean
-                required: false
-                default: false
             shards:
                 description: "a JSON list of test shard names: run only these, as a light run (no screenshots)"
                 type: string
@@ -330,9 +325,9 @@ jobs:
             # change to any of them affects every project, so it runs the full set here too.
             # The shard list itself lives in tools/ci-test-matrix.mjs, which filters it; the base is named
             # explicitly for the same reason as "Build affected (PR)" below.
-            # A called run (inputs.ref: the release train, golden-verify.yml) is full even when the caller was
-            # started by a push: a called workflow sees its caller's event, and golden-verify.yml runs on a push
-            # to golden-candidate. Only a push of master itself (no inputs.ref) is the build-only run.
+            # A called run (inputs.ref: the release train) is full even when the caller was started by a push: a
+            # called workflow sees its caller's event. Only a push of master itself (no inputs.ref) is the
+            # build-only run.
             # A `shards` input keeps only those shards (tools/ci-test-matrix.mjs --only) and makes the run light,
             # so the summary accepts the jobs it skipped and no screenshots are taken.
             # visual-skip names the Storybooks whose screenshots this run leaves out (tools/visual-capture-plan.mjs:
@@ -933,7 +928,7 @@ jobs:
                       echo "nx remote cache: off (HTTP ${code:-none} from $NX_CACHE_URL)" >> "$GITHUB_STEP_SUMMARY"
                   fi
 
-            # The seven Storybooks, three at a time: one after another they took about 3.2 minutes on a pull
+            # The eight Storybooks, three at a time: one after another they took about 3.2 minutes on a pull
             # request (run 40364181619: graph-io-fidelity 51 s, graphty-element 47 s, graphty 47 s, the other
             # four 49 s together), and every Stories job waits for this job. Each build reads only
             # the package builds downloaded above, so none waits on another. A Storybook whose nx inputs
@@ -942,7 +937,7 @@ jobs:
               if: steps.reuse-build.outputs.artifacts-run == ''
               run: >-
                   pnpm exec nx run-many -t build-storybook --parallel=3
-                  --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,graph-io
+                  --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,babylonjs-models,graph-io
 
             # The browser test shards restore Babylon.js's GLSL compilers from master's cache (the Test job's "Restore
             # the Babylon.js GLSL compilers"), and a pull request never saves a cache, while a master push runs no
@@ -1046,6 +1041,13 @@ jobs:
                   path: cytoscape-extensions/storybook-static/
                   retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
+            - name: Upload Storybook build (babylonjs-models)
+              uses: actions/upload-artifact@v7
+              with:
+                  name: build-storybook-babylonjs-models
+                  path: babylonjs-models/storybook-static/
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
+
             - name: Upload Storybook build (graph-io-fidelity)
               uses: actions/upload-artifact@v7
               with:
@@ -1062,16 +1064,27 @@ jobs:
               with:
                   job: build
 
-    # Lint every package (every affected one on a pull request), beside the tests.
+    # Lint every package (every affected one on a pull request), beside the tests. graphty-element and the
+    # graphty app each lint on a runner of their own: their type-aware ESLint is most of the work, and a cold
+    # lint of all 16 projects on one 4-core runner took 12 to 14.5 minutes of this job's 15 (#9781). A leg
+    # runs only when it has work: every leg on a full lint, a heavy project's leg on a pull request that
+    # affects it. The leg for the other projects keeps the name "Lint" (tools/ci-reuse-plan.mjs reads it).
     lint:
-        name: Lint
+        name: ${{ matrix.part == 'others' && 'Lint' || format('Lint ({0})', matrix.part) }}
         needs: packages
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 15
+        strategy:
+            fail-fast: false
+            matrix:
+                part: ${{ fromJSON(format('["others"{0}{1}]', (needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty-element')) && ',"graphty-element"' || '', (needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')) && ',"graphty"' || '')) }}
         env:
             # graphty-element's and graphty's lint targets pass this to ESLint; see "Key the ESLint caches"
             ESLINT_CACHE: --cache --cache-strategy content --cache-location node_modules/.cache/eslint/
+            # nx's --exclude for this leg: the others leg leaves out the two heavy projects, a heavy leg
+            # excludes every project but its own ("*,!name", nx's pattern syntax)
+            LINT_EXCLUDE: ${{ matrix.part == 'others' && 'graphty-element,graphty' || format('*,!{0}', matrix.part) }}
         # lint is an nx-cached target (nx.json), so a project whose lint inputs equal master's (a pull request
         # that touches nx.json or a project.json marks every project affected) replays master's result from
         # the remote cache instead of linting again (graphty-element alone takes about 3.5 minutes). Only
@@ -1149,7 +1162,7 @@ jobs:
               run: echo "LINT_START=$(date +%s)" >> "$GITHUB_ENV"
 
             # graphty-element and graphty lint with an ESLint content cache in CI ($ESLINT_CACHE in their project.json
-            # lint targets; a local lint never caches). Master's full lint fills it and saves it; a pull request restores the newest one, so ESLint
+            # lint targets; a local lint never caches), one cache per heavy leg (its key names the leg). Master's full lint fills it and saves it; a pull request restores the newest one, so ESLint
             # re-lints only the files whose content differs from master's (graphty-element took about 300 s here,
             # beside two other packages on the runner's 4 cores). The key holds what changes a rule's verdict on an
             # unchanged file -- the resolved versions of eslint, its plugins and parsers, typescript and globals
@@ -1161,43 +1174,39 @@ jobs:
             # is the day, so master saves one cache a day (about 3 MB), not one per commit.
             - name: Key the ESLint caches
               id: eslint-cache
-              run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"; echo "prefix=eslint-v2-$(node tools/eslint-cache-key.mjs | cut -c1-16)-${{ hashFiles('eslint.config.js', 'graphty-element/test/saved-format/eslint-saved-format.js', 'graphty-element/working-graph-whole-readers.json', 'tsconfig.base.json', 'tools/eslint-rules/**', 'compact-mantine/eslint/**', 'graphty-element/eslint.config.js', 'graphty-element/eslint-rules/**', 'graphty-element/tsconfig*.json', 'graphty/eslint.config.js', 'graphty/eslint-rules/**', 'graphty/tsconfig*.json') }}-" >> "$GITHUB_OUTPUT"
+              run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"; echo "prefix=eslint-v3-${{ matrix.part }}-$(node tools/eslint-cache-key.mjs | cut -c1-16)-${{ hashFiles('eslint.config.js', 'graphty-element/test/saved-format/eslint-saved-format.js', 'graphty-element/working-graph-whole-readers.json', 'tsconfig.base.json', 'tools/eslint-rules/**', 'compact-mantine/eslint/**', 'graphty-element/eslint.config.js', 'graphty-element/eslint-rules/**', 'graphty-element/tsconfig*.json', 'graphty/eslint.config.js', 'graphty/eslint-rules/**', 'graphty/tsconfig*.json') }}-" >> "$GITHUB_OUTPUT"
 
             - name: Restore the ESLint caches (PR)
-              if: needs.packages.outputs.full == 'false'
+              if: needs.packages.outputs.full == 'false' && matrix.part != 'others'
               continue-on-error: true
               uses: actions/cache/restore@v6
               with:
-                  path: |
-                      graphty-element/node_modules/.cache/eslint
-                      graphty/node_modules/.cache/eslint
+                  path: ${{ matrix.part }}/node_modules/.cache/eslint
                   key: ${{ steps.eslint-cache.outputs.prefix }}${{ steps.eslint-cache.outputs.day }}
                   restore-keys: ${{ steps.eslint-cache.outputs.prefix }}
 
             - name: Lint affected (PR)
               if: needs.packages.outputs.full == 'false'
-              run: pnpm exec nx affected -t lint --parallel=3 --exclude-task-dependencies --base=origin/${{ github.base_ref }} --head=HEAD
+              run: pnpm exec nx affected -t lint --parallel=3 --exclude-task-dependencies --exclude="$LINT_EXCLUDE" --base=origin/${{ github.base_ref }} --head=HEAD
 
             # graph-io's lint typechecks its fidelity stories, which import graphty-element's source and test
             # helpers; graph-io/project.json negates that dependency (it would be a cycle), so nx never calls
             # graph-io affected by a graphty-element change, and this step lints it then (#7196). graph-io's lint
             # inputs (graph-io/project.json) name graphty-element, so nx's cache never replays master's result here.
             - name: Lint graph-io's fidelity stories (PR, graphty-element affected)
-              if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && !contains(fromJSON(needs.packages.outputs.affected), 'graph-io')
+              if: matrix.part == 'others' && needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && !contains(fromJSON(needs.packages.outputs.affected), 'graph-io')
               run: pnpm exec nx run graph-io:lint --exclude-task-dependencies
 
             - name: Lint all (master, a manual dispatch or the release train)
               if: needs.packages.outputs.full == 'true'
-              run: pnpm exec nx run-many -t lint --parallel=3 --exclude-task-dependencies
+              run: pnpm exec nx run-many -t lint --parallel=3 --exclude-task-dependencies --exclude="$LINT_EXCLUDE"
 
             - name: Save the ESLint caches (full lint)
-              if: needs.packages.outputs.full == 'true' && env.SAVE_CACHES == 'true'
+              if: needs.packages.outputs.full == 'true' && env.SAVE_CACHES == 'true' && matrix.part != 'others'
               continue-on-error: true
               uses: actions/cache/save@v6
               with:
-                  path: |
-                      graphty-element/node_modules/.cache/eslint
-                      graphty/node_modules/.cache/eslint
+                  path: ${{ matrix.part }}/node_modules/.cache/eslint
                   key: ${{ steps.eslint-cache.outputs.prefix }}${{ steps.eslint-cache.outputs.day }}
 
             # Lint all took 3 to 5 minutes until a typescript-eslint update made one rule take 7 of them
@@ -1220,7 +1229,7 @@ jobs:
             # feeds reads graphty/dist), so it is built here, off the test jobs' critical path, from the downloaded
             # package builds, and only when the pull request affects it.
             - name: Build the graphty app (PR, when affected)
-              if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              if: matrix.part == 'graphty' && needs.packages.outputs.full == 'false'
               run: pnpm exec nx run graphty:build --exclude-task-dependencies
               env:
                   VITE_BASE_PATH: /
@@ -1228,7 +1237,7 @@ jobs:
             # What the built graphty app asks a browser to download, against graphty/size-budgets.json (issue #8018).
             # Here because this is the only pull-request job that builds the app: the Build job's artifact leaves it out.
             - name: Bundle size (graphty app, PR, when affected)
-              if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              if: matrix.part == 'graphty' && needs.packages.outputs.full == 'false'
               run: pnpm --filter @graphty/graphty run size
 
             # The built app loads its landing page, draws its graph, opens a sample and draws it, with no page
@@ -1237,19 +1246,19 @@ jobs:
             # has the built app: built above on a pull request, downloaded with the package builds on master and
             # the full run. Chromium draws in software; no GPU is needed.
             - uses: ./.github/actions/drop-microsoft-apt-source
-              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              if: matrix.part == 'graphty'
 
             - name: Install Playwright system packages
-              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              if: matrix.part == 'graphty'
               uses: ./.github/actions/playwright-system-deps
 
             - name: Install Chromium for the app's smoke check
-              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              if: matrix.part == 'graphty'
               run: pnpm exec playwright install --only-shell chromium
 
             - name: Smoke check the built app
               id: app-smoke
-              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              if: matrix.part == 'graphty'
               continue-on-error: ${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'lint/Smoke check the built app') }}
               # a few seconds when the app loads; a page that stalls fails the step, not the whole Lint job
               timeout-minutes: 5
@@ -1327,6 +1336,22 @@ jobs:
                   name: build-packages
                   path: .
 
+            # The release dry run (tools/release-dry-run.mjs, #3318): when a pull request changes a package.json, a
+            # project.json, nx.json or release-hold.json, `nx release --dry-run --skip-publish` runs, so a project the
+            # release train cannot version fails here instead of holding every release; any other pull request skips
+            # it at once. It takes about 6 minutes, so it starts here in the background and runs beside the steps
+            # below until "Release dry run" waits for it. The full run versions its candidate in release.yml.
+            # GH_TOKEN: nx reads the repository's GitHub releases for the changelog preview.
+            - name: Start the release dry run
+              if: github.event_name == 'pull_request'
+              env:
+                  PUSH_BASE_REF: origin/${{ github.base_ref }}
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  out="$RUNNER_TEMP/release-dry-run"
+                  mkdir -p "$out"
+                  nohup sh -c 'node tools/release-dry-run.mjs > "$1/log" 2>&1; echo $? > "$1/rc"' sh "$out" < /dev/null > /dev/null 2>&1 &
+
             # The shard groups and the conditions that decide what a pull request, master and a full run do.
             # The files run side by side, one per core (tools/run-ci-workflow-tests.mjs): about 1 minute, not 3.5.
             # Recorded in the results store like every test job; RESULTS_RECORD_ONLY: run once, exit code untouched
@@ -1353,8 +1378,7 @@ jobs:
             - name: Links (offline)
               run: ./tools/check-links.sh --offline
 
-            # No checked-in commit tooling may turn GPG signing off (also in tools/prepush-source-checks.sh until that script
-            # is deleted).
+            # No checked-in commit tooling may turn GPG signing off.
             - name: No signing bypass in tools/ and .husky/
               run: "! git grep -niE -e 'no-gpg[-]sign' -e 'gpg[s]ign *[= ] *false' -- tools/ .husky/"
 
@@ -1486,7 +1510,6 @@ jobs:
               run: pnpm run check:release-hold
 
             # A published package's peer dependencies change only in a major (tools/check-peer-deps-stable.mjs).
-            # The same check runs in tools/prepush.sh.
             - name: Peer dependencies stable
               run: pnpm run check:peer-deps
 
@@ -1520,28 +1543,38 @@ jobs:
 
             # No pile of images committed outside the folders that hold them (more than 20 new images or
             # 20 MB against the base; an `Images-Approved: <reason>` trailer passes a deliberate addition).
-            # The same check runs in tools/prepush-source-checks.sh.
+            # The same check runs in the pre-push hook (.husky/pre-push).
             - name: No committed walk screenshots
               run: pnpm run check:committed-images
 
             # compact-mantine is locked to its Figma spec: a change to the spec, the Figma tests, their harness
             # or the theme's token values needs the owner's `Figma-Approved: <reason>` trailer on the commit
-            # that makes it. The same check runs in tools/prepush-source-checks.sh.
+            # that makes it.
             - name: compact-mantine Figma lock
               run: pnpm run check:figma-lock
 
             # Save files carry what they use: adding a known exception to graphty-element's saved-format
             # checks needs the owner's `Saved-Format-Exception-Approved: <reason>` trailer, and a shipped
-            # shader hash leaves only by being revoked. The same check runs in tools/prepush-source-checks.sh.
+            # shader hash leaves only by being revoked.
             - name: Saved-format exceptions
               run: pnpm run check:saved-format-allowlist
 
             # Duplicate code: a new exact clone between two pieces of non-test code, overlapping a line this
             # change adds, fails; clones touching tests are listed only. Measured from the merge base with master
             # (fetch-depth 0 above); on a master push that is HEAD itself, so nothing is checked. The same
-            # check runs in tools/prepush-source-checks.sh and tools/check-quick.sh.
+            # check runs in tools/check-quick.sh.
             - name: Duplicate code
               run: pnpm run check:duplicates
+
+            # Waits for the release dry run started above and fails with it. Exit 3 is nx refused by GitHub (a 403
+            # or a rate limit), which here, with the job's token, is a real failure too.
+            - name: Release dry run
+              if: github.event_name == 'pull_request'
+              run: |
+                  out="$RUNNER_TEMP/release-dry-run"
+                  while [ ! -f "$out/rc" ]; do sleep 5; done
+                  cat "$out/log"
+                  exit "$(cat "$out/rc")"
 
             # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
             # ends (.github/actions/early-verdict).
@@ -2262,6 +2295,12 @@ jobs:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
 
+            - name: Download Storybook build (babylonjs-models)
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-storybook-babylonjs-models
+                  path: babylonjs-models/storybook-static/
+
             - name: Download Storybook build (graph-io-fidelity)
               uses: actions/download-artifact@v8
               with:
@@ -2316,7 +2355,7 @@ jobs:
     algorithms-benchmarks:
         name: Algorithms Benchmarks
         needs: packages
-        if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
+        if: github.event_name != 'pull_request' && needs.packages.outputs.light != 'true'
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 50
@@ -2387,7 +2426,7 @@ jobs:
     browser-benchmarks:
         name: Browser Benchmarks
         needs: packages
-        if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
+        if: github.event_name != 'pull_request' && needs.packages.outputs.light != 'true'
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 50
@@ -2460,7 +2499,7 @@ jobs:
     performance:
         name: Performance Benchmarks
         needs: packages
-        if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
+        if: github.event_name != 'pull_request' && needs.packages.outputs.light != 'true'
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 50
@@ -3709,7 +3748,7 @@ jobs:
                   fi
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
-            # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
+            # this job's success does not replace, so a re-run that passed stayed red (#2639).
             # The run's token shares its API limits with every run of the repository, and a busy hour used one
             # up: the calls failed, the step was continue-on-error, and the early verdict stayed red with the
             # pull request blocked (#3857). So a failed call waits for the limit to reset and tries again, and

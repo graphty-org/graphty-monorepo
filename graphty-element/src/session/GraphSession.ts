@@ -182,6 +182,7 @@ import { sealedSet } from "./sealed";
 import {
     createSelectionApi,
     type RuleCheck,
+    type SelectionDelta,
     type SelectionOwner,
     type SelectionSources,
     type SelectionTextMode,
@@ -3687,7 +3688,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         return hovered ?? (selected.length === 1 ? selected[0] : null);
     };
     // Set once the style stack exists: what a selection change repaints.
-    let repaintSelected = (): void => undefined;
+    let repaintSelected = (_delta?: SelectionDelta): void => undefined;
     let repaintGhosts = (_moved?: SlideCounts): void => undefined;
 
     // The style stack, late-bound because the runs are built before it and the auto-apply policy
@@ -4635,8 +4636,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     const engine = query;
 
-    // Settled on first asking, as the session's `features` is.
-    let peekable: boolean | undefined;
     let peekLayers: readonly ElementLayerSpec[] = NO_LAYERS;
     selection = createSelectionApi({
         snapshot,
@@ -4703,7 +4702,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         onChange: (delta) => {
             stateRevision++;
             notifier.notify({ kind: "selection" });
-            repaintSelected();
+            repaintSelected(delta);
             publish(watchers, "selection:changed", delta);
             // A hover layer that falls back to the selection follows it too.
             repaintHover();
@@ -4737,10 +4736,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             peekLayers = peeked === null ? NO_LAYERS : peekLayersOf(peeked);
             advanceTick();
             repaintPeek(dirty);
-        },
-        canPeek: () => {
-            peekable ??= resolveFeatures(options.features?.()).has("assistant");
-            return peekable;
         },
         // The origin moved with no member: `selection:changed` stays a membership event, so the
         // origin has its own.
@@ -5016,8 +5011,94 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         });
         repaintStates({ node: nodes, edge: [] }, PIN_STATES);
     });
-    // The selection as last repainted, so a change repaints what moved: one byte per element.
-    let paintedSelection: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
+    // The selection as last repainted, by id, so a change repaints the elements that entered or left
+    // it -- however the rows were renumbered since, by an add, a removal or their undo. By row, a
+    // change after any of those found every row moved and repainted the whole graph (issue #9164).
+    // Kept while no layer reads the selection too: a layer added later paints the selection as it
+    // is then, which is the last one remembered here.
+    let paintedSelection: { readonly node: Set<NodeId>; readonly edge: Set<EdgeId> } = {
+        node: new Set(),
+        edge: new Set(),
+    };
+    const selectedRowOfNode = nodeIndexOf(snapshot);
+    const selectedRowOfEdge = edgeIndexOf(snapshot);
+    const enteredOrLeft = <TId>(
+        before: ReadonlySet<TId>,
+        now: ReadonlySet<TId>,
+        rowOf: (id: TId) => number | undefined,
+    ): number[] => {
+        const rows: number[] = [];
+        for (const [from, to] of [
+            [before, now],
+            [now, before],
+        ] as const) {
+            for (const id of from) {
+                const row = to.has(id) ? undefined : rowOf(id);
+                if (row !== undefined) {
+                    rows.push(row);
+                }
+            }
+        }
+
+        return rows;
+    };
+    // The rows a change's own delta says entered or left, kept in step with `paintedSelection`: one add to a
+    // selection of a thousand no longer copies the thousand ids. Null when the delta does not account for the
+    // selection as it now stands, which is then read whole.
+    const deltaRows = (delta: SelectionDelta | undefined): { node: number[]; edge: number[] } | null => {
+        if (delta === undefined) {
+            return null;
+        }
+
+        const owner = requireSelection(selection);
+        const nodes = owner.nodeMembers();
+        const edges = owner.edgeMembers();
+        const rows = { node: [] as number[], edge: [] as number[] };
+        const note = (into: number[], row: number | undefined): void => {
+            if (row !== undefined) {
+                into.push(row);
+            }
+        };
+        for (const id of delta.added) {
+            if (nodes.hasId(id) && !paintedSelection.node.has(id)) {
+                paintedSelection.node.add(id);
+                note(rows.node, selectedRowOfNode(id));
+            } else if (typeof id === "string" && edges.hasId(id) && !paintedSelection.edge.has(id)) {
+                paintedSelection.edge.add(id);
+                note(rows.edge, selectedRowOfEdge(id));
+            }
+        }
+
+        for (const id of delta.removed) {
+            if (paintedSelection.node.has(id) && !nodes.hasId(id)) {
+                paintedSelection.node.delete(id);
+                note(rows.node, selectedRowOfNode(id));
+            } else if (typeof id === "string" && paintedSelection.edge.has(id) && !edges.hasId(id)) {
+                paintedSelection.edge.delete(id);
+                note(rows.edge, selectedRowOfEdge(id));
+            }
+        }
+
+        return paintedSelection.node.size === nodes.size && paintedSelection.edge.size === edges.size ? rows : null;
+    };
+    repaintSelected = (delta?: SelectionDelta): void => {
+        const owner = requireSelection(selection);
+        const quick = deltaRows(delta);
+        let rows = quick;
+        if (rows === null) {
+            const now = { node: new Set(owner.nodeMembers().ids()), edge: new Set(owner.edgeMembers().ids()) };
+            const before = paintedSelection;
+            paintedSelection = now;
+            rows = {
+                node: enteredOrLeft(before.node, now.node, selectedRowOfNode),
+                edge: enteredOrLeft(before.edge, now.edge, selectedRowOfEdge),
+            };
+        }
+
+        if (readsState(SELECTION_STATES)) {
+            repaintStates(rows, SELECTION_STATES);
+        }
+    };
     const changedBytes = (before: Uint8Array | undefined, after: Uint8Array): number[] => {
         const changed: number[] = [];
         for (let index = 0; index < after.length; index++) {
@@ -5027,23 +5108,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         }
 
         return changed;
-    };
-    repaintSelected = (): void => {
-        // No layer reads the selection: nothing to repaint, and nothing remembered, so the first
-        // change after one is added repaints every element once rather than trusting old bytes.
-        if (!readsState(SELECTION_STATES)) {
-            paintedSelection = null;
-            return;
-        }
-
-        const owner = requireSelection(selection);
-        const now = { node: owner.nodeMask(), edge: owner.edgeMask() };
-        const before = paintedSelection;
-        paintedSelection = now;
-        repaintStates(
-            { node: changedBytes(before?.node, now.node), edge: changedBytes(before?.edge, now.edge) },
-            SELECTION_STATES,
-        );
     };
     // The ghosts and what lies outside the time window, as last repainted: a window move, a slide
     // or a held condition repaints the elements that entered or left either state.
@@ -5506,22 +5570,79 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             pushEndsOfEdgesFrom(rows.node, graph, through.edges);
         }
 
-        await painter.repaintMoved(stack, moved, kept, rows, RUNS_PASS, still);
+        await painter.repaintMoved(stack, moved, kept, rows, ROWS_PASS, still);
         // A freeze that renumbered the rows while the pass ran leaves the next pass to paint
         // everything.
         paintedThrough = still() ? now : null;
         return true;
     };
-    // The renderer's half of the same rule, for rows appended only.
-    // ponytail: an add settles every encoding again, O(n log n) per continuous binding, and paints
-    // only if one moved; keep running extents per column if adds to a huge encoded graph show it.
-    GRAPH_REPAINTS.set(dispatcher, async (dirty, paintWhole) => {
-        const added = dirty?.has(NODES_ADDED) === true || dirty?.has(EDGES_ADDED) === true;
-        if (dirty !== null && added && (await paintChangedRows(styles.compiled(), dirty, false))) {
+    /**
+     * Repaint after a record edit some layer reads: the edited rows alone when every layer paints
+     * each element from that element alone, else what the readers match now, from the lowest of
+     * them up, and the edited rows.
+     * @param stack - The stack as it paints.
+     * @param readers - The layers that read a field the edit changed, in stack order.
+     * @param dirty - The pass's dirty keys, record keys only.
+     */
+    const repaintReaders = async (
+        stack: readonly CompiledLayer[],
+        readers: readonly CompiledLayer[],
+        dirty: ReadonlySet<string>,
+    ): Promise<void> => {
+        if (await paintChangedRows(stack, dirty, true)) {
             return;
         }
 
         const now = rowsNow();
+        painter.invalidate();
+        const edits = readers.map((entry) => ({ previous: entry, next: entry }));
+        const fromIndex = stack.indexOf(readers[0]);
+        await painter.repaint({ reason: "update", edits, stack, fromIndex }, RUNS_PASS);
+        // The layers above paint what the edited field's readers match now; an element the edit
+        // took out of a reader's match is found by its own row, repainted whole.
+        await painter.repaintElements(stack, editedRows(snapshot(), dirty), RUNS_PASS);
+        // Only the readers' elements were painted: one that moved with a renumbering and matches
+        // none of them still shows what its old row showed.
+        paintedThrough =
+            paintedThrough?.renumbers === now.renumbers && store.store.renumberCount === now.renumbers ? now : null;
+    };
+    // The renderer's half of the same rule: an add, a removal (whose renumbering the paint follows)
+    // and a record edit paint the rows they changed when no other element can look different, and a
+    // record edit no layer reads paints nothing. At a million edges a whole-graph pass per edit was
+    // most of a minute (issue #9164).
+    // ponytail: an add settles every encoding again, O(n log n) per continuous binding, and paints
+    // only if one moved; keep running extents per column if adds to a huge encoded graph show it.
+    GRAPH_REPAINTS.set(dispatcher, async (dirty, paintWhole) => {
+        const changed = { node: [...edited.node], edge: [...edited.edge] };
+        edited.node.clear();
+        edited.edge.clear();
+        const stack = styles.compiled();
+        // A removal marks only the records it took: the rows it moved are told by the counts.
+        const through = paintedThrough;
+        const now = rowsNow();
+        const rowsKept =
+            through !== null &&
+            through.renumbers === now.renumbers &&
+            through.nodes === now.nodes &&
+            through.edges === now.edges;
+        // A record edit of a kind whose changed fields were not heard is painted whole, as before.
+        const keys = [...(dirty ?? [])];
+        const heard =
+            (changed.node.length > 0 || !keys.some((key) => key.startsWith("n:"))) &&
+            (changed.edge.length > 0 || !keys.some((key) => namesEdges(key)));
+        if (dirty !== null && rowsKept && heard && recordsOnlyKeys(dirty)) {
+            const readers = stack.filter((entry) => readsAnyField(entry, changed));
+            if (readers.length > 0) {
+                await repaintReaders(stack, readers, dirty);
+            }
+
+            return;
+        }
+
+        if (dirty !== null && (await paintChangedRows(stack, dirty, true))) {
+            return;
+        }
+
         const painted = await paintWhole();
         paintedThrough = painted && store.store.renumberCount === now.renumbers ? now : null;
     });
@@ -5530,9 +5651,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const rows = editedRows(graph, dirty);
         rows.edge.push(...edgeRows.filter((row) => row < graph.edgeCount));
         if (layers.length > 0 && (rows.node.length > 0 || rows.edge.length > 0)) {
-            await painter.repaintElements(layers, rows, RUNS_PASS);
+            // Under layers that paint each element from itself, the added rows are all that changed:
+            // the renderer places them and walks nothing else (issue #9164).
+            const alone = layers.every(paintsRowAlone);
+            await painter.repaintElements(layers, rows, alone ? ROWS_PASS : RUNS_PASS);
             // These rows settled each binding against a graph the other rows were not painted for.
-            if (!layers.every(paintsRowAlone)) {
+            if (!alone) {
                 paintedThrough = null;
             }
         }
@@ -5555,9 +5679,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
             // As it paints: a hidden row's layer repaints as disabled, never as its author wrote it.
             const stack = paintingOf(styles, target.styles);
-            const recordsOnly = ![...dirty].some(
-                (key) => key === ROWS_MOVED || !(key.startsWith("n:") || namesEdges(key) || key.startsWith("v:")),
-            );
+            const recordsOnly = recordsOnlyKeys(dirty);
             const readers = recordsOnly ? stack.filter((entry) => readsAnyField(entry, changed)) : stack;
             if (readers.length === 0) {
                 return;
@@ -5567,24 +5689,15 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 return;
             }
 
-            const now = rowsNow();
-            painter.invalidate();
-            const edits = readers.map((entry) => ({ previous: entry, next: entry }));
-            const fromIndex = stack.indexOf(readers[0]);
-            await painter.repaint({ reason: "update", edits, stack, fromIndex }, RUNS_PASS);
             if (recordsOnly) {
-                // The layers above paint what the edited field's readers match now; an element the
-                // edit took out of a reader's match is found by its own row, repainted whole.
-                await painter.repaintElements(stack, editedRows(snapshot(), dirty), RUNS_PASS);
-                // Only the readers' elements were painted: one that moved with a renumbering and
-                // matches none of them still shows what its old row showed.
-                paintedThrough =
-                    paintedThrough?.renumbers === now.renumbers && store.store.renumberCount === now.renumbers
-                        ? now
-                        : null;
+                await repaintReaders(stack, readers, dirty);
                 return;
             }
 
+            const now = rowsNow();
+            painter.invalidate();
+            const edits = readers.map((entry) => ({ previous: entry, next: entry }));
+            await painter.repaint({ reason: "update", edits, stack, fromIndex: 0 }, RUNS_PASS);
             paintedThrough = store.store.renumberCount === now.renumbers ? now : null;
         }),
     );
@@ -5846,6 +5959,22 @@ function editedRows(graph: GraphSnapshot, dirty: ReadonlySet<string>): { node: n
 }
 
 /**
+ * Whether a pass's dirty keys name record edits and graph values alone: no row added, removed or
+ * moved, and nothing else that can change every element.
+ * @param dirty - The pass's dirty keys.
+ * @returns True when they do.
+ */
+function recordsOnlyKeys(dirty: ReadonlySet<string>): boolean {
+    for (const key of dirty) {
+        if (key === ROWS_MOVED || !(key.startsWith("n:") || namesEdges(key) || key.startsWith("v:"))) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
  * Whether a dirty key is one an add or a removal of rows marks: a node or edge record, a graph
  * value, or a rows marker. Anything else -- the direction, say -- can change every element.
  * @param key - The lane key.
@@ -5878,17 +6007,23 @@ function paintsRowAlone(entry: CompiledLayer): boolean {
     return entry.layer.encode === undefined && entry.selector.match !== "expression" && paintsFromRowAndColumn(entry);
 }
 
+/** The element states one element is in or out of by itself; see {@link paintsFromRowAndColumn}. */
+const ROW_LOCAL_STATES: ReadonlySet<string> = new Set(["selected", "hovered", "pinned", "outsideWindow"]);
+
 /**
  * Whether a layer paints each element from that element's own values, read through bindings the
  * engine can tell have settled differently. Appended rows beside it change nothing it painted but
  * what those two checks find: a degree at an added edge's end, and a binding that settled apart.
  *
  * Not of this kind, so an add under one paints the whole graph: a `top`, which ranks a column; a
- * `member` or `rule` selector, whose set can follow the structure; `state` and `hover`, which can
- * reach a neighbor; a value read at an edge's end, which an edit or a degree moves on every edge
- * at that node; and a template's `|count` or `|rank`, which no settled fact describes. The state
- * `"outsideWindow"` is of this kind: an element's own time places it, and what a visibility pass
- * moves in or out of it is repainted by that pass.
+ * `member` or `rule` selector, whose set can follow the structure; `hover`, which can reach a
+ * neighbor; the state `"ghosted"`, which a held filter over the structure decides; a value read at
+ * an edge's end, which an edit or a degree moves on every edge at that node; a group's member count,
+ * which follows the structure; and a template's
+ * `|count` or `|rank`, which no settled fact describes. The other states are of this kind
+ * (`ROW_LOCAL_STATES`): an element is selected, hovered or pinned on its own, its own time places
+ * it outside the window, each follows a renumbering, and the pass that changes one repaints what
+ * it moved in or out.
  * @param entry - The layer.
  * @returns True when it does.
  */
@@ -5900,7 +6035,7 @@ function paintsFromRowAndColumn(entry: CompiledLayer): boolean {
             match === "has" ||
             match === "ids" ||
             match === "expression" ||
-            (selector.match === "state" && selector.state === "outsideWindow")) &&
+            (selector.match === "state" && ROW_LOCAL_STATES.has(selector.state))) &&
         !entry.reads.some((path) => edgeEndPathOf(path) !== undefined || path === MEMBERS_PATH) &&
         !Object.values(entry.layer.encode ?? {}).some(
             (binding) => binding !== undefined && "template" in binding && readsWholeColumn(binding.template),
@@ -6148,6 +6283,12 @@ export function inputCountersOfSession(session: GraphSession): InputCounters {
 
 /** The context of the `runs` hook's repaint: nothing cancels it, and it reports nowhere. */
 const RUNS_PASS = Object.freeze({ signal: new AbortController().signal, report: () => undefined });
+
+/**
+ * {@link RUNS_PASS} for a pass that paints only the rows an edit changed: what it paints is all
+ * that changed, so the renderer places those and visits nothing else.
+ */
+const ROWS_PASS = Object.freeze({ ...RUNS_PASS, rowsOnly: true });
 
 /**
  * The selection, once the session has one.

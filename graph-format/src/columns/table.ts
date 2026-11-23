@@ -562,13 +562,50 @@ function uniqueKey(column: Column, row: number): unknown {
 }
 
 /**
+ * Whether a scalar numeric column's set cells rise strictly in row order: then no two are equal, and
+ * the uniqueness check needs no map. A counter stamped in row order (an id column) always does, so
+ * each freeze of a large graph checks it in one pass over the array instead of hashing every cell.
+ * @param column - the column
+ * @returns true when every set cell is greater than the set cell before it
+ */
+function strictlyIncreasing(column: Column): boolean {
+    switch (column.dtype) {
+        case "f32":
+        case "f64":
+        case "i32":
+        case "u32":
+        case "u8":
+            break;
+        default:
+            return false;
+    }
+    if (column.meta.components !== 1) {
+        return false;
+    }
+    const { data } = column;
+    let last = -Infinity;
+    for (let row = 0; row < column.length; row++) {
+        if (!column.isSet(row)) {
+            continue;
+        }
+        const value = data[row];
+        // NaN goes to the map, which keeps NaN apart as before.
+        if (Number.isNaN(value) || value <= last) {
+            return false;
+        }
+        last = value;
+    }
+    return true;
+}
+
+/**
  * Enforce a unique column over its set rows (design section 5.5; the freeze step 10 hook):
  * E_DUPLICATE_EDGE_ID for an edge column and E_DUPLICATE_ID for every other domain, with the
  * duplicated value and both rows in details.
  * @param column - a column declared unique
  */
 export function verifyUniqueColumn(column: Column): void {
-    if (!column.meta.unique) {
+    if (!column.meta.unique || strictlyIncreasing(column)) {
         return;
     }
     const seen = new Map<unknown, number>();

@@ -79,7 +79,7 @@ describe("a node gesture under the real mouse", () => {
         assert.isAbove(apart(where(element, "c"), start), 0.1, "the drag moved node c");
 
         const outcome = await session.undo();
-        assert.strictEqual(outcome.kind, "cancelled", "the undo ended the open drag");
+        assert.strictEqual(outcome.kind, "canceled", "the undo ended the open drag");
         await moveHeld(element, { x: from.x + 80, y: from.y + 60 });
         await release(element, { x: from.x + 80, y: from.y + 60 });
         await applied(element);

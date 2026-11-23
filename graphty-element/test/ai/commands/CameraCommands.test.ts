@@ -8,8 +8,7 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { setCameraPosition, zoomToNodes } from "../../../src/ai/commands/CameraCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createCommandGraph } from "../../helpers/session-graph";
-import { createMockContext } from "../../helpers/test-graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 
 describe("CameraCommands", () => {
     let graph: Graph;
@@ -33,7 +32,7 @@ describe("CameraCommands", () => {
             edgeCount: 40,
             renderer: { setCameraState: record("setCameraState"), applyCameraView: record("applyCameraView") },
         });
-        context = createMockContext(graph);
+        context = createCommandContext(graph);
     });
 
     describe("setCameraPosition", () => {

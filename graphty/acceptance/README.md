@@ -87,20 +87,33 @@ node graphty/acceptance/compare-reports.mjs tmp/dry-run/report.json tmp/dry-run-
 ```
 
 `compare-reports.mjs` prints each route whose result differs, with both reasons, and exits 1 when one
-does. `pnpm run check:quick --with-dry-run` walks every route both ways.
+does. `pnpm run check:quick --with-dry-run` walks every route, and the canvas test below, both ways.
 
-Three routes point at the canvas itself, for what the batched path changed underneath:
+### Pointing at the canvas: `canvas-uat.mjs`
+
+A route may not read the element while it walks, so what the batched path changed underneath the
+pointer has its own test, `canvas-uat.mjs`. It walks the same build in the dry run's browser (on the
+NVIDIA card, holding a browser slot and the GPU slot), moves and clicks the real mouse, and reads
+graphty-element's public API in the page (`nodeScreenPosition`, `elementAt`, `session.selection`):
+
+```bash
+node graphty/acceptance/canvas-uat.mjs                          # the default render path: tmp/canvas-uat/
+node graphty/acceptance/canvas-uat.mjs --features cosmograph    # the batched render path: tmp/canvas-uat-cosmograph/
+node graphty/acceptance/canvas-uat.mjs --only c02               # scenarios whose id starts with this
+node graphty/acceptance/compare-reports.mjs tmp/canvas-uat/report.json tmp/canvas-uat-cosmograph/report.json
+```
 
 - `c01-point-at-nodes-and-an-edge`: hovers and clicks Valjean, Javert and Fantine in Les Miserables,
   then an edge between its two nodes, and checks the hovered node and the selection after each.
 - `c02-edges-follow-an-animating-layout`: in the karate club, changes the layout to Circle with a glide,
-  and on every frame the nodes move checks that pointing between each edge's two drawn nodes
-  (`nodeScreenPosition`) finds that edge or a node (`elementAt`), as a hover or click there would.
+  and on every frame the nodes move checks that pointing between each edge's two drawn nodes finds that
+  edge or a node, as a hover or click there would.
 - `c03-edges-follow-a-running-force-layout`: the same while ForceAtlas2 runs.
 
 `elementAt` measures a straight edge from its two nodes' drawn centers, so the last two check picking
 during motion; a line drawn behind its moving nodes shows only in the canvas's pixels, which
-graphty-element's own in-motion tests read.
+graphty-element's own in-motion tests read. It takes about 20 seconds a path, keeps each scenario's last
+screen beside its report, and exits 1 when a check failed.
 
 ## The selection workspace's acceptance test
 

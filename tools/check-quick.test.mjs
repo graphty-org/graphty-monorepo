@@ -42,13 +42,16 @@ function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } 
     writeFileSync(join(repo, "graph-format/package.json"), "{}");
     mkdirSync(join(repo, "graphty/acceptance"), { recursive: true });
     // one record per walk, named by its arguments: the dry run walks once as is, once per --features
-    writeFileSync(
-        join(repo, "graphty/acceptance/run.mjs"),
-        envDump(out("dryrun.json"), "STUB_RC_DRYRUN").replace(
-            JSON.stringify(out("dryrun.json")),
-            `${JSON.stringify(out("dryrun"))} + process.argv.slice(2).join("-") + ".json"`,
-        ),
-    );
+    const perWalk = (script, name) =>
+        writeFileSync(
+            join(repo, `graphty/acceptance/${script}`),
+            envDump(out(`${name}.json`), "STUB_RC_DRYRUN").replace(
+                JSON.stringify(out(`${name}.json`)),
+                `${JSON.stringify(out(name))} + process.argv.slice(2).join("-") + ".json"`,
+            ),
+        );
+    perWalk("run.mjs", "dryrun");
+    perWalk("canvas-uat.mjs", "canvas");
     writeFileSync(join(repo, "package.json"), "{}");
     writeFileSync(
         join(dir, "bin/pnpm"),
@@ -97,6 +100,8 @@ function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } 
         integrity: read("integrity.json"),
         dryRun: read("dryrun.json"),
         dryRunBatched: read("dryrun--features-cosmograph.json"),
+        canvas: read("canvas.json"),
+        canvasBatched: read("canvas--features-cosmograph.json"),
         budgets: read("budgets.json"),
         steps: (() => {
             try {
@@ -228,12 +233,14 @@ describe("tools/check-quick.sh", () => {
     });
 
     it("with --with-dry-run, builds the app and walks every route of the dry run", () => {
-        const { r, pnpm, dryRun, dryRunBatched } = sandbox({ args: ["--with-dry-run"] });
+        const { r, pnpm, dryRun, dryRunBatched, canvas, canvasBatched } = sandbox({ args: ["--with-dry-run"] });
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.match(pnpm, /^exec nx run graphty:build$/m);
         assert.ok(dryRun, "the dry run ran");
         assert.deepEqual(dryRun.argv, []);
         assert.deepEqual(dryRunBatched?.argv, ["--features", "cosmograph"], "and again on the batched render path");
+        assert.deepEqual(canvas?.argv, [], "the canvas test ran");
+        assert.deepEqual(canvasBatched?.argv, ["--features", "cosmograph"], "and on the batched render path");
         assert.match(r.stdout, /\[PASS\] Dry run of the graphty app/);
     });
 

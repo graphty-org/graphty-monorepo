@@ -81,29 +81,3 @@ export const layers = (page) =>
             .session.styles.list()
             .map((l) => l.name),
     );
-
-/**
- * What the pointer and the clicks have done: the node under the pointer and what is selected.
- * @param page the Playwright page
- * @returns the hovered node (or null) and the selected nodes' and edges' ids
- */
-export const selection = (page) =>
-    page.evaluate(() => {
-        const s = document.querySelector("graphty-element")?.session;
-        if (!s) throw new Error("no graph is open");
-        const ids = (list) => list.map(String);
-        const hovered = s.selection.hovered;
-        return {
-            hovered: hovered === null ? null : String(hovered),
-            nodes: ids(s.selection.nodes),
-            edges: ids(s.selection.edges),
-        };
-    });
-
-/**
- * What a route recorded in the page while it walked (globalThis.acceptanceRecord), for checks on what
- * happened during the walk rather than at its end (a layout's animation, each hover in turn).
- * @param page the Playwright page
- * @returns whatever the route recorded, or undefined
- */
-export const recorded = (page) => page.evaluate(() => globalThis.acceptanceRecord);

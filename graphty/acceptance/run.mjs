@@ -246,7 +246,12 @@ async function runAll(o) {
 
 // ---------------------------------------------------------------- a worker (one browser slot)
 
-function serve(dist) {
+/**
+ * Serve a build of the app on a loopback port: every path that is not a file is the app's own page.
+ * @param dist the build
+ * @returns the listening server
+ */
+export function serve(dist) {
     const http = createServer(async (req, res) => {
         const url = new URL(req.url, "http://x"); // eslint-disable-line sonarjs/no-clear-text-protocols -- parses the request's path; the server is loopback only
         const path = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, "");
@@ -270,7 +275,7 @@ const profiles = new Set();
  * @param chromium Playwright's chromium
  * @returns a persistent context on a fresh profile, and its renderer
  */
-async function launch(chromium) {
+export async function launch(chromium) {
     if (!existsSync(join(EGL, "libEGL.so.1")))
         throw new Error(
             `the GPU flags need libEGL.so.1 in ${EGL} (without it they hang the first page): in the main checkout, mkdir -p tmp/egl && cd tmp/egl && apt-get download libegl1 libglvnd0 && dpkg -x libegl1_*.deb root && dpkg -x libglvnd0_*.deb root`,

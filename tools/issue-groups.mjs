@@ -2355,11 +2355,21 @@ const idleFacts = (c, sweep) => {
     const machine = c.machine();
     const running = runningJobs(sweep.claims, session, c.now);
     const options = { claims: sweep.claims, isAncestor: c.isAncestor };
-    const result = ledgerJobs(readLedger(c.ledgerPath), queue(open, c.now).queue, c.now, options);
+    const ledger = readLedger(c.ledgerPath);
+    const result = ledgerJobs(ledger, queue(open, c.now).queue, c.now, options);
     const { info, ...sinks } = c.sinks();
-    sinks.unopened = (sweep.claims ?? []).filter(
-        (x) => x.kind === "ready" && x.action === "stranded" && c.now - x.at > OPEN_AFTER_MS,
-    ).length;
+    // A branch held on someone else (a wait, the owner) or already in an open pull request is no sink this session
+    // can clear (#9710: the samples branch waits on #8596; the owner's #1677 is open).
+    const notMine = new Set([
+        ...(result.held ?? []).map((j) => j.branch),
+        ...(ledger.openPrs?.prs ?? []).map((p) => p.branch),
+    ]);
+    sinks.unopened = new Set(
+        (sweep.claims ?? [])
+            .filter((x) => x.kind === "ready" && x.action === "stranded" && c.now - x.at > OPEN_AFTER_MS)
+            .map((x) => x.branch)
+            .filter((b) => !notMine.has(b)),
+    ).size;
     const claimsInfo = sweep.unknown ? sweep.line : null;
     return {
         session,

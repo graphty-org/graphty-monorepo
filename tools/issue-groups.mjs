@@ -2074,7 +2074,7 @@ const failingChecks = (rollup) => {
 };
 const PR_TEXT = `createdAt body author ${ACTOR} editor ${ACTOR} lastEditedAt`;
 const AGENT_PRS = (after) => `query { repository(owner: "${OWNER}", name: "${NAME}") {
-  pullRequests(states: OPEN, first: 50${after ? `, after: "${after}"` : ""}) { pageInfo { hasNextPage endCursor }
+  pullRequests(states: OPEN, first: 20${after ? `, after: "${after}"` : ""}) { pageInfo { hasNextPage endCursor }
     nodes { number headRefName isDraft createdAt mergeable author { login } labels(first: 20) { nodes { name } }
       commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state
         contexts(first: 100) { nodes { ... on CheckRun { name conclusion } ... on StatusContext { context state } } } } } } }

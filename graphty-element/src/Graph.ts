@@ -92,9 +92,9 @@ const ZOOM_STEP_FACTOR = 1.25;
 const MAP_CLEARANCE = 1e-4;
 
 import { measureBounds } from "./camera/bounds.js";
-import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
 import { cameraRefusal, stateProblem } from "./camera/mode.js";
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "./camera/orbit.js";
 import { orientationOf } from "./camera/orientation.js";
 import type { GraphOverview, OverviewOptions } from "./camera/overview.js";
 import { presetsOf, type SkippedPreset, splitPresetImport } from "./camera/presets.js";
@@ -185,6 +185,7 @@ import {
 import { attachRegionGesture } from "./input/RegionSelectGesture";
 import { FixedLayout } from "./layout/FixedLayoutEngine";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
+import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import {
     type AddEdgesOptions,
     AlgorithmManager,
@@ -234,6 +235,7 @@ import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter"
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
 import { arrowCapMeshes } from "./meshes/ArrowCapBatch";
+import { edgeDrawPlace } from "./meshes/EdgeLineBatch";
 import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
@@ -318,7 +320,7 @@ import {
     workingGraphOfSession,
 } from "./session/GraphSession";
 import { ISSUES_VALUE } from "./session/issues";
-import { DEFAULT_LIMITS, type LimitsOption, RenderLimits } from "./session/limits";
+import { DEFAULT_LIMITS, fullDetailOverBudget, type LimitsOption, RenderLimits } from "./session/limits";
 import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
@@ -1105,8 +1107,16 @@ export class Graph implements GraphContext {
 
     /** The running pass repainted the whole graph, so it needs a frame whatever keys it wrote. */
     #passRepainted = false;
-    /** Whether the last whole-graph paint drew a graph past `largeGraphThreshold` (low node detail). */
+    /** Whether the last whole-graph paint drew a graph past `fullDetailTriangleBudget` (low node detail). */
     #paintedLarge = false;
+
+    /**
+     * Whether the graph's nodes at full detail would draw past `fullDetailTriangleBudget`.
+     * @returns True when a node no layer gives a detail is drawn low.
+     */
+    #overDetailBudget(): boolean {
+        return fullDetailOverBudget(this.dataManager.nodes.size, this.#limits.effective.fullDetailTriangleBudget);
+    }
 
     /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
     readonly #teardown = new AbortController();
@@ -1169,11 +1179,10 @@ export class Graph implements GraphContext {
     private readonly drawsOnDemand = (): boolean =>
         this.viewSettings.behavior.rendering?.onDemand ?? onDemandWhenUnset();
     /**
-     * Whether the render loop flushes after each frame's WebGL fence, and keeps one WebGPU frame in
-     * flight: only under renderPath "batched". Its frames are short enough that waiting for the
-     * browser's own flush set their floor, and its million-row frames are long enough on the GPU
-     * that unpaced WebGPU frames queued minutes of work ahead of every readback. Asked each frame,
-     * so a live path change takes effect on the next one.
+     * Whether the render loop flushes after each frame's WebGL fence and rests between layout
+     * landings: only under renderPath "batched", whose frames are short enough that waiting for the
+     * browser's own flush set their floor. (WebGPU frames in flight are bounded on every path.)
+     * Asked each frame, so a live path change takes effect on the next one.
      * @returns True under renderPath "batched".
      */
     readonly #batchedFrames = (): boolean => this.#renderPath === "batched";
@@ -1326,7 +1335,7 @@ export class Graph implements GraphContext {
             () => this.session.config.minMarkSize,
             // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
             (model) => this.session.assets.find(model)?.defaults,
-            () => this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold,
+            () => this.#overDetailBudget(),
             () => this.#darkScheme,
         );
 
@@ -1365,7 +1374,6 @@ export class Graph implements GraphContext {
             drawsOnDemand: this.drawsOnDemand,
             restsBetweenLandings: this.#batchedFrames,
             flushesFrameFence: this.#batchedFrames,
-            pacesWebGpuFrames: this.#batchedFrames,
             antialias: this.#multisampled,
             antialiasAtRest: this.#antialiasAtRest,
             preserveDrawingBuffer: this.preserveDrawingBuffer,
@@ -1669,16 +1677,19 @@ export class Graph implements GraphContext {
                 }
                 return this.getCameraState();
             },
-            move: (command) =>
-                this.setCameraState(
-                    command.preset === undefined
+            move: (command) => {
+                const state =
+                    command.camera === undefined
                         ? {
                               ...(command.position === undefined ? {} : { position: { ...command.position } }),
                               ...(command.target === undefined ? {} : { target: { ...command.target } }),
                           }
-                        : { preset: command.preset },
+                        : { ...command.camera };
+                return this.setCameraState(
+                    command.preset === undefined ? state : { preset: command.preset },
                     command.animate === true ? { animate: true } : undefined,
-                ),
+                );
+            },
             state: () => this.getCameraState(),
         };
 
@@ -1773,6 +1784,10 @@ export class Graph implements GraphContext {
             },
             immersive: (mode) => this.setImmersive(mode),
             followsFilters: () => this.followsShown(workingGraphOfSession(this.session)),
+            accelerator: () => {
+                const engine = this.layoutManager.layoutEngine;
+                return engine instanceof SimulationLayoutEngine ? engine.accelerator : "cpu";
+            },
         };
         lane.register("layout", async (_rendered, target) => {
             const choice = target.layout ?? DEFAULT_LAYOUT;
@@ -2287,7 +2302,7 @@ export class Graph implements GraphContext {
         this.#teardown.abort(new DOMException("The graph was disposed.", "AbortError"));
 
         // A tour's holds and an untimed recording count drawn frames, which stop now: end both.
-        this.#endTour("cancelled");
+        this.#endTour("canceled");
         this.cancelAnimationCapture();
 
         // XR listens on the page's navigator.xr, which outlives this graph: a listener left there
@@ -2751,7 +2766,6 @@ export class Graph implements GraphContext {
             drawsOnDemand: this.drawsOnDemand,
             restsBetweenLandings: this.#batchedFrames,
             flushesFrameFence: this.#batchedFrames,
-            pacesWebGpuFrames: this.#batchedFrames,
             antialiasAtRest: this.#antialiasAtRest,
         });
         this.engine = this.renderManager.engine;
@@ -4186,7 +4200,7 @@ export class Graph implements GraphContext {
                     "data-add",
                     (context) => {
                         if (context.signal.aborted) {
-                            throw new Error("Operation cancelled");
+                            throw new Error("Operation canceled");
                         }
 
                         inTurn();
@@ -4890,7 +4904,7 @@ export class Graph implements GraphContext {
             "camera-update",
             (context) => {
                 if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
+                    throw new Error("Operation canceled");
                 }
 
                 this.camera.activateCamera(mode);
@@ -4931,7 +4945,7 @@ export class Graph implements GraphContext {
             "render-update",
             (context) => {
                 if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
+                    throw new Error("Operation canceled");
                 }
 
                 apply();
@@ -5234,7 +5248,7 @@ export class Graph implements GraphContext {
             // A forward add over a picture that is current names what it changed; undo, redo
             // and a paint an earlier write left owed have no such list.
             // Crossing `largeGraphThreshold` changes every node's detail, not only the rows it touched.
-            const large = this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold;
+            const large = this.#overDetailBudget();
             const flipped = large !== this.#paintedLarge;
             this.#paintedLarge = large;
             const changed = cause === "command" && !dispatcher.paintOwed && !flipped ? dirty : null;
@@ -5463,6 +5477,12 @@ export class Graph implements GraphContext {
         this.#warnLimitsIgnored();
         // A row drawn plain past an object budget is painted again, so a raised budget gives it its object.
         this.updateManager.limitsChanged();
+        // A budget that moves the graph across it changes every node's detail.
+        if (this.#overDetailBudget() !== this.#paintedLarge) {
+            this.#paintedLarge = !this.#paintedLarge;
+            void this.repaintFromSession();
+        }
+
         this.renderManager.requestFrame();
     }
 
@@ -6469,10 +6489,20 @@ export class Graph implements GraphContext {
         // Everything else in Babylon's own order, then the map, then the edges' bands, their lines,
         // then the nodes over them (nodes rank with everything else when no map is drawn) -- in the
         // blended pass too over a map, where the edge lines (antialiased) and their outlines are drawn.
+        // edge lines with a draw order (`line.drawOrder`) are drawn lowest first, before those with none
+        // (`stackByDrawOrder`); every other mesh keeps the order it had
+        const lineOrder = (a: AbstractMesh, b: AbstractMesh): number => {
+            const [at, bt] = [edgeDrawPlace(a), edgeDrawPlace(b)];
+            if (at === bt || !this.#edgeMeshes.has(a) || !this.#edgeMeshes.has(b)) {
+                return 0;
+            }
+
+            return at < bt ? -1 : 1;
+        };
         const byRank =
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>
-                rank(a.getMesh()) - rank(b.getMesh()) || then(a, b);
+                rank(a.getMesh()) - rank(b.getMesh()) || lineOrder(a.getMesh(), b.getMesh()) || then(a, b);
         const opaque = byRank((a, b) => RenderingGroup.PainterSortCompare(a, b));
         this.scene.setRenderingOrder(
             0,
@@ -8426,7 +8456,7 @@ export class Graph implements GraphContext {
      *     option }` for a still recording (or the `string[]` tour form) without `duration`, or
      *     `cameraMode: "animated"` without a tour; `{ reason: "no-stops" }` for an empty tour; the
      *     problem `planTour` reports for a tour that cannot be played; `E_UNSUPPORTED`
-     *     `{ reason: "xr", mode }` while immersive; `E_CANCELED` (an `AnimationCancelledError`) when
+     *     `{ reason: "xr", mode }` while immersive; `E_CANCELED` (an `AnimationCanceledError`) when
      *     canceled; `E_CAPTURE_FAILED` `{ media: "video", reason }` when the tab is hidden
      *     (`"hidden"`), the canvas changes size (`"resized"`), or the tour ends early
      *     (`"interrupted"`, `"replaced"`, `"mode-changed"`).
@@ -8454,7 +8484,7 @@ export class Graph implements GraphContext {
         }
         const flown = tourInput === null ? undefined : this.#checkedTour(tourInput);
 
-        const { AnimationCancelledError, MediaRecorderCapture, holdCameraForCapture } =
+        const { AnimationCanceledError, MediaRecorderCapture, holdCameraForCapture } =
             await import("./video/MediaRecorderCapture.js");
 
         // A frame reaches the recorder once the engine has ended it: WebGPU submits the frame's
@@ -8479,7 +8509,7 @@ export class Graph implements GraphContext {
 
         const { signal } = options;
         if (signal?.aborted === true) {
-            throw new AnimationCancelledError();
+            throw new AnimationCanceledError();
         }
 
         // Store reference for cancellation
@@ -8545,9 +8575,8 @@ export class Graph implements GraphContext {
         const handle = this.#beginTour(flown.name, flown.states.length);
         handle.onEnd = (reason) => {
             // A cancel that ends the tour (cancelCameraAnimation) is announced as any other.
-            if (reason !== "finished" && capture.fail(reason) && reason === "cancelled") {
+            if (reason !== "finished" && capture.fail(reason) && reason === "canceled") {
                 this.eventManager.emit("animation-canceled", {});
-                this.eventManager.emit("animation-cancelled", {});
             }
         };
         const timed = options.duration !== undefined;
@@ -8605,7 +8634,7 @@ export class Graph implements GraphContext {
                 }
             }
             // A recording that ended before its tour (a shorter duration, a failure) cancels it.
-            this.#finishTour(handle, tourFinished ? "finished" : "cancelled");
+            this.#finishTour(handle, tourFinished ? "finished" : "canceled");
             await flight;
         }
     }
@@ -8897,7 +8926,7 @@ export class Graph implements GraphContext {
      * flight is a cut held for the flight's time. Auto-rotate and the glide to the selection wait
      * while it plays.
      *
-     * It ends `"finished"` after the last hold, `"cancelled"` on `signal` or
+     * It ends `"finished"` after the last hold, `"canceled"` on `signal` or
      * `cancelCameraAnimation()`, `"interrupted"` when the reader moves the camera or presses the
      * canvas, `"replaced"` when another tour, a recording, `setCameraState`, `applyCameraView`, the
      * `view.camera` op or a screenshot with a `camera` moves the camera, and `"mode-changed"`
@@ -8909,7 +8938,7 @@ export class Graph implements GraphContext {
      * @param options.easing - The easing of each flight; wins over the tour's own. Default `"easeInOut"`.
      * @param options.restoreCamera - Put the camera back where it was when the tour finishes
      *     (only on `"finished"`). Default false.
-     * @param options.signal - Ends the tour as `"cancelled"` when it aborts.
+     * @param options.signal - Ends the tour as `"canceled"` when it aborts.
      * @returns How the tour ended; it resolves however it ends.
      * @throws A `GraphtyError` with the problem `planTour` reports: `E_BAD_COMMAND`
      *     `{ missing, available }` for a tour name nothing is saved under, `{ reason: "no-stops" }`
@@ -8932,13 +8961,13 @@ export class Graph implements GraphContext {
         const flown = this.#checkedTour(tour);
         const { signal } = options ?? {};
         if (signal?.aborted === true) {
-            return { reason: "cancelled" };
+            return { reason: "canceled" };
         }
 
         const before = options?.restoreCamera === true ? this.getCameraState() : undefined;
         const handle = this.#beginTour(flown.name, flown.states.length);
         const onAbort = (): void => {
-            this.#finishTour(handle, "cancelled");
+            this.#finishTour(handle, "canceled");
         };
         signal?.addEventListener("abort", onAbort, { once: true });
         const releaseFrames = animatesEveryFrame(this.scene);
@@ -9006,16 +9035,16 @@ export class Graph implements GraphContext {
      *
      * // Cancel it after 2 seconds
      * setTimeout(() => {
-     *   const wasCancelled = graph.cancelAnimationCapture();
-     *   console.log('Cancelled:', wasCancelled);
+     *   const wasCanceled = graph.cancelAnimationCapture();
+     *   console.log('Canceled:', wasCanceled);
      * }, 2000);
      *
-     * // The promise will reject with E_CANCELED (an AnimationCancelledError)
+     * // The promise will reject with E_CANCELED (an AnimationCanceledError)
      * try {
      *   await capturePromise;
      * } catch (error) {
      *   if (isGraphtyError(error) && error.code === 'E_CANCELED') {
-     *     console.log('Capture was cancelled');
+     *     console.log('Capture was canceled');
      *   }
      * }
      * ```
@@ -9025,15 +9054,13 @@ export class Graph implements GraphContext {
             return false;
         }
 
-        const cancelled = this.activeCapture.cancel();
+        const canceled = this.activeCapture.cancel();
 
-        // `animation-cancelled` is the deprecated British name, still sent until the next major.
-        if (cancelled) {
+        if (canceled) {
             this.eventManager.emit("animation-canceled", {});
-            this.eventManager.emit("animation-cancelled", {});
         }
 
-        return cancelled;
+        return canceled;
     }
 
     /**
@@ -9067,7 +9094,7 @@ export class Graph implements GraphContext {
      */
     cancelCameraAnimation(): boolean {
         const moves = this.operationQueue.cancelByCategory("camera-update");
-        return this.#endTour("cancelled") || moves > 0;
+        return this.#endTour("canceled") || moves > 0;
     }
 
     /**
@@ -9310,7 +9337,7 @@ export class Graph implements GraphContext {
             "camera-update",
             async (context) => {
                 if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
+                    throw new Error("Operation canceled");
                 }
 
                 // Animated transitions
@@ -9328,7 +9355,7 @@ export class Graph implements GraphContext {
                     }
                 } catch (error) {
                     // Check if error is due to cancellation
-                    if (error instanceof Error && error.message === "Operation cancelled") {
+                    if (error instanceof Error && error.message === "Operation canceled") {
                         throw error; // Re-throw cancellation
                     }
 
@@ -10960,9 +10987,7 @@ export class Graph implements GraphContext {
         checkAiConfig(config);
 
         // Dynamically import to avoid loading AI code when not needed
-        const { AiManager, assistantXr, loadEncryptStorage } = await import("./ai/AiManager");
-        // Its key manager restores persisted keys as it is built, so the store's package loads first.
-        await loadEncryptStorage();
+        const { AiManager, assistantXr } = await import("./ai/AiManager");
 
         // The in-browser provider loads asynchronously, and only when it is picked. Built before
         // the old assistant goes, so a missing package leaves the current one in place.
@@ -11131,7 +11156,7 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELLED" }`).
+     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELED" }`).
      * @since 4.0.0
      */
     stopAiSpeech(): void {
@@ -11140,7 +11165,7 @@ export class Graph implements GraphContext {
 
     /**
      * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
-     * `AI_CANCELLED`, and the next press opens another. Does nothing when none is open.
+     * `AI_CANCELED`, and the next press opens another. Does nothing when none is open.
      * @since 4.0.0
      */
     endAiLive(): void {
@@ -11442,35 +11467,32 @@ export class Graph implements GraphContext {
         const { provider, prefix } = options;
         const keys =
             this.getApiKeyManager() ?? (await Graph.createApiKeyManager(prefix === undefined ? {} : { prefix }));
-        if (provider === undefined) {
-            keys.forgetKeys();
-        } else {
-            keys.forgetKey(provider);
-        }
+        await (provider === undefined ? keys.forgetKeys() : keys.forgetKey(provider));
     }
 
     /**
      * Create a standalone ApiKeyManager for key management without enabling AI.
      * Useful for settings UIs that configure keys before AI activation.
      *
-     * ASYNCHRONOUS, AND THE REASON IS THE BUNDLE. The key store encrypts what it persists, so it
-     * imports `encrypt-storage`. This method used to construct one directly, which made that a
-     * STATIC import of `Graph` -- and `Graph` is what the root entry point pulls in. The result
-     * was that an encryption library shipped to every consumer who drew a graph and never touched
-     * the AI layer, which is exactly what the separate `./ai` entry point exists to prevent. The
-     * entry point's own comment claimed no such cost; for the three LLM SDKs that was true, and
-     * for this one it was not.
+     * Asynchronous for two reasons. The key store lives behind the `./ai` entry point, so this
+     * method imports it dynamically rather than making it a static import of `Graph`, which the
+     * root entry point pulls in for every consumer who draws a graph. And the store restores keys
+     * an earlier page saved with Web Crypto, which is asynchronous: the returned manager has
+     * finished that restore.
      *
      * A consumer who wants it synchronously imports `ApiKeyManager` from
-     * `@graphty/graphty-element/ai` and constructs it themselves -- which is the honest shape,
-     * because they are then choosing to load the encryption library.
+     * `@graphty/graphty-element/ai`, constructs it, and awaits `ready()` before reading keys.
+     *
+     * Keys saved without an `encryptionKey` are only obscured, not encrypted: anyone with access
+     * to the page or the browser profile can read them. Use `enablePersistenceWithPassphrase` with
+     * a passphrase the reader types.
      * @param options - Where persisted keys live
      * @returns A new ApiKeyManager instance
      * @example
      * ```typescript
      * // In a settings UI component
      * const keyManager = await Graph.createApiKeyManager();
-     * keyManager.enablePersistence({
+     * await keyManager.enablePersistence({
      *   encryptionKey: userSecret,
      *   storage: 'localStorage',
      * });
@@ -11478,10 +11500,10 @@ export class Graph implements GraphContext {
      * ```
      */
     static async createApiKeyManager(options?: import("./ai/keys").ApiKeyManagerOptions): Promise<ApiKeyManager> {
-        const { ApiKeyManager: KeyManager, loadEncryptStorage } = await import("./ai/keys");
-        await loadEncryptStorage();
-
-        return new KeyManager(options);
+        const { ApiKeyManager: KeyManager } = await import("./ai/keys");
+        const manager = new KeyManager(options);
+        await manager.ready();
+        return manager;
     }
 
     // ===========================================

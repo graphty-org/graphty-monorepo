@@ -6,6 +6,8 @@
 
 import type { SetDefinition } from "../../../catalog/types";
 import type { GraphSession } from "../../types";
+import { upgradeRun } from "../algorithmNames";
+import { runsRead } from "./recipeCommands";
 
 /** A plain object, as a layer read from the session or a file holds one. */
 type Loose = Readonly<Record<string, unknown>>;
@@ -104,18 +106,18 @@ function sourceNames(source: unknown, session: GraphSession): boolean {
         return false;
     }
 
-    const { params } = source;
-    const algorithm = session.catalog.algorithms().find((each) => each.key === source.algorithm);
-    return (algorithm?.options ?? []).some(
+    const upgraded =
+        typeof source.algorithm === "string"
+            ? upgradeRun(session.catalog.algorithms(), source.algorithm, source.params, "", "view")
+            : undefined;
+    const params = upgraded?.params ?? {};
+    return (upgraded?.descriptor.options ?? []).some(
         (option) =>
             (option.type === "node-id" || option.type === "node-set") &&
             params[option.name] !== undefined &&
             params[option.name] !== null,
     );
 }
-
-/** A run named in a path or an expression: `results.<run id>`. */
-const RESULT_PATH = /(?<![\w."])results\.([A-Za-z_][\w:-]*)/g;
 
 /** A run id made by a recipe step: `<namespace>__<as>` (spec 3.3). */
 const RECIPE_RUN = /^([a-z][a-z0-9_]{0,31}?)__([a-z][a-z0-9_]*)$/;
@@ -126,19 +128,7 @@ const RECIPE_RUN = /^([a-z][a-z0-9_]{0,31}?)__([a-z][a-z0-9_]*)$/;
  * @returns The run ids.
  */
 function runsReadBy(layer: Loose): Set<string> {
-    const runs = new Set<string>();
-    const walk = (value: unknown): void => {
-        if (typeof value === "string") {
-            for (const match of value.matchAll(RESULT_PATH)) {
-                runs.add(match[1]);
-            }
-        } else if (Array.isArray(value) || isLoose(value)) {
-            for (const each of Object.values(value)) {
-                walk(each);
-            }
-        }
-    };
-    walk([layer.selector, layer.encode]);
+    const runs = new Set(runsRead([layer.selector, layer.encode]));
     if (isLoose(layer.source) && layer.source.by === "run" && typeof layer.source.runId === "string") {
         runs.add(layer.source.runId);
     }

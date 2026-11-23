@@ -32,140 +32,198 @@ const ID_COERCION_RULES = ["canonical", "keep"] as const satisfies readonly IdCo
 // back to the default in silence -- but it is a BREAKING direction for a stored template, so a key
 // removed from here later needs a StyleTemplate majorVersion bump and an upgrade step, not a
 // quiet deletion.
+//
+// Each field below names the record key (a path such as "id" or "attrs.name") the element reads
+// one fact from. Maintainer notes sit in line comments above a field's doc comment.
 
 const GraphKnownFields = z.strictObject({
+    /** The key that holds each node's id, the value edges name as their ends. Default `"id"`. */
     nodeIdPath: z.string().default("id"),
-    // What to CALL a node, as distinct from how to address it. A result card naming the busiest
-    // node, a legend row and a ranked list all want a name a reader recognizes, and an id is only
-    // sometimes one: a GML file keys its nodes by integer while carrying the name beside it. Null
-    // means the element has not been told, and every reader falls back to the printed id -- which
-    // is honest, because an id a person chose often IS the name.
+    /**
+     * The key that holds each node's name, shown wherever a node is named to a reader (a result,
+     * a legend row, a ranked list). Default `null`: the node's id is shown instead.
+     */
     nodeLabelPath: z.string().or(z.null()).default(null),
+    /** The key that holds each node's weight. Default `null`: nodes carry no weight. */
     nodeWeightPath: z.string().or(z.null()).default(null),
+    /** The key that holds each node's time, for the timeline. Default `null`: nodes carry no time. */
     nodeTimePath: z.string().or(z.null()).default(null),
-    // How numbers in the node time column are read: epoch milliseconds, epoch seconds, or plain
-    // ordered numbers. Null reads milliseconds. Strings and dates ignore it.
+    /**
+     * How numbers in the node time column are read: `"ms"` epoch milliseconds, `"s"` epoch seconds,
+     * `"year"` years, or `"ordinal"` plain ordered numbers. Absent or `null` reads milliseconds.
+     * Text and dates ignore it.
+     */
     nodeTimeUnit: z.enum(["ms", "s", "year", "ordinal"]).or(z.null()).optional(),
-    // The IANA zone text in the node time column reads in when it carries no offset. Null reads UTC.
-    // Not checked here: a saved name stays saved where it is not read. time.setField refuses a bad one.
+    /**
+     * The IANA time zone (such as `"Europe/Paris"`) that node times written as text without an
+     * offset are read in. Absent or `null` reads UTC. A name that is not a real zone is refused
+     * by `time.setField`.
+     */
     nodeTimeParseZone: z.string().or(z.null()).optional(),
-    // The columns saying where each node's time ends, and its list of spells. Read only with the
-    // timeline on; with it off they stay saved.
+    /** The key that holds when each node's time ends. Read only while the timeline is on. */
     nodeTimeEndPath: z.string().or(z.null()).optional(),
+    /** The key that holds each node's list of time spells. Read only while the timeline is on. */
     nodeTimeSpellsPath: z.string().or(z.null()).optional(),
-    // Where each node's location is: one column of whole locations, or a latitude and a longitude
-    // column. The location map layout reads them when its own options name none; absent or null,
-    // it finds them by name or by their values.
+    /**
+     * The key that holds each node's whole location (coordinates or a place name), for the
+     * location map layout. Absent or `null`: the layout finds a location column by name or by its
+     * values. While set, `nodeCoordinatesPath`, `nodeCountryPath`, `nodeRegionPath` and
+     * `nodeCityPath` are ignored.
+     */
     nodeLocationPath: z.string().or(z.null()).optional(),
+    /** The key that holds each node's latitude, used with `nodeLongitudePath` by the location map. */
     nodeLatitudePath: z.string().or(z.null()).optional(),
+    /** The key that holds each node's longitude, used with `nodeLatitudePath` by the location map. */
     nodeLongitudePath: z.string().or(z.null()).optional(),
-    // How the location is read. "auto" (absent or null) reads coordinates first, then place names;
-    // "coords" only coordinates; "country", "region" or "city" read nodeLocationPath as place names
-    // of that kind, looked up in the location map's gazetteer; "none" means the reader removed the
-    // field, so nothing designated is read and nothing is found by name or value.
+    /**
+     * How the location is read. `"auto"` (or absent, or `null`) reads coordinates first, then place
+     * names; `"coords"` only coordinates; `"country"`, `"region"` or `"city"` read
+     * `nodeLocationPath` as place names of that kind (looked up in the location map's place
+     * list); `"none"` reads none of these keys and finds no location by name or
+     * value; only columns named in the location map layout's own options are read.
+     */
     nodeLocationRole: z.enum(["auto", "coords", "country", "region", "city", "none"]).or(z.null()).optional(),
-    // A column that narrows each place name (a city's country or region), and a fixed ISO 3166-1
-    // alpha-2 country code that narrows every one. Absent, a city is narrowed by a country or
-    // region column found by name.
+    /**
+     * The key that holds what narrows each place name, such as a city's country or region. Absent:
+     * a city is narrowed by a country or region column found by name.
+     */
     nodeLocationWithinPath: z.string().or(z.null()).optional(),
+    /** An ISO 3166-1 alpha-2 country code (such as `"FR"`) that narrows every place name. */
     nodeLocationWithin: z.string().or(z.null()).optional(),
-    // One column per kind of location, as `data.setRole` designates them (with nodeLatitudePath
-    // and nodeLongitudePath): a column of whole coordinates, and columns of country, region and
-    // city names. The location map reads a full pair first, else the coordinates, else the finest
-    // place kind, narrowed by the next coarser one. Ignored while nodeLocationPath is set.
+    /**
+     * The key that holds each node's coordinates as one value. The location map reads a latitude
+     * and longitude pair first, then this. Set by `data.setRole`.
+     */
     nodeCoordinatesPath: z.string().or(z.null()).optional(),
+    /** The key that holds each node's country name. Set by `data.setRole`. */
     nodeCountryPath: z.string().or(z.null()).optional(),
+    /** The key that holds each node's region name. Set by `data.setRole`. */
     nodeRegionPath: z.string().or(z.null()).optional(),
+    /**
+     * The key that holds each node's city name, narrowed by the region or country keys when they
+     * are set. Set by `data.setRole`.
+     */
     nodeCityPath: z.string().or(z.null()).optional(),
-    // The columns each node's drawn position is read from, as `data.setRole` designates them (the
-    // x, y and z roles). With an x and a y column, a node whose two values are finite numbers is
-    // placed there, in file units scaled by positionScale, as a record's `position` places it; a
-    // missing z column reads 0. They win over a record's `position`.
+    /**
+     * The key that holds each node's x position. With `nodeYPath` also set, a node whose two values
+     * are finite numbers is drawn there, scaled by `positionScale`, in place of a record's
+     * `position`. Set by `data.setRole`.
+     */
     nodeXPath: z.string().or(z.null()).optional(),
+    /** The key that holds each node's y position. See `nodeXPath`. */
     nodeYPath: z.string().or(z.null()).optional(),
+    /** The key that holds each node's z position. Without it, z is 0. See `nodeXPath`. */
     nodeZPath: z.string().or(z.null()).optional(),
-    // Null means "probe": the element reads source/target, then src/dst, then from/to, once per
-    // batch of edge records, and throws E_EDGE_ENDPOINTS_UNRESOLVED when none of them answers.
-    // Naming an expression here settles the question and turns the probe off -- a record that does
-    // not answer a declared expression is a rejected record, not a reason to guess again. The
-    // default moved from "src" because the element's own guides all teach source/target, so a file
-    // written the way the documentation says produced a graph with nodes, no edges and no error.
+    // The default moved from "src" because the element's own guides all teach source/target, so a
+    // file written the way the documentation says produced a graph with nodes, no edges and no error.
+    /**
+     * The key that holds each edge's source node id. Default `null`: the element tries `source`,
+     * then `src`, then `from`, and throws `E_EDGE_ENDPOINTS_UNRESOLVED` when none answers. Once
+     * set, an edge record without the key is rejected rather than guessed at.
+     */
     edgeSrcIdPath: z.string().or(z.null()).default(null),
+    /**
+     * The key that holds each edge's target node id. Default `null`: the element tries `target`,
+     * then `dst`, then `to`. See `edgeSrcIdPath`.
+     */
     edgeDstIdPath: z.string().or(z.null()).default(null),
-    // The record key that identifies an edge, for data that carries genuine edge identifiers. A
-    // second record with the same value merges into the edge already present instead of creating
-    // one. Null -- the default -- means the records carry no edge identity, so a repeat is decided
-    // by its endpoints and `repeatedEdges` alone.
+    /**
+     * The key that holds each edge's own id, for data whose edges carry one. A second record with
+     * the same id updates the edge already there instead of adding another. Default `null`: edges
+     * carry no id, and repeats are settled by their ends and `repeatedEdges`.
+     */
     edgeIdPath: z.string().or(z.null()).default(null),
-    // What happens to a second record naming an ordered pair the graph already holds. The
-    // vocabulary is graph-format's, unchanged, because inventing a second spelling for a policy
-    // that already has one is exactly the translation this release removes.
-    //
-    // The default is "keep" -- both edges exist, each with its own id, weight and attributes --
-    // because the alternative is a loss a consumer cannot detect: the dropped repeats never reach
-    // the store, so `statistics().repeatedEdgeCount` is structurally pinned at zero and there is
-    // no number anywhere that disagrees with the load. Keeping them changes edge counts on any
-    // multigraph, which is a change a consumer can see, measure and turn off with one word.
+    // The default is "keep" because the alternative is a loss a consumer cannot detect: dropped
+    // repeats never reach the store, so `statistics().repeatedEdgeCount` would read zero.
+    /**
+     * What happens to a second edge between the same source and target: `"keep"` both (the
+     * default), `"error"` to refuse it, `"first"` or `"last"` to keep one, or `"sum"`, `"min"` or
+     * `"max"` to merge them into one edge with that weight.
+     */
     repeatedEdges: z.enum(REPEATED_EDGE_POLICIES).default("keep"),
-    // graph-format design 14.4 rule 10: the element default is "weight", which is what the io
-    // importers write. DataManager reads this path first and falls back to the literal "value"
-    // key, because "value" is what every weighted dataset, fixture and story in this repository
-    // carries; `resolveEdgeWeight` in src/session/project/ingest.ts is the one place both probes live.
-    // Without that fallback every weighted dataset here would silently read as unweighted, so the
-    // fallback goes away only once nothing ships a "value" key.
+    // `resolveEdgeWeight` in src/session/project/ingest.ts is the one place both probes live; the
+    // "value" fallback goes away only once nothing ships a "value" key.
+    /**
+     * The key that holds each edge's weight. Default `"weight"`. An edge without a number under this
+     * key (or every edge, when it is `null`) is read from `value` instead, unless the load named
+     * its weight column, and weighs 1 without one.
+     */
     edgeWeightPath: z.string().or(z.null()).default("weight"),
-    // What the loaded weight means, chosen at load (`TableMapping.weightMeaning`); null when the
-    // reader did not say. Kept here so the project file saves it and undo moves it.
+    /**
+     * What an edge's weight means to algorithms and layouts: `"distance"` (larger is farther),
+     * `"strength"` (larger is closer) or `"capacity"`. Default `null`: not stated. Saved with the
+     * project.
+     */
     edgeWeightMeaning: z.enum(["distance", "strength", "capacity"]).or(z.null()).default(null),
+    /** The key that holds each edge's time, for the timeline. Default `null`: edges carry no time. */
     edgeTimePath: z.string().or(z.null()).default(null),
+    /** How numbers in the edge time column are read. See `nodeTimeUnit`. */
     edgeTimeUnit: z.enum(["ms", "s", "year", "ordinal"]).or(z.null()).optional(),
+    /** The time zone edge times written as text without an offset are read in. See `nodeTimeParseZone`. */
     edgeTimeParseZone: z.string().or(z.null()).optional(),
+    /** The key that holds when each edge's time ends. Read only while the timeline is on. */
     edgeTimeEndPath: z.string().or(z.null()).optional(),
+    /** The key that holds each edge's list of time spells. Read only while the timeline is on. */
     edgeTimeSpellsPath: z.string().or(z.null()).optional(),
-    // graph-format design 14.4's addNodes row: a record's data.position is written into the
-    // importer-seed column SCALED to scene units by this factor. It must be > 0. Zero collapses
-    // every file-placed node onto the scene origin, which is indistinguishable from the NaN the
-    // design reserves for "unplaced", and a negative factor point-reflects the whole layout; zod
-    // already rejects NaN and Infinity, so those two are the only reachable nonsense values.
+    // Must be > 0: zero collapses every file-placed node onto the origin, which reads as "unplaced",
+    // and a negative factor mirrors the layout.
+    /**
+     * The factor a position given in the data (a record's `position`, or the x, y and z keys) is
+     * multiplied by before it is drawn. Must be greater than 0. Default `1`.
+     */
     positionScale: z.number().positive().default(1),
-    // graph-format design 14.4's retirement paragraph (:4204): "canonical" makes a numeric id and
-    // the string form of the same number ONE node; "keep" leaves them distinct, which is what a
-    // JSON numeric-id node list plus a CSV string-id edge list needs to stay honest.
-    // DEP-M6-J: the design's default is source-dependent ("canonical" for text sources, "keep" for
-    // JSON) and no DataSource exposes its kind to the config layer, so ONE unconditional default
-    // ships. Nothing in M6 READS this field; IO1 gives it meaning, and IO1 owes an explicit test
-    // for the numeric 1 versus string "1" case, because "canonical" merges those two ids into one
-    // node and "keep" does not. It is declared now because this is a strictObject: a config that
-    // sets a key the schema has not declared is a parse ERROR, so the key has to exist here before
-    // any config is allowed to carry it.
+    // DEP-M6-J: nothing reads this field yet; it is declared because this is a strictObject, so a
+    // config carrying it must parse. Its reader owes a test of numeric 1 versus string "1".
+    /**
+     * Whether a numeric id and the same number written as text (`1` and `"1"`) name one node
+     * (`"canonical"`, the default) or two (`"keep"`). Accepted and saved; it has no effect yet.
+     */
     idCoercion: z.enum(ID_COERCION_RULES).default("canonical"),
 });
 
-/**
- * One entry of the load-time algorithm list: an algorithm, or an algorithm with run options.
- *
- * A string is the algorithm alone -- a catalog key such as "pagerank" or a 1.x address such as
- * "graphty:pagerank". The object form carries the options `session.runs.start` takes that mean
- * something before anyone has seen the graph: `params`, `style` (see `RunStyle`), `seed` and `as`.
- * The rest are left out on purpose: `signal`, `onProgress`, `queue` and `dryRun` belong to a
- * caller that is there to watch or steer the run, `scope` names a view of data that does not exist
- * yet, and `timeBoxMs`, `exact` and `sample` are answers to a cost the caller has not seen.
- * The object is strict, so a misspelled option fails instead of being dropped.
- */
+// The object form carries only the `session.runs.start` options that mean something before anyone
+// has seen the graph. `signal`, `onProgress`, `queue` and `dryRun` belong to a caller watching the
+// run, `scope` names a view that does not exist yet, and `timeBoxMs`, `exact` and `sample` answer
+// a cost nobody has seen. The object is strict, so a misspelled option fails instead of being dropped.
 const AlgorithmName = z.string().trim().min(1);
 const AlgorithmWithOptions = z.strictObject({
+    /** The algorithm: a catalog key such as `"pagerank"`, or an address such as `"graphty:pagerank"`. */
     algorithm: AlgorithmName,
+    /** The algorithm's own options, as `session.runs.start` takes them. */
     params: z.record(z.string(), z.unknown()).optional(),
+    /**
+     * What the element paints when the run first completes. `false` paints nothing; `{ size: true }`
+     * also sizes nodes (or widens edges) by the result, and `{ size: [min, max] }` sets the range.
+     * See `RunStyle`.
+     */
     style: z
         .union([
             z.boolean(),
-            z.strictObject({ size: z.union([z.boolean(), z.tuple([z.number(), z.number()]).readonly()]).optional() }),
+            z.strictObject({
+                /** `true` to size by the result as well, or the `[min, max]` size range to use. */
+                size: z.union([z.boolean(), z.tuple([z.number(), z.number()]).readonly()]).optional(),
+            }),
         ])
         .optional(),
+    /** The seed for an algorithm that uses randomness, so every load gives the same result. */
     seed: z.number().optional(),
+    /** The id to give the run, so a saved project or a later call can name it. */
     as: z.string().min(1).optional(),
 });
+/**
+ * One entry of the list of algorithms to run when data loads (`algorithmsOnLoad`, or
+ * `data.algorithms` in a config): an algorithm name such as `"pagerank"`, or an object
+ * `{ algorithm, params?, style?, seed?, as? }` that also passes run options.
+ * @example
+ * ```ts
+ * element.algorithmsOnLoad = ["degree", { algorithm: "pagerank", style: true, seed: 1 }];
+ * ```
+ */
 export const AlgorithmOnLoad = z.union([AlgorithmName, AlgorithmWithOptions]);
+/**
+ * One entry of the list of algorithms to run when data loads: an algorithm name, or
+ * `{ algorithm, params?, style?, seed?, as? }`.
+ */
 export type AlgorithmOnLoad = z.infer<typeof AlgorithmOnLoad>;
 
 /**

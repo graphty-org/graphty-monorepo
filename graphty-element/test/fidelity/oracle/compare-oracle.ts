@@ -12,6 +12,7 @@
  * same inputs give a byte-identical report. Pure: no DOM.
  */
 import { apply, deltaE, fitSimilarity, frechet, iou, resample } from "../../../../graph-io/test/fidelity/compare";
+import { withoutHiddenInBoth } from "./hidden-heads";
 import {
     boxOfPoints,
     compareIds,
@@ -1093,6 +1094,10 @@ export function clipToNodes(pts: readonly Pt[], start: PNode | undefined, end: P
  * @returns the part, or null
  */
 export function shownPart(pts: readonly Pt[], start: PNode | undefined, end: PNode | undefined): Pt[] | null {
+    const ON_OUTLINE_PX = 0.1 * ORACLE_TOLERANCES.pixel;
+    // as far as a line crossing the outline at ten degrees runs within ON_OUTLINE_PX of it: one that runs farther
+    // runs along the outline
+    const HUG_PX = ON_OUTLINE_PX / Math.sin((10 * Math.PI) / 180);
     const crossing = (a: Pt, b: Pt, n: PNode): Pt => {
         // a is inside, b outside: bisect for the border
         let lo = 0;
@@ -1121,6 +1126,10 @@ export function shownPart(pts: readonly Pt[], start: PNode | undefined, end: PNo
         // point before it runs in lies within a pixel of the node (dot-specimen-edges-lines headport-n). And it leaves
         // the node where it goes on out past that pixel: a hair's step out past a corner and back in is the same corner.
         const near = { ...n, w: n.w + 2 * ORACLE_TOLERANCES.pixel, h: n.h + 2 * ORACLE_TOLERANCES.pixel };
+        const along = hugged(dense, of, path, n);
+        if (along !== null) {
+            return along;
+        }
         const into = dense.findIndex((q) => insideNode(n, q));
         if (into < 0 || (into > 1 && !dense.slice(0, into).every((q) => insideNode(near, q)))) {
             return path;
@@ -1131,6 +1140,39 @@ export function shownPart(pts: readonly Pt[], start: PNode | undefined, end: PNo
         };
         const i = dense.findIndex((q, k) => k > into && !insideNode(n, q) && leaves(k));
         return i < 1 ? path : [crossing(dense[i - 1], dense[i], n), ...path.slice(of[i])];
+    };
+    /**
+     * A line that starts on its node and leaves it along its outline, within ON_OUTLINE_PX of it for more than HUG_PX
+     * (gml-synthetic-coverage 27 -> 28: from the middle of v26's bottom along it), cut where it leaves the outline:
+     * each side rounds the points of that stretch a hair inside or outside the node, and cut at the first point
+     * rounded outside the two were cut 25 px apart. A line crossing the outline at more than ten degrees leaves it
+     * within HUG_PX, and is cut where it crosses.
+     * @param dense - the line, finely
+     * @param of - each fine point's point of the line
+     * @param path - the line
+     * @param n - the node
+     * @returns the line from where it leaves the outline, or null for a line that does not run along it
+     */
+    const hugged = (dense: readonly Pt[], of: readonly number[], path: readonly Pt[], n: PNode): Pt[] | null => {
+        const on = { ...n, w: n.w + 2 * ON_OUTLINE_PX, h: n.h + 2 * ON_OUTLINE_PX };
+        if (dense.length < 2 || !insideNode(on, dense[0])) {
+            return null;
+        }
+        const i = dense.findIndex((q) => !insideNode(n, q));
+        const j = dense.findIndex((q, k) => k >= Math.max(i, 1) && !insideNode(on, q));
+        if (i < 0 || j < 1) {
+            return null;
+        }
+        // on the outline all the way, never back across the node
+        const inner = { ...n, w: n.w - 2 * ON_OUTLINE_PX, h: n.h - 2 * ON_OUTLINE_PX };
+        if (dense.slice(Math.max(i, 1), j).some((q) => insideNode(inner, q))) {
+            return null;
+        }
+        const from = i === 0 ? dense[0] : crossing(dense[i - 1], dense[i], n);
+        const exit = crossing(dense[j - 1], dense[j], on);
+        const run = [from, ...dense.slice(Math.max(i, 1), j), exit];
+        const length = run.slice(1).reduce((sum, q, k) => sum + Math.hypot(q[0] - run[k][0], q[1] - run[k][1]), 0);
+        return length > HUG_PX ? [exit, ...path.slice(of[j])] : null;
     };
     // a ring drawn round a loop's node (vis-network's loop, behind its node) shows only the arc outside the node: it is
     // read from inside the node, wherever the program started stroking it (json-vis-synth 55 -> 55)
@@ -2923,14 +2965,15 @@ export function compareOracle(
         judgeBand(j, "edge.overlay", id, [o.overlay, g.overlay], lengthScale);
         const swap = { source: "target", target: "source", middle: "middle" } as const;
         const flip = (a: PArrow): PArrow => (flipped ? { ...a, end: swap[a.end] } : a);
-        const ga = g.arrows.map(flip);
+        // a head a third node hides in both drawings is seen in neither, and left out of both together
+        const [oArrows, ga] = withoutHiddenInBoth(o, g.arrows.map(flip));
         // a line wholly under its two nodes on both sides (two nodes drawn over one another) shows no head a reader
         // sees either: graphty draws none there (#7759), and the program's, drawn before the nodes, lies under them
         // (pajek-iliad 125 -> 123)
         const unseen = shownParts(o, g).every((pts) => pts === null || pathLength(pts) < pixel);
         for (const end of ["source", "target", "middle"] as const) {
             const gg = ga.find((a) => a.end === end);
-            const oa = unseen && gg === undefined ? undefined : o.arrows.find((a) => a.end === end);
+            const oa = unseen && gg === undefined ? undefined : oArrows.find((a) => a.end === end);
             const at = `${id}@${end}`;
             j.add(
                 "edge.arrow",
@@ -2945,7 +2988,7 @@ export function compareOracle(
             }
             // a head of several parts in a row (Graphviz's boxdotnormal, crowtee) is read one arrow a part
             const parts = (list: readonly PArrow[]): number => headParts(list.filter((a) => a.end === end));
-            j.add("edge.arrowParts", "edge", at, parts(o.arrows) === parts(ga) ? 0 : 1, parts(o.arrows), parts(ga));
+            j.add("edge.arrowParts", "edge", at, parts(oArrows) === parts(ga) ? 0 : 1, parts(oArrows), parts(ga));
             j.add(
                 "edge.arrowShape",
                 "edge",

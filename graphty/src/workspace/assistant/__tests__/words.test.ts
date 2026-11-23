@@ -71,10 +71,10 @@ const ROWS: readonly (readonly [string, Record<string, string | number>, string 
     ["AI_TOOL_THREW", {}, "The assistant could not finish this step.", AGAIN],
     ["AI_TOOL_UNKNOWN", {}, "The assistant could not finish this step.", AGAIN],
     ["AI_TOOL_INVALID_ARGUMENTS", {}, "The assistant could not finish this step.", AGAIN],
-    ["AI_CANCELLED", {}, "Stopped.", { action: "again", failed: false, stopped: "" }],
-    ["AI_CANCELLED", { steps: 0 }, "Stopped.", { action: "again", failed: false, stopped: "" }],
+    ["AI_CANCELED", {}, "Stopped.", { action: "again", failed: false, stopped: "" }],
+    ["AI_CANCELED", { steps: 0 }, "Stopped.", { action: "again", failed: false, stopped: "" }],
     [
-        "AI_CANCELLED",
+        "AI_CANCELED",
         { steps: 2 },
         "Stopped. Changes taken back.",
         { action: "again", failed: false, stopped: "Changes taken back." },

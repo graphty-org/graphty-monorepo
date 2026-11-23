@@ -181,7 +181,7 @@ describe("scope.edit", () => {
         assert.strictEqual(session.visibility.summary.visibleNodes, 5);
     });
 
-    it("Done drops the run of a draft already cancelled", async () => {
+    it("Done drops the run of a draft already canceled", async () => {
         const { session } = await pathSession();
         const edit = session.scope.edit();
         const rule = measuring("louvain");

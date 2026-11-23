@@ -21,7 +21,7 @@ import { PassPostProcess } from "@babylonjs/core/PostProcesses/passPostProcess.j
 import { Scene } from "@babylonjs/core/scene.js";
 import { WebXRState } from "@babylonjs/core/XR/webXRTypes.js";
 
-import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "../camera/builtins";
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "../camera/orbit";
 import { CameraManager } from "../cameras/CameraManager";
 import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";
@@ -103,15 +103,6 @@ interface RenderManagerConfig {
      * Left out, it never flushes.
      */
     flushesFrameFence?: () => boolean;
-    /**
-     * Whether a WebGPU loop bounds its frames in flight: it skips a tick while the
-     * `queue.onSubmittedWorkDone()` of {@link WEBGPU_FRAMES_IN_FLIGHT} frames is unresolved, as a
-     * WebGL loop does on its frame fences. Without
-     * it the loop queues a frame every tick however long the GPU takes, a backlog builds, and every
-     * GPU readback (hover, the GPU layout's positions) waits behind it. Asked each frame; the
-     * element answers true under renderPath "batched". Left out, WebGPU frames are unpaced.
-     */
-    pacesWebGpuFrames?: () => boolean;
     /** See {@link RenderManager.setPixelRatio}. Left out, 1. */
     pixelRatio?: PixelRatio;
     /** Whether the WebGL engine built when no `engine` is passed multisamples. Left out, true. */
@@ -952,8 +943,6 @@ export class RenderManager implements Manager {
     private readonly tracksFrames: () => boolean;
     /** See `RenderManagerConfig.flushesFrameFence`. */
     private readonly flushesFrameFence: () => boolean;
-    /** See `RenderManagerConfig.pacesWebGpuFrames`. */
-    private readonly pacesWebGpuFrames: () => boolean;
     /** Set by anything that may have changed the picture since the last frame drawn. */
     private drawOwed = true;
     /**
@@ -1111,7 +1100,6 @@ export class RenderManager implements Manager {
         const betweenLandings = this.config.restsBetweenLandings ?? ((): boolean => false);
         this.tracksFrames = (): boolean => this.drawsOnDemand() || betweenLandings();
         this.flushesFrameFence = this.config.flushesFrameFence ?? ((): boolean => false);
-        this.pacesWebGpuFrames = this.config.pacesWebGpuFrames ?? ((): boolean => false);
 
         if (this.config.engine === undefined) {
             ({ engine: this.engine, scene: this.scene } = openWebGL(
@@ -1653,7 +1641,7 @@ export class RenderManager implements Manager {
      * compositor -- waited behind those frames too. Under load that was more than 30 seconds.
      * Skipping a tick while {@link WEBGL_FRAMES_IN_FLIGHT} frames are unfinished keeps the queue
      * at that many frames. On WebGPU the same holds, at {@link WEBGPU_FRAMES_IN_FLIGHT}, through
-     * `queue.onSubmittedWorkDone()`, when `pacesWebGpuFrames` asks for it.
+     * `queue.onSubmittedWorkDone()`, on every render path (issue #9520).
      * @returns True while the fences of {@link WEBGL_FRAMES_IN_FLIGHT} frames are unsignaled, or the
      *     answers of {@link WEBGPU_FRAMES_IN_FLIGHT} WebGPU frames have not come.
      */
@@ -1712,8 +1700,9 @@ export class RenderManager implements Manager {
 
     /**
      * Marks the end of the frame just drawn, for {@link gpuBehind}. A WebGL 2 context fences it;
-     * WebGPU asks the queue when its work is done, only while `pacesWebGpuFrames` says so, and
-     * draws unpaced otherwise, as before. Babylon's NullEngine draws unpaced.
+     * WebGPU asks the queue when its work is done, on every render path: unpaced, the "objects"
+     * path submitted a frame about every 5 ms while the GPU took about 10 ms to draw one, and fell
+     * seconds behind (issue #9520). Babylon's NullEngine draws unpaced.
      */
     private fenceFrame(): void {
         if (this.engine instanceof WebGPUEngine) {
@@ -1752,11 +1741,6 @@ export class RenderManager implements Manager {
      * @param engine - The WebGPU engine that drew the frame.
      */
     private fenceWebGpuFrame(engine: WebGPUEngine): void {
-        if (!this.pacesWebGpuFrames()) {
-            this.webGpuFramesInFlight = [];
-            return;
-        }
-
         const frame = ++this.webGpuFramesPaced;
         if (this.webGpuFramesInFlight.length >= WEBGPU_FRAMES_IN_FLIGHT) {
             this.webGpuFramesInFlight.shift();

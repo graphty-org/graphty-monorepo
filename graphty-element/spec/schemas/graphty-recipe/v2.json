@@ -32,6 +32,9 @@
                     "op": {
                         "type": "string",
                         "minLength": 1
+                    },
+                    "narrows": {
+                        "const": false
                     }
                 },
                 "allOf": [
@@ -63,7 +66,12 @@
                                 }
                             },
                             "required": ["op", "where"],
-                            "unevaluatedProperties": false
+                            "unevaluatedProperties": false,
+                            "allOf": [
+                                {
+                                    "$ref": "#/$defs/commandSlots"
+                                }
+                            ]
                         }
                     },
                     {
@@ -88,7 +96,8 @@
                                     "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/runName"
                                 },
                                 "params": {
-                                    "type": "object"
+                                    "type": "object",
+                                    "description": "Every option the implementation declares with a default, at the value used (spec 9 rule 10). A reader applies its own default for an absent one."
                                 },
                                 "scope": {
                                     "oneOf": [
@@ -111,7 +120,12 @@
                                                 }
                                             },
                                             "required": ["where"],
-                                            "unevaluatedProperties": false
+                                            "unevaluatedProperties": false,
+                                            "allOf": [
+                                                {
+                                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                                }
+                                            ]
                                         },
                                         {
                                             "type": "object",
@@ -125,7 +139,12 @@
                                                 }
                                             },
                                             "required": ["types"],
-                                            "unevaluatedProperties": false
+                                            "unevaluatedProperties": false,
+                                            "allOf": [
+                                                {
+                                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                                }
+                                            ]
                                         },
                                         {
                                             "type": "object",
@@ -135,7 +154,12 @@
                                                 }
                                             },
                                             "required": ["set"],
-                                            "unevaluatedProperties": false
+                                            "unevaluatedProperties": false,
+                                            "allOf": [
+                                                {
+                                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                                }
+                                            ]
                                         }
                                     ]
                                 },
@@ -192,7 +216,12 @@
                                 }
                             },
                             "required": ["op", "algorithm", "as", "style"],
-                            "unevaluatedProperties": false
+                            "unevaluatedProperties": false,
+                            "allOf": [
+                                {
+                                    "$ref": "#/$defs/commandSlots"
+                                }
+                            ]
                         }
                     },
                     {
@@ -211,25 +240,30 @@
                                 },
                                 "id": {
                                     "type": "string",
-                                    "minLength": 1
-                                },
-                                "algorithm": {
-                                    "type": "string",
                                     "minLength": 1,
-                                    "description": "The layout to draw it with. A recipe says what to run, not what ran: it records no engine versions."
+                                    "description": "An arrangement in the layout registry, never the engine that draws it (spec 5 rule 9). A recipe says what to run, not what ran: it records no versions."
                                 },
                                 "dimension": {
                                     "enum": [2, 3]
                                 },
                                 "options": {
-                                    "type": "object"
+                                    "type": "object",
+                                    "description": "The arrangement's options, by the layout registry's names: every one declared with a default, at the value used (spec 5 rule 9, 9 rule 10). A reader applies its own default for an absent one."
+                                },
+                                "drawnBy": {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/layoutDrawnBy"
                                 },
                                 "description": {
                                     "type": "string"
                                 }
                             },
                             "required": ["op", "id", "dimension"],
-                            "unevaluatedProperties": false
+                            "unevaluatedProperties": false,
+                            "allOf": [
+                                {
+                                    "$ref": "#/$defs/commandSlots"
+                                }
+                            ]
                         }
                     },
                     {
@@ -272,7 +306,12 @@
                                 }
                             },
                             "required": ["op", "id", "name", "where", "reading"],
-                            "unevaluatedProperties": false
+                            "unevaluatedProperties": false,
+                            "allOf": [
+                                {
+                                    "$ref": "#/$defs/commandSlots"
+                                }
+                            ]
                         }
                     },
                     {
@@ -289,6 +328,21 @@
                     }
                 ],
                 "description": "Dispatched on op. A known command is closed. op is an open vocabulary: an unknown op stops the replay there."
+            }
+        }
+    },
+    "$defs": {
+        "commandSlots": {
+            "description": "What every command may carry besides its own members: extensions and ignorable (closedSlots), and narrows, written only as false, which lets a reader that does not know the op skip the command and its readers and go on.",
+            "allOf": [
+                {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                }
+            ],
+            "properties": {
+                "narrows": {
+                    "const": false
+                }
             }
         }
     }

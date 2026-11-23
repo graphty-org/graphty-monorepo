@@ -738,23 +738,23 @@ function plan(model: Model, direction: "undo" | "redo", target: number): Pending
 /**
  * Drop canceled work from the model, and check the history canceled exactly it.
  * @param model - The model.
- * @param cancelled - The items.
+ * @param canceled - The items.
  * @param reported - What the history said it canceled.
  * @param when - What happened, for the message.
  */
-function dropCancelled(
+function dropCanceled(
     model: Model,
-    cancelled: readonly Pending[],
+    canceled: readonly Pending[],
     reported: readonly { id: string }[],
     when: string,
 ): void {
     assert.deepEqual(
         reported.map((each) => each.id),
-        cancelled.map((each) => each.id),
-        `${when}: the pending work cancelled`,
+        canceled.map((each) => each.id),
+        `${when}: the pending work canceled`,
     );
-    model.pending = model.pending.filter((item) => !cancelled.includes(item));
-    if (model.tx !== null && cancelled.includes(model.tx.item)) {
+    model.pending = model.pending.filter((item) => !canceled.includes(item));
+    if (model.tx !== null && canceled.includes(model.tx.item)) {
         // Aborted: its writes are rolled back, and its body stays stuck until the end.
         model.tx.wrote = false;
     }
@@ -1091,16 +1091,16 @@ class Move implements Command {
         if (to !== from) {
             expectedKind = done[this.kind];
         } else if (cancel.length > 0) {
-            expectedKind = "cancelled";
+            expectedKind = "canceled";
         }
 
         assert.strictEqual(outcome.kind, expectedKind, `${this.toString()}: what it did`);
-        const reported = outcome.kind === "cancelled" ? outcome.pending : [];
-        if (outcome.kind !== "cancelled") {
+        const reported = outcome.kind === "canceled" ? outcome.pending : [];
+        if (outcome.kind !== "canceled") {
             // A move that also canceled reports only the steps it passed.
             model.pending = model.pending.filter((item) => !cancel.includes(item));
         } else {
-            dropCancelled(model, cancel, reported, this.toString());
+            dropCanceled(model, cancel, reported, this.toString());
         }
 
         if (model.tx !== null && cancel.includes(model.tx.item)) {
@@ -1723,7 +1723,7 @@ class Cancel implements Command {
         const item = choose(model.pending, this.pick) as Pending;
         const expected = cascade(model, [item]);
         const reported = real.session.history.cancel(item.id);
-        dropCancelled(model, expected, reported, this.toString());
+        dropCanceled(model, expected, reported, this.toString());
         expectSealed(model, real, `after ${this.toString()}`);
         return Promise.resolve();
     }

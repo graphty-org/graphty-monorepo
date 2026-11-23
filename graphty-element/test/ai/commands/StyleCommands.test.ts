@@ -17,14 +17,15 @@ import { clearStyles, findAndStyleEdges, findAndStyleNodes } from "../../../src/
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
 import type { Layer, SessionStylesApi } from "../../../src/session/styles";
-import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
+import { createCommandGraph } from "../../helpers/session-graph";
+import { createMockContext } from "../../helpers/test-graph";
 
 describe("StyleCommands", () => {
     let graph: Graph;
     let context: CommandContext;
 
-    beforeEach(() => {
-        graph = createMockTestGraph();
+    beforeEach(async () => {
+        graph = await createCommandGraph({ nodeCount: 25, edgeCount: 40 });
         context = createMockContext(graph);
     });
 

@@ -334,7 +334,7 @@ describe("a pass is a run", () => {
         harness.session.dispose();
     });
 
-    it("keeps the filter when it is cancelled after the call: undo is the way back", async () => {
+    it("keeps the filter when it is canceled after the call: undo is the way back", async () => {
         const harness = harnessOf([
             { id: "a", type: "host" },
             { id: "b", type: "service" },

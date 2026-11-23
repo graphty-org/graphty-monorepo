@@ -54,9 +54,7 @@
                     "kind": "file",
                     "format": "csv",
                     "options": {
-                        "delimiter": ",",
-                        "encoding": "utf-8",
-                        "header": true
+                        "delimiter": ","
                     },
                     "origin": {
                         "name": "accounts-2026-11.csv",
@@ -117,20 +115,28 @@
                     "id": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
                     "label": "Bank API: card activity, week 46",
                     "kind": "network",
-                    "format": "json",
-                    "options": {
-                        "nodesPath": "counterparties",
-                        "edgesPath": "events",
-                        "maxRows": 50000
-                    },
                     "origin": {
                         "url": "https://api.example-bank.test/v1/activity?week=46",
                         "credentials": {
-                            "slot": "bank-api-token"
+                            "slot": "default"
                         },
                         "copy": "01JCBQ2F5H7K9M1P3R5T7W9Y2A",
-                        "etag": "\"a41f-46\"",
-                        "lastModified": "Fri, 14 Nov 2026 17:30:00 GMT"
+                        "ledger": {
+                            "source": "url",
+                            "sourceVersion": 1,
+                            "endpoint": "https://api.example-bank.test/v1/activity",
+                            "params": {
+                                "url": "https://api.example-bank.test/v1/activity?week=46",
+                                "format": "json"
+                            },
+                            "pages": 1,
+                            "next": null,
+                            "validators": {
+                                "etag": "\"a41f-46\"",
+                                "lastModified": "Fri, 14 Nov 2026 17:30:00 GMT"
+                            },
+                            "expansions": []
+                        }
                     },
                     "mapping": {
                         "nodes": {
@@ -250,7 +256,12 @@
                             }
                         }
                     },
-                    "loaded": "2026-11-14T17:42:00.000Z"
+                    "loaded": "2026-11-14T17:42:00.000Z",
+                    "extensions": {
+                        "org.example.refresh": {
+                            "every": "P1D"
+                        }
+                    }
                 }
             ],
             "types": [
@@ -503,7 +514,7 @@
                         "source": 1,
                         "target": 4,
                         "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
-                        "graphty.key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3",
+                        "graphty.key": "acct-1002|dev-9f3#1",
                         "graphty.types": ["used-device"],
                         "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
                         "account_id": "acct-1002",
@@ -515,7 +526,7 @@
                         "source": 2,
                         "target": 4,
                         "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
-                        "graphty.key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#4",
+                        "graphty.key": "acct-1003|dev-9f3#1",
                         "graphty.types": ["used-device"],
                         "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
                         "account_id": "acct-1003",
@@ -736,7 +747,11 @@
                     "algorithm": "pagerank",
                     "as": "pagerank",
                     "params": {
-                        "dampingFactor": 0.85
+                        "dampingFactor": 0.85,
+                        "directed": true,
+                        "maxIterations": 100,
+                        "tolerance": 0.000001,
+                        "useDelta": true
                     },
                     "style": false
                 },
@@ -745,7 +760,10 @@
                     "algorithm": "louvain",
                     "as": "communities",
                     "params": {
-                        "resolution": 1
+                        "maxIterations": 100,
+                        "resolution": 1,
+                        "tolerance": 0.000001,
+                        "useOptimized": true
                     },
                     "scope": {
                         "types": ["account", "device"]
@@ -777,10 +795,22 @@
                 {
                     "op": "layout.set",
                     "id": "force",
-                    "algorithm": "ngraph",
                     "dimension": 3,
                     "options": {
+                        "clusterStrength": 1,
+                        "nodeGapFront": false,
                         "seed": 52211
+                    },
+                    "drawnBy": {
+                        "engine": "ngraph",
+                        "options": {
+                            "dragCoefficient": 0.9,
+                            "gravity": -12,
+                            "springCoefficient": 0.8,
+                            "springLength": 10,
+                            "theta": 0.8,
+                            "timeStep": 0.5
+                        }
                     }
                 }
             ]
@@ -808,15 +838,28 @@
                 ]
             },
             "settings": {
-                "background": {
-                    "backgroundType": "color",
-                    "color": "#fafafa"
-                },
+                "runAlgorithmsOnLoad": false,
                 "runPlacement": "beneath",
                 "layoutTransition": {
                     "transition": "glide",
                     "seconds": 0.8
-                }
+                },
+                "layoutStepsBeforeDraw": 0,
+                "layoutStepsPerFrame": 1,
+                "layoutSettleDelta": 0,
+                "background": {
+                    "backgroundType": "color",
+                    "color": "#FAFAFA"
+                },
+                "selectionStyle": {
+                    "color": "#0077BB",
+                    "scale": 1.45,
+                    "opacity": 1,
+                    "edgeColor": "#0077BB",
+                    "edgeScale": 2.5,
+                    "edgeOpacity": 1
+                },
+                "timelineHiddenLook": "hidden"
             },
             "playback": {
                 "mode": "sliding",
@@ -843,12 +886,18 @@
                     "as": "pagerank",
                     "algorithm": "pagerank",
                     "params": {
-                        "dampingFactor": 0.85
+                        "dampingFactor": 0.85,
+                        "directed": true,
+                        "maxIterations": 100,
+                        "tolerance": 0.000001,
+                        "useDelta": true
                     },
                     "engine": {
-                        "element": "3.40.0",
-                        "algorithms": "2.1.2",
-                        "layout": "1.10.5"
+                        "packages": {
+                            "@graphty/graphty-element": "3.39.0",
+                            "@graphty/algorithms": "3.4.22"
+                        },
+                        "accelerator": "cpu"
                     },
                     "seed": null,
                     "durationMs": 3,
@@ -869,7 +918,7 @@
                         {
                             "name": "rank",
                             "kind": "node",
-                            "type": "number"
+                            "type": "integer"
                         }
                     ],
                     "caveats": {
@@ -917,12 +966,17 @@
                     "as": "communities",
                     "algorithm": "louvain",
                     "params": {
-                        "resolution": 1
+                        "maxIterations": 100,
+                        "resolution": 1,
+                        "tolerance": 0.000001,
+                        "useOptimized": true
                     },
                     "engine": {
-                        "element": "3.40.0",
-                        "algorithms": "2.1.2",
-                        "layout": "1.10.5"
+                        "packages": {
+                            "@graphty/graphty-element": "3.39.0",
+                            "@graphty/algorithms": "3.4.22"
+                        },
+                        "accelerator": "cpu"
                     },
                     "seed": 1873,
                     "durationMs": 2,
@@ -938,12 +992,12 @@
                         {
                             "name": "group",
                             "kind": "node",
-                            "type": "number"
+                            "type": "integer"
                         },
                         {
                             "name": "groupSize",
                             "kind": "node",
-                            "type": "number"
+                            "type": "integer"
                         }
                     ],
                     "caveats": {
@@ -985,8 +1039,12 @@
                     }
                 },
                 "route": {
-                    "algorithm": "dijkstra",
+                    "algorithm": "shortest-path",
                     "params": {
+                        "bidirectional": true,
+                        "direction": "all",
+                        "invertStrength": false,
+                        "method": "dijkstra",
                         "source": {
                             "space": "account",
                             "key": "acct-1002"
@@ -995,12 +1053,14 @@
                             "space": "account",
                             "key": "acct-1003"
                         },
-                        "direction": "all"
+                        "timeOrder": null
                     },
                     "engine": {
-                        "element": "3.40.0",
-                        "algorithms": "2.1.2",
-                        "layout": "1.10.5"
+                        "packages": {
+                            "@graphty/graphty-element": "3.39.0",
+                            "@graphty/algorithms": "3.4.22"
+                        },
+                        "accelerator": "cpu"
                     },
                     "seed": null,
                     "durationMs": 1,
@@ -1050,17 +1110,31 @@
             },
             "layout": {
                 "id": "force",
-                "algorithm": "ngraph",
                 "dimension": 3,
                 "options": {
+                    "clusterStrength": 1,
+                    "nodeGapFront": false,
                     "seed": 52211
+                },
+                "drawnBy": {
+                    "engine": "ngraph",
+                    "options": {
+                        "dragCoefficient": 0.9,
+                        "gravity": -12,
+                        "springCoefficient": 0.8,
+                        "springLength": 10,
+                        "theta": 0.8,
+                        "timeStep": 0.5
+                    }
                 },
                 "seed": 52211,
                 "durationMs": 41,
                 "engine": {
-                    "element": "3.40.0",
-                    "algorithms": "2.1.2",
-                    "layout": "1.10.5"
+                    "packages": {
+                        "@graphty/graphty-element": "3.39.0",
+                        "@graphty/layout": "2.7.1"
+                    },
+                    "accelerator": "cpu"
                 },
                 "bindsTo": {
                     "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
@@ -1195,12 +1269,12 @@
                     "y": 1.2,
                     "z": 0
                 },
-                "pivotRotation": {
-                    "x": 0.22,
-                    "y": 0,
+                "up": {
+                    "x": 0,
+                    "y": 1,
                     "z": 0
                 },
-                "cameraDistance": 17.6
+                "fov": 0.8
             },
             "views": [
                 {
@@ -1218,12 +1292,12 @@
                             "y": 2.4,
                             "z": 0
                         },
-                        "pivotRotation": {
-                            "x": 0.1,
-                            "y": 0,
+                        "up": {
+                            "x": 0,
+                            "y": 1,
                             "z": 0
                         },
-                        "cameraDistance": 6
+                        "fov": 0.8
                     }
                 }
             ],
@@ -1241,7 +1315,7 @@
                 "edges": [
                     {
                         "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
-                        "key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3"
+                        "key": "acct-1002|dev-9f3#1"
                     }
                 ]
             },
@@ -1378,8 +1452,12 @@
                     "source": {
                         "by": "run",
                         "runId": "route",
-                        "algorithm": "dijkstra",
+                        "algorithm": "shortest-path",
                         "params": {
+                            "bidirectional": true,
+                            "direction": "all",
+                            "invertStrength": false,
+                            "method": "dijkstra",
                             "source": {
                                 "space": "account",
                                 "key": "acct-1002"
@@ -1388,7 +1466,7 @@
                                 "space": "account",
                                 "key": "acct-1003"
                             },
-                            "direction": "all"
+                            "timeOrder": null
                         }
                     }
                 }
@@ -1400,7 +1478,11 @@
                     "as": "pagerank",
                     "algorithm": "pagerank",
                     "params": {
-                        "dampingFactor": 0.85
+                        "dampingFactor": 0.85,
+                        "directed": true,
+                        "maxIterations": 100,
+                        "tolerance": 0.000001,
+                        "useDelta": true
                     },
                     "scope": "graph",
                     "replayable": false
@@ -1411,9 +1493,19 @@
                     "as": "communities",
                     "algorithm": "louvain",
                     "params": {
-                        "resolution": 1
+                        "maxIterations": 100,
+                        "resolution": 1,
+                        "tolerance": 0.000001,
+                        "useOptimized": true
                     },
                     "seed": 1873,
+                    "engine": {
+                        "packages": {
+                            "@graphty/graphty-element": "3.39.0",
+                            "@graphty/algorithms": "3.4.22"
+                        },
+                        "accelerator": "cpu"
+                    },
                     "scope": {
                         "types": ["account", "device"]
                     },
@@ -1422,8 +1514,12 @@
                 {
                     "id": "route",
                     "name": "Ben Ode to Cy Lam",
-                    "algorithm": "dijkstra",
+                    "algorithm": "shortest-path",
                     "params": {
+                        "bidirectional": true,
+                        "direction": "all",
+                        "invertStrength": false,
+                        "method": "dijkstra",
                         "source": {
                             "space": "account",
                             "key": "acct-1002"
@@ -1432,22 +1528,36 @@
                             "space": "account",
                             "key": "acct-1003"
                         },
-                        "direction": "all"
+                        "timeOrder": null
                     },
                     "scope": "graph"
                 }
             ],
             "layout": {
                 "id": "force",
-                "algorithm": "ngraph",
                 "options": {
+                    "clusterStrength": 1,
+                    "nodeGapFront": false,
                     "seed": 52211
+                },
+                "drawnBy": {
+                    "engine": "ngraph",
+                    "options": {
+                        "dragCoefficient": 0.9,
+                        "gravity": -12,
+                        "springCoefficient": 0.8,
+                        "springLength": 10,
+                        "theta": 0.8,
+                        "timeStep": 0.5
+                    }
                 },
                 "dimension": 3,
                 "engine": {
-                    "element": "3.40.0",
-                    "algorithms": "2.1.2",
-                    "layout": "1.10.5"
+                    "packages": {
+                        "@graphty/graphty-element": "3.39.0",
+                        "@graphty/layout": "2.7.1"
+                    },
+                    "accelerator": "cpu"
                 }
             }
         }

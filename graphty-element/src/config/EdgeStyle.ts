@@ -195,6 +195,12 @@ const LineStyle = z.strictObject({
      */
     minScreenWidth: z.number().nonnegative().optional(),
     /**
+     * Which of two crossing lines is drawn on top: the higher, from 0 to 100. A line with none is drawn over every
+     * line with one, and lines with none keep the order they always had. A line drawn as a row of shapes (dots,
+     * stars, boxes) is not ordered.
+     */
+    drawOrder: z.number().min(0).max(100).optional(),
+    /**
      * How many pattern elements (dots, dashes, ...) to draw along a patterned edge.
      *
      * Unset means "as many as the spacing rule asks for", which is the historical behavior:

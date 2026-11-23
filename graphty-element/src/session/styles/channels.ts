@@ -589,6 +589,7 @@ export interface ChannelValues {
     "edge.colorFrom": EdgeColorFromValue;
     "edge.width": number;
     "edge.minScreenWidth": number;
+    "edge.drawOrder": number;
     "edge.fadeStart": number;
     "edge.fadeEnd": number;
     "edge.fadeOpacity": number;
@@ -4094,13 +4095,16 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The label laid out as a table of cells, as an HTML-like table is: JSON " +
             '`{ "rows": [{ "cells": [{ "lines": [{ "text": "a" }] }, { "lines": [{ "text": "b" }] }] }] }` is two ' +
             "cells side by side. The table may give `border`, `cellBorder`, `cellSpacing`, `cellPadding`, " +
-            "`width`, `height`, `fixedSize`, `align`, `valign`, `lineHeight` (a text line's height as a multiple " +
+            "`width`, `height`, `fixedSize`, `align`, `valign`, `radius` (how round its outline's and its " +
+            "background's corners are, at most a third of its shorter side), `lineHeight` (a text line's height as a multiple " +
             "of the label's size, or `\"font\"`: its font's ascent plus descent, each rounded up to whole " +
             "`textPixel`s when that is given) and `baseline` (how far a line's baseline sits below its top, as a " +
             "multiple of the label's size; unset, its words are centered in it); a row `rule` (a line above it); a cell `colspan`, `rowspan`, `width`, " +
             "`height`, `fixedSize`, `align` (`left`, `right`, `center`, `text`), `valign`, `balign`, `border`, " +
             "`padding`, `rule` (a line on its left), `hidden` (keeps its room, draws nothing) and a `table` of its own in place " +
-            "of `lines`; a line `align`. " +
+            "of `lines`; a line `align`. A table or a cell may give `fill` (its background color), and with it " +
+            "`fillGradient` (the color its background blends to) and `fillGradientAngle` (which way, in degrees " +
+            "clockwise from left to right, as a node's gradient fill runs). " +
             "Lengths are in the units of `node.size`, a line's `text` in label markup. Drawn in place of the " +
             "label's words, in the label's font: each cell's outline a line in the border's color " +
             "(`node.shapeLineWidth` wide, else the cell's border), each text line in its place. With " +
@@ -4566,6 +4570,24 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The fewest screen pixels wide the line is drawn, at any zoom: a line whose `edge.width` comes to " +
             "less on screen, a width of 0 included, is drawn this wide, as sigma.js draws every edge at least " +
             "its `minEdgeThickness`. Unset or 0, the line is drawn at its width alone.",
+    },
+    "edge.drawOrder": {
+        channel: "edge.drawOrder",
+        target: "edge",
+        plainName: "Edge Draw Order",
+        shortName: "Draw order",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        max: 100,
+        stylePath: "line.drawOrder",
+        renderable: true,
+        caveat:
+            "Which of two crossing lines is drawn on top, from 0 to 100: the higher one. A line with none is " +
+            "drawn over every line with one, and lines with none keep the order they always had, so give one " +
+            "to every line that may cross (a file's Cytoscape.js z-index sets it on every edge). A line drawn " +
+            "as a row of shapes (dots, stars, boxes) keeps its own order, and no order moves a line in front of " +
+            "a node.",
     },
     "edge.opacity": {
         channel: "edge.opacity",

@@ -1138,6 +1138,12 @@ export interface DraftTable {
     readonly weightCandidate?: string;
 }
 
+// @beta
+export interface DraftView {
+    readonly merged: string;
+    readonly new: string;
+}
+
 // @public
 export type DrawnAnnotation = GraphAnnotation | ImageAnnotation;
 
@@ -9052,6 +9058,10 @@ export interface StylesApi {
     showBranches(view: BranchesView): {
         end(): void;
         readonly notDrawn: readonly HiddenNotDrawn[];
+    };
+    // @beta
+    showDraft(view: DraftView): {
+        end(): void;
     };
     // @beta
     readonly showingBranches: boolean;

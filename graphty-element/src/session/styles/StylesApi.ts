@@ -147,7 +147,7 @@ import type { HistoryCause } from "../types";
 import { valueLabelsAt } from "../valueLabels";
 import { type HiddenNotDrawn, hiddenNotDrawn } from "../visibility/VisibilityApi";
 import { beneathAuthored, placementLayers } from "./autoApply";
-import { branchLayers, isStateMark } from "./branchesView";
+import { branchLayers, draftLayers, isStateMark } from "./branchesView";
 import { carriedFor, checkCarried, holdCarried } from "./carried";
 import {
     channelDescriptor,
@@ -528,6 +528,19 @@ export interface BranchesView {
 }
 
 /**
+ * What `styles.showDraft` draws a source draft's join preview in: one color for what its commit
+ * would merge, one for what it would add.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface DraftView {
+    /** The ring's color, on each node the commit would merge into one already in the graph. */
+    readonly merged: string;
+    /** The dashed border's color on each node the commit would add, and each edge it would add. */
+    readonly new: string;
+}
+
+/**
  * The style stack, the verbs that change it, and the three questions a reader asks of it.
  *
  * Everything on this surface addresses a layer by its id. Nothing on it takes an index, and
@@ -550,6 +563,20 @@ export interface StylesApi {
      * @beta
      */
     showBranches(view: BranchesView): { end(): void; readonly notDrawn: readonly HiddenNotDrawn[] };
+    /**
+     * Draw a displayed source draft's join preview (`draft.display(true)`, under the `source-steps`
+     * experiment): every layer of the stack is suspended (kept, listed, and not an undo step), as a
+     * branches view suspends it; a ring is drawn on each node the commit would merge, a dashed
+     * border on each node it would add, and each edge it would add is drawn dashed, read from
+     * `graphty.draft`. The selection ring and the hover mark stay. It shares the one view with
+     * `showBranches`: either call replaces the other's view, whose `end()` then does nothing. Not
+     * a layer, not saved, and not a branches view (`showingBranches` stays false).
+     * Experimental: may change or be removed in a minor release.
+     * @param view - The colors.
+     * @returns Ends the view, the stack's picture back in the same repaint.
+     * @beta
+     */
+    showDraft(view: DraftView): { end(): void };
     /**
      * Whether a branches view is drawn now; `style:branches-shown-changed` tells each change.
      * Experimental: may change or be removed in a minor release.
@@ -2268,7 +2295,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /** The branches view drawn now, and the layers it draws. */
-    let branchesShown: { readonly layers: readonly CompiledLayer[]; readonly view: BranchesView } | null = null;
+    // A draft view (`showDraft`) is held here too, with no branches view to tell.
+    let branchesShown: { readonly layers: readonly CompiledLayer[]; readonly view: BranchesView | null } | null = null;
     /** One suspended stand-in per layer, so a repaint sees the same object each time. */
     const suspended = new WeakMap<CompiledLayer, CompiledLayer>();
 
@@ -3723,8 +3751,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                       selection: config?.selectionStyle ?? DEFAULT_SELECTION_STYLE,
                       ...(editableBase() ? { everything: { ...baseValues("node"), ...baseValues("edge") } } : {}),
                       ...(config?.pinnedStyle === undefined ? {} : { pinned: config.pinnedStyle }),
-                      // Only under the source-steps experiment: with it off the rows are today's.
-                      ...(dispatcher.services.sourceSteps?.() === true ? { draft: true } : {}),
                   },
         );
         let stack = current();
@@ -4668,8 +4694,36 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             };
         },
 
+        showDraft(view: DraftView): { end(): void } {
+            const layers = draftLayers(view, current(), check);
+            const replaced = branchesShown?.view ?? null;
+            const before = painting(current());
+            const shown = { layers, view: null };
+            branchesShown = shown;
+            shownKeys = [];
+            if (replaced !== null) {
+                sources.holdCondition?.(null);
+            }
+            repaintBetween(before, painting(current()));
+            if (replaced !== null) {
+                sources.onBranchesShown?.(false);
+            }
+
+            return {
+                end(): void {
+                    if (branchesShown !== shown) {
+                        return;
+                    }
+
+                    const drawn = painting(current());
+                    branchesShown = null;
+                    repaintBetween(drawn, painting(current()));
+                },
+            };
+        },
+
         get showingBranches(): boolean {
-            return branchesShown !== null;
+            return (branchesShown?.view ?? null) !== null;
         },
 
         get shownBranches(): BranchesView | null {

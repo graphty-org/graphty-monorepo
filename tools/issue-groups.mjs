@@ -1094,7 +1094,11 @@ export function ledgerJobs(ledger, q, now, options = {}) {
     const live = liveClaims(options.claims);
     const holding = (ledger.blocked ?? []).filter((b) => blockActive(ledger, b, live, now) && blockHolds(b, now));
     const blocked = new Set(holding.map((b) => b.issue));
-    const free = q.map((i) => i.number).filter((n) => !seen.has(n) && !busy.has(n) && !blocked.has(n));
+    // an issue with a live wait is not free, scanned or not (#9764: a recorded wait still offered #9768)
+    const waiting = new Set(liveWaits(ledger).map((w) => w.issue));
+    const free = q
+        .map((i) => i.number)
+        .filter((n) => !seen.has(n) && !busy.has(n) && !blocked.has(n) && !waiting.has(n));
     const unjustified = holding
         .filter((b) => URGENT.has(byNumber.get(b.issue)?.priority) && !b.due)
         .filter((b) => !JUSTIFIED_BLOCK.test(b.reason ?? "") && !namesLiveWork(b))

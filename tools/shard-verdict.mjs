@@ -15,8 +15,9 @@
  * shard (37k to 435k warnings), doubled the shards' time and failure rate, and passed every gate twice.
  * With the budget a flood fails the first run that has it, with the repeated warning named.
  *
- * Used by tools/run-tests.sh (the CLI below) and tools/prepush-tests.mjs (shardVerdict); the budget also by
- * tools/test-quarantine.mjs, the wrapper every shard runs through in CI and in the gate (overBudget).
+ * Used by tools/run-tests.sh (the CLI below) and webgpu-graph-algorithms/scripts/run-node-shard.js
+ * (shardVerdict); the budget also by tools/test-quarantine.mjs, the wrapper every shard runs through in CI
+ * (overBudget).
  *
  * Usage: node tools/shard-verdict.mjs <shard> <exit-status> <log-file> <start-ms> [<command>]
  *   <command> replaces the shard's own (a run of selected test files); prints the cause and exits 1 when the run did not pass; exits with 0 when it did.

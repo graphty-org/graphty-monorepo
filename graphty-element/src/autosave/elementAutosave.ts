@@ -447,18 +447,24 @@ function sessionLost(env: AutosaveEnvironment): boolean {
     return lost;
 }
 
-/** The keys whose lost note each page load has looked for (once each: a later mount never adopts). */
-const lostLookedBy = new WeakMap<AutosaveEnvironment, Set<string>>();
+/** An adoption of a lost note, as {@link adoptLostOwn} answers it. */
+type LostOwnAdoption = Promise<{ id: string; by: LostOwnRule } | null>;
+
+/**
+ * The keys whose lost note each page load has looked for, with what the look found: once each, so
+ * a later mount never adopts, and a lookup made while the look runs gets the same answer (issue #9646).
+ */
+const lostLookedBy = new WeakMap<AutosaveEnvironment, Map<string, LostOwnAdoption>>();
 
 /**
  * The keys this page load has looked for its lost note.
  * @param env - The page.
- * @returns Its set.
+ * @returns Its map.
  */
-function lostLooked(env: AutosaveEnvironment): Set<string> {
+function lostLooked(env: AutosaveEnvironment): Map<string, LostOwnAdoption> {
     let looked = lostLookedBy.get(env);
     if (looked === undefined) {
-        looked = new Set();
+        looked = new Map();
         lostLookedBy.set(env, looked);
     }
 
@@ -537,13 +543,36 @@ async function adoptLostOwn(
     key: string,
     metas: readonly AutosaveEntryMeta[],
     leaving: string | null,
-): Promise<{ id: string; by: LostOwnRule } | null> {
+): LostOwnAdoption {
     const looked = lostLooked(env);
-    if (looked.has(key) || !sessionLost(env)) {
+    const earlier = looked.get(key);
+    if (earlier !== undefined) {
+        return earlier;
+    }
+
+    if (!sessionLost(env)) {
         return null;
     }
 
-    looked.add(key);
+    const adoption = adoptLost(env, key, metas, leaving);
+    looked.set(key, adoption);
+    return adoption;
+}
+
+/**
+ * The look {@link adoptLostOwn} makes once per page load and key.
+ * @param env - The page.
+ * @param key - The key.
+ * @param metas - The key's entries.
+ * @param leaving - The entry the page this load replaces left marked.
+ * @returns The entry and the rule that found it, or null.
+ */
+async function adoptLost(
+    env: AutosaveEnvironment,
+    key: string,
+    metas: readonly AutosaveEntryMeta[],
+    leaving: string | null,
+): LostOwnAdoption {
     const open = metas.filter((meta) => meta.ended !== "replaced");
     const record = tabRecord(env);
     let found: AutosaveEntryMeta | undefined;

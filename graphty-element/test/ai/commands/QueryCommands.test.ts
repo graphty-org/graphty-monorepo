@@ -8,8 +8,7 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { findNodes, getSchema, queryGraph } from "../../../src/ai/commands/QueryCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createCommandGraph } from "../../helpers/session-graph";
-import { createMockContext } from "../../helpers/test-graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 
 describe("QueryCommands", () => {
     let graph: Graph;
@@ -17,7 +16,7 @@ describe("QueryCommands", () => {
 
     beforeEach(async () => {
         graph = await createCommandGraph({ nodeCount: 25, edgeCount: 40 });
-        context = createMockContext(graph);
+        context = createCommandContext(graph);
     });
 
     describe("queryGraph", () => {
@@ -86,7 +85,7 @@ describe("QueryCommands", () => {
 
         it("caps an unlimited query at the default and reports the total", async () => {
             const big = await createCommandGraph({ nodeCount: 1000, edgeCount: 0 });
-            const result = await findNodes.execute(big, { selector: "" }, createMockContext(big));
+            const result = await findNodes.execute(big, { selector: "" }, createCommandContext(big));
             assert.strictEqual(result.success, true);
 
             const data = result.data as FindNodesData;
@@ -101,7 +100,7 @@ describe("QueryCommands", () => {
 
         it("reports the total when a limit is passed", async () => {
             const big = await createCommandGraph({ nodeCount: 1000, edgeCount: 0 });
-            const result = await findNodes.execute(big, { selector: "*", limit: 10 }, createMockContext(big));
+            const result = await findNodes.execute(big, { selector: "*", limit: 10 }, createCommandContext(big));
             const data = result.data as FindNodesData;
             assert.strictEqual(data.returned, 10);
             assert.strictEqual(data.total, 1000);
@@ -110,7 +109,7 @@ describe("QueryCommands", () => {
 
         it("is not truncated when every match fits", async () => {
             const small = await createCommandGraph({ nodeCount: 5, edgeCount: 0 });
-            const result = await findNodes.execute(small, { selector: "" }, createMockContext(small));
+            const result = await findNodes.execute(small, { selector: "" }, createCommandContext(small));
             const data = result.data as FindNodesData;
             assert.strictEqual(data.total, 5);
             assert.strictEqual(data.returned, 5);

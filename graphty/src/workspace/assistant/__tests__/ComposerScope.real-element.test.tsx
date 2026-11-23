@@ -6,10 +6,11 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/ai";
+import { MockLlmProvider } from "@graphty/graphty-element/ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { scriptEnable } from "../../../test/element-prototype";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
@@ -56,17 +57,8 @@ describe("the composer's placeholder", () => {
     beforeEach(async () => {
         await page.viewport(1440, 900);
         localStorage.clear();
-        const tag = customElements.get("graphty-element") as unknown as {
-            prototype: HTMLElementTagNameMap["graphty-element"];
-        };
-        const realEnable = tag.prototype.enableAiControl;
         const model = new AskingModel();
-        vi.spyOn(tag.prototype, "enableAiControl").mockImplementation(async function enable(
-            this: HTMLElementTagNameMap["graphty-element"],
-            config: AiManagerConfig,
-        ) {
-            await realEnable.call(this, { ...config, providerInstance: model });
-        });
+        scriptEnable((config) => ({ ...config, providerInstance: model }));
     });
 
     afterEach(() => {

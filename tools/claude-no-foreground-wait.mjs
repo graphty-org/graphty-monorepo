@@ -244,7 +244,7 @@ function step(scan) {
  * @param inParens - True inside `$(...)`: stop at its closing parenthesis.
  * @returns The sanitized text and the index after what was read.
  */
-function sanitize(text, start = 0, inParens = false) {
+export function sanitize(text, start = 0, inParens = false) {
     const scan = { text, at: start, out: "", depth: 0, heredocs: [] };
     while (scan.at < text.length) {
         if (inParens && text[scan.at] === ")" && scan.depth === 0) {

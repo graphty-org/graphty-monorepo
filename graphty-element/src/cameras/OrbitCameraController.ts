@@ -850,9 +850,43 @@ function axisFit(
 }
 
 /**
+ * Every corner of every block, as its place along a screen axis and its depth from a camera
+ * `distance` behind the center: a tangent (x - offset) / depth is widest over a block at one of its
+ * corners.
+ * @param points - The blocks, relative to the center.
+ * @param axis - The screen axis in world space, a unit vector.
+ * @param forward - The line of sight, a unit vector.
+ * @param distance - How far behind the center the camera stands.
+ * @returns The corners.
+ */
+function seenCorners(
+    points: readonly Block[],
+    axis: Vector3,
+    forward: Vector3,
+    distance: number,
+): { x: number; depth: number }[] {
+    const signs = [-1, 1];
+    return points.flatMap(({ pos, half }) =>
+        signs.flatMap((sx) =>
+            signs.flatMap((sy) =>
+                signs.map((sz) => {
+                    const corner = new Vector3(pos.x + sx * half.x, pos.y + sy * half.y, pos.z + sz * half.z);
+                    const depth = Math.max(Vector3.Dot(corner, forward) + distance, Number.EPSILON);
+                    return { x: Vector3.Dot(corner, axis), depth };
+                }),
+            ),
+        ),
+    );
+}
+
+/**
  * How far sideways along `axis` a camera `distance` behind the center stands to draw the spots
- * with equal room on both sides: the fit of an area narrowed by the same tangent at each edge until
- * it needs exactly this distance.
+ * with equal room on both sides of the area's middle: the offset at which the spots' widest
+ * tangents past that middle, one each way, are equal. Found by halving the offset itself, between
+ * the spots' own extremes, down to adjacent numbers, so the answer depends on the spots, the
+ * distance and the area's middle alone and not on how wide the area is. Halving the margin of the
+ * area instead stopped at a step of the area's width: a canvas made shorter, which widens the
+ * area across, moved the camera by about 5e-14 when nothing in the scene had moved.
  * @param points - The blocks, relative to the center.
  * @param axis - The screen axis in world space, a unit vector.
  * @param forward - The line of sight, a unit vector.
@@ -869,17 +903,43 @@ function centeredOffset(
     hi: number,
     distance: number,
 ): number {
-    // ponytail: 50 halvings of the margin, each a pass over the spots; a closed form per axis if a fit ever shows in a profile.
-    let inner = 0;
-    let outer = (hi - lo) / 2;
-    for (let i = 0; i < 50; i++) {
-        const mid = (inner + outer) / 2;
-        if (axisFit(points, axis, forward, lo + mid, hi - mid).distance <= distance) {
-            inner = mid;
+    const corners = seenCorners(points, axis, forward, distance);
+    const middle = (lo + hi) / 2;
+    let low = Infinity;
+    let high = -Infinity;
+    let deepest = 0;
+    for (const { x, depth } of corners) {
+        low = Math.min(low, x);
+        high = Math.max(high, x);
+        deepest = Math.max(deepest, depth);
+    }
+    if (!Number.isFinite(low)) {
+        return 0;
+    }
+
+    // An area whose middle is off the line of sight puts the offset up to that far outside them.
+    low -= Math.abs(middle) * deepest;
+    high += Math.abs(middle) * deepest;
+    // ponytail: a pass over the corners per halving, about 60 for doubles; a closed form per axis if a fit ever shows in a profile.
+    for (let step = 0; step < 200; step++) {
+        const at = (low + high) / 2;
+        if (at <= low || at >= high) {
+            break;
+        }
+
+        let above = -Infinity;
+        let below = -Infinity;
+        for (const { x, depth } of corners) {
+            above = Math.max(above, (x - at) / depth - middle);
+            below = Math.max(below, middle - (x - at) / depth);
+        }
+
+        if (above > below) {
+            low = at;
         } else {
-            outer = mid;
+            high = at;
         }
     }
 
-    return axisFit(points, axis, forward, lo + inner, hi - inner).offset(distance);
+    return (low + high) / 2;
 }

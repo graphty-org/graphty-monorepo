@@ -56219,12 +56219,6 @@
                 "to": 0,
                 "reason": "2026-11-15: comparator (#8191): the hollow circle head of 189->192, an edge Cytoscape desktop draws as its two heads only, was counted as a stray graphty drew; read as the edge's target head now, it leaves one stray, the yellow box already listed",
                 "date": "2026-11-16"
-            },
-            "node.strokeDash": {
-                "floor": 0.979,
-                "to": 0.958,
-                "reason": "a dot over a sharp corner takes the corner's mitre and reads as a dash once graphty's borders are read by the pieces they draw (#9768)",
-                "date": "2026-11-23"
             }
         },
         "cx2-syn-mappings@matched": {
@@ -56233,12 +56227,6 @@
                 "to": 0,
                 "reason": "2026-11-15: comparator (#8191): the hollow circle head of 189->192, an edge Cytoscape desktop draws as its two heads only, was counted as a stray graphty drew; read as the edge's target head now, it leaves one stray, the yellow box already listed",
                 "date": "2026-11-16"
-            },
-            "node.strokeDash": {
-                "floor": 0.979,
-                "to": 0.958,
-                "reason": "a dot over a sharp corner takes the corner's mitre and reads as a dash once graphty's borders are read by the pieces they draw (#9768)",
-                "date": "2026-11-23"
             }
         },
         "dot-synth-nodes": {

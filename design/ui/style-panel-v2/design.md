@@ -487,6 +487,17 @@ Rules for style inputs:
   `"divide"`); the app only writes it. The link dialog draws it as its "Operation" line, right after the source;
   a set number's Combine line in a pop-over is the same five segments.
 
+- **Advanced dialog.** A pop-over's last line is "Advanced" when its thing has rare settings: a full-width button
+  that opens the dialog beside the pop-over. The rubric marks a sub-group `advanced` (a thing's) or a line
+  `advanced` (a label's); the dialog shows every such group, always, under its name, with the group's minus once
+  set, and those groups leave the "+" menu. Its lines draw no link button. A line under a switch (a label's
+  "Opacity" under Letter outline) is called by its whole name there.
+- **Unset values.** A number graphty-element names no one value for (it picks one per element: a node's width
+  follows its shape) reads "Auto". A segment line whose unset state is none of the element's values has an option
+  for it ("Off" for Fit to label, "Both" for an arrow's side), shown while unset; picking it unsets. A drop-down
+  of a field with no default starts with "None". A new list item starts with words ("Field 1", "Cell"). Unit
+  lines show their first unit (Graph) while unset.
+
 ## 6. Control rubric
 
 Widths from 2.2. Panel main controls sit on panel lines (96 named, 176 unnamed); popover lines are 120 named, 200

@@ -1336,6 +1336,22 @@ jobs:
                   name: build-packages
                   path: .
 
+            # The release dry run (tools/release-dry-run.mjs, #3318): when a pull request changes a package.json, a
+            # project.json, nx.json or release-hold.json, `nx release --dry-run --skip-publish` runs, so a project the
+            # release train cannot version fails here instead of holding every release; any other pull request skips
+            # it at once. It takes about 6 minutes, so it starts here in the background and runs beside the steps
+            # below until "Release dry run" waits for it. The full run versions its candidate in release.yml.
+            # GH_TOKEN: nx reads the repository's GitHub releases for the changelog preview.
+            - name: Start the release dry run
+              if: github.event_name == 'pull_request'
+              env:
+                  PUSH_BASE_REF: origin/${{ github.base_ref }}
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  out="$RUNNER_TEMP/release-dry-run"
+                  mkdir -p "$out"
+                  nohup sh -c 'node tools/release-dry-run.mjs > "$1/log" 2>&1; echo $? > "$1/rc"' sh "$out" < /dev/null > /dev/null 2>&1 &
+
             # The shard groups and the conditions that decide what a pull request, master and a full run do.
             # The files run side by side, one per core (tools/run-ci-workflow-tests.mjs): about 1 minute, not 3.5.
             # Recorded in the results store like every test job; RESULTS_RECORD_ONLY: run once, exit code untouched
@@ -1551,6 +1567,16 @@ jobs:
             # check runs in tools/prepush-source-checks.sh and tools/check-quick.sh.
             - name: Duplicate code
               run: pnpm run check:duplicates
+
+            # Waits for the release dry run started above and fails with it. Exit 3 is nx refused by GitHub (a 403
+            # or a rate limit), which here, with the job's token, is a real failure too.
+            - name: Release dry run
+              if: github.event_name == 'pull_request'
+              run: |
+                  out="$RUNNER_TEMP/release-dry-run"
+                  while [ ! -f "$out/rc" ]; do sleep 5; done
+                  cat "$out/log"
+                  exit "$(cat "$out/rc")"
 
             # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
             # ends (.github/actions/early-verdict).

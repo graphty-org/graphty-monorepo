@@ -8905,6 +8905,22 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
         );
     });
 
+    it("runs the release dry run on every pull request in Checks, started early and waited for before the verdict", () => {
+        const names = jobs.checks.steps.map((s) => s.name);
+        const start = step("checks", "Start the release dry run");
+        const wait = step("checks", "Release dry run");
+        for (const s of [start, wait]) assert.equal(s.if, "github.event_name == 'pull_request'", s.name);
+        assert.equal(start.env.PUSH_BASE_REF, "origin/${{ github.base_ref }}");
+        assert.equal(start.env.GH_TOKEN, "${{ github.token }}");
+        assert.match(
+            start.run,
+            /nohup sh -c 'node tools\/release-dry-run\.mjs > "\$1\/log" 2>&1; echo \$\? > "\$1\/rc"'.*&$/m,
+        );
+        assert.match(wait.run, /exit "\$\(cat "\$out\/rc"\)"/);
+        assert.ok(names.indexOf("Start the release dry run") < names.indexOf("CI workflow tests"), "starts early");
+        assert.equal(names.indexOf("Release dry run"), names.indexOf("Fail the summary checks now") - 1, "waited last");
+    });
+
     it("moves the network links, the coverage uploads and the lifecycle shard to the full run", () => {
         assert.match(jobs.links.if, /^needs\.packages\.outputs\.full == 'true' && /);
         const uploads = jobs.test.steps.filter((s) => /coverage/i.test(s.name ?? ""));

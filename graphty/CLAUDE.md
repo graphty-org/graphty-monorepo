@@ -166,6 +166,8 @@ workarounds available to them and no way to know they are not alone.
 ## UI Components
 
 - Use the default components. Never write a bespoke control to work around one
+- Every Style panel input (panel, pop-overs, link-a-value dialog, Graph settings) follows
+  `design/ui/style-panel-v2/design.md`, "Input rules (owner, 2026-11-23)"; the owner updates them over time
 - If a shared component is wrong, fix the shared component, so every caller gets the fix
 - Example (2026-09-13): the app shell's lock button grew a custom contrast ring because
   Mantine's `light` active state measured 1.21:1 against the panel header where WCAG 1.4.11

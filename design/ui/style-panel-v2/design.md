@@ -9,8 +9,8 @@ Rules that hold throughout, from the owner:
 
 - The panel holds controls only: no pills, chips, badges, captions, sentences, warnings, counts or "from X"
   markers, in the panel, its popovers or its lists (issue #8739). Tooltips carry names only.
-- It shows only what the layer sets. An unset control is empty: no placeholder, gray default or inherited value.
-  It never says where a value comes from or how layers stack.
+- It marks only what the layer sets (its minus). An unset control shows the value graphty-element would draw
+  there (Input rules, 2026-11-23), never an empty field. It never says where a value comes from or how layers stack.
 - No special layers. Everything, Hovered, Selected and Pinned open this same panel with the same controls.
 - Graph-wide settings are **Graph** ("Graph settings"), never "Scene" or "World", in every name and option.
 - The look is the app's: compact-mantine (locked to Figma, unchanged) and `graphty/src/workspace/style/`.
@@ -52,10 +52,10 @@ The layer name and menu, "Style Nodes..." / "Style Edges...", the node / edge ta
 | Named   | `.ws-field`: 16 gutter, 80 name, control, 24, 24              | panel 96, popover 120                                                   |
 | Unnamed | `.ws-field:not([data-named])`: control spans name and control | panel 176, popover 200                                                  |
 
-The two trailing slots are the same on every line, panel and popover alike: slot one is "-", slot two is the
+The two trailing slots are the same on every line, panel and popover alike: slot one is the
 line's settings ("...") on a thing row, its by-data link on a popover line, and empty on a line under a row
-(2.5). The settings "..." is always at the
-far right of its row (owner, E550).
+(2.5); slot two is "-", the right-most icon (Input rules, 2026-11-23, which replace E550's "..." at the far
+right).
 
 **Number fields.** Every number field on the Node, Edge and Graph tabs is Figma's scrubbable number input
 (`ComboInput numeric`, design/ui/figma "Scrubbable number input"): its slot at the left holds a letter -- a
@@ -111,7 +111,7 @@ caption's Switch to lists its ends, a divider, then its looks); "+" adds them Pl
 | <> Solid  [o 6366F1   100%]  -  ... |   row with kinds (Fill): Switch to, the kind
 ```
 
-Row: `[<> name] [main] [-] [...]`.
+Row: `[<> name] [main] [...] [-]` (Input rules, "Slot order").
 
 - **Name**: every row has a name column (ia-design section 2, rule 4). It holds the thing's name
   (Border, Route, Visible, Size), or, for a thing with kinds (Fill, Line, Shape and the other kind groups), its
@@ -172,8 +172,8 @@ opened from it are plain `Popout`s (SettingsPopout refuses nesting).
   every line in it) over at most 10 lines. A sub-group shows when it holds a set line or the reader adds it from
   "+". Adding a switchable sub-group (Callout) writes its on field (`pointer`); it has no "On" line. Label shadow
   holds two looks, so its Text shadow and Box shadow lines are their on fields.
-- **Lines**: unset, the control drawn empty (an empty field, an unchecked checkbox, a segment line with nothing
-  selected, `value=""`), with no "-"; writing a value sets it and shows "-". A set boolean unchecked writes
+- **Lines**: unset, the control shows the value graphty-element would draw (Input rules, "Every input has a
+  value"), with no "-"; writing a value sets it and shows "-". A set boolean unchecked writes
   `false`; "-" unsets it. A location line draws only its segments until written (R2).
 - **Never empty**: a row whose main value can be bound always has its main value line in Main, bound or not,
   so its "..." always opens lines. A row whose main value cannot be bound and whose thing has no other settings
@@ -407,11 +407,84 @@ Unit writes: border Graph `width` / Screen `screenWidth`; label size Graph `size
 `sizeMode: "screen"` / Letter `letterSize` (each removes the other two and `sizeMode`); label padding Text
 `padding` / Box `boxPadding`; shape size Graph / Pivot / Screen `sizeSpace`.
 
+## Input rules (owner, 2026-11-23)
+
+The owner adds to and updates these rules over time. Section 6's rubric must agree with them: where a rubric
+row and a rule differ, the rule wins and the row is changed. Every Style panel input follows them, in the panel,
+its pop-overs, the link-a-value dialog and Graph settings. `graphty/src/workspace/style/__tests__/
+StylePanelV2InputRules.real-element.test.tsx` checks the ones a test can see; its known-violations lists only
+shrink.
+
+### The owner's rules (verbatim)
+
+Rules for all inputs
+
+- If a pop-over is more than 6 components tall (not total of 6 components, since there may be multiple on the
+  same line, but 6 components from top to bottom), it is probably too complex and should move the less commonly
+  used features or optional features to an advanced dialog
+- Pop-outs must never be nested more than two layers deep
+- You must use the right component for each type of input
+    - Picking a single color must use the color picker component
+    - Picking a gradient must use the gradient picker component
+    - Picking from a list of options must use a drop-down
+    - Picking files must use the file picker component
+    - Picking from a range of inputs must use a slider component
+    - Selecting between fewer than six options should use grouped buttons
+- Every input must be self describing, either through an attached icon that will have common knowledge for users,
+  a tooltip that appears on-hover for a button, through an obvious affordance like a color picker, or through the
+  component's small text label above the input
+- Inputs may be two per line where they make sense together: e.g. x and y values for a point
+- If an input has a default value, it must show the default value in the input when nothing has been set
+
+Rules for style inputs:
+
+- The minus sign to remove an item should always be the right-most icon
+- Every input must have a value, no input can show as empty
+- Linking buttons and settings buttons must be positioned on the same line after to the control they are linking
+  the value to. They should be hidden until on-hover
+
+### How they are applied (decisions)
+
+- **Nesting.** The panel is level 0. A row's settings pop-over is level 1. The advanced dialog of an over-tall
+  pop-over is level 2, the second and last pop-out level: nothing opens a third. So a level-2 surface (an
+  advanced dialog, the link-a-value dialog opened from a pop-over line, a color picker, a drop-down's list)
+  holds no control that opens another pop-out: no color chip, gradient, drop-down list, link button or Switch to
+  picker. Colors, gradients and lists stay in the level-1 pop-over.
+- **Height.** "Components tall" counts lines from top to bottom with every sub-group shown: two inputs on one
+  line count once, a Kind line and a Combine or operation line count, each list item counts. Over 6, the rarer
+  or optional lines move to the advanced dialog.
+- **Components.** A single color: `CompactColorInput`. A gradient: compact-mantine `GradientEditor`. A list of
+  6 or more options: a drop-down (`PanelField kind="select"`, or the existing `ValueListbox` for pictured
+  lists). Fewer than six exclusive options: grouped buttons (`SegmentedControl`). A number with a fixed minimum
+  and maximum (opacity, any 0-1 or 0-100% value, a fixed range): compact-mantine `Slider`. An open-ended number
+  stays the scrubbable number input. Files: the app's existing file picker.
+- **Font style.** Bold, Italic, Underline and Strikethrough are toggle icon buttons on one line (compact-mantine
+  `ToggleIconButton` or the existing grouped-button component, lucide glyphs, each with a hover tooltip). Bold
+  toggles the weight between the regular and the bold weight; the numeric weight is in the label's advanced
+  settings. graphty-element's label style carries underline and strikethrough (an additive API change where
+  missing).
+- **Self describing.** A line's name is the small label above its control or the name column beside it; an
+  icon-only control has a hover tooltip naming it.
+- **Every input has a value.** An unset input shows its default: the value graphty-element would draw there
+  (what the layers beneath draw, else graphty-element's default), in the normal text color. Never an empty
+  field, a placeholder-only field, or a segment line with nothing selected. The minus still shows only when the
+  layer sets the value.
+- **Slot order.** Every line reads `[name] [control] [link or ...] [-]`: the link or settings button right after
+  its control on the same line, the minus the right-most icon. A list's "+" sits before the minus.
+- **Hover.** The link and settings buttons are hidden until the line is hovered, and also shown while focus is
+  within the line, while their own pop-out is open, and always on devices without hover (`(hover: none)`: the
+  owner uses an iPad). Hidden keeps their 24 px slot, so the control never changes width.
+- **Link operation.** Linking a value to a number input includes what to do with the number: a grouped-button
+  line Set / Add / Subtract / Multiply / Divide (icons with tooltips allowed), default Set. Add to Divide combine
+  the mapped data value with the value the input would have without the link. This is graphty-element's binding
+  option (additive, default "set" keeps today's behavior); the app only writes it. It replaces the Combine
+  controls (Replace / Multiply / Add) so one concept has one control.
+
 ## 6. Control rubric
 
 Widths from 2.2. Panel main controls sit on panel lines (96 named, 176 unnamed); popover lines are 120 named, 200
 unnamed. An icon segment needs 28 px; a word segment 7 px a letter plus 16, at least 40. Pick the first rule that
-matches.
+matches. The input rules above win over this table where they differ.
 
 **Pictured.** An option can be pictured when `GLYPHS` or lucide-react has a glyph of the same meaning, or the option
 is a direction, side, alignment or geometric kind. When every option of a setting can be pictured, icons are
@@ -421,27 +494,33 @@ required, not permitted. One exception: an icon set may end in a single "Auto" w
 that modifies another line (italic, keep ratio, separate sides) is its own R7 line. Three glyphs are allowed,
 each on every line of its kind: the Switch to glyph on every family and kind row (E100, E105), `GLYPHS.link`
 on every line that can bind and `GLYPHS.unlink` (Stop varying) in its place once bound, and the scrub letter on every number field (2.2). Nothing else.
+The link glyph and a row's settings "..." sit on the same line as their control, right after it, and the minus
+is the right-most icon: `[name] [control] [link or ...] [-]`. The link and "..." are hidden until the line is
+hovered, and shown while focus is within the line, while their pop-out is open, and always under
+`(hover: none)` (Input rules, "Slot order" and "Hover").
 
-| #    | When                                                                                    | Control                                                                                                                                                     |
-| ---- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1   | A color (with opacity)                                                                  | `CompactColorInput`, always a full line                                                                                                                     |
-| R2   | A label, tooltip or caption location                                                    | R8f Outside / Inside / Auto, then `AlignmentMatrix` once written (Auto disables it); values from the location descriptor (10.2)                             |
-| R3   | A family member or a kind                                                               | Switch to on the row (section 5)                                                                                                                            |
-| R5   | A number                                                                                | Figma's scrubbable number input (2.2): a letter slot, arrow keys step 1 and Shift 10, no stepper buttons; two related numbers as a pair; opacity in percent |
-| R5b  | A number with named presets                                                             | `ComboInput` with the presets as options: font weight (Regular, Bold, or 1-1000) everywhere; mesh detail (Full, Low, or a number)                           |
-| R7   | A boolean                                                                               | `Checkbox` with its name                                                                                                                                    |
-| R8   | 2 to 6 exclusive options fitting the line where they sit                                | `SegmentedControl`, icons when pictured, else words                                                                                                         |
-| R8f  | The same, fitting only a popover full line (200)                                        | `SegmentedControl` on an unnamed popover line under its sub-group legend; popovers only                                                                     |
-| R9   | Up to 12 options, without pictures, fitting neither                                     | `PanelField kind="select"`                                                                                                                                  |
-| R10  | Options with pictures (catalog glyphs, or lucide glyphs named in the option-name table) | Existing `ValueListbox`: today's rows and glyphs, one section at a time (section 8), search placeholder "Search"                                            |
-| R11  | 13 or more options without pictures                                                     | `PanelField` with `{ group, items }` data                                                                                                                   |
-| R12  | A data field or text source                                                             | The existing attribute picker / `ValuePicker`                                                                                                               |
-| R13  | A font                                                                                  | The existing font list                                                                                                                                      |
-| R14  | Free text                                                                               | `TextInput size="xs"`, commits on Enter or blur                                                                                                             |
-| R15  | An ordered list                                                                         | Popover only: `ItemListEditor`, "+" on its legend, "-" per line, drag grip on hover; `GradientEditor` for stops                                             |
-| R15r | A list thing's row control                                                              | A read-only strip of its swatches (Pie, Stripes) or its first item; opens the popover on the list                                                           |
-| R16  | An asset or shader parameters                                                           | `PicturePopover` / `ModelsPopover`; `ShaderParamRows`                                                                                                       |
-| R17  | A set of sides                                                                          | Four `ToggleIconButton`s with `GLYPHS` `arrowUpToLine`, `arrowRightToLine`, `arrowDownToLine`, `arrowLeftToLine` on one line                                |
+| #    | When                                                                                              | Control                                                                                                                                                                                           |
+| ---- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1   | A color (with opacity)                                                                            | `CompactColorInput`, always a full line                                                                                                                                                           |
+| R2   | A label, tooltip or caption location                                                              | R8f Outside / Inside / Auto, then `AlignmentMatrix` once written (Auto disables it); values from the location descriptor (10.2)                                                                   |
+| R3   | A family member or a kind                                                                         | Switch to on the row (section 5)                                                                                                                                                                  |
+| R5   | An open-ended number (no fixed minimum and maximum)                                               | Figma's scrubbable number input (2.2): a letter slot, arrow keys step 1 and Shift 10, no stepper buttons; two related numbers as a pair; shows its default when unset                             |
+| R5s  | A number with a fixed minimum and maximum (opacity, 0-1 or 0-100% values, a fixed range)          | compact-mantine `Slider`, opacity in percent; a pair's ranged half takes its own line                                                                                                             |
+| R5b  | A number with named presets                                                                       | `ComboInput` with the presets as options: mesh detail (Full, Low, or a number); font weight (Regular, Bold, or 1-1000) only in a label's advanced settings, the Bold toggle (R7t) everywhere else |
+| R7   | A boolean                                                                                         | `Checkbox` with its name, checked as graphty-element draws it when unset                                                                                                                          |
+| R7t  | Font style: bold, italic, underline, strikethrough                                                | `ToggleIconButton`s on one line, lucide glyphs, each with a hover tooltip; Bold toggles regular and bold weight                                                                                   |
+| R8   | 2 to 5 exclusive options (fewer than six) fitting the line where they sit                         | `SegmentedControl`, icons when pictured, else words                                                                                                                                               |
+| R8f  | The same, fitting only a popover full line (200)                                                  | `SegmentedControl` on an unnamed popover line under its sub-group legend; popovers only                                                                                                           |
+| R9   | 6 to 12 options, without pictures                                                                 | `PanelField kind="select"`                                                                                                                                                                        |
+| R10  | 6 or more options with pictures (catalog glyphs, or lucide glyphs named in the option-name table) | Existing `ValueListbox`: today's rows and glyphs, one section at a time (section 8), search placeholder "Search"; fewer than 6 pictured options are R8 icon segments                              |
+| R11  | 13 or more options without pictures                                                               | `PanelField` with `{ group, items }` data                                                                                                                                                         |
+| R12  | A data field or text source                                                                       | The existing attribute picker / `ValuePicker`                                                                                                                                                     |
+| R13  | A font                                                                                            | The existing font list                                                                                                                                                                            |
+| R14  | Free text                                                                                         | `TextInput size="xs"`, commits on Enter or blur                                                                                                                                                   |
+| R15  | An ordered list                                                                                   | Popover only: `ItemListEditor`, "+" on its legend, "-" per line, drag grip on hover; `GradientEditor` for stops                                                                                   |
+| R15r | A list thing's row control                                                                        | A read-only strip of its swatches (Pie, Stripes) or its first item; opens the popover on the list                                                                                                 |
+| R16  | An asset or shader parameters                                                                     | `PicturePopover` / `ModelsPopover`; `ShaderParamRows`                                                                                                                                             |
+| R17  | A set of sides                                                                                    | Four `ToggleIconButton`s with `GLYPHS` `arrowUpToLine`, `arrowRightToLine`, `arrowDownToLine`, `arrowLeftToLine` on one line                                                                      |
 
 **Glyphs.** New `GLYPHS` entries come from lucide-react (as `glyphs.ts` imports it), only those the option-name
 table names for the icon settings below. Catalog shape, arrow and pattern glyphs are never redrawn. Display
@@ -719,7 +798,7 @@ bar.
 2. Depth is panel, one popover, one picker; no tabs; no sub-group passes 10 lines; no menu passes 12 items.
 3. Every value list over 12 shows at most 12 rows at a time; every catalog value is in one section.
 4. Every "+" is on a section header, a list legend or a popover header, and is the only button there; a section
-   collapses only from its caret; "-" then "...", with "..." at the far right of every row; no control overlays
+   collapses only from its caret; "..." or the link then "-", with "-" the right-most icon of every line; no control overlays
    another.
 5. "Scene" and "World" never appear in the panel, Graph settings or any option name.
 6. No pill, chip, badge, caption, count, sentence or default anywhere in the panel, popovers or lists, including

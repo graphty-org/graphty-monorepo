@@ -15,6 +15,8 @@
  * anywhere else. Colors are told by hue: nodes `#2040ff`, edges `#ff00ff`, as `drawn-invariants.ts` uses.
  */
 
+import { assert, vi } from "vitest";
+
 import type { Graph } from "../../src/Graph";
 
 /** One frame copied off the canvas in the task that drew it. */
@@ -486,7 +488,7 @@ export function faulty(r: FrameFaults): boolean {
  * @param ids - Every node.
  * @param pairs - Every edge.
  * @param want - Moving frames to check.
- * @param options - `until` ends the recording early when it returns true; `faults` the per-frame check options,
+ * @param options - `until` ends the recording early when it returns true, read each frame and between frames; `faults` the per-frame check options,
  *     read each frame; `max` caps the frames recorded (default 400), counted work and not time.
  * @returns Every frame's report.
  */
@@ -501,7 +503,7 @@ export async function checkDrawnFrames(
     let last: Map<string, FrameCenter | undefined> | undefined;
     let moving = 0;
     const max = options.max ?? 400;
-    const { done } = recordDrawnFrames(
+    const { done, stop } = recordDrawnFrames(
         graph,
         (frame, index, centers) => {
             let moved = 0;
@@ -531,7 +533,31 @@ export async function checkDrawnFrames(
         },
         () => centersNow(graph, ids),
     );
-    await done;
+    const { until } = options;
+    if (until === undefined) {
+        await done;
+        return reports;
+    }
+
+    // A graph that comes to rest draws no more frames on demand, so `until` is also watched between frames.
+    const outcome: { finished: boolean; failure?: unknown } = { finished: false };
+    done.then(
+        () => {
+            outcome.finished = true;
+        },
+        (error: unknown) => {
+            outcome.finished = true;
+            outcome.failure = error;
+        },
+    );
+    await vi.waitFor(() => {
+        assert.isTrue(outcome.finished || until(), "the frames were recorded, or the recording was ended");
+    });
+    stop();
+    if (outcome.failure !== undefined) {
+        throw outcome.failure instanceof Error ? outcome.failure : new Error(JSON.stringify(outcome.failure));
+    }
+
     return reports;
 }
 

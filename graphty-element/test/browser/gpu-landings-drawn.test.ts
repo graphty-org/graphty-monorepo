@@ -111,6 +111,11 @@ async function mount(
     cleanups.push(() => {
         element.remove();
     });
+    const rest = { settles: 0 };
+    resting.set(element, rest);
+    element.addEventListener("graph-settled", () => {
+        rest.settles++;
+    });
     const statuses: AccelerationStatus[] = [];
     element.addEventListener("graphty-capabilities-change", (event) => {
         statuses.push(
@@ -172,13 +177,43 @@ function assertLazy(element: Graphty, path: Path, n: number): void {
     }
 }
 
+/** How many times each element's layout has reported settled. */
+const resting = new WeakMap<Graphty, { settles: number }>();
+
+/**
+ * {@link checkDrawnFrames} on an element, ended early once its layout settles after the recording starts: a graph at rest draws no more
+ * frames, and the moving-frame count then says the layout stopped too soon.
+ * @param element - The element.
+ * @param ids - Every node.
+ * @param pairs - Every edge.
+ * @param want - Moving frames to check.
+ * @param options - As for {@link checkDrawnFrames}.
+ * @returns The frames.
+ */
+function framesOf(
+    element: Graphty,
+    ids: readonly string[],
+    pairs: readonly (readonly [string, string])[],
+    want: number,
+    options: Parameters<typeof checkDrawnFrames>[4] = {},
+): Promise<FrameReport[]> {
+    const { until } = options;
+    const settles = resting.get(element)?.settles ?? 0;
+    return checkDrawnFrames(element.graph, ids, pairs, want, {
+        ...options,
+        until: () => (resting.get(element)?.settles ?? 0) > settles || until?.() === true,
+    });
+}
+
 /**
  * Starts a GPU layout that keeps running through the test.
  * @param element - The element.
  * @param layout - The layout.
  */
 async function startGpuLayout(element: Graphty, layout: string): Promise<void> {
-    await element.setLayout(layout, { seed: 7, maxIter: 1_000_000, settleThreshold: 1e-12 });
+    // forceatlas2 counts its run in maxIter, the spring layouts in iterations
+    const run = layout === "forceatlas2" ? { maxIter: 1_000_000 } : { iterations: 1_000_000 };
+    await element.setLayout(layout, { seed: 7, settleThreshold: 1e-12, ...run });
 }
 
 /**
@@ -217,14 +252,22 @@ GPU_CASES.each(["batched", "objects"] as const)("GPU layout landings drawn on %s
             const frame = await captureNextFrame(element.graph);
             assert.isAbove(inkedPixels(frame), 200, "the frame holds ink");
             const reports = await checkDrawnFrames(element.graph, graph.ids, graph.pairs, 0, { max: 1 });
+            assert.lengthOf(reports, 1, "one frame was read");
             assert.isFalse(reports.some(faulty), describeFrames(reports));
             // and the at-rest helpers, which read through readFrame, see every node and edge too: they look for an
-            // edge's ink a third of the way along, so the nodes are made small enough to leave it clear
+            // edge's ink a third of the way along, so the nodes are made small enough to leave it clear,
             await element.session.styles.add({
                 name: "Small",
                 target: "node",
                 selector: { match: "everything" },
                 set: { "node.size": 1 },
+            });
+            // and its edges wide enough to read full magenta, which it asks for
+            await element.session.styles.add({
+                name: "Wide",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.width": 20 },
             });
             await element.waitForStableFrame();
             assert.deepEqual(await undrawnNodes(element, graph.ids), [], "readFrame sees every node");
@@ -238,7 +281,7 @@ GPU_CASES.each(["batched", "objects"] as const)("GPU layout landings drawn on %s
                 const graph = fixture(300);
                 const { element, statuses } = await mount(path, renderer, graph);
                 assertLazy(element, path, 300);
-                const recording = checkDrawnFrames(element.graph, graph.ids, graph.pairs, MOVING_FRAMES);
+                const recording = framesOf(element, graph.ids, graph.pairs, MOVING_FRAMES);
                 await startGpuLayout(element, layout);
                 assertGoodFrames(await recording, `${path} ${renderer} ${layout} 300`);
                 assertAccelerated(statuses);
@@ -248,7 +291,7 @@ GPU_CASES.each(["batched", "objects"] as const)("GPU layout landings drawn on %s
         it("keeps every node and edge where it is said to be at 2,000 nodes", async () => {
             const graph = fixture(2000);
             const { element, statuses } = await mount(path, renderer, graph);
-            const recording = checkDrawnFrames(element.graph, graph.ids, graph.pairs, 10);
+            const recording = framesOf(element, graph.ids, graph.pairs, 10);
             await startGpuLayout(element, "forceatlas2");
             assertGoodFrames(await recording, `${path} ${renderer} forceatlas2 2000`, 10);
             assertAccelerated(statuses);
@@ -258,15 +301,11 @@ GPU_CASES.each(["batched", "objects"] as const)("GPU layout landings drawn on %s
             const graph = fixture(300, false);
             const { element, statuses } = await mount(path, renderer, graph);
             await startGpuLayout(element, "forceatlas2");
-            assertGoodFrames(
-                await checkDrawnFrames(element.graph, graph.ids, graph.pairs, 5),
-                `${path} ${renderer} before`,
-                5,
-            );
+            assertGoodFrames(await framesOf(element, graph.ids, graph.pairs, 5), `${path} ${renderer} before`, 5);
             await element.session.data.addNodes([{ id: "late" }]);
             const ids = [...graph.ids, "late"];
             assertGoodFrames(
-                await checkDrawnFrames(element.graph, ids, graph.pairs, MOVING_FRAMES),
+                await framesOf(element, ids, graph.pairs, MOVING_FRAMES),
                 `${path} ${renderer} after a node-only add`,
             );
             assert.isDefined(element.nodeScreenPosition("late"), "the added node is placed");
@@ -277,7 +316,7 @@ GPU_CASES.each(["batched", "objects"] as const)("GPU layout landings drawn on %s
             const graph = fixture(300, false);
             const { element } = await mount(path, renderer, graph);
             await startGpuLayout(element, "forceatlas2");
-            await checkDrawnFrames(element.graph, graph.ids, graph.pairs, 3);
+            await framesOf(element, graph.ids, graph.pairs, 3);
             const target = graph.ids[0];
             await element.session.styles.add({
                 name: "One green",
@@ -285,17 +324,36 @@ GPU_CASES.each(["batched", "objects"] as const)("GPU layout landings drawn on %s
                 selector: { match: "ids", nodes: [target] },
                 set: { "node.color": "#20c040" },
             });
-            const frame = await captureNextFrame(element.graph);
-            const at = element.nodeScreenPosition(target);
-            assert.isDefined(at);
-            const i = (Math.round(at.y * frame.scale) * frame.width + Math.round(at.x * frame.scale)) * 4;
-            const pixel = Array.from(frame.pixels.subarray(i, i + 3));
-            assert.isTrue(
-                pixel[1] > pixel[0] + 60 && pixel[1] > pixel[2] + 40,
-                `the restyled node is green in the next frame, not ${JSON.stringify(pixel)}`,
+            // the next frame, with where the node is in that frame: green anywhere inside its radius (an edge may
+            // be drawn across its center)
+            let green = 0;
+            let seen = "";
+            const { done } = recordDrawnFrames(
+                element.graph,
+                (frame, _index, at) => {
+                    assert.isDefined(at, "the restyled node is placed");
+                    const r = Math.max(1, at.radius * 0.8);
+                    for (let dy = -r; dy <= r; dy++) {
+                        for (let dx = -r; dx <= r; dx++) {
+                            const px = Math.round((at.x + dx) * frame.scale);
+                            const py = Math.round((at.y + dy) * frame.scale);
+                            const i = (py * frame.width + px) * 4;
+                            const [red, gr, blue] = [frame.pixels[i], frame.pixels[i + 1], frame.pixels[i + 2]];
+                            seen = JSON.stringify([red, gr, blue]);
+                            if (gr > red + 60 && gr > blue + 40) {
+                                green++;
+                            }
+                        }
+                    }
+
+                    return false;
+                },
+                () => element.nodeScreenPosition(target),
             );
+            await done;
+            assert.isAbove(green, 0, `the restyled node is green in the next frame (last pixel read ${seen})`);
             assertGoodFrames(
-                await checkDrawnFrames(element.graph, graph.ids, graph.pairs, 10, {
+                await framesOf(element, graph.ids, graph.pairs, 10, {
                     faults: () => ({ ownColor: [target] }),
                 }),
                 `${path} ${renderer} after a restyle`,
@@ -308,15 +366,15 @@ GPU_CASES.each(["batched", "objects"] as const)("GPU layout landings drawn on %s
             const { element } = await mount(path, renderer, graph);
             const target = graph.ids[0];
             await startGpuLayout(element, "forceatlas2");
-            await checkDrawnFrames(element.graph, graph.ids, graph.pairs, 3);
+            await framesOf(element, graph.ids, graph.pairs, 3);
             await element.session.positions.pin([target]);
             // the camera stops reframing each landing, so the pinned node stays under a still pointer
             element.autoFrame = false;
-            await checkDrawnFrames(element.graph, graph.ids, graph.pairs, 3);
+            await framesOf(element, graph.ids, graph.pairs, 3);
             const at = element.nodeScreenPosition(target);
             assert.isDefined(at);
             await hover(element, { x: at.x, y: at.y });
-            const reports = await checkDrawnFrames(element.graph, graph.ids, graph.pairs, 10, {
+            const reports = await framesOf(element, graph.ids, graph.pairs, 10, {
                 faults: () => ({ ownColor: [target] }),
             });
             assert.strictEqual(
@@ -332,23 +390,23 @@ GPU_CASES.each(["batched", "objects"] as const)("GPU layout landings drawn on %s
             const { element } = await mount(path, renderer, graph);
             const [target] = graph.pairs[0];
             await startGpuLayout(element, "forceatlas2");
-            await checkDrawnFrames(element.graph, graph.ids, graph.pairs, 3);
+            await framesOf(element, graph.ids, graph.pairs, 3);
             // pinned, so the pointer presses where the node is, and the camera still, so the node stays under the
             // pointer; the drag then moves it while the rest still land
             await element.session.positions.pin([target]);
             element.autoFrame = false;
-            await checkDrawnFrames(element.graph, graph.ids, graph.pairs, 3);
+            await framesOf(element, graph.ids, graph.pairs, 3);
             const from = element.nodeScreenPosition(target);
             assert.isDefined(from);
             const to = { x: Math.min(440, Math.max(40, from.x + 60)), y: Math.min(320, Math.max(40, from.y + 40)) };
             let dragging = true;
             const reports: FrameReport[] = [];
-            const recording = checkDrawnFrames(element.graph, graph.ids, graph.pairs, 1_000_000, {
+            const recording = framesOf(element, graph.ids, graph.pairs, 1_000_000, {
                 until: () => !dragging,
             });
             await drag(element, from, to, 10, async () => {
                 // held at the end of the drag: the node is under the pointer while the rest still move
-                const frame = await checkDrawnFrames(element.graph, graph.ids, graph.pairs, 0, { max: 3 });
+                const frame = await framesOf(element, graph.ids, graph.pairs, 0, { max: 3 });
                 reports.push(...frame);
                 const held = element.nodeScreenPosition(target);
                 assert.isDefined(held);

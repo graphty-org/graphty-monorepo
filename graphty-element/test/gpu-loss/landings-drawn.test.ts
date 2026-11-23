@@ -6,6 +6,9 @@
  *
  * shared-device-drawn.test.ts compares the row texture with the CPU copy; this file reads the picture
  * (test/helpers/frame-recorder.ts) in the frame's own task, which on WebGPU is the only time it can be read.
+ *
+ * Runs in the full run's graphty-element-gpu-loss shard. By hand: npx vitest run --project=gpu-loss
+ * test/gpu-loss/landings-drawn.test.ts (VITE_FRAME_DUMP=1 prints each recording's first faulty frame as a PNG).
  */
 
 import { assert, describe, it } from "vitest";

@@ -14,11 +14,16 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { cardFields } from "../../style/cards";
 import { Workspace } from "../../Workspace";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with a layer "Picked", and no history before the test's own.
@@ -111,7 +116,10 @@ describe("undo and redo: words and keys", () => {
 
     it("names the change in Undo's accessible name, and a dimmed Undo says why on hover", async () => {
         const { session, store, id } = await openGraph();
-        assert.strictEqual(undoButton().getAttribute("aria-label"), "Undo", "nothing to name yet");
+        // The header re-renders after history:changed, not inside clear() itself.
+        await waitFor(() => {
+            assert.strictEqual(undoButton().getAttribute("aria-label"), "Undo", "nothing to name yet");
+        });
         await session.styles.update(id, { set: { "node.color": "#0072b2" } });
         const undo = await screen.findByRole("button", { name: "Undo changing node color on Picked" });
 

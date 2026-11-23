@@ -5,7 +5,8 @@
  *
  * - `graph` / `digraph` set the direction through the DirectionResolver (rule 1 of 8.4); `strict`
  *   merges parallel edges as cgraph does and is recorded in `meta.extra.dot.strict`; the graph name
- *   becomes `meta.name`.
+ *   becomes `meta.name`. The texts written as HTML strings (`<...>`) are listed in `meta.extra.dot.html` (empty
+ *   when there are none), since their cells hold the same text as a quoted string with the same brackets.
  * - node, edge and graph attribute statements (`node [..]`, `edge [..]`, `graph [..]`, `ID = ID`)
  *   are stateful, scoped defaults applied to the elements created after them in the same or a
  *   nested subgraph; every element receives its effective attributes as plain cells, so the
@@ -68,6 +69,7 @@ import {
     UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
+import { checkExpansion, ExpansionRefused } from "../../common/expansion.js";
 import { IdCoercer } from "../../common/ids.js";
 import { canonicalEncoding, readText, throwIfAborted } from "../../common/input.js";
 import {
@@ -93,6 +95,7 @@ import { dotLayout } from "./layout.js";
 import {
     CLUSTER_COLUMN,
     DOT_FORMAT,
+    DOT_META_KEY,
     DOT_ORIGIN,
     KEY_ATTRIBUTE,
     LABEL_ATTRIBUTE,
@@ -124,7 +127,7 @@ export interface DotImportOptions extends GraphChoiceOptions, CommonImportOption
      */
     mismatchedEdgeOperator?: "operator" | "header" | "error" | undefined;
     /**
-     * Read a node's `pos` attribute as its position (a trailing `!` becomes a `pin` attribute);
+     * Read a node's `pos` attribute as its position (a trailing `!` sets `pin`, the fixed role column);
      * false keeps `pos` as the text the file wrote, like any other attribute.
      * @defaultValue true
      */
@@ -720,6 +723,17 @@ function stripLeadingComments(text: string): string {
 }
 
 /**
+ * A Graphviz boolean as Graphviz reads it (`mapbool`): "true" / "yes" (any case) or a nonzero integer is true, any
+ * other text false.
+ * @param text - the attribute value
+ * @returns the boolean
+ */
+function graphvizBool(text: string): boolean {
+    const t = text.trim().toLowerCase();
+    return t === "true" || t === "yes" || (/^[+-]?\d+$/.test(t) && Number(t) !== 0);
+}
+
+/**
  * Whether a bare token is a given keyword (keywords are case-insensitive; a quoted id never is).
  * @param token - the token
  * @param keyword - the lower-case keyword
@@ -796,6 +810,9 @@ class DotParser {
 
     private statements = 0;
 
+    /** The edges group-to-group edge statements expanded into so far, against MAX_HYPEREDGE_EXPANSION. */
+    private readonly expansion = { used: 0 };
+
     /** The id of every node mentioned so far, by index (the sink has no idOf). */
     private readonly idOf = new Map<number, NodeId>();
 
@@ -828,6 +845,11 @@ class DotParser {
 
     private positionHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
+    private pinHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
+
+    /** The nodes a `pos` ending in `!` pinned. */
+    private readonly bangPinned = new Set<number>();
+
     private clusterHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
     private parentHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
@@ -838,9 +860,9 @@ class DotParser {
 
     private targetPortHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
-    private rankHandle: ColumnHandle = INVALID_INDEX as ColumnHandle; // NOSONAR(S2933): stringColumn assigns it through this[field]
+    private rankHandle: ColumnHandle = INVALID_INDEX as ColumnHandle; // eslint-disable-line @typescript-eslint/prefer-readonly -- stringColumn assigns it through this[field]
 
-    private rankSetHandle: ColumnHandle = INVALID_INDEX as ColumnHandle; // NOSONAR(S2933): stringColumn assigns it through this[field]
+    private rankSetHandle: ColumnHandle = INVALID_INDEX as ColumnHandle; // eslint-disable-line @typescript-eslint/prefer-readonly -- stringColumn assigns it through this[field]
 
     /** The rank subgraph each node was put in first, by node index. */
     private readonly rankSetOf = new Map<number, string>();
@@ -921,6 +943,7 @@ class DotParser {
             throw new DotSyntaxError(`expected "graph" or "digraph", found ${describeToken(token)}`, token.line);
         }
         const headerLine = token.line;
+        lexer.htmlTexts.clear();
         token = lexer.next();
         let name: string | null = null;
         if (token.kind === "id") {
@@ -931,14 +954,14 @@ class DotParser {
             throw new DotSyntaxError(`expected "{" after the graph header, found ${describeToken(token)}`, token.line);
         }
         this.resolver.setHeader(this.directed, { line: headerLine });
-        this.sink.setMeta({
-            name,
-            sourceFormat: DOT_FORMAT,
-            ...(this.strict ? { extra: { dot: { strict: true } } } : {}),
-        });
+        this.sink.setMeta({ name, sourceFormat: DOT_FORMAT });
         const root = this.newScope(null, headerLine, true, null);
         this.statementList(root);
         this.applyInherited();
+        // which texts were HTML strings, since the text alone cannot say (a quoted "<init>" is plain text); recorded
+        // even when empty, so the exporter knows the file named every one
+        const dot = { ...(this.strict ? { strict: true } : {}), html: [...lexer.htmlTexts] };
+        this.sink.setMeta({ extra: { [DOT_META_KEY]: dot } });
         return lexer.next();
     }
 
@@ -1566,13 +1589,45 @@ class DotParser {
             }
         }
         const attributes = this.attributeList();
+        if (!this.withinExpansion(groups, line)) {
+            return;
+        }
         for (let k = 0; k < kinds.length; k++) {
             const targets = groups[k + 1];
             for (const source of groups[k]) {
+                throwIfAborted(this.options.signal);
                 for (const target of targets) {
                     this.pushEdge(scope, source, target, kinds[k], attributes, line);
                 }
             }
+        }
+    }
+
+    /**
+     * Count an edge statement's group-to-group products (`{a b} -> {c d}`: every member joined to every member, so
+     * 2n names make n^2 edges) against the expansion budget; past it the statement is skipped with E_TOO_LARGE.
+     * @param groups - the statement's endpoint groups, in order
+     * @param line - the statement's line
+     * @returns whether its edges may be added
+     */
+    private withinExpansion(groups: readonly Endpoint[][], line: number): boolean {
+        let product = 0;
+        let edges = 0;
+        for (let k = 0; k + 1 < groups.length; k++) {
+            const n = groups[k].length * groups[k + 1].length;
+            edges += n;
+            product += groups[k].length > 1 && groups[k + 1].length > 1 ? n : 0;
+        }
+        try {
+            checkExpansion(product, this.expansion, "the edge statement");
+            return true;
+        } catch (err) {
+            if (!(err instanceof ExpansionRefused)) {
+                throw err;
+            }
+            this.report.error("unsupported", err.code, err.message, { line });
+            this.report.counts.skippedEdges += edges;
+            return false;
         }
     }
 
@@ -1879,6 +1934,12 @@ class DotParser {
                 if (this.keepPositionSource) {
                     this.textWriter("node", name).write(index, value);
                 }
+            } else if (name === PIN_ATTRIBUTE) {
+                // neato pins a node when either says so: a later pin=false does not undo pos="x,y!"
+                const pinned = graphvizBool(value);
+                if (pinned || !this.bangPinned.has(index)) {
+                    this.sink.setNodeValue(this.pinColumn(), index, pinned);
+                }
             } else {
                 this.textWriter("node", name).write(index, value);
             }
@@ -1987,7 +2048,8 @@ class DotParser {
         }
         this.sink.setNodeValue(this.positionColumn(dims), index, point);
         if (match[4] === "!") {
-            this.sink.setNodeValue(PIN_ATTRIBUTE, index, true);
+            this.bangPinned.add(index);
+            this.sink.setNodeValue(this.pinColumn(), index, true);
         }
     }
 
@@ -2050,6 +2112,24 @@ class DotParser {
             });
         }
         return this.edgeLabelHandle;
+    }
+
+    /**
+     * The `pin` column (bool, role fixed): true where Graphviz keeps the node at its `pos`, declared on the first
+     * `pin` attribute or `!` suffix.
+     * @returns the handle
+     */
+    private pinColumn(): ColumnHandle {
+        if (this.pinHandle === INVALID_INDEX) {
+            this.pinHandle = this.declare("node", {
+                name: PIN_ATTRIBUTE,
+                dtype: "bool",
+                nullable: true,
+                role: "fixed",
+                origin: DOT_ORIGIN,
+            });
+        }
+        return this.pinHandle;
     }
 
     /**

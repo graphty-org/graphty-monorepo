@@ -54,6 +54,12 @@ export interface PositionColumnExtra {
      * keep their own length.
      */
     readonly viewerFit?: ViewerFit;
+    /**
+     * The box of coordinates the program that draws the file fits to its canvas, whatever the nodes' own extent, in
+     * the file's coordinates as written (Pajek fits its 0..1 square, so a vertex at the border runs past the edge and
+     * a drawing in one corner leaves the rest empty). Absent when the program fits the nodes.
+     */
+    readonly viewerFrame?: ViewerFrame;
     /** How many coordinates the file wrote per node: 2, or 3 when it stored a z. */
     readonly sourceDims?: 2 | 3;
     /** Which way y grows; "down" is flipped to y up. */
@@ -98,6 +104,17 @@ export interface ViewerFit {
 }
 
 /**
+ * A box of coordinates the program that draws a file fits to its canvas: its smallest and largest x and y.
+ * @category Positions
+ */
+export interface ViewerFrame {
+    /** The smallest x and y. */
+    readonly min: readonly [number, number];
+    /** The largest x and y. */
+    readonly max: readonly [number, number];
+}
+
+/**
  * A group container's box, as an importer's `positions()` hook gives it: (`x`, `y`) is where the
  * box's anchor is, spelled like the node coordinates (the same y direction and anchor).
  * @category Positions
@@ -133,6 +150,11 @@ export interface ImporterPositions extends PositionColumnExtra {
     readonly y?: string;
     /** A plain numeric node column holding z (simple form); omit for a 2D file. */
     readonly z?: string;
+    /**
+     * Simple form: the format does not declare `x`, `y` and `z` as coordinates; the importer recognized them by their
+     * names, so their y direction and unit are a guess. `extractPositions()` notes `W_POSITIONS_GUESSED`.
+     */
+    readonly byName?: boolean;
     /** A 3-component node column holding the coordinates (advanced form); defaults to the role-`position` column. */
     readonly column?: string;
     /**
@@ -147,7 +169,6 @@ export interface ImporterPositions extends PositionColumnExtra {
     /**
      * How far one node's center is from its stored coordinate, spelled like the coordinates, or null for none: a node
      * the program draws from another point than its neighbors are drawn from (vis-network's top-left `circularImage`).
-     * Simple form only.
      */
     readonly centerOffset?: (row: number) => readonly [number, number] | null;
     /**
@@ -255,6 +276,11 @@ export interface FilePositions {
      * that fit on the canvas it is drawn on. Absent otherwise.
      */
     readonly viewerFit?: ViewerFit;
+    /**
+     * The box the program that draws the file fits to its canvas, whatever the nodes' extent, in the same convention
+     * and unit as `coords` (Pajek's 0..1 square). Absent when the program fits the nodes.
+     */
+    readonly viewerFrame?: ViewerFrame;
     /** The median node diameter, in `units`, when the file stores node sizes; else null. */
     readonly medianNodeSize: number | null;
     /** 3 when the nodes differ in z, else 2 (z is then 0). */

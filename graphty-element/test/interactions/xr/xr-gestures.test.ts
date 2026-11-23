@@ -12,8 +12,7 @@
  */
 
 import { Quaternion, Vector3 } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { PivotController } from "../../../src/cameras/PivotController";
 import { twoHandGestureDelta } from "../../../src/cameras/twoHandGesture";
@@ -35,7 +34,7 @@ function getPivotScale(pivot: PivotController): number {
     return pivot.pivot.scaling.x;
 }
 
-/** Thumb-to-index distances, in metres, for a hand that is clearly pinching or clearly open. */
+/** Thumb-to-index distances, in meters, for a hand that is clearly pinching or clearly open. */
 const PINCHED = 0.02;
 const OPEN = 0.08;
 

@@ -15,7 +15,7 @@
  * even random20k misses) every fixture is printed. One summary line per (fixture, dimension) carries both sizes'
  * numbers for the record; (2) an isolated node's
  * total force after G7 is gravity plus the field of the other nodes at the strays' equilibrium (the design's
- * "gravity alone" item; whether the far field is negligible and whether a stray has a near-field neighbour are
+ * "gravity alone" item; whether the far field is negligible and whether a stray has a near-field neighbor are
  * printed for the record); the unbiasedness item (3) moved to grid-unbiased.test.ts, whose header says why;
  * (6) issue #90: a core with outlier groups on opposite sides beyond the extent, asserted on every adapter;
  * (4) expansion parity:
@@ -52,6 +52,7 @@ import { layoutMetrics, spread } from "../helpers/metrics.js";
 import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { progressLine } from "../helpers/progress.js";
 import { assertCheckPasses, type CheckReport, ratioOf } from "../helpers/sabotage.js";
+import { noiseFloorWriting } from "../setup/env.js";
 import { acquire, gpuScale, isSoftware, requireGpu } from "../setup/gpu.js";
 
 /** The design's exact-vs-grid fixtures (spec 11.4). */
@@ -382,7 +383,7 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
     }
 
     it("writes the five approximation members of the UNSCALED random20k / hubcell with their exact-tier references (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
-        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+        if (!noiseFloorWriting()) {
             // G4-F12: the 4,096-seed hubcell ladder alone costs ~250 s on lavapipe; without the flag the writes
             // are no-ops and test/noise-floor.test.ts checks the committed fixtures on every run.
             t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");

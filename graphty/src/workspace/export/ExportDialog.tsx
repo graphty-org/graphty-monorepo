@@ -2,29 +2,34 @@ import "./export.css";
 
 import { PageList } from "@graphty/compact-mantine";
 import { Modal, Text } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { CameraImageOutput } from "./CameraImageOutput";
 import {
+    type CameraImageChoices,
     type DataChoices,
+    DEFAULT_CAMERA_IMAGE,
     DEFAULT_DATA,
-    DEFAULT_IMAGE,
-    DEFAULT_VIDEO,
-    type ImageChoices,
+    DEFAULT_REPORT,
+    DEFAULT_TOUR_VIDEO,
     type OutputId,
     type RecentExport,
-    type VideoChoices,
+    type ReportChoices,
+    type TourVideoChoices,
 } from "./choices";
 import { DataOutput } from "./DataOutput";
 import { DocumentOutput } from "./DocumentOutput";
-import { ImageOutput } from "./ImageOutput";
-import { VideoOutput } from "./VideoOutput";
+import { TourVideoOutput } from "./TourVideoOutput";
 
-/** The outputs, in the list's order. */
+/** The Report's own chunk: its table and notes words are loaded when Report is chosen, not with the start page. */
+const ReportOutput = lazy(() => import("./ReportOutput").then((module) => ({ default: module.ReportOutput })));
+
+/** The outputs Export... lists, in the list's order. Video is a tour's own Export. */
 const OUTPUTS: readonly { id: OutputId; name: string }[] = [
-    { id: "image", name: "Image" },
-    { id: "video", name: "Video" },
     { id: "data", name: "Data" },
+    { id: "image", name: "Image" },
+    { id: "report", name: "Report" },
     { id: "styles", name: "Styles" },
     { id: "recipe", name: "Recipe" },
     { id: "project", name: "Project" },
@@ -35,23 +40,31 @@ const RECENT_MAX = 5;
 
 /**
  * The app's one Export dialog: Image (`captureScreenshot`), Video (`captureAnimation`), Data
- * (`exportGraph` with a format, scope and columns), Styles (`styles.toFile`), Recipe
+ * (`exportGraph` with a format, scope and columns), Report (a Markdown write-up of the
+ * graph's notes, data issues, runs and tables, with the reader's summary and findings), Styles (`styles.toFile`), Recipe
  * (`session.recipe`) and Project (`downloadProject`), with the files exported in this visit under
  * Recent, each opening its output again with the choices it was made with. Open while the
- * workspace dialog is "export"; it opens on Image, or on Data with CSV and the table the store's
+ * workspace dialog is "export"; it opens on Image or Video as the store's `exportOn` says (Video with
+ * the tour `exportTour` names, for a tour's Record...), or on Data with CSV and the table the store's
  * `exportOn` names (whenever a table is showing), scoped to the whole graph, or to the source `exportSource`
  * names for a Sources row's Export... (that opening only), and keeps each output's choices while the workspace is mounted.
+ * Video is not listed: a tour's Export video... opens the dialog on it alone, and a camera's
+ * Export image... (`exportView`) on Image alone.
  * @returns The dialog
  */
 export function ExportDialog(): React.JSX.Element {
-    const { store, session } = useWorkspace();
+    const { store, session, element } = useWorkspace();
     const opened = useWorkspaceState((state) => state.dialog === "export");
     const exportOn = useWorkspaceState((state) => state.exportOn);
     const exportSource = useWorkspaceState((state) => state.exportSource);
+    const exportTour = useWorkspaceState((state) => state.exportTour);
+    const exportView = useWorkspaceState((state) => state.exportView);
+    const [recording, setRecording] = useState(false);
     const [output, setOutput] = useState<OutputId>("image");
-    const [image, setImage] = useState<ImageChoices>(DEFAULT_IMAGE);
-    const [video, setVideo] = useState<VideoChoices>(DEFAULT_VIDEO);
+    const [cameraImage, setCameraImage] = useState<CameraImageChoices>(DEFAULT_CAMERA_IMAGE);
+    const [tourVideo, setTourVideo] = useState<TourVideoChoices>(DEFAULT_TOUR_VIDEO);
     const [data, setData] = useState<DataChoices>(DEFAULT_DATA);
+    const [report, setReport] = useState<ReportChoices>(DEFAULT_REPORT);
     const [recent, setRecent] = useState<readonly RecentExport[]>([]);
 
     useEffect(() => {
@@ -62,8 +75,16 @@ export function ExportDialog(): React.JSX.Element {
         // that source's records for this opening only (when there is more than one to tell apart).
         const several = (session?.data.sources().length ?? 0) > 1;
         const scope: DataChoices["scope"] = exportSource !== null && several ? `source:${exportSource}` : "all";
-        if (exportOn === "image") {
-            setOutput("image");
+        if (exportOn === "image" || exportOn === "video") {
+            setOutput(exportOn);
+            if (exportOn === "video" && exportTour !== null) {
+                // A tour's Export video...: Video with that tour chosen.
+                setTourVideo((choices) => ({ ...choices, camera: "tour", tour: exportTour }));
+            }
+            if (exportOn === "image" && exportView !== null) {
+                // A camera's Export image...: Image from that camera.
+                setCameraImage((choices) => ({ ...choices, view: exportView }));
+            }
             setData((choices) => ({ ...choices, scope }));
         } else {
             setOutput("data");
@@ -76,11 +97,23 @@ export function ExportDialog(): React.JSX.Element {
                 scope,
             }));
         }
-    }, [opened, exportOn, exportSource, session]);
+    }, [opened, exportOn, exportSource, exportTour, exportView, session]);
 
     const close = (): void => {
         store.set({ dialog: null });
     };
+    // While a video records, Escape and the close button stop it and the dialog stays open; the
+    // next one closes it.
+    const closeOrStop = (): void => {
+        if (recording) {
+            element?.cancelAnimationCapture();
+        } else {
+            close();
+        }
+    };
+    // A recording flies each flight as authored; when motion is reduced an opaque overlay covers
+    // the moving canvas.
+    const covered = recording && element?.isMotionReduced() === true;
 
     /**
      * Closes with a notice and, for a file, lists it first under Recent with this output's choices.
@@ -91,9 +124,17 @@ export function ExportDialog(): React.JSX.Element {
     // A press outside closes the settings on its way down, so the click it ends in is judged by what
     // was open when it began: one click on the backdrop closes the settings alone.
     const settingsAtPress = useRef(false);
+    // The choices as they are when a file is done, not as they were when its output last drew: a
+    // recording names its tour as it starts and ends seconds later.
+    const latest = useRef<{ image: RecentExport["choices"]; video: RecentExport["choices"]; data: DataChoices }>({
+        image: cameraImage,
+        video: tourVideo,
+        data,
+    });
+    latest.current = { image: cameraImage, video: tourVideo, data };
     const done = (message: string, file?: string): void => {
         if (file !== undefined) {
-            const choices = { image, video, data }[output as "image" | "video" | "data"] as RecentExport["choices"];
+            const choices = latest.current[output as "image" | "video" | "data"];
             setRecent((list) =>
                 [{ output, name: file, choices }, ...list.filter((entry) => entry.name !== file)].slice(0, RECENT_MAX),
             );
@@ -105,20 +146,47 @@ export function ExportDialog(): React.JSX.Element {
         const entry = recent[index];
         setOutput(entry.output);
         if (entry.output === "image") {
-            setImage(entry.choices as ImageChoices);
+            setCameraImage(entry.choices as CameraImageChoices);
         } else if (entry.output === "video") {
-            setVideo(entry.choices as VideoChoices);
+            setTourVideo(entry.choices as TourVideoChoices);
         } else if (entry.output === "data") {
             setData(entry.choices as DataChoices);
         }
     };
 
+    // A camera's Export image... and a tour's Export video... open the dialog on that output
+    // alone; the generic Export lists the rest, Image among them.
+    const single = exportOn === "image" || exportOn === "video";
+    const recentShown = recent
+        .map((entry, index) => ({ entry, index }))
+        .filter(({ entry }) => entry.output !== "video");
+    let title = "Export";
+    if (single) {
+        title = output === "image" ? "Export image" : "Export video";
+    }
+
     const body = (() => {
         switch (output) {
             case "image":
-                return <ImageOutput choices={image} onChange={setImage} onCancel={close} onDone={done} />;
+                return (
+                    <CameraImageOutput
+                        choices={cameraImage}
+                        onChange={setCameraImage}
+                        onCancel={close}
+                        onDone={done}
+                        heading={!single}
+                    />
+                );
             case "video":
-                return <VideoOutput choices={video} onChange={setVideo} onCancel={close} onDone={done} />;
+                return (
+                    <TourVideoOutput
+                        choices={tourVideo}
+                        onChange={setTourVideo}
+                        onCancel={close}
+                        onDone={done}
+                        onRecording={setRecording}
+                    />
+                );
             case "data":
                 return (
                     <DataOutput
@@ -129,6 +197,12 @@ export function ExportDialog(): React.JSX.Element {
                         onDone={done}
                     />
                 );
+            case "report":
+                return (
+                    <Suspense fallback={null}>
+                        <ReportOutput choices={report} onChange={setReport} onCancel={close} onDone={done} />
+                    </Suspense>
+                );
             default:
                 return <DocumentOutput key={output} kind={output} onCancel={close} onDone={done} />;
         }
@@ -137,48 +211,52 @@ export function ExportDialog(): React.JSX.Element {
     return (
         <Modal
             opened={opened}
-            onClose={close}
+            onClose={closeOrStop}
             // Mantine's modal sees Escape before anything inside it: a settings popover closes alone.
             closeOnEscape={!settingsOpen}
             closeOnClickOutside={false}
             overlayProps={{
+                ...(covered ? { backgroundOpacity: 1, color: "var(--mantine-color-body)" } : {}),
                 onPointerDown: () => {
                     settingsAtPress.current = settingsOpen;
                 },
                 onClick: () => {
+                    // Closing under a recording cancels it (the Video output does on closing).
                     if (!settingsAtPress.current) {
                         close();
                     }
                 },
             }}
-            title="Export"
+            title={title}
             size="lg"
-            classNames={{ body: "ws-dialog-columns ws-export-body" }}
+            classNames={{ body: single ? "ws-export-single" : "ws-dialog-columns ws-export-body" }}
         >
-            <div className="ws-export-list">
-                <PageList
-                    items={OUTPUTS}
-                    current={output}
-                    label="What to export"
-                    onCurrentChange={(id) => {
-                        setOutput(id as OutputId);
-                    }}
-                />
-                {recent.length > 0 ? (
-                    <div className="ws-export-recent">
-                        <Text size="xs" c="dimmed" fw={550}>
-                            Recent
-                        </Text>
-                        <PageList
-                            items={recent.map((entry, index) => ({ id: String(index), name: entry.name }))}
-                            label="Recent exports"
-                            onCurrentChange={(id) => {
-                                reopen(Number(id));
-                            }}
-                        />
-                    </div>
-                ) : null}
-            </div>
+            {single ? null : (
+                <div className="ws-export-list">
+                    <PageList
+                        items={OUTPUTS}
+                        current={output}
+                        label="What to export"
+                        onCurrentChange={(id) => {
+                            setOutput(id as OutputId);
+                        }}
+                    />
+                    {recentShown.length > 0 ? (
+                        <div className="ws-export-recent">
+                            <Text size="xs" c="dimmed" fw={550}>
+                                Recent
+                            </Text>
+                            <PageList
+                                items={recentShown.map(({ entry, index }) => ({ id: String(index), name: entry.name }))}
+                                label="Recent exports"
+                                onCurrentChange={(id) => {
+                                    reopen(Number(id));
+                                }}
+                            />
+                        </div>
+                    ) : null}
+                </div>
+            )}
             {opened ? body : null}
         </Modal>
     );

@@ -9,15 +9,15 @@ import { z } from "zod";
 import { setDimension, setLayout } from "../../../src/ai/commands/LayoutCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockContext, createTestGraph } from "../../helpers/test-graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 
 describe("LayoutCommands", () => {
     let graph: Graph;
     let context: CommandContext;
 
-    beforeEach(() => {
-        graph = createTestGraph();
-        context = createMockContext(graph);
+    beforeEach(async () => {
+        graph = await createCommandGraph({ nodeCount: 25, edgeCount: 40 });
+        context = createCommandContext(graph);
     });
 
     describe("setLayout", () => {

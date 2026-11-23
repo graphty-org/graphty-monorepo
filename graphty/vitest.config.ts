@@ -1,3 +1,4 @@
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,6 +12,7 @@ import type { BrowserCommand } from "vitest/node";
 import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir } from "../tools/test-slots.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { rawModelWorkers } from "../tools/vite-raw-model-workers.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { withBabylonCompilers } from "../vitest.babylon-compilers.mjs";
 import { baseTest } from "../vitest.base.mjs";
@@ -44,6 +46,53 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
     });
 };
 
+/** A file a test chooses: a path from this package's folder (a folder chooses all of it), or its bytes. */
+type ChosenFile =
+    { readonly path: string } | { readonly name: string; readonly mimeType: string; readonly base64: string };
+
+/**
+ * Answers the next file picker the page opens with several files, or a folder, as the reader
+ * choosing them; call it before the click that opens the picker, as {@link chooseNextFile}. A path
+ * that names a folder chooses that folder (a picker opened for a folder).
+ * @param ctx - the browser command context.
+ * @param files - the files, by path from this package's folder or by their bytes.
+ */
+const chooseNextFiles: BrowserCommand<[files: ChosenFile[]]> = (ctx, files) => {
+    const folder = files.find((file) => "path" in file && statSync(path.resolve(dirname, file.path)).isDirectory());
+    const payloads = (): { name: string; mimeType: string; buffer: Buffer }[] =>
+        files.map((file) =>
+            "path" in file
+                ? {
+                      name: path.basename(file.path),
+                      mimeType: "",
+                      buffer: readFileSync(path.resolve(dirname, file.path)),
+                  }
+                : { name: file.name, mimeType: file.mimeType, buffer: Buffer.from(file.base64, "base64") },
+        );
+    const chosen = folder !== undefined && "path" in folder ? path.resolve(dirname, folder.path) : payloads();
+    // Settles once the picker opens, so a test asking about it right after the click waits for it.
+    lastChooser = new Promise((resolve) => {
+        ctx.page.once("filechooser", (chooser) => {
+            void chooser
+                .element()
+                .getAttribute("accept")
+                .then((accept) => {
+                    resolve({ accept, multiple: chooser.isMultiple() });
+                });
+            void chooser.setFiles(chosen);
+        });
+    });
+};
+
+/** What the last picker {@link chooseNextFiles} answered offered: its `accept` and whether it took several files. */
+let lastChooser: Promise<{ accept: string | null; multiple: boolean }> | undefined;
+
+/**
+ * The `accept` attribute and the multiple flag of the last file picker {@link chooseNextFiles} answered.
+ * @returns them, or null before any picker.
+ */
+const lastFileChooser: BrowserCommand<[]> = async () => (await lastChooser) ?? null;
+
 /**
  * Lets the page read and write the clipboard, as a reader who allowed it, so a test can press
  * Control+V and Copy against the real clipboard.
@@ -68,6 +117,36 @@ const failRequests: BrowserCommand<[fragment: string, failing: boolean]> = async
         : ctx.page.unroute(glob));
 };
 
+/** Per browser context: the off-origin requests seen since the last takeOffOriginRequests. */
+const offOrigin = new WeakMap<object, string[]>();
+
+/**
+ * Starts (or restarts) listing every request the page and its workers make to a host other than
+ * the test server, so a test can prove nothing reached a third-party CDN. A listener, not a route:
+ * a route switches the browser's HTTP cache off (issue #3350).
+ * @param ctx - the browser command context.
+ */
+const watchOffOriginRequests: BrowserCommand<[]> = (ctx) => {
+    if (!offOrigin.has(ctx.context)) {
+        const seen: string[] = [];
+        offOrigin.set(ctx.context, seen);
+        ctx.context.on("request", (request) => {
+            const url = new URL(request.url());
+            if (/^https?:$/.test(url.protocol) && url.origin !== new URL(ctx.page.url()).origin) {
+                seen.push(request.url());
+            }
+        });
+    }
+    offOrigin.get(ctx.context)?.splice(0);
+};
+
+/**
+ * The off-origin requests seen since watchOffOriginRequests, emptying the list.
+ * @param ctx - the browser command context.
+ * @returns their URLs.
+ */
+const takeOffOriginRequests: BrowserCommand<[]> = (ctx) => offOrigin.get(ctx.context)?.splice(0) ?? [];
+
 /**
  * The two app modules the app's own tests replace, swapped by Vite as it serves them rather than by
  * `vi.mock` in the setup file. Every `vi.mock` makes Vitest add a Playwright route to the page's
@@ -75,7 +154,7 @@ const failRequests: BrowserCommand<[fragment: string, failing: boolean]> = async
  * holds every request until this process answers it. Registered in the setup file, those routes
  * covered every test file: each one fetched its whole module graph again, megabytes of dependency
  * bundles included, through the same Node process that carries every click and keystroke of the
- * other pages, and on a loaded core one file starting held a neighbour's `userEvent` call for 10 to
+ * other pages, and on a loaded core one file starting held a neighbor's `userEvent` call for 10 to
  * 15 seconds (issue #3350).
  *
  * - `src/elementLoader.ts` never loads `<graphty-element>`: a test that wants the real element
@@ -134,7 +213,16 @@ const chromium = () => ({
     // The clipboard, so Paste reads what a test wrote, as a reader's browser lets it after asking.
     provider: playwright({ contextOptions: { permissions: ["clipboard-read", "clipboard-write"] } }),
     instances: [{ browser: "chromium" as const }],
-    commands: { chooseNextFile, failRequests, grantClipboard, ...mapTileCommands },
+    commands: {
+        chooseNextFile,
+        chooseNextFiles,
+        lastFileChooser,
+        failRequests,
+        grantClipboard,
+        watchOffOriginRequests,
+        takeOffOriginRequests,
+        ...mapTileCommands,
+    },
 });
 
 /**
@@ -167,8 +255,31 @@ const realElementProject = (
     },
 });
 
+/**
+ * Answers the site's `site.json` with a 404 on the test server. The stories (through
+ * src/elementLoader.ts) and the app's boot read it; without this the dev server's single-page
+ * fallback answers with index.html, which makes Vite pre-transform src/main.tsx mid-run, the hazard
+ * `optimizeDeps` below describes: a dependency found then re-bundles and reloads the test page, and
+ * every story of the file running fails at once (the SurveyCard stories once all failed with an
+ * empty TypeError). A test that needs a site configuration loads a `data:` URL.
+ * @returns the plugin.
+ */
+const noSiteFile = (): Plugin => ({
+    name: "graphty-no-site-file",
+    configureServer(server) {
+        server.middlewares.use((request, response, next) => {
+            if (request.url?.split("?")[0]?.endsWith("/site.json") === true) {
+                response.statusCode = 404;
+                response.end();
+                return;
+            }
+            next();
+        });
+    },
+});
+
 const config = defineConfig({
-    plugins: [react(), sampleDataPlugin(), ...elementSourcePlugins],
+    plugins: [react(), sampleDataPlugin(), noSiteFile(), ...elementSourcePlugins, rawModelWorkers()],
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },
@@ -184,7 +295,15 @@ const config = defineConfig({
         // makes Vite pre-transform main.tsx, which finds both mid-run: Vite re-bundled, reloaded the
         // test page, and the shard hung (CI run 40235438577) or the next file failed (#3762). Tests
         // must never fetch a missing path from the test server; stub fetch instead.
-        include: ["@mantine/hooks", "react-dom/client", "eruda"],
+        // The FBX and USD loaders babylonjs-models imports when such a model first loads, too.
+        include: [
+            "@mantine/hooks",
+            "react-dom/client",
+            "eruda",
+            "@babylonjs/loaders/FBX/fbxFileLoader.pure.js",
+            "@babylonjs/loaders/USD/usdFileLoader.pure.js",
+            "@babylonjs/core/Meshes/Builders/tubeBuilder.js",
+        ],
         // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached
         // bundle under node_modules/.vite and trusts it while the lockfile and this config are
         // unchanged -- it does not notice a SOURCE change that imports a dependency the cache
@@ -204,7 +323,7 @@ const config = defineConfig({
         // The tests that mount the real graphty-element get a project of their own, run after
         // the others finish (sequence.groupOrder). Browser test files share the renderer's main
         // thread, and a real element loading and laying out a sample holds it for seconds at a
-        // time: run beside the rest, a neighbouring file's import of the element bundle
+        // time: run beside the rest, a neighboring file's import of the element bundle
         // (src/types/__tests__/ai.test.ts) took tens of seconds.
         projects: [
             {
@@ -283,6 +402,18 @@ const config = defineConfig({
                 test: {
                     name: "node",
                     include: ["test/**/*.test.ts"],
+                    environment: "node",
+                },
+            },
+            {
+                // Timing benchmarks of the built app (bench/load-time.bench.test.ts, issue #8018), in Node driving
+                // Chromium through Playwright. A measurement, so a "bench" project: no coverage, no time guard,
+                // never in the test shards. CI runs it in ci.yml's Performance Benchmarks job; by hand,
+                // npx vitest run --project=bench after the app's build.
+                extends: true,
+                test: {
+                    name: "bench",
+                    include: ["bench/**/*.bench.test.ts"],
                     environment: "node",
                 },
             },

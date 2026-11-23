@@ -231,6 +231,17 @@ describe("the Cytoscape.js style engine against real Cytoscape.js", () => {
                 // other beziers join the same two nodes (curved-edges.test.ts), which a headless core cannot show
                 const straightBezier = (prop: string, truth: unknown, i: number): boolean =>
                     prop === "curved" && truth === false && raw.get("curve-style")?.[i] === "bezier";
+                // a haystack loop's line stays inside its node (a line of no length at the default radius), so the engine
+                // draws it at opacity 0 where Cytoscape.js reports the element's opacity
+                const insideLoop = (prop: string, truth: unknown, i: number): boolean => {
+                    const data = t.elements[i]?.data;
+                    return (
+                        prop === "opacity" &&
+                        truth === 0 &&
+                        data?.source === data?.target &&
+                        raw.get("curve-style")?.[i] === "haystack"
+                    );
+                };
                 const base = defaults(target);
                 for (const [prop, want] of values) {
                     const got = t.values[prop];
@@ -245,7 +256,7 @@ describe("the Cytoscape.js style engine against real Cytoscape.js", () => {
                                     Array.isArray(x.elements) &&
                                     x.elements.includes(i),
                             );
-                        if (errors.has(i) || straightBezier(prop, truth, i)) {
+                        if (errors.has(i) || straightBezier(prop, truth, i) || insideLoop(prop, truth, i)) {
                             continue;
                         }
                         const w = want[i];
@@ -630,12 +641,12 @@ describe("the cascade", () => {
         expect(r.edge.values.midSourceArrow?.[0]).toBe("square");
     });
 
-    it("reads a double outline as the solid ring Cytoscape.js draws, its middle cut a third of the border wide", () => {
+    it("reads a double outline as a double ring, the line Cytoscape.js cuts down its middle", () => {
         const doc = {
             elements: SMALL.elements,
             style: [{ selector: "node", style: { "outline-width": 4, "outline-style": "double", "border-width": 1 } }],
         };
-        expect(evaluateCytoscapeJs(doc).node.values.outerBorderStyle?.[0]).toBe("solid");
+        expect(evaluateCytoscapeJs(doc).node.values.outerBorderStyle?.[0]).toBe("double");
     });
 
     it("reads middle arrows, outlines, line gradients and end label offsets, and writes them back", async () => {
@@ -754,6 +765,31 @@ describe("the cascade", () => {
         }
     });
 
+    it("writes a double label border back as Cytoscape.js's double, four times each line's width", async () => {
+        const doc = {
+            elements: SMALL.elements,
+            style: [
+                {
+                    selector: "node",
+                    style: {
+                        label: "x",
+                        "text-border-width": 8,
+                        "text-border-opacity": 1,
+                        "text-border-style": "double",
+                    },
+                },
+            ],
+        };
+        const s = await snapshotOf(doc);
+        const ex = extract(doc, s);
+        expect(resolveStyles(ex, "node", "labelBorderWidth", s)[0]).toBe(2);
+        const em = toCytoscapeStylesheet(ex);
+        const back = readCytoscapeStyles({ elements: coreElements(s, em), style: em.stylesheet, snapshot: s });
+        for (const property of ["labelBorderWidth", "labelBorderStyle"] as const) {
+            expect(resolveStyles(back, "node", property, s), property).toEqual(resolveStyles(ex, "node", property, s));
+        }
+    });
+
     it("reads a stylesheet given as text as it reads the same sheet given as an array", () => {
         const text = `node { width: 20; background-color: #336699 }
             .big { width: 50 }
@@ -869,6 +905,24 @@ describe("property aliases", () => {
             }
         });
         expect(all["node.label"][nodeOf("a0s")]).toBe("Label");
+    });
+});
+
+describe("haystack loops", () => {
+    it("draws a haystack loop's line at opacity 0, as its line stays inside its node", () => {
+        const doc = {
+            elements: [
+                { data: { id: "a" }, position: { x: 0, y: 0 } },
+                { data: { id: "b" }, position: { x: 100, y: 0 } },
+                { data: { id: "aa", source: "a", target: "a" } },
+                { data: { id: "ab", source: "a", target: "b" } },
+                // Cytoscape.js's own stylesheet curves a loop no rule sets a curve style for
+                { data: { id: "bb", source: "b", target: "b" } },
+            ],
+            style: [{ selector: "edge[id != 'bb']", style: { "curve-style": "haystack" } }],
+        };
+        const r = evaluateCytoscapeJs(doc);
+        expect(r.edge.values.opacity).toEqual([0, null, null]);
     });
 });
 

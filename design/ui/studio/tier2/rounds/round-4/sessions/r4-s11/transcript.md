@@ -41,7 +41,7 @@ Dana: A menu: Color, Width, Opacity, Pattern, Curved. Color.
 
 ## Step 10 -- Color
 `--step $S --click "Color"` -> 10.png
-Dana: It made a layer called "3 edges" in the left list and a legend entry "Edge color: 3 edges". Color is black (000000) -- black on grey isn't loud enough. I'll type red into the box.
+Dana: It made a layer called "3 edges" in the left list and a legend entry "Edge color: 3 edges". Color is black (000000) -- black on gray isn't loud enough. I'll type red into the box.
 
 ## Step 11 -- type red
 `--step $S --click-at 1265,160 --key Control+a --type "e00000" --key Enter` -> 11.png
@@ -61,7 +61,7 @@ Dana: The three slow links stay red on their own: Depot->Station, Station->Harbo
 - **What confused me / what I didn't like:**
   - I never found a way to say "minutes 10 or more" as a rule. I hand-picked three rows. Next month, when my colleague's times change, the red layer will still be those same three links whether they're slow or not, and I'd redo it by hand. That's exactly the monthly chore I already hate.
   - The new layer is called "3 edges". That tells nobody what it means. I'd want it to say "10+ minutes" (I didn't try renaming it).
-  - Default color for the new line was black, which barely stands out against grey links; and the red line is thin. I had to know to type a hex code.
+  - Default color for the new line was black, which barely stands out against gray links; and the red line is thin. I had to know to type a hex code.
   - Shift-clicking rows also painted browser text highlighting over the From/To cells -- looks like a glitch.
   - The drawing has no stop names on it, so "pointing out" a link on the picture only works if you also read the table.
   - Didn't touch the funnel button: on a task that says "don't take anything off", a filter felt risky and nothing told me it wouldn't hide things.

@@ -1,4 +1,4 @@
-import { Vector3 } from "@babylonjs/core";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 
 import type { Edge } from "./Edge";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";

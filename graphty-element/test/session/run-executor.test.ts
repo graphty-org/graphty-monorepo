@@ -6,6 +6,7 @@ import { assert, describe, it } from "vitest";
 import { AccelerationController, AcceleratorRegistry } from "../../src/acceleration";
 import { algorithmByKey } from "../../src/catalog/algorithms";
 import { GraphStore } from "../../src/data/GraphStore";
+import { WRITABLE_LANE } from "../../src/data/lane";
 import { isGraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
 import { AlgorithmManager } from "../../src/managers/AlgorithmManager";
@@ -81,9 +82,12 @@ function mockGraph(nodeIds: readonly string[], edges: readonly (readonly [string
             getSnapshot: (): GraphSnapshot => store.getSnapshot(),
             undirected: (snapshot: GraphSnapshot): DerivedGraph => store.undirected(snapshot),
             lastImport: undefined,
+            // The coordinates the snapshot lends by reference: a run settles a layout's owed
+            // publish on them before it reads positions, and reads nothing else through them.
+            [WRITABLE_LANE]: store.positions,
         },
         "dataManager",
-        new Set<PropertyKey>(["getSnapshot", "undirected", "lastImport"]),
+        new Set<PropertyKey>(["getSnapshot", "undirected", "lastImport", WRITABLE_LANE]),
         stray,
     );
     const graph = watched(

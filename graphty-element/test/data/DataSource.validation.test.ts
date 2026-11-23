@@ -1,7 +1,9 @@
 import { assert, describe, test } from "vitest";
 import { z } from "zod";
 
+import { CSVDataSource } from "../../src/data/CSVDataSource.js";
 import { JsonDataSource } from "../../src/data/JsonDataSource.js";
+import { isGraphtyError } from "../../src/errors/index.js";
 
 describe("Validation error handling", () => {
     test("collects validation errors instead of throwing", async () => {
@@ -60,6 +62,27 @@ describe("Validation error handling", () => {
 
         const errors = source.getErrorAggregator().getErrors();
         assert.strictEqual(errors.length, 100, "Should stop at error limit");
+    });
+
+    test("a reader that reaches its error limit stops with E_PARSE_FAILED", async () => {
+        const sources = [
+            new JsonDataSource({ data: JSON.stringify({ nodes: [null, null, null], edges: [] }), errorLimit: 2 }),
+            new CSVDataSource({ data: "source,target\na\nb\nc\n", errorLimit: 2 }),
+        ];
+        for (const source of sources) {
+            let thrown: unknown;
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                for await (const chunk of source.getData()) {
+                    // Process chunks
+                }
+            } catch (error) {
+                thrown = error;
+            }
+
+            assert.isTrue(isGraphtyError(thrown) && thrown.code === "E_PARSE_FAILED", String(thrown));
+            assert.deepInclude((thrown as { details: object }).details, { rowErrors: 2, limit: 2 });
+        }
     });
 
     test("validates edges with schema", async () => {

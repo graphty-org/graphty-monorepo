@@ -11,9 +11,14 @@ import "@graphty/graphty-element";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** What the element's hover event carries. */
 type NodeEventDetail = HTMLElementEventMap["graphty-node-hover"]["detail"];

@@ -12,8 +12,8 @@
  * 7.4e-2 over 32 perturbations -- the flagship shape and the noise member, kept with its measured 1.8x margin --,
  * karate/paper/3d 1.3e-4, random1k/paper/3d 2.5e-2, star200/networkx/2d 5.9e-6, karate/networkx/3d 4.1e-6,
  * isolated/networkx/3d 3.1e-5). The 10 x 10 grid in 2D (2.0e-1: the grid folds into different basins), karate in
- * networkx 2D (1.77e-1: the nearest-neighbour histogram of 34 nodes moves by whole nodes) and the isolated fixture in
- * paper mode (2.2e-1 in 2D, 1.56e-1 in 3D: the `separation` extreme value and the strays' nearest neighbours) are
+ * networkx 2D (1.77e-1: the nearest-neighbor histogram of 34 nodes moves by whole nodes) and the isolated fixture in
+ * paper mode (2.2e-1 in 2D, 1.56e-1 in 3D: the `separation` extreme value and the strays' nearest neighbors) are
  * unmeetable by ANY implementation at the 10% cap and are not cases; their force, trace and twin parity is covered
  * by the other P3 tests.
  */
@@ -52,6 +52,7 @@ import {
 import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses, ratioOf } from "../helpers/sabotage.js";
 import { forceAtlas2Oracle } from "../oracle/forceatlas2.js";
+import { noiseFloorWriting } from "../setup/env.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 // ---------------------------------------------------------------- the metrics on a hand-computed layout
@@ -94,7 +95,7 @@ describe("metrics (test/helpers/metrics.ts) on a hand-computed layout", () => {
         expect(h[3]).toBeCloseTo(1 / 3, 12);
         // fractions sum to 1
         expect(h.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 12);
-        // a single node has no neighbour: all zeros
+        // a single node has no neighbor: all zeros
         expect(nearestNeighbourHistogram(LINE, 1, 2, 4)).toEqual([0, 0, 0, 0]);
         // every node coincident (dim 2 of a z-only spread): mean 0 -> everything in bin 0
         const zOnly = Float32Array.from([0, 0, 0, 0, 0, 1, 0, 0, 3]);
@@ -236,7 +237,7 @@ describe("FA2 distributional parity: 100 iterations, metrics within the traced 1
                     worstLabel: label,
                     samples: Object.keys(oracleMetrics).length,
                 });
-                // the layout expanded from the unit square: FA2 has no unit-ball normalisation (spec 7.18)
+                // the layout expanded from the unit square: FA2 has no unit-ball normalization (spec 7.18)
                 expect(gpuMetrics.spread).toBeGreaterThan(2);
             } finally {
                 ctx.release(s);
@@ -245,7 +246,7 @@ describe("FA2 distributional parity: 100 iterations, metrics within the traced 1
     }
 
     it("writes the UNSCALED random1k metrics after 100 iterations and the f64 reference's as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
-        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+        if (!noiseFloorWriting()) {
             // a writer asserts nothing a recording run does not need, and its unscaled f64 oracle runs are
             // tens of seconds of synchronous work under coverage (issue #413)
             t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");

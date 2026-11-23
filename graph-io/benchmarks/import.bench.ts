@@ -3,7 +3,7 @@
  * end) plus the streaming checks of section 8.4: every importer over its generated fixture
  * (benchmarks/fixtures.ts) through a 64 KiB file stream, as a Uint8Array and as a string, with the
  * median of `runs` wall times, the timer-sampled heap peak and the heap retained after a full GC;
- * the doubling ratios that expose super-linear behaviour; and every exporter over a 1M-edge
+ * the doubling ratios that expose super-linear behavior; and every exporter over a 1M-edge
  * snapshot written to /dev/null in chunks.
  *
  *   pnpm run benchmark -- [--runs N] [--quick]        (benchmarks/run.ts calls runImportBenchmarks)
@@ -287,8 +287,7 @@ export async function runImportBenchmarks(args: readonly string[]): Promise<void
     await benchImport("graphml", "200k edges, Uint8Array", [graphml200k], graphmlImporter, "bytes", 200_000);
     await benchImport("gexf", "200k edges, Uint8Array", [gexf200k], gexfImporter, "bytes", 200_000);
     await benchImport("neo4j", "1M relationships, Uint8Array", [neo4jRels1m], neo4jImporter, "bytes", 1_000_000);
-    // Pajek as a Uint8Array is left out on purpose: the LineReader scan is quadratic in the 4 MiB
-    // decode slice and the 1M-arc file takes over a minute (see test/audit/streaming-quadratic.test.ts)
+    await benchImport("pajek", "100k vertices + 1M arcs, Uint8Array", [pajek1m], pajekImporter, "bytes", 1_000_000);
 
     console.log("\n== string ids: 12 characters (copied cells) versus 15 (V8 sliced strings pinning the chunks) ==");
     await benchImport(

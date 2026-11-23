@@ -1,6 +1,5 @@
 import { NullEngine, Scene } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, type Mock, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, type Mock, test, vi } from "vitest";
 
 import { PivotController } from "../../src/cameras/PivotController";
 import { applyDeadzone, XRInputHandler } from "../../src/cameras/XRInputHandler";
@@ -124,11 +123,11 @@ describe("XRInputHandler", () => {
         mockXRExperience = {
             input: {
                 onControllerAddedObservable: {
-                    add: vi.fn((handler) => {
+                    add: vi.fn((handler: (item: MockInputSource) => void) => {
                         mockXRExperience.input.onControllerAddedObservable.handlers.push(handler);
                         return handler;
                     }),
-                    remove: vi.fn((handler) => {
+                    remove: vi.fn((handler: (item: MockInputSource) => void) => {
                         const { handlers } = mockXRExperience.input.onControllerAddedObservable;
                         const index = handlers.indexOf(handler);
                         if (index >= 0) {
@@ -138,11 +137,11 @@ describe("XRInputHandler", () => {
                     handlers: [],
                 },
                 onControllerRemovedObservable: {
-                    add: vi.fn((handler) => {
+                    add: vi.fn((handler: (item: MockInputSource) => void) => {
                         mockXRExperience.input.onControllerRemovedObservable.handlers.push(handler);
                         return handler;
                     }),
-                    remove: vi.fn((handler) => {
+                    remove: vi.fn((handler: (item: MockInputSource) => void) => {
                         const { handlers } = mockXRExperience.input.onControllerRemovedObservable;
                         const index = handlers.indexOf(handler);
                         if (index >= 0) {

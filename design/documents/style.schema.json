@@ -761,7 +761,7 @@
                     "items": {
                         "enum": ["deuteranopia", "protanopia", "tritanopia"]
                     },
-                    "description": "The colour-vision deficiencies the palette stays distinct under. [] means untested, not unsafe."
+                    "description": "The color-vision deficiencies the palette stays distinct under. [] means untested, not unsafe."
                 }
             },
             "additionalProperties": false

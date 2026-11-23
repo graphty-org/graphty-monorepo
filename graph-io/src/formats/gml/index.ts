@@ -40,12 +40,12 @@ import {
     ELEMENT_TYPE_CODE,
     FLAG_TYPE_CODE,
     FLAG_VALUE_CODE,
+    GENERATED_ID_CODE,
     GRAPHICS_CODE,
     GROUPS_CODE,
     ID_DROPPED_CODE,
     ID_TYPE_CODE,
     MISSING_ENDPOINT_CODE,
-    MISSING_ID_CODE,
     MISSING_LABEL_CODE,
     NESTED_ELEMENT_CODE,
     NO_GRAPH_CODE,
@@ -72,8 +72,8 @@ export const GML_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
     ...ELEMENT_ISSUE,
     /**
-     * The text breaks GML's syntax: a word that is not a key or a value, an unclosed string or `[`, a stray `]`, or a
-     * key without a value. The import stops.
+     * The text breaks GML's syntax: a word that is not a key or a value, an unclosed string or `[`, a stray `]`, a
+     * key without a value, or records nested more than 1024 levels deep. The import stops.
      */
     SYNTAX: SYNTAX_CODE,
     /** The input is not valid UTF-8. The import stops. */
@@ -95,8 +95,11 @@ export const GML_ISSUE = Object.freeze({
     GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
     /** `graphName` matches more than one graph; pass `graphIndex`. The import stops. */
     AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
-    /** A node without an `id`. */
-    MISSING_ID: MISSING_ID_CODE,
+    /**
+     * A node without an `id` was given the next integer above every integer id, source and target of the graph, as
+     * igraph does. Reported once per file.
+     */
+    GENERATED_ID: GENERATED_ID_CODE,
     /** A node without a `label` under nodeIdFrom "label". */
     MISSING_LABEL: MISSING_LABEL_CODE,
     /** An edge without `source` or `target`. */
@@ -188,7 +191,7 @@ export const GML_LOSS = Object.freeze({
     /** A json row that is an array, written as repeated keys. */
     JSON_ARRAY: JSON_ARRAY_CODE,
     /**
-     * An attribute name GML cannot use as a key (keys are letters and digits, starting with a letter). The save fails
+     * An attribute name GML cannot use as a key (keys are letters, digits and `_`, starting with a letter or `_`). The save fails
      * unless `sanitizeKeys` is "mangle".
      */
     INVALID_KEY: INVALID_KEY_CODE,

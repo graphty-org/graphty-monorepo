@@ -140,7 +140,7 @@ function rel(file: string): string {
 
 function layerOf(file: string): Layer {
     const path = rel(file);
-    if (path === "errors.ts" || path === "constants.ts") {
+    if (path === "errors.ts" || path === "constants.ts" || path === "version.ts") {
         return "base";
     }
     if (path === "context.ts") {

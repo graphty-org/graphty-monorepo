@@ -35,6 +35,6 @@ it("disposing a graph while its setData is pending reports no error", async () =
     assert.deepEqual(
         errors.mock.calls.map((call) => String(call[0])),
         [],
-        "the cancelled step is teardown, not an error",
+        "the canceled step is teardown, not an error",
     );
 });

@@ -8,7 +8,7 @@
  * resolver of every P4 tolerance. Shares what fa2-parity.ts exports (the options, the simulation factory, the
  * decoders, the metrics); never imports fr-parity.ts or se-parity.ts.
  *
- * Units: every capture runs at scale 1 with a zero centre (assertUnitStart), so the owner's scene array IS the
+ * Units: every capture runs at scale 1 with a zero center (assertUnitStart), so the owner's scene array IS the
  * layout state on both sides. A one-cell fixture (`hubcell`, `onecell1k`, `onecell1025`: every position inside a
  * 1e-3 box around 0.1) takes ONE anchor node moved to (100, 100, 100) inside the layout (gridFixture): without it
  * the box itself would be the extent and its nodes would spread over the whole grid; with it K1's extent is
@@ -57,12 +57,12 @@ import {
 } from "./fa2-parity.js";
 import { fixture } from "./graphs.js";
 import { fieldRelError, flooredRelError } from "./matchers.js";
-import { noiseFloorFor, sampleStrided } from "./noise-floor.js";
+import { resolveTolerance, sampleStrided } from "./noise-floor.js";
 import { type CheckReport, ratioOf } from "./sabotage.js";
 
 // ---------------------------------------------------------------- options and tunings
 
-/** The options every grid parity case starts from: fa2-parity's BASE_OPTIONS (scale 1, zero centre, seed 7, settling off). */
+/** The options every grid parity case starts from: fa2-parity's BASE_OPTIONS (scale 1, zero center, seed 7, settling off). */
 export const GRID_BASE_OPTIONS: ForceAtlas2Options = BASE_OPTIONS;
 /** The grid tier, bitwise reproducible (spec 7.16), paper mode. */
 export const GRID_TUNING: GpuLayoutTuning = Object.freeze({ repulsion: "grid", deterministic: true, compat: "paper" });
@@ -80,7 +80,7 @@ export const EXACT_TUNING: GpuLayoutTuning = PAPER;
 export const UNBIASED_SEEDS = 4096;
 
 /**
- * The ladder's top rung on a SOFTWARE rasteriser (G4-F18). A Dawn process never returns the memory a grid
+ * The ladder's top rung on a SOFTWARE rasterizer (G4-F18). A Dawn process never returns the memory a grid
  * iteration takes -- about 0.67 MB on Mesa -- so the full ladder is 2 x 4096 iterations of memory this process can
  * only grow into. The development box carries it; the continuous integration runner's Mesa dies at about 2 GB,
  * taking the whole shard with it, so the software lane walks a ladder five doublings shorter and PRINTS its
@@ -92,8 +92,6 @@ export const UNBIASED_LADDER_FIRST = 32;
 /** The `nearMax` of the unbiasedness item: eight draws of a 20,000-entry cell (the plan's T11 item 3). */
 export const NEAR_MAX_SAMPLING = 8;
 
-/** True in a recording run: every grid parity test is then held to the spec cap, not to the derived value. */
-const WRITE = process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
 /** The one-cell fixtures that take an anchor node inside the layout (the module comment). */
 const ONE_CELL_FIXTURES: readonly string[] = Object.freeze(["hubcell", "onecell1k", "onecell1025"]);
 /** Every 5th node of a per-node noise fixture (the unscaled random20k: 4,000 nodes, 12,000 values per file); odd, so every lane residue is sampled (issue #267). */
@@ -129,7 +127,7 @@ export function gridFixture(
 }
 
 /**
- * Issue #90's scene: a uniform core in [-h, h)^dim and two groups of 50 outliers centred at x = +100 and x = -100,
+ * Issue #90's scene: a uniform core in [-h, h)^dim and two groups of 50 outliers centered at x = +100 and x = -100,
  * beyond the grid's extent (6 x the rms radius) on opposite sides. The core nodes come first. The core's half-width h
  * (5 in 2D, 15 in 3D) spreads it over enough finest cells that none holds more than the default nearMax (64) nodes,
  * so the near field is exact and the comparison sees the far field alone.
@@ -401,31 +399,12 @@ export const P4_TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; 
     });
 
 /**
- * The tolerance a grid parity test uses: the derived value of benchmarks/results/noise-floor.json (noiseFloorFor),
- * asserted to sit under its spec cap with the basis row the caps table names (a floor above the cap is a finding,
- * spec 10.4, never a loosened cap), or the spec cap itself during a recording run (GRAPHTY_NOISE_FLOOR_WRITE=1),
- * when the derived values do not exist yet.
+ * The tolerance a grid parity test uses: resolveTolerance over P4_TOLERANCE_CAPS.
  * @param id - a P4 tolerance id
  * @returns the tolerance value and its basis row
  */
 export function gridTolerance(id: string): { readonly value: number; readonly basis: string } {
-    if (!(id in P4_TOLERANCE_CAPS)) {
-        throw new Error(`${id}: not a P4 grid tolerance id`);
-    }
-    const spec = P4_TOLERANCE_CAPS[id];
-    if (WRITE) {
-        return { value: spec.cap, basis: spec.basis };
-    }
-    const derived = noiseFloorFor(id);
-    if (derived.basis !== spec.basis) {
-        throw new Error(`${id}: the committed basis row ${derived.basis} is not ${spec.basis}`);
-    }
-    if (!(derived.value <= spec.cap)) {
-        throw new Error(
-            `${id}: the derived tolerance ${derived.value} is above the spec cap ${spec.cap} (a finding, spec 10.4)`,
-        );
-    }
-    return derived;
+    return resolveTolerance(P4_TOLERANCE_CAPS, id, "P4 grid");
 }
 
 // ---------------------------------------------------------------- the noise fixture samples

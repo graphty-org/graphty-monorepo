@@ -147,7 +147,7 @@ async function bridge(graph: Graph, layout = "forceatlas2", options: object = {}
  *
  * WHY NOT THE PUBLISHED ARRAY. This fake's movement is a rigid translation -- every unfixed row
  * slides the same distance along x -- and a rigid translation is exactly what the bridge's refit
- * removes on the way out, because the arrangement's centre slides with it. So "did a batch move
+ * removes on the way out, because the arrangement's center slides with it. So "did a batch move
  * the graph" is a question only the simulation's own array can answer. A real layout deforms the
  * arrangement and shows up in both.
  * @param simulation - The fake simulation to read, which holds the array the bridge handed it.
@@ -165,7 +165,7 @@ function rawX(simulation: FakeSimulation | undefined, row: number): number {
  * A row's whole coordinate in the SIMULATION's own units, off a fake that is running the layout.
  *
  * The three components of {@link rawX}, for the cases that are about the MAP between the two unit
- * systems rather than about movement: the scale is one number but the centre is three, so a case
+ * systems rather than about movement: the scale is one number but the center is three, so a case
  * that only read x would leave two thirds of the map unpinned.
  * @param simulation - The fake simulation to read, which holds the array the bridge handed it.
  * @param row - The dense row to read.
@@ -180,7 +180,7 @@ function rawAt(simulation: FakeSimulation | undefined, row: number): { x: number
 }
 
 /**
- * How far the furthest of these rows sits from their own centre, in scene units.
+ * How far the furthest of these rows sits from their own center, in scene units.
  *
  * The published radius of a part of the graph, which is what the refit fits to `scalingFactor` --
  * so it is also what a case asking "did something else resize these rows" measures.
@@ -208,7 +208,7 @@ function spread(rig: Rig, rows: readonly number[]): number {
 /**
  * A number that describes an arrangement's shape and nothing about its size or its position.
  *
- * The ratio of two distances, which the envelope map -- a uniform scale about a moving centre --
+ * The ratio of two distances, which the envelope map -- a uniform scale about a moving center --
  * cannot change. A row that was reseeded instead of carried would land somewhere unrelated and
  * change it.
  * @param rig - The rig whose first three rows are measured.
@@ -596,6 +596,26 @@ describe("the simulation layout bridge", () => {
         assert.notStrictEqual(rig.x(0), before, "and the CPU simulation that replaced it still steps");
     });
 
+    it("does not report a batch that rejects after the layout was disposed", async () => {
+        const graph = await pathGraph(5);
+        const fake = createFakeAccelerator();
+        graph.acceleration.setAccelerator(fake);
+        const rig = await bridge(graph);
+        assert.isTrue(rig.engine.isAccelerated);
+
+        // As at a graph's teardown: the layout goes first, then the device under the batch it left in flight.
+        fake.fail("E_DISPOSED");
+        rig.step();
+        rig.engine.dispose();
+        await drain(fake);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        assert.lengthOf(
+            rig.errors.filter((event) => event.context === "layout"),
+            0,
+        );
+    });
+
     it("a snapshot replacement reloads the same simulation with the new node count and reseeds only the new rows", async () => {
         const graph = await pathGraph(5);
         const fake = createFakeAccelerator();
@@ -741,6 +761,41 @@ describe("the simulation layout bridge", () => {
         graph.setRunning(true);
         assert.strictEqual(fake.calls.reheat, 1, "play restarted the settle count on the settled simulation");
         assert.isFalse(rig.engine.isSettled, "so the layout has work to do again");
+    });
+
+    it("session.layout.motion follows a pause, a resume, coming to rest and a re-run, and publishes each change", async () => {
+        const graph = await pathGraph(5);
+        const fake = createFakeAccelerator({ settleAfter: 2 });
+        graph.acceleration.setAccelerator(fake);
+
+        const rig = await bridge(graph);
+        const session = graph.getSession();
+        const heard: string[] = [];
+        session.on("layout:motion-changed", ({ motion }) => heard.push(motion));
+        assert.strictEqual(session.layout.motion, "running", "a layout just set runs");
+        assert.isTrue(graph.isRunning(), "as isRunning() says");
+
+        graph.setRunning(false);
+        assert.strictEqual(session.layout.motion, "paused", "stopped before it came to rest");
+        assert.isFalse(graph.isRunning());
+
+        graph.setRunning(true);
+        assert.strictEqual(session.layout.motion, "running");
+
+        rig.step();
+        rig.step();
+        await drain(fake);
+        assert.isTrue(rig.engine.isSettled, "two landed batches settle this fake");
+        // What the frame loop does on the first frame that finds the layout settled; the loop is
+        // stopped in this fixture.
+        graph.getLayoutManager().running = false;
+        assert.strictEqual(session.layout.motion, "settled");
+
+        await session.layout.rerun();
+        assert.strictEqual(session.layout.motion, "running", "a re-run starts it again");
+        assert.strictEqual(session.history.steps.at(-1)?.fact.code, "layout.rerun");
+
+        assert.deepStrictEqual(heard, ["paused", "running", "settled", "running"], "one event per change");
     });
 
     it("a consumer pause holds through a load, a freeze and an accelerator attaching: nothing is submitted or reheated", async () => {
@@ -905,7 +960,7 @@ describe("the simulation layout bridge", () => {
 
         // LOUD, not quiet. There is no processor implementation of spring-electrical at all, so
         // the alternative to refusing is arranging the graph some other way and saying nothing.
-        // The layout catalogue declares `requires.accelerator` on this engine, so a picker never
+        // The layout catalog declares `requires.accelerator` on this engine, so a picker never
         // has to reach this refusal to find out.
         const refused = await graph.setLayout("spring-electrical").catch((error: unknown) => error);
 
@@ -969,6 +1024,30 @@ describe("the simulation layout bridge", () => {
         );
     });
 
+    it("a 3D layout over a flat arrangement spreads along z, and a pinned node keeps its z (issue #7965)", async () => {
+        // A FLAT START: laid out in 2D first, every node sits at one z. With no z in any
+        // difference no force has a z component, so a 3D run that kept that z stayed on the plane.
+        const graph = await pathGraph(20);
+        const flat = await bridge(graph, "forceatlas2", { dim: 2, seed: 3 });
+        for (let frame = 0; frame < 20; frame += 1) {
+            flat.step();
+        }
+
+        const pinned = graph.getDataManager().getNode("n0");
+        assert.isDefined(pinned);
+        pinned.pin();
+        const pinnedZ = flat.at(pinned.index).z;
+
+        const rig = await bridge(graph, "forceatlas2", { dim: 3, seed: 3 });
+        for (let frame = 0; frame < 200 && !rig.engine.isSettled; frame += 1) {
+            rig.step();
+        }
+
+        const zs = Array.from({ length: 20 }, (_value, row) => rig.at(row).z);
+        assert.isAbove(Math.max(...zs) - Math.min(...zs), 1, "the arrangement left the plane");
+        assert.closeTo(rig.at(pinned.index).z, pinnedZ, 1e-3, "the pinned node was not moved off it");
+    });
+
     it("publishes a settled ForceAtlas2 inside the scene-unit radius the layout was configured with", async () => {
         // THE DEFECT THIS PINS. ForceAtlas2's equilibrium grows with the graph and the simulation
         // never rescales what it computes, so a settled graph used to reach tens of thousands of
@@ -1011,7 +1090,7 @@ describe("the simulation layout bridge", () => {
         assert.closeTo(landed.z, 5, 1e-3);
 
         // AND IT STAYS THERE while the arrangement around it is refitted, which is the harder
-        // half: the graph is still settling, so the scale and the centre move under it every
+        // half: the graph is still settling, so the scale and the center move under it every
         // frame. A node that was published from the simulation's stale copy of itself would drift
         // out from under the pointer by the ratio of the two scales.
         for (let frame = 0; frame < 30; frame += 1) {
@@ -1074,10 +1153,10 @@ describe("the simulation layout bridge", () => {
 
     it("reads a scene-unit position as the simulation coordinate that point is published from", async () => {
         // THE WRITE-BACK DIRECTION, pinned where it can be seen. A published position cannot pin
-        // it: the refit is a uniform scale about the arrangement's own centre, so it normalises
+        // it: the refit is a uniform scale about the arrangement's own center, so it normalizes
         // any consistent pair of unit systems to the same picture, and a drag that wrote raw
         // scene units into the simulation would still read back at the pointer. What it would
-        // break is the simulation's own arithmetic -- a dragged node would pull its neighbours
+        // break is the simulation's own arithmetic -- a dragged node would pull its neighbors
         // toward some other point entirely -- and only the simulation's array shows that. This
         // fake holds the bridge's array, so here it can be read.
         const graph = await pathGraph(12);
@@ -1164,9 +1243,12 @@ describe("the simulation layout bridge", () => {
         // simulation's array from the element's -- through the same map, inverted. Read in scene
         // units instead, the arrangement would arrive at some other size and the forces, which
         // are absolute in the simulation's units, would take it apart and settle it again. The
-        // published picture would not say so: the refit normalises it either way, which is why
+        // published picture would not say so: the refit normalizes it either way, which is why
         // this is read off the simulation's own array and not off a node's position.
         const graph = await pathGraph(8);
+        // The working graph off: with it on, the seeded restart the add sets off lands after the
+        // freeze below instead of before it, so the count holds that build's load too.
+        graph.getSession().workingGraph = false;
         const fake = createFakeAccelerator({ moveBy: 40, settleAfter: 3 });
         graph.acceleration.setAccelerator(fake);
 

@@ -20,7 +20,7 @@
  */
 import "../../src/graphty-element";
 
-import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { ElementPositions } from "../../src/data/positions";
@@ -29,6 +29,7 @@ import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { assertScalesLinearly, type Growth, visitsDuring } from "../helpers/cost";
+import { mountElement, unmountElements } from "../helpers/mount-element";
 
 /** The two graph sizes: big enough that a quadratic path is 16x, small enough to stay cheap. */
 const SIZES = [100, 400] as const;
@@ -62,15 +63,7 @@ async function settled(graph: Graph): Promise<void> {
  * @returns The element.
  */
 async function mount(size: number, layout: string): Promise<Graphty> {
-    const element = document.createElement("graphty-element");
-    element.style.width = "400px";
-    element.style.height = "300px";
-    element.style.display = "block";
-    document.body.appendChild(element);
-    await element.updateComplete;
-    await vi.waitFor(() => {
-        assert.isTrue(element.graph.initialized, "the element initialised its graph");
-    });
+    const element = await mountElement();
     element.graph.engine.stopRenderLoop();
     await element.graph.setLayout(layout);
     const ids = idsOf(size);
@@ -189,6 +182,14 @@ const CASES: readonly Case[] = [
         prepare: (element) => andSettle(element, () => element.graph.getSession().layout.set("circular")),
         check: (element) => {
             assert.strictEqual(element.graph.getSession().layout.id, "circular");
+        },
+    },
+    {
+        methods: ["SessionLayout.rerun"],
+        growth: "linear",
+        prepare: (element) => andSettle(element, () => element.graph.getSession().layout.rerun()),
+        check: (element) => {
+            assert.strictEqual(element.graph.getSession().history.steps.at(-1)?.fact.code, "layout.rerun");
         },
     },
     {
@@ -422,7 +423,7 @@ describe("layout, positions and pinning do work in proportion to their reach", (
                         check(element, size);
                         return visits;
                     } finally {
-                        element.remove();
+                        unmountElements();
                     }
                 },
                 { sizes: SIZES, growth, counter: `elements visited by ${methods.join(", ")}`, superlinear },

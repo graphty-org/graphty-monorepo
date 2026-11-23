@@ -10,13 +10,24 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { credentials, defineSource, type GraphSession, registerSource } from "@graphty/graphty-element/session";
+import {
+    credentials,
+    defineSource,
+    type ExpandRequest,
+    type GraphSession,
+    registerSource,
+} from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// A second file by address opens the join screen only with sources and steps off: on, it is staged.
+withoutFeatures(["source-steps"]);
 
 /** The element, as the tag map names it. */
 type ElementTag = HTMLElementTagNameMap["graphty-element"];
@@ -207,16 +218,80 @@ registerSource(
     }),
 );
 
+/** What the tuned server was last asked: the params of its load and its last expansion. */
+const tuned: { params?: Record<string, unknown>; request?: ExpandRequest<unknown> } = {};
+
+/** A server with a param of every kind the form draws as a row, and an expansion that records what it was asked. */
+const TUNED = "test-tuned-server";
+
+registerSource(
+    defineSource({
+        id: TUNED,
+        descriptor: {
+            plainName: "Tuned server",
+            defaultEndpoint: "https://tuned.example",
+            features: ["expand"],
+            params: [
+                { name: "verbose", plainName: "Verbose", type: "boolean" },
+                { name: "retries", plainName: "Retries", type: "integer", min: 0, max: 9 },
+                {
+                    name: "format",
+                    plainName: "Format",
+                    type: "enum",
+                    values: [
+                        { value: "json", label: "JSON" },
+                        { value: "xml", label: "XML" },
+                    ],
+                },
+                { name: "region", plainName: "Region", type: "string" },
+            ],
+        },
+        records: (params: Record<string, unknown>) => {
+            tuned.params = params;
+            return Promise.resolve({ nodes: [{ id: "t0" }, { id: "t1" }], edges: [{ source: "t0", target: "t1" }] });
+        },
+        expand: (request, _sink, ctx) => {
+            tuned.request = request;
+            return Promise.resolve(ctx.finish({ next: null }));
+        },
+    }),
+);
+
 /**
- * Opens the server form from the Sources "+": Network data..., then the NDEx card in the chooser.
+ * Opens the server form from the Sources "+".
  * @returns the form.
  */
 async function openForm(): Promise<HTMLElement> {
     await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
-    const chooser = await screen.findByRole("dialog", { name: "Open network data" });
-    await userEvent.click(within(chooser).getByRole("button", { name: /^NDEx/ }));
     return screen.findByRole("form", { name: "Network data" });
+}
+
+/**
+ * Where the app serves a fixture, on this page's own origin.
+ * @param name - its file name.
+ * @returns the absolute address.
+ */
+function fixtureUrl(name: string): string {
+    const sample = PROTOTYPE_SAMPLES.find((each) => sampleName(each) === name);
+    if (sample === undefined) {
+        throw new Error(`no fixture ${name}`);
+    }
+    return new URL(sampleUrl(sample), location.href).href;
+}
+
+/**
+ * Loads a graph file by address through the form's Load from URL.
+ * @param url - the address.
+ */
+async function loadFromUrl(url: string): Promise<void> {
+    const form = await openForm();
+    await pick(form, "Kind", "Load from URL");
+    await userEvent.type(await within(form).findByRole("textbox", { name: "URL" }), url);
+    await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+    });
 }
 
 /**
@@ -394,9 +469,10 @@ describe("server sources on the real element", () => {
         await page.viewport(1366, 900);
     });
 
-    it("opens Network data... from an open project, and its NDEx card opens the form on NDEx", async () => {
+    it("opens Network data... from an open project, on NDEx, the first listed", async () => {
         await openDataPlace();
         const form = await openForm();
+        assert.isNull(screen.queryByRole("dialog", { name: "Open network data" }), "never the start page's chooser");
         await waitFor(() => {
             assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "Kind" }).value, "NDEx");
         });
@@ -588,6 +664,88 @@ describe("server sources on the real element", () => {
         }
     });
 
+    it("words a file at an address it could not read, naming the format and the line", async () => {
+        const realFetch = globalThis.fetch;
+        const address = "https://files.example/friends.csv";
+        // An edge list headed by two id columns naming the same ids: not a table graph-io can read.
+        const files = vi
+            .spyOn(globalThis, "fetch")
+            .mockImplementation((input, init) =>
+                new URL(input instanceof Request ? input.url : input, location.href).href === address
+                    ? Promise.resolve(new Response("user_id,friend_id\nu1,u2\nu2,u3\n", { status: 200 }))
+                    : realFetch(input, init),
+            );
+        try {
+            await openDataPlace();
+            const form = await openForm();
+            await pick(form, "Kind", "Load from URL");
+            await userEvent.type(within(form).getByRole("textbox", { name: "URL" }), address);
+            await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+            const chip = await waitFor(() => {
+                const found = form.querySelector('[data-code="E_PARSE_FAILED"]');
+                assert.isNotNull(found);
+                return found;
+            });
+            assert.strictEqual(chip?.textContent, "unreadable file: CSV, line 1");
+        } finally {
+            files.mockRestore();
+        }
+    });
+
+    it("lists every kind of network this browser can reach, and Load from URL", async () => {
+        await openDataPlace();
+        const form = await openForm();
+        await userEvent.click(within(form).getByRole("combobox", { name: "Kind" }));
+        await screen.findByRole("option", { name: "NDEx" });
+        const options = screen.getAllByRole("option").map((option) => option.textContent);
+        for (const kind of [
+            "NDEx",
+            "Cypher database",
+            "Neo4j",
+            "Web API",
+            "OpenAlex",
+            "SPARQL endpoint",
+            "Load from URL",
+        ]) {
+            assert.include(options, kind);
+        }
+        assert.notInclude(options, "Amazon Neptune", "graph-io marks Neptune unsupported in a browser");
+    });
+
+    it("tests and loads a graph file by address, with no Endpoint row", async () => {
+        const { session } = await openDataPlace();
+        const form = await openForm();
+        await pick(form, "Kind", "Load from URL");
+        assert.isNull(within(form).queryByRole("textbox", { name: "Endpoint" }));
+        const loadButton = within(form).getByRole<HTMLButtonElement>("button", { name: "Load" });
+        assert.isTrue(loadButton.disabled, "no address, no Load");
+        await userEvent.type(within(form).getByRole("textbox", { name: "URL" }), fixtureUrl("suppliers.csv"));
+        assert.isFalse(loadButton.disabled);
+        await userEvent.click(within(form).getByRole("button", { name: "Test" }));
+        await within(form).findByRole("group", { name: "Preview" });
+        assert.isNull(form.querySelector("[data-error]"));
+
+        await userEvent.click(loadButton);
+        await screen.findByRole("listitem", { name: /^suppliers\.csv/ });
+        assert.isAbove(session.data.nodes().length, 0);
+    });
+
+    it("takes a second file by address into a graph that holds data to the join screen, as Paste does", async () => {
+        const { session } = await openDataPlace();
+        await loadFromUrl(fixtureUrl("suppliers.csv"));
+        await waitFor(() => {
+            assert.deepEqual(
+                session.data.sources().map((source) => source.name),
+                ["suppliers.csv"],
+            );
+        });
+        const nodes = session.data.nodes().length;
+        await loadFromUrl(fixtureUrl("ships-to-2024-09.csv"));
+        await screen.findByRole("region", { name: /^Join / });
+        assert.lengthOf(session.data.sources(), 1, "nothing added before the reader chooses");
+        assert.strictEqual(session.data.nodes().length, nodes);
+    });
+
     it("keeps focus on Test while it reads", async () => {
         await openDataPlace();
         const form = await openForm();
@@ -603,5 +761,39 @@ describe("server sources on the real element", () => {
         await waitFor(() => {
             assert.equal(testButton.getAttribute("aria-disabled"), "false");
         });
+    });
+
+    it("sends each of a source's own rows and the expansion's depth, direction, edge types and limit", async () => {
+        const { element, session } = await openDataPlace();
+        const form = await openForm();
+        await pick(form, "Kind", "Tuned server");
+        await userEvent.click(within(form).getByRole("checkbox", { name: "Verbose" }));
+        await userEvent.type(within(form).getByRole("textbox", { name: "Retries" }), "3{Tab}");
+        await pick(form, "Format", "XML");
+        await userEvent.type(within(form).getByRole("textbox", { name: "Region" }), "eu");
+        const depth = within(form).getByRole("spinbutton", { name: "Depth" });
+        await userEvent.clear(depth);
+        await userEvent.type(depth, "2{Tab}");
+        // A segmented control's radio is drawn by its label; the reader clicks the label.
+        const direction = within(form).getByRole<HTMLInputElement>("radio", { name: "In" });
+        await userEvent.click(direction.labels?.[0] ?? direction);
+        await userEvent.type(within(form).getByRole("textbox", { name: "Edge types" }), "knows");
+        const expandLimit = within(form).getByRole("spinbutton", { name: "Expand limit" });
+        await userEvent.clear(expandLimit);
+        await userEvent.type(expandLimit, "4{Tab}");
+
+        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await waitFor(() => {
+            assert.lengthOf(session.data.nodes(), 2);
+        });
+        assert.deepInclude(tuned.params, { verbose: true, retries: 3, format: "xml", region: "eu" });
+
+        // A double-click expands with what the form's expansion rows say.
+        await userEvent.dblClick(element, { position: await pointOn(element, "t0") });
+        await waitFor(() => {
+            assert.deepEqual(tuned.request?.ids, ["t0"]);
+        });
+        assert.include(tuned.request, { depth: 2, direction: "in", limit: 4 });
+        assert.deepEqual(tuned.request?.relationshipTypes, ["knows"]);
     });
 });

@@ -1,6 +1,5 @@
 import { NullEngine, type Quaternion, Scene, TransformNode, Vector3 } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { PivotController } from "../../src/cameras/PivotController";
 
@@ -72,16 +71,11 @@ describe("PivotController", () => {
             assert.isAbove(Math.abs(rot.x), 0.1);
         });
 
-        test("should ignore very small rotation values", () => {
-            const originalRot = getRotation(controller).clone();
+        test("turns by any angle, however small", () => {
+            controller.rotate(2e-6, 0);
 
-            controller.rotate(0.00001, 0.00001);
-
-            const rot = getRotation(controller);
-            assert.approximately(rot.x, originalRot.x, 0.0001);
-            assert.approximately(rot.y, originalRot.y, 0.0001);
-            assert.approximately(rot.z, originalRot.z, 0.0001);
-            assert.approximately(rot.w, originalRot.w, 0.0001);
+            // A quaternion's y is sin(angle / 2).
+            assert.approximately(getRotation(controller).y, Math.sin(1e-6), 1e-12);
         });
 
         test("should apply combined yaw and pitch rotation", () => {
@@ -108,14 +102,11 @@ describe("PivotController", () => {
             assert.isAbove(Math.abs(1 - rot.w), 0.01);
         });
 
-        test("should ignore very small angles", () => {
-            const originalRot = getRotation(controller).clone();
-            const axis = new Vector3(1, 0, 0);
+        test("turns by any angle about any axis, however small", () => {
+            // Two points a millionth of a radian apart: their cross product is that short too.
+            controller.rotateAroundAxis(new Vector3(1e-6, 0, 0), 1e-6);
 
-            controller.rotateAroundAxis(axis, 0.00001);
-
-            const rot = getRotation(controller);
-            assert.approximately(rot.w, originalRot.w, 0.0001);
+            assert.approximately(getRotation(controller).x, Math.sin(5e-7), 1e-12);
         });
 
         test("should ignore zero-length axis", () => {

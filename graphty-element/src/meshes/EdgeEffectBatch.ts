@@ -1,4 +1,7 @@
-import { type Matrix, type Mesh, type Scene, type ShaderMaterial, Vector3 } from "@babylonjs/core";
+import type { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import { type Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { motionOf } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
@@ -164,7 +167,7 @@ export class ShadedEdgeBatch extends EdgeLineBatch {
         this.stopData = data.onRebuilt(() => {
             material.setTexture(data.paramSampler, data.paramTexture);
         });
-        this.ready = this.compiled(material, mesh); // NOSONAR(S7059): compiling starts with the batch, read at once
+        this.ready = this.compiled(material, mesh); // eslint-disable-line sonarjs/no-async-constructor -- compiling starts with the batch, read at once
     }
 
     /**

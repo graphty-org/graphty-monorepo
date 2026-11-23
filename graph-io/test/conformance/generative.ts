@@ -444,6 +444,8 @@ function canonOfSnapshot(s: GraphSnapshot, relax: ReadonlySet<Relax>): Canon {
  * - duplicateEdges: identical edges read back as one
  * - lineEnds: a carriage return or form feed reads back as a line feed
  * - unsetAsEmpty: an unset text cell reads back as ""
+ * - attributesDropped: the node and edge attributes are not written (SIF)
+ * - weightsDropped: the weights are not written; every edge reads back with the implicit weight
  *
  * Every difference the property found in a correct export is announced by a check() note, so the
  * per-format "lossy" table IS this note table; a format-wide loss without a note would be a check()
@@ -465,7 +467,9 @@ export type Relax =
     | "edgeOrder"
     | "duplicateEdges"
     | "lineEnds"
-    | "unsetAsEmpty";
+    | "unsetAsEmpty"
+    | "attributesDropped"
+    | "weightsDropped";
 
 /**
  * The documented losses, one per check() note code (the codes are one per concept across the
@@ -501,6 +505,9 @@ export const NOTE_RELAX: Readonly<Record<string, readonly Relax[]>> = {
     W_OBO_LINE_END: ["lineEnds"],
     W_OBOGRAPHS_EDGE_COLUMN_AS_META: ["edgeMeta"],
     W_CYS_UNSET_AS_EMPTY_STRING: ["unsetAsEmpty"],
+    W_SIF_UNDIRECTED_AS_DIRECTED: ["direction"],
+    W_COLUMN_DROPPED: ["attributesDropped"],
+    W_WEIGHTS_DROPPED: ["weightsDropped"],
 };
 
 /** One exporter configuration under test. */
@@ -531,6 +538,7 @@ export const TARGETS: readonly Target[] = [
     { name: "obo", format: "obo", exportOptions: { sanitizeIds: "mangle" } },
     { name: "json obographs", format: "json", exportOptions: { dialect: "obographs" } },
     { name: "cys", format: "cys", exportOptions: { sanitizeIds: "mangle" } },
+    { name: "sif", format: "sif", exportOptions: { sanitizeIds: "mangle" } },
 ];
 
 /**
@@ -633,15 +641,17 @@ const attrsKey = (attrs: Record<string, GenValue>, relax: ReadonlySet<Relax>): s
  * @returns the node lines and the edge lines
  */
 function lines(c: Canon, directed: boolean, relax: ReadonlySet<Relax>): { nodes: string[]; edges: string[] } {
-    const nodes = c.nodes.map((n) => `${idKey(n.id, relax)} {${attrsKey(n.attrs, relax)}}`);
+    const attrs = (a: Readonly<Record<string, GenValue>>): string =>
+        relax.has("attributesDropped") ? "" : attrsKey(a, relax);
+    const nodes = c.nodes.map((n) => `${idKey(n.id, relax)} {${attrs(n.attrs)}}`);
     const edges = c.edges.map((e) => {
         let [s, t] = [idKey(e.s, relax), idKey(e.t, relax)];
         if (!directed && t < s) {
             [s, t] = [t, s];
         }
-        const weight = e.w === undefined ? "unset" : valueKey(e.w, relax);
+        const weight = e.w === undefined || relax.has("weightsDropped") ? "unset" : valueKey(e.w, relax);
         const w = weight === "unset" ? "implicit" : weight;
-        return `${s} ${directed ? "->" : "--"} ${t} w=${w} {${attrsKey(e.attrs, relax)}}`;
+        return `${s} ${directed ? "->" : "--"} ${t} w=${w} {${attrs(e.attrs)}}`;
     });
     if (relax.has("nodeOrder")) {
         nodes.sort();
@@ -801,23 +811,7 @@ interface KnownFailure {
 }
 
 /** The open bugs; each has its minimal case in fixtures/generative/cases.json. */
-export const KNOWN_FAILURES: readonly KnownFailure[] = [
-    {
-        target: "gml",
-        cause: 'a text cell equal to NetworkX\'s list markers ("[]", "()", "_networkx_list_start") is written as that string and read back as a list; check() announces nothing (#7649)',
-        matches: (g) => allTexts(g).some((t) => t === "[]" || t === "()" || t === "_networkx_list_start"),
-    },
-];
-
-/**
- * Every text of a generated graph: string ids and string cells.
- * @param g - the graph
- * @returns the texts
- */
-function allTexts(g: GenGraph): string[] {
-    const cells = [...g.nodeValues, ...g.edges.map((e) => e.values)].flat();
-    return [...g.ids, ...cells].filter((v): v is string => typeof v === "string");
-}
+export const KNOWN_FAILURES: readonly KnownFailure[] = [];
 
 /**
  * The known failure a generated graph hits on a target, if any.

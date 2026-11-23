@@ -243,15 +243,14 @@ function inserts(db, table, columns, rows, verb = "INSERT OR IGNORE") {
     return out;
 }
 
-function failureRows(invocation, failures, root, nowMs) {
+function failureRows(invocation, failures, nowMs) {
     if (!Array.isArray(failures) || failures.length > ROWS_MAX)
         refuse(400, `failures must be a list of at most ${ROWS_MAX}`);
-    if (root !== undefined && typeof root !== "string") refuse(400, "root must be a string");
     return failures.map((f) => {
         need(f, { file: "string", name: "string", message: "string" });
         // cut before hashing, as the clients cut what they send, so a longer message costs no CPU and signs the same
         const message = f.message.slice(0, VALUE_MAX);
-        const { line, key, signature, status } = failureHashes(message, f.file, root);
+        const { line, key, signature, status } = failureHashes(message, f.file);
         return [invocation, f.file, f.name, status, signature, key, line, message, nowMs];
     });
 }
@@ -343,7 +342,7 @@ async function postInvocation(body, who, db, nowMs) {
             db,
             "failure",
             FAILURE_COLUMNS,
-            failureRows(body.id, body.failures ?? [], body.root, nowMs),
+            failureRows(body.id, body.failures ?? [], nowMs),
             "INSERT OR REPLACE",
         ),
     ]);
@@ -419,7 +418,7 @@ async function closeIssue(body, db, nowMs) {
 async function postFailures(body, who, db, nowMs) {
     if (NO_TESTS[who.kind]) refuse(403, NO_TESTS[who.kind]);
     ownId(body?.invocation, who);
-    const rows = failureRows(body.invocation, body.failures ?? [body], body.root, nowMs);
+    const rows = failureRows(body.invocation, body.failures ?? [body], nowMs);
     // D1 refuses an empty batch
     if (rows.length) await db.batch(inserts(db, "failure", FAILURE_COLUMNS, rows));
     return { stored: rows.length };
@@ -902,6 +901,164 @@ const ROUTES = {
     [`PUT ${TESTS_PATH}:name`]: putTestDurations,
 };
 
+// The Worker's own D1 use (#9784): every statement's meta.rows_read and meta.rows_written, summed per UTC day and
+// route. Each isolate keeps its counts in memory and adds them to usage_day (one row per day and route) at most once
+// a minute or every 50 requests, then reads the day's totals back: what the daily caps are checked against. Past a
+// cap every route but /v1/health and /v1/usage answers 429 until the next UTC day. ponytail: counts an isolate holds
+// when it is evicted are lost, and isolates each see the others' use only up to their last flush, so a day may run
+// a little past its cap; both are small next to the caps.
+const FLUSH_MS = 60_000;
+const FLUSH_REQUESTS = 50;
+const USAGE_DAYS_MAX = 90;
+const UNMETERED = new Set(["GET /v1/health", "GET /v1/usage"]);
+/**
+ * An empty usage meter: the isolate has one, and a test makes its own.
+ * @returns the meter
+ */
+export const usageMeter = () => ({ day: null, pending: new Map(), requests: 0, flushedAt: -Infinity, total: null });
+const isolateMeter = usageMeter();
+const utcDay = (ms) => new Date(ms).toISOString().slice(0, 10);
+
+// env.DB, counting what each statement reads and writes into `count`. first() is all()'s first row, as D1 defines
+// it, so its meta is counted too.
+function metered(db, count) {
+    const add = (meta) => {
+        count.read += meta?.rows_read ?? 0;
+        count.written += meta?.rows_written ?? 0;
+    };
+    const wrap = (stmt) => ({
+        stmt,
+        bind: (...args) => wrap(stmt.bind(...args)),
+        all: async () => {
+            const r = await stmt.all();
+            add(r.meta);
+            return r;
+        },
+        first: async () => {
+            const r = await stmt.all();
+            add(r.meta);
+            return r.results[0] ?? null;
+        },
+        run: async () => {
+            const r = await stmt.run();
+            add(r.meta);
+            return r;
+        },
+    });
+    return {
+        prepare: (sql) => wrap(db.prepare(sql)),
+        batch: async (statements) => {
+            const results = await db.batch(statements.map((s) => s.stmt));
+            for (const r of results) add(r.meta);
+            return results;
+        },
+    };
+}
+
+function capsOf(env) {
+    const cap = (v) => (Number(v) > 0 ? Number(v) : Infinity);
+    return { rowsRead: cap(env.DAILY_ROWS_READ_CAP), rowsWritten: cap(env.DAILY_ROWS_WRITTEN_CAP) };
+}
+
+// The day's use as this isolate knows it: the totals of its last flush and what it counted since.
+function usedToday(meter) {
+    let read = meter.total?.read ?? 0;
+    let written = meter.total?.written ?? 0;
+    for (const c of meter.pending.values()) {
+        read += c.read;
+        written += c.written;
+    }
+    return { read, written };
+}
+
+function overCap(meter, env, day) {
+    if (meter.day !== day) return null;
+    const caps = capsOf(env);
+    const used = usedToday(meter);
+    if (used.read < caps.rowsRead && used.written < caps.rowsWritten) return null;
+    const next = Date.parse(`${day}T00:00:00Z`) + 86_400_000;
+    return { caps, used, next };
+}
+
+async function flushUsage(meter, db, now) {
+    const day = meter.day;
+    const rows = [...meter.pending].map(([route, c]) => [day, route, c.requests, c.read, c.written]);
+    meter.pending = new Map();
+    meter.requests = 0;
+    meter.flushedAt = now;
+    const count = { read: 0, written: 0 };
+    const m = metered(db, count);
+    const statements = rows.map((r) =>
+        m
+            .prepare(
+                `INSERT INTO usage_day (day, route, requests, rows_read, rows_written) VALUES (?, ?, ?, ?, ?)
+                 ON CONFLICT (day, route) DO UPDATE SET requests = requests + excluded.requests,
+                   rows_read = rows_read + excluded.rows_read, rows_written = rows_written + excluded.rows_written`,
+            )
+            .bind(...r),
+    );
+    if (statements.length) await m.batch(statements);
+    const total = await m
+        .prepare(
+            "SELECT coalesce(sum(rows_read), 0) AS read, coalesce(sum(rows_written), 0) AS written FROM usage_day WHERE day = ?",
+        )
+        .bind(day)
+        .first();
+    meter.total = { read: total.read, written: total.written };
+    // the flush's own use is counted too, in the next flush
+    meter.pending.set("(usage)", { requests: 0, ...count });
+}
+
+async function recordUsage(meter, db, route, count, now) {
+    const day = utcDay(now);
+    if (meter.day !== day) {
+        // a new day: what the isolate counted yesterday still goes to yesterday
+        if (meter.day && meter.pending.size) await flushUsage(meter, db, now);
+        meter.day = day;
+        meter.total = null;
+        meter.flushedAt = -Infinity;
+    }
+    const c = meter.pending.get(route) ?? { requests: 0, read: 0, written: 0 };
+    c.requests += 1;
+    c.read += count.read;
+    c.written += count.written;
+    meter.pending.set(route, c);
+    meter.requests += 1;
+    if (meter.requests >= FLUSH_REQUESTS || now - meter.flushedAt >= FLUSH_MS) await flushUsage(meter, db, now);
+}
+
+/**
+ * GET /v1/usage?days=N : the Worker's D1 use per UTC day (newest first) and route, the last N days (7 by default,
+ * at most 90) with today; a minute or so behind, as each isolate adds its counts. Public, like /v1/health.
+ * @param query `days`
+ * @param db the D1 database
+ * @param now milliseconds
+ * @param env the Worker's vars (the caps)
+ * @returns `{ caps: { rowsRead, rowsWritten }, days: [{ day, requests, rowsRead, rowsWritten, routes: { "<METHOD
+ *   path>": { requests, rowsRead, rowsWritten } } }] }`; a cap not set is null
+ */
+async function getUsage(query, db, now, env) {
+    const days = Math.min(Math.max(Math.trunc(Number(query.get("days") ?? 7)) || 7, 1), USAGE_DAYS_MAX);
+    const { results } = await db
+        .prepare(
+            "SELECT day, route, requests, rows_read, rows_written FROM usage_day WHERE day >= ? ORDER BY day DESC, route",
+        )
+        .bind(utcDay(now - (days - 1) * 86_400_000))
+        .all();
+    const out = [];
+    for (const r of results) {
+        if (out.at(-1)?.day !== r.day) out.push({ day: r.day, requests: 0, rowsRead: 0, rowsWritten: 0, routes: {} });
+        const d = out.at(-1);
+        d.routes[r.route] = { requests: r.requests, rowsRead: r.rows_read, rowsWritten: r.rows_written };
+        d.requests += r.requests;
+        d.rowsRead += r.rows_read;
+        d.rowsWritten += r.rows_written;
+    }
+    const caps = capsOf(env);
+    const finite = (n) => (Number.isFinite(n) ? n : null);
+    return { caps: { rowsRead: finite(caps.rowsRead), rowsWritten: finite(caps.rowsWritten) }, days: out };
+}
+
 // The route key and its one path parameter: `/v1/durations/tests/<name>` names a history.
 function routeOf(method, pathname) {
     if (!pathname.startsWith(TESTS_PATH)) return [`${method} ${pathname}`, undefined];
@@ -919,26 +1076,65 @@ function routeOf(method, pathname) {
  * @param [deps.fetch] the fetch that reads GitHub's OIDC key set
  * @param [deps.now] the current time in milliseconds
  * @param [deps.keys] the OIDC signing key cache (keyCache()); the isolate's own by default
+ * @param [deps.meter] the D1 usage meter (usageMeter()); the isolate's own by default
  * @returns the response
  */
-export async function handle(request, env, { fetch: doFetch = fetch, now = Date.now(), keys = isolateKeys } = {}) {
+export async function handle(
+    request,
+    env,
+    { fetch: doFetch = fetch, now = Date.now(), keys = isolateKeys, meter = isolateMeter } = {},
+) {
     const { pathname, searchParams } = new URL(request.url);
+    const count = { read: 0, written: 0 };
+    const db = metered(env.DB, count);
+    let routeKey = "(unknown)";
+    try {
+        return await answer(request, env, { pathname, searchParams, doFetch, now, keys, meter, db }, (k) => {
+            routeKey = k;
+        });
+    } finally {
+        // a failed count never costs the answer
+        await recordUsage(meter, env.DB, routeKey, count, now).catch((e) => console.log(`usage: ${e.message}`));
+    }
+}
+
+async function answer(request, env, { pathname, searchParams, doFetch, now, keys, meter, db }, named) {
     try {
         if (request.method === "GET" && pathname === "/v1/health") {
-            await env.DB.prepare("SELECT 1").first();
+            named("GET /v1/health");
+            await db.prepare("SELECT 1").first();
             return json({ ok: true, schema: 1 });
+        }
+        if (request.method === "GET" && pathname === "/v1/usage") {
+            named("GET /v1/usage");
+            return json(await getUsage(searchParams, db, now, env));
         }
         const [key, name] = routeOf(request.method, pathname);
         const route = ROUTES[key] ?? refuse(404, `no ${request.method} ${pathname}`);
+        named(key);
+        const over = UNMETERED.has(key) ? null : overCap(meter, env, utcDay(now));
+        if (over) return capped(over, now);
         const who = await authenticate(request, env, doFetch, now, keys);
         const body =
             request.method === "GET"
                 ? searchParams
                 : await request.json().catch(() => refuse(400, "the body is not JSON"));
-        return json(await route(body, who, env.DB, now, name));
+        return json(await route(body, who, db, now, name));
     } catch (error) {
         if (error instanceof Refused) return json({ error: error.message }, error.status);
         console.error(`${request.method} ${pathname} failed: ${error.stack ?? error}`);
         return json({ error: "internal error" }, 500);
     }
+}
+
+// 429 past a daily cap, until the next UTC day: clients take it as the store unavailable and fail open
+function capped({ caps, used, next }, now) {
+    const which = used.read >= caps.rowsRead ? "rows read" : "rows written";
+    const error =
+        `the results store's daily D1 cap is spent (${which}: ${used.read} read of ${caps.rowsRead}, ` +
+        `${used.written} written of ${caps.rowsWritten}); it answers again at ${new Date(next).toISOString()}`;
+    return Response.json(
+        { error, rowsRead: used.read, rowsWritten: used.written, caps },
+        { status: 429, headers: { "retry-after": String(Math.ceil((next - now) / 1000)) } },
+    );
 }

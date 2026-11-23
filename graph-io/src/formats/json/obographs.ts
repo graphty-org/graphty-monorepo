@@ -15,6 +15,7 @@
 import { type ColumnHandle, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
 import { declareResolved } from "../../common/attributes.js";
+import { setOwn } from "../../common/json-elements.js";
 import {
     compactOboIri,
     OBO_NODE_COLUMNS,
@@ -277,7 +278,7 @@ export function importObographs(ctx: ImportContext, root: JsonRecord): void {
     const graphMeta: JsonRecord = {};
     for (const key of Object.keys(graph)) {
         if (key !== "nodes" && key !== "edges") {
-            graphMeta[key] = graph[key];
+            setOwn(graphMeta, key, graph[key]);
         }
     }
     for (const key of AXIOM_KEYS) {
@@ -289,7 +290,7 @@ export function importObographs(ctx: ImportContext, root: JsonRecord): void {
     const document: JsonRecord = {};
     for (const key of Object.keys(root)) {
         if (key !== "graphs") {
-            document[key] = root[key];
+            setOwn(document, key, root[key]);
         }
     }
     const label = typeof graph.lbl === "string" ? graph.lbl : null;
@@ -466,7 +467,7 @@ function writeNode(
     text("propertyType", "propertyType");
     for (const key of Object.keys(record)) {
         if (!NODE_KEYS.has(key)) {
-            unrecognized[key] = record[key];
+            setOwn(unrecognized, key, record[key]);
         }
     }
     const { meta } = record;

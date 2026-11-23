@@ -9,7 +9,7 @@
  *                                 or dynamic import):
  *                                 anything tagged @deprecated, and every export declared outside the
  *                                 replacement code (algorithms: indexed/, data-structures/, types/,
- *                                 utils/ except graph-converters.ts, errors.ts; layout: everything but
+ *                                 utils/ except graph-converters.ts, errors.ts, version.ts; layout: everything but
  *                                 layouts/, generators/ and utils/rescale.ts)
  *   legacy-graph-bridge           calls toAlgorithmGraph or algorithmGraph
  *   legacy-graph-construction     constructs the legacy Graph class of @graphty/algorithms
@@ -19,7 +19,7 @@
  *                                 type-only or side-effect-only import does not count
  *   parser-dependency             graphty-element src imports papaparse or fast-xml-parser
  *   hand-written-parser           graphty-element/src/data holds csv-variant-detection.ts, parsePajek
- *                                 or a tokeniser (tokenize, tokenizeLine, a *Tokenizer or *Lexer, ...)
+ *                                 or a tokenizer (tokenize, tokenizeLine, a *Tokenizer or *Lexer, ...)
  *
  * The legacy names are read from the algorithms and layout sources with the TypeScript compiler,
  * so a name that gains @deprecated is caught without editing this file.
@@ -53,7 +53,9 @@ function algorithmsLegacyFile(path) {
     if (path === "utils/graph-converters.ts") {
         return true;
     }
-    return !["indexed/", "data-structures/", "types/", "utils/", "errors.ts"].some((p) => path.startsWith(p));
+    return !["indexed/", "data-structures/", "types/", "utils/", "errors.ts", "version.ts"].some((p) =>
+        path.startsWith(p),
+    );
 }
 
 /**

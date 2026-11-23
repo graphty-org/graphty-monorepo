@@ -6,25 +6,26 @@
  */
 
 import { type AttributeDescriptor, sourceDescriptors } from "@graphty/graphty-element/catalog";
-import type {
-    CodedFact,
-    ColumnRef,
-    ColumnRole,
-    Endpoint,
-    GraphSession,
-    JoinShape,
-    LeftOutEdge,
-    LoadedSource,
-    LocationKind,
-    LocationUnused,
-    LocationUsing,
-    TableMapping,
-    TableMappingRead,
+import {
+    type CodedFact,
+    type ColumnRef,
+    type ColumnRole,
+    type Endpoint,
+    type GraphSession,
+    type JoinShape,
+    type LeftOutEdge,
+    type LoadedSource,
+    type LocationKind,
+    type LocationUnused,
+    type LocationUsing,
+    pathParts,
+    type PositionAxis,
+    type Run,
+    type TableMappingRead,
 } from "@graphty/graphty-element/session";
 
-import { formatNumber, valueText } from "../inspector/words";
+import { count, formatNumber, valueText } from "../inspector/words";
 import { kindName } from "../server/words";
-import { formatCount } from "../settings/numberFormat";
 import { failureWords } from "../style/words";
 
 /** What an Attributes row's glyph shows: what the column measures, or the run that made it. */
@@ -45,16 +46,6 @@ export interface AttributeRow {
     readonly fill: string | null;
     /** The row's second line, which a screen reader hears after the name: the type word, then the fill. */
     readonly description: string;
-}
-
-/**
- * A count and its noun, singular for one.
- * @param n - the count.
- * @param noun - the singular noun.
- * @returns such as "1 node" or "34 nodes".
- */
-export function count(n: number, noun: string): string {
-    return `${formatCount(n)} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 /**
@@ -129,7 +120,7 @@ export function loadName(load: LoadedSource): string {
  */
 export function sourcesWords(sources: readonly LoadedSource[]): string | undefined {
     const files = sources.flatMap((load) =>
-        load.tables.length > 1 ? load.tables : [load.name ?? load.tables[0] ?? "Untitled data"],
+        load.tables.length > 1 ? load.tables : [load.name ?? load.tables.at(0) ?? "Untitled data"],
     );
     if (files.length <= 1) {
         return files.length === 0 ? undefined : `From ${files[0]}`;
@@ -239,9 +230,6 @@ export function attributeRows(
             };
         });
 }
-
-/** Why an attribute's verbs cannot run: it went away under the open menu. */
-export const GONE_WORD = "No longer in the data";
 
 /**
  * A notice for a filter change the element refused, with its reason when the app has words for
@@ -353,7 +341,7 @@ function matchedUnit(shape: JoinShape): "node" | "edge" | "row" {
  * @param bytes - how many bytes.
  * @returns such as "45 B", "12 KB" or "1.4 MB".
  */
-function sizeWords(bytes: number): string {
+export function sizeWords(bytes: number): string {
     if (bytes < 1000) {
         return `${String(bytes)} B`;
     }
@@ -377,8 +365,8 @@ function formatWord(source: LoadedSource): string {
  * @returns such as "Id" or "symbol".
  */
 function graphValueWord(graph: string): string {
-    const plain = graph.replace(/^data\./, "");
-    return plain === graph && graph !== "" ? `${graph.charAt(0).toUpperCase()}${graph.slice(1)}` : plain;
+    const parts = pathParts(graph);
+    return parts?.from === "data" ? parts.column : `${graph.charAt(0).toUpperCase()}${graph.slice(1)}`;
 }
 
 /** What a load's details say besides its own entry. */
@@ -552,7 +540,16 @@ export const FIELD_ROWS: readonly FieldRow[] = [
 
 /** What a Fields "+" entry is. */
 export type EntryId =
-    "label" | "kind" | "kindName" | "weight" | "time" | LocationKind | "edgeId" | "sourceKind" | "targetKind";
+    | "label"
+    | "kind"
+    | "kindName"
+    | "weight"
+    | "time"
+    | LocationKind
+    | PositionAxis
+    | "edgeId"
+    | "sourceKind"
+    | "targetKind";
 
 /** One kind of Fields "+" entry. */
 export interface FieldEntry {
@@ -584,6 +581,9 @@ export const FIELD_ENTRIES: Readonly<Record<FieldSide, readonly FieldEntry[]>> =
         { id: "weight", name: "Weight", role: "weight" },
         { id: "time", name: "Time", role: "time" },
         ...LOCATION_ENTRIES,
+        { id: "x", name: "X", role: "x" },
+        { id: "y", name: "Y", role: "y" },
+        { id: "z", name: "Z", role: "z" },
     ],
     edges: [
         { id: "edgeId", name: "Id", load: "edgeId" },
@@ -747,24 +747,6 @@ export function fileKindChoices(source: LoadedSource | undefined, current: strin
 }
 
 /**
- * A load-time mapping that changes one role, in the shape the load's table is named by: a bare
- * mapping for a load of one table, the table by id otherwise.
- * @param source - the load.
- * @param side - which table.
- * @param roles - the roles to change.
- * @returns the mapping.
- */
-export function remap(
-    source: LoadedSource,
-    side: FieldSide,
-    roles: TableMapping,
-): TableMapping | { tables: Record<string, TableMapping> } {
-    const tables = Object.entries(source.mapping?.tables ?? {});
-    const id = tables.find(([, table]) => table.rowsAre === side)?.[0];
-    return tables.length <= 1 || id === undefined ? roles : { tables: { [id]: roles } };
-}
-
-/**
  * The glyph the Data place's row draws for a column: free text as text, not as groups.
  * @param session - the session.
  * @param column - the column.
@@ -791,4 +773,31 @@ export function namesOnce(names: readonly string[]): string {
         counts.set(name, (counts.get(name) ?? 0) + 1);
     }
     return [...counts].map(([name, count]) => (count > 1 ? `${name} x${String(count)}` : name)).join(", ");
+}
+
+/**
+ * A result's methods text, for a write-up: what ran, over what, with which settings, and which
+ * versions computed it, all read from the run's record.
+ * @param session - the element's session.
+ * @param run - the result.
+ * @returns the text.
+ */
+export function methodsWords(session: GraphSession, run: Run): string {
+    const descriptor = session.catalog.algorithms().find((each) => each.key === run.algorithm);
+    const name = descriptor === undefined ? run.algorithm : `${descriptor.plainName} (${descriptor.technicalName})`;
+    const settings = Object.entries(run.params).map(
+        ([key, value]) => `${key} = ${typeof value === "string" ? value : JSON.stringify(value)}`,
+    );
+    const over = `${count(run.scope.nodeCount, "node")} and ${count(run.scope.edgeCount, "edge")}`;
+    const withSettings = settings.length === 0 ? "" : `, with ${settings.join(", ")}`;
+    const lines = [
+        `${name} was computed over ${over}${withSettings}.`,
+        `Computed by ${Object.entries(run.engine.packages)
+            .map(([name, version]) => `${name} ${version}`)
+            .join(", ")}.`,
+    ];
+    if (run.record.seed !== null) {
+        lines.push(`Seed: ${String(run.record.seed)}.`);
+    }
+    return lines.join(" ");
 }

@@ -16,9 +16,11 @@ import {
 } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
+import { type AuthoredLayoutDescriptor, type EdgePosition, LayoutEngine } from "../../extend";
 import type { StaticStyle } from "../../src/catalog/types";
 import type { Edge } from "../../src/Edge";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { FixedLayout } from "../../src/layout/FixedLayoutEngine";
 import { gradientPieceColors } from "../../src/meshes/edgeGradient";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { type DrawnAnnotation, readDrawn } from "../fidelity/drawn-scene";
@@ -39,9 +41,10 @@ afterEach(() => {
  * Two nodes 4 apart on the x axis, one edge between them, each styled by its layer, laid out and placed.
  * @param edgeSet - the edge layer
  * @param nodeSet - the node layer
+ * @param layout - the layout that places them
  * @returns the edge
  */
-async function oneEdge(edgeSet: StaticStyle, nodeSet: StaticStyle = {}): Promise<Edge> {
+async function oneEdge(edgeSet: StaticStyle, nodeSet: StaticStyle = {}, layout = "fixed"): Promise<Edge> {
     container = document.createElement("div");
     container.style.width = "800px";
     container.style.height = "600px";
@@ -49,7 +52,7 @@ async function oneEdge(edgeSet: StaticStyle, nodeSet: StaticStyle = {}): Promise
     graph = new Graph(container);
     await graph.init();
     await graph.setViewMode("2d");
-    await graph.setLayout("fixed", { dim: 2 });
+    await graph.setLayout(layout, layout === "fixed" ? { dim: 2 } : {});
     await graph.addNode(asData({ id: "A", position: { x: 0, y: 0, z: 0 } }));
     await graph.addNode(asData({ id: "B", position: { x: 4, y: 0, z: 0 } }));
     await graph.addEdge(asData({ id: "A:B", source: "A", target: "B" }), { source: "source", target: "target" });
@@ -71,6 +74,7 @@ interface EdgeLines {
     outlineBatch: EdgeLineBatch | null;
     outlineSlots: number[];
     gradientPieces: { batch: EdgeLineBatch; slot: number; color: string }[];
+    strandRuns: { batch: EdgeLineBatch; slots: number[]; color: string }[];
 }
 
 /**
@@ -108,6 +112,47 @@ describe("an edge's outline", () => {
     });
 });
 
+/** Where a layout lays each edge's route, as `along` its two ends, on the line between them: nine bends. */
+const LAID_ALONG = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+
+/** Whether {@link LaidCurveLayout} lays its edges' bends too, or draws them straight. */
+let laysBends = true;
+
+/**
+ * The fixed layout, laying every edge along a curve sampled at {@link LAID_ALONG} that it measures so that the
+ * curve's first half crowds into its first stretch: each sample's measure is the square of its share along, as a
+ * Bezier curve whose control points bunch at its end runs. It lays the samples as bends, or draws the edge straight.
+ */
+class LaidCurveLayout extends FixedLayout {
+    static override readonly type: string = "test-laid-curve";
+    static descriptor: AuthoredLayoutDescriptor = {
+        id: "test-laid-curve",
+        plainName: "Laid curve",
+        technicalName: "Fixed positions with a laid route",
+        description: "Places nodes at their data positions and lays each edge along a route with values.",
+        family: "geometric",
+        kind: "batch",
+        maxDimensions: 3,
+        sizeRating: "any",
+        structuralInputs: [],
+        engine: "test-laid-curve",
+        options: [],
+    };
+
+    override getEdgePosition(e: Edge): EdgePosition {
+        return {
+            ...super.getEdgePosition(e),
+            ...(laysBends ? { bends: LAID_ALONG.flatMap((along) => [along, 0]) } : {}),
+            laidCurve: {
+                points: LAID_ALONG.flatMap((along) => [along, 0]),
+                params: LAID_ALONG.map((along) => along * along),
+            },
+        };
+    }
+}
+
+LayoutEngine.register(LaidCurveLayout);
+
 describe("an edge painted in a gradient", () => {
     test("is drawn as pieces from the source end to the target end in the gradient's colors", async () => {
         const edge = await oneEdge({ "edge.gradientColors": "#ff0000 #0000ff", "edge.color": "#505050" });
@@ -132,9 +177,89 @@ describe("an edge painted in a gradient", () => {
         assert.isTrue(first.equalsWithEpsilon(start, 1e-6) && last.equalsWithEpsilon(end, 1e-6));
     });
 
+    test.each([true, false])(
+        "places its colors by the measure of the curve a layout laid (bends laid: %s)",
+        async (bends) => {
+            laysBends = bends;
+            const edge = await oneEdge(
+                { "edge.gradientColors": "#ff0000 #0000ff", "edge.arrowHead": "none" },
+                {},
+                "test-laid-curve",
+            );
+            const { gradientPieces } = edge as unknown as EdgeLines;
+            assert.isAbove(gradientPieces.length, 2);
+            // the curve's measure at x, and the x of a measure: the nodes' centers are 4 apart
+            const xs = LAID_ALONG.map((along) => 4 * along);
+            const us = LAID_ALONG.map((along) => along * along);
+            const lerp = (from: number[], to: number[], v: number): number => {
+                const i = Math.max(
+                    1,
+                    from.findIndex((f) => f >= v),
+                );
+                return to[i - 1] + ((v - from[i - 1]) / (from[i] - from[i - 1])) * (to[i] - to[i - 1]);
+            };
+            const startOf = (i: number): Vector3 => gradientPieces[i].batch.endsOf(gradientPieces[i].slot)[0];
+            const lastPiece = gradientPieces.at(-1);
+            assert(lastPiece);
+            const u0 = lerp(xs, us, startOf(0).x);
+            const u1 = lerp(xs, us, lastPiece.batch.endsOf(lastPiece.slot)[1].x);
+            const n = gradientPieces.length;
+            for (let i = 0; i < n; i++) {
+                assert.closeTo(
+                    startOf(i).x,
+                    lerp(us, xs, u0 + (i / n) * (u1 - u0)),
+                    1e-3,
+                    `piece ${String(i)} starts at its value`,
+                );
+            }
+            // by length the middle piece would start at the line's middle; by value it starts well past it
+            const middle = (startOf(0).x + lastPiece.batch.endsOf(lastPiece.slot)[1].x) / 2;
+            assert.isAbove(startOf(n / 2).x, middle + 0.2);
+        },
+    );
+
     test("draws none for kind none", async () => {
         const edge = await oneEdge({ "edge.gradientColors": "#ff0000 #0000ff", "edge.gradientKind": "none" });
         assert.lengthOf(edge.drawnGradient, 0);
+    });
+});
+
+describe("an edge drawn as parallel strands", () => {
+    test("draws a strand per color beside the line's path, first on the right, and not the line itself", async () => {
+        const edge = await oneEdge({
+            "edge.strandColors": "#ff0000 #00ff00 #0000ff",
+            "edge.strandSpacing": 2,
+            "edge.width": 4,
+            "edge.color": "#505050",
+        });
+        const { strandRuns, lineBatch, lineSlots } = edge as unknown as EdgeLines;
+        assert.deepEqual(edge.drawnStrands, ["#ff0000", "#00ff00", "#0000ff"]);
+        assert(lineBatch);
+        assert.strictEqual(lineBatch.colorOf(lineSlots[0])?.[3], 0, "the line under the strands is clear");
+        // the line runs along +x, so its right is -y; a line 4 wide is 0.1 across, the strands 0.2 apart
+        const [start] = lineBatch.endsOf(lineSlots[0]);
+        const ys = strandRuns.map(({ batch, slots }) => {
+            const [from, to] = batch.endsOf(slots[0]);
+            assert.closeTo(from.x, start.x, 1e-6);
+            assert.closeTo(from.y, to.y, 1e-6);
+            return from.y - start.y;
+        });
+        assert.deepEqual(
+            ys.map((y) => Math.round(y * 1000) / 1000),
+            [-0.2, 0, 0.2],
+        );
+        assert.deepEqual(
+            strandRuns.map(({ batch }) => lookOf(batch).color),
+            ["#ff0000", "#00ff00", "#0000ff"],
+        );
+    });
+
+    test("draws the line as it is for fewer than two colors", async () => {
+        const edge = await oneEdge({ "edge.strandColors": "#ff0000", "edge.color": "#505050" });
+        const { lineBatch, lineSlots } = edge as unknown as EdgeLines;
+        assert.lengthOf(edge.drawnStrands, 0);
+        assert(lineBatch);
+        assert.strictEqual(lineBatch.colorOf(lineSlots[0])?.[3], 1);
     });
 });
 
@@ -318,7 +443,7 @@ function meetsLineFrom(head: ReturnType<typeof drawnHead>): number {
 }
 
 describe("a half arrow's line and barb (#5490)", () => {
-    test.each(["half-open", "half-open-flipped", "half-barb", "half-barb-flipped"])(
+    test.each(["half-open", "half-open-flipped"])(
         "%s: the line runs on to where the arm meets it, leaving no break",
         async (type) => {
             await oneEdge({ "edge.arrowHead": type, "edge.arrowHeadSize": 3 });
@@ -329,6 +454,17 @@ describe("a half arrow's line and barb (#5490)", () => {
             assert.isAtLeast(head.stop, head.tip - meetsLineFrom(head) - 1);
             // and not past the tip
             assert.isAtMost(head.stop, head.tip + 1);
+        },
+    );
+
+    test.each(["half-barb", "half-barb-flipped"])(
+        "%s: the line stops where Cytoscape stops it under HALF_TOP, 0.2 of its 1.135 back from the tip (#7769)",
+        async (type) => {
+            await oneEdge({ "edge.arrowHead": type, "edge.arrowHeadSize": 3 });
+            const head = drawnHead();
+            const length = head.tip - Math.min(...head.along);
+            assert.isAbove(length, 10, "the head is drawn large enough to measure");
+            assert.closeTo(head.stop, head.tip - (0.2 / 1.135) * length, 1);
         },
     );
 

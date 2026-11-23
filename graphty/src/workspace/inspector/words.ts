@@ -11,12 +11,12 @@ import type {
     GraphStatistics,
     GraphtyErrorCode,
     Measurement,
+    MultipleTestingCorrection,
+    ResultShape,
     SelectionAttributeStatistics,
     StaleNote,
     SummaryGroup,
     TimeUnit,
-    XrCapability,
-    XrUnavailableReason,
 } from "@graphty/graphty-element/session";
 
 import { formatCount, formatNumber } from "../settings/numberFormat";
@@ -55,12 +55,28 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     "folder-row": "Folder",
     rows: "Style layers",
     attribute: "Attribute",
-    "filter-step": "Time window",
+    "filter-step": "Filter",
     source: "Source",
 };
 
-/** The kind word of a path run's row, which is a measure row by shape but not a measure to a reader. */
-export const PATH_WORD = "Path";
+/**
+ * The kind word of a run row that publishes no groups, by what graphty-element says its result
+ * holds (its shape): an edge set is headed for its edges, not Groups. A run that publishes groups
+ * keeps the run row's word.
+ */
+export const RUN_SHAPE_WORDS: Readonly<Record<ResultShape, string>> = {
+    "node-metric": "Measure",
+    "edge-metric": "Measure",
+    community: "Groups",
+    "layered-grouping": "Levels",
+    "category-table": "Categories",
+    path: "Path",
+    "node-set": "Node set",
+    "edge-set": "Edge set",
+    "pair-list": "Pairs",
+    temporal: "Series",
+    fact: "Facts",
+};
 
 /**
  * The property token Why this look shows for each channel. Two channels may share one word. Every
@@ -71,11 +87,16 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.color": "Color",
     "node.size": "Size",
     "node.sizeMode": "Size mode",
+    "node.sizeSpace": "Size space",
     "node.shape": "Shape",
     "node.model": "Model",
     "node.modelSourceUp": "Model",
     "node.modelTurn": "Model",
     "node.modelTint": "Model",
+    "node.modelDoubleSided": "Model",
+    "node.modelAnimation": "Model",
+    "node.modelAnimationSpeed": "Model",
+    "node.modelAnimationOffset": "Model",
     "node.modelFit": "Model",
     "node.modelCenter": "Model",
     "node.texture": "Texture",
@@ -89,6 +110,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelWrapWidth": "Label",
     "node.labelLetterSize": "Label",
     "node.labelWrapTrailingSpace": "Label",
+    "node.labelWrapSkipEndSpace": "Label",
     "node.labelMinScreenSize": "Label",
     "node.labelOnTop": "Label",
     "node.labelDeclutter": "Label",
@@ -97,6 +119,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.tooltipStyle": "Tooltip",
     "node.opacity": "Opacity",
     "node.outline": "Outline",
+    "node.outlineWidth": "Outline",
     "node.glow": "Glow",
     "node.glowStrength": "Glow",
     "node.halo": "Halo",
@@ -133,6 +156,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelFitImage": "Shape",
     "node.labelFitImagePadding": "Shape",
     "edge.color": "Color",
+    "edge.colorFrom": "Color",
     "edge.width": "Width",
     "edge.opacity": "Opacity",
     "edge.style": "Line",
@@ -186,16 +210,20 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shaders": "Shaders",
     "edge.shaders": "Shaders",
     "edge.taper": "Line",
+    "edge.taperSource": "Line",
     "edge.lift": "Line",
     "edge.labelWrapWidth": "Label",
     "edge.labelLetterSize": "Label",
     "edge.labelWrapTrailingSpace": "Label",
+    "edge.labelWrapSkipEndSpace": "Label",
     "edge.labelMinScreenSize": "Label",
     "edge.labelOnTop": "Label",
     "edge.labelRotation": "Label",
     "node.labelWrapEllipsis": "Label",
     "node.labelWrapAnywhere": "Label",
     "node.labelWrapSpaceCount": "Label",
+    "node.labelMaxLines": "Label",
+    "node.labelMaxLinesEllipsis": "Label",
     "node.labelRunAlign": "Label",
     "node.labelOutline": "Label",
     "node.labelOutlineWidth": "Label",
@@ -208,6 +236,15 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelPadding": "Label",
     "node.labelCornerRadius": "Label",
     "node.labelLineHeight": "Label",
+    "node.labelLineBox": "Label",
+    "node.labelBorderAlign": "Label",
+    "node.labelBorderStyle": "Label",
+    "node.labelBackgroundShape": "Label",
+    "node.labelImage": "Label",
+    "node.labelImageWidth": "Label",
+    "node.labelImageHeight": "Label",
+    "node.labelImageOffsetX": "Label",
+    "node.labelImageOffsetY": "Label",
     "node.labelOffsetX": "Label",
     "node.labelOffsetY": "Label",
     "node.labelShiftX": "Label",
@@ -223,6 +260,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.xlabelLocation": "Outside label",
     "node.xlabelOffsetX": "Outside label",
     "node.xlabelOffsetY": "Outside label",
+    "node.xlabelTextAlign": "Outside label",
+    "node.xlabelColor": "Outside label",
+    "node.xlabelFont": "Outside label",
+    "node.xlabelWeight": "Outside label",
+    "node.xlabelItalic": "Outside label",
     "edge.xlabel": "Outside label",
     "edge.xlabelStyle": "Outside label",
     "edge.xlabelLocation": "Outside label",
@@ -269,6 +311,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.imageSmoothing": "Image smoothing",
     "node.imageAutoSize": "Image auto size",
     "node.imageOpacity": "Image opacity",
+    "node.imageAspect": "Image aspect",
     "node.glyph": "Glyph",
     "node.glyphFont": "Glyph font",
     "node.glyphSize": "Glyph size",
@@ -324,6 +367,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.gradientCenterX": "Gradient",
     "node.gradientCenterY": "Gradient",
     "node.gradientRadius": "Gradient",
+    "edge.drawOrder": "Draw order",
     "edge.minScreenWidth": "Min screen width",
     "edge.fadeEnd": "Fade end",
     "edge.fadeStart": "Fade start",
@@ -342,10 +386,13 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.gradientColors": "Gradient",
     "edge.gradientStops": "Gradient",
     "edge.gradientKind": "Gradient",
+    "edge.strandColors": "Line",
+    "edge.strandSpacing": "Line",
     "edge.waveAmplitude": "Wave amplitude",
     "edge.wavePeriod": "Wave period",
     "edge.dashLength": "Dash length",
     "edge.dashGap": "Dash gap",
+    "edge.dashArray": "Dash array",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
     "edge.route": "Route",
@@ -353,6 +400,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.nodeGap": "Node gap",
     "edge.arrowHeadSide": "Arrow",
     "edge.arrowHeadOutlineWidth": "Arrow",
+    "edge.arrowHeadFillColor": "Arrow",
     "edge.arrowHeadGap": "Arrow",
     "edge.arrowHeadStack": "Arrow",
     "edge.arrowHeadImage": "Arrow",
@@ -366,6 +414,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowHeadTextOffsetY": "Arrow",
     "edge.arrowTailSide": "Arrow",
     "edge.arrowTailOutlineWidth": "Arrow",
+    "edge.arrowTailFillColor": "Arrow",
     "edge.arrowTailGap": "Arrow",
     "edge.arrowTailStack": "Arrow",
     "edge.arrowTailImage": "Arrow",
@@ -382,6 +431,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleHeadWidth": "Arrow",
     "edge.arrowMiddleHeadSide": "Arrow",
     "edge.arrowMiddleHeadOutlineWidth": "Arrow",
+    "edge.arrowMiddleHeadFillColor": "Arrow",
     "edge.arrowMiddleHeadPosition": "Arrow",
     "edge.arrowMiddleHeadColor": "Arrow",
     "edge.arrowMiddleHeadOpacity": "Arrow",
@@ -391,6 +441,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleTailWidth": "Arrow",
     "edge.arrowMiddleTailSide": "Arrow",
     "edge.arrowMiddleTailOutlineWidth": "Arrow",
+    "edge.arrowMiddleTailFillColor": "Arrow",
     "edge.arrowMiddleTailPosition": "Arrow",
     "edge.arrowMiddleTailColor": "Arrow",
     "edge.arrowMiddleTailOpacity": "Arrow",
@@ -400,6 +451,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelWrapEllipsis": "Label",
     "edge.labelWrapAnywhere": "Label",
     "edge.labelWrapSpaceCount": "Label",
+    "edge.labelMaxLines": "Label",
+    "edge.labelMaxLinesEllipsis": "Label",
     "edge.labelRunAlign": "Label",
     "edge.labelOutline": "Label",
     "edge.labelOutlineWidth": "Label",
@@ -413,6 +466,15 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelTable": "Label",
     "edge.labelCornerRadius": "Label",
     "edge.labelLineHeight": "Label",
+    "edge.labelLineBox": "Label",
+    "edge.labelBorderAlign": "Label",
+    "edge.labelBorderStyle": "Label",
+    "edge.labelBackgroundShape": "Label",
+    "edge.labelImage": "Label",
+    "edge.labelImageWidth": "Label",
+    "edge.labelImageHeight": "Label",
+    "edge.labelImageOffsetX": "Label",
+    "edge.labelImageOffsetY": "Label",
     "edge.labelOffsetX": "Label",
     "edge.labelOffsetY": "Label",
     "edge.labelShiftX": "Label",
@@ -505,26 +567,26 @@ export function directionNote(statistics: GraphStatistics): string {
 }
 
 /**
- * An edge by its two ends' names (the element's `data.name`, else the id): "Ava -> Kofi" on a
- * directed graph, "Ava -- Kofi" otherwise.
+ * An edge by its two ends' names (the element's `data.edgeName`): "Ava -> Kofi" on a directed
+ * graph, "Ava -- Kofi" otherwise.
  * @param session - the session, which names the ends and says whether the graph is directed.
  * @param edge - the edge's record.
  * @returns the words.
  */
 export function edgeName(session: GraphSession, edge: Pick<EdgeRecord, "source" | "target">): string {
-    const end = (id: EdgeRecord["source"]): string => session.data.name(id) ?? String(id);
-    return `${end(edge.source)}${edgeJoiner(session)}${end(edge.target)}`;
+    const { source, target } = session.data.edgeName(edge);
+    return `${source.name}${edgeJoiner(session)}${target.name}`;
 }
 
 /**
  * What the status line calls one selected node: the label graphty-element gives it
- * (`session.data.name`, the label column's value), else its id.
+ * (`session.data.nodeName`, the label column's value), else its id.
  * @param session - the session.
  * @param id - the node id.
  * @returns such as "Nebraska", or "74" when the graph has no label column.
  */
 export function nodeName(session: GraphSession, id: EdgeRecord["source"]): string {
-    return session.data.name(id) ?? String(id);
+    return session.data.nodeName(id).name;
 }
 
 /**
@@ -563,6 +625,18 @@ export function neighborhoodWords(center: string, around: number, hops = 1): str
 
 /** What a node's Degree row does: it changes the selection. */
 export const DEGREE_ROW_WORDS = "Select this node and its neighbors";
+
+/**
+ * What a degree is called where it is read: among what is shown while a filter or the time window
+ * hides something ("Degree showing", as "Nodes showing"), else plain "Degree".
+ * @param session - the element's session.
+ * @param name - the degree's name ("Degree", "In-degree").
+ * @returns the label.
+ */
+export function degreeLabel(session: GraphSession, name = "Degree"): string {
+    const { visibleNodes, totalNodes } = session.visibility.summary;
+    return visibleNodes < totalNodes ? `${name} showing` : name;
+}
 
 /** What Filter to neighbors does, and where it is turned off. */
 export const NEIGHBOR_FILTER_WORDS = "Hide every node outside this neighborhood. Its card in Filters turns it off";
@@ -615,7 +689,7 @@ export function selectedNameWords(session: GraphSession): string {
 }
 
 /**
- * What Frame selection says once the camera has moved: "Framed Ava", "Framed 3 nodes".
+ * What Fit selection says once the camera has moved: "Framed Ava", "Framed 3 nodes".
  * @param session - the session.
  * @returns the words.
  */
@@ -779,6 +853,7 @@ const RUN_FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
     E_SOFTWARE_ONLY: "the graphics card could not run it",
     E_DEVICE_INCORRECT: "the graphics card gave a wrong answer",
     E_DEVICE_LOST: "the graphics card stopped during the run",
+    E_GPU_TIMEOUT: "the graphics card stopped answering",
     E_UNSUPPORTED: "this analysis cannot run here",
 };
 
@@ -858,48 +933,22 @@ export function rankedName(group: SummaryGroup | undefined): string {
     return group?.rank === undefined ? "" : `Group ${String(group.rank)}`;
 }
 
-/** An immersive mode, or both of them in one row. */
-type XrRowMode = "vr" | "ar" | "both";
-
-const XR_MODE_WORDS: Readonly<Record<XrRowMode, string>> = { vr: "VR", ar: "AR", both: "VR or AR" };
-
-/** The words for each reason a mode cannot be entered; a reason the element adds fails to compile. */
-const XR_REASON_WORDS: Readonly<Record<XrUnavailableReason, (mode: XrRowMode) => string>> = {
-    "no-webxr": (mode) => `This browser has no ${XR_MODE_WORDS[mode]}`,
-    "insecure-context": () => "Needs a secure (https) page",
-    unsupported: (mode) =>
-        ({ vr: "No VR headset found", ar: "This device has no AR", both: "This device has no VR or AR" })[mode],
-    "webgpu-renderer": () => "Not available with the WebGPU renderer",
-    disabled: () => "Turned off for this graph",
-    probing: () => "Checking...",
-};
-
 /**
- * Why VR, AR or both cannot be entered, in the app's words, from the element's reason code.
- * @param reason - the element's reason.
- * @param mode - the row the reason is for.
- * @returns the words; never the code itself.
+ * A multiple-testing correction graphty-element names by code, as a reader reads it.
+ * @param code - the correction's code.
+ * @returns "Benjamini-Hochberg", or the code itself for one this app does not know yet.
  */
-export function xrReasonWords(reason: XrUnavailableReason, mode: XrRowMode): string {
-    return XR_REASON_WORDS[reason](mode);
+export function correctionName(code: MultipleTestingCorrection): string {
+    const names: Readonly<Record<string, string>> = {
+        "benjamini-hochberg": "Benjamini-Hochberg",
+        bonferroni: "Bonferroni",
+        holm: "Holm",
+    };
+    return names[code] ?? code;
 }
 
-/**
- * The XR rows the Mode menu draws: one "VR / AR" row when neither mode can be entered for the
- * same reason, otherwise one row per mode, each with its reason or null.
- * @param xr - the element's XR facts.
- * @returns the rows, top to bottom.
- */
-export function xrRows(xr: XrCapability): { mode: XrRowMode; reason: string | null }[] {
-    const { vr, ar } = xr.reasons;
-    if (vr !== null && vr === ar) {
-        return [{ mode: "both", reason: xrReasonWords(vr, "both") }];
-    }
-    return (["vr", "ar"] as const).map((mode) => {
-        const reason = xr.reasons[mode];
-        return { mode, reason: reason === null ? null : xrReasonWords(reason, mode) };
-    });
-}
+/** The words for VR and AR in a notice. */
+const XR_MODE_WORDS: Readonly<Record<"vr" | "ar", string>> = { vr: "VR", ar: "AR" };
 
 /**
  * The notice for an immersive session the browser would not start.

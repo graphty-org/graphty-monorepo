@@ -1,5 +1,5 @@
 /**
- * Robustness of the CSV importer against damaged, truncated, mislabelled and ambiguous input:
+ * Robustness of the CSV importer against damaged, truncated, mislabeled and ambiguous input:
  * every condition here either imports with the specific issue codes recorded and the recoverable
  * data kept, or rejects with an ImportError carrying the specific code. Conditions already pinned
  * by test/formats/csv, test/audit or test/common are not repeated.
@@ -12,6 +12,7 @@ import { csvImporter } from "../../src/formats/csv/index.js";
 import { importGraph } from "../../src/registry.js";
 import { ImportError, type ImportReport } from "../../src/types.js";
 import { byteChunks, textChunksOf } from "../helpers/corpus.js";
+import { codes } from "./helpers.js";
 
 type Input = Parameters<typeof csvImporter.import>[0];
 type Options = Parameters<typeof csvImporter.import>[2];
@@ -39,10 +40,6 @@ async function failure(input: Input, options?: Options): Promise<ImportError> {
         throw err;
     }
     throw new Error("expected an ImportError");
-}
-
-function codes(report: ImportReport): string[] {
-    return report.issues.map((i) => i.code);
 }
 
 function edgesOf(s: GraphSnapshot): string[] {
@@ -307,10 +304,10 @@ describe("csv robustness: quoting and syntax", () => {
         expect(report.issues[0].line).toBe(2);
     });
 
-    it("space-before-opening-quote: the cell is unquoted text (RFC 4180), reported", async () => {
+    it("space-before-opening-quote: the cell is unquoted text (RFC 4180), trimmed, reported", async () => {
         const { snapshot, report } = await load('source,target\n "a",b\n');
-        expect(edgesOf(snapshot)).toEqual([' "a"->b']);
-        expect(codes(report).sort()).toEqual(["W_CSV_PADDED_ID", "W_CSV_STRAY_QUOTE"]);
+        expect(edgesOf(snapshot)).toEqual(['"a"->b']);
+        expect(codes(report)).toEqual(["W_CSV_STRAY_QUOTE"]);
     });
 
     it("single-quote-quoting: there is no quote option; single quotes are text, so the row splits", async () => {
@@ -404,7 +401,7 @@ describe("csv robustness: delimiters and dialects", () => {
         const headerless = await load("New York,Los Angeles\nSan Jose,El Paso\n");
         expect(headerless.report.issues).toEqual([]);
         expect(edgesOf(headerless.snapshot)).toEqual(["New York->Los Angeles", "San Jose->El Paso"]);
-        // the unrecognised header is read as data (pinned in test/formats/csv), but split on commas
+        // the unrecognized header is read as data (pinned in test/formats/csv), but split on commas
         const named = await load("Source Node,Target Node\nNew York,Los Angeles\nSan Jose,El Paso\n");
         expect(edgesOf(named.snapshot)).toEqual([
             "Source Node->Target Node",
@@ -564,17 +561,20 @@ describe("csv robustness: header and column roles", () => {
 });
 
 describe("csv robustness: values and ids", () => {
-    it("quoted-empty-endpoint: the empty string is a legal id", async () => {
+    it("quoted-empty-endpoint: a blank endpoint, as in csv-spectrum's empty.csv", async () => {
         const { snapshot, report } = await load('"",b\nc,d\n');
-        expect(report.issues).toEqual([]);
-        expect(edgesOf(snapshot)).toEqual(["->b", "c->d"]);
+        expect(codes(report)).toEqual(["E_MISSING_ENDPOINT"]);
+        expect(edgesOf(snapshot)).toEqual(["c->d"]);
+        // a node table keeps the empty-string id
+        const nodes = await load('id\n""\nb\n', { table: "nodes" });
+        expect(nodes.snapshot.ids.toArray()).toEqual(["", "b"]);
     });
 
-    it("padded-ids: unquoted ids with surrounding whitespace are kept as written and reported once", async () => {
-        const { snapshot, report } = await load(`source,target\n a , b \na,b\n${NBSP}a,b\n`);
-        expect(snapshot.ids.toArray()).toEqual([" a ", " b ", "a", "b", `${NBSP}a`]);
+    it("padded-ids: spaces and tabs around unquoted ids are trimmed; other whitespace is kept and reported once", async () => {
+        const { snapshot, report } = await load(`source,target\n a , b \na,\tb\n${NBSP}a,b\n`);
+        expect(snapshot.ids.toArray()).toEqual(["a", "b", `${NBSP}a`]);
         expect(codes(report)).toEqual(["W_CSV_PADDED_ID"]);
-        expect(report.issues[0].line).toBe(2);
+        expect(report.issues[0].line).toBe(4);
         // a quoted padded id is deliberate
         const quoted = await load('source,target\n" a",b\n');
         expect(quoted.report.issues).toEqual([]);
@@ -672,7 +672,7 @@ describe("csv robustness: adjacency tables", () => {
     const adjacency = { table: "adjacency" } as const;
 
     it("adjacency-colon-in-node-cell: a node cell is an id verbatim, a neighbour cell id:weight (the documented grammar)", async () => {
-        // the exporter writes a neighbour whose id holds a colon as `a:1:`; a node cell is never split
+        // the exporter writes a neighbor whose id holds a colon as `a:1:`; a node cell is never split
         const { snapshot, report } = await load("a:1 b\nc a:1\n", adjacency);
         expect(report.issues).toEqual([]);
         expect(edgesOf(snapshot)).toEqual(["a:1->b", "c->a"]);

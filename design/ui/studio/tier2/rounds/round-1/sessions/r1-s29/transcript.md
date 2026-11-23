@@ -102,7 +102,7 @@ I'll ask her to just send me the new ranking."
       "instead of", and nothing said whether my ranking would survive.
     - The counts did not match. The new file has 41 rows, the table said 41 rows, but the same
       screen said "20 nodes, 82 edges" and "the load makes 20 nodes and 82 edges". I took 82 to
-      mean both lists on top of each other, so I cancelled.
+      mean both lists on top of each other, so I canceled.
     - The Data panel shows the old file under "Sources" with its counts, but clicking it only shows
       facts about it. I saw no way to put a newer file there.
     - Dragging the new file onto the window did nothing and said nothing. I couldn't tell whether

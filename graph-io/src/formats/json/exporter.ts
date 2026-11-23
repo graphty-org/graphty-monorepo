@@ -30,6 +30,8 @@ import { agree, plural } from "../../common/plural.js";
 import { jsonText } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
+import { neutralPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -158,9 +160,9 @@ export const JSON_LOSS = Object.freeze({
      * weight, or is not written when the graph has weights of its own.
      */
     WEIGHT_KEY_CLASH: LOSS.WEIGHT_KEY_CLASH,
-    /** A position column without a slot (every dialect but Cytoscape) is a plain array attribute; the role is lost. */
+    /** A position column without a slot (node-link, d3, JGF) is a plain array attribute; the role is lost. */
     POSITIONS_DROPPED: LOSS.POSITIONS,
-    /** Cytoscape positions are 2D; non-zero z values are dropped. */
+    /** Cytoscape, vis and graphology positions are 2D; non-zero z values are dropped. */
     POSITION_Z_DROPPED: "W_POSITION_Z_DROPPED",
     /** Cytoscape has a single parent; a `parents` list column cannot be written. */
     PARENTS_DROPPED: LOSS.PARENTS,
@@ -231,11 +233,14 @@ const SLOT_ROLES: Readonly<Record<JsonDialect, ReadonlySet<string>>> = Object.fr
     "node-link": new Set<string>(),
     d3: new Set<string>(),
     jgf: new Set(["label", "kind"]),
-    cytoscape: new Set(["classes"]),
+    cytoscape: new Set(["classes", "fixed"]),
     graphology: new Set<string>(),
     vis: new Set<string>(),
     obographs: new Set(["label", "kind"]),
 });
+
+/** The node roles Cytoscape writes on the element, read back under the element key's name. */
+const CYTOSCAPE_NODE_ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({ fixed: "locked" });
 
 /** The element domains. */
 type Domain = "node" | "edge" | "graph";
@@ -273,7 +278,17 @@ interface Counter {
 }
 
 /** How one column is written. */
-type Slot = "attribute" | "element" | "position" | "cytoscapePosition" | "parent" | "classes" | "label" | "relation";
+type Slot =
+    | "attribute"
+    | "element"
+    | "position"
+    | "cytoscapePosition"
+    | "xyUp"
+    | "xyDown"
+    | "parent"
+    | "classes"
+    | "label"
+    | "relation";
 
 /** One column's place in the output. */
 interface ColumnPlan {
@@ -663,6 +678,7 @@ function plan(snapshot: GraphSnapshot, resolved: Resolved): Plan {
     // plain attributes and read back without their role)
     const notes = checkCapabilities(snapshot, caps, resolved.common, {
         roles: SLOT_ROLES[dialect],
+        ...(dialect === "cytoscape" ? { nodeRoleNames: CYTOSCAPE_NODE_ROLE_NAMES } : {}),
         positionDtype: "f64",
         // Deprecated (next major): role columns are written as plain attributes; styles go through the style writer.
         vizAsAttributes: true,
@@ -779,7 +795,16 @@ function reservedKeys(snapshot: GraphSnapshot, resolved: Resolved): Readonly<Rec
 function planTable(ctx: PlanContext, table: Iterable<Column>, domain: Domain): ColumnPlan[] {
     const plans: ColumnPlan[] = [];
     const used = new Set<string>();
-    for (const column of table) {
+    const columns = [...table];
+    // a position written as x / y (vis, graphology) takes those keys from any plain column, whatever the order
+    if (domain === "node" && columns.some((column) => xySlotOf(ctx.dialect, column) !== undefined)) {
+        used.add("attribute:x").add("attribute:y");
+    }
+    // so is Cytoscape's element `locked`, by the fixed role column
+    if (columns.some((column) => isLockedSlot(ctx.dialect, column, domain))) {
+        used.add("element:locked");
+    }
+    for (const column of columns) {
         const { role } = column.meta;
         if (role !== null && (STRUCTURAL_ROLES.has(role) || TEMPORAL_ROLES.has(role))) {
             continue;
@@ -924,8 +949,37 @@ function planParentSlot(ctx: PlanContext, column: Column, domain: Domain, role: 
     return SKIPPED;
 }
 
+/** The slot each dialect writes a 2D position into: Cytoscape's `position`, vis-network's (y down) and sigma.js's x / y. */
+const XY_SLOTS: Partial<Record<JsonDialect, Slot>> = {
+    cytoscape: "cytoscapePosition",
+    vis: "xyDown",
+    graphology: "xyUp",
+};
+
 /**
- * The slot of a node position column: Cytoscape's position for a float column of two or more
+ * Whether a position column can be written as x / y: a float column of two or more components.
+ * @param column - the column
+ * @returns true when it can
+ */
+function isPlanar(column: Column): boolean {
+    return (column.dtype === "f32" || column.dtype === "f64") && column.meta.components >= 2;
+}
+
+/**
+ * The vis / graphology x / y slot a node column is written into, if it is a position column it fits.
+ * @param dialect - the dialect
+ * @param column - the column
+ * @returns the slot, or undefined
+ */
+function xySlotOf(dialect: JsonDialect, column: Column): Slot | undefined {
+    const slot = XY_SLOTS[dialect];
+    return (slot === "xyUp" || slot === "xyDown") && column.meta.role === "position" && isPlanar(column)
+        ? slot
+        : undefined;
+}
+
+/**
+ * The slot of a node position column: Cytoscape's position, vis and graphology x / y for a float column of two or more
  * components (a non-zero z is noted), else a plain array attribute with the role lost.
  * @param ctx - the plan context
  * @param column - the node position column
@@ -934,17 +988,18 @@ function planParentSlot(ctx: PlanContext, column: Column, domain: Domain, role: 
 function planPositionSlot(ctx: PlanContext, column: Column): ColumnPlan {
     const { dialect, note } = ctx;
     const { meta } = column;
-    if (dialect === "cytoscape" && (column.dtype === "f32" || column.dtype === "f64") && meta.components >= 2) {
+    const slot = XY_SLOTS[dialect];
+    if (slot !== undefined && isPlanar(column)) {
         const z = countNonZeroZ(column);
         if (z > 0) {
             note(
                 JSON_LOSS.POSITION_Z_DROPPED,
-                `${z} position${plural(z)} ${agree(z, "has", "have")} a non-zero z; Cytoscape positions are 2D`,
+                `${z} position${plural(z)} ${agree(z, "has", "have")} a non-zero z; ${dialect} positions are 2D`,
                 meta.name,
                 z,
             );
         }
-        return { column, key: "position", slot: "cytoscapePosition" };
+        return { column, key: slot === "cytoscapePosition" ? "position" : "x", slot };
     }
     note(
         LOSS.POSITIONS,
@@ -989,6 +1044,9 @@ function planDialectSlot(dialect: JsonDialect, column: Column, domain: Domain): 
     if (dialect === "cytoscape" && role === "classes" && column.dtype === "list" && column.child.dtype === "string") {
         return { column, key: "classes", slot: "classes" };
     }
+    if (isLockedSlot(dialect, column, domain)) {
+        return { column, key: "locked", slot: "element" };
+    }
     if (dialect !== "jgf" || (column.dtype !== "string" && column.dtype !== "dict")) {
         return null;
     }
@@ -999,6 +1057,17 @@ function planDialectSlot(dialect: JsonDialect, column: Column, domain: Domain): 
         return { column, key: "relation", slot: "relation" };
     }
     return null;
+}
+
+/**
+ * Whether a column is written as Cytoscape's element `locked`: the bool node column of the fixed role.
+ * @param dialect - the dialect
+ * @param column - the column
+ * @param domain - its domain
+ * @returns true for that column
+ */
+function isLockedSlot(dialect: JsonDialect, column: Column, domain: Domain): boolean {
+    return dialect === "cytoscape" && domain === "node" && column.meta.role === "fixed" && column.dtype === "bool";
 }
 
 /**
@@ -1269,6 +1338,10 @@ function writeSlots(c: Cursor, plans: readonly ColumnPlan[], row: number, slots:
         if (!slots.has(item.slot) || !item.column.isSet(row)) {
             continue;
         }
+        if (item.slot === "xyUp" || item.slot === "xyDown") {
+            writeXY(c, item, row);
+            continue;
+        }
         let text: string;
         switch (item.slot) {
             case "position": {
@@ -1289,7 +1362,21 @@ function writeSlots(c: Cursor, plans: readonly ColumnPlan[], row: number, slots:
     }
 }
 
-const ATTRIBUTE_SLOTS: ReadonlySet<Slot> = new Set(["attribute", "position"]);
+/**
+ * Write a position as `x` / `y` members, y flipped when the column's direction is not the slot's.
+ * @param c - the cursor
+ * @param item - the position column's plan
+ * @param row - the node
+ */
+function writeXY(c: Cursor, item: ColumnPlan, row: number): void {
+    const value = item.column.value(row) as ArrayLike<number>;
+    const f32 = item.column.dtype === "f32";
+    const down = item.column.meta.extra.yAxis === "down";
+    c.w.member("x", numberText(value[0], f32, c.nonfinite));
+    c.w.member("y", numberText(down === (item.slot === "xyDown") ? value[1] : flipY(value[1]), f32, c.nonfinite));
+}
+
+const ATTRIBUTE_SLOTS: ReadonlySet<Slot> = new Set(["attribute", "position", "xyUp", "xyDown"]);
 const ELEMENT_SLOTS: ReadonlySet<Slot> = new Set(["element", "classes"]);
 
 /**
@@ -1784,6 +1871,8 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
     const c: Cursor = { w: new JsonWriter(resolved.indent), ids: snapshot.ids, nonfinite: { count: 0 } };
     const { w } = c;
     const parentSlots: ReadonlySet<Slot> = new Set(["parent"]);
+    const position = snapshot.nodes.byRole("position");
+    const neutral = position === null ? null : neutralPositions(snapshot, position);
     w.open("{");
     w.key("elements");
     w.open("{");
@@ -1799,7 +1888,7 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
         writeSlots(c, p.nodes, i, parentSlots);
         writeSlots(c, p.nodes, i, ATTRIBUTE_SLOTS);
         w.close("}");
-        writeCytoscapePosition(c, p, i);
+        writeCytoscapePosition(c, p, i, neutral);
         writeSlots(c, p.nodes, i, ELEMENT_SLOTS);
         w.close("}");
         yield w.take();
@@ -1843,16 +1932,18 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
 }
 
 /**
- * Write a Cytoscape.js node's position: stored y-up, written with Cytoscape's y growing downward.
+ * Write a Cytoscape.js node's position: read through the column's spelling into the neutral form (y up), written
+ * with Cytoscape's y growing downward.
  * @param c - the cursor
  * @param p - the plan
  * @param i - the node
+ * @param neutral - the position column's rows in the neutral form, or null without one
  */
-function writeCytoscapePosition(c: Cursor, p: Plan, i: number): void {
+function writeCytoscapePosition(c: Cursor, p: Plan, i: number, neutral: Float64Array | null): void {
     const { w } = c;
     for (const item of p.nodes) {
-        if (item.slot === "cytoscapePosition" && item.column.isSet(i)) {
-            const value = item.column.value(i) as ArrayLike<number>;
+        if (item.slot === "cytoscapePosition" && item.column.isSet(i) && neutral !== null) {
+            const value = neutral.subarray(3 * i, 3 * i + 3);
             const f32 = item.column.dtype === "f32";
             w.key("position");
             w.open("{");
@@ -1946,55 +2037,58 @@ function resolveStyled(snapshot: GraphSnapshot, options: JsonWriteOptions | unde
  * default dialect); check() applies the table of the dialect actually selected.
  * @category Built-in formats
  */
-export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
-    format: "json",
-    options: Object.freeze([
-        "dialect",
-        "edgesKey",
-        "indent",
-        "indexLinks",
-        "nodeIdKey",
-        "ontologyIri",
-        "sourceKey",
-        "targetKey",
-        "weightKey",
-    ]),
-    capabilities: dialectCapabilities("node-link"),
-    styles: Object.freeze({ capabilities: JSON_STYLE_CAPABILITIES }),
+export const jsonExporter: GraphExporter<JsonExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: "json",
+        options: Object.freeze([
+            "dialect",
+            "edgesKey",
+            "indent",
+            "indexLinks",
+            "nodeIdKey",
+            "ontologyIri",
+            "sourceKey",
+            "targetKey",
+            "weightKey",
+        ]),
+        capabilities: dialectCapabilities("node-link"),
+        styles: Object.freeze({ capabilities: JSON_STYLE_CAPABILITIES }),
 
-    /**
-     * Pre-flight: every loss of the selected dialect, without writing anything.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): readonly LossNote[] {
-        const resolved = resolveStyled(snapshot, options);
-        const s = resolved.styled?.snapshot ?? snapshot;
-        const notes = resolved.dialect === "obographs" ? planObographs(s, resolved).notes : plan(s, resolved).notes;
-        return Object.freeze([...notes, ...(resolved.styled?.notes ?? [])]);
-    },
+        /**
+         * Pre-flight: every loss of the selected dialect, without writing anything.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the notes, empty when the export is exact
+         */
+        check(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): readonly LossNote[] {
+            const resolved = resolveStyled(snapshot, options);
+            const s = resolved.styled?.snapshot ?? snapshot;
+            const notes = resolved.dialect === "obographs" ? planObographs(s, resolved).notes : plan(s, resolved).notes;
+            return Object.freeze([...notes, ...(resolved.styled?.notes ?? [])]);
+        },
 
-    /**
-     * Write the document as UTF-8 chunks.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(parts(snapshot, resolveStyled(snapshot, options)));
-    },
+        /**
+         * Write the document as UTF-8 chunks.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the chunks
+         */
+        export(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
+            return encodeChunks(parts(snapshot, resolveStyled(snapshot, options)));
+        },
 
-    /**
-     * Write the document as one string.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the document
-     */
-    exportToString(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): Promise<string> {
-        return joinText(parts(snapshot, resolveStyled(snapshot, options)));
-    },
-});
+        /**
+         * Write the document as one string.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the document
+         */
+        exportToString(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): Promise<string> {
+            return joinText(parts(snapshot, resolveStyled(snapshot, options)));
+        },
+    }),
+    () => true,
+);
 
 /**
  * The capability table of one dialect, for callers that pick a dialect before check().

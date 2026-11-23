@@ -382,7 +382,7 @@ describe("a layer bound to what one run chose", () => {
 
         assert.isDefined(nodeLayer);
         // Every node the search looked at carries `onPath`, false included, so a presence test
-        // would paint the whole neighbourhood in the colour of the route. The layer tests the
+        // would paint the whole neighborhood in the color of the route. The layer tests the
         // VALUE, and the count above is what proves it.
         assert.deepStrictEqual(nodeLayer.selector, { match: "expression", where: "results.route.onPath == `true`" });
         assert.strictEqual(nodeLayer.kind, "highlight");
@@ -647,12 +647,12 @@ describe("a stack that outlives its dataset", () => {
  */
 describe("a stack over a graph a node was removed from", () => {
     /**
-     * The colour the element paints one node, at its index in the current snapshot.
+     * The color the element paints one node, at its index in the current snapshot.
      *
      * Read through the snapshot rather than `Node.index` so the freeze that renumbers the
      * survivors has happened, as it has for every session read.
      * @param id - The node id.
-     * @returns The colour, serialized so two can be compared.
+     * @returns The color, serialized so two can be compared.
      */
     function colorOf(id: string): string {
         const index = session.data.snapshot().ids.indexOf(id);
@@ -705,9 +705,9 @@ describe("a stack over a graph a node was removed from", () => {
  */
 describe("hiding one group of a run's encoding", () => {
     /**
-     * The colour the element paints one node.
+     * The color the element paints one node.
      * @param id - The node id.
-     * @returns The colour, serialized so two can be compared.
+     * @returns The color, serialized so two can be compared.
      */
     function colorOf(id: string): string {
         const index = session.data.snapshot().ids.indexOf(id);

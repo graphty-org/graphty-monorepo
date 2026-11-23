@@ -14,13 +14,15 @@
 //
 // TEST_LEDGER_DIR replaces the directory (the tests set it). Off switch for excusing: PREPUSH_EXONERATE=0.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
+
+import { gitOrNull } from "./lib/git.mjs";
 
 // node:sqlite prints "ExperimentalWarning: SQLite is an experimental feature" on import; only that one is dropped.
 const emitWarning = process.emitWarning;
@@ -46,18 +48,7 @@ export const OWNED = [...EVIDENCE, ...["land-check", "verify", "bisect", "cut", 
 const LAND_SUBJECT = /^land: (\S+)$/;
 
 const h16 = (s) => createHash("sha256").update(s).digest("hex").slice(0, 16);
-const git = (cwd, args) => {
-    try {
-        return execFileSync("git", args, {
-            cwd,
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "ignore"],
-            maxBuffer: 1 << 28,
-        }).trim();
-    } catch {
-        return "";
-    }
-};
+const git = (cwd, args) => gitOrNull(args, { cwd }) ?? "";
 const list = (d) => (existsSync(d) ? readdirSync(d) : []);
 const inList = (n) => `(${Array.from({ length: n }, () => "?").join(",")})`;
 export const familyOf = (shard) => shard.replace(/-\d+$/, "");
@@ -191,7 +182,7 @@ export function failureHashes(text, file, main = "/nonexistent") {
 /**
  * An invocation's outcome (design 3.3). Only `passed` and `failed` count as evidence or in rates.
  * @param run `{ code, log, runs, junit, cancelled }`; junit is null when no JUnit carries the run id
- * @returns passed, failed, error, infra, unattributed or cancelled
+ * @returns passed, failed, error, infra, unattributed or canceled
  */
 export function outcomeOf(run) {
     const { code, log, runs = 1, junit, cancelled } = run;

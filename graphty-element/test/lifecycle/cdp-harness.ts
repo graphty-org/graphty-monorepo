@@ -17,18 +17,26 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright";
 
-import { type Proc, processTree } from "./processes";
+import { browserProcesses, type Proc, processTree } from "./processes";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 /** The test extension that discards tabs. */
 export const DISCARD_EXTENSION = path.join(here, "discard-extension");
+
+/** Its id, which Chrome derives from the path of an unpacked extension: a SHA-256, hex digits as a-p. */
+const DISCARD_EXTENSION_ID = createHash("sha256")
+    .update(realpathSync(DISCARD_EXTENSION))
+    .digest("hex")
+    .slice(0, 32)
+    .replace(/[0-9a-f]/g, (digit) => String.fromCodePoint(97 + Number.parseInt(digit, 16)));
 
 /** A DevTools protocol message from the browser. */
 interface Message {
@@ -87,7 +95,7 @@ export interface Chrome {
     extension<T>(expression: string): Promise<T>;
     /** Resolves when the browser process has exited. */
     readonly exited: Promise<void>;
-    /** Close the browser (SIGTERM, then wait). */
+    /** Close the browser (SIGTERM), and resolve once it and every helper process it started has exited. */
     close(): Promise<void>;
 }
 
@@ -165,29 +173,51 @@ export async function launchChrome(userDataDir: string, args: readonly string[] 
     );
     // Interrupted or failed, the run's browsers are reaped by profile (./processes).
     const exited = new Promise<void>((resolve) => child.on("exit", () => resolve()));
+    // Every helper Chrome starts (zygotes, renderers, the storage and network services, crashpad)
+    // inherits its stderr, so the pipe closes, and Node emits "close", only once the last of them has
+    // exited -- even one started after a snapshot of the process tree.
+    const closed = new Promise<void>((resolve) => child.on("close", () => resolve()));
     let stderr = (): string => "";
-    const endpoint = await new Promise<string>((resolve, reject) => {
-        let text = "";
-        const read = (chunk: Buffer): void => {
-            text += chunk.toString();
-            const match = /DevTools listening on (ws:\S+)/.exec(text);
-            if (match) {
-                resolve(match[1]);
+    // A launch that fails after the spawn kills what it started: the caller has no browser to close.
+    const orKill = <T>(step: Promise<T>): Promise<T> =>
+        step.catch((error: unknown) => {
+            child.kill("SIGKILL");
+            for (const proc of browserProcesses(userDataDir)) {
+                try {
+                    process.kill(proc.pid, "SIGKILL");
+                } catch {
+                    // Gone with the browser.
+                }
             }
 
-            // Keep the end of the log, for a failure report.
-            text = text.slice(-20_000);
-        };
-        child.stderr?.on("data", read);
-        void exited.then(() => reject(new Error(`Chrome exited before listening: ${text.slice(-2000)}`)));
-        stderr = () => text;
-    });
+            throw error;
+        });
+    const endpoint = await orKill(
+        new Promise<string>((resolve, reject) => {
+            let text = "";
+            const read = (chunk: Buffer): void => {
+                text += chunk.toString();
+                const match = /DevTools listening on (ws:\S+)/.exec(text);
+                if (match) {
+                    resolve(match[1]);
+                }
+
+                // Keep the end of the log, for a failure report.
+                text = text.slice(-20_000);
+            };
+            child.stderr?.on("data", read);
+            void exited.then(() => reject(new Error(`Chrome exited before listening: ${text.slice(-2000)}`)));
+            stderr = () => text;
+        }),
+    );
 
     const socket = new WebSocket(endpoint);
-    await new Promise<void>((resolve, reject) => {
-        socket.addEventListener("open", () => resolve(), { once: true });
-        socket.addEventListener("error", () => reject(new Error("could not connect to Chrome")), { once: true });
-    });
+    await orKill(
+        new Promise<void>((resolve, reject) => {
+            socket.addEventListener("open", () => resolve(), { once: true });
+            socket.addEventListener("error", () => reject(new Error("could not connect to Chrome")), { once: true });
+        }),
+    );
 
     let nextId = 1;
     const pending = new Map<number, { resolve: (r: Record<string, unknown>) => void; reject: (e: Error) => void }>();
@@ -292,7 +322,7 @@ export async function launchChrome(userDataDir: string, args: readonly string[] 
         return targetInfos.filter((t) => t.type === "page" && t.url.includes(fragment));
     };
 
-    await send("Target.setDiscoverTargets", { discover: true });
+    await orKill(send("Target.setDiscoverTargets", { discover: true }));
     let workerSession: Promise<string> | undefined;
 
     const chrome: Chrome = {
@@ -337,15 +367,45 @@ export async function launchChrome(userDataDir: string, args: readonly string[] 
         async extension<T>(expression: string): Promise<T> {
             // Attached once and kept attached: a worker DevTools is attached to is not stopped as idle.
             workerSession ??= (async () => {
-                const worker = (await waitIn(browserEvents, "Target.targetCreated", (p) => {
-                    // Chrome ships component extensions with workers of their own; ours is worker.js.
-                    const info = p.targetInfo as { type: string; url: string };
-                    return info.type === "service_worker" && info.url.endsWith("/worker.js");
-                })) as { targetInfo: { targetId: string } };
-                const reply = (await send("Target.attachToTarget", {
-                    targetId: worker.targetInfo.targetId,
-                    flatten: true,
-                })) as { sessionId: string };
+                // Chrome ships component extensions with workers of their own; ours is worker.js.
+                const isOurs = (info: { type: string; url: string }): boolean =>
+                    info.type === "service_worker" &&
+                    info.url === `chrome-extension://${DISCARD_EXTENSION_ID}/worker.js`;
+                // A service worker runs only while Chrome has an event for it, and a relaunch on a
+                // profile that already has the extension may never start it (issue #9484): start it,
+                // as an event would. Starting a running worker does nothing.
+                const mark = browserEvents.length;
+                const page = (await pages())[0];
+                if (page !== undefined) {
+                    const { sessionId } = (await send("Target.attachToTarget", {
+                        targetId: page.targetId,
+                        flatten: true,
+                    })) as { sessionId: string };
+                    await send("ServiceWorker.enable", {}, sessionId);
+                    await send(
+                        "ServiceWorker.startWorker",
+                        { scopeURL: `chrome-extension://${DISCARD_EXTENSION_ID}/` },
+                        sessionId,
+                    );
+                    await send("Target.detachFromTarget", { sessionId });
+                }
+
+                const { targetInfos } = (await send("Target.getTargets")) as {
+                    targetInfos: { targetId: string; type: string; url: string }[];
+                };
+                const targetId =
+                    targetInfos.find(isOurs)?.targetId ??
+                    (
+                        (await waitIn(
+                            browserEvents,
+                            "Target.targetCreated",
+                            (p) => isOurs(p.targetInfo as { type: string; url: string }),
+                            mark,
+                        )) as { targetInfo: { targetId: string } }
+                    ).targetInfo.targetId;
+                const reply = (await send("Target.attachToTarget", { targetId, flatten: true })) as {
+                    sessionId: string;
+                };
                 return reply.sessionId;
             })();
             const reply = (await send(
@@ -365,14 +425,18 @@ export async function launchChrome(userDataDir: string, args: readonly string[] 
             socket.close();
             child.kill("SIGTERM");
             await exited;
-            // Helpers that outlive the browser would keep writing into the profile.
-            for (const proc of tree) {
+            // Helpers that outlive the browser would keep writing into the profile: those it had when
+            // asked to close, and any it started while shutting down, orphaned and found by profile.
+            for (const proc of [...tree, ...browserProcesses(userDataDir)]) {
                 try {
                     process.kill(proc.pid, "SIGKILL");
                 } catch {
                     // Gone with the browser.
                 }
             }
+
+            // A kill is delivered, not finished: the profile is free only once every helper has exited.
+            await closed;
         },
     };
     return chrome;

@@ -429,7 +429,8 @@ export const DEFAULTS: Readonly<Record<string, Readonly<Record<string, unknown>>
     deltaPageRank: PAGERANK,
     eigenvectorCentrality: POWER,
     hits: POWER,
-    katzCentrality: { ...POWER, alpha: 0.1, beta: 1 },
+    // No alpha: @graphty/algorithms derives one that converges on the graph (0.1 wherever that is safe).
+    katzCentrality: { ...POWER, beta: 1 },
     labelPropagation: { maxIterations: 100 },
     labelPropagationSynchronous: { maxIterations: 100 },
     labelPropagationSemiSupervised: { maxIterations: 100 },
@@ -1357,13 +1358,8 @@ const IMPLS = {
         const sources = o.sources === undefined ? undefined : indicesOf(c.cs, o.sources);
         return then(c.call("betweennessCentrality", c.s, { ...c.rest, sources }), (r) => {
             // Cytoscape's `betweenness` counts ordered pairs, so on an undirected graph it is twice the NetworkX
-            // convention `score` follows. The result does not say which scale it is in, so the factor is rebuilt here
-            // from the rules in @graphty/algorithms' BetweennessOptions.normalized.
-            const n = c.s.nodeCount;
-            const pairs = o.endpoints === true ? n * (n - 1) : (n - 1) * (n - 2);
-            const unordered = c.s.directed ? 1 : 2;
-            const toOrderedPairs = o.normalized === true && pairs > 0 ? pairs : unordered;
-            const raw = Float64Array.from(r.scores, (x) => x * toOrderedPairs);
+            // convention `score` follows; `divisor` is what the ordered-pair counts were divided by.
+            const raw = Float64Array.from(r.scores, (x) => x * r.divisor);
             const max = raw.reduce((m, x) => Math.max(m, x), 0);
             return scored(c, r.scores, {
                 betweenness: accessor(c, raw),
@@ -1618,7 +1614,7 @@ const IMPLS = {
     greedyBipartiteMatching: (c: Ctx, o: MatchingOptions = {}): MatchingResult =>
         matched(c, greedyBipartiteMatching(c.s, { ...c.rest, left: maskOf(c, o.left), right: maskOf(c, o.right) })),
 
-    // Link prediction. `directed` also selects the directed score (out-neighbours of u against in-neighbours of v).
+    // Link prediction. `directed` also selects the directed score (out-neighbors of u against in-neighbors of v).
     commonNeighborsScore: (c: Ctx, o: AlgorithmOptions & PairOptions): number =>
         commonNeighborsScore(c.s, req(c, o.source, "source"), req(c, o.target, "target"), { directed: c.s.directed }),
     adamicAdarScore: (c: Ctx, o: AlgorithmOptions & PairOptions): number =>

@@ -1,11 +1,25 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import { type AiCommandOptions, AiConfigError, type ExecutionResult } from "@graphty/graphty-element/ai";
-import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
-import { type GraphSession, type GraphtyErrorCode, isGraphtyError } from "@graphty/graphty-element/session";
+import {
+    AI_EFFECT_CODES,
+    AI_PROVIDER_DESCRIPTORS,
+    AI_RESULT_CODES,
+    type AiEffect,
+    type AiResultCode,
+    type AiResultParams,
+} from "@graphty/graphty-element/catalog";
+import {
+    type GraphSession,
+    type GraphtyErrorCode,
+    isGraphtyError,
+    isGraphtyErrorCode,
+} from "@graphty/graphty-element/session";
 
+import { allowlisted, count } from "../../lib/analytics";
 import { goToComposer } from "../assistant-door/commands";
 import { type AssistantChoice, effortConfig } from "../assistant-door/provider";
 import { fileName, saveBlob } from "../export/choices";
+import { datasetBase } from "../start/open";
 import type { WorkspaceStore } from "../state/store";
 import { isAway, watchWaiting } from "./away";
 import { changeLines, endWords, isChange, MODEL_INSTRUCTIONS, WORDS } from "./words";
@@ -18,6 +32,24 @@ const links = new WeakMap<GraphtyElement, Promise<void>>();
 
 /** The elements whose exports are already saved, so setting one up again saves each file once. */
 const saving = new WeakSet<GraphtyElement>();
+
+/** The elements whose turns are already counted, so setting one up again counts each turn once. */
+const counting = new WeakSet<GraphtyElement>();
+
+/** The provider each element's assistant was last set up with, as `assistant_used` sends it. */
+const providers = new WeakMap<GraphtyElement, string>();
+
+/** The providers `assistant_used` names: the element's own, less its test-only ones. */
+const PROVIDERS: ReadonlySet<string> = new Set(
+    AI_PROVIDER_DESCRIPTORS.filter((entry) => !entry.testOnly).map((entry) => entry.id),
+);
+const RESULT_CODES: ReadonlySet<string> = new Set(AI_RESULT_CODES);
+const EFFECT_CODES: ReadonlySet<string> = new Set(AI_EFFECT_CODES);
+
+/** What the reader's next turn on the same message is, by the result that left it waiting. */
+const WAITS_FOR: Readonly<Partial<Record<string, "approval">>> = {
+    AI_CONFIRMATION_NEEDED: "approval",
+};
 
 /** Results that end a message for now and wait on the reader. */
 const WAITING = new Set<Failure["code"]>(["AI_CONFIRMATION_NEEDED", "AI_QUESTION_ASKED"]);
@@ -57,6 +89,65 @@ function saveExports(element: GraphtyElement, store: WorkspaceStore): void {
 }
 
 /**
+ * Counts each of the element's turns once (`assistant_used`, design/graphty/usage-analytics.md
+ * section 4.1), from the element's own end of every turn: one the panel sent, a spoken one, an
+ * approval or an answer. Only codes and the provider's id are sent, never the words.
+ * @param element - the element.
+ */
+function countTurns(element: GraphtyElement): void {
+    if (counting.has(element)) {
+        return;
+    }
+    counting.add(element);
+    // The newest reader message counted, the effects of its turn counted so far, what the last
+    // turn left waiting (the next turn on the same message approves it), and whether the reader
+    // just answered a question. An answer shows as a reader entry of its own, so it is told apart
+    // by the element's ai-pending-resolved, sent just before the answered message goes on.
+    let reader: string | undefined;
+    let counted = 0;
+    let waiting: "approval" | undefined;
+    let answered = false;
+    element.addEventListener("ai-pending-resolved", ({ detail }) => {
+        answered = detail.kind === "question" && detail.code === "AI_COMPLETED";
+    });
+    const ended = (code: unknown): void => {
+        const messages = element.getAiConversation()?.messages ?? [];
+        const newest = messages.findLast((message) => message.role === "reader");
+        const fresh = newest?.id !== reader;
+        let step: "message" | "approval" | "answer" = fresh ? "message" : (waiting ?? "message");
+        if (answered) {
+            step = "answer";
+        }
+        answered = false;
+        if (fresh) {
+            reader = newest?.id;
+            counted = 0;
+        }
+        const { changes } = newestTurn(element);
+        const added = changes.slice(counted).map((effect) => allowlisted(effect.code, EFFECT_CODES));
+        counted = changes.length;
+        const outcome =
+            typeof code === "string" && (RESULT_CODES.has(code) || isGraphtyErrorCode(code)) ? code : "other";
+        waiting = WAITS_FOR[outcome];
+        count("assistant_used", {
+            provider: allowlisted(providers.get(element), PROVIDERS),
+            step,
+            voice: newest?.role === "reader" && newest.via === "voice",
+            outcome,
+            changed: added.length === 0 ? "none" : [...new Set(added)].sort((a, b) => a.localeCompare(b)).join(","),
+        });
+    };
+    // Every turn ends in exactly one of these two: a canceled one too (AI_CANCELED), and one refused
+    // before it ran (a missing key, a stale approval) with ai-command-complete.
+    element.addEventListener("ai-command-complete", ({ detail }) => {
+        ended(detail.result.code);
+    });
+    element.addEventListener("ai-command-error", ({ detail }) => {
+        ended(detail.code);
+    });
+}
+
+/**
  * Sets up the element's assistant. The key is the element's: given here once, and back from storage
  * on every fresh element after that.
  * @param element - the element.
@@ -71,6 +162,7 @@ export function link(
     choice: AssistantChoice,
     apiKey?: string,
 ): Promise<void> {
+    providers.set(element, choice.provider);
     const ready = element
         .enableAiControl({
             provider: choice.provider,
@@ -84,10 +176,12 @@ export function link(
             instructions: MODEL_INSTRUCTIONS,
             questions: true,
             voice: { review: true, output: "off" },
+            datasetBaseUrl: datasetBase().baseUrl,
         })
         .then(() => {
             watchWaiting(element, store);
             saveExports(element, store);
+            countTurns(element);
             store.set((state) => ({ assistantLinks: state.assistantLinks + 1 }));
         });
     links.set(element, ready);

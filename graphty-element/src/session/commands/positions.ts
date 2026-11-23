@@ -2,8 +2,8 @@
  * @file The positions ops, each one undoable step on the immediate lane:
  *
  * - `positions.set`: place nodes at coordinates. It records the rows it wrote as a row patch, or,
- *   over more than a third of the rows, a capture; calls made one after another within the
- *   coalescing window are one step.
+ *   over more than a third of the rows, a capture; consecutive calls placing the same nodes,
+ *   with no other step between them, are one step.
  * - `positions.pin`: pin nodes where they are, or release them. The pinned ids are the `pins`
  *   slice; the lane's pin bytes and the layout engine follow it.
  *

@@ -17,6 +17,12 @@
 
 import { GraphFormatError, type IdCoercion, type NodeId } from "@graphty/graph-format";
 
+/**
+ * The node attribute an exporter's `sanitizeIds: "mangle"` keeps an original id in, which the importers read back.
+ * @category Plugin helpers
+ */
+export const ORIGINAL_ID_ATTRIBUTE = "graphty:originalId";
+
 const CANONICAL_INTEGER = /^-?(0|[1-9]\d*)$/;
 
 export { ID_MERGED_CODE } from "./codes.js";

@@ -18,13 +18,16 @@ import {
 } from "../../../src/index.js";
 import { SOURCE_STUB_ATTR } from "../../../src/sources/ids.js";
 import {
+    CROSSREF_MAPPING,
     DEPS_DEV_MAPPING,
     openalexSource,
+    REACTOME_MAPPING,
     REST_DESCRIPTOR,
     type RestMapping,
     restMappingSource,
     restSource,
     STRING_MAPPING,
+    WIKIPEDIA_MAPPING,
 } from "../../../src/sources/rest/index.js";
 import { runSourceConformance } from "../harness.js";
 import { rejection } from "../helpers.js";
@@ -340,8 +343,43 @@ describe("examples of the rest source", () => {
         expect(snapshot.nodes.value("name", snapshot.ids.requireIndex("0"))).toBe("webpack");
     });
 
+    it("Reactome: TP53's static interactors are 249 molecules, TP53 among them", async () => {
+        const example = REST_DESCRIPTOR.examples?.find((s) => s.id === "reactome-tp53");
+        const { snapshot } = await loadFromSource(restMappingSource, example?.params as never, {
+            fetch: replayFetch(recorded("reactome-tp53")),
+        });
+        expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([249, 249]);
+        expect(snapshot.nodes.value("name", snapshot.ids.requireIndex("Q00987"))).toBe("MDM2");
+        expect(snapshot.directed).toBe(false);
+    });
+
+    it("Crossref: the Watts-Strogatz paper cites 20 works with a DOI", async () => {
+        const example = REST_DESCRIPTOR.examples?.find((s) => s.id === "crossref-watts-strogatz");
+        const { snapshot } = await loadFromSource(restMappingSource, example?.params as never, {
+            fetch: replayFetch(recorded("crossref-watts-strogatz")),
+        });
+        expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([21, 20]);
+        expect(snapshot.nodes.value("year", snapshot.ids.requireIndex("10.1007/978-3-662-22492-2"))).toBe("1980");
+        expect(snapshot.directed).toBe(true);
+    });
+
+    it("Wikipedia: Eulerian path links to 100 articles", async () => {
+        const example = REST_DESCRIPTOR.examples?.find((s) => s.id === "wikipedia-eulerian-path");
+        const { snapshot } = await loadFromSource(restMappingSource, example?.params as never, {
+            fetch: replayFetch(recorded("wikipedia-eulerian-path")),
+        });
+        expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([101, 100]);
+        expect(snapshot.ids.has("Alexander Schrijver")).toBe(true);
+    });
+
     it("the example mappings are the exported ones", () => {
-        expect(REST_DESCRIPTOR.examples?.map((s) => s.params.mapping)).toEqual([STRING_MAPPING, DEPS_DEV_MAPPING]);
+        expect(REST_DESCRIPTOR.examples?.map((s) => s.params.mapping)).toEqual([
+            STRING_MAPPING,
+            DEPS_DEV_MAPPING,
+            REACTOME_MAPPING,
+            CROSSREF_MAPPING,
+            WIKIPEDIA_MAPPING,
+        ]);
     });
 });
 
@@ -669,6 +707,24 @@ runSourceConformance(restMappingSource, [
         params: { mapping: STRING_MAPPING, identifiers: "TP53", species: "9606", add_nodes: "20" },
         endpoint: STRING_MAPPING.endpoint,
         recordings: recorded("string-tp53"),
+    },
+    {
+        name: "Reactome",
+        params: { mapping: REACTOME_MAPPING, accession: "P04637" },
+        endpoint: REACTOME_MAPPING.endpoint,
+        recordings: recorded("reactome-tp53"),
+    },
+    {
+        name: "Crossref",
+        params: { mapping: CROSSREF_MAPPING, doi: "10.1038/30918" },
+        endpoint: CROSSREF_MAPPING.endpoint,
+        recordings: recorded("crossref-watts-strogatz"),
+    },
+    {
+        name: "Wikipedia",
+        params: { mapping: WIKIPEDIA_MAPPING, title: "Eulerian path" },
+        endpoint: WIKIPEDIA_MAPPING.endpoint,
+        recordings: recorded("wikipedia-eulerian-path"),
     },
     {
         name: "a paged API",

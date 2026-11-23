@@ -1,4 +1,9 @@
-import { Camera, Engine, FreeCamera, Scene, Vector3, WebGPUEngine } from "@babylonjs/core";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera.js";
+import { Engine } from "@babylonjs/core/Engines/engine.js";
+import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { freeArea, paddedArea } from "../camera/insets";
 import type { ViewInsets } from "../camera/types";
@@ -26,6 +31,18 @@ export interface TwoDCameraControlsConfigType {
     initialOrthoSize: number;
     rotationEnabled: boolean;
     inertiaEnabled: boolean;
+}
+
+/** The speed below which inertia has damped to rest, in the velocity's own units per frame. */
+const REST_SPEED = 1e-4;
+
+/**
+ * A damped speed, or 0 once it is too small to see.
+ * @param speed - The speed after damping.
+ * @returns The speed, or 0 at rest.
+ */
+function atRest(speed: number): number {
+    return Math.abs(speed) < REST_SPEED ? 0 : speed;
 }
 
 // === Camera Controller Class ===
@@ -250,10 +267,12 @@ export class TwoDCameraController {
 
         this.camera.rotation.z += v.rotate;
 
-        v.x *= c.panDamping;
-        v.y *= c.panDamping;
-        v.zoom *= c.zoomDamping;
-        v.rotate *= c.rotateDamping;
+        // Damped to rest: below these the motion is too small to see, and a velocity that only
+        // ever shrinks would keep the camera moving, and the frames drawing, for thousands of frames.
+        v.x = atRest(v.x * c.panDamping);
+        v.y = atRest(v.y * c.panDamping);
+        v.zoom = atRest(v.zoom * c.zoomDamping);
+        v.rotate = atRest(v.rotate * c.rotateDamping);
     }
 
     /**

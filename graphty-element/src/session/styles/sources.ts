@@ -13,7 +13,7 @@
  * PRESENCE IS SUPPLIED RATHER THAN DERIVED. `{match:"has", path}` compiles to `nodeHas`, and so
  * does ``<path> != `null` `` -- they are the two spellings of one question, and an element that
  * answered them differently would paint two different sets from one intent. A column answers
- * presence from its validity bitmap without materialising the value, which is the whole reason
+ * presence from its validity bitmap without materializing the value, which is the whole reason
  * the interface offers the member; leaving it out would throw that away and read the value anyway.
  * Present means NEITHER ABSENT NOR NULL, exactly as the contract states it, so an unset row of a
  * column that declares a default is PRESENT: that row reads the default, and a reader who gets a
@@ -35,7 +35,7 @@
  *
  * NOTHING IS ALLOCATED PER ELEMENT. These readers run once per element per layer inside the
  * repaint, where the compiled selector costs single-digit nanoseconds, so one object per read
- * would cost more than everything it was measuring. A path is parsed once and memoised; a column
+ * would cost more than everything it was measuring. A path is parsed once and memoized; a column
  * is resolved once per freeze; an edge id is minted once per row per freeze and then read from an
  * array; and the snapshot check that keeps all of it honest is one call and one identity compare.
  *
@@ -48,9 +48,8 @@ import type { EdgeId, NodeId, Path, RunId, TopTies } from "../../catalog/types";
 import { type NoteFacts, type NoteFactsReader, noteFieldOf } from "../notes/paths";
 import { RESULT_ROOT, type RunResult } from "../results";
 import { edgeSpaceOf } from "../scope/spaces";
+import { DRAFT_PATH, RECORD_PATHS } from "../sources/steps/paths";
 import type { SessionRecordSource } from "../types";
-import { parseFileStylePath } from "./fileStyles/path";
-import type { FileStyleScalar } from "./fileStyles/store";
 import type { SelectorSource, SelectorTarget } from "./predicate";
 
 // ---------------------------------------------------------------------------------------------
@@ -95,18 +94,21 @@ export interface SelectorSourceParts {
      */
     readonly notes?: NoteFactsReader;
     /**
-     * One column of a file's style values, by element id, for the `graphty.style.*` paths. Absent,
-     * or answering undefined, those paths read nothing.
-     * @param namespace - The load's namespace.
-     * @param kind - Nodes or edges.
-     * @param key - The column's key.
-     * @returns The values by element id, or undefined when no load holds that column.
+     * What a drawn draft's commit does to one node or edge, for the `graphty.draft` path, read
+     * under the source-steps experiment only. Absent, or answering undefined, the path reads nothing.
      */
-    readonly fileStyles?: (
-        namespace: string,
-        kind: SelectorTarget,
-        key: string,
-    ) => ReadonlyMap<NodeId | EdgeId, FileStyleScalar> | undefined;
+    readonly draft?: (target: SelectorTarget, id: string) => string | undefined;
+    /**
+     * How many nodes one node holds directly, for the {@link MEMBERS_PATH} path: undefined for a
+     * node that holds none. Absent, the path reads nothing.
+     */
+    readonly members?: (id: NodeId) => number | undefined;
+    /**
+     * Whether the source-steps experiment is on. While it is off, the readable paths
+     * (`graphty.type`, ...) read nothing, as before the experiment, even on a record that happens
+     * to carry such a key. Absent reads off.
+     */
+    readonly sourceSteps?: () => boolean;
 }
 
 /**
@@ -271,6 +273,13 @@ export function structureValuesOf(graph: GraphSnapshot, path: Path): ArrayLike<n
     }
 }
 
+/**
+ * The node path a group answers: how many nodes it holds directly (a Cytoscape.js compound node,
+ * a Graphviz cluster, a yEd group, a node others name as their `parent`). Every other node reads
+ * nothing, so `{ match: "has", path: MEMBERS_PATH }` selects the groups.
+ */
+export const MEMBERS_PATH = "graphty.members";
+
 /** What a path names, settled once when the path is first seen. */
 type PathKind =
     /** A node's value read at one end of an edge, under `graphty.source.` or `graphty.target.`. */
@@ -279,10 +288,12 @@ type PathKind =
     | "attribute"
     /** One of the note values, under `graphty.notes.`. */
     | "note"
+    /** What a drawn draft does to the element, at `graphty.draft`. */
+    | "draft"
     /** A node's structural value, one of {@link STRUCTURE_PATHS}. */
     | "structure"
-    /** One column of a file's style values, under `graphty.style.`. */
-    | "style"
+    /** How many nodes a group holds, at {@link MEMBERS_PATH}. */
+    | "members"
     /** Nothing this session can answer, so every read of it is absent. */
     | "none"
     /** One per-element field of one run's result. */
@@ -306,13 +317,16 @@ interface PathEntry {
     readonly field: string;
 }
 
+/** {@link RECORD_PATHS}, for a lookup per read. */
+const RECORD_PATH_SET: ReadonlySet<string> = new Set(RECORD_PATHS);
+
 /** The entry every path that nothing answers shares. */
 const NOTHING: PathEntry = Object.freeze({ kind: "none", key: "", runId: "", field: "" });
 
 /**
  * Work out what a path names.
  *
- * Called once per path and memoised, because the alternative is splitting a string per element.
+ * Called once per path and memoized, because the alternative is splitting a string per element.
  *
  * A `results.*` path that is not exactly `results.<run>.<field>` is refused into
  * {@link NOTHING} rather than guessed at. `results.<run>` on its own addresses the run's whole
@@ -343,6 +357,12 @@ function parsePath(path: Path): PathEntry {
         return { kind: "structure", key: "", runId: "", field: path };
     }
 
+    // The source-steps experiment writes an element's readable paths (`graphty.type`, ...) on its
+    // record, so they are read as columns; with it off `entryFor` never reaches here for them.
+    if (RECORD_PATHS.includes(path)) {
+        return { kind: "attribute", key: path, runId: "", field: "" };
+    }
+
     if (path.startsWith(ELEMENT_ROOT)) {
         return parseElementPath(path);
     }
@@ -367,9 +387,12 @@ function parseElementPath(path: Path): PathEntry {
         return { kind: "note", key: "", runId: "", field: note };
     }
 
-    const style = parseFileStylePath(path);
-    if (style !== undefined) {
-        return { kind: "style", key: style.key, runId: style.namespace, field: style.kind };
+    if (path === DRAFT_PATH) {
+        return { kind: "draft", key: "", runId: "", field: "" };
+    }
+
+    if (path === MEMBERS_PATH) {
+        return { kind: "members", key: "", runId: "", field: "" };
     }
 
     return NOTHING;
@@ -491,7 +514,7 @@ function cellValue(reader: ColumnReader, index: number): unknown {
 /**
  * Whether one cell of a column holds a value.
  *
- * The validity bit answers it without materialising anything, which is the reason a source
+ * The validity bit answers it without materializing anything, which is the reason a source
  * supplies presence rather than letting it be derived. A set row never holds null -- writing null
  * unsets the row -- so a set bit IS a present value.
  * @param reader - The column.
@@ -540,7 +563,7 @@ function isPresent(value: unknown): boolean {
  * ```
  */
 export function createSelectorSource(parts: SelectorSourceParts): SessionSelectorSource {
-    const { snapshot: readSnapshot, records, notes, fileStyles } = parts;
+    const { snapshot: readSnapshot, records, notes } = parts;
     const readResult = parts.results;
     const paths = new Map<Path, PathEntry>();
     let frame: Frame | null = null;
@@ -565,6 +588,14 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
      * @returns Its entry.
      */
     const entryFor = (path: Path): PathEntry => {
+        if (RECORD_PATH_SET.has(path) && parts.sourceSteps?.() !== true) {
+            return parseElementPath(path);
+        }
+
+        if (path === DRAFT_PATH && parts.sourceSteps?.() !== true) {
+            return NOTHING;
+        }
+
         const held = paths.get(path);
 
         if (held !== undefined) {
@@ -699,30 +730,32 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
     };
 
     /**
-     * One element's file-style value: the column's value under the element's id.
+     * What a drawn draft does to one element.
+     * @param held - The frame.
      * @param target - Whether the asking layer paints nodes or edges.
      * @param index - The element's dense index.
-     * @param entry - The parsed style path.
-     * @returns The value, or undefined when the element holds none.
+     * @returns Its mark, or undefined while no draft is drawn.
      */
-    const styleOf = (target: SelectorTarget, index: number, entry: PathEntry): unknown => {
-        // A node path read by an edge layer, or the reverse, names nothing that element holds.
-        if (entry.field !== target) {
+    const draftAt = (held: Frame, target: SelectorTarget, index: number): string | undefined => {
+        const read = parts.draft;
+        if (read === undefined || index < 0 || index >= (target === "node" ? held.nodeCount : held.edgeCount)) {
             return undefined;
         }
 
-        const column = fileStyles?.(entry.runId, target, entry.key);
-        if (column === undefined) {
-            return undefined;
-        }
-
-        const held = current();
-        if (target === "node") {
-            return index >= 0 && index < held.nodeCount ? column.get(held.graph.ids.idOf(index)) : undefined;
-        }
-
-        return index >= 0 && index < held.edgeCount ? column.get(edgeIdAt(held, index)) : undefined;
+        return read(target, target === "node" ? String(held.graph.ids.idOf(index)) : edgeIdAt(held, index));
     };
+
+    /**
+     * How many nodes one node holds directly.
+     * @param held - The frame.
+     * @param target - Whether the asking layer paints nodes or edges.
+     * @param index - The element's dense index.
+     * @returns The count, or undefined for an edge or a node that holds none.
+     */
+    const membersAt = (held: Frame, target: SelectorTarget, index: number): number | undefined =>
+        target === "node" && index >= 0 && index < held.nodeCount
+            ? parts.members?.(held.graph.ids.idOf(index))
+            : undefined;
 
     /**
      * One element's value for a path.
@@ -742,11 +775,15 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
             return notes?.(target, index)?.[entry.field as keyof NoteFacts];
         }
 
-        if (entry.kind === "style") {
-            return styleOf(target, index, entry);
+        const held = current();
+
+        if (entry.kind === "draft") {
+            return draftAt(held, target, index);
         }
 
-        const held = current();
+        if (entry.kind === "members") {
+            return membersAt(held, target, index);
+        }
 
         // The node at one end of an edge: nodes have no ends, so they read nothing.
         if (entry.kind === "end") {
@@ -789,13 +826,9 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
             return notes?.(target, index) !== undefined;
         }
 
-        if (entry.kind === "style") {
-            return isPresent(styleOf(target, index, entry));
-        }
-
         const held = current();
 
-        if (entry.kind === "end" || entry.kind === "structure") {
+        if (entry.kind === "end" || entry.kind === "structure" || entry.kind === "draft" || entry.kind === "members") {
             return isPresent(valueOf(target, index, path));
         }
 
@@ -864,6 +897,7 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
     };
 
     return {
+        sourceSteps: parts.sourceSteps,
         nodeValue: (index: number, path: Path): unknown => valueOf("node", index, path),
         edgeValue: (index: number, path: Path): unknown => valueOf("edge", index, path),
         nodeHas: (index: number, path: Path): boolean => presentAt("node", index, path),

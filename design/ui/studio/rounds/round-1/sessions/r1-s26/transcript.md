@@ -45,7 +45,7 @@ Tool said: `button "Analyze"`.
 
 Seen: a pop-up list "Rank nodes and edges": Degree, Betweenness, Edge betweenness, Closeness,
 PageRank (tagged "Start here"), Eigenvector, Katz, HITS, All-pairs distance, Depth-first order
-(greyed, "Select a node first"), Most flow...
+(grayed, "Select a node first"), Most flow...
 
 Thinking aloud: "A lot of jargon, but each one has a plain line under it. PageRank says 'Start
 here', but its line -- 'connected to other well-connected nodes' -- is about popularity. 'Which
@@ -120,7 +120,7 @@ Thinking aloud: "In a spreadsheet a chain means 'link to something'. Yes -- 'Siz
 ### 12. `--step $S --click-at 1381,256` -> 13.png
 
 Seen: "Find an attribute", group "Bridges": Bridges, Bridges rank, Bridges percentile. Below,
-greyed: "Cannot be used: Holds groups, not amounts" -- id, name.
+grayed: "Cannot be used: Holds groups, not amounts" -- id, name.
 
 Thinking aloud: "Good, and it even tells me why names can't be used. Plain Bridges."
 

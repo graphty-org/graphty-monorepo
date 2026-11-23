@@ -69,7 +69,12 @@ describe("row scan at a million rows", () => {
                 drawnScaling: Vector3.One(),
                 drawnByRowScan: true,
             };
-            const scan = new RowScan(scene, { rows: ROWS, rowBounds }, () => node, null);
+            const scan = new RowScan(
+                scene,
+                { rows: ROWS, rowBounds, centerOf: (row) => Vector3.FromArray(rowBounds, row * 4) },
+                () => node,
+                null,
+            );
             const times: number[] = [];
             let hits = 0;
             for (let i = 0; i < RAYS; i++) {

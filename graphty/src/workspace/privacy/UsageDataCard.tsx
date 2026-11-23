@@ -1,63 +1,125 @@
-import { Anchor, Button, Group, Paper, Stack, Text } from "@mantine/core";
-import React, { useState } from "react";
+import { Anchor, Button, CloseButton, Group, Paper, Stack, Text } from "@mantine/core";
+import React, { type RefObject, useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
-import { answerUsageData, type UsageAnswer, useUsageAnswer } from "./usageData";
+import { ANONYMOUS_COUNTS, answerUsageData, type UsageAnswer, useAnalyticsSends, useUsageAnswer } from "./usageData";
 import { UsageDataText } from "./UsageDataText";
 
-/** The line after an answer, by the answer. */
+/** The line after an answer, by the answer, where the page sends PostHog nothing. */
 const ANSWER_WORDS: Record<UsageAnswer, string> = {
     share: "Thank you. Usage data is on, with content masked.",
     declined: "Usage data stays off.",
 };
 
+/** The line after an answer, by the answer, where the page sends PostHog. */
+const ANALYTICS_ANSWER_WORDS: Record<UsageAnswer, string> = {
+    ...ANSWER_WORDS,
+    declined: "Usage data stays off. Anonymous counts are still sent.",
+};
+
 /**
- * The usage data card at the foot of the start screen (tier1-design.md section 2.11): shown on
- * every launch until it is answered, never blocking; a sample can be opened first. After an
- * answer, one line says what was chosen and where to change it.
+ * The usage data question (tier1-design.md section 2.11), pinned to the foot of the window on
+ * every page -- the start screen or an open project -- until it is answered, so a first visit is
+ * asked wherever it lands. It never blocks: a sample can be opened first. Where the page sends
+ * PostHog, anonymous counts (PostHog's cookieless mode) are sent whatever the answer, and Share
+ * switches PostHog to its shared mode and adds Sentry; elsewhere nothing is collected until the
+ * reader answers. After an answer, one line says what was chosen and where to change it, until it is
+ * closed; an answer from an earlier visit shows nothing.
  * @param props - Component props
- * @param props.onAnswered - Called after an answer, as the card (and the button holding focus) goes
- * @returns The card, the answer line, or nothing once answered on an earlier launch
+ * @param props.returnFocus - Where focus goes when the answer line is closed from inside it, else
+ * the drawing
+ * @returns The question, the answer line, or nothing
  */
-export function UsageDataCard({ onAnswered }: Readonly<{ onAnswered?: () => void }>): React.JSX.Element | null {
-    const { run, store } = useWorkspace();
+export function UsageDataCard({
+    returnFocus,
+}: Readonly<{ returnFocus?: RefObject<HTMLElement | null> }>): React.JSX.Element | null {
+    const { run, store, element } = useWorkspace();
     const answer = useUsageAnswer();
+    const analytics = useAnalyticsSends();
+    const words = analytics ? ANALYTICS_ANSWER_WORDS : ANSWER_WORDS;
     const [answeredNow, setAnsweredNow] = useState(false);
+    const [closed, setClosed] = useState(false);
+    // The button pressed goes with the question: when it held focus, the answer line's close takes it.
+    const [focusClose, setFocusClose] = useState(false);
+    const card = useRef<HTMLDivElement>(null);
+    // An answer given now that no longer holds: a Share clicked before site.json loaded, which reads as
+    // unanswered once it switches PostHog on (usageData.ts). The question is asked again, focus that
+    // was on the answer line moves to it, and the status line says so. Read before the answer line
+    // leaves the page, while focus is still on it.
+    const [shownAnswer, setShownAnswer] = useState(answer);
+    const [focusQuestion, setFocusQuestion] = useState(false);
+    const [askedAgain, setAskedAgain] = useState(false);
+    if (shownAnswer !== answer) {
+        setShownAnswer(answer);
+        if (answer === null && answeredNow) {
+            setFocusQuestion(!closed && (document.activeElement?.closest(".ws-usage-notice") ?? null) !== null);
+            setAnsweredNow(false);
+            setClosed(false);
+            setAskedAgain(true);
+        }
+    }
+    useEffect(() => {
+        if (askedAgain) {
+            store.set({ announcement: "Usage data is off again. Please answer the question again." });
+        }
+    }, [askedAgain, store]);
     const choose = (next: UsageAnswer): void => {
+        setFocusClose(card.current?.contains(document.activeElement) === true);
         setAnsweredNow(true);
         answerUsageData(next);
         // Spoken by the status line already on the page; the line below arrives with its words.
-        store.set({ announcement: `${ANSWER_WORDS[next]} Change this in Settings > Privacy` });
-        onAnswered?.();
+        store.set({ announcement: `${words[next]} Change this in Settings > Privacy` });
     };
 
     if (answer !== null) {
-        return answeredNow ? (
-            <Text size="xs" className="ws-start-answer">
-                {ANSWER_WORDS[answer]}{" "}
-                <Anchor
-                    component="button"
-                    size="xs"
-                    onClick={() => {
-                        run("settings.privacy");
-                    }}
-                >
-                    Change this in Settings &gt; Privacy
-                </Anchor>
-            </Text>
-        ) : null;
+        if (!answeredNow || closed) {
+            return null;
+        }
+        return (
+            <Paper ref={card} withBorder p="xs" className="ws-usage-notice">
+                <Group gap="xs" wrap="nowrap" align="center">
+                    <Text size="xs" className="ws-start-answer">
+                        {words[answer]}{" "}
+                        <Anchor
+                            component="button"
+                            size="xs"
+                            onClick={() => {
+                                run("settings.privacy");
+                            }}
+                        >
+                            Change this in Settings &gt; Privacy
+                        </Anchor>
+                    </Text>
+                    <CloseButton
+                        autoFocus={focusClose}
+                        size="sm"
+                        aria-label="Close"
+                        onClick={() => {
+                            const hadFocus = card.current?.contains(document.activeElement) === true;
+                            setClosed(true);
+                            if (hadFocus) {
+                                (returnFocus?.current ?? element)?.focus();
+                            }
+                        }}
+                    />
+                </Group>
+            </Paper>
+        );
     }
 
     return (
-        <Paper component="aside" aria-label="Usage data" withBorder p="sm" className="ws-start-card">
+        <Paper ref={card} component="aside" aria-label="Usage data" withBorder p="sm" className="ws-usage-notice">
             <Stack gap={6}>
                 <UsageDataText />
                 <Text size="xs" c="dimmed">
-                    Nothing is collected until you answer.
+                    {analytics
+                        ? `Until you share, anonymous counts are sent: ${ANONYMOUS_COUNTS}, and whether you share. No cookies, no stored id, no names or contents.`
+                        : "Nothing is collected until you answer."}
                 </Text>
                 <Group gap="xs">
                     <Button
                         variant="default"
+                        autoFocus={focusQuestion}
                         onClick={() => {
                             choose("share");
                         }}

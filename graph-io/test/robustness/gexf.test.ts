@@ -12,7 +12,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MAX_HINT_RESERVE } from "../../src/common/xml.js";
 import { GEXF_ISSUE } from "../../src/formats/gexf/index.js";
-import { bytesOf, codes, gexf, GEXF_NS, ids, issuesOf, load } from "./xml-helpers.js";
+import { codes, ids } from "./helpers.js";
+import { bytesOf, gexf, GEXF_NS, issuesOf, load } from "./xml-helpers.js";
 
 const E_ACUTE = String.fromCharCode(0xe9);
 const AB = `<node id="a"/><node id="b"/>`;
@@ -56,7 +57,7 @@ describe("GEXF header", () => {
         const doc = `<gexf xmlns="${GEXF_NS}" version="1.3"><graph defaultedgetype="directed"><nodes>${AB}</nodes></graph><graph defaultedgetype="undirected"><nodes><node id="c"/></nodes><edges><edge source="a" target="c"/></edges></graph></gexf>`;
         const { snapshot, report } = await load("gexf", doc);
         expect(codes(report)).toEqual([GEXF_ISSUE.MULTIPLE_GRAPHS]);
-        expect(ids({ snapshot })).toEqual(["a", "b", "c"]);
+        expect(ids(snapshot)).toEqual(["a", "b", "c"]);
         expect(snapshot.directed).toBe(true);
         expect(snapshot.edgeCount).toBe(1);
     });
@@ -68,7 +69,7 @@ describe("GEXF header", () => {
         );
         expect(codes(report)).toEqual([GEXF_ISSUE.HEADER_VALUE]);
         expect(report.issues[0].message).toMatch(/"x" is not an integer.*idtype="integer"/);
-        expect(ids({ snapshot })).toEqual([1, "x", "y"]);
+        expect(ids(snapshot)).toEqual([1, "x", "y"]);
     });
 
     it("gexf-meta-bad-date: a lastmodifieddate that is not a date is reported and kept as written", async () => {
@@ -97,7 +98,7 @@ describe("GEXF header", () => {
         const doc = gexf(`<node id="caf${E_ACUTE}"/>`).replace("UTF-8", "ISO-8859-1");
         const result = await load("gexf", bytesOf(doc, "latin1"));
         expect(result.report.issues).toEqual([]);
-        expect(ids(result)).toEqual([`caf${E_ACUTE}`]);
+        expect(ids(result.snapshot)).toEqual([`caf${E_ACUTE}`]);
     });
 });
 
@@ -139,7 +140,7 @@ describe("GEXF namespaces and structure", () => {
         const doc = `<gexf xmlns="${GEXF_NS}" version="1.3"><graph><nodes><node id="a"/></nodes><nodes><node id="b"/></nodes><edges><edge source="a" target="b"/></edges></graph></gexf>`;
         const { snapshot, report } = await load("gexf", doc);
         expect(report.issues).toEqual([]);
-        expect(ids({ snapshot })).toEqual(["a", "b"]);
+        expect(ids(snapshot)).toEqual(["a", "b"]);
         expect(snapshot.edgeCount).toBe(1);
     });
 
@@ -151,7 +152,7 @@ describe("GEXF namespaces and structure", () => {
             gexf(`<node id=""/><node id="b"/>`, `<edge source="" target="b"/>`),
         );
         expect(report.issues).toEqual([]);
-        expect(ids({ snapshot })).toEqual(["", "b"]);
+        expect(ids(snapshot)).toEqual(["", "b"]);
         expect(snapshot.edgeCount).toBe(1);
     });
 
@@ -168,7 +169,7 @@ describe("GEXF namespaces and structure", () => {
             gexf(`<node label="no id"><nodes><node id="c"/></nodes></node>`),
         );
         expect(codes(report)).toEqual([GEXF_ISSUE.MISSING_ID, GEXF_ISSUE.UNKNOWN_PARENT]);
-        expect(ids({ snapshot })).toEqual(["c"]);
+        expect(ids(snapshot)).toEqual(["c"]);
         expect(snapshot.nodes.get("parent")).toBeNull();
     });
 
@@ -384,12 +385,13 @@ describe("GEXF attribute values", () => {
         expect(snapshot.nodes.value("n", 0)).toBe(2);
     });
 
-    it("gexf-attributes-after-nodes: values of an attribute declared after the nodes are dropped, and the late declaration says so", async () => {
+    it("gexf-attributes-after-nodes: values of an attribute declared after the nodes are kept as text, and the late declaration says so", async () => {
         const doc = `<gexf xmlns="${GEXF_NS}" version="1.3"><graph><nodes><node id="a"><attvalues><attvalue for="0" value="1"/></attvalues></node></nodes>${NODE_ATTRS(`<attribute id="0" title="n" type="integer"/>`)}</graph></gexf>`;
         const { snapshot, report } = await load("gexf", doc);
         expect(codes(report)).toEqual([GEXF_ISSUE.UNKNOWN_ATTRIBUTE, GEXF_ISSUE.UNKNOWN_ATTRIBUTE]);
         expect(report.issues[1].message).toMatch(/declared after values that use it/);
-        expect(snapshot.nodes.require("n").isSet(0)).toBe(false);
+        expect(snapshot.nodes.value("0", 0)).toBe("1");
+        expect(snapshot.nodes.get("n")).toBeNull();
     });
 });
 

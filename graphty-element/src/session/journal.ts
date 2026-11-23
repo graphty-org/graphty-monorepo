@@ -3,7 +3,7 @@
  *
  * Every command that changes the project and finishes writes one entry, whether it was
  * dispatched on its own or as a member of a batch or a transaction. A command that fails or is
- * cancelled writes nothing; a batch or a transaction writes its members' entries when it
+ * canceled writes nothing; a batch or a transaction writes its members' entries when it
  * records, and none when it rolls back. Moving the camera and entering or leaving a headset session are not
  * project changes and write nothing either. A run carries the id of the entry its command wrote.
  *
@@ -16,11 +16,13 @@ import type { RunId } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { SessionCommand } from "./planning";
 import type { ExecutedCommand } from "./project/Dispatcher";
+import { plainRecords } from "./project/recordMap";
 import { reportCaught } from "./project/strict";
 import type { EngineVersions } from "./runs/types";
+import type { HistoryStepId } from "./types";
 
 /** The identity of a journal entry. Opaque; unique within its session. */
-export type JournalId = string; // NOSONAR(S6564): the designed public name a run's journalId is typed by
+export type JournalId = string; // eslint-disable-line sonarjs/redundant-type-aliases -- the designed public name a run's journalId is typed by
 
 /** One command the session ran. Frozen. */
 export interface JournalEntry {
@@ -49,6 +51,36 @@ export interface JournalEntry {
     readonly runId?: RunId;
     /** The versions of the packages that ran it. */
     readonly engine: EngineVersions;
+    /**
+     * Why the session ran this command, when it was not a direct call; absent for a direct call.
+     * `"suggestion"`: an algorithm's suggested styles, applied as an entry of their own (a batch's
+     * held paint released, or `applySuggestedStyles`). `"project"`: one of the commands that
+     * opening a project, or a graphty document that is not one, ran. `"load"`: one of the commands a load ran -- the import and the
+     * configuration the load settled beside it, such as the label path a graph file names its
+     * nodes by -- for `data.import` (a network source's too), `data.loadExample`,
+     * `data.loadDataset`, `data.generate`, a draft's `load`, `data.replaceSource`,
+     * `data.reloadSource`, and the graph's own loads (`addDataFromSource`, `loadFromFile`,
+     * `loadFromUrl`, the `data-source` attribute).
+     *
+     * OPEN UNION: triggers may be added in a minor release; handle one you do not know.
+     * @since 3.40.0
+     */
+    readonly trigger?: "suggestion" | "project" | "load";
+    /**
+     * The caller's own key for the work this command belongs to, echoed unchanged: the
+     * `callerKey` a load was given (`ImportOptions.callerKey`) or a transaction was opened
+     * with (`TransactionOptions.callerKey`). Absent when the caller gave none. Lets a
+     * caller tell the commands its own setup ran from the ones a reader asked for.
+     * @since 3.40.0
+     */
+    readonly callerKey?: string;
+    /**
+     * The undo step (`session.history.steps`) the command's change went into, so a listener can
+     * read who made it from the step's `provenance`. Absent when the command recorded no step of
+     * its own, such as one that changed nothing.
+     * @since 3.40.0
+     */
+    readonly step?: HistoryStepId;
 }
 
 /** The record of the commands a session ran: `session.journal`. */
@@ -85,6 +117,8 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "algo.remove": "run",
     "algo.move": "run",
     "algo.rename": "run",
+    "annotations.set": "data",
+    "annotations.patch": "data",
     // Never journaled itself: each member of a batch writes its own entry.
     batch: "data",
     "config.set": "config",
@@ -96,13 +130,16 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "data.collapse": "data",
     "data.import": "data",
     "data.import-source": "data",
+    "data.steps-set": "data",
     "data.setSource": "data",
     "data.label": "data",
-    "data.setFileStyles": "data",
     "shader.set": "style",
+    "asset.defaults": "style",
     "data.columns": "data",
+    "data.derive": "data",
     "layout.scope": "layout",
     "layout.set": "layout",
+    "layout.rerun": "layout",
     "layout.transport": "layout",
     "note.add": "note",
     "note.merge": "note",
@@ -119,12 +156,21 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "style.encode": "style",
     "style.patch": "style",
     "style.template": "style",
+    "tour.move": "view",
+    "tour.remove": "view",
+    "tour.rename": "view",
+    "tour.save": "view",
     "view.camera": "view",
     "view.dimension": "view",
     "view.immersive": "view",
+    "view.move": "view",
+    "view.key": "view",
+    "view.starting": "view",
     "view.remove": "view",
+    "view.rename": "view",
     "view.save": "view",
     "visibility.context": "filter",
+    "visibility.hide": "filter",
     "visibility.set": "filter",
     "visibility.steps": "filter",
     "visibility.conditions": "filter",
@@ -206,18 +252,21 @@ export function createJournal(options: {
             view = null;
             byId.clear();
         },
-        append({ command, value, coalesceKey, durationMs }) {
+        append({ command, value, coalesceKey, durationMs, trigger, callerKey, step }) {
             const op = command.op as SessionCommand["op"];
             const entry: JournalEntry = Object.freeze({
                 id: `journal_${String(next++)}`,
                 at: new Date(now()).toISOString(),
                 kind: KINDS[op],
-                command: command as SessionCommand,
+                command: plainCommand(command as SessionCommand),
                 ...(coalesceKey === null ? {} : { coalesceKey }),
                 durationMs,
                 // `algo.run` resolves with the id of the run it finished.
                 ...(op === "algo.run" && typeof value === "string" ? { runId: value } : {}),
                 engine: options.engine,
+                ...(trigger === undefined ? {} : { trigger }),
+                ...(callerKey === undefined ? {} : { callerKey }),
+                ...(step === undefined ? {} : { step: step as HistoryStepId }),
             });
             if (coalesceKey !== null && list.at(-1)?.coalesceKey === coalesceKey) {
                 byId.delete((list.pop() as JournalEntry).id);
@@ -243,4 +292,25 @@ export function createJournal(options: {
             return entry;
         },
     };
+}
+
+/**
+ * The command as the journal keeps it: a batched `importColumns`' adds hold their records as
+ * columns (row-renderer.md 4.6), handed out as a plain array built on read; any other command as
+ * it ran.
+ * @param command - The command.
+ * @returns The command to keep.
+ */
+function plainCommand(command: SessionCommand): SessionCommand {
+    if (command.op !== "data.apply" || !("records" in command.mutation)) {
+        return command;
+    }
+
+    const records = plainRecords(command.mutation.records);
+    if (!("get" in records)) {
+        return command;
+    }
+
+    const mutation = Object.defineProperty({ ...command.mutation }, "records", records);
+    return Object.freeze({ ...command, mutation: Object.freeze(mutation) });
 }

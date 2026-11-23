@@ -1,0 +1,78 @@
+#usda 1.0
+(
+    defaultPrim = "R"
+)
+
+def Xform "R"
+{
+    def "C0" (
+        references = @./pkg.usdz[geo.usda]@
+    )
+    {
+        double3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+    def "C1" (
+        references = @./pkg.usdz[geo.usda]@
+    )
+    {
+        double3 xformOp:translate = (2, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+    def "C2" (
+        references = @./pkg.usdz[geo.usda]@
+    )
+    {
+        double3 xformOp:translate = (4, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+    def "C3" (
+        references = @./pkg.usdz[geo.usda]@
+    )
+    {
+        double3 xformOp:translate = (6, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+    def "C4" (
+        references = @./pkg.usdz[geo.usda]@
+    )
+    {
+        double3 xformOp:translate = (8, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+    def "C5" (
+        references = @./pkg.usdz[geo.usda]@
+    )
+    {
+        double3 xformOp:translate = (10, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+    def "C6" (
+        references = @./pkg.usdz[geo.usda]@
+    )
+    {
+        double3 xformOp:translate = (12, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+    def "C7" (
+        references = @./pkg.usdz[geo.usda]@
+    )
+    {
+        double3 xformOp:translate = (14, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+    def "C8" (
+        references = @./pkg.usdz[geo.usda]@
+    )
+    {
+        double3 xformOp:translate = (16, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+    def "C9" (
+        references = @./pkg.usdz[geo.usda]@
+    )
+    {
+        double3 xformOp:translate = (18, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}

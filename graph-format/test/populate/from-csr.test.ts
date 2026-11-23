@@ -10,25 +10,13 @@ import { describe, expect, it } from "vitest";
 
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { ALIGNMENT, INVALID_INDEX, MAX_COUNT } from "../../src/constants.js";
-import { GraphFormatError } from "../../src/errors.js";
 import { detectArena, fromCsr, resolveGraphMeta } from "../../src/populate/from-csr.js";
 import { fromEdgeArrays } from "../../src/populate/from-edge-arrays.js";
 import { permutationMaterialised } from "../../src/snapshot/graph-snapshot.js";
 import { type CsrInput, type GraphSnapshot, type U32 } from "../../src/types/index.js";
+import { thrownError } from "../helpers/errors.js";
 import { assertInvariants, assertMatchesSpec } from "../helpers/invariants.js";
 import { type EdgeSpec, type GraphSpec, gridEdges, KARATE_EDGES, naiveCsr } from "../helpers/parts.js";
-
-function thrown(fn: () => unknown): GraphFormatError {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err;
-        }
-        throw err;
-    }
-    throw new Error("expected a GraphFormatError");
-}
 
 /** The CsrInput of a spec, from the naive construction (fresh arrays every call). */
 function csrOf(spec: GraphSpec, extra: Partial<CsrInput> = {}): CsrInput {
@@ -607,7 +595,7 @@ describe("fromCsr: sortRows", () => {
 
     it("sortRows: false asserts sorted rows under full validation (E_INVALID_SNAPSHOT I4)", () => {
         const input = shuffledCsr({ directed: false, edges: KARATE_EDGES });
-        const err = thrown(() => fromCsr(input, { sortRows: false }));
+        const err = thrownError(() => fromCsr(input, { sortRows: false }));
         expect(err.code).toBe("E_INVALID_SNAPSHOT");
         expect(err.details.invariant).toBe("I4");
         expect(typeof err.details.row).toBe("number");
@@ -626,7 +614,7 @@ describe("fromCsr: sortRows", () => {
 
     it("verifies flag claims against the rebuilt core", () => {
         const input = shuffledCsr({ directed: false, edges: WEIGHTED_EDGES });
-        const err = thrown(() => fromCsr({ ...input, flags: { multigraph: false } }));
+        const err = thrownError(() => fromCsr({ ...input, flags: { multigraph: false } }));
         expect(err.code).toBe("E_INVALID_SNAPSHOT");
         expect(err.details).toMatchObject({ invariant: "I9", flag: "multigraph", found: false, expected: true });
         expect(fromCsr({ ...input, flags: { multigraph: true, hasSelfLoops: true } }).flags.multigraph).toBe(true);
@@ -634,7 +622,7 @@ describe("fromCsr: sortRows", () => {
 
     it("catches an unpaired arc in an unsorted undirected input under full validation (I7)", () => {
         // undirected triangle 0-1, 1-2, 2-0 with row 0 unsorted and the mate of 1 -> 2 replaced by 1 -> 0
-        const err = thrown(() =>
+        const err = thrownError(() =>
             fromCsr({
                 directed: false,
                 nodeCount: 3,
@@ -661,7 +649,7 @@ describe("fromCsr: sortRows", () => {
             return v !== row;
         });
         weights[loopFree] += 10;
-        const err = thrown(() => fromCsr({ ...input, weights }));
+        const err = thrownError(() => fromCsr({ ...input, weights }));
         expect(err.code).toBe("E_INVALID_SNAPSHOT");
         expect(err.details.invariant).toBe("I7");
         // the same input is accepted (and built) without the pairing checks
@@ -669,7 +657,7 @@ describe("fromCsr: sortRows", () => {
     });
 
     it("runs the order-independent full checks on the input before a rebuild (I6 duplicate edge)", () => {
-        const err = thrown(() =>
+        const err = thrownError(() =>
             fromCsr({
                 directed: true,
                 nodeCount: 2,
@@ -690,10 +678,10 @@ describe("fromCsr: validation levels and flag claims", () => {
     it("defaults to full validation and rejects an out-of-range target (I2)", () => {
         const input = csrOf(spec);
         input.colIdx[1] = 99;
-        const err = thrown(() => fromCsr(input));
+        const err = thrownError(() => fromCsr(input));
         expect(err.code).toBe("E_INVALID_SNAPSHOT");
         expect(err.details).toMatchObject({ invariant: "I2", arc: 1, found: 99 });
-        expect(thrown(() => fromCsr(input, { validate: "structure" })).details.invariant).toBe("I2");
+        expect(thrownError(() => fromCsr(input, { validate: "structure" })).details.invariant).toBe("I2");
         // "none" trusts the caller
         expect(fromCsr(input, { validate: "none", sortRows: false }).colIdx[1]).toBe(99);
     });
@@ -701,7 +689,7 @@ describe("fromCsr: validation levels and flag claims", () => {
     it("rejects a NaN weight only under full (I8)", () => {
         const input = csrOf(spec);
         (input.weights as Float32Array)[0] = Number.NaN;
-        const err = thrown(() => fromCsr(input));
+        const err = thrownError(() => fromCsr(input));
         expect(err.code).toBe("E_INVALID_SNAPSHOT");
         expect(err.details.invariant).toBe("I8");
         expect(() => fromCsr(input, { validate: "structure" })).not.toThrow();
@@ -712,11 +700,11 @@ describe("fromCsr: validation levels and flag claims", () => {
         const rowPtr = input.rowPtr.slice();
         rowPtr[2] = rowPtr[1] - 1;
         for (const validate of ["structure", "full"] as const) {
-            const err = thrown(() => fromCsr({ ...input, rowPtr }, { validate }));
+            const err = thrownError(() => fromCsr({ ...input, rowPtr }, { validate }));
             expect(err.code).toBe("E_INVALID_SNAPSHOT");
             expect(err.details.invariant).toBe("I1");
         }
-        const short = thrown(() => fromCsr({ ...input, rowPtr: rowPtr.subarray(0, 2) }, { validate: "none" }));
+        const short = thrownError(() => fromCsr({ ...input, rowPtr: rowPtr.subarray(0, 2) }, { validate: "none" }));
         expect(short.details.invariant).toBe("I1");
     });
 
@@ -724,15 +712,15 @@ describe("fromCsr: validation levels and flag claims", () => {
         const input = csrOf(spec);
         const arcToEdge = (input.arcToEdge as U32).slice();
         arcToEdge[0] = 1000;
-        const range = thrown(() => fromCsr({ ...input, arcToEdge }, { validate: "structure" }));
+        const range = thrownError(() => fromCsr({ ...input, arcToEdge }, { validate: "structure" }));
         expect(range.details.invariant).toBe("I5");
         const directed = csrOf({ directed: true, edges: WEIGHTED_EDGES });
-        const count = thrown(() => fromCsr({ ...directed, edgeCount: directed.colIdx.length - 1 }));
+        const count = thrownError(() => fromCsr({ ...directed, edgeCount: directed.colIdx.length - 1 }));
         expect(count.details.invariant).toBe("I6");
     });
 
     it("rejects a rowPtr ending past colIdx (I1) before walking the rows", () => {
-        const err = thrown(() =>
+        const err = thrownError(() =>
             fromCsr({
                 directed: true,
                 nodeCount: 1,
@@ -747,7 +735,9 @@ describe("fromCsr: validation levels and flag claims", () => {
     it("rejects an edgeCount above the arc count (I3) before allocating by it, at every level", () => {
         const input = csrOf(spec);
         for (const validate of ["none", "structure", "full"] as const) {
-            const err = thrown(() => fromCsr({ ...input, edgeToArc: undefined, edgeCount: 2 ** 40 }, { validate }));
+            const err = thrownError(() =>
+                fromCsr({ ...input, edgeToArc: undefined, edgeCount: 2 ** 40 }, { validate }),
+            );
             expect(err.code).toBe("E_INVALID_SNAPSHOT");
             expect(err.details).toMatchObject({ invariant: "I3", edgeCount: 2 ** 40 });
         }
@@ -758,7 +748,7 @@ describe("fromCsr: validation levels and flag claims", () => {
         const arcToEdge = (input.arcToEdge as U32).slice();
         arcToEdge[0] = INVALID_INDEX;
         for (const validate of ["none", "structure", "full"] as const) {
-            const err = thrown(() =>
+            const err = thrownError(() =>
                 fromCsr({ ...input, arcToEdge, edgeToArc: undefined, edgeCount: undefined }, { validate }),
             );
             expect(err.code).toBe("E_INVALID_SNAPSHOT");
@@ -768,7 +758,7 @@ describe("fromCsr: validation levels and flag claims", () => {
 
     it("rejects a wrong undirected arc count (I7) and a missing undirected arcToEdge (I5)", () => {
         const input = csrOf(spec);
-        const count = thrown(() =>
+        const count = thrownError(() =>
             fromCsr({
                 directed: false,
                 nodeCount: 2,
@@ -779,22 +769,22 @@ describe("fromCsr: validation levels and flag claims", () => {
             }),
         );
         expect(count.details.invariant).toBe("I7");
-        const extra = thrown(() => fromCsr({ ...input, edgeCount: (input.edgeCount as number) + 1 }));
+        const extra = thrownError(() => fromCsr({ ...input, edgeCount: (input.edgeCount as number) + 1 }));
         expect(extra.details.invariant).toBe("I5");
-        const missing = thrown(() => fromCsr({ ...input, arcToEdge: undefined }));
+        const missing = thrownError(() => fromCsr({ ...input, arcToEdge: undefined }));
         expect(missing.code).toBe("E_INVALID_SNAPSHOT");
         expect(missing.details).toMatchObject({ invariant: "I5", array: "arcToEdge" });
         // even under none: the array is structurally required
-        expect(thrown(() => fromCsr({ ...input, arcToEdge: undefined }, { validate: "none" })).details.invariant).toBe(
-            "I5",
-        );
+        expect(
+            thrownError(() => fromCsr({ ...input, arcToEdge: undefined }, { validate: "none" })).details.invariant,
+        ).toBe("I5");
     });
 
     it("rejects a directed identity arcToEdge paired with a non-identity edgeToArc (I5)", () => {
         const naive = naiveCsr({ directed: true, edges: gridEdges(3, 2) });
         const edgeToArc = naive.edgeToArc.slice();
         [edgeToArc[0], edgeToArc[1]] = [edgeToArc[1], edgeToArc[0]];
-        const err = thrown(() =>
+        const err = thrownError(() =>
             fromCsr({
                 directed: true,
                 nodeCount: naive.nodeCount,
@@ -830,7 +820,7 @@ describe("fromCsr: validation levels and flag claims", () => {
         });
         expect(fromCsr(csrOf(spec, { flags: { ...truth } })).flags).toEqual(truth);
         for (const name of Object.keys(truth) as (keyof typeof truth)[]) {
-            const err = thrown(() => fromCsr(csrOf(spec, { flags: { [name]: !truth[name] } })));
+            const err = thrownError(() => fromCsr(csrOf(spec, { flags: { [name]: !truth[name] } })));
             expect(err.code).toBe("E_INVALID_SNAPSHOT");
             expect(err.details).toMatchObject({
                 invariant: "I9",
@@ -873,7 +863,7 @@ describe("fromCsr: validation levels and flag claims", () => {
         const trusted = fromCsr({ ...unsorted, flags: { finiteWeights: false } }, { validate: "structure" });
         expect(trusted.flags.finiteWeights).toBe(false);
         expect(trusted.colIdx).not.toBe(unsorted.colIdx);
-        expect(thrown(() => fromCsr({ ...unsorted, flags: { finiteWeights: false } })).details.flag).toBe(
+        expect(thrownError(() => fromCsr({ ...unsorted, flags: { finiteWeights: false } })).details.flag).toBe(
             "finiteWeights",
         );
     });
@@ -899,7 +889,7 @@ describe("fromCsr: validation levels and flag claims", () => {
     });
 
     it("rejects an unknown validation level (E_UNSUPPORTED)", () => {
-        const err = thrown(() => fromCsr(csrOf(spec), { validate: "loose" as unknown as "full" }));
+        const err = thrownError(() => fromCsr(csrOf(spec), { validate: "loose" as unknown as "full" }));
         expect(err.code).toBe("E_UNSUPPORTED");
         expect(err.details.field).toBe("validate");
     });
@@ -920,17 +910,19 @@ describe("fromCsr: ids, columns and meta", () => {
     });
 
     it("rejects ids of the wrong length (E_COLUMN_LENGTH), duplicates and illegal ids", () => {
-        const short = thrown(() => fromCsr(csrOf(spec, { ids: ["a", "b"] })));
+        const short = thrownError(() => fromCsr(csrOf(spec, { ids: ["a", "b"] })));
         expect(short.code).toBe("E_COLUMN_LENGTH");
         expect(short.details).toMatchObject({ field: "ids", expected: 4, found: 2 });
-        expect(thrown(() => fromCsr(csrOf(spec, { ids: ["a", "b", "a", "c"] }))).code).toBe("E_DUPLICATE_ID");
-        expect(thrown(() => fromCsr(csrOf(spec, { ids: [1, 2, 2, 3] }))).code).toBe("E_DUPLICATE_ID");
-        expect(thrown(() => fromCsr(csrOf(spec, { ids: ["a", "b", "c", Number.NaN] }))).code).toBe("E_INVALID_ID");
-        expect(thrown(() => fromCsr(csrOf(spec, { ids: new Float64Array([1, 2, 3, Infinity]) }))).code).toBe(
+        expect(thrownError(() => fromCsr(csrOf(spec, { ids: ["a", "b", "a", "c"] }))).code).toBe("E_DUPLICATE_ID");
+        expect(thrownError(() => fromCsr(csrOf(spec, { ids: [1, 2, 2, 3] }))).code).toBe("E_DUPLICATE_ID");
+        expect(thrownError(() => fromCsr(csrOf(spec, { ids: ["a", "b", "c", Number.NaN] }))).code).toBe("E_INVALID_ID");
+        expect(thrownError(() => fromCsr(csrOf(spec, { ids: new Float64Array([1, 2, 3, Infinity]) }))).code).toBe(
             "E_INVALID_ID",
         );
         // none skips the id checks but the length rule still holds
-        expect(thrown(() => fromCsr(csrOf(spec, { ids: ["a"] }), { validate: "none" })).code).toBe("E_COLUMN_LENGTH");
+        expect(thrownError(() => fromCsr(csrOf(spec, { ids: ["a"] }), { validate: "none" })).code).toBe(
+            "E_COLUMN_LENGTH",
+        );
     });
 
     it("attaches node and edge columns by reference and validates their lengths (I12)", () => {
@@ -950,9 +942,9 @@ describe("fromCsr: ids, columns and meta", () => {
         expect(snapshot.nodes.byRole("position")?.meta.components).toBe(3);
         expect(snapshot.edges.requireTyped("tag", "string").decodeAll()).toEqual(tag);
         expect(snapshot.edges.requireTyped("flag", "bool").value(3)).toBe(true);
-        const short = thrown(() => fromCsr(csrOf(spec, { nodeColumns: { size: new Float32Array(3) } })));
+        const short = thrownError(() => fromCsr(csrOf(spec, { nodeColumns: { size: new Float32Array(3) } })));
         expect(short.code).toBe("E_COLUMN_LENGTH");
-        const badRef = thrown(() =>
+        const badRef = thrownError(() =>
             fromCsr(
                 csrOf(spec, {
                     edgeColumns: { p: { data: new Uint32Array([0, 1, 2, 3, 4, 50]), decl: { refersTo: "edge" } } },
@@ -968,7 +960,7 @@ describe("fromCsr: ids, columns and meta", () => {
             data: ["x", "y", "x", "z", "w", "v"],
             decl: { dtype: "string", role: "id", unique: true },
         } as const;
-        const err = thrown(() => fromCsr(csrOf(spec, { edgeColumns: { id: ids } })));
+        const err = thrownError(() => fromCsr(csrOf(spec, { edgeColumns: { id: ids } })));
         expect(err.code).toBe("E_INVALID_SNAPSHOT");
         expect(err.details).toMatchObject({ invariant: "I12", reason: "unique", cause: "E_DUPLICATE_EDGE_ID" });
         expect(() => fromCsr(csrOf(spec, { edgeColumns: { id: ids } }), { validate: "structure" })).not.toThrow();
@@ -1043,7 +1035,7 @@ describe("fromCsr: ids, columns and meta", () => {
         ];
         for (const [field, value] of cases) {
             const key = field.split(".")[0];
-            const err = thrown(() => fromCsr(csrOf(spec, { meta: { [key]: value } })));
+            const err = thrownError(() => fromCsr(csrOf(spec, { meta: { [key]: value } })));
             expect(err.code).toBe("E_COLUMN_TYPE");
             expect(err.details.field).toBe(field);
         }
@@ -1063,7 +1055,7 @@ describe("fromCsr: shape rejections", () => {
             ["edgeToArc", { edgeToArc: new Uint8Array(input.colIdx.length) as unknown as U32 }],
         ];
         for (const [name, patch] of cases) {
-            const err = thrown(() => fromCsr({ ...input, ...patch }, { validate: "none" }));
+            const err = thrownError(() => fromCsr({ ...input, ...patch }, { validate: "none" }));
             expect(err.code).toBe("E_INVALID_SNAPSHOT");
             expect(err.details).toMatchObject({ array: name, reason: "dtype" });
         }
@@ -1071,10 +1063,10 @@ describe("fromCsr: shape rejections", () => {
 
     it("rejects a bad nodeCount (E_TOO_LARGE) and a bad edgeCount (I3)", () => {
         const input = csrOf(spec);
-        expect(thrown(() => fromCsr({ ...input, nodeCount: -1 })).code).toBe("E_TOO_LARGE");
-        expect(thrown(() => fromCsr({ ...input, nodeCount: 1.5 })).code).toBe("E_TOO_LARGE");
-        expect(thrown(() => fromCsr({ ...input, nodeCount: MAX_COUNT + 1 })).code).toBe("E_TOO_LARGE");
-        const count = thrown(() => fromCsr({ ...input, edgeCount: -2 }));
+        expect(thrownError(() => fromCsr({ ...input, nodeCount: -1 })).code).toBe("E_TOO_LARGE");
+        expect(thrownError(() => fromCsr({ ...input, nodeCount: 1.5 })).code).toBe("E_TOO_LARGE");
+        expect(thrownError(() => fromCsr({ ...input, nodeCount: MAX_COUNT + 1 })).code).toBe("E_TOO_LARGE");
+        const count = thrownError(() => fromCsr({ ...input, edgeCount: -2 }));
         expect(count.details.invariant).toBe("I3");
     });
 
@@ -1087,7 +1079,7 @@ describe("fromCsr: shape rejections", () => {
                 [2, 0],
             ],
         });
-        const dup = thrown(() =>
+        const dup = thrownError(() =>
             fromCsr({ ...input, arcToEdge: new Uint32Array([0, 0, 2]), edgeToArc: new Uint32Array([0, 0, 2]) }),
         );
         expect(dup.code).toBe("E_INVALID_SNAPSHOT");
@@ -1100,13 +1092,13 @@ describe("fromCsr: shape rejections", () => {
             ],
         });
         expect(Array.from(swapped.arcToEdge as U32)).toEqual([1, 0]);
-        const orientation = thrown(() => fromCsr({ ...swapped, edgeToArc: new Uint32Array([0, 1]) }));
+        const orientation = thrownError(() => fromCsr({ ...swapped, edgeToArc: new Uint32Array([0, 1]) }));
         expect(orientation.details.invariant).toBe("I5");
         expect(orientation.details.edge).toBe(0);
     });
 
     it("rejects an INVALID_INDEX left by a derived edgeToArc for an edge no arc holds (I5)", () => {
-        const err = thrown(() =>
+        const err = thrownError(() =>
             fromCsr({
                 directed: false,
                 nodeCount: 2,

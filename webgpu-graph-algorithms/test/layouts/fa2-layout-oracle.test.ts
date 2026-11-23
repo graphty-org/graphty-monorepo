@@ -28,7 +28,7 @@
  *
  * The metric is stageError(true, ...) of test/helpers/fa2-parity.ts, the ONE implementation of spec 11.4's floored
  * per-node position error (its FLOOR_FRACTION is module-private; never re-derive it). Every case runs at scale 1
- * with a zero centre (BASE_OPTIONS) so the owner's scene array IS the layout state on both sides -- asserted, not
+ * with a zero center (BASE_OPTIONS) so the owner's scene array IS the layout state on both sides -- asserted, not
  * assumed, by assertUnitStart below (fa2-parity.ts's own assertUnitStart is module-private and cannot be imported).
  * The start MUST be the seeded array (startPositions(..., false)): layout's load() never seeds NaN rows
  * (forceatlas2.ts:26 "`seed` (the caller seeds the array with seedPositions) ... accepted and unused"), while the
@@ -70,6 +70,28 @@ const ASSERTED: Readonly<Record<"paper" | "networkx", readonly number[]>> = Obje
 });
 /** The horizon whose accuracy is measured and PRINTED, never asserted (G3-F3); determinism and finiteness still are. */
 const PRINTED = 50;
+/** The asserted horizons of the dissuadeHubs sets: 1 and 5 in both modes (see OPTION_SETS). */
+const ASSERTED_SHORT: Readonly<Record<"paper" | "networkx", readonly number[]>> = Object.freeze({
+    paper: [1, 5],
+    networkx: [1, 5],
+});
+/**
+ * The option sets every graph and mode runs with, each with its asserted horizons: the base set (keeping its
+ * original test names), and dissuadeHubs alone and with distributedAction (issue #6849: both sides divide the
+ * attraction by degree + 1, on top of the mass under distributedAction). k = 1 compares the formula itself (about
+ * 1e-6, f32 rounding); the dissuadeHubs sets assert 1 and 5 only, because weaker hub attraction lets the f32
+ * divergence grow faster: random1k/networkx +dissuadeHubs measured 5.2e-2 at k = 10 on the RTX 4070 SUPER, just over
+ * the tolerance, while k = 1 was 1.6e-6.
+ */
+const OPTION_SETS: readonly (readonly [string, ForceAtlas2Options, typeof ASSERTED])[] = [
+    ["", BASE_OPTIONS, ASSERTED],
+    [" +dissuadeHubs", { ...BASE_OPTIONS, dissuadeHubs: true }, ASSERTED_SHORT],
+    [
+        " +dissuadeHubs+distributedAction",
+        { ...BASE_OPTIONS, dissuadeHubs: true, distributedAction: true },
+        ASSERTED_SHORT,
+    ],
+];
 /** The graph and horizon of the layout5 noise member (paper mode; the file header). */
 const LAYOUT5_GRAPH: ParityGraph = "random1k";
 const LAYOUT5_HORIZON = 5;
@@ -84,7 +106,7 @@ function compatOf(tuning: GpuLayoutTuning): "paper" | "networkx" {
 }
 
 /**
- * The unit-identity precondition both trajectories rest on: scale 1 and a zero centre, so the owner's scene array
+ * The unit-identity precondition both trajectories rest on: scale 1 and a zero center, so the owner's scene array
  * IS the layout state. fa2-parity.ts has the same check at :878 but does not export it.
  * @param options - the case options
  */
@@ -193,64 +215,66 @@ describe("FA2 vs @graphty/layout's ForceAtlas2Simulation: the second reference (
         ctx = await acquire({ label: "fa2-layout-oracle" });
     });
 
-    for (const graph of GRAPHS) {
-        for (const tuning of MODES) {
-            const compat = compatOf(tuning);
-            const label = `${graph}/${compat}`;
-            const asserted = ASSERTED[compat];
-            it(`${label}: twice bitwise; within fa2-layout-oracle of the layout simulation after ${asserted.join(", ")} iterations; ${PRINTED} printed (chaotic, G3-F3)`, async (t) => {
-                requireGpu(t);
-                const s = paritySnapshot(graph, gpuScale(), false);
-                try {
-                    // the SEEDED start is mandatory: layout's load() never seeds NaN rows (forceatlas2.ts:26)
-                    const start = startPositions(s, BASE_OPTIONS, false);
-                    const checkpoints = [...asserted, PRINTED];
-                    // spec 11.9 item 4: the same inputs twice, bitwise, before anything is compared
-                    const a = await gpuTrajectory(ctx, s, start, BASE_OPTIONS, tuning, checkpoints);
-                    const b = await gpuTrajectory(ctx, s, start, BASE_OPTIONS, tuning, checkpoints);
-                    for (const k of checkpoints) {
-                        expectBitwiseEqual(at(a, k), at(b, k), `${label}: iteration ${k}, run 1 vs run 2`);
-                    }
-                    const cpu = layoutTrajectory(s, start, BASE_OPTIONS, tuning, checkpoints, label);
-                    const tolerance = toleranceOf("fa2-layout-oracle");
-                    const measured = checkpoints.map((k) => {
-                        const err = stageError(true, at(a, k), at(cpu, k));
-                        return { k, rel: err.rel, abs: err.abs };
-                    });
-                    console.warn(
-                        `[fa2-layout-oracle] ${label} (tolerance ${tolerance.toExponential(3)}): ${measured
-                            .map(
-                                (m) =>
-                                    `k=${m.k} rel ${m.rel.toExponential(3)} (ratio ${ratioOf(
-                                        m.rel,
-                                        tolerance,
-                                    ).toExponential(3)}, max abs ${m.abs.toExponential(3)})`,
-                            )
-                            .join("; ")}; k=${PRINTED} accuracy is informational, never asserted (G3-F3)`,
-                    );
-                    for (const k of asserted) {
-                        const err = stageError(true, at(a, k), at(cpu, k));
-                        assertCheckPasses({
-                            worst: ratioOf(err.rel, tolerance),
-                            worstLabel: `${label}: positions after ${k} iterations vs @graphty/layout`,
-                            samples: s.nodeCount,
+    for (const [suffix, options, assertedBy] of OPTION_SETS) {
+        for (const graph of GRAPHS) {
+            for (const tuning of MODES) {
+                const compat = compatOf(tuning);
+                const label = `${graph}/${compat}${suffix}`;
+                const asserted = assertedBy[compat];
+                it(`${label}: twice bitwise; within fa2-layout-oracle of the layout simulation after ${asserted.join(", ")} iterations; ${PRINTED} printed (chaotic, G3-F3)`, async (t) => {
+                    requireGpu(t);
+                    const s = paritySnapshot(graph, gpuScale(), false);
+                    try {
+                        // the SEEDED start is mandatory: layout's load() never seeds NaN rows (forceatlas2.ts:26)
+                        const start = startPositions(s, options, false);
+                        const checkpoints = [...asserted, PRINTED];
+                        // spec 11.9 item 4: the same inputs twice, bitwise, before anything is compared
+                        const a = await gpuTrajectory(ctx, s, start, options, tuning, checkpoints);
+                        const b = await gpuTrajectory(ctx, s, start, options, tuning, checkpoints);
+                        for (const k of checkpoints) {
+                            expectBitwiseEqual(at(a, k), at(b, k), `${label}: iteration ${k}, run 1 vs run 2`);
+                        }
+                        const cpu = layoutTrajectory(s, start, options, tuning, checkpoints, label);
+                        const tolerance = toleranceOf("fa2-layout-oracle");
+                        const measured = checkpoints.map((k) => {
+                            const err = stageError(true, at(a, k), at(cpu, k));
+                            return { k, rel: err.rel, abs: err.abs };
                         });
+                        console.warn(
+                            `[fa2-layout-oracle] ${label} (tolerance ${tolerance.toExponential(3)}): ${measured
+                                .map(
+                                    (m) =>
+                                        `k=${m.k} rel ${m.rel.toExponential(3)} (ratio ${ratioOf(
+                                            m.rel,
+                                            tolerance,
+                                        ).toExponential(3)}, max abs ${m.abs.toExponential(3)})`,
+                                )
+                                .join("; ")}; k=${PRINTED} accuracy is informational, never asserted (G3-F3)`,
+                        );
+                        for (const k of asserted) {
+                            const err = stageError(true, at(a, k), at(cpu, k));
+                            assertCheckPasses({
+                                worst: ratioOf(err.rel, tolerance),
+                                worstLabel: `${label}: positions after ${k} iterations vs @graphty/layout`,
+                                samples: s.nodeCount,
+                            });
+                        }
+                        // a non-finite coordinate is a defect at any horizon, whatever the tolerance says
+                        for (const k of checkpoints) {
+                            expect(
+                                Array.from(at(a, k)).every((v) => Number.isFinite(v)),
+                                `${label}: the GPU positions are finite after ${k} iterations`,
+                            ).toBe(true);
+                            expect(
+                                Array.from(at(cpu, k)).every((v) => Number.isFinite(v)),
+                                `${label}: the layout positions are finite after ${k} iterations`,
+                            ).toBe(true);
+                        }
+                    } finally {
+                        ctx.release(s);
                     }
-                    // a non-finite coordinate is a defect at any horizon, whatever the tolerance says
-                    for (const k of checkpoints) {
-                        expect(
-                            Array.from(at(a, k)).every((v) => Number.isFinite(v)),
-                            `${label}: the GPU positions are finite after ${k} iterations`,
-                        ).toBe(true);
-                        expect(
-                            Array.from(at(cpu, k)).every((v) => Number.isFinite(v)),
-                            `${label}: the layout positions are finite after ${k} iterations`,
-                        ).toBe(true);
-                    }
-                } finally {
-                    ctx.release(s);
-                }
-            });
+                });
+            }
         }
     }
 

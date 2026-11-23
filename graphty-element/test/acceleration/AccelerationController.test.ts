@@ -86,7 +86,7 @@ function softwareOnlyFactory(
 const LAYOUT: AcceleratedWork = { capability: "forceAtlas2", nodeCount: 10_000 };
 
 describe("AccelerationController: sharing the renderer's device", () => {
-    it("takes a registration that throws as a no, and still asks the next one", () => {
+    it("takes a registration that throws as a no, and still asks the next one", async () => {
         const registry = new AcceleratorRegistry();
         const factory = (): Promise<null> => Promise.resolve(null);
         registry.register({
@@ -98,10 +98,10 @@ describe("AccelerationController: sharing the renderer's device", () => {
         });
         const controller = new AccelerationController({ registry });
 
-        assert.isFalse(controller.sharesDevice({}));
+        assert.isFalse(await controller.sharesDevice({}));
 
         registry.register({ name: "willing", factory, sharesDevice: () => true });
-        assert.isTrue(controller.sharesDevice({}));
+        assert.isTrue(await controller.sharesDevice({}));
     });
 });
 
@@ -927,6 +927,118 @@ describe("AccelerationController: acceleration=required", () => {
     });
 });
 
+describe("AccelerationController: a run that gets no answer (issue #8283)", () => {
+    /** The Venice transit sample's size: the first sample the app sends to the GPU. */
+    const VENICE: AcceleratedWork = { capability: "betweennessCentrality", nodeCount: 1_874, edgeCount: 2_702 };
+
+    /** Starts a controller whose factory builds "first", then "second" for every later build. */
+    async function twoDevices(onFirstDispose: () => void): Promise<AccelerationController> {
+        const hang = (): Promise<string> =>
+            new Promise<string>(() => {
+                // A readback whose map never settles and whose device never reports itself lost.
+            });
+        const first = fakeAccelerator({
+            name: "first",
+            members: { betweennessCentrality: hang },
+            onDispose: onFirstDispose,
+        });
+        const second = fakeAccelerator({ name: "second", members: { betweennessCentrality: (): string => "second" } });
+        const registry = new AcceleratorRegistry();
+        let built = 0;
+        registry.register({
+            name: "fake",
+            factory: () => {
+                built += 1;
+                return Promise.resolve(built === 1 ? first : second);
+            },
+        });
+        const controller = new AccelerationController({ registry });
+        await controller.start();
+        assert.isTrue(controller.plan(VENICE).accelerated);
+        return controller;
+    }
+
+    it("fails with E_GPU_TIMEOUT, releases the device, and the next run works", async () => {
+        const disposed = vi.fn();
+        const controller = await twoDevices(disposed);
+        controller.setRunTimeout(5_000);
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+        let failure: unknown;
+        try {
+            const running = controller
+                .run(VENICE, (accelerator) =>
+                    (
+                        accelerator as unknown as { betweennessCentrality: () => Promise<string> }
+                    ).betweennessCentrality(),
+                )
+                .catch((error: unknown) => error);
+            await vi.advanceTimersByTimeAsync(5_000);
+            failure = await running;
+        } finally {
+            vi.useRealTimers();
+        }
+
+        assert.isTrue(isGraphtyError(failure));
+        const error = failure as GraphtyError;
+        assert.strictEqual(error.code, "E_GPU_TIMEOUT");
+        assert.strictEqual(error.details?.capability, "betweennessCentrality");
+        assert.strictEqual(error.details?.nodeCount, 1_874);
+        assert.strictEqual(error.details?.edgeCount, 2_702);
+        assert.strictEqual(error.details?.limitMs, 5_000);
+        assert.strictEqual(error.details?.elapsedMs, 5_000);
+        assert.strictEqual(disposed.mock.calls.length, 1);
+
+        // The suspect device is replaced; the next run lands on the fresh one.
+        await vi.waitUntil(() => controller.accelerator?.name === "second");
+        const outcome = await controller.run(VENICE, (accelerator) => accelerator.name);
+        assert.deepInclude(outcome, { accelerated: true, value: "second" });
+        controller.dispose();
+    });
+
+    it("scales the limit it sets itself from the size of the run", async () => {
+        const controller = await twoDevices(() => undefined);
+        assert.isUndefined(controller.runTimeoutMs);
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+        let settled = false;
+        let failure: unknown;
+        try {
+            const running = controller
+                .run(VENICE, (accelerator) =>
+                    (
+                        accelerator as unknown as { betweennessCentrality: () => Promise<string> }
+                    ).betweennessCentrality(),
+                )
+                .catch((error: unknown) => error)
+                .then((error) => {
+                    settled = true;
+                    return error;
+                });
+            // Ten seconds for any run, plus a millisecond per thousand nodes times edges.
+            await vi.advanceTimersByTimeAsync(10_000);
+            assert.isFalse(settled);
+            await vi.advanceTimersByTimeAsync(Math.ceil((1_874 * 2_702) / 1_000));
+            failure = await running;
+        } finally {
+            vi.useRealTimers();
+        }
+
+        assert.strictEqual(isGraphtyError(failure) ? failure.code : "", "E_GPU_TIMEOUT");
+        controller.dispose();
+    });
+
+    it("refuses a limit that is not a positive number", () => {
+        const controller = new AccelerationController({ registry: new AcceleratorRegistry() });
+        for (const bad of [0, -1, Number.NaN]) {
+            assert.throws(() => {
+                controller.setRunTimeout(bad);
+            }, /positive number/);
+        }
+        controller.setRunTimeout(Number.POSITIVE_INFINITY);
+        assert.strictEqual(controller.runTimeoutMs, Number.POSITIVE_INFINITY);
+        controller.dispose();
+    });
+});
+
 describe("AccelerationController: device loss", () => {
     it("reports a lost device as an error with a code, then comes back", async () => {
         const lost = deferred<{ reason: string }>();
@@ -964,6 +1076,34 @@ describe("AccelerationController: device loss", () => {
         controller.dispose();
     });
 
+    it("comes back from a device lost during the probe's self-check, rather than settling on the CPU", async () => {
+        // a GPU process crash that lands on the probe (issue #9731): the same loss a second later recovers
+        const registry = new AcceleratorRegistry();
+        let built = 0;
+        registry.register({
+            name: "fake",
+            factory: () => {
+                built += 1;
+                return Promise.resolve(
+                    createFakeAccelerator({
+                        name: `try ${String(built)}`,
+                        verify: built === 1 ? "E_DEVICE_LOST" : "ok",
+                    }),
+                );
+            },
+        });
+        const controller = new AccelerationController({ registry });
+
+        const status = await controller.start();
+
+        assert.strictEqual(status.state, "error");
+        assert.strictEqual(status.code, "E_DEVICE_LOST");
+        await vi.waitUntil(() => controller.accelerator !== null);
+        assert.strictEqual(controller.accelerator?.name, "try 2");
+        assert.strictEqual(controller.state, "idle");
+        controller.dispose();
+    });
+
     it("stays in error, not unavailable, when it cannot come back", async () => {
         const lost = deferred<{ reason: string }>();
         const first = fakeAccelerator({ name: "first", lost: lost.promise });
@@ -985,6 +1125,148 @@ describe("AccelerationController: device loss", () => {
         assert.strictEqual(controller.state, "error");
         assert.strictEqual(controller.status.code, "E_DEVICE_LOST");
         assert.isFalse(controller.plan(LAYOUT).accelerated);
+        controller.dispose();
+    });
+
+    /**
+     * A registry whose factory builds the first accelerator, then answers each later call from
+     * `later` in turn (null once `later` runs out), counting the calls.
+     */
+    function lossSequence(
+        first: GraphAccelerator,
+        later: (GraphAccelerator | null)[],
+    ): { registry: AcceleratorRegistry; calls: () => number } {
+        const registry = new AcceleratorRegistry();
+        let built = 0;
+        registry.register({
+            name: "fake",
+            factory: () => {
+                built += 1;
+                return Promise.resolve(built === 1 ? first : (later[built - 2] ?? null));
+            },
+        });
+        return { registry, calls: () => built };
+    }
+
+    it("tries again on the next plan after a failed reattach, and comes back", async () => {
+        const lost = deferred<{ reason: string }>();
+        const first = fakeAccelerator({ name: "first", lost: lost.promise });
+        const { registry, calls } = lossSequence(first, [null, fakeAccelerator({ name: "second" })]);
+        const controller = new AccelerationController({ registry });
+        await controller.start();
+
+        lost.resolve({ reason: "the GPU process crashed" });
+        await vi.waitUntil(() => (controller.status.reason ?? "").includes("reattaching failed"));
+        assert.strictEqual(calls(), 2);
+
+        assert.isFalse(controller.plan(LAYOUT).accelerated);
+        await vi.waitUntil(() => controller.state === "idle");
+        assert.strictEqual(controller.accelerator?.name, "second");
+        assert.strictEqual(calls(), 3);
+        controller.dispose();
+    });
+
+    it("tries again when a factory is registered while in error", async () => {
+        const lost = deferred<{ reason: string }>();
+        const first = fakeAccelerator({ name: "first", lost: lost.promise });
+        const { registry, calls } = lossSequence(first, [null, fakeAccelerator({ name: "second" })]);
+        const controller = new AccelerationController({ registry });
+        await controller.start();
+
+        lost.resolve({ reason: "device removed" });
+        await vi.waitUntil(() => (controller.status.reason ?? "").includes("reattaching failed"));
+
+        registry.register({ name: "late", factory: () => Promise.resolve(null) });
+        await vi.waitUntil(() => controller.state === "idle");
+        assert.strictEqual(controller.accelerator?.name, "second");
+        assert.strictEqual(calls(), 3);
+        controller.dispose();
+    });
+
+    it("makes only maxRecoveryAttempts tries", async () => {
+        const lost = deferred<{ reason: string }>();
+        const first = fakeAccelerator({ name: "first", lost: lost.promise });
+        const { registry, calls } = lossSequence(first, [null, fakeAccelerator({ name: "second" })]);
+        const controller = new AccelerationController({ registry, maxRecoveryAttempts: 1 });
+        await controller.start();
+
+        lost.resolve({ reason: "device removed" });
+        await vi.waitUntil(() => (controller.status.reason ?? "").includes("reattaching failed"));
+
+        controller.plan(LAYOUT);
+        controller.plan(LAYOUT);
+        await Promise.resolve();
+        assert.strictEqual(controller.state, "error");
+        assert.strictEqual(calls(), 2);
+        controller.dispose();
+    });
+
+    it("gives up after three tries by default and stays in error", async () => {
+        const lost = deferred<{ reason: string }>();
+        const first = fakeAccelerator({ name: "first", lost: lost.promise });
+        const registry = new AcceleratorRegistry();
+        let built = 0;
+        registry.register({
+            name: "fake",
+            factory: () => {
+                built += 1;
+                return built === 1 ? Promise.resolve(first) : Promise.reject(new Error(`try ${String(built - 1)}`));
+            },
+        });
+        const controller = new AccelerationController({ registry });
+        await controller.start();
+
+        lost.resolve({ reason: "device removed" });
+        for (let tries = 1; tries <= 3; tries += 1) {
+            await vi.waitUntil(() => (controller.status.reason ?? "").includes(`try ${String(tries)}`));
+            controller.plan(LAYOUT);
+        }
+
+        await Promise.resolve();
+        assert.strictEqual(built, 4);
+        assert.strictEqual(controller.state, "error");
+        assert.include(controller.status.reason, "reattaching failed");
+        controller.dispose();
+    });
+
+    it("gives a device that was lost again before doing any work no new budget", async () => {
+        const firstLost = deferred<{ reason: string }>();
+        const secondLost = deferred<{ reason: string }>();
+        const { registry, calls } = lossSequence(fakeAccelerator({ name: "first", lost: firstLost.promise }), [
+            fakeAccelerator({ name: "second", lost: secondLost.promise }),
+        ]);
+        const controller = new AccelerationController({ registry, maxRecoveryAttempts: 1 });
+        await controller.start();
+
+        firstLost.resolve({ reason: "device removed" });
+        await vi.waitUntil(() => controller.accelerator?.name === "second");
+
+        secondLost.resolve({ reason: "device removed again" });
+        await vi.waitUntil(() => controller.state === "error");
+        controller.plan(LAYOUT);
+        await Promise.resolve();
+        assert.strictEqual(calls(), 2);
+        controller.dispose();
+    });
+
+    it("gives a reattached device that finished work a full budget again", async () => {
+        const firstLost = deferred<{ reason: string }>();
+        const secondLost = deferred<{ reason: string }>();
+        const { registry, calls } = lossSequence(fakeAccelerator({ name: "first", lost: firstLost.promise }), [
+            fakeAccelerator({ name: "second", lost: secondLost.promise }),
+            fakeAccelerator({ name: "third" }),
+        ]);
+        const controller = new AccelerationController({ registry, maxRecoveryAttempts: 1 });
+        await controller.start();
+
+        firstLost.resolve({ reason: "device removed" });
+        await vi.waitUntil(() => controller.accelerator?.name === "second");
+        const outcome = await controller.run(LAYOUT, () => "gpu");
+        assert.isTrue(outcome.accelerated);
+
+        secondLost.resolve({ reason: "device removed again" });
+        await vi.waitUntil(() => controller.accelerator?.name === "third");
+        assert.strictEqual(calls(), 3);
         controller.dispose();
     });
 

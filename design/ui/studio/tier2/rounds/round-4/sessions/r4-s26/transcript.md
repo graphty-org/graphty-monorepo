@@ -13,7 +13,7 @@ Thinking: "I only want the pairs with lots of chapters together. That funnel at 
 
 ### 02 -- clicked the funnel (Filters)
 Command: `--click-at 833,864` -> button "Filters"
-Sees: right panel "New filter step", Keep "an attribute's value", an empty Attribute box, Add step greyed out. Left side switched to Data: 77 nodes, 254 edges, and under Edges an attribute "shared_chapters".
+Sees: right panel "New filter step", Keep "an attribute's value", an empty Attribute box, Add step grayed out. Left side switched to Data: 77 nodes, 254 edges, and under Edges an attribute "shared_chapters".
 Thinking: "shared_chapters -- that's the chapters thing. Let me open the Attribute box and pick it."
 
 ### 03 -- opened Attribute
@@ -62,7 +62,7 @@ Thinking: "17 characters at 8 or more. (Answer: 17.) That tick box next to the f
 
 ### 11 -- unticked the filter
 Command: `--click-at 274,335` -> input "Apply step: shared_chapters is at least 8"
-Sees: everyone back in the same places, Nodes 77, Edges 254. The filter row stays, greyed, "shared_chapters is at least 8 -- off".
+Sees: everyone back in the same places, Nodes 77, Edges 254. The filter row stays, grayed, "shared_chapters is at least 8 -- off".
 Thinking: "All back, and the filter is still there if I want it. Nice."
 
 ### --end

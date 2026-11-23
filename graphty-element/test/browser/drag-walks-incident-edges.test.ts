@@ -11,6 +11,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
+import type { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { moveHeld, nextFrame, press, release } from "../helpers/real-input";
 
 /** The two graph sizes: big enough that a walk of every edge is 4x. */
@@ -46,10 +47,14 @@ afterEach(() => {
  * path around a ring far from it, drawn.
  * @param size - The node count.
  * @param layout - The layout it is arranged by, run until it settles.
+ * @param path - The render path, or undefined for the element's default.
  * @returns The element.
  */
-async function mounted(size: number, layout: string): Promise<Graphty> {
+async function mounted(size: number, layout: string, path?: "batched"): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    if (path !== undefined) {
+        element.renderPath = path;
+    }
     element.style.display = "block";
     element.style.width = "400px";
     element.style.height = "300px";
@@ -75,17 +80,89 @@ async function mounted(size: number, layout: string): Promise<Graphty> {
 }
 
 /**
+ * One counted call of `Edge.update`: which edge, on which counted frame and in which update pass, called by what.
+ * A frame and a pass differ: the loop runs a pass on every tick and draws only some of them, so one drawn frame can
+ * follow two passes (a layout step's row move, then the pointer's move).
+ */
+interface Visit {
+    edge: string;
+    frame: number;
+    pass: number;
+    caller: string;
+}
+
+/**
+ * The function that called `Edge.update`, read off the stack: the first frame that is not the spy, vitest or
+ * this file (`UpdateManager.updateEdgesOf`, `UpdateManager.placedEdgesAtRows`, ...).
+ * @returns The caller's name, or "unknown".
+ */
+function callerOfUpdate(): string {
+    const lines = (new Error().stack ?? "").split("\n").slice(1);
+    const outside = lines.find(
+        (line) => !/drag-walks-incident-edges|vitest|tinyspy|@vitest|node_modules|Edge\.update/.test(line),
+    );
+    return (
+        outside
+            ?.trim()
+            .replace(/^at /, "")
+            .replace(/ \(.*$/, "") ?? "unknown"
+    );
+}
+
+/**
+ * Count every `Edge.update` from now on, each with its edge, the frame it was made on and its caller.
+ * @param frameOf - The counted frame now.
+ * @param passOf - The update pass now.
+ * @returns The visits so far, and a stop that restores `Edge.update`.
+ */
+function countVisits(frameOf: () => number, passOf: () => number): { visits: Visit[]; stop: () => void } {
+    const visits: Visit[] = [];
+    const original = Edge.prototype.update;
+    const spy = vi.spyOn(Edge.prototype, "update").mockImplementation(function (this: Edge, ...rest) {
+        visits.push({
+            edge: `${String(this.srcId)}-${String(this.dstId)}`,
+            frame: frameOf(),
+            pass: passOf(),
+            caller: callerOfUpdate(),
+        });
+        original.apply(this, rest);
+    });
+    return {
+        visits,
+        stop: () => {
+            spy.mockRestore();
+        },
+    };
+}
+
+/**
+ * The visits, one line each, for an assertion message: the next failure names the mechanism.
+ * @param visits - The visits.
+ * @returns The lines.
+ */
+function listed(visits: readonly Visit[]): string {
+    return visits
+        .map(({ edge, frame, pass, caller }) => `  frame ${String(frame)} pass ${String(pass)} ${edge} from ${caller}`)
+        .join("\n");
+}
+
+/**
  * Drag node `t` with the real mouse, counting edge visits and frames once the drag is under way
  * (the press selects and the first move pins the node, and either repaint walks every edge once).
  * @param size - The node count.
  * @param layout - The layout it is arranged by.
- * @returns The edge visits, the frames they were made on, and how far the dragged edge's middle moved.
+ * @param during - Run before the pointer's move of this number, if given.
+ * @param path - The render path, or undefined for the element's default.
+ * @returns The edge visits, the frames they were made on, how far the dragged edge's middle moved, and the
+ *     nodes hovered while the pointer held the node.
  */
 async function dragCounted(
     size: number,
     layout: string,
-): Promise<{ visits: number; frames: number; followed: number }> {
-    const element = await mounted(size, layout);
+    during?: { move: number; run: (element: Graphty) => void },
+    path?: "batched",
+): Promise<{ visits: Visit[]; frames: number; followed: number; hovered: string[] }> {
+    const element = await mounted(size, layout, path);
     const position = element.nodeScreenPosition("t");
     assert.isDefined(position, "node t is drawn");
     const { x, y } = position;
@@ -99,33 +176,49 @@ async function dragCounted(
     const edge = element.graph.getDataManager().getEdgesBetween("t", "n0")[0];
     assert.isDefined(edge, "t has an edge");
     await element.waitForStableFrame();
-    const before = edge.drawnLine?.centre.clone();
+    const before = edge.drawnLine?.center.clone();
     assert.isDefined(before, "its line is drawn");
 
     let frames = 0;
-    const update = vi.spyOn(Edge.prototype, "update");
+    // A node hovered under the drag is built and its edges placed, on the batched path, and those visits are
+    // not the drag's: the drag holds the hover, so none is (issue #9514).
+    const hovered: string[] = [];
+    const heard = (event: CustomEvent<{ nodeId: unknown }>): void => {
+        hovered.push(String(event.detail.nodeId));
+    };
+    element.addEventListener("graphty-node-hover", heard);
+    const updates = element.graph.getUpdateManager();
+    const counted = countVisits(
+        () => frames,
+        () => updates.getRenderFrameCount(),
+    );
     const frame = element.graph.scene.onBeforeRenderObservable.add(() => {
         frames++;
     });
     try {
         for (let move = 1; move <= MOVES; move++) {
+            if (during?.move === move) {
+                during.run(element);
+            }
+
             await moveHeld(element, { x: x + 10 + 5 * move, y: y + 5 });
             await nextFrame();
         }
 
         await nextFrame();
     } finally {
+        counted.stop();
         frame.remove();
+        element.removeEventListener("graphty-node-hover", heard);
     }
 
-    const visits = update.mock.calls.length;
-    update.mockRestore();
+    const { visits } = counted;
 
     await release(element, { x: x + 10 + 5 * MOVES, y: y + 5 });
     await element.waitForStableFrame();
-    const after = edge.drawnLine?.centre;
+    const after = edge.drawnLine?.center;
     assert.isDefined(after, "its line is still drawn");
-    return { visits, frames, followed: after.subtract(before).length() };
+    return { visits, frames, followed: after.subtract(before).length(), hovered };
 }
 
 describe("a drag", () => {
@@ -133,12 +226,41 @@ describe("a drag", () => {
         "visits only the dragged node's edges, at any graph size, on %s",
         async (layout) => {
             for (const size of SIZES) {
-                const { visits, frames, followed } = await dragCounted(size, layout);
-                const message = `${String(visits)} edge visits on ${String(frames)} frames at ${String(size)} nodes`;
-                assert.isAbove(visits, 0, message);
-                assert.isAtMost(visits, frames * DEGREE, message);
+                const { visits, frames, followed, hovered } = await dragCounted(size, layout);
+                assert.deepEqual(hovered, [], "no node is hovered while the pointer holds one");
+                const message = `${String(visits.length)} edge visits on ${String(frames)} frames at ${String(size)} nodes`;
+                assert.isAbove(visits.length, 0, message);
+                assert.isAtMost(visits.length, frames * DEGREE, `${message}:\n${listed(visits)}`);
                 assert.isAbove(followed, 0, "the dragged node's edge followed it");
             }
         },
     );
+
+    // A layout step mid-drag moves the rows of nodes with no `Node` in the same pass as the dragged node: the pass
+    // places every placed edge for the rows, and used to place the dragged node's edges a second time for the drag
+    // (issue #9529). Keyed by update pass, not by drawn frame: a step's pass is often not drawn, and the pointer's
+    // next move then places the dragged node's edges in a second pass before the same drawn frame (issue #9574).
+    it("places each edge once in a pass that moves the dragged node and the rows of others", async () => {
+        const step = (element: Graphty): void => {
+            const engine = element.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine;
+            engine.step();
+            engine.publishPositions();
+        };
+        const { visits } = await dragCounted(SIZES[0], "forceatlas2", { move: 4, run: step }, "batched");
+        const atT = (visit: Visit): boolean => visit.edge.startsWith("t-");
+        const both = new Set(visits.filter(atT).map(({ pass }) => pass));
+        const rows = new Set(visits.filter((visit) => !atT(visit)).map(({ pass }) => pass));
+        assert.isTrue(
+            [...both].some((pass) => rows.has(pass)),
+            `some pass places the dragged node's edges and the others':\n${listed(visits)}`,
+        );
+        const seen = new Set<string>();
+        const twice = visits.filter(({ edge, pass }) => {
+            const key = `${String(pass)} ${edge}`;
+            const again = seen.has(key);
+            seen.add(key);
+            return again;
+        });
+        assert.deepEqual(twice, [], "no edge is placed twice in one pass");
+    });
 });

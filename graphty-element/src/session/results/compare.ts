@@ -10,6 +10,8 @@
  * Nothing in this module's import graph reaches Babylon.js, Lit or the DOM.
  */
 
+import { partitionAgreement } from "@graphty/algorithms";
+
 import type { FieldDescriptor, NodeId, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { elementIdsOf } from "./RunResult";
@@ -106,13 +108,25 @@ export interface PartitionComparison extends ComparisonBase {
     /** A grouping comparison. */
     readonly kind: "partition";
     /** How many groups each side has among the shared elements. */
-    readonly groups: { readonly a: number; readonly b: number };
+    readonly groups: {
+        /** How many groups side `a` has. */
+        readonly a: number;
+        /** How many groups side `b` has. */
+        readonly b: number;
+    };
     /**
      * How far the two groupings agree: the adjusted Rand index over the shared elements, 1 for the
      * same grouping whatever the groups are called, around 0 for chance agreement. Undefined with
      * fewer than two shared elements.
      */
     readonly agreement: number | undefined;
+    /**
+     * How far the two groupings agree by the adjusted mutual information over the shared elements
+     * (arithmetic normalization, as scikit-learn's default): 1 for the same grouping whatever the
+     * groups are called, around 0 for chance agreement. Undefined with fewer than two shared elements.
+     * @since 3.58.0
+     */
+    readonly adjustedMutualInformation: number | undefined;
     /** Every pair of groups that share an element, the largest overlap first. */
     readonly overlaps: readonly GroupOverlap[];
     /** The elements that left the rest of their group, in the first grouping's element order. */
@@ -378,51 +392,24 @@ function groupsOf(side: Side): Map<NodeId, string | number> {
 }
 
 /**
- * Pairs out of a count.
- * @param n - The count.
- * @returns n choose 2.
+ * The two agreement measures over the shared elements, undefined below two of them.
+ * @param shared - Each shared element and its group on either side.
+ * @returns The adjusted Rand index and the adjusted mutual information.
  */
-function pairs(n: number): number {
-    return (n * (n - 1)) / 2;
-}
-
-/**
- * The adjusted Rand index of two groupings, from their overlap table.
- * @param overlaps - The overlap counts.
- * @param sizesA - The first grouping's group sizes.
- * @param sizesB - The second grouping's group sizes.
- * @param n - The shared elements.
- * @returns The index, or undefined below two elements.
- */
-function adjustedRand(
-    overlaps: readonly GroupOverlap[],
-    sizesA: Iterable<number>,
-    sizesB: Iterable<number>,
-    n: number,
-): number | undefined {
-    if (n < 2) {
-        return undefined;
+function agreementOf(
+    shared: readonly (readonly [NodeId, string | number, string | number])[],
+): Pick<PartitionComparison, "agreement" | "adjustedMutualInformation"> {
+    if (shared.length < 2) {
+        return { agreement: undefined, adjustedMutualInformation: undefined };
     }
+    // Group names are typed, as `key` spells them, so 1 and "1" stay apart.
+    const name = (value: string | number): string => `${typeof value}:${String(value)}`;
+    const found = partitionAgreement(
+        shared.map(([, a]) => name(a)),
+        shared.map(([, , b]) => name(b)),
+    );
 
-    let index = 0;
-    for (const overlap of overlaps) {
-        index += pairs(overlap.count);
-    }
-
-    let sumA = 0;
-    for (const size of sizesA) {
-        sumA += pairs(size);
-    }
-
-    let sumB = 0;
-    for (const size of sizesB) {
-        sumB += pairs(size);
-    }
-
-    const expected = (sumA * sumB) / pairs(n);
-    const most = (sumA + sumB) / 2;
-    // Both groupings all one group, or both all singletons: identical, and the formula is 0/0.
-    return most === expected ? 1 : (index - expected) / (most - expected);
+    return { agreement: found.adjustedRand, adjustedMutualInformation: found.adjustedMutualInformation };
 }
 
 /**
@@ -483,7 +470,7 @@ function comparePartitions(a: Side, b: Side): PartitionComparison {
         ),
         shared: shared.length,
         groups: { a: sizesA.size, b: sizesB.size },
-        agreement: adjustedRand(overlaps, sizesA.values(), sizesB.values(), shared.length),
+        ...agreementOf(shared),
         overlaps,
         moves,
     };

@@ -5,8 +5,8 @@
 
 /** The facts of one server the Cypher source talks to. */
 export interface CypherProfile {
-    /** "neo4j" or "neptune". */
-    readonly name: "neo4j" | "neptune";
+    /** "neo4j", "memgraph" or "neptune". */
+    readonly name: "neo4j" | "memgraph" | "neptune";
     /** true: ids are `elementId(n)` (Neo4j 5 and later); false: `id(n)` (Neo4j before 5, Neptune's `~id`). */
     readonly elementIds: boolean;
     /** The product, as the server names it. */
@@ -35,12 +35,28 @@ export function neo4jProfile(version: string | null, product = "Neo4j"): CypherP
 }
 
 /**
- * The profile of a Bolt server from its agent string ("Neo4j/3.5.12"). A server that is not Neo4j
- * gets `id()`, which every openCypher server has.
+ * The Memgraph profile: `id(n)` (Memgraph has no `elementId()`), and a READ session that does not
+ * stop writes. Memgraph's agent names no version of its own.
+ */
+const MEMGRAPH_PROFILE: CypherProfile = Object.freeze({
+    name: "memgraph",
+    elementIds: false,
+    product: "Memgraph",
+    version: null,
+    readOnly: "not-enforced",
+});
+
+/**
+ * The profile of a Bolt server from its agent string ("Neo4j/3.5.12"). Memgraph calls itself
+ * "Neo4j/v5.11.0 compatible graph database server - Memgraph". A server that is not Neo4j gets
+ * `id()`, which every openCypher server has.
  * @param agent - the server agent
  * @returns the profile
  */
 export function profileFromAgent(agent: string): CypherProfile {
+    if (/\bmemgraph\b/i.test(agent)) {
+        return MEMGRAPH_PROFILE;
+    }
     const [product = "", version = ""] = agent.split("/");
     if (product.toLowerCase() === "neo4j") {
         return neo4jProfile(version === "" ? null : version);

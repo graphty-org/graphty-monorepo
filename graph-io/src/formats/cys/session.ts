@@ -85,6 +85,8 @@ interface SessionLayout {
     readonly files: ReadonlyMap<string, SessionEntry>;
     /** The style entries (`session_vizmap.xml`, `session_vizmap.props`). */
     readonly styles: readonly SessionEntry[];
+    /** 3.x: the saved pictures and their index, under {@link PICTURE_FOLDER}; also in `skipped`. */
+    readonly pictures: readonly SessionEntry[];
     /** 3.x: the `graphty.styles` entry a session graphty wrote holds, if present. */
     readonly block: SessionEntry | null;
     /** Every entry the importer does not read. */
@@ -287,6 +289,7 @@ function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder):
         cysession: null as SessionEntry | null,
         files: new Map<string, SessionEntry>(),
         styles: [] as SessionEntry[],
+        pictures: [] as SessionEntry[],
         block: null as SessionEntry | null,
         skipped: [] as string[],
     };
@@ -307,6 +310,12 @@ function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder):
     }
     return layout;
 }
+
+/**
+ * The folder Cytoscape desktop saves the pictures of its image annotations and custom graphics in, under the
+ * session's root, with `image_metadata.props` naming the URL each was loaded from.
+ */
+export const PICTURE_FOLDER = "apps/org.cytoscape.ding.customgraphicsmgr/";
 
 /** The era and version of a session without a version marker. */
 const ERA_2 = { era: "2", version: "2.0.0" } as const;
@@ -413,6 +422,10 @@ function classify3(entry: SessionEntry, layout: Mutable): void {
         layout.styles.push(entry);
     } else if (path === STYLE_BLOCK_NAME) {
         layout.block = entry;
+    } else if (path.startsWith(PICTURE_FOLDER) && !path.slice(PICTURE_FOLDER.length).includes("/")) {
+        // read only when an annotation names one (pictures.ts), and listed as skipped until then
+        layout.pictures.push(entry);
+        layout.skipped.push(entry.name);
     } else {
         layout.skipped.push(entry.name);
     }

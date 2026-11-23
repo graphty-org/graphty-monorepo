@@ -10,7 +10,7 @@ import {
 } from "../../src/utils/styleHelpers/color/interpolation";
 
 /**
- * The colours the ramp produced before it was made total, pinned so that the fix cannot
+ * The colors the ramp produced before it was made total, pinned so that the fix cannot
  * move a single one of them. Each row is [value, expected hex]. The values are a spread
  * across the domain: both ends, both out-of-range clamps, the anchors' own positions
  * (thirds and sixths of the ten-anchor ramps) and a handful of points between anchors.

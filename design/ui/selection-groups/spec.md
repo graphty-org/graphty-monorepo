@@ -63,7 +63,7 @@ non-modal **workspace** over the canvas column for every edit. Binding decisions
 | Where                    | Style layer: Which nodes, Which edges                            | Data place Filters, one selection per card                                                     |
 | Header                   | The layer's row (its eye)                                        | On box, name, count; Select N, Duplicate and Delete in its "..." (section 3.3; no effect word) |
 | Base (screen word)       | **Filtered graph**: what the import filter leaves drawn          | **Full graph**: everything loaded, before any filter                                           |
-| Runs read                | Runs on the filtered graph                                       | Runs on the full graph; filtered-graph runs greyed (circular)                                  |
+| Runs read                | Runs on the filtered graph                                       | Runs on the full graph; filtered-graph runs grayed (circular)                                  |
 | Live references          | Hovered or selected, Selected (N) follow the reader              | None: the element freezes Selected (N) to node ids on commit, shown as a chip                  |
 | Re-evaluated on          | Data, runs, sets, hover, selection                               | Data, runs, sets                                                                               |
 | A count chip's click     | Selects what it counts (`design/ui/framework/task-flows.md` 4.3) | Opens the strip on its rows (Matches only)                                                     |
@@ -401,7 +401,7 @@ adds a style layer, "Filters +" adds a filter card. Nothing inside a selection d
        sources); Time window (import filter only).
     2. **Results**: fields of existing runs, value first, by the run's exact title ("community --
        Louvain (resolution 2)"), which names the scope when two runs differ by it; a computed dot. In
-       the import filter, filtered-graph runs are greyed with the element's reason. No rank or
+       the import filter, filtered-graph runs are grayed with the element's reason. No rank or
        percentile entries.
     3. **Analyze's categories, in Analyze's order and headings**: algorithms not yet run on this
        base, a clock and estimate above the live limit; committing starts the run. A single-field
@@ -415,7 +415,7 @@ adds a style layer, "Filters +" adds a filter card. Nothing inside a selection d
        Selected (N)".
 
     Typing ranks all sections as one list. A used value shows a dimmed check; an unusable one is
-    greyed, the element's reason as tooltip. Highlighting never starts a run; Enter or a click commits.
+    grayed, the element's reason as tooltip. Highlighting never starts a run; Enter or a click commits.
 
 - **Test**: chosen by kind (section 5), in the step pane; the text test keeps the approved operator
   select (Contains, Starts with, Is, Matches).
@@ -658,7 +658,7 @@ workspace is open (3.0); "at rest" means it is closed.
 9. An All group with no step offers "Keep..." and "Except..." and no Add; an empty None group offers
    only "Add..."; afterwards all three.
 10. Betweenness picked in a style card is one filtered-graph run in Analyze, layer list unchanged; in
-    a filter card that run is greyed and the pick starts a full-graph run.
+    a filter card that run is grayed and the pick starts a full-graph run.
 11. Ask limit forced low: "Run (about X)", pending until pressed; Cancel of the run leaves it pending;
     at rest the layer paints nothing for that group.
 12. A So far run is not in Analyze and goes with its step.

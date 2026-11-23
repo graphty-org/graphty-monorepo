@@ -1,5 +1,4 @@
-import { assert } from "chai";
-import { describe, test } from "vitest";
+import { assert, describe, test } from "vitest";
 
 import { xrConfigSchema } from "../../src/config/xr-config-schema";
 import { defaultXRConfig } from "../../src/config/XRConfig";

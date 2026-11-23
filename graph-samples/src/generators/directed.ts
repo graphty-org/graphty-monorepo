@@ -52,8 +52,8 @@ function checkPolicy(name: string, value: string | undefined): void {
  * Relabel edge endpoints by a Fisher-Yates permutation of 0 .. n - 1 (for i = n - 1 down to 1,
  * swap i with nextBelow(i + 1)) from stream (seed, permuteDomain, 0).
  * @param n - the node count
- * @param src - the sources, relabelled in place
- * @param dst - the targets, relabelled in place
+ * @param src - the sources, relabeled in place
+ * @param dst - the targets, relabeled in place
  * @param seed - the resolved seed
  * @param permuteDomain - the permutation's stream domain
  */
@@ -106,7 +106,7 @@ function dropRepeatedPairs(src: U32, dst: U32, directed: boolean, keep: Uint8Arr
  * Apply `permute`, `selfLoops` and `multiEdges` to freshly sampled edges, then build the graph.
  * The permutation is a Fisher-Yates shuffle of 0 .. n - 1 (for i = n - 1 down to 1, swap i with
  * nextBelow(i + 1)) from stream (seed, permuteDomain, 0); node u becomes perm[u]. Erasing keeps
- * the first occurrence of a pair in edge order, and is not affected by the relabelling.
+ * the first occurrence of a pair in edge order, and is not affected by the relabeling.
  * @param n - the node count
  * @param src - the sources, in edge order
  * @param dst - the targets
@@ -270,13 +270,6 @@ export interface RmatOptions extends RecursiveOptions {
  * the source for top/bottom, of the target for left/right). Edges are listed in sampling order.
  * A multigraph with self-loops unless erased: see `selfLoops`, `multiEdges`, `permute` (stream
  * (seed, "rmat-permute", 0)) and `directed`.
- *
- * webgpu-graph-algorithms carries three private R-MAT copies on xorshift / LCG streams
- * (benchmarks/datasets.ts, test/helpers/graphs.ts, demo/main.ts) that should move to this. Two
- * of them move a self-loop to (u, (v + 1) mod n), keeping exactly m edges; `selfLoops: "erase"`
- * drops the loop instead (about m / n^0.4 fewer edges at the defaults), and `weights: { kind:
- * "integer", min: 1, max: 10 }` reproduces their 1..10 weights. The third keeps self-loops, which
- * is this function's default.
  * @param options - scale, edgeFactor, a, b, c, d, the shared recursive options and seed
  * @returns the graph
  */

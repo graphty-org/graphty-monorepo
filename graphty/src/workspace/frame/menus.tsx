@@ -25,6 +25,7 @@ import { useCommand, useWorkspace } from "../state/WorkspaceContext";
  * @param props.icon - Its icon, drawn before the label
  * @param props.reasonDrawn - Whether the reason is drawn; false where a row above already shows
  *   the same words, so a menu says a shared reason once. It is still read with the row.
+ * @param props.control - The registered command id the row runs, which usage data may name.
  * @returns The row
  */
 export function CommandMenuItem({
@@ -34,6 +35,7 @@ export function CommandMenuItem({
     onRun,
     icon,
     reasonDrawn = true,
+    control,
 }: Readonly<{
     label: string;
     shortcut: string | undefined;
@@ -41,6 +43,7 @@ export function CommandMenuItem({
     onRun: () => void;
     icon?: React.ReactNode;
     reasonDrawn?: boolean;
+    control?: string;
 }>): React.JSX.Element {
     let why: React.ReactNode = null;
     if (reason !== null) {
@@ -57,6 +60,7 @@ export function CommandMenuItem({
             closeMenuOnClick={reason === null}
             aria-disabled={reason !== null}
             data-disabled={reason === null ? undefined : true}
+            data-ph-capture-attribute-control={control}
             aria-keyshortcuts={shortcut === undefined ? undefined : ariaKey(shortcut)}
             rightSection={shortcut === undefined ? undefined : <MenuShortcut>{formatKey(shortcut)}</MenuShortcut>}
         >
@@ -81,9 +85,10 @@ function CommandItem({ id }: Readonly<{ id: string }>): React.JSX.Element | null
     return (
         <CommandMenuItem
             label={command.label}
-            shortcut={command.keys?.[0] ?? command.rowKeys?.[0]}
+            shortcut={command.keys?.[0] ?? command.rowKeys?.[0] ?? command.whileShownKeys?.[0]}
             reason={disabledReason}
             onRun={run}
+            control={id}
         />
     );
 }
@@ -115,8 +120,8 @@ export function Sections({ sections }: Readonly<{ sections: readonly (readonly s
 }
 
 /**
- * The main menu, the app's one menu: Back to start | New project, Open, Open recent
- * | the File list | Custom model..., Add Shader..., Rename | Settings, Keyboard shortcuts, Help. The start screen's copy leaves
+ * The main menu, the app's one menu: Back to start | New project, Rename, Open, Open recent
+ * | the File list | Add custom model..., Add Shader... | Settings, Keyboard shortcuts, Help. The start screen's copy leaves
  * out the rows that need a project (Back to start, the File list, Rename) rather than
  * drawing them disabled.
  * @param props - Component props
@@ -141,6 +146,7 @@ export function MainMenu({ start = false }: Readonly<{ start?: boolean }>): Reac
                     </>
                 )}
                 <CommandItem id="project.new" />
+                {start ? null : <CommandItem id="project.rename" />}
                 <CommandItem id="file.open" />
                 <RecentMenu />
                 <Menu.Divider />
@@ -148,11 +154,7 @@ export function MainMenu({ start = false }: Readonly<{ start?: boolean }>): Reac
                     sections={
                         start
                             ? [["settings.open", "help.shortcuts"]]
-                            : [
-                                  FILE_LIST,
-                                  ["model.custom", "shader.add", "project.rename"],
-                                  ["settings.open", "help.shortcuts"],
-                              ]
+                            : [FILE_LIST, ["model.custom", "shader.add"], ["settings.open", "help.shortcuts"]]
                     }
                 />
                 <Menu.Sub>

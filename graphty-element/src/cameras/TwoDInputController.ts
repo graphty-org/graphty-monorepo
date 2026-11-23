@@ -1,9 +1,12 @@
 // TwoDInputController.ts
-import { type Observer, PointerEventTypes, type PointerInfo, type PointerInfoPre } from "@babylonjs/core";
+import type { Observer, PointerInfoPre } from "@babylonjs/core";
+import { PointerEventTypes, type PointerInfo } from "@babylonjs/core/Events/pointerEvents.js";
 import Hammer from "hammerjs";
 
 import { type CanvasKeyAction, canvasKeyAction } from "../catalog/canvasKeys";
 import { firstSight } from "../input/first-sight";
+import { type CameraGestureKind, type GestureEndHooks, WheelRun } from "./gestureEnd";
+import { wheelZoomFactor } from "./InputUtils";
 import { TwoDCameraController, TwoDCameraControlsConfigType } from "./TwoDCameraController";
 
 interface GestureSession {
@@ -26,7 +29,16 @@ interface GestureSession {
  * Handles user input for the 2D camera controller.
  * Processes mouse, touch, and keyboard input for 2D camera manipulation.
  */
-export class InputController {
+export class InputController implements GestureEndHooks {
+    /** Told once when a reader's camera gesture ends; see `camera:gesture-end`. */
+    public onGestureEnd: ((kind: CameraGestureKind) => void) | null = null;
+    /** Asks the render loop for one more frame; see {@link WheelRun}. */
+    public requestFrame: (() => void) | null = null;
+    /** What the drag or touch gesture under way has done, once it moved the camera. */
+    private dragKind: CameraGestureKind | null = null;
+    /** What the camera keys have been doing, until the camera's inertia comes to rest. */
+    private keyKind: CameraGestureKind | null = null;
+    private readonly wheelRun = new WheelRun();
     /** The camera actions whose keys are held down now. */
     private readonly held = new Set<CanvasKeyAction>();
     /** The actions whose key went down since the last frame, so a tap between two frames acts. */
@@ -59,6 +71,18 @@ export class InputController {
         this.held.clear();
         this.tapped.clear();
     };
+
+    /**
+     * A drag or a touch gesture ended: report it once, if it moved the camera. A mouse drag ends
+     * both the pointer and the touch recognizer, and only the first end counts.
+     */
+    private endDrag(): void {
+        const kind = this.dragKind;
+        this.dragKind = null;
+        if (kind !== null) {
+            this.onGestureEnd?.(kind);
+        }
+    }
 
     private readonly keyUpHandler = (e: KeyboardEvent): void => {
         // Released whatever modifiers are down by then.
@@ -100,7 +124,10 @@ export class InputController {
 
             switch (pi.type) {
                 case PointerEventTypes.POINTERDOWN:
-                    isPanning = true;
+                    // Touch is the gesture recognizer's: read here, each finger's move would be
+                    // measured from wherever the other finger last was (issue #9523).
+                    isPanning = e.pointerType !== "touch";
+                    this.dragKind = null;
                     lastX = e.clientX;
                     lastY = e.clientY;
                     this.pointerDownHandler();
@@ -108,6 +135,7 @@ export class InputController {
 
                 case PointerEventTypes.POINTERUP:
                     isPanning = false;
+                    this.endDrag();
                     break;
 
                 case PointerEventTypes.POINTERMOVE:
@@ -125,6 +153,9 @@ export class InputController {
 
                         const dx = e.clientX - lastX;
                         const dy = e.clientY - lastY;
+                        if (dx !== 0 || dy !== 0) {
+                            this.dragKind ??= "pan";
+                        }
 
                         this.cam.pan(-dx * scaleX * this.config.mousePanScale, dy * scaleY * this.config.mousePanScale);
 
@@ -143,7 +174,9 @@ export class InputController {
         this.prePointerObserverHandle = this.cam.scene.onPrePointerObservable.add((pi) => {
             const e = pi.event as WheelEvent;
             if (pi.type === PointerEventTypes.POINTERWHEEL && newWheel(e)) {
-                const delta = e.deltaY > 0 ? this.config.mouseWheelZoomSpeed : 1 / this.config.mouseWheelZoomSpeed;
+                this.wheelRun.wheel();
+                // In proportion to the delta, so a trackpad zooms no faster than a mouse wheel
+                const delta = wheelZoomFactor(e, this.config.mouseWheelZoomSpeed);
                 if (this.zoomToPointer) {
                     const rect = this.canvas.getBoundingClientRect();
                     this.cam.zoomAt(
@@ -160,7 +193,9 @@ export class InputController {
     }
 
     private setupTouch(): void {
-        this.hammer = new Hammer.Manager(this.canvas);
+        // Touch events only: the mouse and pen are setupMouse's. A touch event carries every
+        // finger at once, where pointer events would bring each finger's move on its own.
+        this.hammer = new Hammer.Manager(this.canvas, { inputClass: Hammer.TouchInput });
         const pan = new Hammer.Pan({ threshold: 0, pointers: 0 });
         const pinch = new Hammer.Pinch();
         const rotate = new Hammer.Rotate();
@@ -169,25 +204,34 @@ export class InputController {
         this.hammer.get("pinch").recognizeWith(this.hammer.get("rotate"));
         this.hammer.get("pan").requireFailure(this.hammer.get("pinch"));
 
-        this.hammer.on("panstart pinchstart rotatestart", (ev) => {
-            this.gestureSession = {
-                panX: ev.center.x,
-                panY: ev.center.y,
-                panStartX: this.cam.camera.position.x,
-                panStartY: this.cam.camera.position.y,
-                ortho: {
-                    left: this.cam.camera.orthoLeft ?? 1,
-                    right: this.cam.camera.orthoRight ?? 1,
-                    top: this.cam.camera.orthoTop ?? 1,
-                    bottom: this.cam.camera.orthoBottom ?? 1,
-                },
-                scale: ev.scale || 1,
-                rotation: this.cam.camera.rotation.z,
-                startRotDeg: ev.rotation || 0,
-            };
+        // Hammer's delta, scale and rotation run from the moment the fingers landed, or last
+        // changed in number: the camera at that moment is where the gesture is measured from, so
+        // the result does not depend on which recognizer won or when it started (issue #9523).
+        let fingers = 0;
+        this.hammer.on("hammer.input", (ev) => {
+            if (ev.pointers.length !== fingers || ev.isFirst) {
+                fingers = ev.pointers.length;
+                this.gestureSession = {
+                    panX: ev.deltaX,
+                    panY: ev.deltaY,
+                    panStartX: this.cam.camera.position.x,
+                    panStartY: this.cam.camera.position.y,
+                    ortho: {
+                        left: this.cam.camera.orthoLeft ?? 1,
+                        right: this.cam.camera.orthoRight ?? 1,
+                        top: this.cam.camera.orthoTop ?? 1,
+                        bottom: this.cam.camera.orthoBottom ?? 1,
+                    },
+                    scale: ev.scale || 1,
+                    rotation: this.cam.camera.rotation.z,
+                    startRotDeg: ev.rotation || 0,
+                };
+            }
         });
 
-        this.hammer.on("panmove pinchmove rotatemove", (ev) => {
+        // Not the end: a lifted finger leaves the others listed in another order, which Hammer reads
+        // as a turn.
+        this.hammer.on("panstart panmove pinchstart pinchmove rotatestart rotatemove", (ev) => {
             if (!this.gestureSession) {
                 return;
             }
@@ -203,8 +247,8 @@ export class InputController {
                 (orthoTop - orthoBottom) /
                 (this.cam.engine.getRenderHeight() * this.cam.engine.getHardwareScalingLevel());
 
-            const dx = ev.center.x - this.gestureSession.panX;
-            const dy = ev.center.y - this.gestureSession.panY;
+            const dx = ev.deltaX - this.gestureSession.panX;
+            const dy = ev.deltaY - this.gestureSession.panY;
 
             this.cam.panFrom(
                 this.gestureSession.panStartX,
@@ -214,20 +258,29 @@ export class InputController {
             );
 
             const pinch = (ev.scale || 1) / this.gestureSession.scale;
+            // A gesture that changed the scale is a zoom; one that only moved is a pan.
+            if (pinch !== 1) {
+                this.dragKind = "zoom";
+            } else if (dx !== 0 || dy !== 0) {
+                this.dragKind ??= "pan";
+            }
+
             this.cam.camera.orthoLeft = this.gestureSession.ortho.left / pinch;
             this.cam.camera.orthoRight = this.gestureSession.ortho.right / pinch;
             this.cam.camera.orthoTop = this.gestureSession.ortho.top / pinch;
             this.cam.camera.orthoBottom = this.gestureSession.ortho.bottom / pinch;
 
             // Hammer's rotation is clockwise on screen, and a larger roll turns the drawing
-            // clockwise: the drawing turns with the fingers.
-            const rotRad = ((ev.rotation - this.gestureSession.startRotDeg) * Math.PI) / 180;
+            // clockwise: the drawing turns with the fingers. Hammer gives the angle unwrapped
+            // (360 when the second finger lands), so the turn is taken the short way round.
+            const turnDeg = ev.rotation - this.gestureSession.startRotDeg;
+            const rotRad = ((((turnDeg % 360) + 540) % 360) - 180) * (Math.PI / 180);
             this.cam.camera.rotation.z = this.gestureSession.rotation + rotRad;
             this.cam.onReaderMove?.();
         });
 
-        this.hammer.on("panend pinchend rotateend", () => {
-            this.gestureSession = null;
+        this.hammer.on("panend pinchend rotateend pancancel pinchcancel rotatecancel", () => {
+            this.endDrag();
         });
     }
 
@@ -288,6 +341,10 @@ export class InputController {
 
         // Clear gesture session
         this.gestureSession = null;
+        // Input taken away (a node drag, another camera) ends nothing a reader can finish.
+        this.dragKind = null;
+        this.keyKind = null;
+        this.wheelRun.reset();
     }
 
     /**
@@ -341,10 +398,27 @@ export class InputController {
             v.rotate -= rotatePush;
         }
 
+        this.noteKeyGesture(on);
         this.tapped.clear();
 
         if (v.x + v.y + v.zoom + v.rotate !== before) {
             this.cam.onReaderMove?.();
+        }
+    }
+
+    /**
+     * Record what the camera keys on this frame do to the key gesture under way: a roll makes it
+     * an orbit, a pan a pan unless it already turned, a zoom alone a zoom.
+     * @param on - Whether an action's key is on this frame.
+     */
+    private noteKeyGesture(on: (action: CanvasKeyAction) => boolean): void {
+        const pans = on("pan-up") || on("pan-down") || on("pan-left") || on("pan-right");
+        if (on("roll-left") || on("roll-right")) {
+            this.keyKind = "orbit";
+        } else if (pans) {
+            this.keyKind = this.keyKind === "orbit" ? "orbit" : "pan";
+        } else if (on("zoom-in") || on("zoom-out")) {
+            this.keyKind ??= "zoom";
         }
     }
 
@@ -355,5 +429,21 @@ export class InputController {
     public update(): void {
         this.applyKeyboardInertia();
         this.cam.applyInertia();
+        if (!this.enabled) {
+            return;
+        }
+
+        // A key gesture ends once no camera key is held and the inertia it gave has damped to
+        // rest; a key pressed before then continues it.
+        const v = this.cam.velocity;
+        if (this.keyKind !== null && this.held.size === 0 && v.x === 0 && v.y === 0 && v.zoom === 0 && v.rotate === 0) {
+            const kind = this.keyKind;
+            this.keyKind = null;
+            this.onGestureEnd?.(kind);
+        }
+
+        if (this.wheelRun.frame(this.requestFrame)) {
+            this.onGestureEnd?.("zoom");
+        }
     }
 }

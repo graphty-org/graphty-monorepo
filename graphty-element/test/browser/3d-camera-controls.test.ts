@@ -242,10 +242,10 @@ describe("3D Camera Controls", () => {
 
     test.for([
         ["lift", false],
-        ["are cancelled", true],
+        ["are canceled", true],
     ] as const)(
         "a two-finger pinch stops a mouse drag from turning the camera until the fingers %s",
-        async ([, cancelled]) => {
+        async ([, canceled]) => {
             const { canvas } = graph;
             const lift = await holdPinch(canvas, { x: 300, y: 100 }, 40, 100);
             const rotate = vi.spyOn(cameraController, "rotate");
@@ -255,7 +255,7 @@ describe("3D Camera Controls", () => {
                 assert.equal(rotate.mock.calls.length, 0, "the mouse did not turn the camera during the pinch");
                 assert.deepEqual(view(), during, "the camera stayed put during the pinch");
             } finally {
-                await lift(cancelled);
+                await lift(canceled);
             }
 
             await drag(canvas, { x: 100, y: 100 }, { x: 200, y: 150 });

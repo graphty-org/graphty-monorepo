@@ -1,11 +1,10 @@
 /**
- * The staging ring of spec 4.4: a ring of MAP_READ | COPY_DST buffers (default DEFAULT_STAGING_SLOTS slots of 4 MiB,
- * PLAN DECISION 15) through which every readback of the package flows. `read()` copies with its own encoder and
- * submit, awaits mapAsync, copies out of the mapped range BEFORE unmap (the range is detached at unmap, design 10.7)
+ * The staging ring: a ring of MAP_READ | COPY_DST buffers (default DEFAULT_STAGING_SLOTS slots of 4 MiB) through which every readback of the package flows. `read()` copies with its own encoder and
+ * submit, awaits mapAsync, copies out of the mapped range BEFORE unmap (the range is detached at unmap)
  * and never polls onSubmittedWorkDone; requests above the slot size are chunked. Ownership is one-directional: the
- * ring owns its buffers; a CommandBatch (P2) BORROWS one slot through borrowSlot, maps it through mapSlot and always
+ * ring owns its buffers; a CommandBatch BORROWS one slot through borrowSlot, maps it through mapSlot and always
  * returns it through returnSlot, which unmaps it. Slots at or above OOM_SCOPE_THRESHOLD_BYTES are created through the
- * AllocationTracker (the out-of-memory scope of spec 5.7), the default-size ones directly on the device, so the
+ * AllocationTracker (the out-of-memory scope), the default-size ones directly on the device, so the
  * allocator counts residency and pool buffers only. A mapAsync rejection is E_DEVICE_LOST (or E_DISPOSED after
  * destroyAll).
  *
@@ -30,7 +29,7 @@ import { type AllocationTracker } from "../device/error-scope.js";
 import { BufferUsage, MapMode } from "../device/webgpu-constants.js";
 import { WebGpuGraphError } from "../errors.js";
 
-/** Default capacity of one staging slot (PLAN DECISION 15). */
+/** Default capacity of one staging slot. */
 const DEFAULT_SLOT_BYTES = 4 * 1024 * 1024;
 
 /** Every staging buffer is MAP_READ | COPY_DST. */
@@ -41,7 +40,7 @@ const SLOT_GRANULE = 256;
 
 /**
  * One MAP_READ | COPY_DST staging buffer of the ring. Exported for the borrowers of borrowSlot / returnSlot
- * (contract 3.8): P2-T1's CommandBatch imports it as a type; nothing at P1 imports it by name.
+ * (CommandBatch imports it as a type).
  * @public
  */
 export interface StagingSlot {
@@ -88,7 +87,7 @@ function invalid(argument: string, value: unknown, expected: string): WebGpuGrap
     });
 }
 
-/** The staging ring (spec 4.4): default 3 slots; grows when every slot is busy; always unmaps and destroys its own buffers. */
+/** The staging ring: default 3 slots; grows when every slot is busy; always unmaps and destroys its own buffers. */
 export class Readback {
     private readonly device: GPUDevice;
     private readonly allocator: AllocationTracker;
@@ -197,7 +196,7 @@ export class Readback {
 
     /**
      * Borrows an unmapped slot of at least byteLength (grows the ring when none is free); the borrower ALWAYS
-     * returns it (spec 4.4).
+     * returns it.
      * @param byteLength - the bytes the borrower will copy into the slot
      * @returns the slot
      */
@@ -222,7 +221,7 @@ export class Readback {
     /**
      * mapAsync(READ) on a borrowed slot, tracked by the ring: the slot counts as borrowed, and is neither unmapped
      * nor destroyed, until the map settles (see the file comment). Returns the runtime's own promise, untranslated:
-     * the borrower classifies a rejection (a CommandBatch races it against device loss, spec 5.7).
+     * the borrower classifies a rejection (a CommandBatch races it against device loss).
      * @param slot - a slot borrowed from this ring and not yet returned
      * @param byteLength - the bytes to map from offset 0
      * @returns the mapAsync promise
@@ -239,7 +238,7 @@ export class Readback {
     /**
      * Returns a borrowed slot (unmapping it if mapped). A slot whose map through the ring is still pending stays
      * borrowed until the map settles, when the ring unmaps and returns it; a borrower that maps a slot itself must
-     * unmap it before returning it (spec 4.4; `mapState` decides when the runtime exposes it, otherwise the ring's
+     * unmap it before returning it (`mapState` decides when the runtime exposes it, otherwise the ring's
      * own record does). A no-op after destroyAll() (the ring is gone; a borrower's finally must never mask the
      * E_DISPOSED / E_DEVICE_LOST of the read it was serving).
      * @param slot - a slot borrowed from this ring and not yet returned

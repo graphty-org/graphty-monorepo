@@ -6,7 +6,7 @@
  * format's specification; tools/oracle.py regenerates the oracle-derived ones.
  *
  * checkFixture() and checkRoundTrip() return a list of problems (empty when the fixture conforms)
- * so the test file can assert on it and the report writer can summarise it.
+ * so the test file can assert on it and the report writer can summarize it.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import { type Column, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
+import { explicitWeights } from "../../src/common/weights.js";
 import { collectBytes } from "../../src/common/writer.js";
 import { importAllGraphs, importGraph, type ImportGraphResult, listGraphs, registry } from "../../src/registry.js";
 import { SNIFF_HEAD_BYTES } from "../../src/sniff.js";
@@ -100,7 +101,7 @@ export interface Fixture {
     readonly file: string;
     /** Where it came from (a URL with the commit, or "authored"). */
     readonly origin: string;
-    /** Its licence. */
+    /** Its license. */
     readonly license: string;
     /** The upstream commit, release or retrieval date. */
     readonly version: string;
@@ -141,7 +142,7 @@ export interface Fixture {
  * its content alone: the formats added after importOptions() started naming the format, so their
  * sniffers are not exercised by the rest of the suite.
  */
-const SNIFF_CHECKED_FORMATS: ReadonlySet<string> = new Set(["xgmml", "cx", "cx2", "cys", "obo"]);
+const SNIFF_CHECKED_FORMATS: ReadonlySet<string> = new Set(["xgmml", "cx", "cx2", "cys", "obo", "sif"]);
 
 /** A format's manifest.json. */
 interface Manifest {
@@ -526,13 +527,24 @@ const nonFiniteAsNull = (v: unknown): unknown => {
 };
 
 /**
- * A non-finite number written as null: a cell that reads back as null or unset, or a column of
- * nothing else that reads back absent.
+ * A non-finite number written as null: a cell that reads back as null or unset, a column of
+ * nothing else that reads back absent, or a graph whose every explicit weight was non-finite that
+ * reads back unweighted.
  * @param d - the difference
  * @param first - the snapshot that was exported
  * @returns true when the note explains it
  */
 function nonFiniteWaived(d: SnapshotDiff, first: GraphSnapshot): boolean {
+    if (d.path === "flags.weighted") {
+        // every explicit weight was non-finite: each reads back as no weight, so the graph as unweighted
+        const weights = explicitWeights(first);
+        for (let e = 0; e < first.edgeCount; e++) {
+            if (weights.isExplicit(e) && Number.isFinite(weights.value(e))) {
+                return false;
+            }
+        }
+        return d.actual === false;
+    }
     if (d.actual === "absent") {
         const [table, ...rest] = d.path.split(".");
         const column =

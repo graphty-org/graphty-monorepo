@@ -1,7 +1,6 @@
 import { Vector3 } from "@babylonjs/core";
 import { maskTest } from "@graphty/graph-format";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";

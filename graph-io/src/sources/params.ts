@@ -7,6 +7,7 @@ import { type CypherParams } from "./cypher/params.js";
 import { type NdexParams } from "./ndex/params.js";
 import { type OpenAlexParams, type RestParams } from "./rest/params.js";
 import { type SparqlParams } from "./sparql/params.js";
+import { type UrlParams } from "./url/descriptor.js";
 
 /**
  * Parameter types by source id; extend it by declaration merging:
@@ -29,4 +30,6 @@ export interface SourceParamsMap {
     openalex: OpenAlexParams;
     /** Any SPARQL 1.1 endpoint. */
     sparql: SparqlParams;
+    /** A graph file at a web address. */
+    url: UrlParams;
 }

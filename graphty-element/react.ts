@@ -7,7 +7,7 @@
  * `import type {} from "@graphty/graphty-element/jsx"`. React 18 does not: it stringifies everything,
  * so rich values never arrive and `onNodeClick` is not a thing React knows how to bind. That is
  * what this entry point is for -- `@lit/react` wrappers with the real property names and typed
- * event payloads, plus the upgrade-timing defence a wrapper has to carry.
+ * event payloads, plus the upgrade-timing defense a wrapper has to carry.
  *
  * **Nothing of that exists yet**, so this module exports nothing. Building it means taking
  * `@lit/react` as an optional peer dependency and having the element's twenty-three DOM events

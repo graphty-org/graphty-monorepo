@@ -3,6 +3,7 @@ import { multipartite } from "@graphty/layout";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { columnLayoutConfigShape, columnLayoutOptions } from "./columnOptions";
 import { groupRows } from "./groupBy";
 import { SimpleLayoutConfig } from "./LayoutEngine";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
@@ -26,21 +27,7 @@ const multipartiteLayoutOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    align: {
-        schema: z.enum(["vertical", "horizontal"]).default("vertical"),
-        meta: {
-            label: "Alignment",
-            description: "Direction of multipartite partitions",
-        },
-    },
-    scale: {
-        schema: z.number().positive().default(1),
-        meta: {
-            label: "Scale",
-            description: "Scale factor for the layout",
-            step: 0.1,
-        },
-    },
+    ...columnLayoutOptions("Direction of multipartite partitions", "Width to height ratio the columns are spread to"),
 });
 
 const MultipartiteLayoutConfig = z.strictObject({
@@ -48,9 +35,7 @@ const MultipartiteLayoutConfig = z.strictObject({
     scalingFactor: z.number().default(40),
     subsetKey: z.record(z.string(), z.array(z.string().or(z.number()))).optional(),
     groupBy: z.string().nullable().default(null),
-    align: z.enum(["vertical", "horizontal"]).default("vertical"),
-    scale: z.number().positive().default(1),
-    center: z.array(z.number()).length(2).or(z.null()).default(null),
+    ...columnLayoutConfigShape,
 });
 type MultipartiteLayoutConfigType = z.infer<typeof MultipartiteLayoutConfig>;
 type MultipartiteLayoutOpts = Partial<MultipartiteLayoutConfigType>;
@@ -122,6 +107,7 @@ export class MultipartiteLayout extends SnapshotLayoutEngine {
                 align: this.config.align,
                 scale: this.config.scale,
                 center: this.config.center ?? undefined,
+                aspectRatio: this.config.aspectRatio,
             }),
             this.config.scalingFactor,
         );

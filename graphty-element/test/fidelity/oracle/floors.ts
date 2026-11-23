@@ -210,8 +210,8 @@ export function sourceOf(property: string, id: string, baseline: Baseline | unde
 }
 
 /**
- * Whether a property is measured in a judgement, and which of a list of elements it judged.
- * @param run - the judgement
+ * Whether a property is measured in a judgment, and which of a list of elements it judged.
+ * @param run - the judgment
  * @param property - the property
  * @param ids - the elements asked about
  * @returns the elements it judged
@@ -230,7 +230,7 @@ function measured(run: Judgement, property: string, ids: readonly string[]): str
  * either side's id; and every one of a property the run judges only on the drawing as a whole (an own-layout sample's
  * `edge.curve`, judged as the share of lines bent since comparator round 5), however drawn. A run that names no judged
  * elements at all (a sample that drew nothing) says nothing is gone.
- * @param run - the judgement
+ * @param run - the judgment
  * @param notMeasurable - the known failures not judged now, by property
  * @returns those whose element is gone, by property
  */
@@ -265,7 +265,7 @@ function goneFromBoth(run: Judgement, notMeasurable: Record<string, string[]>): 
  * @param known - the elements known to fail each property of this key
  * @param recorded - the recorded pass rates of this key
  * @param options - the rest
- * @param options.baseline - the baseline drawing's judgements, when the run judged one
+ * @param options.baseline - the baseline drawing's judgments, when the run judged one
  * @param options.section - where the key's recorded pass rates are kept (default: with the real programs)
  * @param options.gpu - the GPU path it was drawn on (`GRAPHTY_BROWSER_GPU`, "none" when unset)
  * @param options.gateFloors - fail an element-judged rate below its floor (the oracle scorecard)
@@ -391,6 +391,16 @@ const named = (add: { properties?: readonly string[] } | undefined, property: st
     add?.properties === undefined || add.properties.includes(property);
 
 /**
+ * The issue numbers a reason cites: `#` and one to five digits standing alone. A color (`#505050`, `#5F809D`) or an
+ * HTML entity (`&#123;`) is not an issue.
+ * @param reason - the reason
+ * @returns the numbers, in the order the reason names them
+ */
+export function citedIssues(reason: string): number[] {
+    return [...reason.matchAll(/(?<![\w&#])#(\d{1,5})(?!\w)/g)].map((m) => Number(m[1]));
+}
+
+/**
  * Refuses a reason too short to say anything, or one that names no issue (`#1234`): a known failure or an accepted drop
  * stays on the list until its issue is fixed, so each one must say which issue that is (#7015).
  * @param reason - the reason given
@@ -400,9 +410,55 @@ export function checkReason(reason: string, what: string): void {
     if (reason.trim().length < 10) {
         throw new Error(`${what} needs a reason of 10 or more characters`);
     }
-    if (!/#\d+/.test(reason)) {
+    if (citedIssues(reason).length === 0) {
         throw new Error(`${what} needs a reason that names the issue tracking it (#1234)`);
     }
+}
+
+/** A listed known failure that no open issue tracks. */
+export interface UntrackedKnown {
+    key: string;
+    property: string;
+    id: string;
+    /** Every issue the reasons that added it cite (none when no reason records it, or its reasons cite none). */
+    cited: number[];
+}
+
+/**
+ * The listed known failures that no open issue tracks: each element whose reasons (every reason that added it) cite no
+ * issue, or cite only issues that are closed. A known failure stays on the list until its issue is fixed, so one whose
+ * issue is closed needs a new issue or a fix (#7015).
+ * @param records - the known failures
+ * @param open - the cited issues that are open
+ * @returns the untracked known failures, in the list's order
+ */
+export function untrackedKnown(records: KnownRecords, open: ReadonlySet<number>): UntrackedKnown[] {
+    const cites = new Map<string, Set<number>>();
+    for (const r of records.reasons) {
+        const issues = citedIssues(r.reason);
+        for (const [key, props] of Object.entries(r.added)) {
+            for (const [property, ids] of Object.entries(props)) {
+                for (const id of ids) {
+                    const at = `${key}\0${property}\0${id}`;
+                    const set = cites.get(at) ?? new Set<number>();
+                    issues.forEach((n) => set.add(n));
+                    cites.set(at, set);
+                }
+            }
+        }
+    }
+    const out: UntrackedKnown[] = [];
+    for (const [key, props] of Object.entries(records.known)) {
+        for (const [property, ids] of Object.entries(props)) {
+            for (const id of ids) {
+                const cited = [...(cites.get(`${key}\0${property}\0${id}`) ?? [])].sort((a, b) => a - b);
+                if (!cited.some((n) => open.has(n))) {
+                    out.push({ key, property, id, cited });
+                }
+            }
+        }
+    }
+    return out;
 }
 
 /**
@@ -450,7 +506,7 @@ export function ratchetDrops(
         out[gate.key] = row;
     }
     const left = Object.fromEntries(Object.entries(out).filter(([, row]) => Object.keys(row).length > 0));
-    return { drops: sortedKeys(left), removed, added, unaccepted };
+    return { drops: sortedByKey(left), removed, added, unaccepted };
 }
 
 /**
@@ -513,7 +569,65 @@ export function ratchetKnown(
         }
     }
     const reasons = added > 0 ? [...records.reasons, record] : records.reasons;
-    return { records: { about: records.about, known: sortedKeys(known), reasons }, removed, added, unlisted };
+    return { records: { about: records.about, known: sortedByKey(known), reasons }, removed, added, unlisted };
+}
+
+/**
+ * Moves listed known failures to a new reason, so they cite the issue that tracks them now (an accepted difference, or a
+ * defect split off into its own issue): each named element comes off every reason that listed it and onto one new
+ * reason. A reason left listing nothing is dropped. The elements stay on the known failures. Needs no run; when none
+ * of the named elements is listed, the records come back unchanged.
+ * @param records - the known failures as committed
+ * @param recite - what to move and why
+ * @param recite.reason - the new reason, naming the issue tracking these elements (`#1234`)
+ * @param recite.date - `YYYY-MM-DD`
+ * @param recite.keys - the keys
+ * @param recite.ids - the element ids
+ * @param recite.properties - only these properties (all when omitted)
+ * @returns the new records and how many elements moved
+ */
+export function reciteKnown(
+    records: KnownRecords,
+    recite: {
+        reason: string;
+        date: string;
+        keys: readonly string[];
+        ids: readonly string[];
+        properties?: readonly string[];
+    },
+): { records: KnownRecords; moved: number } {
+    checkReason(recite.reason, "re-citing known failures");
+    const added: KnownReason["added"] = {};
+    let moved = 0;
+    for (const key of recite.keys) {
+        for (const [property, ids] of Object.entries(records.known[key] ?? {})) {
+            const hit = named(recite, property) ? ids.filter((id) => recite.ids.includes(id)) : [];
+            if (hit.length > 0) {
+                (added[key] ??= {})[property] = hit;
+                moved += hit.length;
+            }
+        }
+    }
+    if (moved === 0) {
+        return { records, moved };
+    }
+    const isMoved = (key: string, property: string, id: string): boolean => (added[key]?.[property] ?? []).includes(id);
+    const reasons = records.reasons
+        .map((r) => {
+            const left: KnownReason["added"] = {};
+            for (const [key, props] of Object.entries(r.added)) {
+                for (const [property, ids] of Object.entries(props)) {
+                    const kept = ids.filter((id) => !isMoved(key, property, id));
+                    if (kept.length > 0) {
+                        (left[key] ??= {})[property] = kept;
+                    }
+                }
+            }
+            return { ...r, added: left };
+        })
+        .filter((r) => Object.keys(r.added).length > 0);
+    reasons.push({ date: recite.date, reason: recite.reason, added, sources: { unclassified: moved } });
+    return { records: { ...records, reasons }, moved };
 }
 
 /**
@@ -536,31 +650,67 @@ export function raiseFloors(table: Floors, key: string, scores: Readonly<Record<
     return raised;
 }
 
-const sortedKeys = <T>(o: Record<string, T>): Record<string, T> =>
-    Object.fromEntries(
-        Object.keys(o)
-            .sort()
-            .map((k) => [k, o[k]]),
+/** Orders two keys by UTF-16 code units, the same on every machine and locale. */
+const byKey = (a: string, b: string): number => (a < b ? -1 : Number(a > b));
+
+/**
+ * A record's entries sorted by key. Every writer of the fidelity record files keeps their entries in this order, so
+ * two branches that add different entries insert them in different places and git merges them without a conflict
+ * (#8729).
+ * @param o - the entries
+ * @returns the same entries, sorted by key
+ */
+const sortedByKey = <T>(o: Readonly<Record<string, T>>): Record<string, T> =>
+    Object.fromEntries(Object.entries(o).sort(([a], [b]) => byKey(a, b)));
+
+/**
+ * The reasons in the order the files keep them: by the reason's text (which names its issue first), then by date, so
+ * two branches adding reasons for different issues insert them in different places rather than both at the end.
+ * @param reasons - the reasons
+ * @returns them sorted
+ */
+const sortedReasons = (reasons: readonly KnownReason[]): KnownReason[] =>
+    [...reasons].sort(
+        (a, b) => byKey(a.reason, b.reason) || byKey(a.date, b.date) || byKey(JSON.stringify(a), JSON.stringify(b)),
     );
+
+/**
+ * A floors file (oracle-floors.json, requested-floors.json, drawn-floors.json) as text, the entries of each of its
+ * sections (`floors`, `lowered`, `drops`, `allowedDrops`, ...) sorted by key.
+ * @param file - the file's contents
+ * @returns the file's text
+ */
+export function floorsFileText(file: object): string {
+    const sorted = Object.fromEntries(
+        Object.entries(file).map(([k, v]: [string, unknown]) => [
+            k,
+            typeof v === "object" && v !== null && !Array.isArray(v) ? sortedByKey(v as Record<string, unknown>) : v,
+        ]),
+    );
+    return `${JSON.stringify(sorted, null, 4)}\n`;
+}
 
 /**
  * The known failures as text: one line per key and property, and one per reason, so a diff shows which elements a fix
  * took off the list and why any were added. Prettier leaves the files alone (`.prettierignore`): it would spread the
- * lists over a line per element id.
+ * lists over a line per element id. Keys, floors and reasons are written sorted (`sortedByKey`, by reason text), so
+ * concurrent additions merge cleanly.
  * @param records - the known failures
  * @param floors - recorded pass rates to keep in the same file, before the known failures (the drawn-scene scorecard's)
  * @returns the file's text
  */
 export function knownText(records: KnownRecords, floors?: Floors): string {
-    const lines = Object.entries(records.known).map(
+    const lines = Object.entries(sortedByKey(records.known)).map(
         ([key, props]) =>
             `        ${JSON.stringify(key)}: {\n${Object.entries(props)
                 .map(([p, ids]) => `            ${JSON.stringify(p)}: ${JSON.stringify(ids)}`)
                 .join(",\n")}\n        }`,
     );
-    const reasons = records.reasons.map((r) => `        ${JSON.stringify(r)}`);
+    const reasons = sortedReasons(records.reasons).map((r) => `        ${JSON.stringify(r)}`);
     const floorsText =
-        floors === undefined ? "" : `    "floors": ${JSON.stringify(floors, null, 4).replaceAll("\n", "\n    ")},\n`;
+        floors === undefined
+            ? ""
+            : `    "floors": ${JSON.stringify(sortedByKey(floors), null, 4).replaceAll("\n", "\n    ")},\n`;
     return `{\n    "about": ${JSON.stringify(records.about)},\n${floorsText}    "known": {${lines.length === 0 ? "" : `\n${lines.join(",\n")}\n    `}},\n    "reasons": [${reasons.length === 0 ? "" : `\n${reasons.join(",\n")}\n    `}]\n}\n`;
 }
 

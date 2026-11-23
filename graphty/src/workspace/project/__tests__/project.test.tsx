@@ -100,6 +100,22 @@ describe("the Project package", () => {
         assert.isNotNull(screen.getByRole("heading", { level: 1, name: /^Analyze any network\./ }));
     });
 
+    it("puts Rename directly under New project in the main menu, and Rename opens the name", async () => {
+        render(<Workspace store={createWorkspaceStore(OPEN)} />);
+
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        const menu = await screen.findByRole("menu");
+        const names = within(menu)
+            .getAllByRole("menuitem")
+            .map((item) => item.textContent ?? "");
+        const at = names.findIndex((name) => name.startsWith("New project"));
+        assert.isAtLeast(at, 0);
+        assert.match(names[at + 1], /^Rename/);
+
+        await userEvent.click(within(menu).getByRole("menuitem", { name: /^Rename/ }));
+        assert.isNotNull(await screen.findByRole("textbox", { name: "Project name" }));
+    });
+
     it("lists recent projects with their size, asks for a downloaded file with Locate..., and removes one", async () => {
         await rememberRecent({ id: "a", name: "Older", nodes: 1, at: 1 });
         await rememberRecent({ id: "b", name: "Les Miserables", nodes: 77, at: 2 });
@@ -215,9 +231,16 @@ describe("the Project package", () => {
     });
 
     it("words a file that does not open from the element's code", () => {
-        const error = (code: "E_BAD_DOCUMENT" | "E_UNSUPPORTED_VERSION" | "E_TOO_LARGE"): GraphtyError =>
-            new GraphtyError({ code, message: code, source: "data" });
+        const error = (
+            code: "E_BAD_DOCUMENT" | "E_UNSUPPORTED_VERSION" | "E_TOO_LARGE" | "E_UNKNOWN_FORMAT" | "E_UNSUPPORTED",
+        ): GraphtyError => new GraphtyError({ code, message: code, source: "data" });
         assert.equal(problemSentence("a.json", error("E_BAD_DOCUMENT")), "a.json is not a graphty project file.");
+        assert.equal(problemSentence("a.bin", error("E_UNKNOWN_FORMAT")), "a.bin is not a file graphty can open.");
+        assert.equal(
+            problemSentence("a.json", error("E_UNSUPPORTED")),
+            "a.json needs a part this graphty cannot read yet.",
+        );
+        assert.equal(saveProblemSentence("Karate", new Error("x")), "Karate could not be saved.");
         assert.equal(
             problemSentence("a.json", error("E_UNSUPPORTED_VERSION")),
             "a.json was saved by a newer graphty. Update graphty to open it.",
@@ -227,6 +250,16 @@ describe("the Project package", () => {
         assert.equal(
             saveProblemSentence("Karate", new GraphtyError({ code: "E_TOO_LARGE", message: "x", source: "data" })),
             "Karate could not be saved: this browser's storage for graphty is full.",
+        );
+        const unsupported = (reason: string): GraphtyError =>
+            new GraphtyError({ code: "E_UNSUPPORTED", message: "x", source: "data", details: { reason } });
+        assert.equal(
+            saveProblemSentence("Karate", unsupported("no-indexeddb")),
+            "Karate could not be saved: this browser does not let graphty keep projects. Save a local copy instead.",
+        );
+        assert.equal(
+            saveProblemSentence("Karate", unsupported("storage-failed")),
+            "Karate could not be saved: this browser's storage refused it. Save a local copy instead.",
         );
     });
 });

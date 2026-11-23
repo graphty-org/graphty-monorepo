@@ -4,13 +4,13 @@
 
 ```ts
 
-import { AbstractMesh } from '@babylonjs/core';
-import { ActionManager } from '@babylonjs/core';
-import { BaseTexture } from '@babylonjs/core';
-import { BoundingBox } from '@babylonjs/core';
-import { BoundingInfo } from '@babylonjs/core';
-import { Camera } from '@babylonjs/core';
-import { Color3 } from '@babylonjs/core';
+import { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh.js';
+import type { ActionManager } from '@babylonjs/core/Actions/actionManager.js';
+import type { BaseTexture } from '@babylonjs/core';
+import type { BoundingBox } from '@babylonjs/core/Culling/boundingBox.js';
+import { BoundingInfo } from '@babylonjs/core/Culling/boundingInfo.js';
+import { Camera } from '@babylonjs/core/Cameras/camera.js';
+import { Color3 } from '@babylonjs/core/Maths/math.color.js';
 import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
 import type { Credential as Credential_2 } from '@graphty/graph-io';
@@ -23,9 +23,8 @@ import type { DatasetMeta } from '@graphty/graph-samples';
 import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
-import { EdgeMask } from '@graphty/graph-format';
-import { Engine } from '@babylonjs/core';
-import { EngineInstrumentation } from '@babylonjs/core';
+import { Engine } from '@babylonjs/core/Engines/engine.js';
+import { EngineInstrumentation } from '@babylonjs/core/Instrumentation/engineInstrumentation.js';
 import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
@@ -38,29 +37,31 @@ import { GraphAnnotation } from '@graphty/graph-io/styles';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GRAPHML_LOSS } from '@graphty/graph-io';
 import { GraphSnapshot } from '@graphty/graph-format';
-import { InstancedMesh } from '@babylonjs/core';
+import type { ImageAnnotation } from '@graphty/graph-io/styles';
+import type { InstancedMesh } from '@babylonjs/core';
 import { JSON_LOSS } from '@graphty/graph-io';
 import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
-import { LossNote } from '@graphty/graph-io';
-import { Matrix } from '@babylonjs/core';
-import { Mesh } from '@babylonjs/core';
+import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
+import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
+import { ModelFormat } from 'babylonjs-models/detect';
+import type { ModelLimits as ModelLimits_2 } from 'babylonjs-models/files';
+import type { ModelSummary } from 'babylonjs-models/files';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
-import { Observable } from '@babylonjs/core';
-import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
+import { Observable } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
-import { PerfCounter } from '@babylonjs/core';
-import { Plane } from '@babylonjs/core';
-import { PointerInfoPre } from '@babylonjs/core';
+import { PerfCounter } from '@babylonjs/core/Misc/perfCounter.js';
+import type { Plane } from '@babylonjs/core';
+import type { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
-import { Quaternion } from '@babylonjs/core';
-import { RawTexture } from '@babylonjs/core';
-import { Ray } from '@babylonjs/core';
+import { Quaternion } from '@babylonjs/core/Maths/math.vector.js';
+import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture.js';
+import { Ray } from '@babylonjs/core/Culling/ray.js';
 import type { RetryOptions } from '@graphty/graph-io';
-import { Scene } from '@babylonjs/core';
-import { SceneInstrumentation } from '@babylonjs/core';
+import { Scene } from '@babylonjs/core/scene.js';
+import { SceneInstrumentation } from '@babylonjs/core/Instrumentation/sceneInstrumentation.js';
 import type { SourceCursor } from '@graphty/graph-io';
 import type { SourceLimitOptions } from '@graphty/graph-io';
 import type { SourceListing } from '@graphty/graph-io';
@@ -68,17 +69,13 @@ import type { SourceListQuery } from '@graphty/graph-io';
 import type { SourceProbe } from '@graphty/graph-io';
 import type { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
-import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
-import type { StyleRuleReason } from '@graphty/graph-io/styles';
-import type { StyleRuleRole } from '@graphty/graph-io/styles';
-import type { StyleTool } from '@graphty/graph-io/styles';
-import { TransformNode } from '@babylonjs/core';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
-import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
-import { Vector3 } from '@babylonjs/core';
-import { WebGPUEngine } from '@babylonjs/core';
-import { WebXRDefaultExperience } from '@babylonjs/core';
+import type { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
+import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine.js';
+import type { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience.js';
 import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
 
@@ -138,13 +135,16 @@ export interface AiApprovalPreview {
     readonly algorithm?: string;
     readonly changedValues?: number;
     readonly costClass?: string;
+    readonly costUsd?: number;
     readonly edges?: number;
     readonly ids?: readonly {
         readonly id: string;
         readonly label: string;
     }[];
     readonly mode?: "merge" | "replace";
+    readonly model?: string;
     readonly nodes?: number;
+    readonly provider?: string;
     readonly removeEdges?: number;
     readonly removeNodes?: number;
     readonly run?: string;
@@ -162,7 +162,7 @@ export interface AiApprovalRequest {
     }[];
     readonly conversationId?: string;
     readonly createdAt?: string;
-    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | (string & {});
+    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | "paid" | (string & {});
     readonly id: string;
     readonly messageId?: string;
     readonly preview: AiApprovalPreview;
@@ -263,6 +263,7 @@ export interface AiControllerOptions {
     apiKeys?: Partial<Record<AiProviderId, string>>;
     approvals?: AiApprovalsSetting;
     commandRegistry: CommandRegistry;
+    datasetBaseUrl?: string;
     emitEvent?: AiEventEmitter;
     gate?: Partial<AssistantGateLimits> | false;
     graph: CommandContext["graph"];
@@ -418,6 +419,7 @@ export interface AiManagerConfig {
     apiKey?: string;
     apiKeys?: Partial<Record<AiProviderId, string>>;
     approvals?: AiApprovalsSetting;
+    datasetBaseUrl?: string;
     gate?: Partial<AssistantGateLimits> | false;
     history?: "none" | "memory" | "browser" | AiHistoryOptions;
     instructions?: string;
@@ -581,9 +583,7 @@ export type AiVoiceConversationMode = "turns" | "live";
 export interface AiVoiceEndEvent {
     code?: AiResultCode;
     params?: AiResultParams;
-    // (undocumented)
     reason: "user" | "timeout" | "error";
-    // (undocumented)
     type: "ai-voice-end";
 }
 
@@ -640,7 +640,6 @@ export interface AiVoiceStartEvent {
     code?: AiResultCode;
     mode?: AiVoiceConversationMode;
     params?: AiResultParams;
-    // (undocumented)
     type: "ai-voice-start";
 }
 
@@ -659,12 +658,9 @@ export interface AiVoiceSupportChangeEvent {
 
 // @public
 export interface AiVoiceTranscriptEvent {
-    // (undocumented)
     isFinal: boolean;
     pointing?: AiPointing;
-    // (undocumented)
     transcript: string;
-    // (undocumented)
     type: "ai-voice-transcript";
 }
 
@@ -673,18 +669,19 @@ export class ApiKeyManager {
     constructor(options?: ApiKeyManagerOptions);
     clear(): void;
     disablePersistence(clearStorage?: boolean): void;
-    enablePersistence(config?: PersistenceConfig): void;
+    enablePersistence(config?: PersistenceConfig): Promise<void>;
     enablePersistenceWithPassphrase(passphrase: string, config?: PassphrasePersistenceConfig): Promise<void>;
-    forgetKey(provider: ProviderType): void;
-    forgetKeys(): void;
+    forgetKey(provider: ProviderType): Promise<void>;
+    forgetKeys(): Promise<void>;
     getConfiguredProviders(): ProviderType[];
     getDefaultProvider(): ProviderType | null;
     getKey(provider: ProviderType): string | undefined;
     getStoredItem(name: string): unknown;
     hasKey(provider: ProviderType): boolean;
     isPersistenceEnabled(): boolean;
+    ready(): Promise<void>;
     removeKey(provider: ProviderType): void;
-    retireOtherStorage(): void;
+    retireOtherStorage(): Promise<void>;
     setDefaultProvider(provider: ProviderType | null): void;
     setKey(provider: ProviderType, key: string): void;
     setStoredItem(name: string, value: unknown): void;
@@ -708,21 +705,14 @@ export interface AssistantGateLimits {
 
 // @public
 export interface AttributeHistogramBin {
-    // (undocumented)
     count: number;
-    // (undocumented)
     max: number;
-    // (undocumented)
     min: number;
-    // (undocumented)
     range: string;
 }
 
 // @public
 export const captureScreenshot: GraphCommand;
-
-// @public
-export const captureVideo: GraphCommand;
 
 // @public
 export const clearStyles: GraphCommand;
@@ -924,15 +914,10 @@ export class MockLlmProvider implements LlmProvider {
 
 // @public
 export interface NumericStatistics {
-    // (undocumented)
     avg: number;
-    // (undocumented)
     count: number;
-    // (undocumented)
     max: number;
-    // (undocumented)
     median: number;
-    // (undocumented)
     min: number;
 }
 
@@ -996,7 +981,7 @@ export const sampleData: GraphCommand;
 
 // @public
 export class SchemaExtractor {
-    constructor(graph: Graph, options?: SchemaExtractorOptions);
+    constructor(graph: Graph | GraphSession, options?: SchemaExtractorOptions);
     extract(): SchemaSummary;
 }
 
@@ -1012,7 +997,7 @@ export interface SchemaExtractorOptions {
 
 // @public
 export class SchemaManager {
-    constructor(graph: Graph, options?: SchemaExtractorOptions);
+    constructor(graph: Graph | GraphSession, options?: SchemaExtractorOptions);
     extract(): SchemaSummary;
     getFormattedSchema(): string;
     getSchema(): SchemaSummary | null;
@@ -1141,7 +1126,7 @@ export class VoiceInputAdapter implements InputAdapter {
     get isSupported(): boolean;
     onActiveChange(callback: VoiceActiveCallback): void;
     onError(callback: (error: string) => void): void;
-    onInput(callback: InputCallback): void;
+    onInput(callback: InputCallback): () => void;
     onSpeechEnd(callback: () => void): void;
     onStart(callback: VoiceStartCallback): void;
     start(options?: InputOptions): void;

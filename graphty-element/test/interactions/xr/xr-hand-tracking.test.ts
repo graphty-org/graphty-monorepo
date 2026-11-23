@@ -11,8 +11,7 @@
  */
 
 import { Quaternion, Vector3 } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { isPinching, pinchStrength } from "../../../src/cameras/InputUtils";
 import type { PivotController } from "../../../src/cameras/PivotController";

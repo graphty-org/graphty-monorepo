@@ -23,6 +23,39 @@ function wholeCount(count: number): number {
     return Number.isFinite(count) ? Math.max(0, Math.ceil(count)) : 0;
 }
 
+/**
+ * Loads a simulation and runs it for its whole budget, then reads the result: rescaled to `scale` about `center`, or,
+ * with pinned nodes (a `fixed` option or a role-`fixed` bool column), left in the units of the start so a pinned node
+ * keeps exactly its coordinates.
+ * @param sim - the simulation
+ * @param s - the undirected snapshot
+ * @param column - the start column, written in place
+ * @param iterations - the iterations to run
+ * @param frame - the components per row, the rescale and the `fixed` option
+ * @param frame.dim - components per row
+ * @param frame.scale - the rescale's size
+ * @param frame.center - the rescale's center
+ * @param frame.fixed - the `fixed` option
+ * @returns the layout
+ */
+function runToEnd(
+    sim: ForceAtlas2Simulation | FruchtermanReingoldSimulation,
+    s: GraphSnapshot,
+    column: F32,
+    iterations: number,
+    frame: { dim: 2 | 3; scale: number; center: ArrayLike<number> | undefined; fixed: unknown },
+): LayoutResult {
+    sim.load(s, column);
+    if (iterations > 0) {
+        sim.step(iterations);
+    }
+    sim.dispose();
+    const { dim, scale, center } = frame;
+    const positions = fromPositionColumn(column, dim, 1, null);
+    const pinned = (frame.fixed ?? null) !== null || s.nodes.byRole("fixed")?.dtype === "bool";
+    return { positions: pinned ? positions : rescaleInPlace(positions, dim, scale, center), dim, n: s.nodeCount };
+}
+
 /** Options of indexed.forceAtlas2: the simulation's, without the stepping controls, plus a start. */
 export interface IndexedForceAtlas2Options extends Omit<ForceAtlas2Options, keyof SimulationOptions> {
     /** Start positions, `dim` values per node in index order; each NaN component is drawn from the seed, finite ones are kept. */
@@ -41,8 +74,11 @@ export interface IndexedFruchtermanReingoldOptions extends Omit<
 /**
  * ForceAtlas2 run for `maxIter` iterations (default 100; a fractional count runs its ceiling, and 0, a negative or
  * a non-finite count runs none), then rescaled to `scale` (default 1) about `center` (default the origin).
- * `nodeMass` and `nodeSize` take a Float32Array, a node column name or an id-keyed record; with none, a role-`mass`
- * node column, else outDegree + 1. `weight` is true for the snapshot's weights or an edge column name.
+ * `nodeMass` and `nodeSize` take a Float32Array, a node column name or an id-keyed record; with no `nodeMass`, a
+ * role-`mass` node column, else outDegree + 1; with no `nodeSize`, nodes are points (a radius here is in the units
+ * the simulation runs in, before the rescale). `weight` is true for the snapshot's weights or an edge column name.
+ * With a `fixed` option or a role-`fixed` bool column the pinned nodes keep their `pos` and the result is left in the
+ * units of `pos`, not rescaled.
  * @param g - the graph; a directed snapshot is laid out as its undirected copy
  * @param options - the options
  * @returns `dim` values per node
@@ -56,13 +92,7 @@ export function forceAtlas2(g: GraphSnapshot, options: IndexedForceAtlas2Options
     seedPositions(s, column, options.seed ?? null, dim, 1, null, "fa2");
     const iterations = wholeCount(maxIter);
     const sim = new ForceAtlas2Simulation({ ...rest, dim, maxIter: Math.max(1, iterations), settleThreshold: 0 });
-    sim.load(s, column);
-    if (iterations > 0) {
-        sim.step(iterations);
-    }
-    sim.dispose();
-    const positions = rescaleInPlace(fromPositionColumn(column, dim, 1, null), dim, scale, center);
-    return { positions, dim, n: s.nodeCount };
+    return runToEnd(sim, s, column, iterations, { dim, scale, center, fixed: rest.fixed });
 }
 
 /**
@@ -94,12 +124,5 @@ export function fruchtermanReingold(g: GraphSnapshot, options: IndexedFruchterma
     });
     const iterations = wholeCount(count);
     const sim = new FruchtermanReingoldSimulation({ ...rest, dim, iterations, settleThreshold: 0 });
-    sim.load(s, column);
-    if (iterations > 0) {
-        sim.step(iterations);
-    }
-    sim.dispose();
-    const positions = fromPositionColumn(column, dim, 1, null);
-    const pinned = (rest.fixed ?? null) !== null || s.nodes.byRole("fixed")?.dtype === "bool";
-    return { positions: pinned ? positions : rescaleInPlace(positions, dim, scale, center), dim, n: s.nodeCount };
+    return runToEnd(sim, s, column, iterations, { dim, scale, center, fixed: rest.fixed });
 }

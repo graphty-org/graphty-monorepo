@@ -1,4 +1,4 @@
-import { Color3 } from "@babylonjs/core";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
 
 import { colorToHex } from "../config/common";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
@@ -60,7 +60,7 @@ export function gradientStopList(text: string | undefined, count: number): numbe
  * @param stops - Where each sits, or none.
  * @returns One offset per color.
  */
-function gradientOffsets(count: number, stops?: readonly number[] | null): number[] {
+export function gradientOffsets(count: number, stops?: readonly number[] | null): number[] {
     if (stops?.length === count) {
         return [...stops];
     }

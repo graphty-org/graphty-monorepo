@@ -3,7 +3,7 @@
  */
 
 import { GirvanNewmanAlgorithm } from "../../../src/algorithms/GirvanNewmanAlgorithm";
-import type { Graph } from "../../../src/Graph";
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { describeScopedAdapter } from "./harness";
 
-describeScopedAdapter("girvan-newman", (graph: Graph) => new GirvanNewmanAlgorithm(graph));
+describeScopedAdapter("girvan-newman", (graph: AlgorithmHost) => new GirvanNewmanAlgorithm(graph));

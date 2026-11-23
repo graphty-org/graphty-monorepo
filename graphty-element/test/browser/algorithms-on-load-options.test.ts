@@ -1,9 +1,9 @@
 /**
  * @file The element's load-time algorithm list takes run options as well as names.
  *
- * `{ algorithm: "graphty:pagerank", style: { size: [1, 5] } }` in the list must both colour and
+ * `{ algorithm: "graphty:pagerank", style: { size: [1, 5] } }` in the list must both color and
  * size the nodes, exactly as `session.runs.start("pagerank", {}, { style: { size: [1, 5] } })`
- * does, and a plain name must go on colouring without sizing. Read off the meshes the renderer
+ * does, and a plain name must go on coloring without sizing. Read off the meshes the renderer
  * draws, not off the style model, so a layer the model holds and the renderer never applies is
  * caught here.
  */
@@ -69,7 +69,7 @@ async function mountWith(configure: (element: Graphty) => void): Promise<Graphty
 /**
  * What each node is drawn as.
  * @param element - The element on screen.
- * @returns Each node's drawn half-width and colour, by id.
+ * @returns Each node's drawn half-width and color, by id.
  */
 function drawn(element: Graphty): Map<string, { radius: number; colour: string }> {
     return new Map(
@@ -150,7 +150,7 @@ describe("run options in the load-time algorithm list", () => {
 
     it("paints the run's colours while the layout is still moving, without waiting for it to settle", async () => {
         // The layout is paused before any data arrives, so it never settles in this test: if the
-        // paint of a load-time run waited for the layout, no colour would ever land (issue #35).
+        // paint of a load-time run waited for the layout, no color would ever land (issue #35).
         let settledEvents = 0;
         const element = await mountWith((el) => {
             el.addEventListener("graph-settled", () => {

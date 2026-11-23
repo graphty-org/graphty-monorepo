@@ -35,6 +35,8 @@ import { formatTemporal, formatTimeValue, type TimeFormat } from "../../common/t
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
+import { respelledPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
@@ -235,6 +237,8 @@ interface ExportPlan {
     readonly options: ResolvedExportOptions;
     readonly notes: LossNote[];
     readonly nodeRoles: RoleColumns;
+    /** The node position column's rows in GEXF's spelling (center, y up), or null to write them as stored. */
+    readonly nodePositions: Float64Array | null;
     readonly edgeRoles: RoleColumns;
     readonly nodeAttrs: readonly AttributeSpec[];
     readonly edgeAttrs: readonly AttributeSpec[];
@@ -287,6 +291,7 @@ function planExport(
     const caps = version === "1.2" ? CAPABILITIES_1_2 : CAPABILITIES_1_3;
     const notes = [
         ...checkCapabilities(snapshot, caps, resolved, {
+            idsAsText: true,
             openIntervals: version === "1.2",
             temporalText: true,
             positionDtype: "f64",
@@ -319,6 +324,8 @@ function planExport(
         options: resolved,
         notes,
         nodeRoles,
+        // a column read from a y-down or top-left file (Pajek, yEd, GML) is written the way up Gephi draws it
+        nodePositions: respelledPositions(snapshot, nodeRoles.position, {}),
         edgeRoles,
         nodeAttrs,
         edgeAttrs,
@@ -1760,11 +1767,18 @@ function listItems(column: Column, row: number): readonly unknown[] {
  * @param row - the element's row
  * @param indent - the indentation
  * @param writeZ - whether viz:position gets its z attribute
+ * @param spelled - the position column's rows in GEXF's spelling, or null to write them as stored
  * @returns the lines, or an empty string
  */
-function vizElements(roles: RoleColumns, row: number, indent: string, writeZ: boolean): string {
+function vizElements(
+    roles: RoleColumns,
+    row: number,
+    indent: string,
+    writeZ: boolean,
+    spelled: Float64Array | null,
+): string {
     let out = vizColor(roles.color, row, indent);
-    out += vizPosition(roles.position, row, indent, writeZ);
+    out += vizPosition(roles.position, row, indent, writeZ, spelled);
     for (const [name, column] of [
         ["size", roles.size],
         ["thickness", roles.thickness],
@@ -1816,13 +1830,21 @@ function vizColor(color: Column | null, row: number, indent: string): string {
  * @param row - the element's row
  * @param indent - the indentation
  * @param writeZ - whether the z attribute is written
+ * @param spelled - the column's rows in GEXF's spelling, or null to write them as stored
  * @returns the line, or an empty string
  */
-function vizPosition(position: Column | null, row: number, indent: string, writeZ: boolean): string {
+function vizPosition(
+    position: Column | null,
+    row: number,
+    indent: string,
+    writeZ: boolean,
+    spelled: Float64Array | null,
+): string {
     if (!position?.isSet(row)) {
         return "";
     }
-    const lanes = Array.from(position.value(row) as ArrayLike<number>);
+    const stored = Array.from(position.value(row) as ArrayLike<number>);
+    const lanes = spelled === null ? stored : Array.from(spelled.subarray(3 * row, 3 * row + stored.length));
     const fmt = position.dtype === "f32" ? formatF32 : formatF64;
     let attrs = ` x="${fmt(lanes[0])}" y="${fmt(lanes[1])}"`;
     if (lanes.length > 2 && writeZ) {
@@ -1989,7 +2011,7 @@ function nodeElement(
     let body = attvaluesElement(plan.nodeAttrs, i, plan, "        ");
     body += parentsElement(nodeRoles.parents, i, idText);
     body += spellsElement(nodeRoles, i, plan, "        ");
-    body += vizElements(nodeRoles, i, "        ", writeZ);
+    body += vizElements(nodeRoles, i, "        ", writeZ, plan.nodePositions);
     body += styled?.node(i, "        ") ?? "";
     return body.length === 0 ? `      <node${attrs}/>\n` : `      <node${attrs}>\n${body}      </node>\n`;
 }
@@ -2049,7 +2071,7 @@ function edgeElement(e: number, type: GexfEdgeType, ctx: EdgeWriteContext): stri
     attrs += lifetimeAttrs(edgeRoles, e, plan);
     let body = attvaluesElement(plan.edgeAttrs, e, plan, "        ");
     body += spellsElement(edgeRoles, e, plan, "        ");
-    body += vizElements(edgeRoles, e, "        ", false);
+    body += vizElements(edgeRoles, e, "        ", false, null);
     body += ctx.styled?.edge(e, "        ") ?? "";
     return body.length === 0 ? `      <edge${attrs}/>\n` : `      <edge${attrs}>\n${body}      </edge>\n`;
 }
@@ -2191,40 +2213,45 @@ function graphExtraText(snapshot: GraphSnapshot, key: string): string | null {
  * The GEXF exporter; `capabilities` describes the default 1.3 output.
  * @category Built-in formats
  */
-export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
-    format: GEXF_FORMAT,
-    options: Object.freeze(["version"]),
-    capabilities: CAPABILITIES_1_3,
-    styles: Object.freeze({ capabilities: GEXF_STYLE_CAPABILITIES }),
-    /**
-     * Pre-flight: what export() would lose.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the loss notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: GexfWriteOptions): readonly LossNote[] {
-        const styled = gexfStyledExport(snapshot, options?.styles);
-        return Object.freeze([...planExport(styled?.snapshot ?? snapshot, options).notes, ...(styled?.notes ?? [])]);
-    },
-    /**
-     * Write the snapshot as UTF-8 chunks.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: GexfWriteOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(writeGexf(snapshot, options));
-    },
-    /**
-     * Write the snapshot as one string.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the document
-     */
-    async exportToString(snapshot: GraphSnapshot, options?: GexfWriteOptions): Promise<string> {
-        return joinText(writeGexf(snapshot, options));
-    },
-});
+export const gexfExporter: GraphExporter<GexfExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: GEXF_FORMAT,
+        options: Object.freeze(["version"]),
+        capabilities: CAPABILITIES_1_3,
+        styles: Object.freeze({ capabilities: GEXF_STYLE_CAPABILITIES }),
+        /**
+         * Pre-flight: what export() would lose.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the loss notes, empty when the export is exact
+         */
+        check(snapshot: GraphSnapshot, options?: GexfWriteOptions): readonly LossNote[] {
+            const styled = gexfStyledExport(snapshot, options?.styles);
+            return Object.freeze([
+                ...planExport(styled?.snapshot ?? snapshot, options).notes,
+                ...(styled?.notes ?? []),
+            ]);
+        },
+        /**
+         * Write the snapshot as UTF-8 chunks.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the chunks
+         */
+        export(snapshot: GraphSnapshot, options?: GexfWriteOptions): AsyncIterable<Uint8Array> {
+            return encodeChunks(writeGexf(snapshot, options));
+        },
+        /**
+         * Write the snapshot as one string.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the document
+         */
+        async exportToString(snapshot: GraphSnapshot, options?: GexfWriteOptions): Promise<string> {
+            return joinText(writeGexf(snapshot, options));
+        },
+    }),
+);
 
 /**
  * The capabilities of a 1.2 export, for callers that pass `version: "1.2"`.

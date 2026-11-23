@@ -666,6 +666,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "styles.showDraft()": "writes",
     "styles.showingBranches": "state",
     "styles.shownBranches": "state",
+    "styles.shownDraft": "state",
     "styles.toDocument()": "not the graph",
     "styles.toFile()": "not the graph",
     "styles.tree()": "not the graph",

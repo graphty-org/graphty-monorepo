@@ -3881,7 +3881,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     kind: "call",
                     args: ["set_door-kept"],
                     // A set a rule names keeps its record once removed, so it can be restored.
-                    around: async (target) => {
+                    around: (target) => {
                         const sets = target as {
                             create(definition: unknown, options: { name: string }): string;
                             remove(id: string): void;
@@ -3896,7 +3896,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                             { name: "door naming" },
                         );
                         sets.remove("set_door-kept");
-                        return () => Promise.resolve();
+                        return Promise.resolve(() => Promise.resolve());
                     },
                 },
                 expect: [{ op: "set.restore", id: "set_door-kept" }],

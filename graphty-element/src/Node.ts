@@ -1964,12 +1964,15 @@ export class Node implements ModelUser {
 
     /**
      * Drop the memos keyed on a mesh or anchor the batch handover just disposed: they would keep
-     * it, and through it its scene data, alive (issue #3247). The next read measures again.
+     * it, and through it its scene data, alive (issue #3247). The next unbatched read measures again.
+     * The measured values stay: a batched read takes them over the row table's 32-bit copy, and a zeroed one made
+     * a batched node's width the rounded copy and its height the double until the next measure (#6287).
      */
     private forgetMeasuredMesh(): void {
         this.roundRadiusMesh = null;
         this.halfExtentsMesh = null;
-        this.halfExtentsValue.x = 0;
+        // a scale nothing equals, so the next unbatched read measures again
+        this.halfExtentsScale.x = Number.NaN;
     }
 
     /**

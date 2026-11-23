@@ -1181,7 +1181,15 @@ const ROLE_FIELDS: Readonly<Record<"node" | "edge", Partial<Readonly<Record<Colu
  * read again with the column in that role (`data.reloadSource` with a mapping).
  */
 export const COLUMN_ROLES: Readonly<
-    Record<"node" | "edge", { readonly inPlace: readonly ColumnRole[]; readonly atLoad: readonly ColumnRole[] }>
+    Record<
+        "node" | "edge",
+        {
+            /** The roles `data.setRole` gives a column of rows already loaded, taking effect at once. */
+            readonly inPlace: readonly ColumnRole[];
+            /** The roles that take effect only when the rows are read again (`data.reloadSource` with a mapping). */
+            readonly atLoad: readonly ColumnRole[];
+        }
+    >
 > = Object.freeze({
     node: rolesOf("node", "nodes"),
     edge: rolesOf("edge", "edges"),

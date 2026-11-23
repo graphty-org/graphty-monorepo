@@ -127,11 +127,8 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         ledger: "E674, E183",
         selector: ".cm-scrub-slot[data-scrub] svg",
     },
-    {
-        what: "a toggle icon beside a label's Weight (the 'I'): Italic is a line of its own",
-        ledger: "E674",
-        selector: '.ws-row[data-line$="labelStyle.weight"] [data-testid="toggle-icon-button"]',
-    },
+    // E674's "Italic is a line of its own" was lifted by the owner on 2026-11-23: "Font styles should be the typical
+    // wysiwyg buttons: bold, italic, underline, etc." (design "Input rules"), so the Style line's toggles stay.
     {
         what: "a Shaders section of its own: every shader is Effects' Shader item (or a Shape kind)",
         ledger: "E668, E675",

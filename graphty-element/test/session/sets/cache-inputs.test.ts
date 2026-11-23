@@ -37,7 +37,7 @@ import {
     resolveScope,
 } from "../../../src/session/sets/resolve";
 import { scopeSignature, signatureCounters } from "../../../src/session/sets/signature";
-import { InputGraph, resolutionOver } from "../../algorithms/input/harness";
+import { type InputGraph, inputGraph, resolutionOver } from "../../algorithms/input/harness";
 import { makeSession } from "../helpers";
 import { stubResult } from "../runs/harness";
 import { reachableBytes } from "./bytes";
@@ -839,8 +839,8 @@ describe("the offer counts, input by input", () => {
 
 describe("the derived inputs, input by input", () => {
     /** a -> b -> c -> d, with a second a -> b so a merge policy has something to merge. */
-    const graph = (): InputGraph =>
-        new InputGraph(
+    const graph = (): Promise<InputGraph> =>
+        inputGraph(
             ["a", "b", "c", "d"],
             [
                 ["a", "b", 1],
@@ -883,8 +883,8 @@ describe("the derived inputs, input by input", () => {
         return read(second.scope ?? first, second.orientation ?? "declared", second.simplify ?? "sum") === before;
     };
 
-    it("misses on the node bitmap, the edge bitmap, the orientation and the merge policy", () => {
-        const g = graph();
+    it("misses on the node bitmap, the edge bitmap, the orientation and the merge policy", async () => {
+        const g = await graph();
         const scope = g.scope(["a", "b", "c"]);
         assert.isFalse(same(g, scope, { scope: g.scope(["a", "b", "d"]) }));
         assert.isFalse(same(g, scope, { scope: g.scope(["a", "b", "c"], (source) => source === "a") }));
@@ -892,8 +892,8 @@ describe("the derived inputs, input by input", () => {
         assert.isFalse(same(g, scope, { simplify: "min" }));
     });
 
-    it("misses on the store and on the snapshot serial", () => {
-        const g = graph();
+    it("misses on the store and on the snapshot serial", async () => {
+        const g = await graph();
         const scope = g.scope(["a", "b", "c"]);
         const elsewhere = {
             graph: scope.graph,
@@ -908,7 +908,7 @@ describe("the derived inputs, input by input", () => {
             holder,
             scope: () => scope,
         }).subgraph();
-        g.add(["e"]);
+        await g.add(["e"]);
         const after = g.scope(["a", "b", "c"]);
         assert.notStrictEqual(
             createScopedInput(g.getDataManager(), "declared", undefined, {
@@ -920,8 +920,8 @@ describe("the derived inputs, input by input", () => {
         );
     });
 
-    it("hits on another resolution of the same members, whatever spelled it", () => {
-        const g = graph();
+    it("hits on another resolution of the same members, whatever spelled it", async () => {
+        const g = await graph();
         const scope = g.scope(["a", "b", "c"]);
         const respelled = {
             graph: scope.graph,

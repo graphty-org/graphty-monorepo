@@ -3,20 +3,11 @@ import { z } from "zod";
 
 import { CommandRegistry } from "../../../src/ai/commands";
 import type { CommandContext, CommandResult, GraphCommand } from "../../../src/ai/commands/types";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 
-// Helper to create a minimal command context for testing
-function createMockContext(): CommandContext {
-    return {
-        graph: {} as CommandContext["graph"],
-        tx: {} as CommandContext["tx"],
-        abortSignal: new AbortController().signal,
-        emitEvent: () => {
-            /* no-op */
-        },
-        updateStatus: () => {
-            /* no-op */
-        },
-    };
+/** A command context over a real headless graph, as the registry's caller hands a command. */
+async function createContext(): Promise<CommandContext> {
+    return createCommandContext(await createCommandGraph());
 }
 
 describe("CommandRegistry", () => {
@@ -267,8 +258,8 @@ describe("CommandRegistry", () => {
             });
 
             const command = registry.get("trackParams");
-            const mockContext = createMockContext();
-            await command?.execute(mockContext.graph, { color: "red", size: 10 }, mockContext);
+            const context = await createContext();
+            await command?.execute(context.graph, { color: "red", size: 10 }, context);
 
             assert.deepStrictEqual(receivedParams, { color: "red", size: 10 });
         });
@@ -289,8 +280,8 @@ describe("CommandRegistry", () => {
             });
 
             const command = registry.get("trackContext");
-            const mockContext = createMockContext();
-            await command?.execute(mockContext.graph, {}, mockContext);
+            const context = await createContext();
+            await command?.execute(context.graph, {}, context);
 
             assert.ok(receivedContext);
             assert.ok(receivedContext.abortSignal);
@@ -312,8 +303,8 @@ describe("CommandRegistry", () => {
             });
 
             const command = registry.get("withData");
-            const mockContext = createMockContext();
-            const result = await command?.execute(mockContext.graph, {}, mockContext);
+            const context = await createContext();
+            const result = await command?.execute(context.graph, {}, context);
 
             assert.strictEqual(result?.success, true);
             assert.deepStrictEqual(result?.data, { count: 42 });
@@ -334,8 +325,8 @@ describe("CommandRegistry", () => {
             });
 
             const command = registry.get("failing");
-            const mockContext = createMockContext();
-            const result = await command?.execute(mockContext.graph, {}, mockContext);
+            const context = await createContext();
+            const result = await command?.execute(context.graph, {}, context);
 
             assert.strictEqual(result?.success, false);
             assert.strictEqual(result?.message, "Something went wrong");

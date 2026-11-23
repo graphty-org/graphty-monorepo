@@ -80,25 +80,13 @@ describe("Style panel v2's Finish", () => {
         const unlit = await picture(element);
         assert.isAbove(pixelsApart(flat, unlit), 0, "Unlit changes the picture");
 
-        // The Shape's Mesh keeps Detail and Wireframe; Shading is no Shape setting.
-        const shape = await waitFor(() => {
-            const found = sectionOf(tab, "node-shape").querySelector<HTMLElement>('[data-thing="shape"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        await userEvent.click(within(shape).getByRole("button", { name: /^Node shape settings/ }));
-        const pop = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
-            assert.isNotNull(found);
-            return found;
-        });
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to node shape settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Mesh" }));
-        await waitFor(() => {
-            assert.isNotNull(pop.querySelector('.ws-row[data-line="node.meshDetail"]'), "Detail");
-            assert.isNotNull(pop.querySelector('.ws-row[data-line="node.wireframe"]'), "Wireframe");
-        });
-        assert.isNull(pop.querySelector('.ws-row[data-line="node.flat"], .ws-row[data-line="node.unlit"]'));
+        // Wireframe is an Effects option (owner, 2026-11-23); Shading is no Shape setting.
+        await userEvent.click(
+            within(sectionOf(tab, "node-effects")).getByRole("button", { name: /^Add to node effects/ }),
+        );
+        assert.isNotNull(await screen.findByRole("menuitem", { name: "Wireframe" }));
+        await userEvent.keyboard("{Escape}");
+        assert.isNull(sectionOf(tab, "node-shape").querySelector('[data-line="node.flat"], [data-line="node.unlit"]'));
     });
 
     it("in 2D the '+' item and the row are dimmed '3D only'", async () => {

@@ -114,6 +114,7 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
     "node.modelDoubleSided": { file: { name: "File" }, true: { name: "On" }, false: { name: "Off" } },
     "node.labelFit": { inside: { name: "Inside" }, bounds: { name: "Bounds" } },
     "node.visible": { true: { name: "Shown" }, false: { name: "Hidden" } },
+    "node.wireframe": { true: { name: "On" }, false: { name: "Off" } },
     "edge.gradientKind": {
         linear: { name: "Linear", glyph: "gradientLinear" },
         radial: { name: "Radial", glyph: "gradientRadial" },
@@ -476,6 +477,8 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     "plate:node.underlayColor": backdrop("underlay"),
     "plate:node.overlayColor": backdrop("overlay"),
     visibility: { row: { channel: "node.visible", name: null, rule: "R8" }, main: [] },
+    // On or Off on the row; the low mesh detail it writes is the row's (graphty-element's need).
+    wireframe: { row: { channel: "node.wireframe", name: null, rule: "R8" }, rowOwns: ["node.meshDetail"], main: [] },
     // The Label row's Glyph kind (kindGroups.ts).
     "label:node.glyph": {
         common: [

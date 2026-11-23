@@ -221,7 +221,8 @@ Size (`x-size-labelfit`). In the "+" lists below, `|` is a divider between tiers
 - **Shape** (kinds Basic shape, Model, and every shader that declares place "replace", built-in or custom, with
   "New shader..." in the same list). Its settings hold the sub-groups Corners, Custom shape (points, stretch
   points, extra pieces, and the inner lines with their backing). Mesh detail is not offered: the Graph
-  settings hold the drawing's detail (owner, 2026-11-23); Wireframe writes the low detail it needs. The
+  settings hold the drawing's detail (owner, 2026-11-23). Wireframe is an Effects option and writes the low
+  detail it needs. The
   Shape section holds no draw-order or group lines (E420, E422).
 - **Border**: one item, the stroke on the node's own edge (color, width, unit, opacity, style, position, wave).
   It has no kinds and nothing drawn around the node is in it.
@@ -378,6 +379,7 @@ value (E305). A list starts with two visible items. An inherited list is edited 
 | Model, Image, replace shaders, Sky, shader uses | opens its picker; writes on pick                                                                                                      |
 | Label, External label, Tooltip, End caption     | nothing: an empty row (empty source = every label, 7.4) that stays until set or removed; the element's default label size is 1 (E671) |
 | Glow                                            | the element's default color, yellow (E670)                                                                                            |
+| Wireframe                                       | On, with `meshDetail: "low"` (graphty-element's start and need)                                                                       |
 | Drop shadow                                     | color and `opacity: 0.5`                                                                                                              |
 | Plate                                           | Behind, with a rounded-rectangle shape and a padding; switching to Over starts at opacity 30%                                         |
 | Outline (edge)                                  | Under line; switching to Over line starts at opacity 30% and the same width                                                           |
@@ -576,6 +578,7 @@ follows.
 | Ring                                   | color R1                          | Width       | Main: opacity R5, style R10, offset R5, count R5                                                                                                                                                                                                           |
 | Shader use                             | preset R10 (`ShaderGallery`)      | -           | Main: params R16, reach, minSize R5                                                                                                                                                                                                                        |
 | Glow                                   | color R1                          | Strength    | -                                                                                                                                                                                                                                                          |
+| Wireframe (3D only)                    | wireframe R8 On / Off             | -           | -                                                                                                                                                                                                                                                          |
 | Drop shadow                            | color R1                          | -           | Main: opacity, blur R5, offset X \| Y; Show once its off field lands (4.3, 10.2)                                                                                                                                                                           |
 | Raised edge (2D only)                  | width R5                          | -           | Main: lightColor R1, darkColor R1                                                                                                                                                                                                                          |
 | Plate: Behind, Over (2D only)          | color R1                          | -           | Main: opacity, padding R5, shape R10 (the element's backdrop shape list), cornerRadius R5; Show once its off field lands (4.3, 10.2)                                                                                                                       |

@@ -127,32 +127,25 @@ describe('Style panel v2\'s "+" writes what a style needs to draw', () => {
         });
     }
 
-    it("Wireframe ticked in the Shape pop-over writes the low mesh detail it needs in the same step", async () => {
+    it("Wireframe added from Effects' + writes the low mesh detail it needs in the same step", async () => {
         const { session, nodes } = await openGraph();
         const tab = await openStyle("Key people");
-        const shape = sectionOf(tab, "node-shape");
-        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
-        // Shape's "+" lists Size and Shape (ia-design 2).
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
-        const row = await waitFor(() => {
-            const found = shape.querySelector<HTMLElement>('[data-thing="shape"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        await userEvent.click(within(row).getByRole("button", { name: "Node shape settings" }));
-        const pop = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
-            assert.isNotNull(found);
-            return found;
-        });
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to node shape settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Mesh" }));
+        const effects = sectionOf(tab, "node-effects");
         const steps = session.history.position;
-        await userEvent.click(await within(pop).findByRole("checkbox", { name: /^Wireframe/ }));
+        await userEvent.click(within(effects).getByRole("button", { name: /^Add to node effects/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Wireframe" }));
         await waitFor(() => {
             assert.strictEqual(written(session, nodes, "node.wireframe"), true);
             assert.strictEqual(written(session, nodes, "node.meshDetail"), "low");
         });
         assert.strictEqual(session.history.position, steps + 1, "one step");
+        // Its row reads On, and the Shape section holds no wireframe line.
+        const row = await waitFor(() => {
+            const found = effects.querySelector<HTMLElement>('[data-thing="wireframe"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.isTrue(within(row).getByRole<HTMLInputElement>("radio", { name: "On" }).checked);
+        assert.isNull(sectionOf(tab, "node-shape").querySelector('[data-line="node.wireframe"]'));
     });
 });

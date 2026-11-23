@@ -192,6 +192,14 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                     { id: "rings", name: "Ring", items: [], main: ["node.outerBorderColor"], own: RING_CHANNELS },
                     SHADER,
                     { id: "glow", name: "Glow", items: ["glow"], main: ["node.glow"] },
+                    // Moved from the Shape pop-over (owner, 2026-11-23); it keeps the mesh detail it writes.
+                    {
+                        id: "wireframe",
+                        name: "Wireframe",
+                        items: [],
+                        main: ["node.wireframe"],
+                        own: ["node.wireframe", "node.meshDetail"],
+                    },
                 ],
                 [
                     {

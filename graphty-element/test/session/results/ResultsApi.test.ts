@@ -21,7 +21,7 @@ const CAVEATS: Caveats = {
     notes: [],
 };
 
-/** A field descriptor with the path a catalogue descriptor would have written. */
+/** A field descriptor with the path a catalog descriptor would have written. */
 function field(spec: Omit<FieldDescriptor, "path">): FieldDescriptor {
     return { ...spec, path: `results.$.${spec.name}` };
 }
@@ -63,7 +63,6 @@ const DEGREE = metricResult("degree");
 const REGISTRY = registryOf([
     {
         id: "degree",
-        label: "Connections",
         distinguishedBy: null,
         siblingsDifferBy: null,
         shape: "node-metric",
@@ -71,7 +70,6 @@ const REGISTRY = registryOf([
     },
     {
         id: "louvain",
-        label: "Communities (resolution 1.5)",
         distinguishedBy: { option: "resolution", value: 1.5 },
         siblingsDifferBy: null,
         shape: "community",
@@ -79,13 +77,12 @@ const REGISTRY = registryOf([
     },
     {
         id: "facts",
-        label: "Facts",
         distinguishedBy: null,
         siblingsDifferBy: null,
         shape: "fact",
         result: metricResult("facts"),
     },
-    { id: "running", label: "Bridges", distinguishedBy: null, siblingsDifferBy: null, shape: "node-metric" },
+    { id: "running", distinguishedBy: null, siblingsDifferBy: null, shape: "node-metric" },
 ]);
 
 describe("addressing a result", () => {
@@ -96,7 +93,7 @@ describe("addressing a result", () => {
     });
 
     it("defaults to the field the run's shape calls primary", () => {
-        // A caller holding a run should not have to open the catalogue to learn that a
+        // A caller holding a run should not have to open the catalog to learn that a
         // centrality's number is called "value" and a partition's is called "group".
         const results = createResultsApi(REGISTRY);
 
@@ -159,7 +156,6 @@ describe("what an expression editor completes from", () => {
             roots.map((root) => root.runId),
             ["degree", "louvain", "facts"],
         );
-        assert.strictEqual(roots[0].label, "Connections");
         assert.isNull(roots[0].distinguishedBy);
         assert.deepStrictEqual(roots[1].distinguishedBy, { option: "resolution", value: 1.5 });
         assert.isNull(roots[1].siblingsDifferBy);
@@ -197,7 +193,7 @@ describe("did you mean", () => {
 
     it("suggests the run itself when a run published no fields", () => {
         const roots: readonly ResultRoot[] = [
-            { runId: "facts", label: "Facts", distinguishedBy: null, siblingsDifferBy: null, fields: [] },
+            { runId: "facts", distinguishedBy: null, siblingsDifferBy: null, fields: [] },
         ];
 
         assert.deepStrictEqual(suggestResultPaths("results.fact", roots, 1), ["results.facts"]);
@@ -207,7 +203,7 @@ describe("did you mean", () => {
 /**
  * WHAT GOES INTO AN EXPRESSION, as distinct from what goes into a selector's `path`.
  *
- * A run id carries its algorithm's name and ten of the catalogue's twenty-four algorithms are
+ * A run id carries its algorithm's name and ten of the catalog's twenty-four algorithms are
  * hyphenated, while the expression grammar reads a bare hyphen as subtraction. A path pasted into
  * an expression unquoted is therefore a refused selector rather than a comparison -- and degree,
  * which has no hyphen, works right up until the metric changes.

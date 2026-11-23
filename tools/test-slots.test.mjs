@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -16,13 +16,17 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
     acquire,
     commandWhat,
+    COUNT_MAX_AGE_MS,
     HELD,
     laneOf,
     liveTickets,
+    nextCount,
     packageName,
+    progressWatch,
     shardCacheDir,
     slotCount,
     statusLines,
+    treeCpuMs,
     workerShare,
 } from "./test-slots.mjs";
 import { trackedFiles } from "./tracked-files.mjs";
@@ -54,7 +58,7 @@ function sleeper() {
 after(() => children.forEach((c) => c.kill("SIGKILL")));
 
 const fresh = () => mkdtempSync(join(TMP, "test-slots-"));
-const quiet = { env: {}, poll: 10, log: () => {}, waitLog: () => {} };
+const quiet = { env: {}, poll: 10, log: () => {}, waitLog: () => {}, idle: null };
 // Ticket names carry the millisecond they were written in, so a run asked for after this gets a later place in line.
 async function nextMillisecond() {
     const now = Date.now();
@@ -220,6 +224,68 @@ describe("test-slots", () => {
         );
     });
 
+    it("gives back the slot of a holder that stopped using the CPU, says so, and leaves the run alone (#8041)", async () => {
+        const dir = fresh();
+        const [stuck, waiter] = [sleeper(), sleeper()];
+        let told;
+        const said = new Promise((r) => (told = r));
+        const logged = [];
+        // A tree whose CPU never moves: stalled at the first sample, as a page that never loads is after IDLE.ms.
+        const idle = { ms: 0, cpuMs: 10_000, every: 1, cpu: () => 25_000 };
+        await acquire({
+            ...quiet,
+            dir,
+            slots: 1,
+            pid: stuck.pid,
+            label: "bench",
+            log: told,
+            idle,
+            waitLog: (w) => logged.push(w),
+        });
+        const next = queue({ ...quiet, dir, slots: 1, pid: waiter.pid, label: "next" });
+        assert.match(await said, /bench used under 10 s of CPU in 0 minutes, so it gave its test slot back/);
+        assert.equal(await settled(next), true, "the waiting run gets the slot");
+        assert.equal(stuck.exitCode, null, "the stalled run is not killed");
+        assert.deepEqual(
+            logged.map((w) => w.kind),
+            ["test-slot-idle"],
+        );
+    });
+
+    it("keeps the slot of a holder that keeps using the CPU, however long it holds it", async () => {
+        const dir = fresh();
+        let samples = 0;
+        let reached;
+        const fifty = new Promise((r) => (reached = r));
+        const cpu = () => {
+            if (++samples === 50) reached();
+            return samples * 10_000;
+        };
+        // 10 s of CPU at every sample: never 10 minutes without it, however many samples pass.
+        const idle = { ms: 600_000, cpuMs: 10_000, every: 1, cpu };
+        const release = await acquire({ ...quiet, dir, slots: 1, pid: sleeper().pid, label: "busy", idle });
+        await fifty;
+        assert.deepEqual(
+            liveTickets(dir).map((t) => t.label),
+            ["busy"],
+            "a busy holder keeps its slot",
+        );
+        release();
+    });
+
+    it("counts a stall from the last time the tree's CPU moved, through a child exiting, and measures real trees", () => {
+        let used = 0;
+        const stalled = progressWatch(() => used, 0, { ms: 100, cpuMs: 10 });
+        assert.equal(stalled(50), false);
+        used = 20;
+        assert.equal(stalled(90), false, "busy at 90");
+        assert.equal(stalled(150), false, "only 60 ms since it was busy");
+        used = 5; // a child exited before it was reaped: its time left the sum
+        assert.equal(stalled(189), false);
+        assert.equal(stalled(190), true, "100 ms with under 10 ms of CPU");
+        if (process.platform === "linux") assert.ok(treeCpuMs(process.pid) > 0);
+    });
+
     it("takes no second slot for a run nested in one that holds a slot, so it cannot wait on its own parent", async () => {
         const dir = fresh();
         // This test process holds the only slot; a child of it asks for one.
@@ -234,21 +300,63 @@ describe("test-slots", () => {
     });
 
     it("takes one slot per 8 cores (at least 2) unless GRAPHTY_TEST_SLOTS says otherwise; 0 is no limit", async () => {
-        assert.equal(slotCount({}, 32), 4);
-        assert.equal(slotCount({}, 4), 2);
-        assert.equal(slotCount({ GRAPHTY_TEST_SLOTS: "6" }, 32), 6);
-        assert.throws(() => slotCount({ GRAPHTY_TEST_SLOTS: "many" }, 32), /whole number/);
+        const none = { GRAPHTY_TEST_SLOTS_DIR: fresh() };
+        assert.equal(slotCount(none, 32), 4);
+        assert.equal(slotCount(none, 4), 2);
+        assert.equal(slotCount({ ...none, GRAPHTY_TEST_SLOTS: "6" }, 32), 6);
+        assert.throws(() => slotCount({ ...none, GRAPHTY_TEST_SLOTS: "many" }, 32), /whole number/);
         const dir = fresh();
         await acquire({ ...quiet, dir, slots: 0, label: "unlimited" });
         assert.deepEqual(readdirSync(dir), []);
     });
 
+    it("reads the slot count from the ticket directory's .count file when GRAPHTY_TEST_SLOTS is unset", () => {
+        const dir = fresh();
+        writeFileSync(join(dir, ".count"), "6\n");
+        assert.equal(slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir }, 32), 6);
+        assert.equal(slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir, GRAPHTY_TEST_SLOTS: "3" }, 32), 3, "the variable wins");
+        writeFileSync(join(dir, ".count"), "six");
+        assert.throws(() => slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir }, 32), /\.count must be a whole number/);
+    });
+
+    it("steps the count one slot at a time between the default and 6 by measured memory", () => {
+        const m = { count: 4, min: 4, held: 4, waiting: 3, availGB: 28, some60: 0.5, some300: 0.9 };
+        assert.equal(nextCount(m), 5, "room for one more slot's peak: up one, not two");
+        assert.equal(nextCount({ ...m, count: 5, held: 5 }), 6);
+        assert.equal(nextCount({ ...m, count: 6, held: 6 }), 6, "never above 6");
+        assert.equal(nextCount({ ...m, waiting: 0 }), 4, "nobody waits: no raise");
+        assert.equal(nextCount({ ...m, held: 3 }), 4, "a slot is free: no raise");
+        assert.equal(nextCount({ ...m, availGB: 16 }), 4, "under one slot's peak above the floor: no raise");
+        assert.equal(nextCount({ ...m, some300: 1.2 }), 4, "memory pressure: no raise");
+        assert.equal(nextCount({ ...m, count: 6, held: 6, availGB: 10.5 }), 5, "under 11 GB: down one");
+        assert.equal(nextCount({ ...m, count: 6, held: 6, some60: 6 }), 5, "sustained stalling: down one");
+        assert.equal(nextCount({ ...m, count: 6, held: 6, availGB: 9 }), 4, "under the 10 GB floor: the default");
+        assert.equal(nextCount({ ...m, growthGB: 12 }), 4, "holders still growing to their peak: no raise");
+        assert.equal(nextCount({ ...m, availGB: 30, growthGB: 8 }), 5, "room even after the holders peak: up one");
+        assert.equal(nextCount({ ...m, count: 0, held: 4 }), 4, "a hand-written 0 is lifted to the default");
+        assert.equal(nextCount({ ...m, count: 2, held: 2 }), 4, "a count under the default rises to it");
+    });
+
+    it("ignores a .count file written more than two hours ago and falls back to the default", () => {
+        const dir = fresh();
+        const file = join(dir, ".count");
+        writeFileSync(file, "6\n");
+        const written = statSync(file).mtimeMs;
+        assert.equal(slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir }, 32, written + COUNT_MAX_AGE_MS - 1000), 6);
+        assert.equal(
+            slotCount({ GRAPHTY_TEST_SLOTS_DIR: dir }, 32, written + COUNT_MAX_AGE_MS + 1000),
+            4,
+            "stale: one per 8 cores",
+        );
+    });
+
     it("gives a Node run at most its share of the cores as workers, and no cap where slots are off", () => {
-        assert.equal(workerShare({}, 32, 32), 8);
-        assert.equal(workerShare({}, 4, 4), 2);
+        const none = { GRAPHTY_TEST_SLOTS_DIR: fresh() };
+        assert.equal(workerShare(none, 32, 32), 8);
+        assert.equal(workerShare(none, 4, 4), 2);
         assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "6" }, 32, 32), 5);
         assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "64" }, 32, 32), 1);
-        assert.equal(workerShare({}, 32, 1), 1, "a pinned run has one core to use");
+        assert.equal(workerShare(none, 32, 1), 1, "a pinned run has one core to use");
         assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "0" }, 32), undefined);
         assert.equal(workerShare({ GITHUB_ACTIONS: "true" }, 32), undefined);
     });
@@ -465,8 +573,8 @@ describe("test-slots", () => {
         const dir = fresh();
         const holder = sleeper();
         const releaseHolder = await acquire({ ...quiet, dir, slots: 1, pid: holder.pid, label: "holder" });
-        // The timed command takes a slot the way vitest does: if the runner did not hold one, it would queue
-        // behind the holder inside the 1 s limit and be killed.
+        // The timed command goes through the slot wrapper the way vitest does. Once it runs, it reports who holds a
+        // ticket. The evidence is that state, never how long anything took.
         // The command stands in for vitest, so it writes the JSON report vitest would; without it an exit of 0 fails.
         const report = JSON.stringify({ numTotalTests: 1, numPassedTests: 1, numFailedTests: 0 });
         const command = [
@@ -474,7 +582,9 @@ describe("test-slots", () => {
             SCRIPT,
             process.execPath,
             "-e",
-            `require("fs").writeFileSync("browser-results.json", ${JSON.stringify(report)}); console.log("timed command ran")`,
+            `require("fs").writeFileSync("browser-results.json", ${JSON.stringify(report)});
+             import(${JSON.stringify(pathToFileURL(SCRIPT).href)}).then(({ liveTickets }) => console.log("timed command ran " +
+               JSON.stringify(liveTickets(${JSON.stringify(dir)}).map((t) => t.pid))));`,
         ];
         const runner = spawn(
             process.execPath,
@@ -482,7 +592,7 @@ describe("test-slots", () => {
                 "--input-type=module",
                 "-e",
                 `const { main } = await import(${JSON.stringify(pathToFileURL(BROWSER_RUNNER).href)});
-                 process.exit(await main([], { command: ${JSON.stringify(command)}, limitSeconds: 1 }));`,
+                 process.exit(await main([], { command: ${JSON.stringify(command)} }));`,
             ],
             {
                 env: {
@@ -505,11 +615,18 @@ describe("test-slots", () => {
         const queued = liveTickets(dir);
         assert.equal(queued.length, 2, "the holder and one run in line");
         assert.equal(queued[1].pid, runner.pid, "the runner, not its timed command, waits for the slot");
-        assert.doesNotMatch(output, /timed command ran|limit hit/, "nothing started while the slot was held");
+        assert.doesNotMatch(
+            output,
+            /\[run-browser-project\] timeout|^timed command ran/m,
+            "the limit had not started and nothing ran while the slot was held",
+        );
         releaseHolder();
         assert.equal(await exited, 0, output);
-        assert.match(output, /timed command ran/);
-        assert.doesNotMatch(output, /limit hit/);
+        // The command ran under the runner's slot, already held when the limit started: the only ticket was the
+        // runner's, so the wrapper inside the limit took none of its own and had nothing to wait for.
+        const seen = /^timed command ran (.*)$/m.exec(output);
+        assert.ok(seen, output);
+        assert.deepEqual(JSON.parse(seen[1]), [runner.pid], "only the runner held a ticket while its command ran");
         assert.deepEqual(readdirSync(dir), [], "the runner gave its slot back");
     });
 

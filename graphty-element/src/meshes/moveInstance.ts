@@ -1,4 +1,6 @@
-import type { AbstractMesh, InstancedMesh, Mesh } from "@babylonjs/core";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 
 /** The member of an instance Babylon keeps private: the source it draws from. */
 interface InstanceSource {
@@ -37,7 +39,7 @@ export function moveInstance(instance: InstancedMesh, to: Mesh): void {
         instance.instancedBuffers ??= {};
         for (const kind of Object.keys(to.instancedBuffers)) {
             if (!(kind in instance.instancedBuffers)) {
-                instance.instancedBuffers[kind] = to.instancedBuffers[kind];
+                instance.instancedBuffers[kind] = to.instancedBuffers[kind] as unknown;
             }
         }
     }

@@ -12,6 +12,7 @@ import type { AiControllerOptions, AiToolCallFacts } from "../../src/ai/AiContro
 import { FakeEngine } from "../../src/ai/engine/FakeEngine";
 import type { TurnEvent, TurnRequest } from "../../src/ai/engine/types";
 import { assistantSession, digest, SMALL_GRAPH } from "../helpers/assistant";
+import { webContentOf } from "../helpers/llm-regression-harness";
 import { fakeDriver, Harness } from "./plans/driver";
 
 const REMOVE_E = {
@@ -324,6 +325,36 @@ describe("a message holding web content", () => {
         await harness.controller.execute("remove e");
 
         assert.strictEqual(resultOf(engine.requests, "rm")?.code, "AI_COMPLETED");
+    });
+
+    describe("the LLM regression judge (webContentOf)", () => {
+        it("reads the mark when the model only delegated and made no write (#7871)", async () => {
+            const { harness, engine } = await webAssistant({});
+            engine.push(...RESEARCHED, [{ type: "text", delta: "Paris, Marseille, Lyon." }, STOP]);
+
+            await harness.controller.execute("look up the three largest cities in France and add a node for each");
+
+            assert.deepStrictEqual(webContentOf(engine.requests), { marked: true, refused: 0 });
+        });
+
+        it("counts a refused write once, though every later request repeats it", async () => {
+            const { harness, engine } = await webAssistant({});
+            engine.push(...RESEARCHED, [REMOVE_E, CALLS], [COUNT, CALLS], [{ type: "text", delta: "Refused." }, STOP]);
+
+            await harness.controller.execute("look up French cities and act on it");
+
+            assert.deepStrictEqual(webContentOf(engine.requests), { marked: true, refused: 1 });
+        });
+
+        it("sees no mark and no refusal without research, where the write runs", async () => {
+            const { harness, engine } = await webAssistant({});
+            engine.push([REMOVE_E, CALLS], [{ type: "text", delta: "Removed." }, STOP]);
+
+            await harness.controller.execute("remove e");
+
+            assert.deepStrictEqual(webContentOf(engine.requests), { marked: false, refused: 0 });
+            assert.strictEqual(harness.session.status.counts.nodes, 9);
+        });
     });
 });
 

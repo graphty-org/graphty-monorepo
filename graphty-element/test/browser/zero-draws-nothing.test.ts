@@ -113,7 +113,7 @@ describe("0 draws nothing", () => {
             zero.drawnCaps.map((cap) => cap.end),
             [],
         );
-        // An edge with no cap at either end runs centre to centre, as an arrow of type "none" does.
+        // An edge with no cap at either end runs center to center, as an arrow of type "none" does.
         assert.closeTo(zero.drawnLine?.length ?? 0, centreGap(zero), 0.01);
     });
 

@@ -150,7 +150,7 @@ License:  Public domain: derived from the US Census Bureau TIGER/Line files, a w
 ----------------------------------------------------------------------------------------------------
 arXiv computer-science citations (ogbn-arxiv) (hosted: ogbn-arxiv)
 
-Source:   http://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip
+Source:   https://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip
 Also:     https://ogb.stanford.edu/docs/nodeprop/#ogbn-arxiv
 Cite:     W. Hu, M. Fey, M. Zitnik, Y. Dong, H. Ren, B. Liu, M. Catasta and J. Leskovec, Open Graph Benchmark: Datasets for Machine Learning on Graphs, NeurIPS 2020. arXiv:2005.00687; K. Wang, Z. Shen, C. Huang, C.-H. Wu, Y. Dong and A. Kanakia, Microsoft Academic Graph: When experts are not enough, Quantitative Science Studies 1(1), 396-413 (2020). doi:10.1162/qss_a_00021
 License:  ODC-BY 1.0 (Open Data Commons Attribution License), as stated by the Open Graph Benchmark.

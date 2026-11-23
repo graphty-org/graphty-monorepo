@@ -2,19 +2,19 @@
  * @file Turning a selection target into the two sets of elements it names.
  *
  * A target is the WHAT of a selection; the set operation beside it is the HOW. Keeping them apart
- * is what makes "shift-click adds the neighbours" and "alt-click removes the top twenty" the same
+ * is what makes "shift-click adds the neighbors" and "alt-click removes the top twenty" the same
  * two lines of code as "click replaces this node": every target resolves to a pair of masks, and
  * every operation is set algebra between that pair and the pair the session already holds.
  *
  * EVERY TARGET RESOLVES TO A MASK, never to a list of ids. A target such as "invert" or "every
- * node the predicate matched" can name most of the graph, and materialising that as an array
+ * node the predicate matched" can name most of the graph, and materializing that as an array
  * would cost the size of the answer at a moment when the answer is about to be folded into a
  * structure that costs the size of the graph whatever happens. Ids are produced once, at the end,
  * by the caller that asked for them.
  *
  * A TARGET NAMES BOTH HALVES, and a target that names no edges names an EMPTY edge set rather
  * than "leave the edges alone". That is what keeps the operations honest: replacing the selection
- * with the neighbours of a node leaves no edges selected, and intersecting a selection with a set
+ * with the neighbors of a node leaves no edges selected, and intersecting a selection with a set
  * of nodes leaves no edges selected, because in both cases that is what the set algebra says. A
  * target that meant "only touch the half I mentioned" would make `replace` and `intersect` do
  * something no set operation does, and a consumer could not predict either of them.
@@ -50,14 +50,12 @@ import type { RankingEntry, ResultsApi, RunRef, RunResult } from "../results/typ
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
 import type { ScopeResolver } from "../scope/ScopeApi";
 import type { ResultRef } from "../shared";
+import { readInstant } from "../time/parse";
 
-/** How far a neighbourhood target reaches when it does not say. */
+/** How far a neighborhood target reaches when it does not say. */
 const DEFAULT_NEIGHBOR_DEPTH = 1;
 
-/** The deepest a neighbourhood target may reach. */
-const MAX_NEIGHBOR_DEPTH = 3;
-
-/** Which way a neighbourhood target walks when it does not say. */
+/** Which way a neighborhood target walks when it does not say. */
 const DEFAULT_DIRECTION = "all";
 
 /** The frozen empty list every arm that cannot produce unmatched ids answers with. */
@@ -96,7 +94,7 @@ export interface ElementIdTarget {
 /**
  * Everything within a few steps of some nodes.
  *
- * The seeds are IN the neighbourhood: a neighbourhood that excluded its own centre would hide the
+ * The seeds are IN the neighborhood: a neighborhood that excluded its own center would hide the
  * very nodes the reader is looking at, and "select around this node" would deselect it. With no
  * seeds named the current node selection is the seed set, which is what "grow the selection"
  * means.
@@ -107,10 +105,31 @@ export interface ElementIdTarget {
 export interface NeighborhoodTarget {
     /** The nodes to walk out from; the current node selection when absent. */
     readonly neighborsOf?: readonly NodeId[];
-    /** How many steps to walk, counting the seeds as step zero. One when absent. */
-    readonly depth?: 1 | 2 | 3;
+    /**
+     * How many steps to walk, counting the seeds as step zero: any whole number from 1. One when
+     * absent. A depth past the farthest node reached simply selects everything connected.
+     */
+    readonly depth?: number;
     /** Which way to follow an edge. Both ways when absent. */
     readonly direction?: SelectionDirection;
+    /** Follow only the edges whose time falls inside this window. Every edge when absent. */
+    readonly window?: NeighborhoodWindow;
+}
+
+/**
+ * A span of time an edge must fall inside to be followed by a neighborhood walk.
+ *
+ * Each edge's time is read from `path` the way a time column reads it: a number as it is, a
+ * `Date` as its time, text as an ISO 8601 date-time (UTC when it names no zone). An edge with no
+ * readable time is outside every window.
+ */
+export interface NeighborhoodWindow {
+    /** The edge attribute holding each edge's time, such as `"data.date"`. */
+    readonly path: Path;
+    /** Where the window starts, inclusive: a number, or date-time text such as `"2024-01-01"`. */
+    readonly from: number | string;
+    /** Where the window ends, exclusive. */
+    readonly to: number | string;
 }
 
 /**
@@ -124,7 +143,12 @@ export type SelectionTarget =
     | ElementIdTarget
     | NeighborhoodTarget
     /** Every element a predicate matches, narrowed to a scope when one is named. */
-    | { readonly where: Query; readonly scope?: ScopeInput }
+    | {
+          /** The predicate. */
+          readonly where: Query;
+          /** Narrows the target to this scope; absent, the whole graph. */
+          readonly scope?: ScopeInput;
+      }
     /**
      * Every node a text search finds, narrowed to a scope when one is named.
      *
@@ -133,46 +157,93 @@ export type SelectionTarget =
      * the node's id and its attribute values. See {@link SelectionTextMode}. A leading `=` makes
      * the rest an expression, exactly as `{ where }` reads it, which selects edges as well.
      */
-    | { readonly text: string; readonly mode?: SelectionTextMode; readonly scope?: ScopeInput }
+    | {
+          /** The text to search for. */
+          readonly text: string;
+          /** How the text is matched; absent, read from the text's prefix. */
+          readonly mode?: SelectionTextMode;
+          /** Narrows the target to this scope; absent, the whole graph. */
+          readonly scope?: ScopeInput;
+      }
     /**
      * A list of ids, which may name nodes, edges, or nothing at all: a pasted column of text, or
      * the ids the element handed out (a neighbor, a table record, a found element), numbers
      * included. An id that names nothing comes back on `unmatched`, as text.
      */
-    | { readonly ids: readonly NodeId[] }
+    | {
+          /** The ids. */
+          readonly ids: readonly NodeId[];
+      }
     /** Everything a scope covers. An inline `{ define }` may name edges by session edge id. */
-    | { readonly scope: ScopeInput }
+    | {
+          /** The scope. */
+          readonly scope: ScopeInput;
+      }
     /**
      * The highest-ranked elements of a finished run. A tie group is taken whole and only when it
      * fits inside `n`, so this can select fewer than `n` elements, or none. See `TopRanking` in the results types.
      * With no `field`, the run's primary field is ranked.
      */
-    | { readonly top: ResultRef & { readonly n: number } }
+    | {
+          /** The run, and how many elements to take. */
+          readonly top: ResultRef & {
+              /** The most elements to take. */
+              readonly n: number;
+          };
+      }
     /** Every element of a finished run above a threshold. With no `field`, the run's primary field is read. */
-    | { readonly above: ResultRef & { readonly threshold: number } }
+    | {
+          /** The run, and the value to pass. */
+          readonly above: ResultRef & {
+              /** The elements whose value is above this are taken. */
+              readonly threshold: number;
+          };
+      }
     /**
      * Every element of a finished run whose value lies from `min` to `max`, both inclusive, the
      * way a `range` filter reads them. A missing bound is open. A histogram brush passes the first
      * bar's `from` and the last bar's `to`: exact for a per-value or whole-number histogram; on a
      * banded continuous field a value exactly on the last bar's upper edge comes too.
      */
-    | { readonly range: ResultRef & { readonly min?: number; readonly max?: number } }
+    | {
+          /** The run, and the bounds. */
+          readonly range: ResultRef & {
+              /** The lowest value taken; absent, no lower bound. */
+              readonly min?: number;
+              /** The highest value taken; absent, no upper bound. */
+              readonly max?: number;
+          };
+      }
     /** The edges whose endpoints are both selected. Names no nodes. */
-    | { readonly edgesBetween: true }
+    | {
+          /** Always `true`. */
+          readonly edgesBetween: true;
+      }
     /** Everything that is not selected, in both halves. */
-    | { readonly invert: true }
+    | {
+          /** Always `true`. */
+          readonly invert: true;
+      }
     /**
      * What a note is about: its node, edge, set and item targets, or only the one at `target`.
      * A target not in the graph is skipped and counted in `SelectionDelta.skipped`; a `graph` or
      * `result` target names no elements.
      */
-    | { readonly note: NoteId; readonly target?: number }
+    | {
+          /** The note. */
+          readonly note: NoteId;
+          /** The index of the one note target to take; absent, all of them. */
+          readonly target?: number;
+      }
     /**
      * Every element a style layer's rule matches, whether or not the layer is shown: what
      * `styles.counts(layer).matched` counts. A layer paints one kind, so this names nodes or edges.
      * @since 3.26.0
      */
-    | { readonly layer: LayerId }
+    | {
+          /** The style layer. */
+          readonly layer: LayerId;
+      }
     /**
      * Every drawn node whose center lies inside a polygon on the canvas: what a rectangle or a
      * lasso drawn over the graph covers. The points are in CSS pixels from the canvas's top-left
@@ -182,7 +253,18 @@ export type SelectionTarget =
      * does. A session that draws nothing refuses it with `E_UNSUPPORTED`.
      * @since 3.48.0
      */
-    | { readonly region: { readonly polygon: readonly { readonly x: number; readonly y: number }[] } };
+    | {
+          /** The region on the canvas. */
+          readonly region: {
+              /** The polygon's corners, in order. */
+              readonly polygon: readonly {
+                  /** CSS pixels from the canvas's left side. */
+                  readonly x: number;
+                  /** CSS pixels from the canvas's top. */
+                  readonly y: number;
+              }[];
+          };
+      };
 
 /** A point on the canvas, in CSS pixels from its top-left corner. */
 type RegionPoint = Extract<SelectionTarget, { region: unknown }>["region"]["polygon"][number];
@@ -241,6 +323,20 @@ export interface TargetContext {
     readonly selectedEdges: ElementMask<EdgeId>;
     /** Resolves a scope. Absent refuses a `scope` target. */
     readonly scope?: ScopeResolver;
+    /**
+     * The scope a `where` or `text` target that names none is narrowed to: what is shown while the
+     * session's working graph is on. Absent, or answering undefined, the whole graph.
+     * @returns The scope, or undefined for the whole graph.
+     */
+    readonly defaultScope?: () => ScopeInput | undefined;
+    /**
+     * What the visibility filter keeps, one byte per row of `graph` (null for a half it keeps
+     * whole), while a filter drops what it hides from the selection (the working graph, owner
+     * decision B): every target is narrowed to it, so no target selects a node a filter hides. A
+     * node the time window alone hides is kept. Absent, or answering null, nothing is narrowed.
+     * @returns The bytes, or null.
+     */
+    readonly filterKeeps?: () => { readonly nodes: Uint8Array | null; readonly edges: Uint8Array | null } | null;
     /** Reads finished runs. Absent refuses a `top`, `above` or `range` target. */
     readonly results?: ResultsApi;
     /**
@@ -275,6 +371,13 @@ export interface TargetContext {
      * @returns Their ids.
      */
     readonly region?: (polygon: readonly RegionPoint[]) => Iterable<NodeId>;
+    /**
+     * The value an edge carries at a path. Absent refuses a neighborhood `window`.
+     * @param edge - The edge's row.
+     * @param path - The path, such as `"data.date"`.
+     * @returns The value, or undefined when the edge carries none.
+     */
+    readonly edgeValue?: (edge: number, path: Path) => unknown;
 }
 
 /** The elements one target named. */
@@ -296,8 +399,8 @@ export interface TargetMembers {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The refusal a target this session cannot honour gets, naming what would honour it.
- * @param what - The target, in the words a caller would recognise.
+ * The refusal a target this session cannot honor gets, naming what would honor it.
+ * @param what - The target, in the words a caller would recognize.
  * @param needs - The capability whose absence is the reason.
  * @returns The error to throw.
  */
@@ -398,6 +501,23 @@ function narrowToScope(
 }
 
 /**
+ * The nodes a scope holds, as a mask over the context's graph.
+ * @param context - What the resolution reads.
+ * @param scope - The scope, or undefined for the whole graph.
+ * @returns The mask, or null for the whole graph.
+ */
+function scopeMask(context: TargetContext, scope: ScopeInput | undefined): ElementMask<NodeId> | null {
+    if (scope === undefined) {
+        return null;
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    nodes.fill();
+    narrowToScope(context, scope, nodes, edges);
+    return nodes;
+}
+
+/**
  * A selection target's scope as a write door takes it: session edge ids to stable members, set
  * ids checked as issued, validated.
  * @param resolver - The scope resolver.
@@ -452,12 +572,12 @@ function emptyMasks(context: TargetContext): { nodes: ElementMask<NodeId>; edges
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Tell whether a target is the neighbourhood arm.
+ * Tell whether a target is the neighborhood arm.
  * @param target - The target to test.
- * @returns True when it names a neighbourhood.
+ * @returns True when it names a neighborhood.
  */
 function isNeighborhood(target: SelectionTarget): target is NeighborhoodTarget {
-    return "neighborsOf" in target || "depth" in target || "direction" in target;
+    return "neighborsOf" in target || "depth" in target || "direction" in target || "window" in target;
 }
 
 /**
@@ -530,18 +650,18 @@ function addPastedId(raw: NodeId, nodes: ElementMask<NodeId>, edges: ElementMask
 }
 
 /**
- * Check a neighbourhood target's depth, which the type says is one, two or three.
+ * Check a neighborhood target's depth: a whole number of steps from 1.
  * @param depth - What was passed.
  * @returns The depth to walk.
- * @throws A `GraphtyError` coded `E_OPTION_RANGE` when it is not 1, 2 or 3.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when it is not a whole number from 1.
  */
 function neighborDepth(depth: number | undefined): number {
     if (depth === undefined) {
         return DEFAULT_NEIGHBOR_DEPTH;
     }
 
-    if (!Number.isInteger(depth) || depth < 1 || depth > MAX_NEIGHBOR_DEPTH) {
-        throw badOption("depth", depth, `a whole number of steps from 1 to ${String(MAX_NEIGHBOR_DEPTH)}`);
+    if (!Number.isInteger(depth) || depth < 1) {
+        throw badOption("depth", depth, "a whole number of steps from 1");
     }
 
     return depth;
@@ -557,6 +677,8 @@ function neighborDepth(depth: number | undefined): number {
  * @param seeds - The seed indices, already in the mask.
  * @param depth - How many steps to take.
  * @param direction - Which way to follow an edge.
+ * @param follows - Whether an edge, by row, may be followed.
+ * @param allowed - The nodes the walk may reach (what is shown), or null for every node.
  */
 function walkNeighborhood(
     nodes: ElementMask<NodeId>,
@@ -564,6 +686,8 @@ function walkNeighborhood(
     seeds: readonly number[],
     depth: number,
     direction: SelectionDirection,
+    follows: (edge: number) => boolean,
+    allowed: ElementMask<NodeId> | null,
 ): void {
     let frontier = seeds;
 
@@ -571,8 +695,8 @@ function walkNeighborhood(
         const next: number[] = [];
 
         for (const node of frontier) {
-            eachAdjacentArc(graph, node, direction, (other) => {
-                if (nodes.add(other)) {
+            eachAdjacentArc(graph, node, direction, (other, edge) => {
+                if (follows(edge) && (allowed === null || allowed.has(other)) && nodes.add(other)) {
                     next.push(other);
                 }
             });
@@ -583,34 +707,93 @@ function walkNeighborhood(
 }
 
 /**
- * The elements a neighbourhood target names.
+ * One bound of a neighborhood window as a number.
+ * @param name - `"from"` or `"to"`, for the refusal.
+ * @param bound - The bound as given.
+ * @returns The number.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when it names no instant.
+ */
+function windowBound(name: "from" | "to", bound: unknown): number {
+    const at = typeof bound === "number" || typeof bound === "string" ? readInstant(bound, "ms").at : Number.NaN;
+
+    if (Number.isNaN(at)) {
+        throw badOption(`window.${name}`, bound, "a number or date-time text");
+    }
+
+    return at;
+}
+
+/**
+ * Which edges a neighborhood walk may follow.
+ * @param window - The target's window, if any.
+ * @param context - What the resolution reads.
+ * @returns A test by edge row.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` for a bound that names no instant or a path
+ *   that is not text, `E_UNSUPPORTED` when the session reads no edge values.
+ */
+function edgeFilter(window: NeighborhoodWindow | undefined, context: TargetContext): (edge: number) => boolean {
+    if (window === undefined) {
+        return () => true;
+    }
+
+    if (typeof window.path !== "string" || window.path === "") {
+        throw badOption("window.path", window.path, 'an edge attribute path such as "data.date"');
+    }
+
+    const from = windowBound("from", window.from);
+    const to = windowBound("to", window.to);
+    const { edgeValue } = context;
+
+    if (edgeValue === undefined) {
+        throw unsupported("a time window", "an edge value reader");
+    }
+
+    return (edge) => {
+        const { at } = readInstant(edgeValue(edge, window.path), "ms");
+
+        return at >= from && at < to;
+    };
+}
+
+/**
+ * The elements a neighborhood target names.
  * @param target - The target.
  * @param context - What the resolution reads.
  * @returns The two masks.
- * @throws A `GraphtyError` coded `E_OPTION_RANGE` when the depth is outside 1 to 3.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when the depth is not a whole number from 1 or a window
+ *   bound names no instant.
  */
 function resolveNeighborhood(target: NeighborhoodTarget, context: TargetContext): TargetMembers {
     const { nodes, edges } = emptyMasks(context);
     const depth = neighborDepth(target.depth);
+    const follows = edgeFilter(target.window, context);
     const seeds: number[] = [];
+    // The walk stays inside what the default scope shows (the working graph), so it neither
+    // reaches a hidden neighbor nor passes through one.
+    const allowed = scopeMask(context, context.defaultScope?.());
+    const seed = (index: number): void => {
+        if ((allowed === null || allowed.has(index)) && nodes.add(index)) {
+            seeds.push(index);
+        }
+    };
 
     if (target.neighborsOf === undefined) {
         for (let index = 0; index < context.selectedNodes.count; index++) {
-            if (context.selectedNodes.has(index) && nodes.add(index)) {
-                seeds.push(index);
+            if (context.selectedNodes.has(index)) {
+                seed(index);
             }
         }
     } else {
         for (const id of target.neighborsOf) {
             const index = nodes.indexOf(id);
 
-            if (index !== INVALID_INDEX && nodes.add(index)) {
-                seeds.push(index);
+            if (index !== INVALID_INDEX) {
+                seed(index);
             }
         }
     }
 
-    walkNeighborhood(nodes, context.graph, seeds, depth, target.direction ?? DEFAULT_DIRECTION);
+    walkNeighborhood(nodes, context.graph, seeds, depth, target.direction ?? DEFAULT_DIRECTION, follows, allowed);
 
     return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
 }
@@ -756,7 +939,7 @@ function resolveWhere(target: Extract<SelectionTarget, { where: unknown }>, cont
     const matched = context.match(target.where);
     addIds(nodes, matched.nodes ?? []);
     addIds(edges, matched.edges ?? []);
-    narrowToScope(context, target.scope, nodes, edges);
+    narrowToScope(context, target.scope ?? context.defaultScope?.(), nodes, edges);
 
     return {
         nodes,
@@ -816,7 +999,7 @@ function resolveText(target: Extract<SelectionTarget, { text: unknown }>, contex
         addSearchHit(hit, nodes, edges);
     }
 
-    narrowToScope(context, target.scope, nodes, edges);
+    narrowToScope(context, target.scope ?? context.defaultScope?.(), nodes, edges);
 
     return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
 }
@@ -977,8 +1160,10 @@ function resolveInvert(target: Extract<SelectionTarget, { invert: unknown }>, co
 
     const { nodes, edges } = emptyMasks(context);
     nodes.fill();
-    nodes.subtract(context.selectedNodes);
     edges.fill();
+    // Everything else that the default scope shows (the working graph), never what it hides.
+    narrowToScope(context, context.defaultScope?.(), nodes, edges);
+    nodes.subtract(context.selectedNodes);
     edges.subtract(context.selectedEdges);
 
     return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
@@ -1059,6 +1244,45 @@ function resolveRegion(polygon: readonly RegionPoint[], context: TargetContext):
  *   outside the permitted range.
  */
 export function resolveTarget(target: SelectionTarget, context: TargetContext): TargetMembers {
+    const members = resolveArm(target, context);
+    const keeps = context.filterKeeps?.() ?? null;
+    if (keeps !== null) {
+        dropUnkept(members.nodes, keeps.nodes);
+        dropUnkept(members.edges, keeps.edges);
+    }
+
+    return members;
+}
+
+/**
+ * Drop from a mask every row a filter does not keep.
+ * @param mask - The mask.
+ * @param keeps - One byte per row, 1 where the filter keeps it; null keeps every row.
+ */
+function dropUnkept<TId>(mask: ElementMask<TId>, keeps: Uint8Array | null): void {
+    if (keeps === null || mask.size === 0) {
+        return;
+    }
+
+    const drop: number[] = [];
+    mask.forEachMember((index) => {
+        if (keeps[index] !== 1) {
+            drop.push(index);
+        }
+    });
+    for (const index of drop) {
+        mask.delete(index);
+    }
+}
+
+/**
+ * The elements one target names, before any filter narrows them. See {@link resolveTarget}.
+ * @param target - What to select.
+ * @param context - What the resolution reads.
+ * @returns The members.
+ * @throws A `GraphtyError` as {@link resolveTarget} documents.
+ */
+function resolveArm(target: SelectionTarget, context: TargetContext): TargetMembers {
     if (typeof target !== "object" || target === null) {
         throw notATarget(target);
     }

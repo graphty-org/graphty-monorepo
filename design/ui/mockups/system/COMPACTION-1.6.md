@@ -52,7 +52,7 @@ Constants. These are frozen for 1.6 and every row type below is built from them.
 | triple                 | 72 + 4 + 72 + 4 + 72         | three segmented buttons, 224 total                                                        |
 | trailing slot          | 24px at x = 248..272         | always the same x; a row with nothing to put there leaves it empty                        |
 | control height         | 24px                         | already VOCAB 3; only the label placement was wrong                                       |
-| **row pitch**          | **32px**                     | 24px control centred, giving 8px between consecutive controls                             |
+| **row pitch**          | **32px**                     | 24px control centered, giving 8px between consecutive controls                            |
 | section header         | 32px                         | we keep our 32, we do **not** adopt Figma's 40 -- ours is already tighter                 |
 | section bottom padding | 8px                          | then a 1px `#495057` divider                                                              |
 | section rhythm         | **1 / 32 / 32n / 8**         | divider, header, n content rows, pad                                                      |
@@ -86,10 +86,10 @@ allowed to be, and it is a glyph there, not a word.
   the glyph opens a 3-row stepper popover instead.
 - Every field carries a `title` equal to the word the glyph replaced.
 
-### Two ink colours carry the whole hierarchy
+### Two ink colors carry the whole hierarchy
 
 Copied from Figma's split, mapped onto our dark palette. Both at 11px --
-hierarchy is colour, not size.
+hierarchy is color, not size.
 
 | Ink    | Value     | Exactly these three roles, and nothing else                            |
 | ------ | --------- | ---------------------------------------------------------------------- |
@@ -138,14 +138,14 @@ Two or three values that belong to **one thing**, inside one box, separated by
 a 1px hairline of panel background (`#1f2428`) rather than a gutter -- so they
 read as one control, not two.
 
-|          |                                                                                                                                                                                          |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Height   | 24px on a 32px pitch                                                                                                                                                                     |
-| Columns  | one 224px (or 108px) box; sub-fields divided by 1px `#1f2428`; 8px inner padding either side of each hairline                                                                            |
-| Glyph    | the leading sub-field's 16px slot holds a 14px swatch, ramp chip, or glyph                                                                                                               |
-| Type     | values 11px `#d5d7da`; suffixes 11px `#7a828e`                                                                                                                                           |
-| Replaces | the four-part colour row (`Color` label + swatch + `#FFFFFF` + `Opacity` label + `100` + `%`); the `Smallest`/`Largest` domain pair; any value that always travels with its own modifier |
-| Saves    | 2-4 words per row and one whole row where two were used                                                                                                                                  |
+|          |                                                                                                                                                                                         |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Height   | 24px on a 32px pitch                                                                                                                                                                    |
+| Columns  | one 224px (or 108px) box; sub-fields divided by 1px `#1f2428`; 8px inner padding either side of each hairline                                                                           |
+| Glyph    | the leading sub-field's 16px slot holds a 14px swatch, ramp chip, or glyph                                                                                                              |
+| Type     | values 11px `#d5d7da`; suffixes 11px `#7a828e`                                                                                                                                          |
+| Replaces | the four-part color row (`Color` label + swatch + `#FFFFFF` + `Opacity` label + `100` + `%`); the `Smallest`/`Largest` domain pair; any value that always travels with its own modifier |
+| Saves    | 2-4 words per row and one whole row where two were used                                                                                                                                 |
 
 Never put two unrelated values in one compound box. If the hairline would be
 lying about the relationship, use RT-1's pair instead.
@@ -154,14 +154,14 @@ lying about the relationship, use RT-1's pair instead.
 
 A closed set of 2 to 6 mutually exclusive options, all of which can be drawn.
 
-|          |                                                                                                                                                                                                                              |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Height   | 24px track on a 32px pitch                                                                                                                                                                                                   |
-| Columns  | track 108px (max 3 buttons) or 224px (max 6); 1px inner padding; buttons `flex: 1`, height 22, radius 3                                                                                                                      |
-| Glyph    | 14px, `#7a828e` inactive, `#d5d7da` active on a `#374047` button                                                                                                                                                             |
-| Type     | none, except the hybrid below                                                                                                                                                                                                |
-| Replaces | the `Glow / Outline / Wireframe / Flat shaded` checkbox stack (4 rows, 5 words -> 1 row, 0 words); `Show on: All matched`; the In/Out/All neighbour filter; `Scale: Square root / Linear / Log`; `Shape: Box / Sphere / ...` |
-| Saves    | 3-5 words and 1-3 rows per instance                                                                                                                                                                                          |
+|          |                                                                                                                                                                                                                             |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Height   | 24px track on a 32px pitch                                                                                                                                                                                                  |
+| Columns  | track 108px (max 3 buttons) or 224px (max 6); 1px inner padding; buttons `flex: 1`, height 22, radius 3                                                                                                                     |
+| Glyph    | 14px, `#7a828e` inactive, `#d5d7da` active on a `#374047` button                                                                                                                                                            |
+| Type     | none, except the hybrid below                                                                                                                                                                                               |
+| Replaces | the `Glow / Outline / Wireframe / Flat shaded` checkbox stack (4 rows, 5 words -> 1 row, 0 words); `Show on: All matched`; the In/Out/All neighbor filter; `Scale: Square root / Linear / Log`; `Shape: Box / Sphere / ...` |
+| Saves    | 3-5 words and 1-3 rows per instance                                                                                                                                                                                         |
 
 **The threshold.** 2 to 6 options whose difference can be drawn -> icon group.
 More than 6, or a difference that is conceptual rather than visual -> a select
@@ -179,16 +179,16 @@ section 4's Rule 4.
 
 The value is drawn at row size, so the sentence describing it is deleted.
 
-|          |                                                                                                                                                                          |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Height   | 14px ramp vertically centred in a 24px box, on a 32px pitch                                                                                                              |
-| Columns  | `16 \| min 11px \| 4 \| ramp flex, min 120px \| 4 \| max 11px \| 8 \| 24 \| 8`                                                                                           |
-| Glyph    | the trailing slot holds the 14px **scale-curve** glyph (a drawn sqrt / linear / log curve); clicking it opens the RT-3 group of three                                    |
-| Type     | endpoints 11px `#7a828e`; no other text                                                                                                                                  |
-| Replaces | `Age 45 to 68 maps to sizes 1.0 to 2.0, square root scale.` (12 words); the legend string `1 to 4, sqrt scale`; a colour-domain description; a size-encoding description |
-| Saves    | about 11 words per encoding row, roughly 8 encoding rows across the set                                                                                                  |
+|          |                                                                                                                                                                         |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Height   | 14px ramp vertically centered in a 24px box, on a 32px pitch                                                                                                            |
+| Columns  | `16 \| min 11px \| 4 \| ramp flex, min 120px \| 4 \| max 11px \| 8 \| 24 \| 8`                                                                                          |
+| Glyph    | the trailing slot holds the 14px **scale-curve** glyph (a drawn sqrt / linear / log curve); clicking it opens the RT-3 group of three                                   |
+| Type     | endpoints 11px `#7a828e`; no other text                                                                                                                                 |
+| Replaces | `Age 45 to 68 maps to sizes 1.0 to 2.0, square root scale.` (12 words); the legend string `1 to 4, sqrt scale`; a color-domain description; a size-encoding description |
+| Saves    | about 11 words per encoding row, roughly 8 encoding rows across the set                                                                                                 |
 
-Two forms: a colour ramp (sequential or diverging, 14px tall, radius 2, 1px
+Two forms: a color ramp (sequential or diverging, 14px tall, radius 2, 1px
 `#48525c`) and a size wedge (a triangle from 4px to 14px). The curve of the
 transform is visible in the wedge, which a sentence can only name.
 
@@ -294,7 +294,7 @@ action button.
 
 ### RT-9 Chart row
 
-A distribution drawn instead of the four numbers that summarise it. It also
+A distribution drawn instead of the four numbers that summarize it. It also
 answers what the numbers cannot -- bimodal, long tail.
 
 |          |                                                                                                                                                                                                                                                                                                                               |
@@ -358,7 +358,7 @@ the twelve are section names. We are at roughly 10x that in a panel 40px wider.
 | 2   | Is it a section name?                                                                                                                                     | RT-8                                           |
 | 3   | Is it the user's own string -- an id, label, attribute name, value, filename?                                                                             | RT-6                                           |
 | 4   | Is it a distribution, or a set of summary statistics over one?                                                                                            | RT-9                                           |
-| 5   | Is it a colour, gradient, or a numeric range with a transform?                                                                                            | RT-4 (or RT-2 when it travels with an opacity) |
+| 5   | Is it a color, gradient, or a numeric range with a transform?                                                                                             | RT-4 (or RT-2 when it travels with an opacity) |
 | 6   | Is it a closed set of 2-6 options whose difference can be drawn?                                                                                          | RT-3                                           |
 | 7   | Is it a boolean? glyph in the register -> RT-3 member or the trailing slot; no glyph -> RT-5 (never alone)                                                | RT-3 / RT-5                                    |
 | 8   | Is it a verb? in the register -> icon in RT-7, hover-revealed if it acts, resident if it reports; not in the register or on the never list -> text button | RT-7                                           |
@@ -393,7 +393,7 @@ as an abbreviation -- it collides with degree centrality.
 Fixed = a literal in the field. Data-driven = an attribute chip in the field
 and a **filled** glyph in the slot (hollow = fixed). Disagreement across a
 multi-selection = the literal word `Mixed` in the value position, at value
-colour, no badge and no asterisk, still editable. A mode word that must be
+color, no badge and no asterisk, still editable. A mode word that must be
 visible (`Hug`, `Fill`, `Auto`) is a right-aligned dimmed word inside the same
 field, beside the number. This deletes the `Fixed | By attribute` segmented
 pair, which appears 5 times on StylePanel and 13 times across the Style boards.
@@ -473,9 +473,9 @@ The floor on the first-load screen is about **49 words**. Main.dc.html carries 2
 
 ### Decision A -- the Analyze panel
 
-**It becomes contextual, with the catalogue relocated one click behind a
+**It becomes contextual, with the catalog relocated one click behind a
 question-first picker. It does not become search-first, and it does not stay a
-catalogue.**
+catalog.**
 
 This is the structural difference from Figma. Figma's Design tab is an index of
 the _selection_; ours is an index of the _product_. Measured: AnalyzePanel's
@@ -492,7 +492,7 @@ screens -- with only 16 of 26 cards drawn and 43 words clipped out of sight.
    run -- our equivalent of VS Code's `Commonly Used`;
 4. one `+ Analysis` action row.
 
-On a fresh graph that is one row. The 26-card catalogue lives in the popover
+On a fresh graph that is one row. The 26-card catalog lives in the popover
 that `+` opens: a search field at the top, then the **7 question rows** (`Find
 groups`, `Find important nodes`, `Find weak points`, `Find paths`, `Find
 unusual things`, `Predict`, `Advanced`) -- 16 words and about 196px against the
@@ -503,14 +503,14 @@ a question. That reverses the spec's rule at line 1007, deliberately.
 **Why not search-first.** A graph analyst usually cannot name what they want:
 "which nodes matter" does not retrieve "betweenness". Search is a retrieval
 device, not a discovery device -- you must be able to produce a word. VS Code's
-Settings editor is the peer most like us (a catalogue of unfamiliar named
+Settings editor is the peer most like us (a catalog of unfamiliar named
 things) and its answer is search **plus** a browsable tree **plus** a
 `Commonly Used` group, not search alone.
 
-**Why not a resident catalogue.** 5.9 screens of scroll is the volume symptom
+**Why not a resident catalog.** 5.9 screens of scroll is the volume symptom
 stated in pixels, and the peer evidence is unanimous: Houdini's Tab menu,
 Blender's F3, TouchDesigner's OP Create and the VS Code palette all present
-very large operation catalogues, all of them typed into rather than drawn, and
+very large operation catalogs, all of them typed into rather than drawn, and
 **none of them prints a description under an item**.
 
 **What happens to discovery if you shrink it -- honestly.** A user who does not
@@ -574,10 +574,10 @@ rule, resolved per user by a control that exists. Principle 4's "both names are
 always rendered" holds at **surface** granularity instead of **occurrence**
 granularity; the pair still binds once wherever a reader arrives.
 
-**Honest limit:** in a catalogue of 26 different concepts, 26 first mentions
+**Honest limit:** in a catalog of 26 different concepts, 26 first mentions
 means the pair rule saves almost nothing there. It pays off on result screens
 (where one concept renders four times within 900px of travel) and it removes
-the 237 parentheticals across the set. The catalogue saving is Decision A, not
+the 237 parentheticals across the set. The catalog saving is Decision A, not
 this rule.
 
 ---
@@ -655,7 +655,7 @@ words with 38px control stacks still intact has not done the job.
 `Before` is measured: every visible text node walked at 1440x900, whitespace
 tokens containing an alphanumeric, `display:none` and `visibility:hidden`
 excluded, scrolled-out content **included** (which is why AnalyzePanel reads
-611 here and 227 in the panel-only audit -- the catalogue's words exist even
+611 here and 227 in the panel-only audit -- the catalog's words exist even
 when you cannot see them). `After` is `before` minus a named list, not a
 percentage guess.
 
@@ -666,9 +666,9 @@ AnalyzePanel into a picker that is not yet an artboard. Those words are not
 destroyed; a new `AnalyzePicker` board would inherit about 120 of them. The
 totals below count the resting panel only, and say so.
 
-### Group A -- catalogue panels (Decision A)
+### Group A -- catalog panels (Decision A)
 
-Moves, identical on all three: catalogue leaves the resting state for the
+Moves, identical on all three: catalog leaves the resting state for the
 question-first picker; resting panel = scope line (conditional) + results +
 Suggested 3-5 + `+ Analysis`; card descriptions to the picker row and the info
 circle; `Parameters` word -> 12px chevron (RT-7); `Run` keeps its text (floor
@@ -713,7 +713,7 @@ the floor bites hardest, and its cut is anatomy, not copy.
 Moves: all five `Fixed | By attribute` segmented rows deleted, mode shown by
 what the field contains (Rule 6) -- 15 words and 100px each board; label lines
 into fields (Rule 3) on `Which nodes`, `Attribute`+`Scale`, `Smallest`+
-`Largest`, `Color`+`Width`; the colour row becomes one RT-2 compound; the
+`Largest`, `Color`+`Width`; the color row becomes one RT-2 compound; the
 encoding sentence becomes an RT-4 ramp; `Skybox: None` becomes an empty swatch;
 metric `not run` status becomes a mark, not a word.
 

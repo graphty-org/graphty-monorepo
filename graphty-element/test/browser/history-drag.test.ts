@@ -33,7 +33,7 @@ afterEach(() => {
  * @param what - What is waited for, for the failure message.
  */
 async function until(condition: () => boolean, what: string): Promise<void> {
-    for (let wait = 0; wait < 600 && !condition(); wait++) {
+    while (!condition()) {
         await nextFrame();
     }
 
@@ -176,7 +176,7 @@ describe("a node drag under undo", () => {
         assert.strictEqual(session.history.nextUndo?.kind, "cancel", "the open drag is what undo acts on");
 
         const outcome = await session.undo();
-        assert.strictEqual(outcome.kind, "cancelled");
+        assert.strictEqual(outcome.kind, "canceled");
         assert.deepEqual(lane(graph), start, "the lane is where it was at drag start");
         assert.isFalse(graph.getLayoutManager().running, "the layout is stopped");
 

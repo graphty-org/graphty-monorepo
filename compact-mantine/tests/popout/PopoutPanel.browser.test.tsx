@@ -315,10 +315,9 @@ describe("PopoutPanel positioning", () => {
 });
 
 describe("PopoutPanel focus", () => {
-    it("does not take focus when a closed pop-out is rendered", async () => {
-        renderPopout(
-            <div>
-                <button data-testid="elsewhere">Elsewhere</button>
+    it("does not take focus when a closed pop-out is rendered", () => {
+        const popouts = (
+            <>
                 <Popout>
                     <Popout.Trigger>
                         <button>Open A</button>
@@ -335,18 +334,28 @@ describe("PopoutPanel focus", () => {
                         <Popout.Content>B</Popout.Content>
                     </Popout.Panel>
                 </Popout>
-            </div>,
+            </>
+        );
+        const layout = (withPopouts: boolean): React.ReactElement => (
+            <MantineProvider theme={compactTheme}>
+                <PopoutManager>
+                    <button data-testid="elsewhere">Elsewhere</button>
+                    {withPopouts ? popouts : null}
+                </PopoutManager>
+            </MantineProvider>
         );
 
+        // Focus is somewhere else on the page before the pop-outs first render.
+        const { rerender } = render(layout(false));
         const elsewhere = screen.getByTestId("elsewhere");
         elsewhere.focus();
-        expect(document.activeElement).toBe(elsewhere);
 
         // Every closed panel used to focus its own trigger on first render, so
         // the last pop-out on the page stole the focus from whatever had it.
-        await waitFor(() => {
-            expect(document.activeElement).toBe(elsewhere);
-        });
+        // The render flushes the mount effects, where that steal happened.
+        rerender(layout(true));
+        expect(screen.getByRole("button", { name: "Open B" })).toBeInTheDocument();
+        expect(document.activeElement).toBe(elsewhere);
     });
 
     it("leaves focus alone when manageFocus is off", async () => {
@@ -582,5 +591,103 @@ describe("Popout controlled mode", () => {
 
         // The consumer owns the state: nothing closes behind their back.
         expect(screen.getByTestId("panel-content")).toBeInTheDocument();
+    });
+});
+
+describe("PopoutPanel: Tab past its ends", () => {
+    it("opened in its middle, wraps Tab and Shift+Tab to the other end until every stop has had focus", async () => {
+        const user = userEvent.setup();
+        renderPopout(
+            <div>
+                <button>Before</button>
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={240} label="Settings">
+                        <Popout.Content>
+                            <button>First</button>
+                            <button data-autofocus>Middle</button>
+                            <button>Last</button>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+                <button>After</button>
+            </div>,
+        );
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        await waitFor(() => {
+            expect(screen.getByRole("button", { name: "Middle" })).toHaveFocus();
+        });
+
+        await user.tab();
+        expect(screen.getByRole("button", { name: "Last" })).toHaveFocus();
+        // First has not had focus yet, so Tab past the end wraps to it rather than leaving.
+        await user.tab();
+        expect(screen.getByRole("button", { name: "First" })).toHaveFocus();
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+        // Every stop has had focus: Shift+Tab before the first now leaves for the trigger.
+        await user.tab({ shift: true });
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+        expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
+    });
+
+    it("opened in its middle, wraps Shift+Tab before the first stop to the last", async () => {
+        const user = userEvent.setup();
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open</button>
+                </Popout.Trigger>
+                <Popout.Panel width={240} label="Settings">
+                    <Popout.Content>
+                        <button>First</button>
+                        <button data-autofocus>Middle</button>
+                        <button>Last</button>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        await waitFor(() => {
+            expect(screen.getByRole("button", { name: "Middle" })).toHaveFocus();
+        });
+        await user.tab({ shift: true });
+        expect(screen.getByRole("button", { name: "First" })).toHaveFocus();
+        await user.tab({ shift: true });
+        expect(screen.getByRole("button", { name: "Last" })).toHaveFocus();
+    });
+
+    it("Shift+Tab out goes to the stop before an opener that is not in the tab order", async () => {
+        const user = userEvent.setup();
+        renderPopout(
+            <div>
+                <button>Before</button>
+                <Popout>
+                    <Popout.Trigger>
+                        <button tabIndex={-1}>Open</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={240} label="Settings">
+                        <Popout.Content>
+                            <button>Inside</button>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+                <button>After</button>
+            </div>,
+        );
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        await waitFor(() => {
+            expect(screen.getByRole("dialog")).toHaveFocus();
+        });
+        await user.tab();
+        expect(screen.getByRole("button", { name: "Inside" })).toHaveFocus();
+        await user.tab({ shift: true });
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+        expect(screen.getByRole("button", { name: "Before" })).toHaveFocus();
     });
 });

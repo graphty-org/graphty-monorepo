@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -151,6 +152,46 @@ describe("FeedbackModal", () => {
         // The form values are reset internally, but since the modal closes,
         // we can verify onClose was called which triggers the reset
         expect(mockCaptureUserFeedback).toHaveBeenCalled();
+    });
+
+    it("shows no alert when reopened after a successful send", async () => {
+        /** Keeps the modal mounted while it opens and closes, as the workspace does. */
+        function Harness(): React.JSX.Element {
+            const [opened, setOpened] = useState(true);
+            return (
+                <>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setOpened(true);
+                        }}
+                    >
+                        Open feedback
+                    </button>
+                    <FeedbackModal
+                        send={mockCaptureUserFeedback}
+                        opened={opened}
+                        onClose={() => {
+                            setOpened(false);
+                        }}
+                    />
+                </>
+            );
+        }
+        render(<Harness />);
+
+        await userEvent.fill(screen.getByPlaceholderText(/Describe the issue/), "First report");
+        await userEvent.click(screen.getByRole("button", { name: /Send Feedback/i }));
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+
+        await userEvent.click(screen.getByRole("button", { name: "Open feedback" }));
+        await waitFor(() => {
+            expect(screen.getByRole("dialog")).toBeInTheDocument();
+        });
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+        expect(screen.getByPlaceholderText(/Describe the issue/)).toHaveValue("");
     });
 
     describe("error handling", () => {

@@ -1,4 +1,6 @@
-import { DynamicTexture, type ICanvas, type ISize, type Scene } from "@babylonjs/core";
+import type { ICanvas, ISize } from "@babylonjs/core";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 /** The fields of Babylon's DynamicTexture this subclass works with, which Babylon declares private. */
 interface DynamicTextureFields {

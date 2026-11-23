@@ -29,10 +29,8 @@ export const ALLOWED = [
     "visual-review/test/fixtures/",
     "visual-review/trusted/page/",
     "graph-io/test/fidelity/",
-    "graph-io/fidelity-stories/references/",
     "graph-samples/thumbnails/",
     "graphty-element/src/shaders/presets/", // each shader preset's gallery thumbnail, shipped in the package
-    "graphty-element/examples/assets/",
     "graphty-element/test/helpers/",
     "graphty/public/",
     "docs/public/",

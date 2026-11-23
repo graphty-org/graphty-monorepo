@@ -3,7 +3,7 @@ import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import { labelLine } from "../style/commands";
-import { designate, panelsInView, timelineOn } from "../time/timeActions";
+import { designate, panelsInView } from "../time/timeActions";
 import { openFilterDraft } from "./filterCards";
 import { labelRefusalWords } from "./words";
 
@@ -17,17 +17,12 @@ export interface AttributeAction {
 /**
  * Why Add label line cannot bind an attribute, in the app's words, or null when it can.
  * @param session - the element's session.
- * @param column - the node attribute.
+ * @param column - the node attribute, one the data holds now.
  * @returns the reason, or null.
  */
 function labelRefusalFor(session: GraphSession, column: ColumnRef): string | null {
-    try {
-        const proposal = session.styles.proposeEncoding({ column, channel: "node.label" });
-        return proposal.ok ? null : labelRefusalWords(proposal.refusal);
-    } catch {
-        // The attribute went away under the open menu.
-        return "No longer in the data";
-    }
+    const proposal = session.styles.proposeEncoding({ column, channel: "node.label" });
+    return proposal.ok ? null : labelRefusalWords(proposal.refusal);
 }
 
 /**
@@ -79,7 +74,7 @@ function attributeActions(
         });
     }
     // Any column can be the time field; the Time section sets its unit and how the window moves.
-    if (descriptor !== undefined && descriptor.origin !== "result" && session !== null && timelineOn(session)) {
+    if (descriptor !== undefined && descriptor.origin !== "result" && session !== null) {
         const source = { start: descriptor.name };
         const isTime =
             (column.kind === "edge" ? session.time.field?.edges : session.time.field?.nodes)?.start === descriptor.name;

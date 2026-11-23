@@ -5,7 +5,7 @@
  * plane's world bounds -- wherever the label is anchored -- so no label is cut off by the edge of
  * the viewport. A label's size depends on its text and font, which is why framing runs on data
  * loads and layout changes and never on a label edit (#76): after the graph has settled, changing a
- * label's words, colour, size, anchor or offset must leave the camera exactly where it was.
+ * label's words, color, size, anchor or offset must leave the camera exactly where it was.
  */
 
 import { Matrix, Vector3 } from "@babylonjs/core";
@@ -42,9 +42,6 @@ const LOCATIONS = [
     "bottom-right",
     "center",
 ] as const;
-
-/** How long to wait for a framing before giving up. */
-const FRAMING_TIMEOUT_MS = 5000;
 
 /** A box, as the element reports one. */
 interface Box {
@@ -107,12 +104,8 @@ describe("zoom-to-fit framing", () => {
     async function frame(): Promise<Box> {
         await operationQueueOf(graph).waitForCompletion();
 
-        const box = await new Promise<Box>((done, fail) => {
-            const timer = setTimeout(() => {
-                off();
-                fail(new Error("the element never framed the graph"));
-            }, FRAMING_TIMEOUT_MS);
-
+        // No deadline of its own: the one hang guard (tools/test-wait-guard.mjs) ends a framing that never comes.
+        const box = await new Promise<Box>((done) => {
             const off = graph.on("zoom-to-fit-complete", (event) => {
                 if (
                     !("boundingBoxMin" in event) ||
@@ -122,7 +115,6 @@ describe("zoom-to-fit framing", () => {
                     return;
                 }
 
-                clearTimeout(timer);
                 off();
                 done({ min: event.boundingBoxMin.clone(), max: event.boundingBoxMax.clone() });
             });
@@ -130,8 +122,9 @@ describe("zoom-to-fit framing", () => {
             graph.zoomToFit();
         });
 
-        // Let the frame that applied the framing finish, then let the camera come to rest.
-        await draw();
+        // Let the frame that applied the framing finish and the camera come to rest: the element
+        // says when its picture is final, where a count of frames only guesses.
+        await graph.waitForStableFrame();
 
         return box;
     }

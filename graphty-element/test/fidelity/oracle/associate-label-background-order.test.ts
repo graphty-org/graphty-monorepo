@@ -3,7 +3,12 @@
  * words is not that label's: yEd's `sides` model sets label-sides-e's words to the right of its node, under the box
  * label-sides-w's label is drawn on to the left of the next node (graphml-synthetic-nodes), and the comparator gave the
  * box to the label drawn first. A band a label sits on runs its node's whole width, as a group's does: a closed yEd
- * group, drawn as a node (yed-graphml-specimen-groups group-closed), had its band read as nothing.
+ * group, drawn as a node (yed-graphml-specimen-groups group-closed), had its band read as nothing. A head drawn over
+ * part of a label that has a tighter box of its own is no box behind it (cx2-syn-mappings 423: the square head of
+ * 408->423 was its background, the real one a stray), and words graphty draws as a text of their own are no label of
+ * the unlabeled box they lie in (cx2-wp1449-tlr's "Peptidoglycan(G+)" over group box 136935). A tilted strip thinner
+ * than the words are tall, drawn before them, is no box behind them (xgmml-syn-mappings: the T-bar head of
+ * 1269915->1269931 across edge 1269937->1269927's "e0").
  */
 import { assert, describe, it } from "vitest";
 
@@ -116,5 +121,86 @@ describe("a label's background box", () => {
         );
         assert.strictEqual(oracle?.fill?.color, "#f5f5f5");
         assert.deepEqual(oracle?.label?.background?.fill, band);
+    });
+
+    it("is the box fitted round the words, not a head drawn over part of them", () => {
+        index = 0;
+        const body = { x0: 905.9, y0: 669, x1: 958, y1: 685 };
+        const t = words("M81", { x0: 890.3, y0: 673.6, x1: 905.4, y1: 680.6 });
+        const cream = paint("#ffffcc");
+        const square = paint("#972f2d");
+        const route: Pt[] = [
+            [115, 615],
+            [895.5, 676.9],
+        ];
+        const prims = [
+            ...anchors.map(([, b]) => shape(b, { fill: paint("#c0c0c0") })),
+            shape(body, { fill: paint("#c04554") }),
+            {
+                ...shape(boxOfPoints(route), {}),
+                kind: "path" as const,
+                tag: "path",
+                closed: false,
+                points: route,
+                stroke: { color: "#425d85", opacity: 1, width: 1, dash: null, dashClass: "solid" as const },
+            },
+            shape({ x0: 895.5, y0: 671.7, x1: 905.9, y1: 682.1 }, { fill: square }),
+            shape({ x0: 890.3, y0: 673.7, x1: 905.4, y1: 681.1 }, { fill: cream }),
+            text(t),
+        ];
+        const guide = guideOf([node("423", body, t)]);
+        guide.edges.push({
+            id: "a->423#g0",
+            source: "a",
+            target: "423",
+            points: route,
+            stroke: { color: "#425d85", opacity: 1, width: 1, dash: null, dashClass: "solid" },
+            arrows: [],
+            label: null,
+        });
+        const { scene } = associate(prims, 1200, 900, guide);
+        assert.deepEqual(scene.nodes.find((n) => n.id === "423")?.label?.background?.fill, cream);
+        assert.strictEqual(scene.edges.find((e) => e.target === "423")?.arrows[0]?.color, square.color);
+    });
+
+    it("leaves an unlabelled box without the words graphty draws as a text of their own", () => {
+        index = 0;
+        const body = { x0: 12, y0: 188, x1: 105, y1: 263 };
+        const t = words("Peptidoglycan(G+)", { x0: 21.6, y0: 193.3, x1: 80.4, y1: 202.3 });
+        const prims = [
+            ...anchors.map(([, b]) => shape(b, { fill: paint("#c0c0c0") })),
+            shape(body, { fill: paint("#f0f0f0") }),
+            text(t),
+        ];
+        const guide = { ...guideOf([node("136935", body, null)]), texts: [t] };
+        const { scene } = associate(prims, 1200, 900, guide);
+        assert.isNull(scene.nodes.find((n) => n.id === "136935")?.label ?? null);
+        assert.include(
+            scene.texts.map((x) => x.content),
+            "Peptidoglycan(G+)",
+        );
+    });
+
+    it("is not a tilted strip thinner than the words, drawn across them", () => {
+        index = 0;
+        const body = { x0: 500, y0: 300, x1: 560, y1: 340 };
+        const t = words("e0", { x0: 594, y0: 233.5, x1: 601, y1: 240 });
+        // a 2 x 20 bar turned 12.8 degrees, its box covering most of the words' box
+        const turn = (12.8 * Math.PI) / 180;
+        const at = (u: number, v: number): Pt => [
+            596.5 + u * Math.cos(turn) - v * Math.sin(turn),
+            237.5 + u * Math.sin(turn) + v * Math.cos(turn),
+        ];
+        const bar: Pt[] = [at(-1, -10), at(1, -10), at(1, 10), at(-1, 10), at(-1, -10)];
+        const prims = [
+            ...anchors.map(([, b]) => shape(b, { fill: paint("#c0c0c0") })),
+            shape(body, { fill: paint("#e5bdc2") }),
+            shape(boxOfPoints(bar), { tag: "path", points: bar, fill: paint("#999999") }),
+            text(t),
+        ];
+        const { scene } = associate(prims, 1200, 900, guideOf([node("m20", body, { ...t, sizePx: 6.5 })]));
+        const label = scene.nodes.find((n) => n.id === "m20")?.label;
+        assert.strictEqual(label?.content, "e0");
+        assert.isNotOk(label?.background);
     });
 });

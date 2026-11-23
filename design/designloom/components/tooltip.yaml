@@ -3,7 +3,8 @@ name: Tooltip
 category: utility
 description: Contextual popup that appears on hover or focus. Displays additional information about an element without
     cluttering the UI.
-status: planned
+status: implemented
+notes: "Ships: Mantine Tooltip, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities:
     - tooltip-display
 used_in_workflows:

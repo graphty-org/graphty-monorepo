@@ -10,13 +10,11 @@ import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
 const COMPOSER = { name: "Message the assistant" };
 
 type Answer = Awaited<ReturnType<MockLlmProvider["generate"]>>;
@@ -56,8 +54,6 @@ async function placeholder(words: string): Promise<void> {
 
 describe("the composer's placeholder", () => {
     beforeEach(async () => {
-        resetSiteConfig();
-        await loadSiteConfig(SITE);
         await page.viewport(1440, 900);
         localStorage.clear();
         const tag = customElements.get("graphty-element") as unknown as {
@@ -76,7 +72,6 @@ describe("the composer's placeholder", () => {
     afterEach(() => {
         cleanup();
         vi.restoreAllMocks();
-        resetSiteConfig();
         writeAssistantChoice(null);
     });
 

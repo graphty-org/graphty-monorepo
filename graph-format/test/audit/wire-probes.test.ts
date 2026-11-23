@@ -1,11 +1,11 @@
 /**
  * Targeted audit probes of the wire module (design sections 4.5, 9.1 - 9.5, 11.1 - 11.4): the
- * semantics the fuzzer cannot judge on its own. The first block documents behaviour that holds
- * (structuredClone round trips, transfer detaching exactly the sender, shared node tables of derived
- * graphs, checksum records, unknownColumns "skip", contentHash stability). The second block
- * ("open defects") holds DELIBERATELY FAILING tests, one per finding of the audit, each asserting
- * what the design promises; the wire-fuzz.test.ts oracle recognises their signatures so it keeps
- * reporting new anomalies while these stay open.
+ * semantics the fuzzer cannot judge on its own. The first block covers the documented round-trip
+ * behavior (structuredClone round trips, transfer detaching exactly the sender, shared node tables
+ * of derived graphs, checksum records, unknownColumns "skip", contentHash stability). The second
+ * block pins the fixes of the wire audit findings (design/graph-format/STATUS.md): transfer and
+ * transferables() agreement, E_DETACHED after a consuming transfer, holder counting, unique-column
+ * and bigint errors, negative zero, id-map bounds and nesting depth.
  */
 
 import { describe, expect, it } from "vitest";
@@ -305,7 +305,7 @@ describe("wire probes: documented semantics that hold", () => {
                 ).contentHash(),
             ).toBe(hash);
         }
-        // an identity permutation hashes the same whether or not arcToEdge was materialised (P11)
+        // an identity permutation hashes the same whether or not arcToEdge was materialized (P11)
         const a = idsSnapshot([0, 1, 2, 3]);
         const b = idsSnapshot([0, 1, 2, 3]);
         expect(b.arcToEdge.length).toBe(b.arcCount);
@@ -334,9 +334,9 @@ describe("wire probes: documented semantics that hold", () => {
     });
 });
 
-// ============================================================ open defects (deliberately failing pins)
+// ============================================================ fixed audit findings
 
-describe("wire probes: open defects", () => {
+describe("wire probes: audit findings stay fixed", () => {
     it("toWire({ transfer: true, includeColumns: false }) and transferables() agree, so no column is lost", () => {
         // design 9.1: transferables() returns the same exclusive set toWire({ transfer: true }) put into buffers
         const s = richSnapshot();
@@ -443,7 +443,7 @@ describe("wire probes: open defects", () => {
         expect(receiver.nodes.value("label", 0)).toBe("node 0 \u00e9");
         const wire = s.toWire({ transfer: true });
         const list = s.transferables();
-        // the core is recognised as shared (copied), the columns and the id store are not
+        // the core is recognized as shared (copied), the columns and the id store are not
         expect(wire.manifest.copied).toContain(wire.manifest.core.rowPtr.buffer);
         structuredClone(wire, { transfer: list });
         expect(receiver.detached).toBe(false);

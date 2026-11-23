@@ -19,6 +19,12 @@ import { GraphtyError } from "../errors/GraphtyError";
 const BARE_IDENTIFIER = /^[A-Za-z_]\w*$/;
 
 /**
+ * `jmespath.compile` parses an expression without evaluating it. The library has shipped it since
+ * 0.15, but `@types/jmespath` declares only `search`.
+ */
+const { compile } = jmespath as typeof jmespath & { compile: (expression: string) => unknown };
+
+/**
  * `jmespath.search` over one record, without the parse when the expression is a bare field name.
  * `jmespath.search` tokenizes and parses its expression on every call, and ingest runs it once or
  * more per node and per edge: at 100,000 edges that parse was most of the time `addEdges` took. A
@@ -84,10 +90,36 @@ export function readEndpoint(record: Record<string | number, unknown>, expressio
     try {
         return searchRecord(record, expression);
     } catch {
-        // A malformed expression is the caller's, not the record's, and it is the same answer for
-        // every record in the batch: nothing resolves, and the batch throws with the columns it
-        // does carry, which is the information that lets a reader write a working expression.
+        // A well-formed expression can still fail on one record (`length(a)` where `a` is a
+        // number): that record does not answer. A malformed declared expression never gets here,
+        // because resolveEndpoints refuses it for the whole batch first.
         return null;
+    }
+}
+
+/**
+ * Refuse a declared endpoint expression that does not parse. Without this every record reads
+ * null through it, and every edge is left out as "missing endpoint" while the parse error that
+ * explains why is thrown away.
+ * @param expression - the declared expression, or null when nothing was declared
+ * @param option - the `data.knownFields` option it is configured by
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` when the expression does not parse.
+ */
+function checkDeclared(expression: string | null, option: "edgeSrcIdPath" | "edgeDstIdPath"): void {
+    if (expression === null || BARE_IDENTIFIER.test(expression)) {
+        return;
+    }
+
+    try {
+        compile(expression);
+    } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            source: "data",
+            message: `The edge endpoint expression ${JSON.stringify(expression)} (${option}) is not valid JMESPath: ${reason}`,
+            details: { option, value: expression, reason },
+        });
     }
 }
 
@@ -128,11 +160,16 @@ function columnsOf(records: readonly Record<string | number, unknown>[]): string
  * @returns the expressions every record in this batch is read with
  * @throws A `GraphtyError` with `E_EDGE_ENDPOINTS_UNRESOLVED` when the batch carries edge records
  *     and no spelling answers for any of them. `details.columns` names what the records do carry.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` when a declared expression is not valid JMESPath;
+ *     `details.option` names the knownFields option and `details.reason` the parse error.
  */
 export function resolveEndpoints(
     records: readonly Record<string | number, unknown>[],
     declared: DeclaredEndpoints,
 ): ResolvedEndpoints {
+    checkDeclared(declared.source, "edgeSrcIdPath");
+    checkDeclared(declared.target, "edgeDstIdPath");
+
     if (declared.source !== null && declared.target !== null) {
         return { source: declared.source, target: declared.target, resolvedFrom: "declared" };
     }

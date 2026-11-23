@@ -40,10 +40,10 @@ const selectionEdgeData = [
 ];
 
 /**
- * Set the graph up for the selection demo: blue spheres, each labelled with its own name.
+ * Set the graph up for the selection demo: blue spheres, each labeled with its own name.
  *
  * The label is BOUND to a column rather than written out, which is what `encode` is for: the
- * words come from each node's own `label` field. The label's font size and colour are the two
+ * words come from each node's own `label` field. The label's font size and color are the two
  * fields of `node.labelStyle` this needs; where the label sits relative to the node has no
  * channel, so it is drawn wherever the renderer puts it by default.
  * @param element - The element to set up.
@@ -124,11 +124,10 @@ const renderSelectionDemo = (viewMode: ViewMode): HTMLDivElement => {
     graphEl.addEventListener("selection-changed", (event) => {
         const display = container.querySelector("#selected-node-display");
         if (display) {
-            const customEvent = event as CustomEvent<{ currentNode: { id: string; data: { label?: string } } | null }>;
-            const node = customEvent.detail.currentNode;
+            const node = event.detail.currentNode;
             if (node) {
-                const label = node.data.label ?? node.id;
-                display.textContent = `${label} (${node.id})`;
+                const label: unknown = node.data.label ?? node.id;
+                display.textContent = `${String(label)} (${String(node.id)})`;
                 (display as HTMLElement).style.color = "#FFFF00";
             } else {
                 display.textContent = "None";

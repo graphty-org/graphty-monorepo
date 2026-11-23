@@ -15,6 +15,7 @@ import {
     curveSpan,
     loopShape,
     PULLED_CURVE_GLSL,
+    routed,
 } from "../../src/meshes/pulledCurve";
 
 const VERTEX = `#version 300 es
@@ -74,7 +75,7 @@ function shaderPoints(asks: Ask[]): Float32Array {
     const routes = new Map<CurveSpan, number>();
     const texels: number[] = [];
     for (const { src, dst, span } of asks) {
-        if (span.bends !== null && !routes.has(span)) {
+        if (routed(span) && !routes.has(span)) {
             routes.set(span, texels.length / 4);
             for (let j = 0; j <= span.pieces; j++) {
                 const { x, y, z } = curvePathPoint(src, dst, span, j);

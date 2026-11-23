@@ -35,7 +35,12 @@ export interface ConditionField {
     /** What kind of condition it makes. */
     readonly kind: ConditionFieldKind;
     /** The lowest and highest value, for a number: a new number condition starts over all of it. */
-    readonly range?: { readonly min: number; readonly max: number };
+    readonly range?: {
+        /** The lowest value. */
+        readonly min: number;
+        /** The highest value. */
+        readonly max: number;
+    };
 }
 
 /**
@@ -69,13 +74,19 @@ type Presence = "present" | "absent";
  */
 export type Condition<F extends ConditionField = ConditionField> =
     | {
+          /** A number condition: a range, the top N, or presence. */
           readonly type: "number";
+          /** The field's key, see {@link conditionKey}. */
           readonly key: string;
+          /** The field it tests. */
           readonly field: F;
           /** A range, the top N (or N percent), or presence. */
           readonly match: "range" | "top" | Presence;
+          /** The lowest value kept, for a range; absent for no lower end. */
           readonly min?: number;
+          /** The highest value kept, for a range; absent for no upper end. */
           readonly max?: number;
+          /** How many elements a `top` match keeps, or what percent of them with `percent`. */
           readonly top?: number;
           /** Which end the top counts from: the highest values (the default) or the lowest. */
           readonly from?: "high" | "low";
@@ -83,36 +94,55 @@ export type Condition<F extends ConditionField = ConditionField> =
           readonly percent?: boolean;
       }
     | {
+          /** A category condition: some of a field's values, or presence. */
           readonly type: "category";
+          /** The field's key, see {@link conditionKey}. */
           readonly key: string;
+          /** The field it tests. */
           readonly field: F;
+          /** `values`: the elements holding one of `values`; or presence. */
           readonly match: "values" | Presence;
+          /** The values kept; any of them passes. */
           readonly values: readonly string[];
           /** The elements without a value pass too. */
           readonly gaps: boolean;
       }
     | {
+          /** A text or name condition: a text comparison, a list of node ids, or presence. */
           readonly type: "text";
+          /** The field's key, see {@link conditionKey}. */
           readonly key: string;
+          /** The field it tests. */
           readonly field: F;
           /** A text comparison, presence, or `list`: the fixed node ids in `ids`. */
           readonly match: ConditionTextMode | Presence | "list";
+          /** The text compared, trimmed when the leaf is made; empty while nothing is typed. */
           readonly text: string;
+          /** Whether the comparison tells upper and lower case apart. */
           readonly caseSensitive: boolean;
+          /** The node ids a `list` match keeps. */
           readonly ids?: readonly string[];
       }
     | {
           /** Instants in epoch milliseconds, both ends kept: a range leaf read `as: "time"`. */
           readonly type: "date";
+          /** The field's key, see {@link conditionKey}. */
           readonly key: string;
+          /** The field it tests. */
           readonly field: F;
+          /** Before `max`, after `min`, between the two, or presence. */
           readonly match: "before" | "after" | "between" | Presence;
+          /** The earliest instant kept, in epoch milliseconds. */
           readonly min?: number;
+          /** The latest instant kept, in epoch milliseconds. */
           readonly max?: number;
       }
     | {
+          /** A yes-or-no condition on a field holding true or false. */
           readonly type: "yes-no";
+          /** The field's key, see {@link conditionKey}. */
           readonly key: string;
+          /** The field it tests. */
           readonly field: F;
           /** `"unset"`: nothing chosen yet, so the condition makes no leaf. */
           readonly match: "yes" | "no" | "unset" | Presence;
@@ -120,8 +150,11 @@ export type Condition<F extends ConditionField = ConditionField> =
     | {
           /** The loads an element came from (`data.sources()` keys); any of them passes. */
           readonly type: "source";
+          /** The data source field's key, see {@link conditionKey}. */
           readonly key: string;
+          /** The data source field ({@link CONDITION_SOURCE_PATH}). */
           readonly field: F;
+          /** The loads kept; empty while none is chosen, which makes no leaf. */
           readonly sources: readonly SourceKey[];
       }
     | {
@@ -130,7 +163,9 @@ export type Condition<F extends ConditionField = ConditionField> =
            * passing when both ends (`clipped`) or either end (`incident`) do.
            */
           readonly type: "ends";
+          /** Always `"ends"`: an edge side has at most one. */
           readonly key: "ends";
+          /** An edge passes when both ends pass (`clipped`) or either end does (`incident`). */
           readonly reading: "clipped" | "incident";
       }
     | {
@@ -139,8 +174,11 @@ export type Condition<F extends ConditionField = ConditionField> =
            * be combined with conditions (edges picked by id, a rule with no rule form), `leaf` null.
            */
           readonly type: "fixed";
+          /** A key of its own, distinct from every field's. */
           readonly key: string;
+          /** The rule leaf kept as it is; null when `selector` holds a whole selector instead. */
           readonly leaf: RuleTree | null;
+          /** A whole selector that cannot be split into conditions; it stands alone. */
           readonly selector?: Selector;
           /** A second leaf on a field another condition already draws. */
           readonly repeat?: true;

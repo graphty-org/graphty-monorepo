@@ -1,382 +1,278 @@
-import { MeshBuilder, NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { afterEach, assert, beforeEach, describe, test } from "vitest";
-
-import { type AttachPosition, RichTextLabel } from "../../src/meshes/RichTextLabel";
-
 /**
- * Regression tests for label attachOffset functionality.
+ * @file How far a label stands off what it labels, read off real nodes and edges on a real graph.
  *
- * These tests ensure that:
- * 1. attachOffset is properly passed through configuration
- * 2. attachOffset is actually applied to label positioning (not hardcoded)
- * 3. Different attach positions correctly apply the offset
- *
- * Bug history:
- * - attachOffset was hardcoded to 0.3 in Edge.createArrowText()
- * - attachOffset was hardcoded to 0.3 in Edge.update() when calling attachTo()
- * - These bugs caused user-configured offsets to be ignored
+ * Each test asks for labels through a style layer, the way any consumer does, with a `location`
+ * and an `attachOffset`, and then reads where the element actually put each label's plane: against
+ * its node, the middle of its edge, or the arrow cap at the edge's tail. The graph is laid out again
+ * before every reading, so it is the place the element puts the label on every frame it moves, not
+ * only the one it was built with. The edge label at top and right and the head caption are measured
+ * in `Edge.label.test.ts` and `Edge.arrowText.test.ts`; this file covers every other location.
  */
-describe("Label attachOffset Regression Tests", () => {
-    let scene: Scene;
 
-    beforeEach(() => {
-        const engine = new NullEngine();
-        scene = new Scene(engine);
+import { Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
+
+import type { LabelStyle } from "../../src/catalog/types";
+import type { Edge } from "../../src/Edge";
+import { Graph, operationQueueOf } from "../../src/Graph";
+import type { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import type { GraphSession } from "../../src/session";
+
+/** Two nodes and the edge between them. */
+const NODES = [{ id: "alpha" }, { id: "omega" }];
+
+/** The one edge whose labels are measured. */
+const EDGES = [{ src: "alpha", dst: "omega" }];
+
+/** The words every label draws. */
+const WORDS = "HI";
+
+/** How close two world positions must be to count as the same place, in world units. */
+const SAME_PLACE = 1e-3;
+
+/** A distance a label is asked to stand off, in world units. */
+const OFFSET = 1.5;
+
+/** Which way, across (x) and up (y), each location beside a node puts its label. */
+const BESIDE: Record<string, { x: number; y: number }> = {
+    top: { x: 0, y: 1 },
+    bottom: { x: 0, y: -1 },
+    left: { x: -1, y: 0 },
+    right: { x: 1, y: 0 },
+    "top-left": { x: -1, y: 1 },
+    "top-right": { x: 1, y: 1 },
+    "bottom-left": { x: -1, y: -1 },
+    "bottom-right": { x: 1, y: -1 },
+};
+
+/** Which side of its node, across (x) and up (y), each location inside a node puts its label against. */
+const INSIDE: Record<string, { x: number; y: number }> = {
+    "inside-top": { x: 0, y: 1 },
+    "inside-bottom": { x: 0, y: -1 },
+    "inside-left": { x: -1, y: 0 },
+    "inside-right": { x: 1, y: 0 },
+    "inside-top-left": { x: -1, y: 1 },
+    "inside-bottom-right": { x: 1, y: -1 },
+};
+
+/** A node size big enough that a label inside it has room to move in from its side. */
+const ROOMY = 12;
+
+describe("a label's attachOffset", () => {
+    let container: HTMLElement;
+    let graph: Graph;
+    let session: GraphSession;
+    let scale: number;
+    /** The layer the test asked for on each target, so a later step can change it. */
+    let layerIds: Partial<Record<"node" | "edge", string>>;
+
+    beforeEach(async () => {
+        container = document.createElement("div");
+        container.style.width = "640px";
+        container.style.height = "480px";
+        document.body.appendChild(container);
+        graph = new Graph(container);
+        await graph.init();
+        await graph.setViewMode("2d");
+        session = graph.getSession();
+        layerIds = {};
+        scale = 2;
+
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        // Circular rather than physics, so the nodes do not drift between the readings.
+        await graph.setLayout("circular", { scale });
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
-        scene.getEngine().dispose();
+        graph.dispose();
+        container.remove();
     });
 
-    describe("attachOffset configuration", () => {
-        test("attachOffset can be set via constructor options", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Test",
-                fontSize: 12,
-                attachOffset: 5.0,
-            });
+    /**
+     * Ask for a style through a layer (or change the one already asked for), then lay the graph out
+     * again so every label is placed as it is on every frame its owner moves.
+     * @param target - Whether the layer styles nodes or edges.
+     * @param set - The channels it writes.
+     */
+    async function styled(target: "node" | "edge", set: Record<string, unknown>): Promise<void> {
+        const existing = layerIds[target];
 
-            assert.exists(label);
-            label.dispose();
-        });
+        if (existing === undefined) {
+            ({ id: layerIds[target] } = await session.styles.add({
+                name: `${target} labels`,
+                target,
+                selector: { match: "everything" },
+                set,
+            }));
+        } else {
+            await session.styles.update(existing, { set });
+        }
 
-        test("attachOffset can be set to various values", () => {
-            const offsets = [0, 0.3, 0.5, 1.0, 2.0, 5.0, 10.0];
+        await operationQueueOf(graph).waitForCompletion();
+        // A new scale moves both nodes, so every label has to be placed again.
+        scale += 1;
+        await graph.setLayout("circular", { scale });
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
+    }
 
-            for (const offset of offsets) {
-                const label = new RichTextLabel(scene, {
-                    text: "Test",
-                    fontSize: 12,
-                    attachOffset: offset,
+    /**
+     * The one edge the element holds.
+     * @returns The edge.
+     */
+    function edgeObject(): Edge {
+        const [edge] = Array.from(graph.getDataManager().edges.values());
+
+        assert.isDefined(edge, "the graph holds the one edge");
+
+        return edge;
+    }
+
+    /**
+     * Where a label's plane sits, in world space.
+     * @param label - The label, or null/undefined when none was built.
+     * @returns The position.
+     */
+    function placeOf(label: RichTextLabel | null | undefined): Vector3 {
+        assert.exists(label, "a label was built");
+        assert.exists(label.labelMesh, "and it has a plane in the scene");
+        label.labelMesh.computeWorldMatrix(true);
+
+        return label.labelMesh.getAbsolutePosition();
+    }
+
+    /**
+     * Where node alpha's label sits against node alpha.
+     * @param style - The label's placement.
+     * @param size - The node's size.
+     * @returns The label's position minus the node's.
+     */
+    async function nodeLabelFrom(style: LabelStyle, size = 1): Promise<Vector3> {
+        await styled("node", { "node.label": WORDS, "node.labelStyle": style, "node.size": size });
+        const node = graph.getNode("alpha");
+
+        assert.exists(node, "the graph holds node alpha");
+
+        return placeOf(node.label).subtract(node.mesh.getAbsolutePosition());
+    }
+
+    /**
+     * Assert one reading sits a given distance from another, in a given direction.
+     * @param moved - The reading with the offset.
+     * @param still - The reading without it.
+     * @param way - The direction, across (x) and up (y), each -1, 0 or 1.
+     * @param distance - How far, in world units, along each axis the direction names.
+     * @param what - What is being measured, for the message.
+     */
+    function movedBy(
+        moved: Vector3,
+        still: Vector3,
+        way: { x: number; y: number },
+        distance: number,
+        what: string,
+    ): void {
+        const detail = `${what}: ${still.toString()} -> ${moved.toString()}`;
+
+        assert.closeTo(moved.x - still.x, way.x * distance, SAME_PLACE, `across, ${detail}`);
+        assert.closeTo(moved.y - still.y, way.y * distance, SAME_PLACE, `up, ${detail}`);
+    }
+
+    describe("on a node's label", () => {
+        for (const [location, way] of Object.entries(BESIDE)) {
+            it(`moves a label at ${location} out from the node by the offset`, async () => {
+                const touching = await nodeLabelFrom({ location: location as LabelStyle["location"], attachOffset: 0 });
+                const clear = await nodeLabelFrom({
+                    location: location as LabelStyle["location"],
+                    attachOffset: OFFSET,
                 });
 
-                assert.exists(label.labelMesh);
-                label.dispose();
+                movedBy(clear, touching, way, OFFSET, location);
+            });
+        }
+
+        for (const [location, way] of Object.entries(INSIDE)) {
+            it(`moves a label at ${location} in from the node's side by the offset`, async () => {
+                const touching = await nodeLabelFrom(
+                    { location: location as LabelStyle["location"], attachOffset: 0 },
+                    ROOMY,
+                );
+                const clear = await nodeLabelFrom(
+                    { location: location as LabelStyle["location"], attachOffset: OFFSET },
+                    ROOMY,
+                );
+
+                movedBy(clear, touching, { x: -way.x, y: -way.y }, OFFSET, location);
+            });
+        }
+
+        it("keeps a centered label on the node, whatever the offset", async () => {
+            const touching = await nodeLabelFrom({ location: "center", attachOffset: 0 });
+            const clear = await nodeLabelFrom({ location: "center", attachOffset: OFFSET });
+
+            movedBy(clear, touching, { x: 0, y: 0 }, OFFSET, "center");
+        });
+
+        it("touches the node when its style sets no offset, the label style's documented default of 0", async () => {
+            for (const location of ["top", "left"] as const) {
+                const touching = await nodeLabelFrom({ location, attachOffset: 0 });
+                const unset = await nodeLabelFrom({ location });
+
+                movedBy(unset, touching, BESIDE[location], 0, `${location} with no offset`);
             }
         });
-
-        test("attachOffset can be negative", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Test",
-                fontSize: 12,
-                attachOffset: -1.0,
-            });
-
-            assert.exists(label.labelMesh);
-            label.dispose();
-        });
     });
 
-    describe("attachOffset via attachTo() method", () => {
-        test("attachTo() respects offset parameter", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Test",
-                fontSize: 12,
-            });
+    describe("on an edge's label", () => {
+        for (const [location, way] of [
+            ["bottom", { x: 0, y: -1 }],
+            ["left", { x: -1, y: 0 }],
+        ] as const) {
+            it(`moves a label at ${location} out from the middle of the line by the offset`, async () => {
+                const middle = async (attachOffset: number): Promise<Vector3> => {
+                    await styled("edge", { "edge.label": WORDS, "edge.labelStyle": { location, attachOffset } });
+                    const alpha = graph.getNode("alpha")?.mesh.getAbsolutePosition();
+                    const omega = graph.getNode("omega")?.mesh.getAbsolutePosition();
 
-            const targetPos = new Vector3(0, 0, 0);
+                    assert.exists(alpha);
+                    assert.exists(omega);
 
-            // Attach with custom offset
-            label.attachTo(targetPos, "top", 5.0);
+                    return placeOf(edgeObject().label).subtract(Vector3.Center(alpha, omega));
+                };
+                const touching = await middle(0);
+                const clear = await middle(OFFSET);
 
-            // The label should be positioned above the target
-            assert.exists(label.labelMesh);
-            const labelPos = label.labelMesh.position;
-
-            // Y position should be greater than target (offset is applied upward for "top")
-            assert.isTrue(labelPos.y > 0, "Label should be offset above target");
-
-            label.dispose();
-        });
-
-        test("attachTo() with different offsets produces different positions", () => {
-            const smallOffsetLabel = new RichTextLabel(scene, {
-                text: "Small",
-                fontSize: 12,
-            });
-
-            const largeOffsetLabel = new RichTextLabel(scene, {
-                text: "Large",
-                fontSize: 12,
-            });
-
-            const targetPos = new Vector3(0, 0, 0);
-
-            smallOffsetLabel.attachTo(targetPos, "top", 1.0);
-            largeOffsetLabel.attachTo(targetPos, "top", 5.0);
-
-            const smallY = smallOffsetLabel.labelMesh?.position.y ?? 0;
-            const largeY = largeOffsetLabel.labelMesh?.position.y ?? 0;
-
-            // Larger offset should result in larger Y position for "top" attachment
-            assert.isTrue(largeY > smallY, "Larger offset should produce larger Y position");
-
-            smallOffsetLabel.dispose();
-            largeOffsetLabel.dispose();
-        });
-
-        test("zero offset places label at boundary", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Test",
-                fontSize: 12,
-            });
-
-            const targetPos = new Vector3(5, 5, 5);
-            label.attachTo(targetPos, "top", 0);
-
-            assert.exists(label.labelMesh);
-            // With zero offset, label should be near the target Y (plus half label height)
-
-            label.dispose();
-        });
-    });
-
-    describe("attachOffset for all attach positions", () => {
-        const positions: AttachPosition[] = [
-            "top",
-            "top-left",
-            "top-right",
-            "left",
-            "center",
-            "right",
-            "bottom",
-            "bottom-left",
-            "bottom-right",
-        ];
-
-        for (const position of positions) {
-            test(`attachOffset is applied for position: ${position}`, () => {
-                const labelWithOffset = new RichTextLabel(scene, {
-                    text: "Test",
-                    fontSize: 12,
-                });
-
-                const labelWithoutOffset = new RichTextLabel(scene, {
-                    text: "Test",
-                    fontSize: 12,
-                });
-
-                const targetPos = new Vector3(0, 0, 0);
-
-                labelWithOffset.attachTo(targetPos, position, 3.0);
-                labelWithoutOffset.attachTo(targetPos, position, 0.0);
-
-                // Positions should be different when offset is applied
-                const posWithOffset = labelWithOffset.labelMesh?.position;
-                const posWithoutOffset = labelWithoutOffset.labelMesh?.position;
-
-                assert.exists(posWithOffset);
-                assert.exists(posWithoutOffset);
-
-                // For center position, offset doesn't change position
-                if (position !== "center") {
-                    const distance = Vector3.Distance(posWithOffset, posWithoutOffset);
-                    assert.isTrue(distance > 0, `Offset should change position for ${position}`);
-                }
-
-                labelWithOffset.dispose();
-                labelWithoutOffset.dispose();
+                movedBy(clear, touching, way, OFFSET, location);
             });
         }
     });
 
-    describe("attachOffset direction by position", () => {
-        test("'top' position: offset increases Y", () => {
-            const label1 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
-            const label2 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
+    describe("on the words at an arrow's tail", () => {
+        for (const [location, way] of [
+            ["top", { x: 0, y: 1 }],
+            ["bottom", { x: 0, y: -1 }],
+            ["left", { x: -1, y: 0 }],
+            ["right", { x: 1, y: 0 }],
+        ] as const) {
+            it(`moves a caption at ${location} out from its cap by the offset`, async () => {
+                const fromCap = async (attachOffset: number): Promise<Vector3> => {
+                    await styled("edge", {
+                        "edge.arrowTail": "normal",
+                        "edge.arrowTailText": WORDS,
+                        "edge.arrowTailTextStyle": { location, attachOffset },
+                    });
+                    const edge = edgeObject();
 
-            const targetPos = new Vector3(0, 0, 0);
-            label1.attachTo(targetPos, "top", 1.0);
-            label2.attachTo(targetPos, "top", 3.0);
+                    assert.isNotNull(edge.arrowTailCap, "the edge draws an arrow cap at its tail");
 
-            const y1 = label1.labelMesh?.position.y ?? 0;
-            const y2 = label2.labelMesh?.position.y ?? 0;
+                    return placeOf(edge.arrowTailText).subtract(edge.arrowTailCap.position);
+                };
+                const touching = await fromCap(0);
+                const clear = await fromCap(OFFSET);
 
-            assert.isTrue(y2 > y1, "Larger offset should increase Y for top position");
-
-            label1.dispose();
-            label2.dispose();
-        });
-
-        test("'bottom' position: offset decreases Y", () => {
-            const label1 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
-            const label2 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
-
-            const targetPos = new Vector3(0, 0, 0);
-            label1.attachTo(targetPos, "bottom", 1.0);
-            label2.attachTo(targetPos, "bottom", 3.0);
-
-            const y1 = label1.labelMesh?.position.y ?? 0;
-            const y2 = label2.labelMesh?.position.y ?? 0;
-
-            assert.isTrue(y2 < y1, "Larger offset should decrease Y for bottom position");
-
-            label1.dispose();
-            label2.dispose();
-        });
-
-        test("'left' position: offset decreases X", () => {
-            const label1 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
-            const label2 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
-
-            const targetPos = new Vector3(0, 0, 0);
-            label1.attachTo(targetPos, "left", 1.0);
-            label2.attachTo(targetPos, "left", 3.0);
-
-            const x1 = label1.labelMesh?.position.x ?? 0;
-            const x2 = label2.labelMesh?.position.x ?? 0;
-
-            assert.isTrue(x2 < x1, "Larger offset should decrease X for left position");
-
-            label1.dispose();
-            label2.dispose();
-        });
-
-        test("'right' position: offset increases X", () => {
-            const label1 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
-            const label2 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
-
-            const targetPos = new Vector3(0, 0, 0);
-            label1.attachTo(targetPos, "right", 1.0);
-            label2.attachTo(targetPos, "right", 3.0);
-
-            const x1 = label1.labelMesh?.position.x ?? 0;
-            const x2 = label2.labelMesh?.position.x ?? 0;
-
-            assert.isTrue(x2 > x1, "Larger offset should increase X for right position");
-
-            label1.dispose();
-            label2.dispose();
-        });
-    });
-
-    describe("attachOffset with repeated attachTo calls", () => {
-        test("calling attachTo multiple times with different offsets updates position", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Test",
-                fontSize: 12,
+                movedBy(clear, touching, way, OFFSET, location);
             });
-
-            const targetPos = new Vector3(0, 0, 0);
-
-            // First attach with small offset
-            label.attachTo(targetPos, "top", 1.0);
-            const y1 = label.labelMesh?.position.y ?? 0;
-
-            // Update with larger offset
-            label.attachTo(targetPos, "top", 5.0);
-            const y2 = label.labelMesh?.position.y ?? 0;
-
-            // Position should have changed
-            assert.isTrue(y2 > y1, "Position should update when attachTo is called with new offset");
-
-            label.dispose();
-        });
-
-        test("offset is not accumulated across multiple attachTo calls", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Test",
-                fontSize: 12,
-            });
-
-            const targetPos = new Vector3(0, 0, 0);
-
-            // Call attachTo multiple times with same offset
-            label.attachTo(targetPos, "top", 2.0);
-            const y1 = label.labelMesh?.position.y ?? 0;
-
-            label.attachTo(targetPos, "top", 2.0);
-            const y2 = label.labelMesh?.position.y ?? 0;
-
-            label.attachTo(targetPos, "top", 2.0);
-            const y3 = label.labelMesh?.position.y ?? 0;
-
-            // Position should remain the same (offset not accumulated)
-            assert.approximately(y1, y2, 0.001, "Offset should not accumulate");
-            assert.approximately(y2, y3, 0.001, "Offset should not accumulate");
-
-            label.dispose();
-        });
-    });
-
-    describe("attachOffset with moving targets", () => {
-        test("attachTo updates position correctly when target moves", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Test",
-                fontSize: 12,
-            });
-
-            const offset = 2.0;
-
-            // Attach at origin
-            const pos1 = new Vector3(0, 0, 0);
-            label.attachTo(pos1, "top", offset);
-            const labelY1 = label.labelMesh?.position.y ?? 0;
-
-            // Move target up
-            const pos2 = new Vector3(0, 10, 0);
-            label.attachTo(pos2, "top", offset);
-            const labelY2 = label.labelMesh?.position.y ?? 0;
-
-            // Label should have moved with target
-            assert.isTrue(labelY2 > labelY1, "Label should follow target position");
-
-            // The offset should still be applied
-            const expectedDiff = 10; // Target moved by 10 in Y
-            assert.approximately(labelY2 - labelY1, expectedDiff, 0.1, "Label should move by same amount as target");
-
-            label.dispose();
-        });
-    });
-
-    describe("inside positions", () => {
-        /**
-         * The label's drawn box in world units, after placing it inside a 10 x 4 box at the origin.
-         * @param position - Where inside the box.
-         * @returns The label's box.
-         */
-        function placedInside(position: AttachPosition): { min: Vector3; max: Vector3 } {
-            const box = MeshBuilder.CreatePlane("box", { width: 10, height: 4 }, scene);
-            const label = new RichTextLabel(scene, { text: "Open group", fontSize: 12 });
-            label.attachTo(box, position, 0);
-            const mesh = label.labelMesh;
-            assert.exists(mesh);
-            mesh.computeWorldMatrix(true);
-            const { minimumWorld, maximumWorld } = mesh.getBoundingInfo().boundingBox;
-
-            return { min: minimumWorld.clone(), max: maximumWorld.clone() };
         }
-
-        test("puts a header label inside the box against its top-right corner, in front of it", () => {
-            const { min, max } = placedInside("inside-top-right");
-
-            assert.approximately(max.x, 5, 1e-6, "flush with the box's right side");
-            assert.approximately(max.y, 2, 1e-6, "flush with the box's top");
-            assert.isAbove(min.x, -5, "inside the box, not beside it");
-            assert.isBelow(max.z, 0, "in front of the box, toward the camera");
-        });
-
-        test("puts a label inside against the bottom-left corner", () => {
-            const { min } = placedInside("inside-bottom-left");
-
-            assert.approximately(min.x, -5, 1e-6);
-            assert.approximately(min.y, -2, 1e-6);
-        });
-
-        test("centres an inside-top label across the box", () => {
-            const { min, max } = placedInside("inside-top");
-
-            assert.approximately((min.x + max.x) / 2, 0, 1e-6);
-            assert.approximately(max.y, 2, 1e-6);
-        });
-
-        test("keeps a label on a point, which has no inside", () => {
-            const label = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
-            label.attachTo(new Vector3(3, 4, 0), "inside-top", 0);
-
-            assert.approximately(label.labelMesh?.position.x ?? Number.NaN, 3, 1e-6);
-            assert.approximately(label.labelMesh?.position.y ?? Number.NaN, 4, 1e-6);
-            label.dispose();
-        });
     });
 });

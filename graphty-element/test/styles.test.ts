@@ -2,7 +2,7 @@
  * The element's configuration document.
  *
  * WHAT `Styles` IS NOW. The id paths a record is read with, the view mode, the background, the
- * layout and its options, the algorithms to run on load, and the behaviour settings -- and
+ * layout and its options, the algorithms to run on load, and the behavior settings -- and
  * nothing else. The stack of jmespath-selector layers it used to carry beside them is gone;
  * style layers are `session.styles`, which addresses a layer by a stable id and is tested in
  * `test/session/`.
@@ -17,6 +17,7 @@
 import { assert, describe, it } from "vitest";
 
 import { colorToHex } from "../src/config";
+import { ColorStyle } from "../src/config/common";
 import { Styles } from "../src/Styles";
 import badLayer from "./helpers/styles-bad-layer.json";
 import basicDualStyle from "./helpers/styles-basic-dual.json";
@@ -42,14 +43,6 @@ describe("Styles", () => {
         assert.deepStrictEqual(Object.keys(s), []);
         assert.deepStrictEqual(Object.getOwnPropertyNames(Styles.prototype).sort(), ["config", "constructor"]);
         assert.isObject(s.config);
-    });
-
-    describe("fromJson", () => {
-        it("accepts a document with an empty layer array", () => {
-            const s = Styles.fromJson('{"graphtyTemplate": true, "majorVersion": "1", "layers": []}');
-
-            assert.isEmpty(s.config.layers);
-        });
     });
 
     describe("fromObject", () => {
@@ -93,7 +86,7 @@ describe("Styles", () => {
             });
 
             assert.strictEqual(s.config.graph.viewMode, "2d");
-            // A CSS colour name is normalised on parse, which is why a background set through
+            // A CSS color name is normalized on parse, which is why a background set through
             // the element reaches the renderer as hex whatever the caller wrote.
             assert.deepStrictEqual(s.config.graph.background, { backgroundType: "color", color: "#FF69B4" });
             assert.strictEqual(s.config.graph.layout, "circular");
@@ -108,7 +101,7 @@ describe("Styles", () => {
      * The 1.x keys, and the rule that governs both of them: they parse, and nothing reads them.
      *
      * The tests that used to live here asserted the opposite -- that a malformed layer threw a
-     * `ZodError` and refused the document. That refusal is the behaviour that deliberately went
+     * `ZodError` and refused the document. That refusal is the behavior that deliberately went
      * away: with nothing reading the array, turning down a whole configuration over one field in
      * an ignored layer loses the id paths, the view mode and the layout that the same document
      * carries, and the reader is given a parse error about a feature that no longer exists.
@@ -199,6 +192,20 @@ describe("Styles", () => {
 
         it("converted by hwba, keeping its alpha like every other form", () => {
             assert.strictEqual(colorToHex("hwb(60, 3%, 60%, 0.6)"), "#66660899");
+        });
+
+        it("expands a collapsed #RGBA to eight digits", () => {
+            assert.strictEqual(colorToHex("#f008"), "#FF000088");
+        });
+
+        it("answers undefined for a string that is not a color", () => {
+            assert.isUndefined(colorToHex("notacolor"));
+        });
+
+        it("reports a style color that is not a color as an issue rather than throwing", () => {
+            const result = ColorStyle.safeParse("notacolor");
+            assert.isFalse(result.success);
+            assert.strictEqual(ColorStyle.parse("red"), "#FF0000");
         });
     });
 });

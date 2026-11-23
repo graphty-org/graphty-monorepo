@@ -146,6 +146,28 @@
                     "limit": 300000
                 }
             }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 90,
+                    "unit": "pct"
+                }
+            },
+            "link": "/data-sources/sources",
+            "id": "data-sources.read_budget",
+            "value": {
+                "n": 3,
+                "unit": "pct"
+            }
         }
     ],
     "sections": [

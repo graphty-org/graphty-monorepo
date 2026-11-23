@@ -10,18 +10,23 @@
  *
  * It asserts nothing about speed, only that each setting did its work. Numbers go to the console,
  * one line per row. Run with: npx vitest run --project=browser-bench test/browser/overlap-avoidance.bench.test.ts
+ *
+ * Without a GPU (`GRAPHTY_BROWSER_GPU` unset, as in CI) only 1,000 nodes run: waiting for 10,000 labels to be drawn
+ * cost CI's software renderer about 2 minutes, and both settings are checked at either size (#9773).
  */
 
 import { assert, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { LabelDeclutter } from "../../src/managers/LabelDeclutter";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 
 const WIDTH = 1280;
 const HEIGHT = 720;
 const STEPS = 20;
 const PASSES = 10;
 const TIMEOUT_MS = 900_000;
+const GPU = ((import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "") !== "";
 
 function report(line: string): void {
     console.log(`[overlap-avoidance-bench] ${line}`);
@@ -72,7 +77,7 @@ async function build(count: number): Promise<{ graph: Graph; container: HTMLElem
 }
 
 function passOf(graph: Graph): LabelDeclutter {
-    const found: unknown = graph.scene.metadata?.labelDeclutter;
+    const found: unknown = (graph.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
     if (!(found instanceof LabelDeclutter)) {
         assert.fail("a labelled scene has a label pass");
     }
@@ -136,7 +141,7 @@ async function timeSteps(
 
 describe("overlap avoidance cost", () => {
     for (const count of [1000, 10_000]) {
-        it(
+        it.skipIf(!GPU && count > 1000)(
             `${String(count)} nodes`,
             async () => {
                 const { graph, container } = await build(count);

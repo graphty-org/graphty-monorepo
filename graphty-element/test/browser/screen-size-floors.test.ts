@@ -4,10 +4,10 @@
  * never drawn thinner than `line.minScreenWidth` pixels (sigma.js's `minEdgeThickness`).
  */
 
-import { Camera, MeshBuilder, NullEngine, Scene, UniversalCamera, Vector3 } from "@babylonjs/core";
+import { Camera, Color4, Engine, MeshBuilder, NullEngine, Scene, UniversalCamera, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
-import { EDGE_JOIN_VERTEX_SHADER } from "../../src/meshes/edgeJoinShader";
+import { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 import { Simple2DLineRenderer } from "../../src/meshes/Simple2DLineRenderer";
 
@@ -61,15 +61,63 @@ describe("screen-size floors", () => {
         assert.isFalse(hidden(14, 12), "a 14 px node over it");
         assert.isFalse(hidden(10, 0), "no floor");
     });
+});
 
-    test("draws a line no thinner than its minimum screen width, in the shader every solid line uses", () => {
-        const mesh = Simple2DLineRenderer.createBatchMesh(0, "#000000", 1, scene, false, 0.85);
-        const floats = (mesh.material as unknown as { _floats: Record<string, number> })._floats;
-        assert.strictEqual(floats.minWidth, 0.85);
-        assert.strictEqual(floats.width, 0);
-        // the half width the vertex shader offsets each side by is never under half the floor
-        assert.include(EDGE_JOIN_VERTEX_SHADER, "return max(hw, minWidth * 0.5);");
-        const plain = Simple2DLineRenderer.createBatchMesh(1, "#000000", 1, scene);
-        assert.strictEqual((plain.material as unknown as { _floats: Record<string, number> })._floats.minWidth, 0);
+describe("a line's minimum screen width", () => {
+    const SIZE = 200;
+
+    /**
+     * Draw one black horizontal 2D line on white, through the canvas's middle, with one scene unit
+     * to one pixel, and count the rows of the middle column it inked.
+     * @param width - The line's width in scene units, which is pixels here.
+     * @param minScreenWidth - Its floor in screen pixels.
+     * @returns How many rows of the middle column are dark.
+     */
+    async function drawnRows(width: number, minScreenWidth: number): Promise<number> {
+        const canvas = document.createElement("canvas");
+        canvas.width = SIZE;
+        canvas.height = SIZE;
+        canvas.style.width = `${String(SIZE)}px`;
+        canvas.style.height = `${String(SIZE)}px`;
+        document.body.appendChild(canvas);
+        const engine = new Engine(canvas, true, { preserveDrawingBuffer: true });
+        const scene = new Scene(engine);
+        scene.clearColor = new Color4(1, 1, 1, 1);
+        const camera = new UniversalCamera("c", new Vector3(0, 0, -10), scene);
+        camera.mode = Camera.ORTHOGRAPHIC_CAMERA;
+        camera.orthoTop = SIZE / 2;
+        camera.orthoBottom = -SIZE / 2;
+        camera.orthoLeft = -SIZE / 2;
+        camera.orthoRight = SIZE / 2;
+        camera.setTarget(Vector3.Zero());
+        scene.activeCamera = camera;
+        // The batch mesh every solid 2D line is drawn from, one straight piece in it.
+        const line = new EdgeLineBatch(
+            Simple2DLineRenderer.createBatchMesh(width, "#000000", 1, scene, false, minScreenWidth),
+            scene,
+        );
+        line.place(line.acquire(), new Vector3(-80, 0, 0), new Vector3(80, 0, 0));
+        await scene.whenReadyAsync();
+        scene.render();
+        const pixels = (await engine.readPixels(0, 0, SIZE, SIZE)) as unknown as Uint8Array;
+        engine.dispose();
+        canvas.remove();
+        let rows = 0;
+        for (let y = 0; y < SIZE; y++) {
+            if (pixels[(y * SIZE + SIZE / 2) * 4] < 128) {
+                rows++;
+            }
+        }
+
+        return rows;
+    }
+
+    test("draws a line thinner than its floor as wide as the floor, in the shader every solid line uses", async () => {
+        assert.isAtMost(await drawnRows(0.5, 0), 1, "with no floor a half-pixel line draws at most one faint row");
+        assert.closeTo(await drawnRows(0.5, 4), 4, 1, "a 4 px floor draws the same line 4 px wide");
+    });
+
+    test("leaves a line wider than its floor at its own width", async () => {
+        assert.strictEqual(await drawnRows(6, 2), await drawnRows(6, 0));
     });
 });

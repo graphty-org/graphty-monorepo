@@ -26,11 +26,12 @@ import { fileURLToPath } from "node:url";
 import console from "node:console";
 import process from "node:process";
 
+import { mainCheckout } from "./main-checkout.mjs";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const oracles = resolve(here, "..");
 const repo = resolve(here, "../../../../..");
 const sheets = resolve(here, "../../specimens/gml");
-const mainCheckout = resolve(repo, "../..");
 const TAG = "foxglove-202510";
 const VERSION = "2025.10";
 const tools = join(mainCheckout, "tmp/ogdf");

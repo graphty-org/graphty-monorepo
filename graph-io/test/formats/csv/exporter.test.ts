@@ -246,6 +246,20 @@ describe("csvExporter: check() loss notes", () => {
         expect(() => csvExporter.exportToString(s)).toThrow(/shares? their text/);
     });
 
+    it("refuses an edge table with an edge to the empty-string id, which reads back as a blank endpoint", async () => {
+        const s = fromRecords({
+            directed: true,
+            nodes: [{ id: "" }, { id: "b" }],
+            edges: [{ source: "", target: "b" }],
+        }).snapshot;
+        expect(csvExporter.check(s).map((n) => [n.code, n.count])).toEqual([[CSV_LOSS.ID_CHARSET, 1]]);
+        expect(() => csvExporter.export(s)).toThrow(/empty string/);
+        // the node table keeps the id
+        expect(csvExporter.check(s, { table: "nodes" })).toEqual([]);
+        const nodes = await csvExporter.exportToString(s, { table: "nodes" });
+        expect((await importCsv(nodes, { table: "nodes" })).ids.toArray()).toEqual(["", "b"]);
+    });
+
     it("reports ids whose type changes under the canonical re-read", () => {
         const s = fromRecords({
             directed: true,
@@ -714,5 +728,30 @@ describe("CSV export: the notes are about the table written", () => {
         expect(notes.find((n) => n.code === LOSS.GRAPH_ATTRIBUTES)?.columns).toEqual(["title", "year"]);
         expect(notes.find((n) => n.code === CSV_LOSS.NODE_TABLE)?.columns).toEqual(["tags", "name"]);
         expect(notes.some((n) => n.column === "hops")).toBe(true);
+    });
+});
+
+describe("csvExporter: spreadsheetSafe", () => {
+    const s = fromRecords({
+        directed: true,
+        nodes: [{ id: "=1+1", note: "@SUM(A1)", n: -5 }, { id: "b" }],
+        edges: [{ source: "=1+1", target: "b" }],
+    }).snapshot;
+
+    it("writes formula-like cells as is by default", async () => {
+        const text = await csvExporter.exportToString(s, { table: "nodes" });
+        expect(text).toContain("=1+1,@SUM(A1),-5");
+    });
+
+    it("prefixes formula-like cells with a quote in every table, numbers left alone", async () => {
+        expect(await csvExporter.exportToString(s, { table: "nodes", spreadsheetSafe: true })).toContain(
+            "'=1+1,'@SUM(A1),-5",
+        );
+        expect(await csvExporter.exportToString(s, { spreadsheetSafe: true })).toContain("'=1+1,b");
+        expect(await csvExporter.exportToString(s, { table: "adjacency", spreadsheetSafe: true })).toBe("'=1+1,b\n");
+    });
+
+    it("rejects a non-boolean", () => {
+        expect(() => csvExporter.check(s, { spreadsheetSafe: "yes" as unknown as boolean })).toThrow(/spreadsheetSafe/);
     });
 });

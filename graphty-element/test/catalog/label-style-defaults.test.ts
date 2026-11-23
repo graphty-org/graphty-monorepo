@@ -4,7 +4,7 @@ import { LABEL_STYLE_DEFAULTS, LABEL_STYLE_FIELDS } from "../../src/catalog";
 
 describe("LABEL_STYLE_DEFAULTS", () => {
     it("gives the values a label draws when nothing sets them, in the label vocabulary", () => {
-        assert.equal(LABEL_STYLE_DEFAULTS.font, "Verdana");
+        assert.equal(LABEL_STYLE_DEFAULTS.font, "Verdana, sans-serif");
         assert.equal(LABEL_STYLE_DEFAULTS.sizePx, 48);
         assert.equal(LABEL_STYLE_DEFAULTS.weight, "normal");
         assert.equal(LABEL_STYLE_DEFAULTS.marginTop, 5);

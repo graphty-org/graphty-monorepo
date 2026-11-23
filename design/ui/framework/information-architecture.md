@@ -151,7 +151,7 @@ Size classes (0, 1, a few, many, very many) and their numbers are `state-matrix.
 | **Graphs** (Graph panel, first section) | graph entry | 1 to many | a hand order, a new graph last and the list never sorted, because condition comparison and network evolution give graphs a meaningful order (before and after, time slices); flat; a derived graph subtitled by its source | ten or more when comparing conditions; collapses only on its toggle; past a screen, Find |
 | **Sets and paths** (Graph panel, object list) | set, path | 0 to many | newest first; one mixed list, the kind on each row | a loaded set collection (a GMT file) is one folded row named by its source; shares the panel's lower region with Styles through a split handle; past a screen, Find; never lists nodes |
 | **Styles** (Graph panel, below Sets and paths, in Figma's Layers slot; placement decided in section 11) | style layer | a few to many | the stack: order is precedence, the top layer wins each channel; never sorted; the source shown on each row as a word | one list at every count, with no search field of its own: Find looks layers up by name and its hits narrow the list without reordering it, as Figma's Find takes over its Layers list; at rest a count cut, with a run of layers that paint nothing collapsed in place into one "N layers paint nothing" row (`interaction-pattern-entries.md` 6.8; counts, `state-matrix.md` 7); a **Source** facet narrows it to what one recipe or run brought |
-| **Views** (Graph panel, last section, collapsed to its header by default) | saved view | 0 to many | an order the analyst sets, never sorted; a new view goes last; the findings report's page order | Find; the view menu, in the same order |
+| **Views** (the Views place on the rail: Cameras, then Video tours) | saved camera | 0 to many | an order the analyst sets, never sorted; a new view goes last; the findings report's page order | Find; the view menu, in the same order |
 | **Members** (a set's or group's inspector) | node | a few to very many | by the sort named on its header: degree by default; a metric the analyst picks stays until changed | its cap (`interface-specification.md` 4.1a), then "N more" opens the table on the object's members |
 | **Path members** (a path's inspector) | node, edge | a few to very many | the walk order; never sorted | a long path shows its first hops, then opens the table |
 | **Results** (Results panel, "In this project") | result, runs | 0 to many | a strip of results that need action; a fixed band of partitions with no run (Connected components, then each Partition by, in creation order), because each offers items that need an item tab; then by latest run, newest first, runs folded beneath (a saved comparison is a run under its comparison result) | the strip holds what the element reports failed or not current and never reorders the list; the graph scope; a **Source** facet narrows it to what one recipe brought |
@@ -357,7 +357,7 @@ Graph
     [context menu on focused set rows]
       Select members / Union / Subtract / Intersect / Exclude
   Styles
-    Community colors / Degree sizes / Base style
+    Community colors / Degree sizes / Everything
     [style-layer editor, opened from a layer's row]
       Selector / Encodings / Notes / Used by
   Views
@@ -739,9 +739,10 @@ structural ones, each with its reason:
   rows without changing a count (8.1).
 - **An inspector that shows the last-activated row:** a hidden mode; the canvas selection and the
   inspector would describe different things (`interaction-patterns.md` 3.1).
-- **App-defined algorithm families** ("paths and flow", "time", "anomaly"): families are the
-  element's categories, so every consumer sees one grouping. The old time family's outputs are
-  readings of a series result (`output-homes.md` 2).
+- **Algorithm families the element does not publish** ("paths and flow", "time", "anomaly") as
+  catalog data: an algorithm's family is a fact the element publishes, and the Catalog's grouping
+  and headings are the app's to choose from it (`CLAUDE.md`, "graphty-element is neutral about presentation"). The old time family's
+  outputs are readings of a series result (`output-homes.md` 2).
 - **Pattern search and a Matches item tab.** Withdrawn: the element has no pattern algorithm
   (`conceptual-model.md` 1.5). If one arrives, its occurrences are items and take the Items row.
 - **Layouts as Catalog rows:** a layout makes positions, not a result.
@@ -790,9 +791,9 @@ tests** on grayscale wireframes of the controls a tree test cannot score, the ve
 selection state among them, and a decision study of where the style stack lives (section 11),
 because a tree test removes the layout that "always visible" depends on;
 and a **comprehension test** of the state words and marks. Plus one study of the Catalog's
-grouping. **A result against the element's families is filed as an element need**
-(`element-needs.md`, element categories or catalog aliases), never as an app regrouping, because
-the families are the element's. Methods, bars, tasks, keys and schedule:
+grouping. **A result against the grouping is the app's to act on**, since grouping is presentation; a
+missing fact about an algorithm (a family it belongs to, an alias) is filed as an element need
+(`element-needs.md`, element categories or catalog aliases). Methods, bars, tasks, keys and schedule:
 `research/study-schedule.md`.
 
 **Findability at scale** validates that the structure holds as collections and graphs grow:

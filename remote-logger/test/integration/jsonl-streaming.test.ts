@@ -50,15 +50,11 @@ describe("JSONL streaming integration", () => {
     });
 
     afterEach(async () => {
-        // Close server and wait for it to fully shut down
+        // Close server and wait for it to fully shut down. No deadline of its own: the one hang
+        // guard (tools/test-wait-guard.mjs) ends a close that never finishes, and dropping the
+        // kept-alive connections is what lets it finish.
         await new Promise<void>((resolve, reject) => {
-            // Set a timeout for server close
-            const timeout = setTimeout(() => {
-                reject(new Error("Server close timeout"));
-            }, 5000);
-
             server.close((err) => {
-                clearTimeout(timeout);
                 if (err) {
                     // Ignore "not running" errors
                     if ((err as NodeJS.ErrnoException).code !== "ERR_SERVER_NOT_RUNNING") {
@@ -68,6 +64,7 @@ describe("JSONL streaming integration", () => {
                 }
                 resolve();
             });
+            server.closeAllConnections();
         });
 
         // Close JSONL writer

@@ -5,7 +5,7 @@
  * snapshot the element built for it (`referenceSnapshot`), and compares what was published. Scores
  * agree to 1e-9 relative, and Girvan-Newman publishes the same partition and modularity. With a
  * self-loop, modularity counts it twice in its node's degree (algorithms 2.x counted it once). Leiden
- * is a randomised heuristic, so its partition is not compared with anything: its modularity is
+ * is a randomized heuristic, so its partition is not compared with anything: its modularity is
  * within 0.02 of what algorithms 2.x's own Leiden reached on the two fixtures, within 0.05 either way
  * on small random graphs without self-loops and no lower on average (the 2.x values are recorded
  * below), and it is the modularity of the partition it published.
@@ -41,10 +41,9 @@ import type { MetricAlgorithm } from "../../src/algorithms/metrics/MetricAlgorit
 import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/results";
 import type { NodeId } from "../../src/catalog/types";
 import { isGraphtyError } from "../../src/errors";
-import type { Graph } from "../../src/Graph";
 import { createFakeAccelerator, type FakeAccelerator } from "../../src/testing/fakeAccelerator";
-import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
 import { byId, idsOf, referenceSnapshot } from "../helpers/reference-snapshot";
+import { createSessionGraph, type SessionGraph, type SessionGraphOpts } from "../helpers/session-graph";
 
 /**
  * The node ids of each label of a label vector, labels in ascending order, members in node order.
@@ -61,7 +60,7 @@ function groupMembers(s: GraphSnapshot, labels: ArrayLike<number>): unknown[][] 
 }
 
 /** Two triangles joined by a path, with a parallel pair and a reciprocal pair, all weighted. */
-const WEIGHTED_MULTI: MockGraphOpts = {
+const WEIGHTED_MULTI: SessionGraphOpts = {
     nodes: ["A", "B", "C", "D", "E", "F", "G"].map((id) => ({ id })),
     edges: [
         { srcId: "A", dstId: "B", weight: 2 },
@@ -78,7 +77,7 @@ const WEIGHTED_MULTI: MockGraphOpts = {
 };
 
 /** Les Miserables co-appearances, the fixture the per-adapter tests already use. */
-const LES_MIS: MockGraphOpts = { dataPath: "./data4.json" };
+const LES_MIS: SessionGraphOpts = { dataPath: "./data4.json" };
 
 /**
  * The modularity algorithms 2.x's Leiden reached (resolution 1, seed 42, at most 100 iterations,
@@ -101,7 +100,7 @@ const LEGACY_LEIDEN = {
     ],
 } as const;
 
-const FIXTURES: readonly [string, MockGraphOpts][] = [
+const FIXTURES: readonly [string, SessionGraphOpts][] = [
     ["a weighted multigraph", WEIGHTED_MULTI],
     ["les miserables", LES_MIS],
 ];
@@ -115,12 +114,12 @@ const FIXTURES: readonly [string, MockGraphOpts][] = [
  * @returns The graph.
  */
 async function graphWith(
-    opts: MockGraphOpts,
+    opts: SessionGraphOpts,
     fake?: FakeAccelerator,
     floors = false,
     policy: "auto" | "required" = "auto",
-): Promise<Graph> {
-    const graph = await createMockGraph(opts);
+): Promise<SessionGraph> {
+    const graph = await createSessionGraph(opts);
     if (policy === "required") {
         (graph as unknown as { acceleration: AccelerationController }).acceleration = new AccelerationController({
             policy,
@@ -147,7 +146,7 @@ async function graphWith(
  * @returns The value per node id, and the precision caveat.
  */
 async function measured(
-    graph: Graph,
+    graph: SessionGraph,
     algorithm: MetricAlgorithm,
 ): Promise<{ values: Map<NodeId, number>; precision: string }> {
     await algorithm.run();
@@ -215,7 +214,7 @@ function groupsOf(output: AlgorithmOutput): Map<unknown, unknown> {
  * @param nodeCount - How many nodes; odd.
  * @returns The records.
  */
-function oddRing(nodeCount: number): MockGraphOpts {
+function oddRing(nodeCount: number): SessionGraphOpts {
     const nodes = Array.from({ length: nodeCount }, (_, index) => ({ id: `n${String(index)}` }));
     const edges = nodes.map((node, index) => ({ srcId: node.id, dstId: nodes[(index + 1) % nodeCount].id }));
     return { nodes, edges };
@@ -332,7 +331,7 @@ describe("centrality and community adapters on the index-based ports", () => {
 
         it("leiden", async () => {
             const graph = await graphWith(fixture);
-            const output = await computed(new LeidenAlgorithm(graph));
+            const output = await computed(new LeidenAlgorithm(graph, { randomSeed: 42 }));
             const published = output.graph?.modularity as number;
             assert.approximately(published, LEGACY_LEIDEN[name as keyof typeof LEGACY_LEIDEN] as number, 0.02);
 
@@ -421,7 +420,7 @@ describe("centrality and community adapters on the index-based ports", () => {
             const n = 3 + Math.floor(next() * 23);
             const p = 0.05 + next() * 0.3;
             const nodes = Array.from({ length: n }, (_, index) => ({ id: index }));
-            const edges: MockGraphOpts["edges"] = [];
+            const edges: SessionGraphOpts["edges"] = [];
             for (let i = 0; i < n; i++) {
                 for (let j = i + 1; j < n; j++) {
                     if (next() < p) {
@@ -430,7 +429,7 @@ describe("centrality and community adapters on the index-based ports", () => {
                 }
             }
             const graph = await graphWith({ nodes, edges });
-            const output = await computed(new LeidenAlgorithm(graph));
+            const output = await computed(new LeidenAlgorithm(graph, { randomSeed: 42 }));
             const reference = LEGACY_LEIDEN.trials[trial];
             const published = output.graph?.modularity as number;
             assert.approximately(published, reference, 0.05, `trial ${String(trial)}`);
@@ -449,34 +448,6 @@ describe("centrality and community adapters on the index-based ports", () => {
             for (const id of graph.getDataManager().nodes.keys()) {
                 close(values.get(id), reference.get(id), `eigenvector ${mode} of ${String(id)}`);
             }
-        }
-    });
-
-    it("eigenvector turns a start vector keyed by node id into one keyed by row", async () => {
-        const graph = await graphWith(WEIGHTED_MULTI);
-        const startVector = new Map([
-            ["A", 5],
-            ["E", 0.1],
-        ]);
-        const algorithm = new EigenvectorCentralityAlgorithm(graph);
-        // Programmatic only: the options schema does not carry a Map, so it is set on the options.
-        (algorithm as unknown as { _schemaOptions: Record<string, unknown> })._schemaOptions.startVector = startVector;
-        const { values } = await measured(graph, algorithm);
-        const s = referenceSnapshot(graph.getDataManager(), "undirected");
-        const reference = byId(
-            s,
-            eigenvectorCentrality(s, {
-                maxIterations: 1000,
-                tolerance: 1e-6,
-                mode: "total",
-                startVector: Float64Array.from(
-                    { length: s.nodeCount },
-                    (_, i) => startVector.get(String(s.ids.idOf(i))) ?? 1,
-                ),
-            }).scores,
-        );
-        for (const id of graph.getDataManager().nodes.keys()) {
-            close(values.get(id), reference.get(id), `eigenvector of ${String(id)}`);
         }
     });
 

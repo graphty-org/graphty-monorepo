@@ -60,17 +60,18 @@ describe("a set door that resolves first, inside a transaction", () => {
     it("commits createFrom into the transaction, and a failure takes it back", async () => {
         const session = await sessionWithSets();
         const before = session.history.position;
-        let threw = false;
+        const failure = new Error("the batch failed");
+        let escaped: unknown = null;
         try {
             await session.transaction("from", async (tx) => {
                 await tx.sets.createFrom({ where: "data.rank > `1`" }, { name: "cd" });
-                throw new Error("the batch failed");
+                throw failure;
             });
-        } catch {
-            threw = true;
+        } catch (error) {
+            escaped = error;
         }
 
-        assert.isTrue(threw);
+        assert.strictEqual(escaped, failure, "the transaction rethrew the batch's own error");
         assert.strictEqual(session.history.position, before, "a step survived the failed transaction");
         assert.isUndefined(
             session.sets.list().find((set) => set.name === "cd"),

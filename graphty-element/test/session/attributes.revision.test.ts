@@ -1,55 +1,65 @@
 /**
- * @file The attribute writer and its per-field revisions (design/sets/sets-design.md 6.2). The
- * write paths through `Graph` and `DataManager` are in `test/browser/sets/attributes.revision.test.ts`.
+ * @file Per-field attribute revisions (design/sets/sets-design.md 6.2), moved by the graph
+ * primitives' `bumpFields` (session/project/graphOps.ts) on a record edit. Ingest and the
+ * repeated-edge policies through `Graph` and `DataManager` are in
+ * `test/browser/sets/attributes.revision.test.ts`.
  */
 
 import { assert, describe, it } from "vitest";
 
-import { inputCountersOf, replaceAttributes, writeAttributes } from "../../src/session/attributes";
+import { inputCountersOf } from "../../src/session/attributes";
+import { inputCountersOfSession } from "../../src/session/GraphSession";
+import { type Harness, makeSession } from "./helpers";
 
-describe("writeAttributes", () => {
-    it("writes the named fields and bumps only those", () => {
-        const counters = inputCountersOf({});
-        const data: Record<string, unknown> = { label: "a", weight: 1 };
+/**
+ * A session with two labeled, weighted nodes and one labeled edge between them, added through
+ * the session so every record is the graph primitives' to write.
+ * @returns the harness
+ */
+async function settled(): Promise<Harness> {
+    const harness = makeSession();
+    await harness.session.data.addNodes([
+        { id: "a", label: "a", weight: 1 },
+        { id: "b", label: "b", weight: 1 },
+    ]);
+    await harness.session.data.addEdges([{ source: "a", target: "b", label: "a" }]);
+    return harness;
+}
 
-        writeAttributes(counters.nodes, data, { label: "b" });
-        assert.deepEqual(data, { label: "b", weight: 1 });
-        assert.strictEqual(counters.nodes.of("label"), 1);
-        assert.strictEqual(counters.nodes.of("weight"), 0);
-        assert.strictEqual(counters.edges.of("label"), 0, "node writes leave edge revisions alone");
+describe("a record edit", () => {
+    it("bumps only the fields it wrote, on its own kind", async () => {
+        const harness = await settled();
+        const counters = inputCountersOfSession(harness.session);
+        const before = ["label", "weight", "id"].map((f) => counters.nodes.of(f));
+        const edgeLabel = counters.edges.of("label");
 
-        writeAttributes(counters.nodes, data, { id: "a", weight: 2 }, ["weight"]);
-        assert.deepEqual(data, { label: "b", weight: 2 }, "a key outside `fields` is not written");
-        assert.strictEqual(counters.nodes.of("weight"), 1);
-        assert.strictEqual(counters.nodes.of("id"), 0);
-    });
-
-    it("bumps a field even when the value did not change", () => {
-        const counters = inputCountersOf({});
-        const data: Record<string, unknown> = { label: "a" };
-        writeAttributes(counters.edges, data, { label: "a" });
-        assert.strictEqual(counters.edges.of("label"), 1);
-    });
-
-    it("advances the tick once per write", () => {
-        const counters = inputCountersOf({});
-        const before = counters.tick.value;
-        writeAttributes(counters.nodes, {}, { a: 1, b: 2 });
-        assert.strictEqual(counters.tick.value, before + 1);
-    });
-});
-
-describe("replaceAttributes", () => {
-    it("replaces the record and bumps every field of the old and the new", () => {
-        const counters = inputCountersOf({});
-        const owner = { data: { a: 1, b: 2 } as Record<string, unknown> };
-        const record = { b: 3, c: 4 };
-        replaceAttributes(counters.edges, owner, record);
-        assert.strictEqual(owner.data, record);
+        await harness.session.data.updateNodes([{ id: "a", values: { label: "b" } }]);
         assert.deepEqual(
-            ["a", "b", "c", "d"].map((f) => counters.edges.of(f)),
-            [1, 1, 1, 0],
+            ["label", "weight", "id"].map((f) => counters.nodes.of(f)),
+            [before[0] + 1, before[1], before[2]],
         );
+        assert.strictEqual(counters.edges.of("label"), edgeLabel, "node writes leave edge revisions alone");
+        harness.session.dispose();
+    });
+
+    it("bumps a field even when the value did not change", async () => {
+        const harness = await settled();
+        const counters = inputCountersOfSession(harness.session);
+        const [edge] = harness.session.data.edgePage().records;
+        assert.ok(edge !== undefined);
+        const before = counters.edges.of("label");
+        await harness.session.data.updateEdges([{ id: edge.id, values: { label: "a" } }]);
+        assert.strictEqual(counters.edges.of("label"), before + 1);
+        harness.session.dispose();
+    });
+
+    it("advances the tick once per write", async () => {
+        const harness = await settled();
+        const counters = inputCountersOfSession(harness.session);
+        const before = counters.tick.value;
+        await harness.session.data.updateNodes([{ id: "a", values: { label: "z", weight: 2 } }]);
+        assert.strictEqual(counters.tick.value, before + 1);
+        harness.session.dispose();
     });
 });
 

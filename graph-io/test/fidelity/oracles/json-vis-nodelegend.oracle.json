@@ -3,7 +3,7 @@
     "program": "vis-network",
     "version": "vis-network 9.1.9 (standalone), svgcanvas 2.6.0",
     "command": "new vis.Network(<div 1200x900>, { nodes: file.nodes, edges: file.edges }, file.options); once(\"stabilizationIterationsDone\"); stopSimulation(); net.renderer._redraw() onto an svgcanvas Context",
-    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring) and shadow blur (a shadow is drawn sharp); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
+    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed (with the paths added to it), a clip keeps its evenodd rule, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
     "svgKind": "vector",
     "canvas": {
         "width": 1200,
@@ -29,6 +29,284 @@
             "x": 25.800972776837057,
             "y": -50.980439829705574
         }
+    },
+    "drawn": {
+        "about": "vis-network's own account of where it drew each node, for naming the SVG's shapes: each node's id, its center (net.getPositions() through net.canvasToDOM) and its bounding box's width and height and its corners (box: net.getBoundingBox through net.canvasToDOM; the box holds a label drawn below the shape, so it is not centered on the node), in the SVG's pixels",
+        "nodes": [
+            {
+                "id": "1",
+                "x": 476.19902722316294,
+                "y": 555.9804398297056,
+                "w": 73.9580078125,
+                "h": 78,
+                "box": {
+                    "x0": 439.60205659123335,
+                    "y0": 523.7647542984744,
+                    "x1": 513.5600644037333,
+                    "y1": 601.7647542984744
+                }
+            },
+            {
+                "id": "2",
+                "x": 904.199027223163,
+                "y": 640.9804398297056,
+                "w": 73.9580078125,
+                "h": 70.88888888888891,
+                "box": {
+                    "x0": 867.3474835942257,
+                    "y0": 612.7830199547831,
+                    "x1": 941.3054914067257,
+                    "y1": 683.671908843672
+                }
+            },
+            {
+                "id": "3",
+                "x": 262.19902722316294,
+                "y": 195.98043982970557,
+                "w": 73.9580078125,
+                "h": 63.77777777777783,
+                "box": {
+                    "x0": 224.76709473270643,
+                    "y0": 170.81923145286441,
+                    "x1": 298.7251025452064,
+                    "y1": 234.59700923064224
+                }
+            },
+            {
+                "id": "10",
+                "x": 329.19902722316294,
+                "y": 691.9804398297056,
+                "w": 81.744140625,
+                "h": 78,
+                "box": {
+                    "x0": 288.7846524372112,
+                    "y0": 660.0731333057008,
+                    "x1": 370.5287930622112,
+                    "y1": 738.0731333057008
+                }
+            },
+            {
+                "id": "11",
+                "x": 292.19902722316294,
+                "y": 514.9804398297056,
+                "w": 80.705078125,
+                "h": 67.33333333333337,
+                "box": {
+                    "x0": 251.76662375267915,
+                    "y0": 488.3068447704136,
+                    "x1": 332.47170187767915,
+                    "y1": 555.640178103747
+                }
+            },
+            {
+                "id": "12",
+                "x": 558.199027223163,
+                "y": 392.9804398297056,
+                "w": 81.744140625,
+                "h": 53.11111111111114,
+                "box": {
+                    "x0": 516.8666278118903,
+                    "y0": 373.56495210113127,
+                    "x1": 598.6107684368903,
+                    "y1": 426.6760632122424
+                }
+            },
+            {
+                "id": "100",
+                "x": 772.199027223163,
+                "y": 639.9804398297056,
+                "w": 89.5302734375,
+                "h": 46,
+                "box": {
+                    "x0": 727.616414891063,
+                    "y0": 624.3388447807246,
+                    "x1": 817.146688328563,
+                    "y1": 670.3388447807246
+                }
+            },
+            {
+                "id": "101",
+                "x": 985.199027223163,
+                "y": 770.9804398297056,
+                "w": 89.53027343750011,
+                "h": 46,
+                "box": {
+                    "x0": 940.1528805974657,
+                    "y0": 754.5008047081651,
+                    "x1": 1029.6831540349658,
+                    "y1": 800.5008047081651
+                }
+            },
+            {
+                "id": "102",
+                "x": 844.199027223163,
+                "y": 775.9804398297056,
+                "w": 89.5302734375,
+                "h": 46,
+                "box": {
+                    "x0": 799.9290992908241,
+                    "y0": 759.6851619145283,
+                    "x1": 889.4593727283241,
+                    "y1": 805.6851619145283
+                }
+            },
+            {
+                "id": "103",
+                "x": 1001.199027223163,
+                "y": 523.9804398297056,
+                "w": 89.5302734375,
+                "h": 60.22222222222217,
+                "box": {
+                    "x0": 956.200227854896,
+                    "y0": 500.9272423440618,
+                    "x1": 1045.730501292396,
+                    "y1": 561.149464566284
+                }
+            },
+            {
+                "id": "104",
+                "x": 859.199027223163,
+                "y": 506.9804398297056,
+                "w": 89.5302734375,
+                "h": 46,
+                "box": {
+                    "x0": 814.8116187681801,
+                    "y0": 490.7928049881332,
+                    "x1": 904.3418922056801,
+                    "y1": 536.7928049881332
+                }
+            },
+            {
+                "id": "201",
+                "x": 1056.1990272231628,
+                "y": 650.9804398297056,
+                "w": 89.53027343750023,
+                "h": 46,
+                "box": {
+                    "x0": 1011.0461101691965,
+                    "y0": 634.6384737929702,
+                    "x1": 1100.5763836066967,
+                    "y1": 680.6384737929702
+                }
+            },
+            {
+                "id": "202",
+                "x": 196.19902722316294,
+                "y": 76.98043982970557,
+                "w": 89.5302734375,
+                "h": 56.66666666666663,
+                "box": {
+                    "x0": 151.02205272447287,
+                    "y0": 56.06115623202567,
+                    "x1": 240.55232616197287,
+                    "y1": 112.7278228986923
+                }
+            },
+            {
+                "id": "204",
+                "x": 483.19902722316294,
+                "y": 797.9804398297056,
+                "w": 64,
+                "h": 78,
+                "box": {
+                    "x0": 451.3151215073083,
+                    "y0": 765.9388437679743,
+                    "x1": 515.3151215073083,
+                    "y1": 843.9388437679743
+                }
+            },
+            {
+                "id": "230",
+                "x": 146.19902722316294,
+                "y": 249.98043982970557,
+                "w": 89.5302734375,
+                "h": 49.55555555555554,
+                "box": {
+                    "x0": 101.20139417108129,
+                    "y0": 232.22946206321353,
+                    "x1": 190.7316676085813,
+                    "y1": 281.7850176187691
+                }
+            },
+            {
+                "id": "231",
+                "x": 368.19902722316294,
+                "y": 124.98043982970557,
+                "w": 89.5302734375,
+                "h": 49.55555555555554,
+                "box": {
+                    "x0": 322.96162949342624,
+                    "y0": 107.58299767470265,
+                    "x1": 412.49190293092624,
+                    "y1": 157.1385532302582
+                }
+            },
+            {
+                "id": "1000",
+                "x": 659.199027223163,
+                "y": 378.9804398297056,
+                "w": 47.4755859375,
+                "h": 46,
+                "box": {
+                    "x0": 635.1450875213382,
+                    "y0": 363.02579756146343,
+                    "x1": 682.6206734588382,
+                    "y1": 409.02579756146343
+                }
+            },
+            {
+                "id": "1001",
+                "x": 699.199027223163,
+                "y": 481.9804398297056,
+                "w": 41.234375,
+                "h": 46,
+                "box": {
+                    "x0": 678.8761247750949,
+                    "y0": 465.7111947371954,
+                    "x1": 720.1104997750949,
+                    "y1": 511.7111947371954
+                }
+            },
+            {
+                "id": "1002",
+                "x": 576.199027223163,
+                "y": 386.9804398297056,
+                "w": 41.234375,
+                "h": 46,
+                "box": {
+                    "x0": 555.4930876697975,
+                    "y0": 371.3781208393076,
+                    "x1": 596.7274626697975,
+                    "y1": 417.3781208393076
+                }
+            },
+            {
+                "id": "1003",
+                "x": 670.199027223163,
+                "y": 487.9804398297056,
+                "w": 61.46875,
+                "h": 45.99999999999994,
+                "box": {
+                    "x0": 639.8387878930575,
+                    "y0": 471.913263007313,
+                    "x1": 701.3075378930575,
+                    "y1": 517.9132630073129
+                }
+            },
+            {
+                "id": "1004",
+                "x": 578.199027223163,
+                "y": 421.9804398297056,
+                "w": 76.2685546875,
+                "h": 46,
+                "box": {
+                    "x0": 539.8370222178777,
+                    "y0": 405.49346761099486,
+                    "x1": 616.1055769053777,
+                    "y1": 451.49346761099486
+                }
+            }
+        ]
     },
     "pageErrors": []
 }

@@ -13,7 +13,13 @@
 // Installs Mesh.prototype.thinInstanceSetBuffer and its siblings. See EdgeLineBatch.
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import { Constants, type Matrix, Mesh, MeshBuilder, RawTexture, type Scene, ShaderMaterial } from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import type { Matrix } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import {
     fontLigatures,

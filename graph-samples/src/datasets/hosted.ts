@@ -43,7 +43,7 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
             "Citations among the computer-science arXiv papers indexed by the Microsoft Academic Graph, from the Open Graph Benchmark. An arc runs from the citing paper to the cited one. Each paper carries its publication year and its arXiv subject area, one of 40 (the ground truth); the benchmark's 128-dimensional text features are not included.",
         citation:
             "W. Hu, M. Fey, M. Zitnik, Y. Dong, H. Ren, B. Liu, M. Catasta and J. Leskovec, Open Graph Benchmark: Datasets for Machine Learning on Graphs, NeurIPS 2020. arXiv:2005.00687; K. Wang, Z. Shen, C. Huang, C.-H. Wu, Y. Dong and A. Kanakia, Microsoft Academic Graph: When experts are not enough, Quantitative Science Studies 1(1), 396-413 (2020). doi:10.1162/qss_a_00021",
-        source: "http://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip",
+        source: "https://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip",
         license: "ODC-BY 1.0 (Open Data Commons Attribution License), as stated by the Open Graph Benchmark.",
         nodes: 169343,
         edges: 1166243,

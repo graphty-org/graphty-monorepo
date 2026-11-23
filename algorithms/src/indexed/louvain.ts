@@ -1,11 +1,11 @@
 import { type GraphSnapshot, renumberPartition } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { checkNumber, checkWeights, withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
 
 /** Options of the index-based Louvain, matching the legacy `louvain`. @public */
 export interface LouvainOptions {
-    /** Resolution gamma: above 1 favours smaller communities; default 1. */
+    /** Resolution gamma: above 1 favors smaller communities; default 1. */
     readonly resolution?: number | undefined;
     /** Cap on aggregation levels, and on node visits per node within a level; default 100. */
     readonly maxIterations?: number | undefined;
@@ -25,7 +25,7 @@ export interface LouvainResult extends LabelResult {
  * One level of the Louvain hierarchy as a weighted adjacency with the self-loops lifted out.
  *
  * Self-loops live in `loop` rather than in the arc list, so the local-moving loop never meets a
- * node as its own neighbour, and `deg` (the null-model term) counts a self-loop twice, which is
+ * node as its own neighbor, and `deg` (the null-model term) counts a self-loop twice, which is
  * the NetworkX weighted-degree convention: summing `deg` gives 2m at every level.
  */
 interface Level {
@@ -33,7 +33,7 @@ interface Level {
     readonly n: number;
     /** n + 1 row offsets into colIdx / w. */
     readonly rowPtr: Uint32Array;
-    /** Neighbour of every arc; no arc targets its own row. */
+    /** Neighbor of every arc; no arc targets its own row. */
     readonly colIdx: Uint32Array;
     /** Weight of every arc. */
     readonly w: Float64Array;
@@ -132,16 +132,16 @@ function modularityOf(level: Level, comm: Uint32Array, count: number, resolution
 }
 
 /**
- * Phase one: move each node to the neighbouring community with the largest modularity gain, until
+ * Phase one: move each node to the neighboring community with the largest modularity gain, until
  * no move is left to make.
  *
  * Nodes wait in a queue rather than in repeated sweeps over all of them, which is what makes this
  * affordable on a graph with no community structure: there the last moves are worth a millionth of
  * a point each and go on for dozens of passes, and a pass costs every node and every arc whether or
- * not anything can move. A node enters the queue when a neighbour leaves its community, so the tail
+ * not anything can move. A node enters the queue when a neighbor leaves its community, so the tail
  * of the run costs the handful of nodes that can still move. Same fixed point, and it is the rule
  * networkx's `louvain_communities` follows.
- * @param level - The level to optimise
+ * @param level - The level to optimize
  * @param comm - Output: community of every node, overwritten with the singleton partition first
  * @param resolution - Resolution gamma
  * @param m2 - Twice the total edge weight
@@ -199,7 +199,7 @@ function localMove(level: Level, comm: Uint32Array, resolution: number, m2: numb
 }
 
 /**
- * Queue again every neighbour of u not queued and outside u's new community: only those can gain
+ * Queue again every neighbor of u not queued and outside u's new community: only those can gain
  * from u's move.
  * @param level - The level
  * @param comm - Community of every node
@@ -234,7 +234,7 @@ function requeueOutside(
 }
 
 /**
- * Sum the weight from u to each neighbouring community into `acc`, listing them in `touched`.
+ * Sum the weight from u to each neighboring community into `acc`, listing them in `touched`.
  * @param level - The level
  * @param comm - Community of every node
  * @param u - The node
@@ -366,7 +366,7 @@ function emitRow(
 /**
  * Phase two: every community becomes one node, the edges between two communities merge into one
  * arc, and the edges inside a community become that node's self-loop. Rows are NOT sorted by
- * neighbour index; nothing downstream of here needs them to be.
+ * neighbor index; nothing downstream of here needs them to be.
  * @param level - The level to collapse
  * @param comm - Dense community of every node of that level
  * @param count - Number of communities
@@ -416,6 +416,26 @@ function aggregate(level: Level, comm: Uint32Array, count: number): Level {
 }
 
 /**
+ * Refuse a directed snapshot (`E_NEEDS_UNDIRECTED`), options out of range (`E_BAD_OPTION`) and NaN, infinite or
+ * negative weights (`E_BAD_WEIGHT`).
+ * @param s - The snapshot
+ * @param o - Algorithm options
+ * @internal
+ */
+export function checkLouvainOptions(s: GraphSnapshot, o: LouvainOptions | undefined): void {
+    if (s.directed) {
+        throw withCode(
+            new Error("Louvain requires an undirected graph. Pass s.toUndirected().snapshot."),
+            "E_NEEDS_UNDIRECTED",
+        );
+    }
+    checkNumber("louvain", "resolution", o?.resolution ?? 1, { min: 0 });
+    checkNumber("louvain", "maxIterations", o?.maxIterations ?? 100, { min: 0, integer: true });
+    checkNumber("louvain", "tolerance", o?.tolerance ?? 1e-6, { min: 0 });
+    checkWeights("louvain", s.weights);
+}
+
+/**
  * Louvain community detection over a snapshot: local moving to the best modularity gain, then
  * collapse each community into a node and repeat, until a level stops paying for itself.
  *
@@ -426,15 +446,12 @@ function aggregate(level: Level, comm: Uint32Array, count: number): Level {
  * @param s - An undirected snapshot
  * @param o - Algorithm options
  * @returns The partition, its modularity, and the number of levels that improved it
+ * @throws Error (code `E_NEEDS_UNDIRECTED`) on a directed snapshot; RangeError (code `E_BAD_OPTION` or
+ *   `E_BAD_WEIGHT`) for an option or weight out of range
  * @public
  */
 export function louvain(s: GraphSnapshot, o: LouvainOptions = {}): LouvainResult {
-    if (s.directed) {
-        throw withCode(
-            new Error("Louvain requires an undirected graph. Pass s.toUndirected().snapshot."),
-            "E_NEEDS_UNDIRECTED",
-        );
-    }
+    checkLouvainOptions(s, o);
     const resolution = o.resolution ?? 1;
     const maxIterations = o.maxIterations ?? 100;
     const tolerance = o.tolerance ?? 1e-6;

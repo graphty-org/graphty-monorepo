@@ -196,9 +196,10 @@ jobs:
               with:
                   node-version: 22.x
 
-            # Fails the deploy rather than publishing a site without the data fetchDataset() loads
+            # Fails the deploy rather than publishing a site without the data fetchDataset() loads, or with
+            # files whose metadata, bytes or sha256 differ from the committed graph-samples hosted.ts (--check)
             - name: Build graph-samples hosted datasets
-              run: node graph-samples/scripts/build-hosted.mjs --reuse-published
+              run: node graph-samples/scripts/build-hosted.mjs --reuse-published --check
 
             # The gazetteer the location map reads place names with (Natural Earth and GeoNames),
             # published at /data/gazetteer/v1/. Its sources are downloaded fresh on every deploy (no

@@ -1,16 +1,14 @@
 /**
  * @file The ceilings and caps the element runs under when nothing has measured this machine.
  *
- * `Capabilities.limits` is documented as MEASURED: `session.calibrate()` times the host and fills
- * it in. That probe does not exist yet, and until it does every consumer that needs one of these
- * numbers has to invent it -- which is how the one shipped consumer ended up carrying a
- * large-graph threshold of its own, ten times the element's, with nothing between the two to
- * notice they disagreed.
+ * These are SHIPPED DEFAULTS, not measurements of the machine this code is running on. Before
+ * they were published every consumer that needed one of these numbers had to invent it -- which is
+ * how the one shipped consumer ended up carrying a large-graph threshold of its own, ten times the
+ * element's, with nothing between the two to notice they disagreed.
  *
- * So these are published as what they are: SHIPPED DEFAULTS, not measurements of the machine this
- * code is running on. When `calibrate()` lands it replaces them and `Capabilities.calibration.basis`
- * turns from `"defaults"` into `"probe"`, which is how a consumer can tell which kind of number it
- * is holding.
+ * `session.calibrate()` measures this machine's THROUGHPUT, which the cost estimates read; it does
+ * not change these ceilings. `capabilities.calibration` says whether and when that probe ran, and
+ * its `basis` says whether it measured (`"probe"`) or fell back to the shipped rates (`"defaults"`).
  *
  * TWO OF THEM ARE ENFORCED, AND WERE MEASURED. `renderCeiling` and `edgesDrawn` were once the
  * design table's figures, 200,000 nodes and 500,000 edges, and nothing checked them. The renderer
@@ -53,28 +51,54 @@
  * always true of these numbers -- the previous 100,000-edge ceiling already drew at 328 ms a frame
  * -- but the constraint a reader feels has moved from the heap to the frame. Measured on a quiet
  * box, 60 fps holds to 40,000 edges and 30 fps to 80,000, which is the range `largeGraphThreshold`
- * exists to describe; it is 10,000 NODES today and nothing measured it. That is the next number.
+ * exists to describe; it is 10,000 NODES today and nothing measured it.
+ *
+ * NODE DETAIL IS CHOSEN BY TRIANGLES, AND THAT WAS MEASURED (issue #9548). Once the nodes' full
+ * meshes would draw more than `fullDetailTriangleBudget` triangles (the node count times
+ * {@link FULL_DETAIL_NODE_TRIANGLES}, the default icosphere's 320), a node no layer gives a
+ * `node.meshDetail` is drawn `"low"` (`StylePainter`, 20 triangles); a layer that sets one keeps
+ * it. Measured 2026-11-22 with `test/browser/node-detail-frame.bench.test.ts`: default icospheres
+ * on a grid, 1280 x 720, WebGL, median of 29 frames each waited out with `readPixels`, timed only
+ * once `waitForPainted()` and `waitForStableFrame()` resolved and the frame drew every node
+ * (issue #9632: timed earlier, 50,000 low-detail nodes drew a half-swapped scene and looked cheap):
+ *
+ * | nodes, detail | triangles | RTX 4070 SUPER | SwiftShader |
+ * | --- | --- | --- | --- |
+ * | 250 full | 80,000 | 1.4 ms | 22.1 ms |
+ * | 500 full | 160,000 | 1.7 ms | 39.5 ms |
+ * | 1,000 full | 320,000 | 2.5 ms | 65.6 ms |
+ * | 3,000 full | 960,000 | 3.2 ms | 252 ms |
+ * | 10,000 full | 3,200,000 | 15.4 ms | 728 ms |
+ * | 20,000 full | 6,400,000 | 28.0 ms | 1,283 ms |
+ * | 30,000 full | 9,600,000 | 40.1 ms | 2,554 ms |
+ * | 10,000 low | 200,000 | 16.4 ms | 132 ms |
+ * | 50,000 low | 1,000,000 | 40.8 ms | 434 ms |
+ *
+ * 30 fps holds to about 8 million triangles on that card and to about 130,000 in software. The
+ * default, 1,000,000, is about a tenth of the card's figure, for a GPU an order of magnitude slower
+ * (an integrated one): full detail up to 3,125 default nodes. Low detail pays in software (10,000
+ * nodes: 728 ms full, 132 ms low); on the card a frame of 10,000 or more nodes costs about the same
+ * at either detail, since there the cost is per node, not per triangle. A consumer that wants full
+ * detail on a larger graph raises the budget through `limits`, or sets `node.meshDetail` in a layer.
  *
  * WHAT THESE NUMBERS DO NOT COVER, and it is the same exclusion as before: a patterned line style
  * gives every dot and dash a mesh and a ShaderMaterial of its own (`PatternedLineRenderer`), and
  * an animated line is never batched. Under either, the heap runs out earlier than this says.
  *
- * ONE OF THE SIX FIELDS IS ABSENT, and it is worth saying why the other five are not.
+ * THE NAMES CARRY THEIR UNITS. Two used to collide with `CostGateLimits` and mean different
+ * things on each side: `exactComputationCap` was a node count here and seconds there, and
+ * `memoryBudgetBytes` was one graph's memory here and one run's published columns there. The
+ * memory one is `graphMemoryBudgetBytes` here and `runColumnBudgetBytes` on the gate. The node
+ * count, later `approximateAboveNodes`, is gone (issue #302): nothing read it, and size alone never
+ * swaps a method -- the gate approximates a run when its estimate passes `exactComputationSeconds`.
  *
- * Two names used to collide with `CostGateLimits` and mean different things on each side, so
- * neither could be published without teaching a consumer the wrong unit: `exactComputationCap`
- * was a node count here and seconds there, and `memoryBudgetBytes` was one graph's memory here
- * and one run's published columns there. Both now carry their unit in the name --
- * `approximateAboveNodes` and `graphMemoryBudgetBytes` here, `exactComputationSeconds` and
- * `runColumnBudgetBytes` on the gate -- so the collision is gone and with it the reason to
- * withhold a number.
- *
- * `graphMemoryBudgetBytes` is still absent, for the one reason that survives the rename: the
- * element API design's defaults table names no figure for it. There is nothing measured and
- * nothing designed to publish, and inventing one here is exactly what this file exists to stop a
- * consumer doing. It is omitted from the TYPE as well as from the value, so a reader cannot
- * reach a field that has no defensible answer. A consumer who wants the per-run budget already
- * has `DEFAULT_COST_GATE_LIMITS.runColumnBudgetBytes`.
+ * `graphMemoryBudgetBytes` IS DERIVED, NOT MEASURED. Its anchor is the 49 % row above: the
+ * largest graph the ceilings allow held about 2 GB of heap ({@link GRAPH_MEMORY_BUDGET_CAP_BYTES}),
+ * so no graph the element will load is expected to need more. A device that reports less memory
+ * (`navigator.deviceMemory`, in gigabytes) gets a quarter of what it reports, so a 2 GB phone is
+ * not promised a budget it cannot hold. A host that reports nothing gets the cap. Nothing in the
+ * element enforces it; it is what a consumer reads when deciding whether a graph will fit. The
+ * per-run budget is a different number, `DEFAULT_COST_GATE_LIMITS.runColumnBudgetBytes`.
  */
 
 import type { Limits } from "../acceleration";
@@ -82,12 +106,46 @@ import { GraphtyError } from "../errors/GraphtyError";
 import { DEFAULT_SELECTION_CAP } from "./selection";
 
 /**
- * The fields of {@link Limits} the element can state a defensible default for.
+ * The fields of {@link Limits} the element states a default for: all of them.
  *
- * The one it cannot is `graphMemoryBudgetBytes`, for which the design names no figure; see the
- * file comment.
+ * It once left out `graphMemoryBudgetBytes`, which now has a derived default; see the file comment.
  */
-export type DefaultableLimits = Omit<Limits, "graphMemoryBudgetBytes">;
+export type DefaultableLimits = Limits;
+
+/** The heap the largest graph the ceilings allow was measured to hold: 2 GiB. See the file comment. */
+export const GRAPH_MEMORY_BUDGET_CAP_BYTES = 2 * 1024 ** 3;
+
+/**
+ * The memory one graph may hold on a device that reports how much it has.
+ * @param deviceMemoryGb - `navigator.deviceMemory`, or undefined where the host does not report it.
+ * @returns A quarter of the device's memory, at most {@link GRAPH_MEMORY_BUDGET_CAP_BYTES}.
+ */
+export function graphMemoryBudgetFor(deviceMemoryGb: number | undefined): number {
+    if (deviceMemoryGb === undefined || !Number.isFinite(deviceMemoryGb) || deviceMemoryGb <= 0) {
+        return GRAPH_MEMORY_BUDGET_CAP_BYTES;
+    }
+
+    return Math.min(GRAPH_MEMORY_BUDGET_CAP_BYTES, Math.floor((deviceMemoryGb * 1024 ** 3) / 4));
+}
+
+/**
+ * Triangles in one node's full-detail mesh, the default shape: Babylon's icosphere of four
+ * subdivisions. What `fullDetailTriangleBudget` is counted in.
+ */
+export const FULL_DETAIL_NODE_TRIANGLES = 320;
+
+/**
+ * Whether a graph's nodes at full detail would draw past the budget, so a node no layer gives a
+ * detail is drawn low.
+ * @param nodes - How many nodes the graph holds.
+ * @param budget - `Limits.fullDetailTriangleBudget`.
+ * @returns True past the budget.
+ */
+export function fullDetailOverBudget(nodes: number, budget: number): boolean {
+    // ponytail: counts every node as the default shape; a "sphere" layer (thousands of triangles)
+    // is underestimated, which a per-shape count would fix if it matters.
+    return nodes * FULL_DETAIL_NODE_TRIANGLES > budget;
+}
 
 /**
  * What the element runs under until something measures this machine.
@@ -96,8 +154,16 @@ export type DefaultableLimits = Omit<Limits, "graphMemoryBudgetBytes">;
  * in step, and the element is the party that knows what its own renderer and its own passes cost.
  */
 export const DEFAULT_LIMITS: Readonly<DefaultableLimits> = Object.freeze({
-    /** Above this node count the element draws less visual detail. A shipped default, not measured. */
+    /**
+     * Above this node count the layout recommendation scatters at random. A shipped default, not
+     * measured.
+     */
     largeGraphThreshold: 10_000,
+    /**
+     * The most triangles the nodes' full-detail meshes may draw before a node no layer gives a
+     * detail is drawn at low detail. Measured (see the file comment), on one machine.
+     */
+    fullDetailTriangleBudget: 1_000_000,
     /**
      * The most nodes the element will hold. Enforced: a load past it fails with `E_TOO_LARGE`.
      * Measured (see the file comment), on one machine; not this machine's figure.
@@ -106,16 +172,17 @@ export const DEFAULT_LIMITS: Readonly<DefaultableLimits> = Object.freeze({
     /** The most elements one selection will hold before it refuses to grow. A shipped default, not measured. */
     selectionCap: DEFAULT_SELECTION_CAP,
     /**
+     * How much memory the element is willing to hold for one graph. Derived from the measured
+     * ceiling and the memory the device reports (see the file comment), not enforced.
+     */
+    graphMemoryBudgetBytes: graphMemoryBudgetFor(
+        (globalThis.navigator as { readonly deviceMemory?: number } | undefined)?.deviceMemory,
+    ),
+    /**
      * The most edges the element will hold. Enforced: a load past it fails with `E_TOO_LARGE`.
      * Measured (see the file comment), on one machine; not this machine's figure.
      */
     edgesDrawn: 1_000_000,
-    /**
-     * Above this NODE COUNT an approximable algorithm is approximated rather than computed
-     * exactly. A shipped default, not measured. Not to be confused with the cost gate's
-     * `exactComputationSeconds`, which is a duration and answers a different question.
-     */
-    approximateAboveNodes: 2_000,
     /**
      * The most nodes drawn as objects of their own on `render-path="batched"`; past it a row whose
      * look no batch draws is drawn as a plain body. The default ceiling, so it cannot bind at the
@@ -158,17 +225,24 @@ export function tooLargeError(
 
 /**
  * The ceilings a consumer asks for through `limits`: the most nodes and edges a load may bring,
- * and the most of each drawn as objects of their own (`objectRows`, `objectEdges`).
+ * the most of each drawn as objects of their own (`objectRows`, `objectEdges`), and the triangles
+ * full-detail nodes may draw (`fullDetailTriangleBudget`).
  *
- * Honored under `render-path="batched"`, whose rows cost no meshes of their own; under
- * `"objects"` the {@link DEFAULT_LIMITS} stand, because their reason (the heap a node of meshes
- * costs) still holds there. A field left out keeps its default.
+ * The ceilings are honored under `render-path="batched"`, whose rows cost no meshes of their own;
+ * under `"objects"` the {@link DEFAULT_LIMITS} stand, because their reason (the heap a node of
+ * meshes costs) still holds there. `fullDetailTriangleBudget` is honored on both paths. A field
+ * left out keeps its default.
  * @experimental cosmograph
  */
-export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges">>;
+export type LimitsOption = Partial<
+    Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges" | "fullDetailTriangleBudget">
+>;
 
-/** The fields of {@link LimitsOption}, in a fixed order. */
+/** The ceilings of {@link LimitsOption}, honored only under `"batched"`, in a fixed order. */
 const CEILING_KEYS = ["renderCeiling", "edgesDrawn", "objectRows", "objectEdges"] as const;
+
+/** Every field of {@link LimitsOption}: the ceilings, then the one honored on both paths. */
+const OPTION_KEYS = [...CEILING_KEYS, "fullDetailTriangleBudget"] as const;
 
 /**
  * The ceilings asked for and the ceilings in force, which differ while they are not honored.
@@ -231,7 +305,7 @@ export class RenderLimits {
      */
     request(value: LimitsOption): void {
         const next: LimitsOption = {};
-        for (const key of CEILING_KEYS) {
+        for (const key of OPTION_KEYS) {
             const ceiling = (value as LimitsOption | null | undefined)?.[key];
             if (ceiling === undefined) {
                 continue;
@@ -268,12 +342,17 @@ export class RenderLimits {
     }
 
     #settle(): void {
-        const next = this.#honored ? { ...DEFAULT_LIMITS, ...this.#requested } : DEFAULT_LIMITS;
-        if (CEILING_KEYS.every((key) => next[key] === this.#effective[key])) {
+        const asked = this.#requested.fullDetailTriangleBudget;
+        const next = this.#honored
+            ? { ...DEFAULT_LIMITS, ...this.#requested }
+            : { ...DEFAULT_LIMITS, ...(asked === undefined ? {} : { fullDetailTriangleBudget: asked }) };
+        if (OPTION_KEYS.every((key) => next[key] === this.#effective[key])) {
             return;
         }
 
-        this.#effective = next === DEFAULT_LIMITS ? DEFAULT_LIMITS : Object.freeze(next);
+        this.#effective = OPTION_KEYS.every((key) => next[key] === DEFAULT_LIMITS[key])
+            ? DEFAULT_LIMITS
+            : Object.freeze(next);
         for (const listener of [...this.#listeners]) {
             listener();
         }

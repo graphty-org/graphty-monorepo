@@ -42,6 +42,15 @@ describe("the oracle SVG reader on FreeHEP text", () => {
         assert.closeTo(width(FREEHEP, 'font-family="Calibri-Italic"'), width("", 'font-family="DejaVu Sans"'), 0.5);
     });
 
+    it("measures JFreeChart's Tahoma, which Java has no font of, in Dialog's DejaVu Sans", () => {
+        // images-charts-p7: JFreeChart spaced its "..." category names by their DejaVu Sans width, 19.07 at 20 units
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="100"><desc>${FREEHEP}</desc>
+            <text font-size="20" font-family="Tahoma" x="10" y="50">...</text></svg>`;
+        const t = readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text] : []))[0];
+        assert.closeTo(t.box.x1 - t.box.x0, 19.07, 0.1);
+        assert.closeTo(width(FREEHEP, 'font-family="Tahoma"'), width("", 'font-family="DejaVu Sans"'), 0.5);
+    });
+
     it("measures a Times text of Cytoscape desktop in DejaVu Serif", () => {
         assert.closeTo(width(FREEHEP, 'font-family="Times"'), width("", 'font-family="DejaVu Serif"'), 0.5);
     });

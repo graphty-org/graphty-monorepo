@@ -3,8 +3,7 @@
  * JSON.parse of the raw text and hand-written counting, never through the importer) and against the
  * quirks graphty-element's JsonDataSource and research note 07 sections 2.7-2.9 describe: the
  * dialect detection order, the id / endpoint key fallbacks, d3 index links, Cytoscape parents and
- * classes, JGF keyed nodes and hyperedges, graphology options, vis from / to. Tests named
- * "DEFECT:" pin a defect and fail until the importer is fixed.
+ * classes, JGF keyed nodes and hyperedges, graphology options, vis from / to.
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
@@ -118,7 +117,7 @@ describe("JSON corpus facts: sigma-format.json (graphology serialisation)", () =
         expect(doc.nodes.map((n) => n.attributes.x)).toEqual([0, 1, 2, 1.5, 0.5]);
     });
 
-    it("imports the graphology dialect: directed, keys as edge ids, weights with an f64 shadow, x widened to f64", async () => {
+    it("imports the graphology dialect: directed, keys as edge ids, weights with an f64 shadow, x / y as the position", async () => {
         const { snapshot, freeze } = await load("sigma-format.json");
         expect(dialectOf(snapshot)).toBe("graphology");
         expect(snapshot.directed).toBe(true);
@@ -130,16 +129,17 @@ describe("JSON corpus facts: sigma-format.json (graphology serialisation)", () =
         expect(weight?.dtype).toBe("f64");
         expect([0, 1, 2, 3, 4].map((e) => weight?.value(e))).toEqual([1, 2, 1.5, 1, 0.8]);
         expect(snapshot.edgeList().weights?.[4]).toBe(Math.fround(0.8));
+        const position = snapshot.nodes.byRole("position");
+        expect(position?.dtype).toBe("f64");
         for (let i = 0; i < 5; i++) {
             const attrs = doc.nodes[i].attributes;
             expect(snapshot.nodes.value("label", i)).toBe(attrs.label);
-            expect(snapshot.nodes.value("x", i)).toBe(attrs.x);
-            expect(snapshot.nodes.value("y", i)).toBe(attrs.y);
+            expect(Array.from(position?.value(i) as ArrayLike<number>)).toEqual([attrs.x, attrs.y, 0]);
             expect(snapshot.nodes.value("size", i)).toBe(attrs.size);
         }
-        expect(snapshot.nodes.get("x")?.dtype).toBe("f64");
-        expect(snapshot.nodes.get("y")?.dtype).toBe("i32");
-        expect(freeze.widened).toEqual([{ column: "x", domain: "node", from: "i32", to: "f64" }]);
+        expect(snapshot.nodes.get("x")).toBeNull();
+        expect(snapshot.nodes.get("y")).toBeNull();
+        expect(freeze.widened).toEqual([]);
     });
 });
 
@@ -320,10 +320,9 @@ describe("JSON quirks from JsonDataSource and research note 07", () => {
         expect(Object.is(negativeZero.snapshot.ids.idOf(0), 0)).toBe(true);
     });
 
-    it("DEFECT: an out-of-range d3 index link must be an error, not silently become new numeric nodes", async () => {
+    it("an out-of-range d3 index link is an E_BAD_INDEX error, never new numeric nodes", async () => {
         // With name-only nodes an integer endpoint can only be an array index (note 07: d3 links
-        // reference nodes by ARRAY INDEX and must not be coerced). indexLinks "auto" flips to false
-        // when one index is out of range, and the integers are then added as nodes 5 and 0.
+        // reference nodes by ARRAY INDEX and must not be coerced), so 5 must not become a node.
         const { snapshot, report } = await parse({
             nodes: [{ name: "A" }, { name: "B" }],
             links: [{ source: 5, target: 0 }],

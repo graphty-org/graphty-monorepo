@@ -4,8 +4,6 @@ import type { LayerSpec, StaticStyle } from "../../src/catalog/types";
 import type { AdHocData, EdgeStyleConfig, StyleSchemaV1, ViewMode } from "../../src/config";
 import type { Edge } from "../../src/Edge";
 import { Graph } from "../../src/Graph";
-import type { DataManager } from "../../src/managers/DataManager";
-import type { LayoutManager } from "../../src/managers/LayoutManager";
 import type { ArrowCap } from "../../src/meshes/ArrowCapBatch";
 import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 
@@ -29,16 +27,6 @@ export function isDisposed(mesh: AbstractMesh | PatternedLineMesh | ArrowCap): b
     }
 
     return false;
-}
-
-/**
- * Type helper to access private Graph members in tests.
- * Uses Omit to remove the private members first, then re-add them as public.
- * This avoids TypeScript's intersection reduction to 'never'.
- */
-export interface TestGraph extends Omit<Graph, "dataManager" | "layoutManager"> {
-    dataManager: DataManager;
-    layoutManager: LayoutManager;
 }
 
 /**
@@ -102,7 +90,7 @@ export function edgeStyleConfig(opts: {
 }
 
 /**
- * Set part of the behaviour half of a graph's configuration document.
+ * Set part of the behavior half of a graph's configuration document.
  *
  * Goes through the graph's own public verb, which merges one level deep, so naming
  * `layout.preSteps` leaves the other pacing settings alone.
@@ -125,7 +113,7 @@ export function setBehavior(
  * WHAT THIS REPLACES. Every one of these settings used to arrive as a whole style template --
  * forty lines of document to say "2D, circular layout, do not pin on drag" -- and applying one
  * rewrote every other setting in it. Each is its own verb now, and this is only their order:
- * the behaviour document first, because the layout reads it as it starts, then the view mode,
+ * the behavior document first, because the layout reads it as it starts, then the view mode,
  * then the layout.
  * @param graph - The graph to configure.
  * @param options - What to set. Anything left out keeps the value it had.

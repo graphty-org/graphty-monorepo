@@ -363,7 +363,7 @@ When `maxIterations` passes do not meet `tolerance` it throws an error whose `co
 | Option          | Type                             | Default    | Meaning                                                                                                                                                                               |
 | --------------- | -------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `maxIterations` | `number`                         | `100`      | Iteration cap.                                                                                                                                                                        |
-| `tolerance`     | `number`                         | `0.000001` | Per-node tolerance: the run stops when the L1 change is below `n * tolerance`.                                                                                                        |
+| `tolerance`     | `number`                         | `0.000001` | Relative tolerance: the run stops at the first pass whose L1 change from the previous pass is below `tolerance` times the L1 norm of the pass, whatever the node count.               |
 | `normalized`    | `boolean`                        | `true`     | Rescale the unit-length vector to [0, 1] by min-max.                                                                                                                                  |
 | `mode`          | `"in" \| "out" \| "total"`       | `"in"`     | Which arcs feed a node: `"in"` (as networkx) the nodes pointing at it, `"out"` the nodes it points at, `"total"` both. `"in"` and `"out"` need `directed: true` and throw without it. |
 | `startVector`   | `(node: NodeSingular) => number` | uniform    | Starting value of each node.                                                                                                                                                          |
@@ -525,10 +525,11 @@ A minimum cut found by random contraction over many trials: the lightest set of 
 
 Returns `CutResult`. Reads edge weights from `weight`. No Async twin: it runs on the CPU only.
 
-| Option       | Type     | Default | Meaning                                                          |
-| ------------ | -------- | ------- | ---------------------------------------------------------------- |
-| `randomSeed` | `number` | `42`    | Seed of the edge orders; one seed gives one result, bit for bit. |
-| `iterations` | `number` | `100`   | Independent contraction trials; the lightest cut found wins.     |
+| Option       | Type     | Default | Meaning                                                                                                     |
+| ------------ | -------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `seed`       | `number` | `42`    | Seed of the edge orders; an integer, one seed gives one result, bit for bit.                                |
+| `randomSeed` | `number` |         | The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major. |
+| `iterations` | `number` | `100`   | Independent contraction trials; the lightest cut found wins.                                                |
 
 ### `graphtyKatzCentrality`
 
@@ -536,13 +537,13 @@ Influence counted over walks of every length, the shorter walks counting more.
 
 Returns `ScoreResult & { iterations: number; converged: boolean; }`. Reads edge weights from `weight`. Async twin, which can run on the GPU: `graphtyKatzCentralityAsync`.
 
-| Option          | Type      | Default    | Meaning                                                  |
-| --------------- | --------- | ---------- | -------------------------------------------------------- |
-| `maxIterations` | `number`  | `100`      | Iteration cap.                                           |
-| `tolerance`     | `number`  | `0.000001` | Convergence tolerance on the largest single-node change. |
-| `normalized`    | `boolean` | `true`     | Rescale the scores to [0, 1] by min-max.                 |
-| `alpha`         | `number`  | `0.1`      | Attenuation factor applied to a neighbor's score.        |
-| `beta`          | `number`  | `1`        | Base score every node starts with and keeps.             |
+| Option          | Type      | Default    | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------- | --------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxIterations` | `number`  | `100`      | Iteration cap.                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `tolerance`     | `number`  | `0.000001` | Convergence tolerance on the largest single-node change.                                                                                                                                                                                                                                                                                                                                                                               |
+| `normalized`    | `boolean` | `true`     | Rescale the scores to [0, 1] by min-max.                                                                                                                                                                                                                                                                                                                                                                                               |
+| `alpha`         | `number`  |            | Attenuation factor applied to a neighbor's score. Must be at least 0 and below 1 / lambda_max, the reciprocal of the graph's largest adjacency eigenvalue, or the series diverges and the call throws `ConvergenceError`. Omitted, it is derived from the graph so the series always converges: 0.1 where that is safe, else 1 / (2 * an upper bound on lambda_max) -- Les Miserables, whose lambda_max is about 12, gets about 0.018. |
+| `beta`          | `number`  | `1`        | Base score every node starts with and keeps.                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ### `graphtyKruskalMST`
 
@@ -560,10 +561,11 @@ Returns `Partition<{ iterations: number | undefined; converged: boolean | undefi
 
 `iterations` and `converged` are undefined only when the `...Async` twin ran on the GPU, which does not report them; this method always fills them in.
 
-| Option          | Type     | Default | Meaning                                                     |
-| --------------- | -------- | ------- | ----------------------------------------------------------- |
-| `maxIterations` | `number` | `100`   | Work cap, in node visits per node (full-sweep equivalents). |
-| `randomSeed`    | `number` | `42`    | Seed of the visit order and of the tie draws.               |
+| Option          | Type     | Default | Meaning                                                                                                     |
+| --------------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `maxIterations` | `number` | `100`   | Work cap, in node visits per node (full-sweep equivalents).                                                 |
+| `seed`          | `number` | `42`    | Seed of the algorithm's random draws; one seed gives one result, bit for bit. An integer.                   |
+| `randomSeed`    | `number` |         | The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major. |
 
 ### `graphtyLabelPropagationSemiSupervised`
 
@@ -576,7 +578,8 @@ Cluster numbers are not seed labels: they follow node order, not the order of `s
 | Option          | Type                                 | Default  | Meaning                                                                                                                                                                                                                                                                                                                |
 | --------------- | ------------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `maxIterations` | `number`                             | `100`    | Work cap, in node visits per node (full-sweep equivalents).                                                                                                                                                                                                                                                            |
-| `randomSeed`    | `number`                             | `42`     | Seed of the visit order and of the tie draws.                                                                                                                                                                                                                                                                          |
+| `seed`          | `number`                             | `42`     | Seed of the algorithm's random draws; one seed gives one result, bit for bit. An integer.                                                                                                                                                                                                                              |
+| `randomSeed`    | `number`                             |          | The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major.                                                                                                                                                                                                            |
 | `seeds`         | `string \| readonly NodeSelection[]` | required | Seed labels: the node data field holding them (nodes without it are free), or one selection per label. Free nodes start unlabeled and take a seed label when one reaches them, so every node connected to a seed ends in a seed's cluster. Each connected group of nodes no seed reaches becomes a cluster of its own. |
 
 ### `graphtyLabelPropagationSynchronous`
@@ -602,7 +605,8 @@ Returns `Partition<{ modularity: number; iterations: number; }>`. Reads edge wei
 | Option          | Type     | Default | Meaning                                                                                                                        |
 | --------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `resolution`    | `number` | `1`     | Resolution gamma: above 1 favors smaller communities.                                                                          |
-| `randomSeed`    | `number` | `42`    | Seed of the visit orders.                                                                                                      |
+| `seed`          | `number` | `42`    | Seed of the visit orders; an integer, one seed gives one result, bit for bit.                                                  |
+| `randomSeed`    | `number` |         | The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major.                    |
 | `maxIterations` | `number` | `100`   | Cap on whole passes over the original graph, each running as many levels as it needs. The result's `iterations` counts levels. |
 | `threshold`     | `number` | `1e-7`  | Stop once a pass improves modularity by no more than this.                                                                     |
 
@@ -752,8 +756,8 @@ Every connected component, an isolated node included, takes a cluster of its own
 | `maxIterations` | `number`                                         | `100`          | Cap on k-means rounds.                                                                                                                                         |
 | `tolerance`     | `number`                                         | `1e-4`         | k-means stops when no centroid moves further than this.                                                                                                        |
 | `k`             | `number`                                         | required       | Number of clusters, a positive integer.                                                                                                                        |
-| `laplacianType` | `"normalized" \| "unnormalized" \| "randomWalk"` | `"normalized"` | `"unnormalized"` is `D - A`, `"normalized"` is `I - D^-1/2 A D^-1/2` with each row of the embedding scaled to unit length, and `"randomWalk"` is `I - D^-1 A`. |
 | `seed`          | `number`                                         | `42`           | Seed of the starting block and of the k-means seeding.                                                                                                         |
+| `laplacianType` | `"normalized" \| "unnormalized" \| "randomWalk"` | `"normalized"` | `"unnormalized"` is `D - A`, `"normalized"` is `I - D^-1/2 A D^-1/2` with each row of the embedding scaled to unit length, and `"randomWalk"` is `I - D^-1 A`. |
 
 ### `graphtyStoerWagner`
 
@@ -935,12 +939,12 @@ A predicted link.
 
 The best-F1 threshold's precision and recall, that F1, and the ranking AUC.
 
-| Member      | Type     | Meaning                                                                                                                                                                                    |
-| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `precision` | `number` | The precision at the score threshold with the best F1. Every metric ranks a held-out edge ahead of a non-edge with the same score, so a score that ties every pair reports 1 for all four. |
-| `recall`    | `number` | The recall at that threshold.                                                                                                                                                              |
-| `f1Score`   | `number` | The best F1 over every threshold.                                                                                                                                                          |
-| `auc`       | `number` | The chance that a held-out edge scores above a non-edge, a tie counting as the edge scoring higher; 0.5 when either list is empty.                                                         |
+| Member      | Type     | Meaning                                                                                                                                                                                         |
+| ----------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `precision` | `number` | The precision at the score threshold with the best F1. A threshold never splits pairs with the same score, so a score that ties every pair reports the share of held-out edges among all pairs. |
+| `recall`    | `number` | The recall at that threshold.                                                                                                                                                                   |
+| `f1Score`   | `number` | The best F1 over every threshold.                                                                                                                                                               |
+| `auc`       | `number` | The chance that a held-out edge scores above a non-edge, a tie counting half; 0.5 when either list is empty.                                                                                    |
 
 <!-- generated:resultTypes:end -->
 

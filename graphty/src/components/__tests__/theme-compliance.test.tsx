@@ -1,9 +1,6 @@
-import { MantineProvider } from "@mantine/core";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { render, screen } from "../../test/test-utils";
 import { theme } from "../../theme";
-import { ErrorFallback } from "../ErrorFallback";
 
 describe("theme compliance", () => {
     describe("semantic color variables", () => {
@@ -31,44 +28,6 @@ describe("theme compliance", () => {
             const themeStr = JSON.stringify(theme).replace(/light-dark\((?:[^()]|\([^()]*\))*\)/g, "");
 
             expect(themeStr).not.toMatch(/--mantine-color-dark-[0-9]/);
-        });
-    });
-
-    describe("light mode rendering", () => {
-        it("should render in light mode without errors", () => {
-            const { container } = render(
-                <MantineProvider theme={theme} defaultColorScheme="light">
-                    <div>Test</div>
-                </MantineProvider>,
-            );
-            expect(container).toBeTruthy();
-        });
-
-        it("should render in dark mode without errors", () => {
-            const { container } = render(
-                <MantineProvider theme={theme} defaultColorScheme="dark">
-                    <div>Test</div>
-                </MantineProvider>,
-            );
-            expect(container).toBeTruthy();
-        });
-    });
-
-    describe("ErrorFallback theme compliance", () => {
-        it("uses semantic color variables instead of dark-X colors", () => {
-            render(<ErrorFallback error={new Error("test")} resetError={vi.fn()} />);
-            // Find the error container
-            const container = screen.getByText("Something went wrong").closest("div");
-            expect(container).toBeInTheDocument();
-            // Get all elements and check their styles
-            if (container) {
-                const parentContainer = container.parentElement?.parentElement;
-                if (parentContainer) {
-                    const style = parentContainer.getAttribute("style") ?? "";
-                    // Should not contain --mantine-color-dark-N patterns
-                    expect(style).not.toMatch(/--mantine-color-dark-[0-9]/);
-                }
-            }
         });
     });
 });

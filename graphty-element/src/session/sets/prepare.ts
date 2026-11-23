@@ -4,13 +4,13 @@
  *
  * Each `prepare*` takes the records and one concrete command -- everything minted (id, order) and
  * everything resolved (stable edge members) already in it -- and returns the record to write, or
- * null for a no-op. It validates, clones, canonicalises and deep-freezes, and carries any top-level
+ * null for a no-op. It validates, clones, canonicalizes and deep-freezes, and carries any top-level
  * record field it does not know through unchanged. It never writes: the store does, so a future
  * command dispatcher can call the same functions and record their output.
  *
  * Also here, because every record is built here: the compact form of a fixed set's edge members
- * (typed arrays over an interned id table, materialised as `definition.edges` on first read), the
- * member summaries a member delta updates in O(delta), and the memoised revision.
+ * (typed arrays over an interned id table, materialized as `definition.edges` on first read), the
+ * member summaries a member delta updates in O(delta), and the memoized revision.
  *
  * Pure and Node-safe.
  */
@@ -213,13 +213,13 @@ class Interner {
 const ABSENT = -1;
 
 /**
- * The bytes one materialised member object is charged: a frozen object of three or four
+ * The bytes one materialized member object is charged: a frozen object of three or four
  * properties plus its array slot, on a 64-bit engine without pointer compression.
  */
 const MATERIALISED_MEMBER_BYTES = 72;
 
 /**
- * Edge members read one at a time, without materialising them all: an array, or a fixed set's
+ * Edge members read one at a time, without materializing them all: an array, or a fixed set's
  * compact columns, which build each member only when it is read. Internal.
  */
 export interface EdgeMemberList {
@@ -312,7 +312,7 @@ class EdgeColumns implements EdgeMemberList {
     }
 
     /**
-     * One member, built for this read unless the members were already materialised.
+     * One member, built for this read unless the members were already materialized.
      * @param row - The row.
      * @returns The member, or undefined past the end.
      */
@@ -554,7 +554,7 @@ function summaryOf(definition: Extract<SetDefinition, { kind: "fixed" }>): {
 }
 
 /**
- * A definition's `r1:` revision, memoised per frozen definition. A fixed set's comes from its
+ * A definition's `r1:` revision, memoized per frozen definition. A fixed set's comes from its
  * member summaries, so after a member delta it costs nothing more than the delta did.
  * @param definition - The definition.
  * @returns The revision.
@@ -597,7 +597,7 @@ function deepFreeze<T>(value: T): T {
 
 /**
  * A fixed definition over frozen nodes and edge columns: `edges` (when any) is an accessor that
- * materialises the members on first read. Keys in canonical order.
+ * materializes the members on first read. Keys in canonical order.
  * @param reading - `induced` or `listed`.
  * @param nodes - Canonical node ids, frozen.
  * @param columns - Canonical edge members.
@@ -662,7 +662,7 @@ function freezeDefinition(definition: unknown): SetDefinition {
 /**
  * A listed fixed definition built from members the element read off a snapshot, canonical and
  * frozen in the compact column form. The work a caller's definition needs at the synchronous
- * commit (validating, canonicalising, sorting, interning) happens here instead, so a materialising
+ * commit (validating, canonicalizing, sorting, interning) happens here instead, so a materializing
  * door does it in its asynchronous step. Internal.
  * @param nodes - Node ids, any order.
  * @param members - Stable edge members with their ends already canonical, any order.
@@ -886,7 +886,7 @@ interface MembersCommand {
 }
 
 /**
- * Validate and canonicalise a member delta through the one validator.
+ * Validate and canonicalize a member delta through the one validator.
  * @param delta - The members.
  * @returns Sorted, de-duplicated canonical nodes and edges.
  * @throws `E_BAD_COMMAND` for a malformed member.
@@ -905,7 +905,7 @@ function canonicalDelta(delta: MembersCommand["add"]): { nodes: readonly NodeId[
     return { nodes: parsed.nodes, edges: parsed.edges ?? [] };
 }
 
-/** A running member sum, as a memoised summary holds it. */
+/** A running member sum, as a memoized summary holds it. */
 type MemberSum = MemberSummary["sum"];
 
 /**
@@ -1202,7 +1202,7 @@ export function prepareRemove(records: RecordView, command: { readonly id: SetId
 
 /**
  * A fixed definition's listed edge members, read through its compact columns when it has them, so
- * a resolution never materialises `definition.edges`.
+ * a resolution never materializes `definition.edges`.
  * @param definition - A fixed definition.
  * @returns The members.
  */

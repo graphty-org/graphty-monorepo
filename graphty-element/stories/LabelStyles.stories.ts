@@ -21,6 +21,7 @@ import { catSocialNetwork2FixedUrl, catSocialNetwork2Url } from "./datasets";
 import {
     eventWaitingDecorator,
     isVisualCapture,
+    labelStyleValues,
     renderFn,
     type StoryArgs,
     storySetup,
@@ -32,7 +33,7 @@ import { drawnMargins, drawnText, labelDigest, type LabelGeometry, labelGeometry
  * WHAT A STYLE LAYER CAN SAY ABOUT A LABEL.
  *
  * A layer writes two channels. `node.label` is the words -- written out, or bound to a column so
- * each node reads its own. `node.labelStyle` is everything else: the typeface and its colour, the
+ * each node reads its own. `node.labelStyle` is everything else: the typeface and its color, the
  * panel behind the words and its corners, borders and gradient, where the label hangs relative to
  * its node and how far away, its margins and line height and alignment, a speech-bubble pointer,
  * a badge, an outline, a shadow, an animation, depth fading, and what a number too big to show is
@@ -40,7 +41,7 @@ import { drawnMargins, drawnText, labelDigest, type LabelGeometry, labelGeometry
  *
  * ONE STORY PER SUBJECT, AND EACH ONE ASKS FOR ITS OWN. Every `play` function below reads the
  * label's own canvas and the plane it is drawn on -- where the ink sits, how far it is inset, what
- * colours are in it, where the plane hangs, whether it is moving or fading -- because a story that
+ * colors are in it, where the plane hangs, whether it is moving or fading -- because a story that
  * cannot tell its subject from the default is a picture of the default.
  */
 
@@ -97,7 +98,7 @@ const meta: Meta = {
         },
         labelTextAlign: {
             control: "select",
-            options: ["left", "center", "right"],
+            options: labelStyleValues("textAlign"),
             table: { category: "Font" },
             name: "node.labelStyle.textAlign",
         },
@@ -132,30 +133,19 @@ const meta: Meta = {
         labelGradient: { control: "boolean", table: { category: "Panel" }, name: "node.labelStyle.gradient" },
         labelGradientType: {
             control: "select",
-            options: ["linear", "radial"],
+            options: labelStyleValues("gradientType"),
             table: { category: "Panel" },
             name: "node.labelStyle.gradientType",
         },
         labelGradientDirection: {
             control: "select",
-            options: ["vertical", "horizontal", "diagonal"],
+            options: labelStyleValues("gradientDirection"),
             table: { category: "Panel" },
             name: "node.labelStyle.gradientDirection",
         },
         labelLocation: {
             control: "select",
-            options: [
-                "top",
-                "top-right",
-                "top-left",
-                "left",
-                "center",
-                "right",
-                "bottom",
-                "bottom-left",
-                "bottom-right",
-                "automatic",
-            ],
+            options: labelStyleValues("location"),
             table: { category: "Placement" },
             name: "node.labelStyle.location",
         },
@@ -187,7 +177,7 @@ const meta: Meta = {
         labelPointer: { control: "boolean", table: { category: "Pointer" }, name: "node.labelStyle.pointer" },
         labelPointerDirection: {
             control: "select",
-            options: ["top", "bottom", "left", "right", "auto"],
+            options: labelStyleValues("pointerDirection"),
             table: { category: "Pointer" },
             name: "node.labelStyle.pointerDirection",
         },
@@ -220,7 +210,7 @@ const meta: Meta = {
         },
         labelAnimation: {
             control: "select",
-            options: ["none", "pulse", "bounce", "shake", "glow", "fill"],
+            options: labelStyleValues("animation"),
             table: { category: "Effects" },
             name: "node.labelStyle.animation",
         },
@@ -242,17 +232,7 @@ const meta: Meta = {
         },
         labelBadge: {
             control: "select",
-            options: [
-                "notification",
-                "label",
-                "label-success",
-                "label-warning",
-                "label-danger",
-                "count",
-                "icon",
-                "progress",
-                "dot",
-            ],
+            options: labelStyleValues("badge"),
             table: { category: "Badge" },
             name: "node.labelStyle.badge",
         },
@@ -679,7 +659,7 @@ export const Location: Story = {
  *
  * READ IN THE CANVAS'S OWN PIXELS, not the texture's. The panel is sized from the font's own box,
  * but the letters of a particular name reach only part of that box, and how much depends on the
- * letters and on the typeface the machine falls back to. Normalised by the font's own glyph
+ * letters and on the typeface the machine falls back to. Normalized by the font's own glyph
  * height, the margin reads back as roughly the pixels asked for on every font.
  */
 export const Margin: Story = {
@@ -933,7 +913,7 @@ export const TextOutline: Story = {
  * RED SO THAT IT CAN BE SEEN. The 1.x story threw a soft, half-transparent black shadow three
  * pixels down, which on black letters reads as a slightly heavier weight: in a side-by-side of two
  * renderings nobody can say whether a shadow is there at all. An unblurred red copy of every
- * letter eight pixels down and to the right is unmistakable, and its colour belongs to nothing
+ * letter eight pixels down and to the right is unmistakable, and its color belongs to nothing
  * else on the label, so it can be counted.
  *
  * COUNTED AS A SHARE OF THE LETTERS' OWN INK, so the reading does not depend on the font. The
@@ -1063,11 +1043,11 @@ export const Border: Story = {
 };
 
 /**
- * Filling the panel with a gradient rather than one flat colour.
+ * Filling the panel with a gradient rather than one flat color.
  *
  * READ AS THE TWO ENDS OF IT. A strip down the left of the canvas and a strip down the right
- * average out to two different colours when a horizontal gradient is drawn, and to the same
- * colour when a flat fill is.
+ * average out to two different colors when a horizontal gradient is drawn, and to the same
+ * color when a flat fill is.
  */
 export const BackgroundGradient: Story = {
     args: {
@@ -1177,7 +1157,7 @@ export const Pointer: Story = {
 };
 
 /**
- * A label with a close button: an x in the panel's top-right corner, in the text colour. A click
+ * A label with a close button: an x in the panel's top-right corner, in the text color. A click
  * on the x clears the selection; a click on the rest of the panel does nothing. The clicks
  * themselves are tested under real input in test/interactions/label-close-button.test.ts; this
  * story checks that every label draws its x and reports where it is.
@@ -1333,7 +1313,7 @@ export const Badge: Story = {
  * Shortening a number too big to show.
  *
  * Every cat is given a count of 1500 in an ordinary label, drawn with the element's default label
- * style, and smart overflow draws each one as `1k`.
+ * style, and smart overflow draws each one as the default cap, `999+`.
  */
 export const SmartOverflow: Story = {
     args: {
@@ -1349,16 +1329,16 @@ export const SmartOverflow: Story = {
     },
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "SmartOverflow");
-        // READ AS INK, IN THE FONT THIS BROWSER DREW. Each label's ink is matched against `1k` and
-        // `1500` measured with this browser's own fallback for the element's default font, so the
+        // READ AS INK, IN THE FONT THIS BROWSER DREW. Each label's ink is matched against `999+`,
+        // `1500` and the old `1k` measured with this browser's own fallback for the element's default font, so the
         // check does not depend on which font a machine happens to have (see drawnText).
         const wrong = labelGeometry(scene)
-            .map((label) => ({ label, read: drawnText(label, ["1k", "1500"], DEFAULT_LABEL_FONT, 10) }))
-            .filter(({ read }) => read.best !== "1k");
+            .map((label) => ({ label, read: drawnText(label, ["999+", "1500", "1k"], DEFAULT_LABEL_FONT, 10) }))
+            .filter(({ read }) => read.best !== "999+");
 
         await holds(
             wrong.length === 0,
-            `Styles/Label SmartOverflow: every label asks for 1500 with smart overflow on and should read 1k; ` +
+            `Styles/Label SmartOverflow: every label asks for 1500 with smart overflow on and should read 999+; ` +
                 `${String(wrong.length)} read otherwise -- ${wrong
                     .map(
                         ({ label, read }) =>
@@ -1524,7 +1504,7 @@ export const OverflowSuffix: Story = {
  * Lining the lines of a multi-line label up against each other.
  *
  * READ AT THE TOP OF THE CANVAS. The first line here is one character long and the last is many,
- * so a left-aligned label starts that first line hard against its margin while a centred one
+ * so a left-aligned label starts that first line hard against its margin while a centered one
  * pushes it most of the way across.
  */
 export const TextAlign: Story = {
@@ -1607,6 +1587,57 @@ export const TextTemplate: Story = {
             red !== undefined && red.ink.width === 0,
             "Styles/Label TextTemplate: Cy's name holds a color tag, and a value from the data is drawn as text, " +
                 `so none of its label should be red; red ink covers ${String(red?.ink.width)} pixels across`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
+/**
+ * A name on one line and a number below it, written with a number format.
+ *
+ * The template binding carries `format`, so the PageRank each node holds is drawn with two
+ * decimals and its thousands grouped, while the name line is drawn as written.
+ */
+export const TextTemplateFormat: Story = {
+    args: {
+        // Empty, so the cat network the file's default args load gives way to the nodes below.
+        dataSource: "",
+        nodeData: [
+            { id: "a", name: "Ada", score: 12345.6789, position: { x: -6, y: 0, z: 0 } },
+            { id: "b", name: "Bo", score: 0.5, position: { x: 0, y: 0, z: 0 } },
+            { id: "c", name: "Cy", score: 1234567, position: { x: 6, y: 0, z: 0 } },
+        ],
+        edgeData: [
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ],
+        layout: "fixed",
+        layoutConfig: { dim: 3 },
+        setup: storySetup({
+            nodeEncode: {
+                "node.label": {
+                    template: ["<bold>{data.name}</bold>", "{data.score}"],
+                    format: { maximumFractionDigits: 2, useGrouping: true, locale: "en-US" },
+                },
+            },
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "TextTemplateFormat", { nodes: 3, edges: 2 });
+        const want: Record<string, string> = {
+            a: "Ada\n12,345.68",
+            b: "Bo\n0.5",
+            c: "Cy\n1,234,567",
+        };
+        const wrong = Object.entries(want).filter(([id, text]) => scene.element.labelOf(id)?.text !== text);
+
+        await holds(
+            wrong.length === 0,
+            `Styles/Label TextTemplateFormat: each label is its name, then its score with two decimals and ` +
+                `grouped thousands; these differ: ${wrong
+                    .map(([id]) => `${id} draws ${JSON.stringify(scene.element.labelOf(id)?.text)}`)
+                    .join(", ")}`,
         );
 
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
@@ -1799,7 +1830,7 @@ export const EmojiLabels: Story = {
         // WHAT THIS CAN AND CANNOT CHECK. The four glyphs are the same four on every node, so
         // every label must cover the same amount of canvas, and covering none of it is a label
         // that drew nothing -- which is the failure worth catching. It cannot check that they are
-        // drawn IN COLOUR: the headless Chromium this lane runs in has no colour-emoji font
+        // drawn IN COLOUR: the headless Chromium this lane runs in has no color-emoji font
         // installed, so the glyphs come back as one near-black ink, and asserting otherwise would
         // be asserting a property of the test machine.
         await assertLabelInkAtLeast(scene, 200);
@@ -1875,11 +1906,11 @@ export const UnicodeText: Story = {
 /**
  * Labels that would land on top of each other are not all drawn, when the element is asked.
  *
- * Every cat is labelled at 128px, so several labels' words cross on screen. With the element's
- * `labels.declutter` behaviour turned on, it keeps the label of the better-connected node (then
+ * Every cat is labeled at 128px, so several labels' words cross on screen. With the element's
+ * `labels.declutter` behavior turned on, it keeps the label of the better-connected node (then
  * the node id, so the choice is stable) and hides any label whose words would cover the words of
  * one already kept. Nothing about the style changes: a hidden label is still built, and comes
- * back when its node moves clear. Every other story leaves the behaviour at its default, off.
+ * back when its node moves clear. Every other story leaves the behavior at its default, off.
  */
 export const Declutter: Story = {
     args: {

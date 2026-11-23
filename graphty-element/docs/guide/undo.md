@@ -36,7 +36,7 @@ A change is undoable when it changes something a project saves, and only then:
 | Sets and saved camera views      | Creating, renaming, redefining, adding and removing members, removing and restoring a set; saving and removing a view |
 | The layout                       | Choosing a layout and what it runs over, switching between 2D and 3D, placing nodes, pinning and unpinning them       |
 | Where nodes came to rest         | The coordinates a layout settles on, recorded with the step that set it moving                                        |
-| Project settings                 | `session.config.set(...)`: the data settings, background, selection style, the three saved layout-behaviour settings  |
+| Project settings                 | `session.config.set(...)`: the data settings, background, selection style, the three saved layout-behavior settings   |
 
 Not undoable, because a project does not save them:
 
@@ -73,7 +73,7 @@ returns to the baseline, not to an empty element.
 It also cancels whatever is still pending. To keep that work -- a run a reader started while a
 graph was loading -- pass `{ pending: "keep" }`: each pending item that has changed nothing yet
 finishes and records its step over the new baseline. Work that has already changed something, such
-as a transaction halfway through, is cancelled either way, because undoing its step would go back
+as a transaction halfway through, is canceled either way, because undoing its step would go back
 past the baseline.
 
 ```typescript
@@ -113,7 +113,7 @@ for (const step of session.history.steps) {
 }
 session.history.position; // how many steps are applied; steps[position..] can be redone
 await session.history.restoreTo(session.history.steps[1].id); // jump; null jumps to the baseline
-// Take back an abandoned edit (a draft the reader cancelled): jump back and leave nothing to redo.
+// Take back an abandoned edit (a draft the reader canceled): jump back and leave nothing to redo.
 await session.history.restoreTo(before, { redo: "drop" });
 ```
 
@@ -129,6 +129,7 @@ Every step's `fact.code` is one of the `HistoryCode` values, each documenting it
 | `data.add-nodes`, `data.add-edges`, `data.remove-nodes`, `data.remove-edges`                                         | `count`                                                    |
 | `data.edit`                                                                                                          | `target` (`"node"` or `"edge"`), `count`                   |
 | `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges`                                                 | none                                                       |
+| `data.merge-nodes`                                                                                                   | `count` (how many nodes became one)                        |
 | `data.import`                                                                                                        | `name` (the source's name, or null), `type` (or null)      |
 | `data.expand`                                                                                                        | `node`                                                     |
 | `data.declare`                                                                                                       | `kind` (`"node"` or `"edge"`), `column`                    |
@@ -171,14 +172,18 @@ Every step's `fact.code` is one of the `HistoryCode` values, each documenting it
 | `transaction`                                                                                                        | `label` (the label given to `transaction`, or null)        |
 
 A parameter that came from the data (a node id, a set's name) is the data's own text: escape it
-before putting it into HTML. `step.label`, an English sentence, is deprecated and goes in the next
-major release.
+before putting it into HTML.
 
-**Coalescing.** Edits of the same thing within a second of each other merge into the step on top:
-dragging a colour picker, typing into a filter, moving the time window, placing nodes one at a
-time in a loop. The whole drag is one step. Work queued in between -- a run, an import -- ends the
-merge: the next edit starts a step of its own, so undo takes back that edit before it cancels the
-queued work.
+**Coalescing.** Consecutive edits of the same thing merge into the step on top: dragging a color
+picker, typing into a filter, moving the time window, placing the same nodes one call at a time.
+The whole drag is one step. Whether two edits merge depends only on what they change and on what
+happened between them, never on the time between them, so the same calls make the same steps on
+any machine. A style update merges only while it changes channels the step already changes: a
+color drag is one step, and a size edit after it is a step of its own. Another step, an undo, or
+work queued in between -- a run, an import -- ends the merge: the next edit starts a step of its
+own, so undo takes back that edit before it cancels the queued work. To keep an edit out of the
+step before it (a second, separate drag of the same slider), make it inside `session.transaction`:
+a transaction is always a step of its own, and no edit after it merges into it.
 
 ## Transactions
 
@@ -186,7 +191,7 @@ To make several changes one step, make them inside `session.transaction` through
 hands you:
 
 ```typescript
-await session.transaction("Load and colour", async (tx) => {
+await session.transaction("Load and color", async (tx) => {
     await tx.data.import({ type: "csv", config: { url: "/flights.csv" } });
     await tx.layout.set("circular");
     await tx.styles.add({
@@ -266,7 +271,7 @@ A run or a load becomes a step when it finishes. Until then it is **pending**, l
 `session.history.pending`, and undo treats it as the newest thing to take back:
 
 - Undo while a run or load that started after the last step is still going **cancels it**, and
-  does not also undo the step. `undo()` resolves with `{ kind: "cancelled", pending }`.
+  does not also undo the step. `undo()` resolves with `{ kind: "canceled", pending }`.
 - Undo while an older run is still going undoes the step on top and leaves the run alone. When
   the run finishes it becomes the new top step, and the redo list is dropped.
 - Undo while a transaction is open aborts it and rolls it back.
@@ -300,7 +305,7 @@ they were without running the layout again. `session.positions.set(...)`, `pin(.
 `session.styles.add`, `update`, `remove`, `move`, `encode`, `applyTemplate` and the visibility
 verbs return a `Run`. The edit itself happens at once; the handle settles when the repaint that
 draws it has finished. A signal that is already aborted when the verb is called stops the edit.
-Cancelling the handle afterwards does **not** take the edit back -- it has been recorded, and may
+Canceling the handle afterwards does **not** take the edit back -- it has been recorded, and may
 have merged into a larger step. Call `session.undo()` to take it back.
 
 ## Selection
@@ -385,6 +390,37 @@ at the window has two choices:
 <graphty-element history-keys="false"></graphty-element>
 ```
 
+To have the same keys, and Escape to clear the selection, answered anywhere on the page (or in any
+part of it) rather than only on the focused canvas, attach the element's keymap:
+
+```typescript
+import { attachKeymap } from "@graphty/graphty-element/session";
+
+const detach = attachKeymap(element.session, document);
+// later: detach();
+```
+
+It skips a press already handled, typed into a field, or that it has nothing to do with (Escape
+with nothing selected passes on to close your dialog). The keys it answers are listed in
+`KEYMAP_DESCRIPTORS` from `@graphty/graphty-element/catalog`, for a shortcuts list.
+
+A third argument sets your own rule for where the keys are yours (it replaces the field rule above)
+and tells you what was done, for a status line:
+
+```typescript
+attachKeymap(element.session, document, {
+    ignore: (event) => document.querySelector("[role=dialog]") !== null,
+    onAction: (report) => {
+        if (report.action === "deselect") {
+            status.textContent = `Cleared ${report.nodes} nodes and ${report.edges} edges`;
+        } else {
+            // Reported before the step runs, so session.history still names it.
+            void report.done.then((outcome) => (status.textContent = `${report.action}: ${outcome.kind}`));
+        }
+    },
+});
+```
+
 ## Memory
 
 History keeps what undo needs, not copies of everything. An attribute edit keeps the old values; a
@@ -412,7 +448,7 @@ command registered with `registerCommand` joins that step only through `ctx.tx`:
 ```typescript
 // After enableAiControl(...)
 element.getAiManager()?.registerCommand({
-    name: "colourHubs",
+    name: "colorHubs",
     // ...description and parameters...
     async execute(graph, params, ctx) {
         await ctx.tx.styles.add({
@@ -421,13 +457,13 @@ element.getAiManager()?.registerCommand({
             selector: { match: "everything" },
             set: { "node.color": "#e4572e" },
         });
-        return { success: true, message: "Coloured the hubs" };
+        return { success: true, message: "Colored the hubs" };
     },
 });
 ```
 
 A change made through `graph` instead is a step of its own and is not rolled back when the message
-fails. Stop when `ctx.abortSignal` fires: that is the message being cancelled, or undone while it
+fails. Stop when `ctx.abortSignal` fires: that is the message being canceled, or undone while it
 is still going.
 
 Each batch of tool calls the model returns runs in its own short transaction, which is recorded
@@ -441,7 +477,7 @@ What happens when the reader edits during a message:
 - **An edit between two batches splits the message.** The batches after it record as their own
   step on top of the reader's, with `provenance.after` naming the message's earlier step, because
   undo takes steps back in the order they happened.
-- **Cancelling the message, a tool that throws, or a failed model call** takes back every step the
+- **Canceling the message, a tool that throws, or a failed model call** takes back every step the
   message recorded, newest first, for as long as each is the next thing undo would undo. It stops
   at the reader's own step, or at pending work of theirs: the message's steps under it stay, and
   undo takes them back in order. The reader's edit is never reverted to clear the way.
@@ -455,7 +491,7 @@ What happens when the reader edits during a message:
 
 ## Plugin algorithms without a descriptor
 
-An algorithm registered the 1.x way, by `namespace` and `type` with no catalogue descriptor, is
+An algorithm registered the 1.x way, by `namespace` and `type` with no catalog descriptor, is
 still one step. While it runs, the `Graph` it is handed records everything it writes -- node and
 edge values, graph-level results, doors it calls such as `addNodes` or `styles` -- into that one
 step, and undo takes all of it back. Such a plugin needs no change. An algorithm with a descriptor

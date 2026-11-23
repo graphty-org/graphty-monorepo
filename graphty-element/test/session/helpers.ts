@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { EdgeId } from "../../src/catalog/types";
+import type { EdgeId, Path } from "../../src/catalog/types";
 import { DataConfig } from "../../src/config/DataConfig";
-import { GEXFDataSource } from "../../src/data/GEXFDataSource";
 import { GraphStore } from "../../src/data/GraphStore";
+import { isGraphtyError } from "../../src/errors";
+import { StylePainter } from "../../src/managers/StylePainter";
 import {
     type GraphSession,
     type SessionAttributes,
@@ -13,7 +14,10 @@ import {
 } from "../../src/session";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
-import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../helpers/rawIngest";
+import { createStylesApi, type RepaintContext, type SessionStylesApi } from "../../src/session/styles/index";
+import type { SelectorSource } from "../../src/session/styles/predicate";
+import { createLayerRepaint, type RepaintEngine } from "../../src/session/styles/repaint";
+import { ingestEdge, ingestNode } from "../helpers/rawIngest";
 
 /** One node record as a test writes it: an id plus whatever else it wants to say. */
 export interface NodeRow {
@@ -103,9 +107,9 @@ export interface Harness {
 /**
  * Build a session over a store a test can feed.
  *
- * A session with no store of its own builds one, but nothing can put records into that store
- * yet -- `data.import` does not exist -- so a test that wants data hands the store in, and
- * ingests through the same two functions the data manager uses.
+ * The harness hands the session its store and record source, so a test can also write raw rows
+ * straight into the store with `add`, outside history and the command path, as a fixture that
+ * only needs a graph to exist. A test about loading uses `session.data.import` instead.
  * @param options - the direction policy, the data configuration and how runs are executed
  * @returns the harness
  */
@@ -176,8 +180,8 @@ export function makeSession(
 }
 
 /**
- * Load one of the GEXF corpus files into a harness, through the data source the element itself
- * parses that format with.
+ * Load one of the GEXF corpus files into a harness's session, through `session.data.import`, so
+ * the file's declared direction is applied exactly as the element applies it.
  *
  * A real dataset rather than a hand-built fixture, because the questions these sessions answer --
  * how many components, is it weighted, what would a metric cost -- are questions about a graph's
@@ -187,25 +191,159 @@ export function makeSession(
  * @returns Nothing; the harness holds the graph when it resolves.
  */
 export async function loadGexfCorpus(harness: Harness, file: string): Promise<void> {
-    const path = join(__dirname, "..", "helpers", "corpus", "gexf", file);
-    const source = new GEXFDataSource({ data: readFileSync(path, "utf-8") });
+    const data = readFileSync(join(__dirname, "..", "helpers", "corpus", "gexf", file), "utf-8");
+    await harness.session.data.import({ type: "gexf", config: { data } });
+}
 
-    for await (const chunk of source.getData()) {
-        // What the data manager does with every import, in the same place it does it: the file's
-        // own declared direction reaches the builder before that chunk's edges do. Without this the
-        // harness would read a file that says it is undirected as a digraph, and every count,
-        // density and metric availability measured here would be measured on the wrong graph.
-        if (source.declaredDirection !== null) {
-            ingestDeclaredDirection(
-                harness.store,
-                source.declaredDirection.directed,
-                source.declaredDirection.statedBy,
-            );
+/**
+ * Run `work` with strict state off, as a consumer runs: the strict checks every other test runs
+ * under (test/setup.ts) walk the store and history on every write by design, so a counted-work
+ * test that left them on would count work no consumer does. Strict state is read when a store,
+ * draft or manager is created, so wrap everything that creates one -- for a scaling test, the
+ * whole measured run. The previous setting comes back when `work` returns, throws or settles.
+ * @param work - The work; a promise it returns is awaited before strict state comes back.
+ * @returns What `work` returns.
+ */
+export function withConsumerStrictState<T>(work: () => T): T {
+    const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
+    const strict = scope.__GRAPHTY_STRICT_STATE__;
+    const restore = (): void => {
+        scope.__GRAPHTY_STRICT_STATE__ = strict;
+    };
+    scope.__GRAPHTY_STRICT_STATE__ = false;
+    let result: T;
+    try {
+        result = work();
+    } catch (error) {
+        restore();
+        throw error;
+    }
+    if (result instanceof Promise) {
+        return result.finally(restore) as T;
+    }
+    restore();
+    return result;
+}
+
+/**
+ * The code a call was refused with, or null when it returned. Anything thrown that is not a
+ * GraphtyError is thrown again, so a crash never reads as a refusal.
+ * @param call - The call.
+ * @returns The refusal's code, or null.
+ */
+export function rejectionCode(call: () => unknown): string | null {
+    try {
+        call();
+    } catch (error) {
+        if (isGraphtyError(error)) {
+            return error.code;
         }
 
-        harness.add(
-            chunk.nodes.map((node) => node as unknown as NodeRow),
-            chunk.edges.map((edge) => edge as unknown as EdgeRow),
-        );
+        throw error;
     }
+
+    return null;
+}
+
+/**
+ * The code a promise was rejected with, or null when it resolved; as {@link rejectionCode}, a
+ * rejection that is not a GraphtyError is thrown again.
+ * @param work - The promise.
+ * @returns The rejection's code, or null.
+ */
+export async function rejectionCodeOf(work: PromiseLike<unknown>): Promise<string | null> {
+    try {
+        await work;
+    } catch (error) {
+        if (isGraphtyError(error)) {
+            return error.code;
+        }
+
+        throw error;
+    }
+
+    return null;
+}
+
+/**
+ * A repaint context that never cancels and reports to nobody.
+ * @returns The context.
+ */
+export function quietContext(): RepaintContext {
+    return { signal: new AbortController().signal, report: () => undefined };
+}
+
+/** One element's columns, keyed by the path a selector or a binding names. */
+export type Row = Readonly<Record<Path, unknown>>;
+
+/** A style stack, the repaint engine behind it and a painter over both, with no renderer. */
+export interface PainterHarness {
+    /** The stack to edit. */
+    readonly styles: SessionStylesApi;
+    /** The engine the painter reads. */
+    readonly engine: RepaintEngine;
+    /** The painter under test. */
+    readonly painter: StylePainter;
+    /** Paint every element from the whole stack, as a first draw does. */
+    paintAll(): Promise<void>;
+}
+
+/**
+ * Wire a stack, a repaint engine and a painter over fixed rows, as a session wires them.
+ * @param nodes - The node rows.
+ * @param edges - The edge rows.
+ * @param options - `ids`: name each element by its `data.id` column, so a layer can address
+ *   elements by id and a binding can encode a column.
+ * @param options.ids - Whether elements are named by `data.id`.
+ * @returns The harness.
+ */
+export function painterHarness(
+    nodes: readonly Row[],
+    edges: readonly Row[],
+    options: { ids?: boolean } = {},
+): PainterHarness {
+    const indexOf = (rows: readonly Row[], id: unknown): number | undefined => {
+        const index = rows.findIndex((row) => row["data.id"] === id);
+        return index < 0 ? undefined : index;
+    };
+    const elements: SelectorSource = {
+        nodeValue: (index, path) => nodes[index]?.[path],
+        edgeValue: (index, path) => edges[index]?.[path],
+        ...(options.ids === true
+            ? {
+                  nodeIdOf: (index: number) => String(nodes[index]?.["data.id"]),
+                  edgeIdOf: (index: number) => String(edges[index]?.["data.id"]),
+              }
+            : {}),
+    };
+    const engine = createLayerRepaint({
+        nodeCount: () => nodes.length,
+        edgeCount: () => edges.length,
+        elements,
+        measured: () => undefined,
+    });
+    const styles = createStylesApi({
+        elements,
+        base: [],
+        repaint: engine.repaint,
+        ...(options.ids === true
+            ? {
+                  encoding: engine.encoding,
+                  nodeIndex: (id: unknown) => indexOf(nodes, id),
+                  edgeIndex: (id: unknown) => indexOf(edges, id),
+              }
+            : {}),
+    });
+    const painter = new StylePainter();
+    painter.bind(engine);
+
+    return {
+        styles,
+        engine,
+        painter,
+        paintAll: async (): Promise<void> => {
+            await engine.repaintAll(styles.compiled(), quietContext());
+            painter.markPainted();
+        },
+    };
 }

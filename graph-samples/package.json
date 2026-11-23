@@ -55,7 +55,7 @@
         "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle && node scripts/pack-datasets.mjs",
-        "lint": "eslint && tsc --noEmit -p tsconfig.json",
+        "lint": "eslint --pass-on-unpruned-suppressions && tsc --noEmit -p tsconfig.json",
         "lint:fix": "eslint --fix",
         "typecheck": "tsc --noEmit -p tsconfig.json",
         "test": "vitest",
@@ -100,9 +100,9 @@
     "devDependencies": {
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
-        "eslint": "^9.29.0",
+        "eslint": "^9.39.5",
         "typescript": "^5.9.3",
-        "vite": "^8.1.6",
+        "vite": "^8.3.8",
         "vitest": "catalog:"
     }
 }

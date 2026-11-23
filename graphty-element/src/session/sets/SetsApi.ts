@@ -97,6 +97,11 @@ interface SetsDependencies {
      * spellings of one undirected edge are one member. Absent: members are stored as given.
      */
     readonly pairsOrdered?: () => boolean;
+    /**
+     * Whether the source-steps experiment is on. False: a `{ types }` scope is refused with
+     * `E_FEATURE_OFF`. Absent: a `{ types }` scope is accepted.
+     */
+    readonly sourceSteps?: () => boolean;
     /** The most edge members one member edit may touch. */
     readonly maxEdgeMembers?: number;
     /**
@@ -521,7 +526,7 @@ export function createSetsApi(
     };
 
     /**
-     * Check the options of a materialising door before anything resolves.
+     * Check the options of a materializing door before anything resolves.
      * @param reading - The reading option.
      * @returns The reading.
      * @throws `E_BAD_COMMAND` for a reading that is not an edge reading.
@@ -540,7 +545,7 @@ export function createSetsApi(
     };
 
     /**
-     * The synchronous commit of a materialising door: in one tick, mint, name and dispatch one
+     * The synchronous commit of a materializing door: in one tick, mint, name and dispatch one
      * `set.create`. Resolves nothing; the definition's edge members are already stable.
      * @param concrete - What the resolve step produced.
      * @param name - The caller's name; "Set N" when absent.
@@ -550,7 +555,7 @@ export function createSetsApi(
         createAs(concrete.definition, name, concrete.createdFrom, concrete.refs, concrete.seeds);
 
     /**
-     * Where a materialising door's commit goes: into the transaction or command the call was made
+     * Where a materializing door's commit goes: into the transaction or command the call was made
      * inside. The routing that puts a dispatch there lasts for the synchronous part of the call
      * only, and the commit comes after an await, so it is captured when the call starts.
      * @returns A runner for the commit.
@@ -650,6 +655,14 @@ export function createSetsApi(
      * @throws `E_BAD_COMMAND` for a malformed scope or a `{ set }` id never issued.
      */
     const readScope = (ref: ScopeInput): Scope => {
+        if (typeof ref === "object" && "types" in ref && dependencies.sourceSteps?.() === false) {
+            throw new GraphtyError({
+                code: "E_FEATURE_OFF",
+                message: 'A { types } scope needs the "source-steps" experiment.',
+                source: "run",
+                details: { feature: "source-steps", key: "types" },
+            });
+        }
         const inline = typeof ref === "object" && "define" in ref;
         const scope = parseScope(inline ? { define: collect(() => stabilise(ref.define))[0] } : ref);
         if (
@@ -928,6 +941,8 @@ export function createSetsApi(
 
             return id;
         },
+
+        removedName: (id) => store.tombstone(id)?.name,
 
         restore({ id }) {
             const live = store.get(id);

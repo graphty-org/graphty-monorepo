@@ -46,13 +46,18 @@ function standIn(
             return () => set.delete(listener);
         },
         selection,
-        data: { statistics: () => ({ nodeCount: 3, edgeCount: 2 }), node: () => undefined },
+        // A node with no network source, as a real session reports one a file loaded.
+        data: { statistics: () => ({ nodeCount: 3, edgeCount: 2 }), node: () => undefined, nodeSource: () => null },
         layout: { dimension: "3d" },
         // No experiment switched on, as a real session carries.
         features: { enabled: [] },
+        // No algorithm to offer, so an Analyze command that runs one is drawn disabled.
+        catalog: { algorithms: () => [] },
     } as unknown as GraphSession;
     const element = {
         renderQuality: { level: "high", motion, heavy: "on" },
+        // Every camera view can be applied, so Fit is drawn enabled.
+        viewProblem: () => null,
         elementAt: () => {
             if (hit === null) {
                 return null;
@@ -98,8 +103,9 @@ describe("the canvas context menu", () => {
         assert.deepEqual(apply.mock.calls, [[{ nodes: ["n1"] }, "replace", { cause: "user" }]]);
         const labels = rows();
         assert.isTrue(labels.some((label) => label.startsWith("Neighborhood")));
-        assert.isTrue(labels.some((label) => label.startsWith("Frame selection")));
-        assert.isFalse(labels.some((label) => label.startsWith("Fit")));
+        assert.isTrue(labels.some((label) => label.startsWith("Fit selection")));
+        assert.isTrue(labels.some((label) => label.startsWith("Simulate removing")));
+        assert.isFalse(labels.some((label) => /^Fit(?! selection)/.test(label)));
     });
 
     it("selects exactly the edge under the pointer and lists that edge's commands", async () => {
@@ -107,11 +113,12 @@ describe("the canvas context menu", () => {
         assert.deepEqual(apply.mock.calls, [[{ edges: ["e1"] }, "replace", { cause: "user" }]]);
         const labels = rows();
         assert.isTrue(labels.some((label) => label.startsWith("Select endpoints")));
+        assert.isTrue(labels.some((label) => label.startsWith("Simulate removing")));
         assert.isFalse(labels.some((label) => label.startsWith("Neighborhood")));
-        assert.isFalse(labels.some((label) => label.startsWith("Fit")));
+        assert.isFalse(labels.some((label) => /^Fit(?! selection)/.test(label)));
     });
 
-    it("lists Fit, Frame selection and Clear selection over empty canvas, selecting nothing", async () => {
+    it("lists Fit, Fit selection and Clear selection over empty canvas, selecting nothing", async () => {
         const apply = await rightClick(null);
         assert.equal(apply.mock.calls.length, 0);
         const labels = rows();

@@ -12,12 +12,16 @@ import type { GraphSession, ReplaceReport } from "@graphty/graphty-element/sessi
 import { assert, beforeAll, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { replacedWords, showUnbound } from "../commands";
 import { countWords, unboundWords } from "../words";
+
+// A second file opens the join screen and the Replace offer only with sources and steps off: on, it is staged.
+withoutFeatures(["source-steps"]);
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -61,8 +65,9 @@ function drop(file: File): void {
  */
 async function holds(session: GraphSession, nodes: number, edges: number): Promise<void> {
     await waitFor(() => {
-        assert.strictEqual(session.data.nodes().length, nodes);
-        assert.strictEqual(session.data.edges().length, edges);
+        // The whole graph, by name: the app reads the working graph, and a filter is on here.
+        assert.strictEqual(session.data.nodes({ scope: "graph" }).length, nodes);
+        assert.strictEqual(session.data.edges({ scope: "graph" }).length, edges);
     });
 }
 

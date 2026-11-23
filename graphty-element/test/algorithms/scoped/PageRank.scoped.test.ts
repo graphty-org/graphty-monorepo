@@ -6,8 +6,7 @@
 import { assert, describe, it } from "vitest";
 
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
-import { InputGraph } from "../input/harness";
-import { assertComputesOverScope, assertOverGeneratedScopes, describeScopedAdapter } from "./harness";
+import { assertComputesOverScope, assertOverGeneratedScopes, describeScopedAdapter, scopedGraph } from "./harness";
 
 describeScopedAdapter("pagerank", (graph) => new PageRankAlgorithm(graph));
 
@@ -19,7 +18,7 @@ describe("pagerank over generated scopes", () => {
 
 describe("personalized pagerank over a scope", () => {
     it("a personalized run ranks over the scope, and its ranks sum to 1 across the scope", async () => {
-        const graph = new InputGraph(
+        const graph = await scopedGraph(
             ["a", "x", "b", "c"],
             [
                 ["a", "b"],

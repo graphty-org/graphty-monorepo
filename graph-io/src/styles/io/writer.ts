@@ -6,6 +6,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { COLUMN_DROPPED_CODE } from "../../common/codes.js";
 import { agree, plural } from "../../common/plural.js";
 import type { GraphExporter, LossNote } from "../../types.js";
 import { STYLE_ISSUE } from "../codes.js";
@@ -13,6 +14,7 @@ import { toolDefaults } from "../defaults.js";
 import { styleFingerprint } from "../plan/features.js";
 import { drawnAnyway } from "../plan/plan.js";
 import { canonicalFor, dataCell, degreeValues, plainCell, resolveStyles } from "../plan/resolve.js";
+import { unsettledStyles } from "../settle.js";
 import type {
     ExtractedStyles,
     Mapping,
@@ -24,6 +26,7 @@ import type {
     StyleWriteCapabilities,
 } from "../types.js";
 import { STYLE_BLOCK_NAME, styleBlockLosses, styleTag, writeStyleBlock } from "./block.js";
+import { spellForFormat } from "./spell.js";
 
 /**
  * What an exporter with a `styles` member receives as `options.styles` when styles are being written.
@@ -82,18 +85,21 @@ const TARGETS: readonly StyleTarget[] = ["node", "edge"];
  * `options.styles`, and the snapshot to write.
  * @param snapshot - the graph being written
  * @param exporter - the format's exporter
- * @param given - the styles
+ * @param settled - the styles, as `extractStyles()` gave them or built for this graph
  * @param plain - the export's other options, which decide what the format loses of the graph's data
  * @returns what to write and what is lost
  */
 export function prepareStyleExport(
     snapshot: GraphSnapshot,
     exporter: GraphExporter,
-    given: ExtractedStyles,
+    settled: ExtractedStyles,
     plain?: Readonly<Record<string, unknown>>,
 ): PreparedStyleExport {
+    // write what the file read, not what was settled for drawing: the program's own spellings and no derived values;
+    // styles in graphty's generic names (a consumer's export) are spelled in the format's program's vocabulary
+    const read = unsettledStyles(settled);
     const fp = styleFingerprint(snapshot);
-    const want = given.fingerprint;
+    const want = read.fingerprint;
     if (fp.nodes !== want.nodes || fp.edges !== want.edges || fp.ids !== want.ids) {
         return {
             snapshot,
@@ -107,6 +113,7 @@ export function prepareStyleExport(
             }),
         };
     }
+    const given = spellForFormat(read, snapshot, exporter.format);
     const caps = exporter.styles?.capabilities ?? null;
     let plan = writePlan(snapshot, exporter, given);
     if (keepsStyleBlock(exporter)) {
@@ -288,7 +295,7 @@ class LostInputs {
         const { map: _given, ...unmapped } = given;
         const plain = Object.keys(map).length === 0 ? { ...unmapped, where } : { ...unmapped, where, map };
         // a JSON copy drops undefined members, as the written block does; structuredClone would keep them
-        const moved = JSON.parse(JSON.stringify(plain)) as StyleRule; // NOSONAR(S7784): undefined members must go
+        const moved = JSON.parse(JSON.stringify(plain)) as StyleRule; // eslint-disable-line unicorn/prefer-structured-clone -- undefined members must go
         return ext === undefined ? moved : { ...moved, ext };
     }
 
@@ -770,6 +777,41 @@ function setTagAttributes(
  */
 function isStyleTagName(name: string): boolean {
     return name.startsWith("graphty.style.") || name.startsWith("graphty_style_");
+}
+
+/**
+ * The note for a node column named like the label a styled export writes what graphty draws into: its values on the
+ * nodes graphty draws another label for, or none, are not written (a label drawn with the column's value is written).
+ * @param snapshot - the graph handed to the exporter
+ * @param name - the column the drawn labels replace
+ * @param drawn - each node's drawn label, null where graphty draws none
+ * @param where - what the drawn label is written as, for the message
+ * @returns the note, or null when nothing is lost
+ */
+export function replacedLabelNote(
+    snapshot: GraphSnapshot,
+    name: string,
+    drawn: readonly unknown[],
+    where: string,
+): LossNote | null {
+    const column = snapshot.nodes.get(name);
+    const text = (v: unknown): string => (typeof v === "string" ? v : JSON.stringify(v));
+    let n = 0;
+    for (let i = 0; column !== null && i < column.length; i++) {
+        const cell = column.isSet(i) ? plainCell(column.value(i)) : null;
+        if (cell !== null && ((drawn[i] ?? null) === null || text(drawn[i]) !== text(cell))) {
+            n++;
+        }
+    }
+    if (n === 0) {
+        return null;
+    }
+    return Object.freeze({
+        code: COLUMN_DROPPED_CODE,
+        message: `node column "${name}" is not written: ${where} holds what graphty draws (${String(n)} node${plural(n)} ${agree(n, "differs", "differ")})`,
+        column: name,
+        count: n,
+    });
 }
 
 /**

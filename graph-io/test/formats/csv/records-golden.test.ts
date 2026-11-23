@@ -7,7 +7,7 @@ import { RecordReader, type RecordSyntax, sniffDelimiter } from "../../../src/fo
 import { ImportError } from "../../../src/types.js";
 import { textChunksOf } from "../../helpers/corpus.js";
 
-// Golden outputs of the record tokeniser over every pair of these fragments, under several
+// Golden outputs of the record tokenizer over every pair of these fragments, under several
 // syntaxes and chunkings: the cells, quoted flags and line of every record, the leading comments,
 // the stray-quote line, or the fatal error and its line. The fragments cover quoting, doubled
 // quotes, delimiters, whitespace runs, empty fields, comments and every line ending.
@@ -78,12 +78,14 @@ describe("RecordReader golden outputs", () => {
                     }
                 }
             }
-            // compared as parsed JSON, so reformatting the golden file changes nothing; delete it to rewrite it
+            // compared as parsed JSON, so reformatting the golden file changes nothing; a missing golden fails, and
+            // UPDATE_RECORDS_GOLDEN=1 rewrites it
             const file = new URL(`__golden__/records-${name}.json`, import.meta.url);
             const actual: unknown = JSON.parse(JSON.stringify(out));
-            if (!existsSync(file)) {
+            if (process.env.UPDATE_RECORDS_GOLDEN === "1") {
                 writeFileSync(file, `${JSON.stringify(actual, null, 4)}\n`);
             }
+            expect(existsSync(file), `${file.pathname} is missing: rerun with UPDATE_RECORDS_GOLDEN=1`).toBe(true);
             expect(actual).toEqual(JSON.parse(readFileSync(file, "utf8")));
         });
     }

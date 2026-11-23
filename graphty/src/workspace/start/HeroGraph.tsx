@@ -5,8 +5,8 @@ import type { GraphSession, LayerSpec, NodeId, Run, RunResult } from "@graphty/g
 import { Button, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 
-import { loadGraphtyElement } from "../../elementLoader";
 import { siteConfig } from "../../siteConfig";
+import { useElementDefined } from "../../useElementDefined";
 import { GLYPHS } from "../glyphs";
 import { EDGE_WIDTH, HIGHLIGHT_OPACITY, LOOK } from "./heroLook";
 import { HeroTurns } from "./heroTurns";
@@ -229,7 +229,7 @@ interface Said {
  * @returns Its name, else its id.
  */
 function nameOf(session: GraphSession, id: string | number): string {
-    return session.data.name(id) ?? String(id);
+    return session.data.nodeName(id).name;
 }
 
 /**
@@ -251,7 +251,7 @@ async function finished(run: Run): Promise<RunResult | null> {
  * @returns True when the system says so.
  */
 function prefersStill(): boolean {
-    return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    return globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /** The room kept under the buttons for the caption: two lines of it, in CSS pixels. */
@@ -396,7 +396,8 @@ function HeroGraphBody({
 }: Readonly<HeroGraphProps & { onRetry: () => void }>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
     const cardRef = useRef<HTMLDialogElement>(null);
-    const [defined, setDefined] = useState(() => customElements.get("graphty-element") !== undefined);
+    // A failure to load the element is the placeholder's Retry, which draws the body afresh.
+    const { defined, failed: elementFailed } = useElementDefined("start");
     const [session, setSession] = useState<GraphSession | null>(null);
     const [shown, setShown] = useState<Shown>({ communities: true, key: false, path: false, flat: false });
     const [said, setSaid] = useState<Said>({});
@@ -421,25 +422,10 @@ function HeroGraphBody({
     schemeRef.current = scheme;
 
     useEffect(() => {
-        let live = true;
-        void loadGraphtyElement()
-            .then(() => customElements.whenDefined("graphty-element"))
-            .then(() => {
-                if (live) {
-                    performance.mark("graphty:hero-element-defined");
-                    setDefined(true);
-                }
-            })
-            .catch((error: unknown) => {
-                if (live) {
-                    console.error("[start] graphty-element could not be loaded:", error);
-                    setLoadState("failed");
-                }
-            });
-        return () => {
-            live = false;
-        };
-    }, []);
+        if (defined) {
+            performance.mark("graphty:hero-element-defined");
+        }
+    }, [defined]);
 
     // The turning follows the pause button, and touches nothing else.
     useEffect(() => {
@@ -501,9 +487,12 @@ function HeroGraphBody({
             onDrawn();
         }
         let live = true;
+        // Read through a call: the cleanup below clears it while the load awaits, which
+        // TypeScript's narrowing cannot see.
+        const isLive = (): boolean => live;
         void (async () => {
             definePalette(GROUP_PALETTE);
-            next.styles.setDefaultPalettes({ categorical: GROUP_PALETTE.id });
+            await next.styles.setDefaultPalettes({ categorical: GROUP_PALETTE.id });
             const ids: string[] = [];
             // The scheme in force now; a later change is applied by the effect below.
             for (const layer of lookLayers(schemeRef.current)) {
@@ -513,19 +502,19 @@ function HeroGraphBody({
             await next.layout.set("force", { options: { seed: HERO_SEED } });
             await next.data.import({ config: { url: sample.url }, name: sample.name });
             performance.mark("graphty:hero-data-loaded");
-            if (!live) {
+            if (!isLive()) {
                 return;
             }
             setSession(next);
             onSession?.(next);
             const communities = await finished(next.runs.start("louvain"));
-            if (live && communities !== null) {
+            if (isLive() && communities !== null) {
                 setSaid((before) => ({ ...before, communities: communities.summary().groupCount }));
             }
         })().catch((error: unknown) => {
             // Unmounted mid-load: the element aborts the import it no longer needs, which is no
             // failure to report.
-            if (!live) {
+            if (!isLive()) {
                 return;
             }
             console.error("[start] the start page's graph could not be drawn:", error);
@@ -679,6 +668,8 @@ function HeroGraphBody({
                 {defined ? (
                     <graphty-element
                         ref={ref}
+                        // Usage data never captures a click on the drawing, and a replay shows it blank.
+                        className="ph-no-capture"
                         data-start-page=""
                         aria-label="A network drawn as a 3D graph. Drag or use the arrow keys to turn it; point at a node to see its neighbors, click it for details."
                         background={{ backgroundType: "color", color: background }}
@@ -690,7 +681,7 @@ function HeroGraphBody({
                         style={{ display: "block", width: "100%", height: "100%" }}
                     />
                 ) : null}
-                <HeroPlaceholder state={loadState} onRetry={onRetry} />
+                <HeroPlaceholder state={elementFailed ? "failed" : loadState} onRetry={onRetry} />
             </div>
             <div className="ws-land-demo">
                 <div className="ws-land-chips" role="toolbar" aria-label="Analyze the graph">
@@ -802,7 +793,7 @@ async function showKeyPlayers(session: GraphSession, mine: Picked): Promise<Foun
         return null;
     }
     await session.styles.encode({ run: run.id, channel: "node.size", range: [NODE_SIZE * 0.625, NODE_SIZE * 2.5] });
-    const top = result.summary().top[0];
+    const top = result.summary().top.at(0);
     if (top === undefined) {
         return { said: {}, nodes: [] };
     }

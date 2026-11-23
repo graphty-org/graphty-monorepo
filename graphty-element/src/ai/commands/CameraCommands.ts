@@ -31,13 +31,13 @@ function cameraViewNames(): string[] {
  * from the five built-in names and then re-validated against the same array, so a registered
  * camera view could not be named here even once registration existed. The names the element
  * ships are still listed in the description, where they guide the model; the refusal below reads
- * the catalogue, so a view a third party registered is offerable and nameable.
+ * the catalog, so a view a third party registered is offerable and nameable.
  */
 const CameraPresetSchema = z
     .string()
     .describe(
-        "Named camera view. The element ships 'fitToGraph', 'topView', 'sideView', 'frontView' and " +
-            "'isometric'; an application may have registered others.",
+        "Named camera view. The element ships 'fitToGraph', 'topView', 'sideView', 'frontView', " +
+            "'isometric' and 'bottomView'; an application may have registered others.",
     );
 
 /**
@@ -108,17 +108,19 @@ export const setCameraPosition: GraphCommand = {
                 return {
                     success: false,
                     message: "Either 'preset' or 'position' must be provided.",
+                    code: "AI_ARG_INVALID",
                 };
             }
 
             // Use preset if provided
             if (preset) {
-                // Validate against the catalogue rather than a fixed list, so a registered view
+                // Validate against the catalog rather than a fixed list, so a registered view
                 // is as nameable here as a built-in one.
                 if (!cameraDescriptor(preset)) {
                     return {
                         success: false,
                         message: `Unknown camera view "${preset}". Available views: ${cameraViewNames().join(", ")}.`,
+                        code: "AI_UNKNOWN_ENTRY",
                     };
                 }
 
@@ -220,7 +222,7 @@ export const zoomToNodes: GraphCommand = {
                 description: `Zooming to fit ${scoped ? "matching nodes" : "all nodes"}`,
             });
 
-            const nodeCount = scoped ? matchingIds.length : graph.getNodeCount();
+            const nodeCount = scoped ? matchingIds.length : graph.getSession().status.counts.nodes;
             const matching = scoped ? ` matching "${selector}"` : "";
             return {
                 success: true,

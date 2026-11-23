@@ -5,7 +5,7 @@
 
 import { STYLE_ISSUE } from "../codes.js";
 import type { StyleColor, StyleDialect } from "../types.js";
-import { CSS_COLORS, DVIPS_COLORS, JAVA_COLORS } from "./color-tables.js";
+import { CSS_COLORS, DVIPS_COLORS, JAVA_COLORS, X11_COLORS } from "./color-tables.js";
 import { graphvizColor, type GraphvizColorUse } from "./graphviz.js";
 import { num6 } from "./number.js";
 import { type CanonSite, noteAt, scalarText, spendAt } from "./site.js";
@@ -44,6 +44,16 @@ function hex2(v: number): string {
     return Math.max(0, Math.min(255, Math.round(v)))
         .toString(16)
         .padStart(2, "0");
+}
+
+/**
+ * The red, green and blue of a `#rrggbb` color; a channel that is not two hex digits is NaN.
+ * @param hex - the color
+ * @returns the three channels, 0..255
+ */
+export function hexChannels(hex: string): [number, number, number] {
+    const at = (k: number): number => Number.parseInt(hex.slice(k, k + 2), 16);
+    return [at(1), at(3), at(5)];
 }
 
 /**
@@ -196,7 +206,7 @@ function toGamut(rgb: Vec3): Vec3 {
         achromatic
             ? [l, 0, 0]
             : [l, chroma * Math.cos((degrees * Math.PI) / 180), chroma * Math.sin((degrees * Math.PI) / 180)];
-    const chroma0 = Math.sqrt(a ** 2 + b ** 2); // NOSONAR(S7769): colorjs.io's own formula, so chroma matches it bit for bit
+    const chroma0 = Math.sqrt(a ** 2 + b ** 2); // eslint-disable-line unicorn/prefer-modern-math-apis -- colorjs.io's own formula, so chroma matches it bit for bit
     const first = oklabToSrgb(at(chroma0));
     if (inGamut(first)) {
         return first;
@@ -557,6 +567,8 @@ function channels(raw: object): { hex: StyleColor; alpha: number } | null {
  *   what Graphviz draws. `x11`: the same names, and an unknown one is null.
  * - `java`, `gephi`, `cytoscape`: the `java.awt.Color` names first, then CSS; a `java` integer is an RGB value.
  * - `dvips`: Pajek's names.
+ * - `tk`: CSS, then the forms of Tk_GetColor CSS lacks (`#RRRGGGBBB`, `#RRRRGGGGBBBB`, X11 names written with spaces):
+ *   the GML draft's colors.
  * - `yed`: `#RRGGBBAA` with the alpha last; `yfiles3`: `#AARRGGBB` with the alpha first and constants such as
  *   `DARK_ORANGE`.
  * - `gexf` and `gephi` also take `{ r, g, b, a }` objects.
@@ -685,15 +697,62 @@ function textColor(trimmed: string, dialect: StyleDialect): { hex: StyleColor; a
             return pajekColor(trimmed);
         case "yfiles3":
             return hexColor(trimmed, true) ?? cssColor(lower.replaceAll("_", ""));
+        case "cytoscape":
+            // Cytoscape's ColorUtil also reads `r,g,b`, the spelling of its 2.x style files
+            return commaColor(trimmed) ?? javaOrCss(lower, trimmed);
         case "java":
         case "gephi":
-        case "cytoscape": {
-            const java = JAVA_COLORS.get(lower);
-            return java === undefined ? cssColor(trimmed) : { hex: java as StyleColor, alpha: 1 };
-        }
+            return javaOrCss(lower, trimmed);
+        case "tk":
+            return cssColor(trimmed) ?? tkColor(lower);
         default:
             return cssColor(trimmed);
     }
+}
+
+/**
+ * A `java.awt.Color` name, else a CSS color.
+ * @param lower - the value, trimmed and lowercase
+ * @param trimmed - the value, trimmed
+ * @returns the color, or null
+ */
+function javaOrCss(lower: string, trimmed: string): { hex: StyleColor; alpha: number } | null {
+    const java = JAVA_COLORS.get(lower);
+    return java === undefined ? cssColor(trimmed) : { hex: java as StyleColor, alpha: 1 };
+}
+
+/**
+ * Cytoscape's `r,g,b` and `r,g,b,a` color, each component 0..255.
+ * @param trimmed - the value, trimmed
+ * @returns the color, or null
+ */
+function commaColor(trimmed: string): { hex: StyleColor; alpha: number } | null {
+    const m = /^(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d{1,3}))?$/.exec(trimmed);
+    if (m === null) {
+        return null;
+    }
+    const [r, g, b, a] = [m[1], m[2], m[3], m.at(4) ?? "255"].map(Number);
+    if (Math.max(r, g, b, a) > 255) {
+        return null;
+    }
+    return { hex: rgbHex(r, g, b), alpha: a / 255 };
+}
+
+/**
+ * The colors Tk_GetColor reads that CSS does not (https://www.tcl.tk/man/tcl8.6/TkLib/GetColor.htm): `#RRRGGGBBB`
+ * and `#RRRRGGGGBBBB`, each component's high-order 8 bits drawn, and a name of Tk's (X11's) color table written with
+ * spaces (`light blue`).
+ * @param lower - the value, trimmed and lowercase
+ * @returns the color, or null
+ */
+function tkColor(lower: string): { hex: StyleColor; alpha: number } | null {
+    if (/^#(?:[\da-f]{9}|[\da-f]{12})$/.test(lower)) {
+        const digits = (lower.length - 1) / 3;
+        const [r, g, b] = [0, 1, 2].map((i) => Number.parseInt(lower.slice(1 + i * digits, 3 + i * digits), 16));
+        return { hex: rgbHex(r, g, b), alpha: 1 };
+    }
+    const named = X11_COLORS.get(lower.replaceAll(/\s+/g, ""));
+    return named === undefined ? null : { hex: named as StyleColor, alpha: 1 };
 }
 
 /**

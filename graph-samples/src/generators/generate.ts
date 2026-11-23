@@ -1,8 +1,8 @@
 /**
- * `generateGraph(name, params)`: run any generator of the catalogue by name, with its catalogue
+ * `generateGraph(name, params)`: run any generator of the catalog by name, with its catalog
  * parameters. The simple path over the generator functions: a parameter left out takes its
- * catalogue default, and the generators that take whole sequences (degrees, block sizes, layer
- * widths) take the few numbers the catalogue lists and build the sequence from them.
+ * catalog default, and the generators that take whole sequences (degrees, block sizes, layer
+ * widths) take the few numbers the catalog lists and build the sequence from them.
  */
 
 import { type SampleGraph } from "../types.js";
@@ -80,7 +80,7 @@ function fill(count: number, value: number): number[] {
 }
 
 /**
- * A power-law degree sequence from the catalogue's three numbers.
+ * A power-law degree sequence from the catalog's three numbers.
  * @param p - the parameters
  * @param n - the sequence length
  * @returns the degrees
@@ -95,7 +95,7 @@ function powerLaw(p: Read, n: number): Uint32Array {
     });
 }
 
-/** Each catalogue generator's call, by name. */
+/** Each catalog generator's call, by name. */
 const BUILD: Readonly<Record<string, (p: Read) => SampleGraph>> = {
     ak: (p) => akGraph({ k: p.n("k") }),
     "balanced-tree": (p) => balancedTreeGraph({ branching: p.n("branching"), height: p.n("height") }),
@@ -266,7 +266,7 @@ const BUILD: Readonly<Record<string, (p: Read) => SampleGraph>> = {
 };
 
 /**
- * Whether a value is one a catalogue parameter takes.
+ * Whether a value is one a catalog parameter takes.
  * @param param - the parameter
  * @param value - the value
  * @returns true when it is
@@ -288,7 +288,7 @@ function accepts(param: GeneratorParamDescriptor, value: unknown): boolean {
 }
 
 /**
- * What a catalogue parameter takes, for an error message.
+ * What a catalog parameter takes, for an error message.
  * @param param - the parameter
  * @returns the words
  */
@@ -304,14 +304,14 @@ function expected(param: GeneratorParamDescriptor): string {
 }
 
 /**
- * Generate a graph by its catalogue name (`GENERATOR_CATALOG` of `@graphty/graph-samples`). Every
- * parameter left out takes its catalogue default, so `generateGraph("erdos-renyi")` is a readable
+ * Generate a graph by its catalog name (`GENERATOR_CATALOG` of `@graphty/graph-samples`). Every
+ * parameter left out takes its catalog default, so `generateGraph("erdos-renyi")` is a readable
  * graph of 100 nodes; the same name and parameters give the same graph on every platform.
- * @param name - the generator's catalogue name, e.g. "barabasi-albert"
- * @param params - its parameters by catalogue name
+ * @param name - the generator's catalog name, e.g. "barabasi-albert"
+ * @param params - its parameters by catalog name
  * @returns the graph
  * @throws RangeError for an unknown generator, an unknown parameter, a value of the wrong type or
- *   outside the catalogue's range, or a combination the generator refuses
+ *   outside the catalog's range, or a combination the generator refuses
  */
 export function generateGraph(name: string, params: GeneratorParams = {}): SampleGraph {
     const descriptor = GENERATOR_CATALOG.find((each) => each.name === name);

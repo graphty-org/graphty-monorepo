@@ -1,7 +1,10 @@
 import {
     type Column,
+    type ColumnDeclPatch,
     type ColumnHandle,
     type DerivedGraph,
+    edgeIsDirected,
+    type EdgeListView,
     type FreezeReport,
     GraphBuilder,
     type GraphSnapshot,
@@ -11,18 +14,24 @@ import {
 } from "@graphty/graph-format";
 
 import { hashNodeId } from "../catalog/sets/hash";
+import type { EdgeId } from "../catalog/types";
 import { type InputCounters, inputCountersOf } from "../session/attributes";
 import { retainArray } from "../session/project/strict";
 import type { DirectionProvenance } from "../session/types";
 import {
     completeLoad,
     createEdgeCounter,
+    DEFERRED_HASH_COLUMN,
+    EDGE_ID_CEILING,
     EDGE_ID_COLUMN,
     type EdgeCounter,
+    edgeCounterOf,
     IDENTITY_COLUMNS,
     type IdentityGraph,
     PAIRS_ORDERED_ATTRIBUTE,
+    resumeEdgeCounter,
     sessionEdgeHash,
+    withNodeHashes,
 } from "./edgeIdentity";
 import { ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "./positions";
 
@@ -84,6 +93,65 @@ export interface GraphStoreOptions {
      * fresh builder; absent reads false. The element turns it on for the "batched" render path.
      */
     readonly denseEdgeIds?: () => boolean;
+    /**
+     * Whether the builder may be let go once a load has frozen and nothing is waiting, and rebuilt
+     * from the snapshot on the next write (one rebuild per builder: once rebuilt it is kept). The
+     * snapshot answers every read meanwhile, so a graph loaded and only looked at holds one copy of
+     * its structure and columns, not two. Absent reads false. The element turns it on for the
+     * "batched" render path.
+     */
+    readonly releaseBuilder?: () => boolean;
+}
+
+/** What reads of the graph's structure need, answered by the builder or, while it is let go, by the snapshot. */
+export interface BuilderReads {
+    readonly directed: boolean;
+    readonly nodeCount: number;
+    readonly edgeCount: number;
+    indexOf(id: NodeId): number;
+    idOf(index: number): NodeId;
+    hasNode(id: NodeId): boolean;
+    hasEdge(edge: number): boolean;
+    edgeEndpoints(edge: number): readonly [source: number, target: number];
+}
+
+/**
+ * The reads a let-go builder would have answered, from the snapshot frozen from it: the same rows,
+ * as a builder holds exactly its last freeze's rows until its next write.
+ * @param snapshot - The snapshot.
+ * @param directed - The builder's direction.
+ * @returns The reads.
+ */
+function snapshotReads(snapshot: GraphSnapshot, directed: boolean): BuilderReads {
+    // Ends by two array reads, as the builder answers them: `edgeSource` alone searches the rows.
+    let list: EdgeListView | null = null;
+    return {
+        directed,
+        nodeCount: snapshot.nodeCount,
+        edgeCount: snapshot.edgeCount,
+        indexOf: (id) => snapshot.ids.indexOf(id),
+        idOf: (index) => snapshot.ids.idOf(index),
+        hasNode: (id) => snapshot.ids.has(id),
+        hasEdge: (edge) => Number.isInteger(edge) && edge >= 0 && edge < snapshot.edgeCount,
+        edgeEndpoints: (edge) => {
+            list ??= snapshot.edgeList();
+            return [list.src[edge], list.dst[edge]];
+        },
+    };
+}
+
+/** Stands in for a let-go builder in the keys that name a builder, so none keeps it reachable. */
+const RELEASED_BUILDER = new GraphBuilder({ directed: false });
+
+/** What a let-go builder answered that is not in its snapshot. */
+interface ReleasedBuilder {
+    readonly directed: boolean;
+    readonly directedLocked: boolean;
+    /** Whether {@link GraphStore.restoredFrom} named it, with its count. */
+    readonly restored: boolean;
+    /** Its row bounds: the index space a walk out of it is sized by. */
+    readonly nodeBound: number;
+    readonly edgeBound: number;
 }
 
 /** The node column an importer seeds file coordinates into; deleted from every snapshot by the attach. */
@@ -102,7 +170,7 @@ export interface SeedEntry {
  *
  * One byte per node, 1 while the reader has fixed that node in place. The OWNER is
  * `positions.pinnedView()`, the lane beside the coordinates; this column is that lane attached to
- * the snapshot, exactly as the position column is, so anything that reads or serialises a snapshot
+ * the snapshot, exactly as the position column is, so anything that reads or serializes a snapshot
  * carries the pins with the coordinates they pin rather than losing them at the freeze.
  */
 const PINNED_COLUMN = "graphty.pinned";
@@ -114,6 +182,17 @@ const PINNED_COLUMN = "graphty.pinned";
  * through the f32 weight array. Unset rows read 1, a record's missing capacity.
  */
 export const CAPACITY_COLUMN = "graphty.capacity";
+
+/**
+ * The edge column holding an edge's own direction, read from its record at ingest by
+ * `resolveEdgeDirected`, with graph-format's role `"directed"`: a set cell overrides the graph's
+ * direction for that edge, an unset one takes it. Declared the first time an edge states one, so a
+ * graph whose edges never do carries no such column.
+ */
+export const EDGE_DIRECTED_COLUMN = "graphty.edgeDirected";
+
+/** What the tests read: how many undirected views the stores have derived (one per snapshot at most). */
+export const storeCounters = { undirectedDerivations: 0 };
 
 /**
  * A freeze already committed to the store whose consumer callbacks have not all returned yet.
@@ -163,10 +242,14 @@ function identityIn(snapshot: GraphSnapshot, edgeId: number): EdgeIdentityCells 
         ? undefined
         : identityOf(
               new Map(
-                  [IDENTITY_COLUMNS.edgeHash, IDENTITY_COLUMNS.edgeOrdinal, IDENTITY_COLUMNS.edgeAmong].map((name) => [
-                      name,
-                      snapshot.edges.value(name, row),
-                  ]),
+                  [
+                      IDENTITY_COLUMNS.edgeHash,
+                      IDENTITY_COLUMNS.edgeOrdinal,
+                      IDENTITY_COLUMNS.edgeAmong,
+                      DEFERRED_HASH_COLUMN,
+                  ]
+                      .filter((name) => snapshot.edges.has(name))
+                      .map((name) => [name, snapshot.edges.value(name, row)]),
               ),
           );
 }
@@ -177,8 +260,11 @@ function identityIn(snapshot: GraphSnapshot, edgeId: number): EdgeIdentityCells 
  * @returns The cells, or undefined when it has no hash yet.
  */
 function identityOf(values: RowValues): EdgeIdentityCells | undefined {
+    // A session edge whose hash was deferred (renderPath "batched") is completed again, from its
+    // counter, like a new one. Unset reads undefined from a row's values and null from a snapshot.
+    const deferred = values.get(DEFERRED_HASH_COLUMN);
     const hash = values.get(IDENTITY_COLUMNS.edgeHash) as readonly number[] | undefined;
-    if (hash === undefined) {
+    if (hash === undefined || (deferred !== undefined && deferred !== null)) {
         return undefined;
     }
 
@@ -264,8 +350,10 @@ interface BuilderState {
     readonly builder: GraphBuilder;
     readonly handles: readonly ColumnHandle[];
     readonly edgeIdByIndex: number[];
+    readonly denseRows: number;
     readonly indexByEdgeId: Map<number, number>;
     readonly denseOffset: number | null;
+    readonly risingRows: number;
     readonly pairsOrdered: boolean | null;
 }
 
@@ -299,28 +387,47 @@ function mergeAt<R extends { readonly index: number }>(list: readonly Row<R>[], 
 /**
  * The graph a rebuild starts from: the builder now, frozen (with the walk from its rows to the
  * frozen ones), the kept graph a restore puts back, or none for a replace that empties it.
- * @param old - The builder now.
+ * @param old - The builder now; null only for a replace, while it is let go.
  * @param replace - The replace the rebuild starts from, or null to start from the builder now.
  * @param nodeBound - The builder's node row bound.
  * @param edgeBound - The builder's edge row bound.
  * @returns The base snapshot, and the builder's rows in it when it was frozen from the builder.
  */
 function rebuildBase(
-    old: GraphBuilder,
+    old: GraphBuilder | null,
     replace: Extract<Structural, { kind: "replace" }> | null,
     nodeBound: number,
     edgeBound: number,
 ): { base: GraphSnapshot | null; oldNodes: U32 | null; oldEdges: U32 | null } {
     if (replace === null) {
-        const frozen = old.freezeWithReport({ label: "graphty-element rebuild" });
+        if (old === null) {
+            throw new Error("GraphStore: a rebuild from the builder now needs the builder");
+        }
+
+        // The rebuild reads the base's edge list; prepared from the builder's rows, not a walk of the core.
+        const frozen = old.freezeWithReport({ label: "graphty-element rebuild", prepare: ["edgeList"] });
         return {
             base: frozen.snapshot,
-            oldNodes: frozen.report.nodeRemap ?? Uint32Array.from({ length: nodeBound }, (_, row) => row),
-            oldEdges: frozen.report.edgeRemap ?? Uint32Array.from({ length: edgeBound }, (_, row) => row),
+            oldNodes: frozen.report.nodeRemap ?? identityWalk(nodeBound),
+            oldEdges: frozen.report.edgeRemap ?? identityWalk(edgeBound),
         };
     }
 
     return { base: replace.restore ? replace.kept.snapshot : null, oldNodes: null, oldEdges: null };
+}
+
+/**
+ * The walk that keeps every row where it is.
+ * @param rows - The row count.
+ * @returns `walk[row] === row` for every row.
+ */
+function identityWalk(rows: number): U32 {
+    const walk = new Uint32Array(rows);
+    for (let row = 0; row < rows; row++) {
+        walk[row] = row;
+    }
+
+    return walk;
 }
 
 /**
@@ -354,8 +461,8 @@ function pendingRows(
     base: GraphSnapshot | null,
     changes: readonly Structural[],
 ): { nodeRows: Row<RemovedNode>[]; edgeRows: Row<RemovedEdge>[] } {
-    let nodeRows: Row<RemovedNode>[] = Array.from({ length: base?.nodeCount ?? 0 }, (_, row) => row);
-    let edgeRows: Row<RemovedEdge>[] = Array.from({ length: base?.edgeCount ?? 0 }, (_, row) => row);
+    let nodeRows: Row<RemovedNode>[] = [...identityWalk(base?.nodeCount ?? 0)];
+    let edgeRows: Row<RemovedEdge>[] = [...identityWalk(base?.edgeCount ?? 0)];
     for (const change of changes) {
         if (change.kind === "insert") {
             nodeRows = mergeAt(nodeRows, change.rows.nodes);
@@ -372,32 +479,299 @@ function pendingRows(
 }
 
 /**
- * Copy every set cell of one base node row into a builder row.
- * @param builder - The builder written.
- * @param columns - The base's node columns.
- * @param row - The base row.
- * @param index - The builder row.
+ * The row of an edge id among the first `rows` rows of an array whose ids rise with the row.
+ * @param ids - The ids by row.
+ * @param rows - How many rows rise.
+ * @param edgeId - The id.
+ * @returns The row, or INVALID_INDEX.
  */
-function copyNodeCells(builder: GraphBuilder, columns: Iterable<Column>, row: number, index: number): void {
-    for (const column of columns) {
-        if (column.isSet(row)) {
-            builder.setNodeValue(column.meta.name, index, column.value(row));
+function risingRowOf(ids: readonly number[], rows: number, edgeId: number): number {
+    let low = 0;
+    let high = rows - 1;
+    while (low <= high) {
+        const middle = (low + high) >>> 1;
+        const id = ids[middle];
+        if (id === edgeId) {
+            return middle;
+        }
+
+        if (id < edgeId) {
+            low = middle + 1;
+        } else {
+            high = middle - 1;
+        }
+    }
+
+    return INVALID_INDEX;
+}
+
+/**
+ * Copy a snapshot's rows into an empty builder so each lands on its own row: nodes (ids that are
+ * their own rows as anonymous nodes, as a load adds them, so no id map is built), every edge in one
+ * call by node index, then the cells a column at a time.
+ * @param builder - The empty builder.
+ * @param base - The snapshot.
+ * @param nodeColumns - Its node columns as frozen, before the position lane replaced the seed column.
+ * @param edgeIdHandle - The builder's edge id column.
+ */
+function copyBaseRows(
+    builder: GraphBuilder,
+    base: GraphSnapshot,
+    nodeColumns: readonly Column[],
+    edgeIdHandle: ColumnHandle,
+): void {
+    // Ids that are their own rows go in as anonymous nodes, as the load added them: no id map.
+    let anonymous = 0;
+    while (anonymous < base.nodeCount && base.ids.idOf(anonymous) === anonymous) {
+        anonymous++;
+    }
+
+    builder.addAnonymousNodes(anonymous);
+    for (let row = anonymous; row < base.nodeCount; row++) {
+        builder.addNode(base.ids.idOf(row));
+    }
+
+    const list = base.edgeList();
+    builder.addEdges(list.src, list.dst, list.weights ?? undefined);
+    for (const column of nodeColumns) {
+        if (!copyColumnWhole(builder, "node", column)) {
+            copyColumnCells(column, (row, value) => {
+                builder.setNodeValue(column.meta.name, row, value);
+            });
+        }
+    }
+
+    for (const column of base.edges) {
+        if (column.meta.role !== "weight" && !copyColumnWhole(builder, "edge", column)) {
+            const handle = column.meta.name === EDGE_ID_COLUMN ? edgeIdHandle : column.meta.name;
+            copyColumnCells(column, (row, value) => {
+                builder.setEdgeValue(handle, row, value);
+            });
         }
     }
 }
 
 /**
- * Copy every set cell of one base edge row into a builder row, except the weight and the edge id,
- * which the row writes itself.
- * @param builder - The builder written.
- * @param columns - The base's edge columns.
- * @param row - The base row.
- * @param index - The builder row.
+ * The columns the store declares itself, the only ones {@link copyColumnWhole} copies whole. A column a
+ * write auto-declared is inferred and must stay so: copied whole under its frozen metadata it became a
+ * declared column of fixed dtype, and a later value of another type threw E_COLUMN_TYPE instead of
+ * widening it.
+ * ponytail: a consumer's numeric columns still go cell by cell; a whole copy that stays inferred needs
+ * graph-format to stage a typed array as an inferred column.
  */
-function copyEdgeCells(builder: GraphBuilder, columns: Iterable<Column>, row: number, index: number): void {
+const STORE_DECLARED_COLUMNS: ReadonlySet<string> = new Set([
+    SEED_COLUMN,
+    EDGE_ID_COLUMN,
+    CAPACITY_COLUMN,
+    DEFERRED_HASH_COLUMN,
+    ...Object.values(IDENTITY_COLUMNS),
+]);
+
+/**
+ * Copy a numeric column with every row set into a builder in one bulk write, under the metadata it
+ * had: a million-edge column cell by cell was most of the quarter second the first edit after a
+ * load spent bringing the builder back (issue #9164).
+ * @param builder - The builder, holding as many rows as the column.
+ * @param domain - Node or edge.
+ * @param column - The frozen column.
+ * @param moved - Each column row's row in the builder, INVALID_INDEX for one dropped; omitted for the
+ *     same rows, when the builder holds exactly the column's rows.
+ * @returns False, writing nothing, when the column is not of that kind.
+ */
+function copyColumnWhole(builder: GraphBuilder, domain: "node" | "edge", column: Column, moved?: U32): boolean {
+    const { meta } = column;
+    const numeric = ["f32", "f64", "i32", "u32", "u8"].includes(column.dtype);
+    const rows = domain === "node" ? builder.nodeBound : builder.edgeBound;
+    const length = moved?.length ?? rows;
+    if (
+        !numeric ||
+        !STORE_DECLARED_COLUMNS.has(meta.name) ||
+        column.nullCount !== 0 ||
+        meta.refersTo !== null ||
+        column.length !== length
+    ) {
+        return false;
+    }
+
+    const from = (column as unknown as { data: Float64Array<ArrayBuffer> }).data;
+    const width = meta.components;
+    const data = moved === undefined ? from.slice(0, rows * width) : scatterRows(from, width, moved, rows);
+    // Its own metadata as the declaration: every field it has, less the two the call names and the
+    // ones it holds none of.
+    const decl = Object.fromEntries(
+        Object.entries(meta).filter(([key, value]) => key !== "name" && key !== "domain" && value !== null),
+    ) as ColumnDeclPatch;
+    if (domain === "node") {
+        builder.setNodeColumn(meta.name, data, decl);
+    } else {
+        builder.setEdgeColumn(meta.name, data, decl);
+    }
+
+    return true;
+}
+
+/**
+ * A column's values moved onto new rows, in a new array of the same type.
+ * @param from - The values, `width` per row.
+ * @param width - Values per row.
+ * @param moved - Each row's new row, or INVALID_INDEX.
+ * @param rows - The new row count.
+ * @returns The new array; rows nothing moved onto hold 0.
+ */
+function scatterRows(
+    from: Float64Array<ArrayBuffer>,
+    width: number,
+    moved: U32,
+    rows: number,
+): Float64Array<ArrayBuffer> {
+    const data = new (from.constructor as Float64ArrayConstructor)(rows * width);
+    // By runs of rows that keep their order, one `copyWithin`-sized `set` each: an undo that puts one row
+    // back moves two runs, not a million rows one `subarray` at a time.
+    let row = 0;
+    while (row < moved.length) {
+        const to = moved[row];
+        let end = row + 1;
+        if (to !== INVALID_INDEX) {
+            while (end < moved.length && moved[end] === to + (end - row)) {
+                end++;
+            }
+
+            data.set(from.subarray(row * width, end * width), to * width);
+        }
+
+        row = end;
+    }
+
+    return data;
+}
+
+/**
+ * Hand every set cell of a column to a writer, row by row.
+ * @param column - The column.
+ * @param write - Writes one cell.
+ */
+function copyColumnCells(column: Column, write: (row: number, value: unknown) => void): void {
+    for (let row = 0; row < column.length; row++) {
+        if (column.isSet(row)) {
+            write(row, column.value(row));
+        }
+    }
+}
+
+/**
+ * The edge ids of a rebuild's base rows, by their rows in the new builder: read from the id column's array
+ * where its cell is set, where reading each through the table was a call per edge.
+ * @param base - The graph the rebuild starts from.
+ * @param baseEdge - Each base edge row's row in the new builder, INVALID_INDEX for one dropped.
+ * @param rows - The new builder's edge row bound.
+ * @returns The ids; the rows put back are left for the caller.
+ */
+function baseEdgeIds(base: GraphSnapshot, baseEdge: U32, rows: number): number[] {
+    const ids = new Array<number>(rows);
+    const stamped = base.edges.typed(EDGE_ID_COLUMN, "u32");
+    for (let row = 0; row < baseEdge.length; row++) {
+        const index = baseEdge[row];
+        if (index !== INVALID_INDEX) {
+            ids[index] =
+                stamped?.isSet(row) === true ? stamped.data[row] : (base.edges.value(EDGE_ID_COLUMN, row) as number);
+        }
+    }
+
+    return ids;
+}
+
+/**
+ * Add a rebuild's edge rows to its builder in order: each run of base rows as whole arrays, and each
+ * row put back on its own.
+ * @param builder - The new builder, holding the nodes.
+ * @param list - The base's edge list.
+ * @param baseNode - Each base node row's row in the builder.
+ * @param edgeRows - The rows, in order: a base row by number, or a row put back.
+ * @param baseEdge - Filled with each base edge row's row in the builder.
+ * @returns The rows put back, with their rows in the builder.
+ */
+function addEdgeRuns(
+    builder: GraphBuilder,
+    list: EdgeListView,
+    baseNode: U32,
+    edgeRows: readonly Row<RemovedEdge>[],
+    baseEdge: Uint32Array,
+): [number, RemovedEdge][] {
+    const recorded: [number, RemovedEdge][] = [];
+    // The run is base rows [start, end): rows go back in their base order, so a run is a range.
+    let start = 0;
+    let end = 0;
+    const flush = (): void => {
+        const count = end - start;
+        if (count === 0) {
+            return;
+        }
+
+        const src = new Uint32Array(count);
+        const dst = new Uint32Array(count);
+        for (let at = 0; at < count; at++) {
+            src[at] = baseNode[list.src[start + at]];
+            dst[at] = baseNode[list.dst[start + at]];
+        }
+
+        const given = list.weights;
+        const first = builder.addEdges(src, dst, given === null ? undefined : given.subarray(start, end));
+        for (let at = 0; at < count; at++) {
+            baseEdge[start + at] = first + at;
+        }
+
+        start = end;
+    };
+    for (const row of edgeRows) {
+        if (typeof row !== "number") {
+            flush();
+            recorded.push([builder.addEdge(row.source, row.target, row.weight), row]);
+        } else if (row === end) {
+            end++;
+        } else {
+            flush();
+            start = row;
+            end = row + 1;
+        }
+    }
+
+    flush();
+    return recorded;
+}
+
+/**
+ * Copy the columns of a rebuild's base into its new builder, each base row onto its new row: a
+ * numeric column with every row set, and set in every recorded row too, as one array scattered in
+ * a typed pass; any other cell by cell. The recorded rows' slots are left for their own writes. An
+ * undo that puts one node back between a million edges wrote every cell one call at a time, for
+ * most of a second (issue #9164).
+ * @param builder - The new builder, holding every row already.
+ * @param domain - Node or edge.
+ * @param columns - The base's columns of that domain, less any the caller writes itself.
+ * @param moved - Each base row's new row, or INVALID_INDEX.
+ * @param recorded - The values of the rows put back, which decide whether a column can go whole.
+ * @param cell - Writes one cell by column, for a column copied cell by cell.
+ */
+function copyColumnsByRow(
+    builder: GraphBuilder,
+    domain: "node" | "edge",
+    columns: readonly Column[],
+    moved: U32,
+    recorded: readonly RowValues[],
+    cell: (column: Column, row: number, value: unknown) => void,
+): void {
     for (const column of columns) {
-        if (column.meta.role !== "weight" && column.meta.name !== EDGE_ID_COLUMN && column.isSet(row)) {
-            builder.setEdgeValue(column.meta.name, index, column.value(row));
+        // Whole only when every row put back writes the column too: a row put back with no value in it
+        // would otherwise read as set.
+        const whole =
+            recorded.every((values) => values.has(column.meta.name)) && copyColumnWhole(builder, domain, column, moved);
+        if (!whole) {
+            copyColumnCells(column, (row, value) => {
+                const to = moved[row] ?? INVALID_INDEX;
+                if (to !== INVALID_INDEX) {
+                    cell(column, to, value);
+                }
+            });
         }
     }
 }
@@ -514,8 +888,39 @@ export class GraphStore {
     readonly positions = new ElementPositions();
 
     private readonly options: GraphStoreOptions;
-    /** The builder now. Replaced only by a rebuild; see {@link GraphStore.builder}. */
-    private current: GraphBuilder;
+    /**
+     * The builder now, or null while it is let go ({@link GraphStoreOptions.releaseBuilder}).
+     * Replaced only by a rebuild; see {@link GraphStore.builder}.
+     */
+    private held: GraphBuilder | null = null;
+    /**
+     * Whether the builder may be let go: true from the store's start, from each load that
+     * replaces the graph and from the end of a load that has paid for the rebuilds so far (see
+     * {@link GraphStore.rowsLoaded}), false from the first rebuild after a release (of a builder
+     * holding edges) until then, so editing a loaded graph rebuilds it once, not after every quiet
+     * moment.
+     */
+    private releasable = true;
+    /**
+     * Rows (nodes plus edges) the loads since the graph was last replaced added, and rows the
+     * rebuilds in that time copied. A load lets the builder go again only while the first is at
+     * least the second, so the rows rebuilds copy stay within the rows loaded plus one graph:
+     * many pages or sources rebuild a few times, never once per page.
+     */
+    private rowsLoaded = 0;
+    private rowsCopied = 0;
+    /** The graph's rows when the outermost open load opened. */
+    private rowsAtOpen = 0;
+    /** The builder let go, while it is. */
+    private released: ReleasedBuilder | null = null;
+    /** How many times a let-go builder was rebuilt. */
+    private revivals = 0;
+    /** The snapshot's answers for the let-go builder, made once per release. */
+    private readsOf: {
+        readonly snapshot: GraphSnapshot;
+        readonly released: ReleasedBuilder;
+        readonly reads: BuilderReads;
+    } | null = null;
     private seedHandle: ColumnHandle;
     private edgeIdHandle: ColumnHandle;
     private capacityHandle: ColumnHandle;
@@ -541,6 +946,16 @@ export class GraphStore {
     private nodeMark = 0;
     /** Edges ingested outside a load and not yet completed: row, counter, file id. */
     private sessionEdges: { row: number; counter: number; fileId: string | number | undefined }[] = [];
+    /**
+     * Whether a session edge was left uncompleted since the last completion pass (renderPath
+     * "batched", see {@link GraphStore.recordIngestedEdge}): the pass still latches for it, as it
+     * would had it hashed the edge.
+     */
+    private mintedDeferred = false;
+    /** The {@link DEFERRED_HASH_COLUMN} handle and the builder it belongs to, declared on first use. */
+    private deferredHash: { builder: GraphBuilder; handle: ColumnHandle } | null = null;
+    /** The {@link EDGE_DIRECTED_COLUMN} handle and the builder it belongs to, declared on first use. */
+    private edgeDirection: { builder: GraphBuilder; handle: ColumnHandle } | null = null;
     /** Rows of the open load, in ingest order, remapped by every compacting freeze. */
     private loadRows = new Uint32Array(64);
     private loadLength = 0;
@@ -566,8 +981,17 @@ export class GraphStore {
     } | null = null;
     /** Moved by {@link GraphStore.recordsChanged}: record writes the builder cannot count. */
     private records = 0;
-    /** The edge-id column, mirrored by builder row: what {@link GraphStore.edgeIdAt} reads. */
+    /**
+     * The edge-id column, mirrored by builder row: what {@link GraphStore.edgeIdAt} reads. Empty
+     * while {@link GraphStore.denseRows} stands in for it.
+     */
     private edgeIdByIndex: number[] = [];
+    /**
+     * While every edge was stamped in row order from the first (`denseEdgeIds`), how many rows
+     * were: row `i` below it holds id `i + denseOffset`, and no array is kept (8 MB a million
+     * edges). Zero once {@link GraphStore.edgeIdByIndex} holds the ids.
+     */
+    private denseRows = 0;
     /**
      * Builder row by edge id: what {@link GraphStore.edgeIndexOf} reads. A map, not an array, as
      * counters only grow; every compacting freeze rebuilds it from the live rows, so it holds the
@@ -579,6 +1003,13 @@ export class GraphStore {
      * edge stamped where id - row equals it has no entry in {@link indexByEdgeId}. Null when off.
      */
     private denseOffset: number | null = null;
+    /**
+     * After a compacting freeze, how many rows of {@link GraphStore.edgeIdByIndex} hold ids that
+     * rise with the row (counters stamped in order stay in order through a removal): those rows are
+     * found by binary search and have no entry in {@link GraphStore.indexByEdgeId}, so a removal at a
+     * million edges rebuilds no map. Zero when off.
+     */
+    private risingRows = 0;
     /**
      * The kept graph the builder was last restored from, with the builder and its mutation count
      * once that restore settled. While the count still matches, the builder holds exactly that
@@ -653,6 +1084,175 @@ export class GraphStore {
     get builder(): GraphBuilder {
         this.settle();
         return this.current;
+    }
+
+    /**
+     * Reads of the graph's structure, settled as {@link GraphStore.builder} is, that do not bring a
+     * let-go builder back: the snapshot answers them while it is let go.
+     * @returns the builder, or the snapshot's answers for it
+     */
+    get reads(): BuilderReads {
+        this.settle();
+        const { held, released, cache } = this;
+        if (held !== null) {
+            return held;
+        }
+
+        // One reads object per snapshot: a paint asks once per row.
+        if (this.readsOf?.snapshot !== cache || this.readsOf.released !== released) {
+            this.readsOf = {
+                snapshot: cache as GraphSnapshot,
+                released: released as ReleasedBuilder,
+                reads: snapshotReads(cache as GraphSnapshot, (released as ReleasedBuilder).directed),
+            };
+        }
+
+        return this.readsOf.reads;
+    }
+
+    /**
+     * Whether the builder is let go now, and how many times one was rebuilt after a release.
+     * @returns the state
+     */
+    get builderRelease(): { readonly released: boolean; readonly revivals: number } {
+        return { released: this.held === null, revivals: this.revivals };
+    }
+
+    /**
+     * The graph's rows (nodes plus edges), read without rebuilding a let-go builder.
+     * @returns the row count
+     */
+    private rowCount(): number {
+        const graph = this.held ?? this.cache;
+        return graph === null ? 0 : graph.nodeCount + graph.edgeCount;
+    }
+
+    /**
+     * The builder now, rebuilt from the snapshot first when it was let go.
+     * @returns the builder
+     */
+    private get current(): GraphBuilder {
+        return this.held ?? this.revive();
+    }
+
+    /**
+     * The builder's row bounds, without rebuilding a let-go one.
+     * @returns The bounds.
+     */
+    private bounds(): { readonly nodeBound: number; readonly edgeBound: number } {
+        return this.held ?? (this.released as ReleasedBuilder);
+    }
+
+    private set current(builder: GraphBuilder) {
+        this.held = builder;
+        this.released = null;
+    }
+
+    /**
+     * Let the builder go, when the option is on, this builder was never rebuilt from a release, its
+     * last freeze is current and nothing is waiting that would write it: the snapshot holds the same
+     * rows, and {@link GraphStore.revive} builds it again from there on the next write. The session
+     * calls it once no command is running and every pass has run, so a load's own reads between
+     * its writes never let it go.
+     */
+    releaseIdle(): void {
+        const builder = this.held;
+        const from = this.cachedFrom;
+        if (
+            builder === null ||
+            !this.releasable ||
+            // An empty builder holds nothing worth letting go, and rebuilding it would use up the one rebuild.
+            builder.nodeCount === 0 ||
+            this.options.releaseBuilder?.() !== true ||
+            this.cache === null ||
+            from?.builder !== builder ||
+            from.count !== builder.mutationCount ||
+            from.records !== this.records ||
+            this.structural.length > 0 ||
+            this.loadDepth > 0 ||
+            this.loadLength > 0 ||
+            this.sessionEdges.length > 0 ||
+            this.mintedDeferred ||
+            this.pending !== null ||
+            this.pendingPositions !== null ||
+            this.publishing ||
+            this.restoring !== null ||
+            (this.pairsOrdered === null && builder.edgeCount > 0) ||
+            this.accounted.builder !== builder ||
+            this.accounted.count !== builder.mutationCount ||
+            this.directionOutOfStep()
+        ) {
+            return;
+        }
+
+        const restored = this.restoredFrom;
+        this.released = {
+            directed: builder.directed,
+            directedLocked: builder.directedLocked,
+            restored: restored?.builder === builder && restored.count === builder.mutationCount,
+            nodeBound: builder.nodeBound,
+            edgeBound: builder.edgeBound,
+        };
+        // Nothing may keep the builder reachable: each key that names it is rewritten on revive.
+        this.held = null;
+        this.cachedFrom = { builder: RELEASED_BUILDER, count: 0, records: from.records };
+        this.accounted = { builder: RELEASED_BUILDER, count: 0 };
+        if (restored?.builder === builder) {
+            this.restoredFrom = { kept: restored.kept, builder: RELEASED_BUILDER, count: 0 };
+        }
+
+        this.removedSinceFreeze = null;
+        this.deferredHash = null;
+        this.edgeDirection = null;
+    }
+
+    /**
+     * Build the let-go builder again from the snapshot it was frozen to: every node row with its
+     * cells as frozen (the seed column as it was before the attach replaced it), every edge row with
+     * its endpoints, weight, cells and edge id, in row order, so every row and edge id is where it
+     * was and the snapshot still answers for it. Kept from then on.
+     * @returns the builder
+     */
+    private revive(): GraphBuilder {
+        const base = this.cache;
+        const { released } = this;
+        if (base === null || released === null) {
+            throw new Error("GraphStore: the builder was let go with no snapshot to rebuild it from");
+        }
+
+        // Locked as it was let go, not as the setting is now: a `data.directed` set while it was let
+        // go is still to be followed, which reads the direction the graph had before the setting.
+        const builder = this.createBuilder(released.directed, released.directedLocked);
+        this.held = builder;
+        // A rebuild before any edge is in is still the load (nodes, then edges in a second
+        // command), so the builder may go again once the edges are in.
+        // ponytail: a graph that never gets edges rebuilds on every edit after a quiet moment; count
+        // rebuilds per load if node-only editing shows up in a profile.
+        this.releasable = base.edgeCount === 0;
+        this.rowsCopied += base.nodeCount + base.edgeCount;
+        this.released = null;
+        this.readsOf = null;
+        this.revivals++;
+        if (base.edges.has(EDGE_DIRECTED_COLUMN)) {
+            // Declared before the cells are copied by name, so the column keeps its role.
+            this.edgeDirectedHandle();
+        }
+
+        if (this.pairsOrdered !== null) {
+            builder.setGraphValue(PAIRS_ORDERED_ATTRIBUTE, this.pairsOrdered ? 1 : 0, { dtype: "u8" });
+        }
+
+        copyBaseRows(builder, base, this.frozenColumns.node, this.edgeIdHandle);
+
+        const count = builder.mutationCount;
+        this.cachedFrom = { builder, count, records: this.cachedFrom?.records ?? this.records };
+        this.accounted = { builder, count };
+        const restored = this.restoredFrom;
+        if (released.restored && restored !== null) {
+            this.restoredFrom = { kept: restored.kept, builder, count };
+        }
+
+        return builder;
     }
 
     /**
@@ -731,7 +1331,7 @@ export class GraphStore {
      * @returns True when it must be rebuilt to follow the setting.
      */
     private directionOutOfStep(): boolean {
-        const builder = this.current;
+        const builder = this.held ?? (this.released as ReleasedBuilder);
         const setting = this.directedSetting();
         return typeof setting === "boolean"
             ? builder.directed !== setting || !builder.directedLocked
@@ -775,12 +1375,13 @@ export class GraphStore {
 
     /**
      * A builder with the element's two columns declared.
-     * @param directed - Its direction; locked when the configuration named one.
+     * @param directed - Its direction.
+     * @param locked - Whether to lock it; by default when the configuration named one.
      * @returns the builder
      */
-    private createBuilder(directed: boolean): GraphBuilder {
+    private createBuilder(directed: boolean, locked = typeof this.directedSetting() === "boolean"): GraphBuilder {
         const builder = new GraphBuilder({ directed, addMissingNodes: true });
-        if (typeof this.directedSetting() === "boolean") {
+        if (locked) {
             // Free only while the builder is empty (graph-format/src/builder/graph-builder.ts);
             // once edges exist, directed -> undirected throws E_DIRECTED. "auto" deliberately does
             // NOT lock (PLAN DECISION 2): an importer that learns the direction from the file it is
@@ -856,6 +1457,11 @@ export class GraphStore {
      */
     private get fresh(): boolean {
         const from = this.cachedFrom;
+        if (this.held === null) {
+            // A let-go builder has had no write: only a record write moves the key.
+            return this.cache !== null && from?.records === this.records;
+        }
+
         return (
             this.cache !== null &&
             from !== null &&
@@ -884,7 +1490,8 @@ export class GraphStore {
      */
     get mutationDrift(): number {
         const { builder, count } = this.accounted;
-        return this.drift + (builder === this.current ? this.current.mutationCount - count : 0);
+        const { held } = this;
+        return this.drift + (held !== null && builder === held ? held.mutationCount - count : 0);
     }
 
     /**
@@ -917,7 +1524,13 @@ export class GraphStore {
      * builder's `mutationCount` by itself.
      */
     account(): void {
-        this.accounted = { builder: this.current, count: this.current.mutationCount };
+        const { held } = this;
+        if (held === null) {
+            // A let-go builder has had no write to account for.
+            return;
+        }
+
+        this.accounted = { builder: held, count: held.mutationCount };
     }
 
     /**
@@ -931,15 +1544,67 @@ export class GraphStore {
     }
 
     /**
+     * The id for an edge being added: `wanted` when it is one no live edge holds -- an id given
+     * back to an edge removed earlier, or one a save file recorded -- else the next one from the
+     * counter. The counter continues past a wanted id it has not issued yet, so it never issues
+     * that id again.
+     * @param wanted - the counter asked for, if any
+     * @returns the id to stamp
+     * @throws Error when the store has been disposed
+     */
+    takeEdgeId(wanted?: number): number {
+        if (
+            wanted === undefined ||
+            !Number.isSafeInteger(wanted) ||
+            wanted < 0 ||
+            wanted >= EDGE_ID_CEILING ||
+            this.edgeIndexOf(wanted) !== INVALID_INDEX
+        ) {
+            return this.nextEdgeId();
+        }
+
+        this.requireAlive("takeEdgeId");
+        resumeEdgeCounter(this.counter, wanted);
+        return wanted;
+    }
+
+    /**
+     * Continue the counter past every id named, so no edge added later is given one of them fresh:
+     * ids a save file names for edges not added yet, or for a source that could not be fetched.
+     * An id {@link takeEdgeId} would not take is skipped.
+     * @param ids - The edge ids.
+     * @throws Error when the store has been disposed
+     */
+    reserveEdgeIds(ids: readonly EdgeId[]): void {
+        this.requireAlive("reserveEdgeIds");
+        for (const id of ids) {
+            const counter = edgeCounterOf(id);
+            if (counter < EDGE_ID_CEILING) {
+                resumeEdgeCounter(this.counter, counter);
+            }
+        }
+    }
+
+    /**
      * Record an ingested edge for the completion pass. `ingestEdge` calls this for every edge it
      * stamps; an edge added to the builder directly (a test fixture) gets no identity values.
      * @param row - the edge row
      * @param counter - the counter stamped into its `graphty.edgeId` cell
      * @param fileId - the file id read at the configured `edgeIdPath`, if any
+     * @param deferMinted - true (renderPath "batched") to leave a session edge with no file id
+     *   uncompleted: its ordinal and among already read -1, and it is marked in
+     *   `DEFERRED_HASH_COLUMN` so `identityColumnsOf` computes its hash from the counter on first
+     *   read, and a freeze hashes no minted id
      */
-    recordIngestedEdge(row: number, counter: number, fileId?: string | number): void {
+    recordIngestedEdge(row: number, counter: number, fileId?: string | number, deferMinted = false): void {
         if (this.loadDepth === 0) {
-            this.sessionEdges.push({ row, counter, fileId });
+            if (deferMinted && fileId === undefined) {
+                this.mintedDeferred = true;
+                this.current.setEdgeValue(this.deferredHashHandle(), row, 1);
+            } else {
+                this.sessionEdges.push({ row, counter, fileId });
+            }
+
             return;
         }
 
@@ -962,6 +1627,10 @@ export class GraphStore {
      * (design 12.3: a load is one import). Edges ingested with no load open are session edges.
      */
     openLoad(): void {
+        if (this.loadDepth === 0) {
+            this.rowsAtOpen = this.rowCount();
+        }
+
         this.loadDepth++;
     }
 
@@ -984,6 +1653,14 @@ export class GraphStore {
             this.completeIdentity();
             // The pass's column writes are the store's own.
             this.account();
+            // A load, merging or not, may let a rebuilt builder go again: a graph built from several
+            // sources is one load after another, and keeping the builder after the second would
+            // hold a second copy of the whole graph for the rest of the session. Only while the
+            // loads have paid for the rebuilds, or paging would copy the graph once per page.
+            this.rowsLoaded += Math.max(0, this.rowCount() - this.rowsAtOpen);
+            if (this.rowsLoaded >= this.rowsCopied) {
+                this.releasable = true;
+            }
         }
     }
 
@@ -997,8 +1674,21 @@ export class GraphStore {
      */
     stampEdgeId(edgeIndex: number, edgeId: number): void {
         this.builder.setEdgeValue(this.edgeIdHandle, edgeIndex, edgeId);
-        if (this.edgeIdByIndex.length === 0 && this.options.denseEdgeIds?.() === true) {
+        const unstamped = this.edgeIdByIndex.length === 0;
+        if (unstamped && this.denseRows === 0 && this.options.denseEdgeIds?.() === true) {
             this.denseOffset = edgeId - edgeIndex;
+        }
+
+        // In row order, as a load stamps: the rows' ids need no array.
+        if (unstamped && edgeId - edgeIndex === this.denseOffset && edgeIndex <= this.denseRows) {
+            this.denseRows = Math.max(this.denseRows, edgeIndex + 1);
+            return;
+        }
+
+        this.materializeEdgeIds();
+        if (edgeIndex < this.risingRows) {
+            // A row the binary search covers is written again: index every row by the map again.
+            this.indexRisingRows();
         }
 
         this.edgeIdByIndex[edgeIndex] = edgeId;
@@ -1061,9 +1751,23 @@ export class GraphStore {
             return index;
         }
 
+        const rising = risingRowOf(this.edgeIdByIndex, this.risingRows, edgeId);
+        if (rising !== INVALID_INDEX && this.liveEdgeAt(rising, edgeId)) {
+            return rising;
+        }
+
         // An edge stamped in row order has no map entry; a stale entry falls through to it too.
         const dense = this.denseOffset === null ? -1 : edgeId - this.denseOffset;
         return dense >= 0 && this.liveEdgeAt(dense, edgeId) ? dense : INVALID_INDEX;
+    }
+
+    /** Put the rows the binary search covered into {@link GraphStore.indexByEdgeId}, and stop searching. */
+    private indexRisingRows(): void {
+        for (let row = 0; row < this.risingRows; row++) {
+            this.indexByEdgeId.set(this.edgeIdByIndex[row], row);
+        }
+
+        this.risingRows = 0;
     }
 
     /**
@@ -1073,7 +1777,29 @@ export class GraphStore {
      * @returns true when it does
      */
     private liveEdgeAt(index: number, edgeId: number): boolean {
-        return this.edgeIdByIndex[index] === edgeId && this.current.hasEdge(index);
+        return this.stampedIdAt(index) === edgeId && this.reads.hasEdge(index);
+    }
+
+    /**
+     * The id stamped into a builder row, live or not.
+     * @param index - the row
+     * @returns the id, or undefined when none was stamped there
+     */
+    private stampedIdAt(index: number): number | undefined {
+        if (this.denseRows === 0) {
+            return this.edgeIdByIndex[index];
+        }
+
+        return index >= 0 && index < this.denseRows ? index + (this.denseOffset ?? 0) : undefined;
+    }
+
+    /** Write the rows {@link GraphStore.denseRows} stands in for into {@link GraphStore.edgeIdByIndex}. */
+    private materializeEdgeIds(): void {
+        if (this.denseRows > 0) {
+            const offset = this.denseOffset ?? 0;
+            this.edgeIdByIndex = Array.from({ length: this.denseRows }, (_, row) => row + offset);
+            this.denseRows = 0;
+        }
     }
 
     /**
@@ -1083,8 +1809,8 @@ export class GraphStore {
      */
     edgeIdAt(edgeIndex: number): number {
         this.settle();
-        const edgeId = this.edgeIdByIndex[edgeIndex];
-        return edgeId !== undefined && this.builder.hasEdge(edgeIndex) ? edgeId : INVALID_INDEX;
+        const edgeId = this.stampedIdAt(edgeIndex);
+        return edgeId !== undefined && this.reads.hasEdge(edgeIndex) ? edgeId : INVALID_INDEX;
     }
 
     /**
@@ -1125,6 +1851,11 @@ export class GraphStore {
             return inFlight.replacement.next;
         }
 
+        // A let-go builder has had no write, so with nothing waiting the snapshot is still current.
+        if (this.held === null && this.structural.length === 0 && this.fresh && !this.directionOutOfStep()) {
+            return this.cache as GraphSnapshot;
+        }
+
         // A step threw on an earlier call: finish THAT freeze before anything else. The position
         // work comes first, because its remap has to land before the next freeze grows the array,
         // and because a listener must never be handed a snapshot whose position column is missing.
@@ -1147,7 +1878,9 @@ export class GraphStore {
         this.completeIdentity();
         // The pass's column writes are the store's own.
         this.account();
-        const frozen = this.current.freezeWithReport({ label: "graphty-element" });
+        // The edge list prepared from the builder's own rows: every consumer reads it, and computing it from
+        // the new core walks every arc, a tenth of a second of each edit at a million edges (issue #9164).
+        const frozen = this.current.freezeWithReport({ label: "graphty-element", prepare: ["edgeList"] });
         const { snapshot } = frozen;
         if (this.restoring !== null) {
             this.restoredFrom = {
@@ -1378,6 +2111,10 @@ export class GraphStore {
             builder.removeEdge(row);
         }
 
+        if (nodeRowList.length > 0) {
+            // Rows added row-numbered (no id map) keep their ids through the freeze that compacts them.
+            builder.keepIds();
+        }
         for (const row of nodeRowList) {
             builder.removeNodeByIndex(row);
         }
@@ -1410,7 +2147,7 @@ export class GraphStore {
             return last.kind === "replace" && !last.restore;
         }
 
-        return this.current.nodeCount === 0;
+        return (this.held ?? (this.cache as GraphSnapshot)).nodeCount === 0;
     }
 
     /**
@@ -1488,15 +2225,39 @@ export class GraphStore {
     keep(): KeptGraph {
         const current = this.getSnapshot();
         // A second freeze of a builder about to be replaced: its report chain no longer matters,
-        // and unlike the cached snapshot this one still carries the seed column.
+        // and unlike the cached snapshot this one still carries the seed column. A let-go builder
+        // is not rebuilt for it: the cached snapshot holds the same rows.
         const kept = {
-            snapshot: this.current.freeze({ label: "graphty-element kept" }),
+            snapshot:
+                this.held === null && this.cache !== null
+                    ? this.keptFromCache(this.cache)
+                    : this.current.freeze({ label: "graphty-element kept" }),
             direction: this.direction,
             unconfigured: this.unconfigured,
         };
         // History holds it until the step is evicted: nothing may write it meanwhile.
         seal(kept.snapshot, "a kept graph's snapshot");
         this.heldLane.set(kept, { ids: current.ids.toArray(), coords: this.positions.view(current.nodeCount).slice() });
+        return kept;
+    }
+
+    /**
+     * What a fresh freeze of the let-go builder would hold: the cached snapshot's core and columns,
+     * with the seed column as frozen in place of the positions lane and the pins.
+     * @param cache - The cached snapshot.
+     * @returns A new snapshot sharing the cache's core.
+     */
+    private keptFromCache(cache: GraphSnapshot): GraphSnapshot {
+        const kept = cache.withColumns();
+        kept.nodes.remove(PINNED_COLUMN);
+        const seed = this.frozenColumns.node.find((column) => column.meta.name === SEED_COLUMN);
+        if (seed === undefined) {
+            kept.nodes.remove("position");
+        } else {
+            // The seed holds the position role, so it evicts the lane.
+            kept.nodes.set(SEED_COLUMN, seed, undefined, { replaceRole: true });
+        }
+
         return kept;
     }
 
@@ -1585,7 +2346,7 @@ export class GraphStore {
     }
 
     /**
-     * Queue a structural change, cancelling it against the one before when they undo each other.
+     * Queue a structural change, canceling it against the one before when they undo each other.
      * @param change - The change.
      */
     private defer(change: Structural): void {
@@ -1704,6 +2465,7 @@ export class GraphStore {
 
         for (const node of nodes) {
             if (builder.hasNode(node.id)) {
+                builder.keepIds();
                 builder.removeNode(node.id);
             }
         }
@@ -1716,7 +2478,7 @@ export class GraphStore {
      * @param kept - The graph the replace sets aside.
      * @param old - The builder it swaps out.
      */
-    private setAsideIfRestored(kept: KeptGraph, old: GraphBuilder): void {
+    private setAsideIfRestored(kept: KeptGraph, old: GraphBuilder | null): void {
         const earlier = this.setAsideKey?.deref();
         if (earlier !== undefined) {
             this.setAside.delete(earlier);
@@ -1724,7 +2486,12 @@ export class GraphStore {
 
         this.setAsideKey = null;
         const restored = this.restoredFrom;
-        if (restored?.kept.deref() !== kept || restored.builder !== old || old.mutationCount !== restored.count) {
+        if (
+            old === null ||
+            restored?.kept.deref() !== kept ||
+            restored.builder !== old ||
+            old.mutationCount !== restored.count
+        ) {
             return;
         }
 
@@ -1741,8 +2508,10 @@ export class GraphStore {
                     this.edgeAmongColumn,
                 ],
                 edgeIdByIndex: this.edgeIdByIndex,
+                denseRows: this.denseRows,
                 indexByEdgeId: this.indexByEdgeId,
                 denseOffset: this.denseOffset,
+                risingRows: this.risingRows,
                 pairsOrdered: this.pairsOrdered,
             },
             count: old.mutationCount,
@@ -1766,8 +2535,9 @@ export class GraphStore {
 
         this.setAside.delete(kept);
         this.setAsideKey = null;
-        const old = this.current;
-        const { builder, handles, edgeIdByIndex, indexByEdgeId, denseOffset, pairsOrdered } = aside.state;
+        const old = this.bounds();
+        const { builder, handles, edgeIdByIndex, denseRows, indexByEdgeId, denseOffset, risingRows, pairsOrdered } =
+            aside.state;
         this.current = builder;
         [
             this.seedHandle,
@@ -1779,8 +2549,10 @@ export class GraphStore {
             this.edgeAmongColumn,
         ] = handles;
         this.edgeIdByIndex = edgeIdByIndex;
+        this.denseRows = denseRows;
         this.indexByEdgeId = indexByEdgeId;
         this.denseOffset = denseOffset;
+        this.risingRows = risingRows;
         this.pairsOrdered = pairsOrdered;
         // Recorded again once it has frozen, so a further redo can set it aside once more.
         this.restoring = kept;
@@ -1804,9 +2576,11 @@ export class GraphStore {
         changes: readonly Structural[],
         directed?: boolean,
     ): { node: U32; edge: U32 } {
-        const old = this.current;
-        const node = new Uint32Array(old.nodeBound).fill(INVALID_INDEX);
-        const edge = new Uint32Array(old.edgeBound).fill(INVALID_INDEX);
+        // A replace reads the old builder only for its bounds: a let-go one is not rebuilt for that.
+        const old = replace === null ? this.current : this.held;
+        const { nodeBound, edgeBound } = old ?? this.bounds();
+        const node = new Uint32Array(nodeBound).fill(INVALID_INDEX);
+        const edge = new Uint32Array(edgeBound).fill(INVALID_INDEX);
         const { base, oldNodes, oldEdges } = rebuildBase(old, replace, node.length, edge.length);
         const { nodeRows, edgeRows } = pendingRows(base, changes);
         if (replace !== null && !replace.restore) {
@@ -1815,7 +2589,7 @@ export class GraphStore {
 
         const builder = this.startRebuild(replace, base, directed);
         const baseNode = this.copyNodeRows(builder, base, nodeRows);
-        const baseEdge = this.copyEdgeRows(builder, base, edgeRows);
+        const baseEdge = this.copyEdgeRows(builder, base, edgeRows, baseNode);
         if (oldNodes !== null && oldEdges !== null) {
             chainWalk(node, oldNodes, baseNode);
             chainWalk(edge, oldEdges, baseEdge);
@@ -1839,6 +2613,17 @@ export class GraphStore {
     ): GraphBuilder {
         const builder = this.createBuilder(directed ?? base?.directed ?? this.emptyDirected());
         this.current = builder;
+        if (base?.edges.has(EDGE_DIRECTED_COLUMN) === true) {
+            // Declared before the base's cells are copied by name, so the column keeps its role.
+            this.edgeDirectedHandle();
+        }
+        if (replace !== null && !replace.restore) {
+            this.releasable = true;
+            this.rowsLoaded = 0;
+            this.rowsCopied = 0;
+            this.rowsAtOpen = 0;
+        }
+
         if (replace !== null) {
             // A graph put back keeps the latch its edge hashes were made under; an emptied one
             // latches afresh, as a new dataset does.
@@ -1851,9 +2636,11 @@ export class GraphStore {
         }
 
         this.edgeIdByIndex = [];
+        this.denseRows = 0;
         // A new map, not cleared: a builder set aside for an undo keeps the one it had.
         this.indexByEdgeId = new Map();
         this.denseOffset = null;
+        this.risingRows = 0;
         return builder;
     }
 
@@ -1871,14 +2658,31 @@ export class GraphStore {
         nodeRows: readonly Row<RemovedNode>[],
     ): U32 {
         const baseNode = new Uint32Array(base?.nodeCount ?? 0).fill(INVALID_INDEX);
+        const recorded: [number, RemovedNode][] = [];
         for (const row of nodeRows) {
             const index = builder.addNode(nodeIdOfRow(base, row));
             if (typeof row === "number") {
                 baseNode[row] = index;
-                copyNodeCells(builder, (base as GraphSnapshot).nodes, row, index);
             } else {
-                this.writeNode(index, row.values);
+                recorded.push([index, row]);
             }
+        }
+
+        if (base !== null) {
+            copyColumnsByRow(
+                builder,
+                "node",
+                [...base.nodes],
+                baseNode,
+                recorded.map(([, row]) => row.values),
+                (column, index, value) => {
+                    builder.setNodeValue(column.meta.name, index, value);
+                },
+            );
+        }
+
+        for (const [index, row] of recorded) {
+            this.writeNode(index, row.values);
         }
 
         return baseNode;
@@ -1890,31 +2694,85 @@ export class GraphStore {
      * @param builder - The new builder.
      * @param base - The graph the rebuild starts from, or null.
      * @param edgeRows - The rows, in order.
+     * @param baseNode - Each base node row's row in the new builder, from {@link GraphStore.copyNodeRows}.
      * @returns Each base row's row in the new builder, INVALID_INDEX for a row dropped.
      */
     private copyEdgeRows(
         builder: GraphBuilder,
         base: GraphSnapshot | null,
         edgeRows: readonly Row<RemovedEdge>[],
+        baseNode: U32 | null,
     ): U32 {
         const baseEdge = new Uint32Array(base?.edgeCount ?? 0).fill(INVALID_INDEX);
-        const list = base?.edgeList() ?? null;
-        for (const row of edgeRows) {
-            if (typeof row !== "number") {
-                this.writeEdge(builder.addEdge(row.source, row.target, row.weight), row.edgeId, row.values);
-            } else if (base !== null && list !== null) {
-                const index = builder.addEdge(
-                    base.ids.idOf(list.src[row]),
-                    base.ids.idOf(list.dst[row]),
-                    list.weights === null ? undefined : list.weights[row],
-                );
-                baseEdge[row] = index;
-                copyEdgeCells(builder, base.edges, row, index);
-                this.stampEdgeId(index, base.edges.value(EDGE_ID_COLUMN, row) as number);
+        if (base === null || baseNode === null) {
+            for (const row of edgeRows) {
+                if (typeof row !== "number") {
+                    this.writeEdge(builder.addEdge(row.source, row.target, row.weight), row.edgeId, row.values);
+                }
             }
+
+            return baseEdge;
         }
 
+        // The base rows go in as runs of whole arrays between the rows put back, and their ids and
+        // cells as whole columns: a million edges one `addEdge` and one stamp at a time was most of
+        // a second of an undo (issue #9164).
+        const recorded = addEdgeRuns(builder, base.edgeList(), baseNode, edgeRows, baseEdge);
+        const ids = baseEdgeIds(base, baseEdge, builder.edgeBound);
+        for (const [index, row] of recorded) {
+            ids[index] = row.edgeId;
+        }
+
+        copyColumnsByRow(
+            builder,
+            "edge",
+            [...base.edges].filter((column) => column.meta.role !== "weight"),
+            baseEdge,
+            recorded.map(([, row]) => new Map([...row.values, [EDGE_ID_COLUMN, row.edgeId]])),
+            (column, index, value) => {
+                builder.setEdgeValue(
+                    column.meta.name === EDGE_ID_COLUMN ? this.edgeIdHandle : column.meta.name,
+                    index,
+                    value,
+                );
+            },
+        );
+        for (const [index, row] of recorded) {
+            for (const [name, value] of row.values) {
+                builder.setEdgeValue(name === EDGE_DIRECTED_COLUMN ? this.edgeDirectedHandle() : name, index, value);
+            }
+
+            builder.setEdgeValue(this.edgeIdHandle, index, row.edgeId);
+        }
+
+        this.adoptEdgeIds(ids);
         return baseEdge;
+    }
+
+    /**
+     * Take a rebuild's edge ids, one per row, as the store's own: in row order with no gap under
+     * `"batched"`, as a load stamps them; rising, found by binary search; or by a map.
+     * @param ids - The ids by row.
+     */
+    private adoptEdgeIds(ids: number[]): void {
+        const offset = ids.length === 0 ? 0 : ids[0];
+        let dense = this.options.denseEdgeIds?.() === true;
+        let rising = true;
+        for (let row = 0; row < ids.length && (dense || rising); row++) {
+            dense &&= ids[row] - row === offset;
+            rising &&= row === 0 || ids[row] > ids[row - 1];
+        }
+
+        this.indexByEdgeId = new Map();
+        this.denseOffset = dense ? offset : null;
+        this.denseRows = dense ? ids.length : 0;
+        this.edgeIdByIndex = dense ? [] : ids;
+        this.risingRows = !dense && rising ? ids.length : 0;
+        if (!dense && !rising) {
+            for (const [row, edgeId] of ids.entries()) {
+                this.indexByEdgeId.set(edgeId, row);
+            }
+        }
     }
 
     /**
@@ -1936,7 +2794,9 @@ export class GraphStore {
      */
     private writeEdge(index: number, edgeId: number, values: RowValues): void {
         for (const [name, value] of values) {
-            this.current.setEdgeValue(name, index, value);
+            // By handle, so a builder that has not declared the direction column yet declares it
+            // with its role rather than inferring a plain bool from the name.
+            this.current.setEdgeValue(name === EDGE_DIRECTED_COLUMN ? this.edgeDirectedHandle() : name, index, value);
         }
 
         this.stampEdgeId(index, edgeId);
@@ -1974,6 +2834,7 @@ export class GraphStore {
         this.requireAlive("undirected");
         let derived = this.undirectedCache.get(s);
         if (derived === undefined) {
+            storeCounters.undirectedDerivations++;
             derived = s.directed
                 ? s.toUndirected()
                 : {
@@ -2009,6 +2870,11 @@ export class GraphStore {
      * here to clear. Calling this twice is harmless.
      */
     dispose(): void {
+        if (this.held === null) {
+            // Nothing is left to rebuild a let-go builder from: an empty one keeps `builder` readable.
+            this.current = new GraphBuilder({ directed: (this.released as ReleasedBuilder).directed });
+        }
+
         this.cache?.dropCaches();
         this.cache = null;
         this.cachedFrom = null;
@@ -2155,20 +3021,36 @@ export class GraphStore {
             return;
         }
 
+        this.materializeEdgeIds();
         const moved: number[] = [];
+        const ids = this.edgeIdByIndex;
         // Rebuilt from the surviving rows: the entries of removed edges go with their rows.
-        this.indexByEdgeId.clear();
-        for (const [index, edgeId] of this.edgeIdByIndex.entries()) {
+        let rising = true;
+        let rows = 0;
+        for (let index = 0; index < ids.length; index++) {
+            const edgeId = ids[index];
             const next = remap[index] ?? INVALID_INDEX;
             if (edgeId === undefined || next === INVALID_INDEX) {
                 continue;
             }
 
+            // In row order with no row left out, as a removal leaves a load's counters.
+            rising &&= next === rows && (rows === 0 || edgeId > moved[rows - 1]);
             moved[next] = edgeId;
-            this.indexByEdgeId.set(edgeId, next);
+            rows = Math.max(rows, next + 1);
         }
 
         this.edgeIdByIndex = moved;
+        this.indexByEdgeId = new Map();
+        this.risingRows = rising ? rows : 0;
+        if (!rising) {
+            for (const [index, edgeId] of moved.entries()) {
+                if (edgeId !== undefined) {
+                    this.indexByEdgeId.set(edgeId, index);
+                }
+            }
+        }
+
         // Every row moved has its entry now; the offset no longer describes them.
         this.denseOffset = null;
     }
@@ -2210,6 +3092,81 @@ export class GraphStore {
     }
 
     /**
+     * Complete the session edges when they are every live edge in the store (a graph added
+     * through a door rather than a load): the three columns are written whole, as typed arrays,
+     * as a covering load's are, instead of three checked cell writes per edge.
+     * @param graph - where endpoints and ids are read
+     * @param ordered - whether pairs are ordered
+     * @param completingLoad - whether a load's edges are being completed too
+     * @returns false, writing nothing, when a load or another edge is live beside them
+     */
+    private writeSessionColumnsWhole(graph: IdentityGraph, ordered: boolean, completingLoad: boolean): boolean {
+        if (completingLoad) {
+            return false;
+        }
+
+        const builder = this.current;
+        let live = 0;
+        for (const { row } of this.sessionEdges) {
+            if (builder.hasEdge(row)) {
+                live++;
+            }
+        }
+
+        if (live !== builder.edgeCount) {
+            return false;
+        }
+
+        const bound = builder.edgeBound;
+        const hashes = new Uint32Array(2 * bound);
+        const minusOnes = new Int32Array(bound).fill(-1);
+        const ends = withNodeHashes(graph, builder.nodeBound);
+        for (const { row, counter, fileId } of this.sessionEdges) {
+            if (builder.hasEdge(row)) {
+                const { a, b } = sessionEdgeHash(ends, row, counter, fileId, ordered);
+                hashes[2 * row] = a;
+                hashes[2 * row + 1] = b;
+            }
+        }
+
+        this.sessionEdges = [];
+        builder.setEdgeColumn(IDENTITY_COLUMNS.edgeHash, hashes, { dtype: "u32", components: 2 });
+        builder.setEdgeColumn(IDENTITY_COLUMNS.edgeOrdinal, minusOnes, { dtype: "i32", default: -1 });
+        builder.setEdgeColumn(IDENTITY_COLUMNS.edgeAmong, minusOnes.slice(), { dtype: "i32", default: -1 });
+        return true;
+    }
+
+    /**
+     * The current builder's {@link DEFERRED_HASH_COLUMN}, declared the first time it is needed.
+     * @returns the handle
+     */
+    private deferredHashHandle(): ColumnHandle {
+        const builder = this.current;
+        if (this.deferredHash?.builder !== builder) {
+            // A rebuild copies the column by name, which declares it inferred: reuse it as it is.
+            const known = builder.edgeColumn(DEFERRED_HASH_COLUMN);
+            const handle =
+                known === INVALID_INDEX
+                    ? builder.declareEdgeColumn({ name: DEFERRED_HASH_COLUMN, dtype: "u8" })
+                    : known;
+            this.deferredHash = { builder, handle };
+        }
+
+        return this.deferredHash.handle;
+    }
+
+    /**
+     * Latch the pair order for the session edges left uncompleted since the last pass, as the pass
+     * would had it hashed them.
+     */
+    private latchForDeferred(): void {
+        if (this.mintedDeferred) {
+            this.mintedDeferred = false;
+            this.latchPairsOrdered();
+        }
+    }
+
+    /**
      * The completion pass (design 12.2, 12.3): hash new nodes, complete session edges, and, when
      * no load is open, complete the load's edges -- ordinal and among per pair over the load's
      * surviving edges, and the edge hash, in one sorted pass.
@@ -2218,6 +3175,7 @@ export class GraphStore {
         const builder = this.current;
         const bulkNodes = this.hashNewNodes();
 
+        this.latchForDeferred();
         const completingLoad = this.loadDepth === 0 && this.loadLength > 0;
         if (this.sessionEdges.length === 0 && !completingLoad) {
             return;
@@ -2232,6 +3190,10 @@ export class GraphStore {
         };
         const ordered = this.latchPairsOrdered();
         const noSessionEdges = this.sessionEdges.length === 0;
+        if (this.writeSessionColumnsWhole(graph, ordered, completingLoad)) {
+            return;
+        }
+
         for (const { row, counter, fileId } of this.sessionEdges) {
             if (builder.hasEdge(row)) {
                 builder.setEdgeValue(this.edgeOrdinalColumn, row, -1);
@@ -2389,7 +3351,58 @@ export class GraphStore {
      * @returns the builder's direction
      */
     get directed(): boolean {
-        return this.current.directed;
+        return (this.held ?? (this.released as ReleasedBuilder)).directed;
+    }
+
+    /**
+     * Whether one edge is directed: its own direction when its record stated one, the graph's
+     * otherwise. Cheap while no edge has stated a direction, which is every graph but a mixed one.
+     * @param row - The edge's row in the snapshot.
+     * @returns true when the edge is directed
+     */
+    edgeDirected(row: number): boolean {
+        const { held } = this;
+        if (held === null) {
+            const snapshot = this.getSnapshot();
+            return snapshot.edges.has(EDGE_DIRECTED_COLUMN) ? edgeIsDirected(snapshot, row) : this.directed;
+        }
+
+        if (held.edgeColumn(EDGE_DIRECTED_COLUMN) === INVALID_INDEX) {
+            return held.directed;
+        }
+
+        return edgeIsDirected(this.getSnapshot(), row);
+    }
+
+    /**
+     * Write one edge's own direction, or unset it so the edge takes the graph's.
+     * @param row - The edge's builder row.
+     * @param directed - The direction its record states, or undefined for none.
+     */
+    writeEdgeDirected(row: number, directed: boolean | undefined): void {
+        if (directed === undefined && this.current.edgeColumn(EDGE_DIRECTED_COLUMN) === INVALID_INDEX) {
+            return;
+        }
+
+        this.current.setEdgeValue(this.edgeDirectedHandle(), row, directed ?? null);
+    }
+
+    /**
+     * The current builder's {@link EDGE_DIRECTED_COLUMN}, declared the first time it is needed.
+     * @returns the handle
+     */
+    private edgeDirectedHandle(): ColumnHandle {
+        const builder = this.current;
+        if (this.edgeDirection?.builder !== builder) {
+            const known = builder.edgeColumn(EDGE_DIRECTED_COLUMN);
+            const handle =
+                known === INVALID_INDEX
+                    ? builder.declareEdgeColumn({ name: EDGE_DIRECTED_COLUMN, dtype: "bool", role: "directed" })
+                    : known;
+            this.edgeDirection = { builder, handle };
+        }
+
+        return this.edgeDirection.handle;
     }
 
     /**

@@ -20,7 +20,7 @@ layout/
 │   ├── algorithms/
 │   │   └── optimization/     # L-BFGS, line search, Kamada-Kawai solver
 │   ├── types/                # Node, Edge, Graph (the duck type toLayoutSnapshot reads), PositionMap
-│   └── utils/                # NumPy-like helpers, the seeded generator, the deprecated rescaleLayout (use rescaleInPlace)
+│   └── utils/                # NumPy-like helpers, the deprecated rescaleLayout (use rescaleInPlace)
 ├── test/                     # Vitest tests; test/layouts/ per layout family, test/types/ compile-only
 └── stories/                  # Storybook stories, one per layout
 ```
@@ -119,8 +119,10 @@ Full contract: the agent reference above. The rules:
 - `load()` requires an UNDIRECTED snapshot and throws on a directed one.
 - `toLayoutSnapshot(G, weightAttr?)` walks a duck-typed graph on EVERY call and never caches by object identity (a
   mutated object would return a stale snapshot).
-- `Lcg` (`seed.ts`) is `RandomNumberGenerator` bit for bit, and the GPU package carries an identical copy, so the
-  same seed gives the same start on CPU and GPU: change both or neither. Seeding never changes a finite component.
+- `Lcg` (`seed.ts`) is the package's only random number generator (seed: null for random, or an integer >= 0, 0
+  included; anything else is `E_BAD_OPTION`), and the GPU package carries an identical copy, so the same seed gives
+  the same start on CPU and GPU: change both or neither. No layout seeds itself by default. Seeding never changes a
+  finite component.
 
 ### Units
 
@@ -128,7 +130,7 @@ A simulation runs in LAYOUT units (FA2's `[-1, 1)` seed scale; FR's `[0, 1)`) in
 holds SCENE units in f32 (design 7.18). `load()` converts every row as `(v - center[axis]) / scale` (z forced to 0 in
 2D); `step()` writes every FREE node back as `layout * scale + center[axis]` (z = `center.z` in 2D). A fixed row is
 never written: its scene value is the owner's. Nothing rescales the output per step -- the one-shot
-`forceAtlas2`'s unit-ball normalisation is NOT reproduced by the steppable classes -- so a pinned or dragged
+`forceAtlas2`'s unit-ball normalization is NOT reproduced by the steppable classes -- so a pinned or dragged
 node stays where the user put it and `scale` / `center` are the only mapping between the two unit systems.
 
 ### The two CPU classes
@@ -162,7 +164,7 @@ branch that chooses the CPU); a thrown accelerator error propagates -- there is 
 
 `test/simulation/`, run one file at a time from `layout/` with `pnpm exec vitest run test/simulation/<file>.test.ts`:
 
-- `seed.test.ts`: the LCG constants and 10,000 draws against `RandomNumberGenerator` (the W1 cross-test); the
+- `seed.test.ts`: the LCG constants and 10,000 draws against the recurrence, the seed rule; the
   seeding rules (index order, the finite-rows box, `scale` / `center`, `"fr"`, validation).
 - `snapshot.test.ts`: `toLayoutSnapshot` over a duck graph (walked again after a mutation), a node list, `getEdgeData` weights,
   a directed and an undirected snapshot.

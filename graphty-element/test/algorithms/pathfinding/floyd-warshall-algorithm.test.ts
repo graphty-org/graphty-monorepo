@@ -2,28 +2,17 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { FloydWarshallAlgorithm } from "../../../src/algorithms/FloydWarshallAlgorithm";
-import { createMockGraph, type MockGraphOpts } from "../../helpers/mockGraph";
+import { createSessionGraph, type SessionGraph } from "../../helpers/session-graph";
 
-/**
- * The shared mock, kept behind the name and the loose return type this file already used.
- *
- * It carries a real graph store, which is where an algorithm now reads its input from; the node
- * and edge maps it also exposes are where the results land.
- * @param opts - which fixture to load
- * @returns the mock graph
- */
-
-async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
-    return createMockGraph(opts);
-}
+const mockGraph = createSessionGraph;
 
 /**
  * A small graph for testing Floyd-Warshall, which is O(n^3): A -- B -- C -- D.
  * @returns the mock graph
  */
 
-async function mockSmallGraph(): Promise<any> {
-    return createMockGraph({
+async function mockSmallGraph(): Promise<SessionGraph> {
+    return createSessionGraph({
         nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
         edges: [
             { srcId: "A", dstId: "B", value: 1 },
@@ -88,7 +77,7 @@ describe("FloydWarshallAlgorithm", () => {
             // Eccentricity is published under the node-metric shape's own name for "the number
             // this run measured on this element", which is `value`. Published under a name of its
             // own it was unpaintable: the shape a run declares is what tells the element there is
-            // a per-element measurement here to colour by at all.
+            // a per-element measurement here to color by at all.
             for (const node of smallGraph.nodes.values()) {
                 assert.property(result.node(node.id as string) ?? {}, "value");
             }
@@ -123,7 +112,7 @@ describe("FloydWarshallAlgorithm", () => {
 
             let hasCentralNode = false;
             for (const node of smallGraph.nodes.values()) {
-                if (result.node(node.id as string)?.value === result.graph.radius) {
+                if (result.node(node.id)?.value === result.graph.radius) {
                     hasCentralNode = true;
                     break;
                 }

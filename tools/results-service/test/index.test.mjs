@@ -11,8 +11,8 @@ import { describe, it } from "node:test";
 
 import { failureHashes as ledgerHashes } from "../../test-ledger.mjs";
 import { failureHashes, issueKey } from "../src/signature.js";
-import { HISTORY_INVOCATIONS } from "../src/queries.js";
-import { AUDIENCE, handle } from "../src/service.js";
+import { FILE_MS_TTL, HISTORY_INVOCATIONS, PLAN_PARALLEL } from "../src/queries.js";
+import { AUDIENCE, handle, keyCache, usageMeter } from "../src/service.js";
 import { d1 } from "./d1-shim.mjs";
 
 const NOW = Date.UTC(2026, 9, 24, 12);
@@ -20,10 +20,8 @@ const REPO = "graphty-org/graphty-monorepo";
 const LOCAL_TOKEN = "local-test-token-0123456789";
 const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const jwks = { keys: [{ ...publicKey.export({ format: "jwk" }), kid: "test-kid", alg: "RS256", use: "sig" }] };
-let keyFetches = 0;
 const fetch = async (url) => {
     assert.equal(url, "https://token.actions.githubusercontent.com/.well-known/jwks");
-    keyFetches++;
     return Response.json(jwks);
 };
 
@@ -50,16 +48,20 @@ const master = (file) =>
         ref: "refs/heads/master",
         job_workflow_ref: `${REPO}/.github/workflows/${file}@refs/heads/master`,
     });
-const pr = () =>
+const pr = (claims = {}) =>
     oidc({
         event_name: "pull_request",
         ref: "refs/pull/7/merge",
         sha: "merge7",
         job_workflow_ref: `${REPO}/.github/workflows/ci.yml@refs/pull/7/merge`,
+        ...claims,
     });
 
-function service() {
+// A store with its own key cache, so no test depends on which tokens an earlier test sent.
+function service({ fetch: doFetch = fetch } = {}) {
     const DB = d1();
+    const keys = keyCache();
+    const meter = usageMeter();
     const env = {
         DB,
         REPOSITORY_ID: "1122477634",
@@ -73,7 +75,7 @@ function service() {
             headers,
             body: body && JSON.stringify(body),
         });
-        const res = await handle(request, env, { fetch, now });
+        const res = await handle(request, env, { fetch: doFetch, now, keys, meter });
         return { status: res.status, body: await res.json() };
     };
     const rows = (sql) =>
@@ -112,7 +114,7 @@ describe("GET /v1/health", () => {
     });
     it("answers 500 when the database does not", async () => {
         const { env } = service();
-        env.DB = { prepare: () => ({ first: async () => Promise.reject(new Error("D1 down")) }) };
+        env.DB = { prepare: () => ({ all: async () => Promise.reject(new Error("D1 down")) }) };
         const res = await handle(new Request("https://graphty-results.test/v1/health"), env, { fetch, now: NOW });
         assert.equal(res.status, 500);
     });
@@ -271,6 +273,20 @@ describe("POST /v1/invocations", () => {
             400,
         );
     });
+
+    it("refuses wrong column types and oversized lists and strings with 400, never a 500 from D1 (#7270)", async () => {
+        const { call, rows } = service();
+        const post = async (o) => (await call("POST", "/v1/invocations", { token: pr(), body: record(o) })).status;
+        assert.equal(await post({ files: [["a", { n: 1 }, 0, 0, 1]] }), 400);
+        assert.equal(await post({ files: [[7, 1, 0, 0, 1]] }), 400);
+        assert.equal(await post({ baseSha: { sha: "x" } }), 400);
+        assert.equal(await post({ pr: "12" }), 400);
+        assert.equal(await post({ note: "n".repeat(2001) }), 400);
+        assert.equal(await post({ variant: "v".repeat(2001) }), 400);
+        const failures = Array.from({ length: 5001 }, (_, i) => ({ file: "a", name: `t${i}`, message: "Error" }));
+        assert.equal(await post({ failures }), 400);
+        assert.equal(rows("SELECT count(*) AS n FROM invocation")[0].n, 0);
+    });
 });
 
 describe("POST /v1/failures", () => {
@@ -310,8 +326,6 @@ describe("POST /v1/failures", () => {
         assert.deepEqual((await call("POST", "/v1/failures", { token: pr(), body: { ...body, failures: [] } })).body, {
             stored: 0,
         });
-        const bad = { ...body, failures: [{ file: "a", name: "a", message: "m" }], root: 7 };
-        assert.equal((await call("POST", "/v1/failures", { token: pr(), body: bad })).status, 400);
     });
 });
 
@@ -348,6 +362,8 @@ describe("POST /v1/durations", () => {
             ms: 61000,
             conclusion: "success",
         };
+        const wrong = { rows: [{ ...row, startedAt: "2026-11-13T00:00:00Z" }] };
+        assert.equal((await call("POST", "/v1/durations", { token: master("ci.yml"), body: wrong })).status, 400);
         assert.deepEqual(
             (await call("POST", "/v1/durations", { token: master("ci.yml"), body: { rows: [row] } })).body,
             { stored: 1, kind: "full", trend: [], lastSeen: {} },
@@ -482,6 +498,15 @@ describe("GET /v1/plan", () => {
         assert.equal((await plan(call, { variants: `${BROWSER},b`, inputs: "k1" })).status, 400);
     });
 
+    it("refuses more than 100 variants or 5,000 files with 400 (#7270)", async () => {
+        const { call } = service();
+        const variants = Array.from({ length: 101 }, (_, i) => `family-${i}|off`);
+        const many = { variants: variants.join(","), inputs: variants.map(() => "-").join(",") };
+        assert.equal((await plan(call, many)).status, 400);
+        const files = Array.from({ length: 5001 }, (_, i) => `f${i}`).join(",");
+        assert.equal((await plan(call, { files })).status, 400);
+    });
+
     it("answers an everything run's ~55 variants within D1's 100 bound parameters", async () => {
         const { call } = service();
         const variants = Array.from({ length: 55 }, (_, i) => `family-${i}|off`);
@@ -561,7 +586,7 @@ describe("GET /v1/plan", () => {
         s.fail("prOnBase", { name: "pr says so" });
         s.inv("sameInputs", { kind: "bisect", sha: "later", outcome: "failed" });
         s.fail("sameInputs", { name: "same inputs", signature: "s2" });
-        s.inv("elsewhere", { sha: "later", inputs: "k9", outcome: "failed" });
+        s.inv("elsewhere", { sha: "later", inputs: "k9", outcome: "failed", at: NOW - DAY });
         s.fail("elsewhere", { name: "other inputs" });
         s.inv("otherVariant", { sha: "base1", variant: "graphty-element-browser|flags=on|whole", outcome: "failed" });
         s.fail("otherVariant", { name: "flags on only" });
@@ -573,6 +598,90 @@ describe("GET /v1/plan", () => {
             ["camera > zooms", "onBase", 31],
             ["same inputs", "sameInputs", null],
         ]);
+    });
+
+    it("#8051: excuses failures of the variant's newest full run, on any commit, but not an older full run's", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.inv("oldFull", { sha: "old", inputs: "k9", outcome: "failed", at: NOW - DAY });
+        s.fail("oldFull", { name: "fixed since" });
+        s.inv("newFull", { sha: "newest", inputs: "k9", outcome: "failed", at: NOW - HOUR });
+        s.fail("newFull", { name: "broken on master" });
+        s.inv("newFullPart", { sha: "newest", inputs: "k8", outcome: "failed", at: NOW - 2 * HOUR });
+        s.fail("newFullPart", { name: "another shard" });
+        s.inv("newBase", { kind: "base", sha: "newest", inputs: "k9", outcome: "failed", at: NOW });
+        s.fail("newBase", { name: "base check, other commit" });
+        const res = await plan(call, { base: "base1", variants: BROWSER, inputs: "k1" });
+        assert.deepEqual(res.body.failingOnBase.map((f) => [f.name, f.sha]).sort(), [
+            ["another shard", "newest"],
+            ["broken on master", "newest"],
+        ]);
+    });
+
+    it("#8208: no plan statement re-runs a subquery per row", async () => {
+        // a correlated subquery in failingOnBase ran once per failed master invocation: on 100,000 invocations the read
+        // took 18 s instead of 0.4 s, and D1 answered half of pull request plan reads with HTTP 500
+        const { call, env } = service();
+        const seen = new Set();
+        const prepare = env.DB.prepare;
+        env.DB.prepare = (sql) => (seen.add(sql), prepare(sql));
+        await plan(call, { base: "base1", variants: BROWSER, inputs: "k1" });
+        assert.ok(seen.size > 0);
+        for (const sql of seen) {
+            const steps = env.DB.sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all();
+            // a subquery per asked variant (json_each over the request's own list) is bounded by the request; one
+            // per stored row is what #8208 was
+            const correlated = steps.filter((s) => /CORRELATED/.test(s.detail));
+            if (!/json_each/.test(sql)) assert.deepEqual(correlated, [], sql);
+        }
+    });
+
+    it("#8208: asks D1 at most a few queries at once, however many variants", async () => {
+        // all ~47 variants of a light check at once queued about 100 queries in D1, which answered HTTP 500
+        const { call, env } = service();
+        let open = 0;
+        let most = 0;
+        const prepare = env.DB.prepare;
+        const counted = (s) => ({
+            bind: (...a) => counted(s.bind(...a)),
+            ...Object.fromEntries(
+                ["all", "first", "run"].map((m) => [
+                    m,
+                    async () => {
+                        most = Math.max(most, ++open);
+                        await new Promise(setImmediate);
+                        try {
+                            return await s[m]();
+                        } finally {
+                            open--;
+                        }
+                    },
+                ]),
+            ),
+        });
+        env.DB.prepare = (sql) => counted(prepare(sql));
+        const variants = Array.from({ length: 47 }, (_, i) => `family-${i}|off`);
+        const res = await plan(call, { variants: variants.join(","), inputs: variants.map(() => "-").join(",") });
+        assert.equal(res.status, 200);
+        assert.deepEqual(Object.keys(res.body.variants), variants);
+        assert.ok(most <= PLAN_PARALLEL, `${most} queries at once`);
+    });
+
+    it("#7269: runs no inputs query for the placeholder inputs key", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.inv("dash", { kind: "pr", inputs: "-" });
+        const seen = [];
+        const prepare = env.DB.prepare;
+        env.DB.prepare = (sql) => (seen.push(sql), prepare(sql));
+        const res = await plan(call, { base: "base1", variants: BROWSER, inputs: "-" });
+        assert.equal(res.status, 200);
+        assert.equal(res.body.variants[BROWSER].passedWithInputs, null);
+        assert.ok(seen.length > 0);
+        assert.deepEqual(
+            seen.filter((sql) => /inputs = \?/.test(sql)),
+            [],
+        );
     });
 
     it("answers reuse, recent failures first and per-file durations per variant", async () => {
@@ -594,6 +703,8 @@ describe("GET /v1/plan", () => {
         s.fail("f2", { file: "b.test.ts" });
         s.inv("f3", { outcome: "failed", at: NOW - 8 * DAY });
         s.fail("f3", { file: "too-old.test.ts" });
+        // the first read kept the variant's then empty fileMs for FILE_MS_TTL (its own test below)
+        env.DB.sqlite.exec("DELETE FROM file_ms");
         const v = (await plan(call, { variants: BROWSER, inputs: "k1" })).body.variants[BROWSER];
         assert.equal(v.passedWithInputs, "reuse");
         assert.deepEqual(v.order, ["b.test.ts", "a.test.ts"]);
@@ -603,6 +714,20 @@ describe("GET /v1/plan", () => {
         assert.deepEqual(flat.order, ["b.test.ts", "a.test.ts"]);
         assert.deepEqual(flat.fileMs, { [X]: 106 });
         assert.equal((await plan(call, { variants: BROWSER, inputs: "k1" })).body.order, undefined);
+    });
+
+    it("#9784: answers a variant's fileMs computed within FILE_MS_TTL, and computes it again after", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.inv("a", { at: NOW - DAY });
+        s.file("a", X, 100);
+        const fileMs = async () => (await plan(call, { variants: BROWSER, inputs: "-" })).body.variants[BROWSER].fileMs;
+        assert.deepEqual(await fileMs(), { [X]: 100 });
+        s.inv("b", { at: NOW - DAY + 1 });
+        s.file("b", X, 300);
+        assert.deepEqual(await fileMs(), { [X]: 100 });
+        env.DB.sqlite.exec(`UPDATE file_ms SET at = ${NOW - FILE_MS_TTL}`);
+        assert.deepEqual(await fileMs(), { [X]: 200 });
     });
 
     it("reads per-file durations from the variant's newest invocations only", async () => {
@@ -622,17 +747,49 @@ describe("GET /v1/plan", () => {
 describe("POST /v1/base-checks", () => {
     const ask = { base: "b".repeat(40), file: "a.test.ts", variant: "graphty-1|flags=off|selected", pr: 7 };
 
-    it("answers dispatch once per base, file and variant, whoever asks again", async () => {
+    it("answers dispatch once per base, file and variant, whichever other run asks again", async () => {
         const { call } = service();
         assert.deepEqual(await call("POST", "/v1/base-checks", { token: pr(), body: ask }), {
             status: 200,
             body: { dispatch: true },
         });
-        assert.deepEqual((await call("POST", "/v1/base-checks", { token: pr(), body: { ...ask, pr: 8 } })).body, {
-            dispatch: false,
-        });
+        for (const token of [pr({ run_id: "4011" }), pr({ run_attempt: "2" })]) {
+            assert.deepEqual((await call("POST", "/v1/base-checks", { token, body: { ...ask, pr: 8 } })).body, {
+                dispatch: false,
+            });
+        }
         const other = { ...ask, variant: "graphty-2|flags=off|selected" };
         assert.deepEqual((await call("POST", "/v1/base-checks", { token: pr(), body: other })).body, {
+            dispatch: true,
+        });
+    });
+
+    it("#7265: answers the run holding the claim dispatch again, so a re-sent ask keeps its check", async () => {
+        const { call, rows } = service();
+        for (let i = 0; i < 2; i++) {
+            assert.deepEqual((await call("POST", "/v1/base-checks", { token: pr(), body: ask })).body, {
+                dispatch: true,
+            });
+        }
+        assert.deepEqual(rows("SELECT base, file, variant, pr, asked_at, run_id, attempt FROM base_check"), [
+            { base: ask.base, file: ask.file, variant: ask.variant, pr: 7, asked_at: NOW, run_id: 4010, attempt: 1 },
+        ]);
+    });
+
+    it("#7265: lets only the run holding the claim give it back, and the next ask dispatches", async () => {
+        const { call } = service();
+        await call("POST", "/v1/base-checks", { token: pr(), body: ask });
+        const other = pr({ run_id: "4011" });
+        assert.deepEqual((await call("DELETE", "/v1/base-checks", { token: other, body: ask })).body, {
+            released: false,
+        });
+        assert.deepEqual((await call("POST", "/v1/base-checks", { token: other, body: ask })).body, {
+            dispatch: false,
+        });
+        assert.deepEqual((await call("DELETE", "/v1/base-checks", { token: pr(), body: ask })).body, {
+            released: true,
+        });
+        assert.deepEqual((await call("POST", "/v1/base-checks", { token: other, body: ask })).body, {
             dispatch: true,
         });
     });
@@ -641,6 +798,7 @@ describe("POST /v1/base-checks", () => {
         const { call } = service();
         for (const token of [master("ci.yml"), LOCAL_TOKEN]) {
             assert.equal((await call("POST", "/v1/base-checks", { token, body: ask })).status, 403);
+            assert.equal((await call("DELETE", "/v1/base-checks", { token, body: ask })).status, 403);
         }
         assert.equal((await call("POST", "/v1/base-checks", { token: pr(), body: { ...ask, base: "x" } })).status, 400);
         assert.equal((await call("POST", "/v1/base-checks", { token: pr(), body: { ...ask, file: "" } })).status, 400);
@@ -708,6 +866,9 @@ describe("flaky tests from master's records", () => {
             [["graphty-element-browser", X, "camera > zooms", null]],
         );
         assert.match(second.body.flaky[0].proof, /4010\.1\.base\.r1\.1 failed it, 4010\.1\.base\.r2\.1 passed it/);
+        // #7265: the client re-sends a record whose answer was lost; the re-post stores nothing and names it again
+        const resent = await call("POST", "/v1/invocations", { token, body: passing("4010.1.base.r2.1") });
+        assert.deepEqual([resent.body.stored, resent.body.flaky.map((t) => t.name)], [false, ["camera > zooms"]]);
         // a third repeat, before any issue was posted back, names the test again without a second entry
         const third = await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.r3.1") });
         assert.deepEqual(
@@ -726,6 +887,7 @@ describe("flaky tests from master's records", () => {
             name: "camera > zooms",
         };
         assert.equal((await call("POST", "/v1/issues", { token: pr(), body: back })).status, 403);
+        assert.equal((await call("POST", "/v1/issues", { token, body: { ...back, number: 77.5 } })).status, 400);
         assert.equal((await call("POST", "/v1/issues", { token, body: back })).status, 200);
         assert.deepEqual(rows("SELECT issue FROM quarantine"), [{ issue: 77 }]);
         assert.deepEqual(rows("SELECT number, kind FROM tracked_issue"), [{ number: 77, kind: "flaky" }]);
@@ -771,6 +933,25 @@ describe("flaky tests from master's records", () => {
             [["camera > zooms", 78]],
         );
         assert.equal(rows("SELECT * FROM quarantine WHERE left_at IS NULL").length, 1);
+    });
+
+    it("leaves tracked out of the answer, and logs why, when the tracked-issue lookup fails", async (t) => {
+        const { call, env } = service();
+        const prepare = env.DB.prepare.bind(env.DB);
+        env.DB.prepare = (sql) => {
+            if (sql.startsWith("SELECT DISTINCT issue FROM quarantine")) throw new Error("D1 is down");
+            return prepare(sql);
+        };
+        const log = t.mock.method(console, "log", () => {});
+        const res = await call("POST", "/v1/invocations", {
+            token: master("base-check.yml"),
+            body: passing("4010.1.base.t1.1"),
+        });
+        assert.deepEqual(res.body, { stored: true, kind: "base", flaky: [] });
+        assert.deepEqual(
+            log.mock.calls.map((c) => c.arguments[0]),
+            ["trackedIssues 4010.1.base.t1.1: D1 is down"],
+        );
     });
 
     it("names a test again when it flips after 20 passes took it out of the quarantine", async () => {
@@ -1145,6 +1326,7 @@ describe("GET /v1/site (promote.yml's record of a nightly, #4495)", () => {
             "POST /v1/issues",
             "POST /v1/sites",
             "POST /v1/base-checks",
+            "DELETE /v1/base-checks",
             "POST /v1/channel-moves",
             "POST /v1/story-captures",
             "POST /v1/story-reach",
@@ -1457,7 +1639,7 @@ describe("GET /v1/durations/medians", () => {
             token: pr(),
         });
         assert.equal(status, 200);
-        // runs 7 to 10 (107..110 s): 11 is cancelled, 0 and 1 are older than the last 4
+        // runs 7 to 10 (107..110 s): 11 is canceled, 0 and 1 are older than the last 4
         assert.deepEqual(body, { "job:ci.yml:Build": 108.5, "job:ci.yml:Lint": 60 });
         assert.equal((await call("GET", "/v1/durations/medians?kind=full", { token: pr() })).status, 400);
         assert.equal((await call("GET", "/v1/durations/medians?workflows=ci.yml")).status, 401);
@@ -1868,6 +2050,8 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
         // ponytail: the consumers early-capture.md 4c allows
         const allowed = [
             /^tools\/results-service\//,
+            // the store itself on AWS (#3607): its routes, records and tests
+            /^tools\/pipeline-health\/(README\.md|infra\/health-stack\.ts|(src\/handlers|test)\/(ingest|results|handlers\.test|stack\.test)\.ts)$/,
             /^tools\/channel\/story-slices\.mjs$/,
             /^tools\/channel\/rolling\.mjs$/,
             /^tools\/full-run\.mjs$/,
@@ -1888,7 +2072,183 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
 });
 
 describe("GitHub's key set", () => {
-    it("is fetched once and reused for every token signed with a known key", () => {
-        assert.equal(keyFetches, 2, "once for the first token, once for the unknown kid");
+    // the key set GitHub serves, and how many times the store asked for it
+    const github = () => {
+        const state = { fetches: 0, answer: () => Response.json(jwks) };
+        state.fetch = async () => {
+            state.fetches++;
+            return state.answer();
+        };
+        return state;
+    };
+    const status = async (call, token, now) => (await call("GET", "/v1/quarantine", { token, now })).status;
+
+    it("is fetched once and reused for every token signed with a known key", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        assert.equal(await status(call, pr()), 200);
+        assert.equal(await status(call, pr()), 200);
+        assert.equal(gh.fetches, 1);
+    });
+
+    it("fetches the set at most once a minute however many unknown kids arrive", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        const bogus = oidc({}, { kid: "nope" });
+        assert.equal(await status(call, bogus), 401);
+        assert.equal(await status(call, bogus), 401);
+        assert.equal(await status(call, oidc({}, { kid: "other" }), NOW + 59_000), 401);
+        assert.equal(await status(call, pr(), NOW + 59_000), 200, "a known kid still verifies");
+        assert.equal(gh.fetches, 1);
+        assert.equal(await status(call, bogus, NOW + 60_000), 401);
+        assert.equal(gh.fetches, 2, "a minute later an unknown kid may fetch again");
+    });
+
+    it("shares one fetch among concurrent tokens", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        const statuses = await Promise.all([1, 2, 3].map(() => status(call, pr())));
+        assert.deepEqual(statuses, [200, 200, 200]);
+        assert.equal(gh.fetches, 1);
+    });
+
+    it("stops trusting a key an hour after the fetch that read it", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        assert.equal(await status(call, pr()), 200);
+        gh.answer = () => Response.json({ keys: [] }); // GitHub rotated the key out
+        const later = NOW + 3_600_000;
+        const token = oidc({ event_name: "pull_request", exp: later / 1000 + 300 });
+        assert.equal(await status(call, token, later - 1), 200);
+        assert.equal(gh.fetches, 1);
+        assert.equal(await status(call, token, later), 401);
+        assert.equal(gh.fetches, 2);
+    });
+
+    it("answers 503 while GitHub fails, without asking again within the minute", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        gh.answer = () => new Response("down", { status: 502 });
+        assert.equal(await status(call, pr()), 503);
+        assert.equal(await status(call, pr(), NOW + 59_000), 503);
+        assert.equal(gh.fetches, 1);
+        gh.answer = () => Response.json(jwks);
+        assert.equal(await status(call, pr(), NOW + 60_000), 200);
+        assert.equal(gh.fetches, 2);
+    });
+});
+
+describe("#9784: the daily D1 caps and GET /v1/usage", () => {
+    it("counts each route's requests and rows by UTC day, public", async () => {
+        const { call } = service();
+        await call("POST", "/v1/invocations", { token: pr(), body: record() });
+        await call("GET", "/v1/health");
+        // counts reach usage_day once a minute: the next request after it adds them
+        const later = NOW + 61_000;
+        await call("GET", "/v1/health", { now: later });
+        const { status, body } = await call("GET", "/v1/usage?days=2", { now: later });
+        assert.equal(status, 200);
+        assert.deepEqual(body.caps, { rowsRead: null, rowsWritten: null });
+        assert.equal(body.days.length, 1);
+        const [today] = body.days;
+        assert.equal(today.day, "2026-10-24");
+        const posted = today.routes["POST /v1/invocations"];
+        assert.equal(posted.requests, 1);
+        assert.ok(posted.rowsWritten >= 3, JSON.stringify(posted)); // the invocation, its file and its failure
+        assert.equal(today.routes["GET /v1/health"].requests, 2);
+        assert.equal(today.rowsWritten >= posted.rowsWritten, true);
+    });
+
+    it("answers 429 past a cap until the next UTC day, but still /v1/health and /v1/usage", async () => {
+        const { call, env } = service();
+        env.DAILY_ROWS_WRITTEN_CAP = "3";
+        env.DAILY_ROWS_READ_CAP = "1000000";
+        assert.equal((await call("POST", "/v1/invocations", { token: pr(), body: record() })).status, 200);
+        const refused = await call("POST", "/v1/invocations", {
+            token: pr(),
+            body: record({ id: "4010.1.graphty-element-browser-3.0.2" }),
+        });
+        assert.equal(refused.status, 429);
+        assert.match(refused.body.error, /daily D1 cap is spent \(rows written/);
+        assert.equal(refused.body.caps.rowsWritten, 3);
+        assert.equal((await call("GET", "/v1/plan", { token: pr() })).status, 429);
+        assert.equal((await call("GET", "/v1/health")).status, 200);
+        const usage = await call("GET", "/v1/usage");
+        assert.equal(usage.status, 200);
+        assert.deepEqual(usage.body.caps, { rowsRead: 1_000_000, rowsWritten: 3 });
+        // the next UTC day starts from nothing
+        const tomorrow = Date.UTC(2026, 9, 25, 0, 1);
+        const token = oidc({
+            event_name: "pull_request",
+            sha: "merge7",
+            exp: tomorrow / 1000 + 300,
+            nbf: tomorrow / 1000 - 10,
+        });
+        const next = await call("POST", "/v1/invocations", {
+            token,
+            body: record({ id: "4010.1.graphty-element-browser-3.0.3" }),
+            now: tomorrow,
+        });
+        assert.equal(next.status, 200);
+    });
+});
+
+// Every statement the tests above prepared, planned on the migrated schema: a full SCAN of a table reads every row
+// of it on every call, and that is what D1 bills (#9784: 56 billion rows read in a month). A table may be scanned
+// only when it stays small, and says why here.
+const SMALL_TABLES = {
+    quarantine: "the entries in force and those that left: a few dozen a month",
+    story_capture: "pruned on every write to each story's newest row plus 7 days",
+    story_unit: "pruned on every write to each unit's newest row plus 7 days",
+    story_notify: "one row per notice kind (2)",
+    candidate: "one row at most",
+    duration_backfill: "one row",
+};
+const SQL_WORDS = new Set([
+    "WHERE",
+    "ON",
+    "JOIN",
+    "LEFT",
+    "CROSS",
+    "INNER",
+    "GROUP",
+    "ORDER",
+    "LIMIT",
+    "UNION",
+    "INDEXED",
+]);
+
+describe("#9784: query plans", () => {
+    it("scans no table in full, except the small ones", async () => {
+        const { prepared } = await import("./d1-shim.mjs");
+        const { sqlite } = d1();
+        const tables = new Set(
+            sqlite
+                .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+                .all()
+                .map((r) => r.name),
+        );
+        assert.ok(prepared.size > 50, `${prepared.size} statements`);
+        const found = [];
+        for (const sql of prepared) {
+            // `FROM table alias` and `JOIN table alias`: the plan names a table by its alias
+            const alias = new Map();
+            for (const [, table, name] of sql.matchAll(/\b(?:FROM|JOIN)\s+(\w+)(?:\s+(?:AS\s+)?(\w+))?/gi)) {
+                if (!tables.has(table)) continue;
+                alias.set(table, table);
+                if (name && !SQL_WORDS.has(name.toUpperCase())) alias.set(name, table);
+            }
+            for (const { detail } of sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all()) {
+                const table = alias.get(/^SCAN (\w+)/.exec(detail)?.[1]);
+                // an index walked in order and cut by LIMIT, with nothing filtered out, reads only the rows it answers
+                const limited =
+                    /USING (COVERING )?INDEX/.test(detail) &&
+                    !/WHERE/i.test(sql) &&
+                    /ORDER BY .* LIMIT \d+$/s.test(sql);
+                if (table && !limited && !Object.hasOwn(SMALL_TABLES, table))
+                    found.push(`${table} (${detail}): ${sql.slice(0, 120)}`);
+            }
+        }
+        assert.deepEqual(found, []);
     });
 });

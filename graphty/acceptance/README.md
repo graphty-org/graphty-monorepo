@@ -57,7 +57,7 @@ route the reason names the step or check that failed, and `tmp/dry-run/<route>.a
 what the page offered a user at that moment (its accessibility tree), which is usually enough to
 see why a step found nothing to click. `tmp/dry-run/<route>.png` is the screen each route ended on,
 passed or failed, and `<route>.ui.png` the same with what moves from run to run covered (the drawing,
-the status bar); the design studio compares it with the previous pass's (`design/ui/studio/tool/README.md`,
+the status bar); the design studio compares it with the previous pass's (`design/ui/studio/tool/REFERENCE.md`,
 "The scripted dry run").
 
 It runs only on this machine's GPU. Each browser checks that it draws with the NVIDIA card and the
@@ -65,8 +65,9 @@ route fails loudly if not: a software renderer is never used. The flags come fro
 studio's tool (`design/ui/studio/tool/real.mjs`, "Browsers"), with the extracted `libEGL.so.1` in
 the main checkout's `tmp/egl/`. The run holds the machine's one GPU slot for its whole length
 (`tools/test-slots.mjs --gpu`), and each browser takes one of the machine's four shared browser slots
-(`design/ui/studio/tool/with-browser.sh`). A run started
-while those are busy waits for them, and its report says how long.
+(`design/ui/studio/tool/with-browser.sh`). The run takes its first browser slot before the GPU
+slot, and its first browser uses it, so it never holds the GPU slot while it waits for a browser. A run
+started while those are busy waits for them, and its report says how long.
 
 A route takes 2 to 6 seconds once its browser is up. The routes are spread over the browsers as
 each frees up.
@@ -74,11 +75,15 @@ each frees up.
 ## The selection workspace's acceptance test
 
 `selection-workspace-uat.mjs` tests the selection workspace, one screen in depth, where a route walks
-the whole app. It is separate from the dry run and runs against any served build with the
-`selection-workspace` feature on:
+the whole app. It is separate from the dry run and runs against any served build, in Chromium and then
+in Playwright's WebKit (Safari's engine) unless `--browser chromium` or `--browser webkit` picks one. Every pull request that affects the graphty app
+runs it in both, one CI job per browser (`Selection workspace (chromium)` and `(webkit)`, report-only
+for now):
 
 ```bash
-tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url "https://<host>:<port>/?features=selection-workspace"
+tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist          # serves the build itself
+tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url "https://<host>:<port>/"
+tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist --browser webkit
 tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url <url> --only m012,settings   # some scenarios, by id or words
 node graphty/acceptance/selection-workspace-uat.mjs --list                                                   # the matrix, nothing run
 ```
@@ -87,7 +92,9 @@ It drives real clicks, drags and keys over a pairwise matrix of card kinds, verb
 entry points, datasets, edits and ways of leaving, then named scenarios (a slider's exact ends, settings
 then ticks, popovers closing on an outside click, order after a delete). What a selection should hold is
 worked out from the graph and the runs' results, and compared with the title bar, the cards, the table,
-the drawing and what is saved. It prints a table of results, exits 1 when a scenario failed, and keeps a
+the drawing and what is saved. The matrix's rows run as a reader who prefers reduced motion (the graph
+is drawn once its layout settles, which is most of a row's CPU on a software GPU); the named scenarios
+keep every transition. It prints a table of results, exits 1 when a scenario failed, and keeps a
 failed scenario's screenshot under `--out` (default `tmp/selection-workspace-uat`).
 
 ## Adding a route
@@ -136,14 +143,16 @@ Name controls the way a screen reader hears them: `page.getByRole("treeitem", { 
 /^Everything,/ })`, `page.getByRole("option", { name: /^hours(,|$)/ })`. `routes.mjs` has steps many
 routes share (`openSample`, `openFile`, `newLayer`, `addCondition`, `match`, `fill`, `analyze`,
 `line`); use them, and add one when a second route needs the same steps. A step waits for its
-control to appear (up to 20 seconds), so a walk never waits on a clock. `openSample` and `openFile`
+control to appear, with no deadline but the repository's one hang guard (`tools/test-wait-guard.mjs`),
+so a walk never waits on a clock. `openSample` and `openFile`
 wait until the Everything layer counts the graph's nodes: the layer shows "0 nodes" before the data
 arrives, and a walk that went on then acted on an empty graph.
 
 ### Reading the outcome: `g`
 
 A check is a function of `g` that throws (with `assert`) when the outcome is wrong. It is retried
-every 250 ms until it passes or 15 seconds pass, because the app reaches its state on its own time.
+after every page frame until it passes, because the app reaches its state on its own time; only the
+hang guard ends a check that never passes, and a route that hangs as a whole.
 
 The looks the checks read are the style graphty-element resolved for each node and edge
 (`session.styles.explain()`), not the pixels on the canvas. A defect where the style resolves

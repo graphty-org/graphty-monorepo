@@ -211,8 +211,8 @@ describe("a partition's groups as layers", () => {
         const [folder] = s.styles.tree().filter((row) => row.kind === "folder");
         const names = folder.children.map((row) => row.name);
         assert.lengthOf(new Set(names), names.length, `no two layers share a name: ${names.join(", ")}`);
-        // e, f and g are group 0 now: the name followed them.
-        assert.strictEqual(s.data.valueLabels("results.louvain.group").get("0"), "Group 2");
+        // The re-run numbered e, f and g's group 0; the element kept its number, and its name.
+        assert.strictEqual(s.data.valueLabels("results.louvain.group").get("1"), "Group 2");
         const fresh = folder.children[0];
         assert.strictEqual(s.data.valueLabels("results.louvain.group").get("4"), fresh.name);
         assert.notInclude(
@@ -227,7 +227,7 @@ describe("a partition's groups as layers", () => {
         await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers" } });
         await s.styles.settled();
         const [folder] = s.styles.tree().filter((row) => row.kind === "folder");
-        // Each layer holds one group: its copy keeps that group's colour in its own table.
+        // Each layer holds one group: its copy keeps that group's color in its own table.
         await s.styles.updateMany(
             folder.children.map((row) => {
                 const selector = s.styles.get(row.id)?.selector;

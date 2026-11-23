@@ -19,7 +19,7 @@ export type VercelProviderType = Exclude<AiProviderId, "webllm" | "mock">;
 
 /**
  * The model each provider uses when `configure` is given none: its `defaultModel` in the AI
- * catalogue. Each is a current model id from the provider's own model list (checked 2026-10-07);
+ * catalog. Each is a current model id from the provider's own model list (checked 2026-10-07);
  * a retired id fails every request.
  */
 const DEFAULT_MODELS: Readonly<Record<VercelProviderType, string>> = {
@@ -180,8 +180,10 @@ export class VercelAiProvider implements LlmProvider {
                     callbacks?.onChunk(event.delta);
                     break;
                 case "tool-call":
-                    // A call whose arguments did not parse is not handed on to run with none.
+                    // A call whose arguments did not parse stays in the response, flagged, but is
+                    // not handed to onToolCall to run with none.
                     if (event.invalidArguments) {
+                        toolCalls.push({ id: event.id, name: event.name, arguments: {}, invalidArguments: true });
                         break;
                     }
 

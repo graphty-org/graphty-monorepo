@@ -1,10 +1,10 @@
 /**
- * The CPU port's random number generator, bit for bit, and the NaN-row seeding both paths share (spec 7.2 "Initial
- * positions", 9.3 seedPositions, 7.14 `pos`, 7.19 topology change): a seed gives the same start on the CPU and the
+ * The CPU port's random number generator, bit for bit, and the NaN-row seeding both paths share (seedPositions, the
+ * `pos` option and a topology change): a seed gives the same start on the CPU and the
  * GPU because both write the same f32 values in index order. The package carries its own copy of the LCG for its
- * whole life (D27: it cannot import @graphty/layout at runtime). The CANONICAL copy is
+ * whole life (it cannot import @graphty/layout at runtime). The CANONICAL copy is
  * layout/src/simulation/seed.ts; this one is cross-tested against it, bit for bit, by
- * test/layouts/seed-cross.test.ts (W1b, Task M5b-T3).
+ * test/layouts/seed-cross.test.ts.
  */
 
 import type { F32, GraphSnapshot } from "@graphty/graph-format";
@@ -19,9 +19,10 @@ export const LCG_A = 185852;
 export const LCG_C = 1;
 
 /**
- * The port's RandomNumberGenerator, bit for bit: `seed || Math.floor(Math.random() * 1000000)` (seed 0 / null =
- * unseeded, the quirk preserved), state = seed % m, next = (a * state + c) % m, value = state / m. The product
- * a * state stays below 2^53 (a < 2^18, state < 2^35), so every step is exact in f64, as it is in the port.
+ * The port's linear congruential generator, @graphty/layout's Lcg bit for bit: state = seed % m, next =
+ * (a * state + c) % m, value = state / m. The product a * state stays below 2^53 (a < 2^18, state < 2^35), so every
+ * step is exact in f64. A seed is null (unseeded: a random integer seed below 1e6) or an integer >= 0; 0 is an
+ * ordinary seed.
  */
 export class Lcg {
     /** The seed actually used (a random one when unseeded). */
@@ -30,11 +31,23 @@ export class Lcg {
     private state: number;
 
     /**
-     * Creates the generator; a seed of 0, -0, NaN or null means unseeded (the port's `seed || random` quirk).
-     * @param seed - the seed, or null for a random seed
+     * Creates the generator.
+     * @param seed - an integer >= 0, or null for a random seed
+     * @throws WebGpuGraphError E_INVALID_ARGUMENT for any other seed
      */
     constructor(seed: number | null) {
-        this.seed = seed === null || seed === 0 || Number.isNaN(seed) ? Math.floor(Math.random() * 1000000) : seed;
+        if (seed !== null && !(Number.isInteger(seed) && seed >= 0)) {
+            throw new WebGpuGraphError(
+                "E_INVALID_ARGUMENT",
+                `seed must be null or an integer >= 0, got ${String(seed)}`,
+                {
+                    argument: "seed",
+                    value: seed,
+                    expected: "null or an integer >= 0",
+                },
+            );
+        }
+        this.seed = seed ?? Math.floor(Math.random() * 1000000);
         this.state = this.seed % LCG_M;
     }
 
@@ -220,8 +233,8 @@ function rowUnseeded(positions: F32, i: number, dim: 2 | 3): boolean {
 }
 
 /**
- * Seeds the unseeded rows of the owner's stride-3 SCENE array in index order (spec 9.3 seedPositions, 7.14 `pos`,
- * 7.19 topology change): a row is unseeded when any of its `dim` components is not finite; every such component
+ * Seeds the unseeded rows of the owner's stride-3 SCENE array in index order (seedPositions, the `pos`
+ * option, a topology change): a row is unseeded when any of its `dim` components is not finite; every such component
  * draws one LCG value; when NO row is fully finite the draw is uniform in [-1, 1) layout units per axis (`range:
  * "fa2"`; `"fr"` is [0, 1)), otherwise uniform inside the [min, max] box of the finite components per axis,
  * converted to layout units (an axis with no finite value falls back to the range box); the value is written as
@@ -230,13 +243,13 @@ function rowUnseeded(positions: F32, i: number, dim: 2 | 3): boolean {
  * finite row, or every finite row sharing that coordinate) is padded to the range box's width centered on it, so
  * the drawn rows never all land on one point or one line. Finite components are never changed and a
  * fully finite row is never touched. No random number is drawn when nothing needs seeding.
- * PLAN DECISION 12 (P3-T1): the box is taken over every finite COMPONENT (the port's rule), not over the fully
+ * The box is taken over every finite COMPONENT (the port's rule), not over the fully
  * finite ROWS only; the two differ only when a partially finite row's finite axis lies outside the fully finite
- * rows' box (pinned by test/layouts/seed.test.ts). PLAN DECISION 13: a 2D row whose x and y are finite is seeded
+ * rows' box (pinned by test/layouts/seed.test.ts). A 2D row whose x and y are finite is seeded
  * whatever its z holds.
  * @param s - the snapshot (nodeCount rows)
  * @param positions - the owner's stride-3 scene-unit array, length 3 * nodeCount, modified in place
- * @param seed - the LCG seed (0 / null = unseeded, the port's quirk)
+ * @param seed - the LCG seed, an integer >= 0, or null for a random one; any other seed throws E_INVALID_ARGUMENT
  * @param dim - 2 or 3
  * @param scale - the scene scale (> 0)
  * @param center - the scene center, or null for the origin
@@ -254,12 +267,13 @@ export function seedPositions(
     const n = s.nodeCount;
     checkSeedArgs(n, positions, dim, scale);
     const c = resolveCenter(center);
+    // built before the early return, so a bad seed is refused whether or not a row needs seeding
+    const rng = new Lcg(seed);
     const census = censusRows(positions, n, dim);
     if (census.unseededRows === 0) {
         return;
     }
     const { boxLo, boxHi } = drawBox(census, dim, c, scale, range);
-    const rng = new Lcg(seed);
     for (let i = 0; i < n; i++) {
         if (!rowUnseeded(positions, i, dim)) {
             continue;

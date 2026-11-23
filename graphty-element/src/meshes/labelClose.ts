@@ -7,7 +7,9 @@
  * what a test reads and what a click hits cannot drift apart.
  */
 
-import { type AbstractMesh, type Scene, Vector3 } from "@babylonjs/core";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 /** A rectangle: on the label's canvas, or in CSS pixels on the graph's canvas. */
 export interface CloseRect {
@@ -65,7 +67,7 @@ export function closeGlyphRect(panel: CloseRect, fontSize: number, padding: numb
  * Draw the x.
  * @param ctx - The label's canvas, in canvas units.
  * @param rect - Where, from {@link closeGlyphRect}.
- * @param color - The stroke colour: the label's text colour.
+ * @param color - The stroke color: the label's text color.
  */
 export function drawCloseGlyph(ctx: CanvasRenderingContext2D, rect: CloseRect, color: string): void {
     ctx.save();

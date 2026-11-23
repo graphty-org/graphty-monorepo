@@ -370,7 +370,11 @@ for (const file of files) {
     const { bytes, filename } = readInput(file);
     const format = /\.gexf$/i.test(filename) ? "gexf" : "graphml";
     const g = await importStyled(bytes, format, filename);
-    if (g === null || !g.styled) {
+    if (g.error) {
+        tally.importFailed(file, g.error);
+        continue;
+    }
+    if (!g.styled) {
         continue;
     }
     const tool = g.extracted.styles.source.tool;

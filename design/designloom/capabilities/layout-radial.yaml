@@ -3,7 +3,8 @@ name: Radial Layout
 category: visualization
 description: Position nodes in concentric circles emanating from a central focus node. Useful for ego-network
     visualization where a selected node is placed at center with neighbors in successive rings by distance.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/layout/RadialLayoutEngine.ts."
 algorithms:
     - Radial tree layout
     - Ego-centric placement

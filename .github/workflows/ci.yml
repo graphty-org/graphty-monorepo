@@ -4,8 +4,7 @@ on:
     push:
         branches: [master]
     pull_request:
-        # No "labeled": no job reads labels, and Mergify adds
-        # and removes labels (queued, dequeued) on every queued pull request, each of which re-ran all of CI.
+        # No "labeled": no job reads labels, and every label added or removed would re-run all of CI.
         # A draft runs like any other pull request (agents open them ready, with tools/pr-open.sh);
         # "ready_for_review" stays so a draft someone opened by hand starts a run when it is marked ready.
         types: [opened, synchronize, reopened, ready_for_review]
@@ -16,20 +15,15 @@ on:
     # the history to work around a scheduling hiccup.
     # The release train (release.yml) calls this workflow on the commit it is about to release: the full
     # suite, every shard of every package, and the builds it publishes (design/ci/ci-cd-plan.md, section 10).
-    # (golden-verify.yml, removed, also called it; a caller that takes the ref from a dispatch input would run any
-    # commit in master's cache scope, so tools/ci-workflows.test.mjs allows only the release train.)
-    # `verify` leaves out the benchmarks, and `shards` (a CI bisect point) runs only the named test shards.
+    # A caller that takes the ref from a dispatch input would run any commit in master's cache scope, so
+    # tools/ci-workflows.test.mjs allows only the release train.
+    # `shards` (a CI bisect point) runs only the named test shards.
     workflow_call:
         inputs:
             ref:
                 description: "the commit to test and build"
                 type: string
                 required: true
-            verify:
-                description: "a verification run of golden: skip the Performance benchmarks, which gate nothing"
-                type: boolean
-                required: false
-                default: false
             shards:
                 description: "a JSON list of test shard names: run only these, as a light run (no screenshots)"
                 type: string
@@ -40,9 +34,9 @@ on:
                 type: string
                 required: false
                 default: ""
-        # The caller's needs.<job>.result is cancelled when any job here ended cancelled, an advisory
+        # The caller's needs.<job>.result is canceled when any job here ended canceled, an advisory
         # (continue-on-error) one included: continue-on-error covers a failure, not a cancel. So the release train
-        # judges a cancelled call by this instead (#4556): All Checks Pass needs every job that gates.
+        # judges a canceled call by this instead (#4556): All Checks Pass needs every job that gates.
         outputs:
             checks:
                 description: "All Checks Pass's result: success when every job that gates passed"
@@ -66,14 +60,14 @@ on:
 # merge anything, and the runners it holds are what every other pull request is queued behind.
 # Master push runs share one group but never cancel a running build (design/ci/channels-pipeline.md section
 # 7.1, #3938): a running master build always finishes, and a newer push replaces only the waiting one, so
-# master always finishes building its newest commit however often merges land. Cancelling the running build
+# master always finishes building its newest commit however often merges land. Canceling the running build
 # starved master of any finished build while merges came faster than one build (2026-10-26). A replaced
 # waiting build only means the newest one is built instead. tools/master-guard.mjs reads such a run as
 # superseded (no red-master issue), and tools/release-due.mjs reads every merge since the last green master
-# build, so a cancelled build's Fixes #N or Refs #N still restarts the full run. A re-run of a master push build
+# build, so a canceled build's Fixes #N or Refs #N still restarts the full run. A re-run of a master push build
 # (run_attempt above 1: master-guard re-runs an outside failure, a person re-runs a stopped build) runs in its
-# commit's own group, so it never cancels a newer build and is never cancelled. A dispatch runs in its commit's own
-# group, and the release train's call (inputs.ref) has a group of its own, so neither is ever cancelled.
+# commit's own group, so it never cancels a newer build and is never canceled. A dispatch runs in its commit's own
+# group, and the release train's call (inputs.ref) has a group of its own, so neither is ever canceled.
 concurrency:
     group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.event_name == 'push' && github.run_attempt == '1' && 'master-push' || github.sha }}
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -85,23 +79,17 @@ concurrency:
 
 # Every job names ubuntu-24.04 rather than ubuntu-latest. The label is not a constant: it became 24.04 during
 # 2026 with no change here, which is how the webgpu-graph-algorithms node shard came to judge its kernels on a
-# Mesa software rasteriser (25.2.8 / LLVM 20) two major versions newer than the one every gate record measured
+# Mesa software rasterizer (25.2.8 / LLVM 20) two major versions newer than the one every gate record measured
 # (23.2.1 / LLVM 15) -- see webgpu-graph-algorithms/docs/decisions/G-ENV.md. GitHub has announced the same move
 # again: ubuntu-latest becomes Ubuntu 26 from 2026-10-19 (actions/runner-images#14748). Naming the image makes
 # that a commit we review rather than a Tuesday morning. Pinning is a no-op today; ubuntu-latest IS 24.04.
 # Three kinds of run (design/ci/ci-cd-plan.md, sections 3, 5 and 8):
 # - a pull request into master (tools/pr-open.sh opens it ready, with auto-merge on): the affected
 #   build, lint, checks and test shards, and the screenshots, which are reported and never block.
-# - a Mergify merge-queue run: a draft pull request on a mergify/merge-queue/* branch, holding master
-#   plus the pull requests being merged. It runs the FULL suite, every shard of every package, and is
-#   held to master's rule that every job succeeds.
-# - a push to master: NO tests. The merge queue already ran the full suite on exactly this tree. The build
+# - a push to master: NO tests. The release train's full run (release.yml) tests master. The build
 #   job builds every package, Storybook and docs site (deploy-pages.yml publishes them) and skips every
 #   test job; "All Checks Pass" counts the skipped ones as passing. Owner decision, 2026-10-06.
 # - a manual dispatch, or the release train's call (release.yml, on the candidate commit): the full suite.
-# A Mergify merge-queue run: a draft on a mergify/merge-queue/* branch of this repository, opened by
-# Mergify's app. The branch name alone is not enough: anyone can push a branch with that prefix. A job's
-# `if` cannot read env, so the build job repeats this test.
 # The jobs read the repository and download this run's artifacts; checks: write lets a failed job mark the
 # summary checks failed at once (.github/actions/early-verdict), and a passing summary job clears them
 # (its "Clear this check's early verdicts" step).
@@ -115,6 +103,12 @@ env:
     # hold the step for 10 minutes after "Failed to restore", and Lint, Docs and Stories ran into their job
     # timeouts (run 41095808301, #5098). One minute bounds that wait; a cold pnpm install takes about 15 s.
     SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+    # git has no low-speed limit by default, so an HTTPS transfer that stops delivering bytes waits forever:
+    # actions/checkout's fetch of every branch, 24 s in a sibling shard, sat silent until its Test job's
+    # 30-minute limit canceled it, and the canceled job turned the full run's CI lane red (run 43924294024,
+    # #8526). Under 1 KB/s for two minutes now fails the fetch, and actions/checkout retries it.
+    GIT_HTTP_LOW_SPEED_LIMIT: "1000"
+    GIT_HTTP_LOW_SPEED_TIME: "120"
     # A cache a job saves is restored by every later run in the same ref's scope, master's included. The release
     # train's call checks out inputs.ref, which can be an older or held commit, not the commit the run belongs to:
     # a job saves its caches only when it checked out the run's own commit, and otherwise only restores them
@@ -124,33 +118,41 @@ env:
     SAVE_CACHES: ${{ (!inputs.ref || inputs.ref == github.sha) && github.event_name != 'pull_request' }}
     # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
     FC_FONTATIONS: "1"
-    MERGE_QUEUE: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]' }}
 
 jobs:
     # The cap on concurrent pull request runs (tools/ci-run-cap.mjs). On a pull request it waits, on one small
-    # runner, while CI_PR_RUN_CAP (a repository variable, default 2) or more earlier pull request runs are
-    # active, or while a release.yml run waits for a runner, so the full run goes first. Every other job needs
-    # the Build job, which needs this one, so a waiting run holds nothing else. It never fails the run: an API
-    # error or 25 minutes of waiting proceeds. A push to master, a dispatch and the release train's call skip
-    # the wait. Change the cap with `gh variable set CI_PR_RUN_CAP --body <n|off>`.
+    # runner, while earlier pull request runs hold CI_PR_JOB_BUDGET (a repository variable, default 120) or more
+    # jobs, while CI_PR_RUN_CAP (default 2) or more of them are active, or while a master push build or a
+    # release.yml run waits for a runner, so master's build and the full run go first (#9153). Every other job needs the Build job, which needs this one, so a waiting
+    # run holds nothing else. It never fails the run: an API error proceeds, and the wait ends (the run proceeds)
+    # at the script's MAX_WAIT_MINUTES, before this job's timeout, since a timed-out job is canceled and that
+    # skips Build and every job after it (#8219). A push to master, a dispatch and the release train's call
+    # skip the wait. Change the limits with `gh variable set CI_PR_JOB_BUDGET --body <n|off>` and
+    # `gh variable set CI_PR_RUN_CAP --body <n|off>`.
     run-cap:
         name: Run cap
         runs-on: ubuntu-24.04
-        timeout-minutes: 30
+        timeout-minutes: 120
         # the job runs on every event (a skipped job would skip every job below Build); only its steps are
         # limited to a pull request, so elsewhere it is a few seconds on one runner
-        # never fails the run, a timeout included, and so is no required check (tools/ci-advisory-checks.json)
+        # never fails the run (its wait ends before this timeout), and so is no required check
+        # (tools/ci-advisory-checks.json)
         continue-on-error: true
         permissions:
             contents: read
             actions: read
             checks: read
+            # a red fix skips the wait: its commits and the open alarm issues they name (#9473)
+            pull-requests: read
+            issues: read
         steps:
             - uses: actions/checkout@v7
               if: github.event_name == 'pull_request'
               with:
                   ref: ${{ inputs.ref }}
-                  sparse-checkout: tools/ci-run-cap.mjs
+                  sparse-checkout: |
+                      tools/ci-run-cap.mjs
+                      tools/lib/github.mjs
                   sparse-checkout-cone-mode: false
             # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
             - name: Use the workflow's own tools and actions
@@ -168,6 +170,7 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   CAP: ${{ vars.CI_PR_RUN_CAP || '2' }}
+                  BUDGET: ${{ vars.CI_PR_JOB_BUDGET }}
               run: node tools/ci-run-cap.mjs
 
     # The packages job: decides what the run tests, builds every package and uploads their dist folders,
@@ -272,7 +275,7 @@ jobs:
                   checks=$(jq -c --arg today "$(date -u +%F)" '[.advisory[] | select(.enforce > $today) | .job + (if .step then "/" + .step else "" end)]' <<<"$registry")
                   echo "checks=$checks" | tee -a "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -296,7 +299,7 @@ jobs:
             # changed are walked again. A miss walks every package (slower, never wrong).
             - name: Key of the selector's import graphs
               id: graphs-key
-              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              if: github.event_name == 'pull_request'
               continue-on-error: true
               run: echo "key=test-select-graphs-$(node tools/test-select.mjs --cache-key)" >> "$GITHUB_OUTPUT"
 
@@ -311,22 +314,20 @@ jobs:
 
             # Plan which packages this run tests. A pull request tests only what nx calls affected: the
             # packages it changed plus every package that depends on them. Each pull request run used to be
-            # about 30 jobs against an organisation limit of about 60 concurrent jobs, so two open pull
+            # about 30 jobs against an organization limit of about 60 concurrent jobs, so two open pull
             # requests queued each other; a pull request confined to graph-io now runs one test shard, not
             # twenty-one. A manual dispatch and the release train's call pass every project as "affected", so
             # they run every shard; the release train runs it on the exact commit it publishes. A push to
-            # master passes none: it builds and tests nothing (the merge queue tested that tree).
+            # master passes none: it builds and tests nothing (the release train's full run tests master).
             # What counts as "everything" on a pull request is nx.json's sharedGlobals: the root TypeScript,
             # ESLint, Vite and Vitest configs, pnpm-workspace.yaml, .npmrc and every file under
             # .github/workflows (nx already treats nx.json, package.json and pnpm-lock.yaml that way). A
             # change to any of them affects every project, so it runs the full set here too.
             # The shard list itself lives in tools/ci-test-matrix.mjs, which filters it; the base is named
-            # explicitly for the same reason as "Build affected (PR)" below. A merge-queue run is a pull
-            # request event but tests everything, like master: full=true selects the master path for the
-            # build and lint steps below as well.
-            # A called run (inputs.ref: the release train, golden-verify.yml) is full even when the caller was
-            # started by a push: a called workflow sees its caller's event, and golden-verify.yml runs on a push
-            # to golden-candidate. Only a push of master itself (no inputs.ref) is the build-only run.
+            # explicitly for the same reason as "Build affected (PR)" below.
+            # A called run (inputs.ref: the release train) is full even when the caller was started by a push: a
+            # called workflow sees its caller's event. Only a push of master itself (no inputs.ref) is the
+            # build-only run.
             # A `shards` input keeps only those shards (tools/ci-test-matrix.mjs --only) and makes the run light,
             # so the summary accepts the jobs it skipped and no screenshots are taken.
             # visual-skip names the Storybooks whose screenshots this run leaves out (tools/visual-capture-plan.mjs:
@@ -348,7 +349,7 @@ jobs:
                       # master: build only, test nothing (the "light" run)
                       { echo "full=true"; echo "light=true"; } >> "$GITHUB_OUTPUT"
                       affected='[]'
-                  elif [[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]]; then
+                  elif [[ "$EVENT" == "pull_request" ]]; then
                       echo "full=false" >> "$GITHUB_OUTPUT"
                       affected=$(pnpm exec nx show projects --affected --base="origin/$BASE_REF" --head=HEAD --json)
                   else
@@ -361,9 +362,9 @@ jobs:
                       only=(--only "$SHARDS")
                   fi
                   pr=()
-                  [[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && pr=(--pull-request)
+                  [[ "$EVENT" == "pull_request" ]] && pr=(--pull-request)
                   node tools/ci-test-matrix.mjs "$all" "$affected" "${only[@]}" "${pr[@]}" | tee -a "$GITHUB_OUTPUT"
-                  PULL_REQUEST=$([[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && echo true || echo false) \
+                  PULL_REQUEST=$([[ "$EVENT" == "pull_request" ]] && echo true || echo false) \
                       node tools/visual-capture-plan.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
 
             # The light check's optional jobs (design/ci/channels-pipeline/merging.md 4.1): on a pull request, Docs runs
@@ -380,7 +381,7 @@ jobs:
                   BASE_REF: ${{ github.base_ref }}
                   AFFECTED: ${{ steps.plan.outputs.affected }}
               run: |
-                  if [[ "$EVENT" != "pull_request" || "$MERGE_QUEUE" == "true" ]]; then
+                  if [[ "$EVENT" != "pull_request" ]]; then
                       printf 'docs=true\ncost-accuracy=true\n' | tee -a "$GITHUB_OUTPUT"
                       exit 0
                   fi
@@ -396,9 +397,11 @@ jobs:
                   for p in $(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")'); do
                       jq -e --arg p "$p" 'index($p)' <<<"$AFFECTED" >/dev/null && docs=true
                   done
-                  # files the docs pages include from outside docs/ (visual-review's page includes its README)
+                  # files the docs pages include from outside docs/ (visual-review's pages include sections of its README);
+                  # an include may name a region (README.md#setup) or a line range (README.md{3,10}): the file is what counts
                   includes=$(git grep -oE '@include: *[^ >]+' -- 'docs/' '*/docs/*' | while IFS=: read -r file m; do
-                      m=${m#*@include:}; m=${m# }; realpath -m --relative-to=. "$(dirname "$file")/${m%--}"
+                      m=${m#*@include:}; m=${m# }; m=${m%--}; m=${m%%#*}; m=${m%%\{*}
+                      realpath -m --relative-to=. "$(dirname "$file")/$m"
                   done || true)
                   [[ -n "$includes" ]] && grep -qxFf <(echo "$includes") <<<"$changed" && docs=true
                   {
@@ -412,7 +415,7 @@ jobs:
             # (tools/capture-impact.sh changed).
             - name: Plan the capture impact check
               id: capture
-              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              if: github.event_name == 'pull_request'
               env:
                   BASE_REF: ${{ github.base_ref }}
               run: echo "capture-impact=$(tools/capture-impact.sh changed "origin/$BASE_REF" HEAD)" | tee -a "$GITHUB_OUTPUT"
@@ -430,7 +433,7 @@ jobs:
             # next one. A failure here is a full run.
             - name: Reuse an earlier run's results when only screenshot records changed
               id: reuse
-              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              if: github.event_name == 'pull_request'
               continue-on-error: true
               env:
                   GH_TOKEN: ${{ github.token }}
@@ -549,6 +552,18 @@ jobs:
             # build every graph fails to transform and every package runs whole). Fails open: a store that does
             # not answer packs bins without history, and a selector that fails keeps the Plan step's matrix, every
             # affected shard whole.
+            # Master's newest durations snapshot (the Durations snapshot job): the bins step packs by it when the store
+            # does not answer its plan read, which was 28.6% of pull request runs in the week to 11-14; without it
+            # those runs packed without history and planned about three times the test jobs (#7851).
+            - name: Restore the durations snapshot
+              if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.reuse-run == ''
+              continue-on-error: true
+              uses: actions/cache/restore@v6
+              with:
+                  path: ${{ runner.temp }}/durations-snapshot
+                  key: results-durations-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: results-durations-
+
             - name: Plan the light check's test bins
               id: bins
               if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.reuse-run == ''
@@ -563,7 +578,8 @@ jobs:
                   plan="$RUNNER_TEMP/results-plan"
                   git diff --name-only "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/changed.txt" || true
                   node tools/results/plan-read.mjs "$AFFECTED" "$plan" --sha "$HEAD_SHA" \
-                      --base "$(git rev-parse HEAD^1)" --files "$RUNNER_TEMP/changed.txt" || true
+                      --base "$(git rev-parse HEAD^1)" --files "$RUNNER_TEMP/changed.txt" \
+                      --snapshot "$RUNNER_TEMP/durations-snapshot/durations.json" || true
                   if ! node tools/test-select.mjs --base "origin/$BASE_REF" --head HEAD --plan \
                       --durations "$plan/durations.json" > "$plan/light-plan.json"; then
                       echo "::warning::the test selector failed; every affected shard runs whole"
@@ -608,7 +624,7 @@ jobs:
                   retention-days: 7
                   if-no-files-found: ignore
 
-            # Master, every manual dispatch and every merge-queue run (full=true from the plan step): build
+            # Master, every manual dispatch and the release train (full=true from the plan step): build
             # every project (the lint job lints them).
             # graphty build needs Sentry env vars for error tracking. SENTRY_RELEASE names the release its
             # events are filed under (graphty/vite.config.ts); the source maps are uploaded under the same
@@ -622,7 +638,7 @@ jobs:
             # download (run 35943267536, this branch). A branch dispatch cannot take the pull request's
             # `nx affected` path, which needs a base ref to diff against and a dispatch has none, so it takes
             # this one and builds every project -- which is what the shards need from it anyway.
-            - name: Build all (master, a manual dispatch or the merge queue)
+            - name: Build all (master, a manual dispatch or the release train)
               if: steps.plan.outputs.full == 'true' && steps.reuse-build.outputs.artifacts-run == ''
               run: pnpm exec nx run-many -t build --parallel=3
               env:
@@ -642,7 +658,7 @@ jobs:
             # as the plugin did. The .map files stay in the site, as they did with the plugin.
             # Not a correctness check: a Sentry outage or a hang must never cancel or fail the build (on
             # 2026-10-25 `set-commits` walked the local git tree for 10 minutes and the Build job's timeout
-            # cancelled six master builds in a row, so no site was deployed). Every call is bounded, a
+            # canceled six master builds in a row, so no site was deployed). Every call is bounded, a
             # failure is a warning, and the step itself has a timeout and continue-on-error.
             - name: Upload graphty's source maps to Sentry (master push)
               if: steps.plan.outputs.full == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
@@ -678,6 +694,7 @@ jobs:
                       webgpu-graph-algorithms/dist/
                       graph-samples/dist/
                       babylonjs-map/dist/
+                      babylonjs-models/dist/
                       algorithms/dist/
                       layout/dist/
                       cytoscape-extensions/dist/
@@ -728,10 +745,17 @@ jobs:
                   retention-days: 1
 
             - name: Upload babylonjs-map build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-babylonjs-map
                   path: babylonjs-map/dist/
+                  retention-days: 1
+
+            - name: Upload babylonjs-models build
+              uses: actions/upload-artifact@v7
+              with:
+                  name: build-babylonjs-models
+                  path: babylonjs-models/dist/
                   retention-days: 1
 
             - name: Upload algorithms build
@@ -842,7 +866,7 @@ jobs:
                   RUN: ${{ inputs.reuse_build_run }}
               run: node tools/ci-reuse-plan.mjs --build-run "$RUN" | tee -a "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
               if: steps.reuse-build.outputs.artifacts-run == ''
 
             - name: Setup Node.js
@@ -864,17 +888,18 @@ jobs:
                   HUSKY: "0"
 
             # Every package's dist, as the packages job built it.
-            # The fidelity stories' reference pictures are Git LFS objects, cached like the story tests'
-            # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
-            # build-storybook pulls them (a no-op once the cache restored them).
+            # The style fidelity oracles' rasterized PNGs, which the fidelity stories draw, are Git LFS objects,
+            # cached like the story tests' baselines so a run downloads only the pictures added since the cache
+            # was saved. graph-io's build-storybook pulls them (a no-op once the cache restored them). The key
+            # hashes those same PNGs, so a new oracle picture saves a new cache.
             - name: Restore the style fidelity reference pictures
               id: fidelity-references
               if: steps.reuse-build.outputs.artifacts-run == ''
               uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
-                  key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
-                  restore-keys: lfs-fidelity-references-
+                  key: lfs-fidelity-oracles-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
+                  restore-keys: lfs-fidelity-oracles-
 
             - name: Probe the nx remote cache
               if: steps.reuse-build.outputs.artifacts-run == ''
@@ -952,7 +977,7 @@ jobs:
               uses: actions/cache/save@v6
               with:
                   path: .git/lfs/objects
-                  key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
+                  key: lfs-fidelity-oracles-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
 
             # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
             # Storybooks, built from the same tree, instead of building them again; the Stories job
@@ -1032,16 +1057,27 @@ jobs:
               with:
                   job: build
 
-    # Lint every package (every affected one on a pull request), beside the tests.
+    # Lint every package (every affected one on a pull request), beside the tests. graphty-element and the
+    # graphty app each lint on a runner of their own: their type-aware ESLint is most of the work, and a cold
+    # lint of all 16 projects on one 4-core runner took 12 to 14.5 minutes of this job's 15 (#9781). A leg
+    # runs only when it has work: every leg on a full lint, a heavy project's leg on a pull request that
+    # affects it. The leg for the other projects keeps the name "Lint" (tools/ci-reuse-plan.mjs reads it).
     lint:
-        name: Lint
+        name: ${{ matrix.part == 'others' && 'Lint' || format('Lint ({0})', matrix.part) }}
         needs: packages
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 15
+        strategy:
+            fail-fast: false
+            matrix:
+                part: ${{ fromJSON(format('["others"{0}{1}]', (needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty-element')) && ',"graphty-element"' || '', (needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')) && ',"graphty"' || '')) }}
         env:
             # graphty-element's and graphty's lint targets pass this to ESLint; see "Key the ESLint caches"
             ESLINT_CACHE: --cache --cache-strategy content --cache-location node_modules/.cache/eslint/
+            # nx's --exclude for this leg: the others leg leaves out the two heavy projects, a heavy leg
+            # excludes every project but its own ("*,!name", nx's pattern syntax)
+            LINT_EXCLUDE: ${{ matrix.part == 'others' && 'graphty-element,graphty' || format('*,!{0}', matrix.part) }}
         # lint is an nx-cached target (nx.json), so a project whose lint inputs equal master's (a pull request
         # that touches nx.json or a project.json marks every project affected) replays master's result from
         # the remote cache instead of linting again (graphty-element alone takes about 3.5 minutes). Only
@@ -1063,7 +1099,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1119,44 +1155,51 @@ jobs:
               run: echo "LINT_START=$(date +%s)" >> "$GITHUB_ENV"
 
             # graphty-element and graphty lint with an ESLint content cache in CI ($ESLINT_CACHE in their project.json
-            # lint targets; a local lint never caches). Master's full lint fills it and saves it; a pull request restores the newest one, so ESLint
+            # lint targets; a local lint never caches), one cache per heavy leg (its key names the leg). Master's full lint fills it and saves it; a pull request restores the newest one, so ESLint
             # re-lints only the files whose content differs from master's (graphty-element took about 300 s here,
             # beside two other packages on the runner's 4 cores). The key holds what changes a rule's verdict on an
-            # unchanged file -- the lockfile, the ESLint configs and rules, the tsconfigs -- so a change to any of
-            # them lints everything. An unchanged file that a pull request's type change makes fail a type-aware
+            # unchanged file -- the resolved versions of eslint, its plugins and parsers, typescript and globals
+            # (tools/eslint-cache-key.mjs reads them from the lockfile; hashing the whole lockfile made every
+            # dependency bump lint from a cold cache, #9541), the ESLint configs and rules, the tsconfigs -- so a
+            # change to any of them misses the exact key. The prefix restore-key still restores the newest cache on
+            # a miss (ESLint re-checks each restored entry against its own config hash). An unchanged file that a pull request's type change makes fail a type-aware
             # rule is caught by master's and the full run's lint, which never restore the cache. The key's last part
             # is the day, so master saves one cache a day (about 3 MB), not one per commit.
             - name: Key the ESLint caches
               id: eslint-cache
-              run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"; echo "prefix=eslint-v1-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.js', 'tsconfig.base.json', 'tools/eslint-rules/**', 'compact-mantine/eslint/**', 'graphty-element/eslint.config.js', 'graphty-element/eslint-rules/**', 'graphty-element/tsconfig*.json', 'graphty/eslint.config.js', 'graphty/eslint-rules/**', 'graphty/tsconfig*.json') }}-" >> "$GITHUB_OUTPUT"
+              run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"; echo "prefix=eslint-v3-${{ matrix.part }}-$(node tools/eslint-cache-key.mjs | cut -c1-16)-${{ hashFiles('eslint.config.js', 'graphty-element/test/saved-format/eslint-saved-format.js', 'graphty-element/working-graph-whole-readers.json', 'tsconfig.base.json', 'tools/eslint-rules/**', 'compact-mantine/eslint/**', 'graphty-element/eslint.config.js', 'graphty-element/eslint-rules/**', 'graphty-element/tsconfig*.json', 'graphty/eslint.config.js', 'graphty/eslint-rules/**', 'graphty/tsconfig*.json') }}-" >> "$GITHUB_OUTPUT"
 
             - name: Restore the ESLint caches (PR)
-              if: needs.packages.outputs.full == 'false'
+              if: needs.packages.outputs.full == 'false' && matrix.part != 'others'
               continue-on-error: true
               uses: actions/cache/restore@v6
               with:
-                  path: |
-                      graphty-element/node_modules/.cache/eslint
-                      graphty/node_modules/.cache/eslint
+                  path: ${{ matrix.part }}/node_modules/.cache/eslint
                   key: ${{ steps.eslint-cache.outputs.prefix }}${{ steps.eslint-cache.outputs.day }}
                   restore-keys: ${{ steps.eslint-cache.outputs.prefix }}
 
             - name: Lint affected (PR)
               if: needs.packages.outputs.full == 'false'
-              run: pnpm exec nx affected -t lint --parallel=3 --exclude-task-dependencies --base=origin/${{ github.base_ref }} --head=HEAD
+              run: pnpm exec nx affected -t lint --parallel=3 --exclude-task-dependencies --exclude="$LINT_EXCLUDE" --base=origin/${{ github.base_ref }} --head=HEAD
 
-            - name: Lint all (master, a manual dispatch or the merge queue)
+            # graph-io's lint typechecks its fidelity stories, which import graphty-element's source and test
+            # helpers; graph-io/project.json negates that dependency (it would be a cycle), so nx never calls
+            # graph-io affected by a graphty-element change, and this step lints it then (#7196). graph-io's lint
+            # inputs (graph-io/project.json) name graphty-element, so nx's cache never replays master's result here.
+            - name: Lint graph-io's fidelity stories (PR, graphty-element affected)
+              if: matrix.part == 'others' && needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && !contains(fromJSON(needs.packages.outputs.affected), 'graph-io')
+              run: pnpm exec nx run graph-io:lint --exclude-task-dependencies
+
+            - name: Lint all (master, a manual dispatch or the release train)
               if: needs.packages.outputs.full == 'true'
-              run: pnpm exec nx run-many -t lint --parallel=3 --exclude-task-dependencies
+              run: pnpm exec nx run-many -t lint --parallel=3 --exclude-task-dependencies --exclude="$LINT_EXCLUDE"
 
             - name: Save the ESLint caches (full lint)
-              if: needs.packages.outputs.full == 'true' && env.SAVE_CACHES == 'true'
+              if: needs.packages.outputs.full == 'true' && env.SAVE_CACHES == 'true' && matrix.part != 'others'
               continue-on-error: true
               uses: actions/cache/save@v6
               with:
-                  path: |
-                      graphty-element/node_modules/.cache/eslint
-                      graphty/node_modules/.cache/eslint
+                  path: ${{ matrix.part }}/node_modules/.cache/eslint
                   key: ${{ steps.eslint-cache.outputs.prefix }}${{ steps.eslint-cache.outputs.day }}
 
             # Lint all took 3 to 5 minutes until a typescript-eslint update made one rule take 7 of them
@@ -1179,10 +1222,45 @@ jobs:
             # feeds reads graphty/dist), so it is built here, off the test jobs' critical path, from the downloaded
             # package builds, and only when the pull request affects it.
             - name: Build the graphty app (PR, when affected)
-              if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              if: matrix.part == 'graphty' && needs.packages.outputs.full == 'false'
               run: pnpm exec nx run graphty:build --exclude-task-dependencies
               env:
                   VITE_BASE_PATH: /
+
+            # What the built graphty app asks a browser to download, against graphty/size-budgets.json (issue #8018).
+            # Here because this is the only pull-request job that builds the app: the Build job's artifact leaves it out.
+            - name: Bundle size (graphty app, PR, when affected)
+              if: matrix.part == 'graphty' && needs.packages.outputs.full == 'false'
+              run: pnpm --filter @graphty/graphty run size
+
+            # The built app loads its landing page, draws its graph, opens a sample and draws it, with no page
+            # error, console error or failed request (graphty/acceptance/smoke.mjs, #9633): a build threw "nn is
+            # not a function" on its landing page and every test passed (#9616). Here because this job already
+            # has the built app: built above on a pull request, downloaded with the package builds on master and
+            # the full run. Chromium draws in software; no GPU is needed.
+            - uses: ./.github/actions/drop-microsoft-apt-source
+              if: matrix.part == 'graphty'
+
+            - name: Install Playwright system packages
+              if: matrix.part == 'graphty'
+              uses: ./.github/actions/playwright-system-deps
+
+            - name: Install Chromium for the app's smoke check
+              if: matrix.part == 'graphty'
+              run: pnpm exec playwright install --only-shell chromium
+
+            - name: Smoke check the built app
+              id: app-smoke
+              if: matrix.part == 'graphty'
+              continue-on-error: ${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'lint/Smoke check the built app') }}
+              # a few seconds when the app loads; a page that stalls fails the step, not the whole Lint job
+              timeout-minutes: 5
+              run: node graphty/acceptance/smoke.mjs --dist graphty/dist
+
+            - name: Warn that the app's smoke check failed
+              if: ${{ steps.app-smoke.outcome == 'failure' }}
+              continue-on-error: true
+              run: echo "::warning::advisory check lint/Smoke check the built app failed"
 
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
@@ -1194,7 +1272,7 @@ jobs:
 
     # The repository checks that read source or the built packages: the CI workflow tests, knip,
     # formatting, the bundle sizes, the public API report and the rest. The same checks run in
-    # tools/check-quick.sh. On a pull request, a step that reads one package's files runs only when that package
+    # tools/check-quick.sh, except the whole-repository formatting check (issue #8052). On a pull request, a step that reads one package's files runs only when that package
     # is affected (the packages job's affected list); every other run (push, workflow_call, the full run) runs all.
     checks:
         name: Checks
@@ -1202,6 +1280,14 @@ jobs:
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 20
+        # issues and pull requests: read, for the style fidelity known failures' tracking issues below;
+        # id-token: write is the results store's credential (the CI workflow tests' record, tools/results/run-group.mjs)
+        permissions:
+            contents: read
+            checks: write
+            id-token: write
+            issues: read
+            pull-requests: read
         steps:
             - uses: actions/checkout@v7
               with:
@@ -1218,7 +1304,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1243,11 +1329,17 @@ jobs:
                   name: build-packages
                   path: .
 
-            # The shard groups, the draft and merge-queue conditions and the title check's queue exemption.
+            # The shard groups and the conditions that decide what a pull request, master and a full run do.
             # The files run side by side, one per core (tools/run-ci-workflow-tests.mjs): about 1 minute, not 3.5.
+            # Recorded in the results store like every test job; RESULTS_RECORD_ONLY: run once, exit code untouched
+            # (node:test files with no JUnit report, so the record holds the outcome and the time only).
             - name: CI workflow tests
               if: needs.packages.outputs.light != 'true'
-              run: pnpm run test:ci-workflows
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  RESULTS_RECORD_ONLY: "1"
+              run: node tools/results/run-group.mjs ci-workflows "pnpm run test:ci-workflows"
 
             # Every job that has a budget in ci-budgets.json has the timeout it asks for (a job with none is a
             # warning), and no build step reads a secret or depends on the event (tools/ci-budgets.mjs).
@@ -1302,7 +1394,7 @@ jobs:
                   BASE_REF: ${{ github.base_ref }}
               run: |
                   if [[ "$FULL" == "true" ]]; then
-                      printf '%s=true\n' format-all bundle api datasource cytoscape >> "$GITHUB_OUTPUT"
+                      printf '%s=true\n' format-all bundle api datasource cytoscape fidelity >> "$GITHUB_OUTPUT"
                       exit 0
                   fi
                   changed=$(git diff --name-only "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD)
@@ -1312,6 +1404,11 @@ jobs:
                   out api graphty-element '^tools/api-report'
                   out datasource graphty-element '^tools/check-data-source-migration'
                   out cytoscape cytoscape-extensions '^cytoscape-extensions/'
+                  if grep -qE '^graphty-element/(test/fidelity/|scripts/fidelity-)' <<<"$changed"; then
+                      echo "fidelity=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "fidelity=false" >> "$GITHUB_OUTPUT"
+                  fi
                   if grep -qE '(^|/)(\.prettierrc|\.prettierignore|prettier\.config|\.editorconfig|\.gitignore)|^package\.json$|^pnpm-lock\.yaml$' <<<"$changed"; then
                       echo "format-all=true" >> "$GITHUB_OUTPUT"
                   else
@@ -1319,6 +1416,9 @@ jobs:
                   fi
                   cat "$GITHUB_OUTPUT"
 
+            # format:check runs prettier's parallel CLI (--experimental-cli, one worker per core): the classic CLI
+            # checks the repository's 10,000 files on one core, about 4.5 minutes on a normal runner, and a slow
+            # runner (every step 4 to 5 times slower) ran it into the job's time limit (#8248). About 4 times faster.
             - name: Formatting
               if: steps.scope.outputs.format-all == 'true'
               run: pnpm run format:check
@@ -1328,6 +1428,15 @@ jobs:
               env:
                   BASE_REF: ${{ github.base_ref }}
               run: git diff --name-only --diff-filter=d -z "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD | xargs -0 -r pnpm exec prettier --check --ignore-unknown
+
+            # American spelling in the prose and comments of the lines a pull request adds (tools/check-spelling.mjs,
+            # #671; .husky/pre-push runs it too). Spelling already on untouched lines never blocks.
+            # `node tools/check-spelling.mjs --fix <file>` rewrites a file.
+            - name: American spelling (added lines)
+              if: github.event_name == 'pull_request'
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+              run: node tools/check-spelling.mjs --diff "origin/$BASE_REF"
 
             - name: Bundle size (graphty-element)
               if: steps.scope.outputs.bundle == 'true'
@@ -1353,6 +1462,17 @@ jobs:
             # no experimental item is in the public API report. The same check runs in tools/check-quick.sh.
             - name: Feature flags
               run: pnpm run check:features
+
+            # Every style fidelity known failure (graphty-element/test/fidelity/oracle-known-failures.json and
+            # baseline-scores.json) names an open issue: a reason citing none, or only closed issues, fails (#7015).
+            # One GraphQL query. The full run checks it, and a pull request that changes the lists or the harness;
+            # other pull requests and the master push build (the light run) skip it, so closing an issue fails
+            # neither every open pull request nor the next master build, only the next full run.
+            - name: Style fidelity known failures tracked
+              if: steps.scope.outputs.fidelity == 'true' && needs.packages.outputs.light != 'true'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: pnpm --filter @graphty/graphty-element run fidelity:issues
 
             - name: Declared build tools
               run: pnpm run check:declared-tools
@@ -1394,6 +1514,12 @@ jobs:
             - name: No special style layers
               run: pnpm run check:special-layers
 
+            # Every reader reads the working graph (design/working-graph/design.md section 9):
+            # graphty-element/working-graph-whole-readers.json, the readers that read the whole graph by
+            # agreement, may only shrink against the merge base. The same check runs in tools/check-quick.sh.
+            - name: Readers honor the working graph
+              run: pnpm run check:working-graph
+
             # No pile of images committed outside the folders that hold them (more than 20 new images or
             # 20 MB against the base; an `Images-Approved: <reason>` trailer passes a deliberate addition).
             # The same check runs in tools/prepush-source-checks.sh.
@@ -1411,6 +1537,13 @@ jobs:
             # shader hash leaves only by being revoked. The same check runs in tools/prepush-source-checks.sh.
             - name: Saved-format exceptions
               run: pnpm run check:saved-format-allowlist
+
+            # Duplicate code: a new exact clone between two pieces of non-test code, overlapping a line this
+            # change adds, fails; clones touching tests are listed only. Measured from the merge base with master
+            # (fetch-depth 0 above); on a master push that is HEAD itself, so nothing is checked. The same
+            # check runs in tools/prepush-source-checks.sh and tools/check-quick.sh.
+            - name: Duplicate code
+              run: pnpm run check:duplicates
 
             # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
             # ends (.github/actions/early-verdict).
@@ -1446,7 +1579,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1556,7 +1689,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1636,18 +1769,23 @@ jobs:
             issues: write
         strategy:
             fail-fast: false
-            # A full run (release.yml, a dispatch, a bisect) runs at most 14 shards at once and its story tests at
-            # most 6, 20 runners in all, so the full run never starves pull requests of runners (#3448); the
+            # A full run (release.yml, a dispatch, a bisect) runs at most 24 shards at once and its story tests at
+            # most 6, 30 runners in all, so the full run never starves pull requests of runners (#3448); the
             # Run cap lets pull requests go once the full run holds that share (RELEASE_SHARE in
-            # tools/ci-run-cap.mjs). Its ~25 shards are ~260 runner-minutes, the longest ~19: about 25 minutes
-            # at 14. A pull request keeps 40. The features-on shards come last in the matrix
+            # tools/ci-run-cap.mjs), and the default pull request job budget is the ~180-runner ceiling less
+            # it and master's share: 120 (CI_PR_JOB_BUDGET overrides it). At 14 its Test jobs ended at about 66 minutes; 24 brings
+            # that to about 35-38 (#7849). A pull request keeps 40. The features-on shards come last in the matrix
             # (tools/ci-test-matrix.mjs), so the Off shards start first and the On ones queue behind them.
-            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 14 }}
+            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 24 }}
             # a plan above GitHub's 256-job cap runs its first 256 here and the rest in test-2
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix-1 || needs.packages.outputs.test-matrix) }}
 
         # test-2 runs these same steps (*test-steps)
         steps: &test-steps
+            # A hang guard on a network step: the checkout's fetch sometimes stalls before the pack arrives, even
+            # with the low-speed limit in env, and held the job until its 30-minute limit canceled it (runs
+            # 44125048943 and 44146383151, #8743). A healthy checkout takes under a minute; after 5 the step
+            # stops and the next one checks out again into the same directory.
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
@@ -1655,6 +1793,17 @@ jobs:
                   # the job may write issues; the token is not left in .git/config for a pull request's code
                   # (the repository is public, so the Git LFS pull below needs no credential)
                   persist-credentials: false
+              id: checkout
+              timeout-minutes: 5
+              continue-on-error: true
+
+            - uses: actions/checkout@v7
+              if: steps.checkout.outcome == 'failure'
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 0
+                  persist-credentials: false
+              timeout-minutes: 5
 
             # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
             - name: Use the workflow's own tools and actions
@@ -1666,7 +1815,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1815,52 +1964,24 @@ jobs:
                   path: ~/.cache/babylon-shader-compilers
                   key: ${{ steps.babylon-compilers-key.outputs.key }}
 
-            # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled.
-            # The .deb files apt chose are cached per runner image, as playwright-system-deps does for Chromium's,
-            # so a hit installs with dpkg and never touches the network: in run 41256221732 both no-subgroups jobs
-            # sat in `apt-get update` for 29 minutes after Ubuntu's mirror stopped answering mid-fetch (a trickle
-            # apt's 20 s idle timeout never ends) and hit the job's limit before a test ran (#5343).
-            - name: Key the Mesa lavapipe packages by runner image
-              id: lavapipe-key
-              if: matrix.needs-lavapipe
-              run: echo "key=lavapipe-debs-${ImageOS:?}-${ImageVersion:?}" >> "$GITHUB_OUTPUT"
-
-            - name: Restore the Mesa lavapipe packages
-              id: lavapipe-debs
-              if: matrix.needs-lavapipe
-              uses: actions/cache/restore@v6
-              with:
-                  path: ~/.cache/lavapipe-debs
-                  key: ${{ steps.lavapipe-key.outputs.key }}
-
+            # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled. The
+            # action installs it from cached .deb files, so a hit never touches Ubuntu's mirror (#5343, #9043).
             - name: Install Mesa lavapipe
               if: matrix.needs-lavapipe
-              env:
-                  HIT: ${{ steps.lavapipe-debs.outputs.cache-hit }}
-                  PACKAGES: mesa-vulkan-drivers libvulkan1 vulkan-tools
-              run: |
-                  dir="$HOME/.cache/lavapipe-debs"
-                  if [ "$HIT" = true ]; then
-                      sudo dpkg -i "$dir"/*.deb
-                  else
-                      # apt downloads into $dir and keeps the files there for the save step below
-                      mkdir -p "$dir/partial"
-                      sudo apt-get update
-                      sudo apt-get install -y --no-install-recommends -o Dir::Cache::Archives="$dir" $PACKAGES
-                      sudo rm -rf "$dir/partial" "$dir/lock"
-                  fi
-                  # a hit that held too little fails here, not later as a missing Vulkan ICD
-                  missing=$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' $PACKAGES 2>&1 | grep -v '^ii ' || true)
-                  if [ -n "$missing" ]; then echo "::error::Mesa lavapipe's packages are not all installed: $missing"; exit 1; fi
-
-            - name: Save the Mesa lavapipe packages
-              if: matrix.needs-lavapipe && steps.lavapipe-debs.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
-              uses: actions/cache/save@v6
+              uses: ./.github/actions/mesa-lavapipe
               with:
-                  path: ~/.cache/lavapipe-debs
-                  key: ${{ steps.lavapipe-key.outputs.key }}
+                  save: ${{ env.SAVE_CACHES }}
 
-            # The software rasteriser this lane judges every kernel on is whatever apt resolves on the day, and it
+            # graph-io's conformance suite validates its GraphML, GEXF and JGF exports against the official schemas
+            # with lxml and jsonschema, and skips that layer when python3 lacks them; GRAPH_IO_REQUIRE_SCHEMAS turns a
+            # missing Python into a failure (#7188). tools/run-tests.sh calls the same script for this shard.
+            - name: Install the Python for graph-io's schema validation
+              if: matrix.needs-schema-python
+              run: |
+                  python="$(tools/schema-python.sh "$RUNNER_TEMP/schema-python")"
+                  { echo "GRAPH_IO_SCHEMA_PYTHON=$python"; echo "GRAPH_IO_REQUIRE_SCHEMAS=1"; } >> "$GITHUB_ENV"
+
+            # The software rasterizer this lane judges every kernel on is whatever apt resolves on the day, and it
             # moved two major Mesa versions (23.2.1 / LLVM 15 -> 25.2.8 / LLVM 20) without anything recording it.
             # Print the image, the C library and the installed Mesa version so a lane's environment is readable
             # from its own log instead of inferred from the runner label. Never fails the step.
@@ -1912,7 +2033,8 @@ jobs:
 
             # The light check's read of the results store (the Packages job's results-plan artifact): on a pull
             # request it carries the store's quarantine and the master excuse (tools/results/run-group.mjs). Absent
-            # on the full path, where tools/test-quarantine.json stands.
+            # on the full path, where each group reads its quarantine from the store itself (RESULTS_STORE_QUARANTINE
+            # below), and tools/test-quarantine.json stands only when the store does not answer.
             - name: Download the results plan
               if: github.event_name == 'pull_request'
               continue-on-error: true
@@ -1931,11 +2053,15 @@ jobs:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
+                  # the full path (no plan file): each group asks the store for its quarantine (#3454)
+                  RESULTS_STORE_QUARANTINE: ${{ github.event_name != 'pull_request' && '1' || '' }}
                   # a full or bisect run that proves a test flaky files its issue (tools/results/run-group.mjs);
                   # a pull request's run never does, so it gets no token
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
                   # the base checks its [FLAKY-UNRELATED] and [UNRELATED] tests need; the base-checks job dispatches them
                   RESULTS_BASE_CHECKS_OUT: ${{ runner.temp }}/base-checks
+                  # this job, which a touched test's base check re-runs when master fails the same test (#8363)
+                  RESULTS_JOB_ID: ${{ job.check_run_id }}
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 
@@ -1968,17 +2094,6 @@ jobs:
                   name: junit-${{ matrix.shard }}
                   path: test-results/junit-*.xml
                   retention-days: 7
-                  if-no-files-found: ignore
-                  overwrite: true
-
-            - name: Upload blob report
-              if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
-              uses: actions/upload-artifact@v7
-              with:
-                  name: blob-report-${{ matrix.shard }}
-                  path: graphty-element/.vitest-reports/*
-                  include-hidden-files: true
-                  retention-days: 1
                   if-no-files-found: ignore
                   overwrite: true
 
@@ -2066,7 +2181,7 @@ jobs:
         strategy:
             fail-fast: false
             # only a pull request's bins pass the cap, so only the pull request value matters here
-            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 14 }}
+            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 24 }}
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix-2) }}
         steps: *test-steps
 
@@ -2193,11 +2308,17 @@ jobs:
     # shards) skips them. They need only the build, not the tests, so they run beside the shards and
     # never hold up the end of a full run (design/ci/channels-pipeline/channels.md section 5).
     # Advisory: release.yml, deploy-pages.yml and coverage.yml read the run's conclusion, and a
-    # measurement with no pass/fail role must not hold them.
-    performance:
-        name: Performance Benchmarks
+    # measurement with no pass/fail role must not hold them. continue-on-error absorbs a failed job but not a
+    # canceled one, and a job that reaches its timeout-minutes is canceled, which makes the whole run conclude
+    # canceled (issue #7986). So the benchmarks stop themselves first: each runs under tools/before-deadline.sh,
+    # which fails its step at DEADLINE (44 minutes in), and the steps after them carry their own
+    # timeout-minutes, all inside the job's 50.
+    # Two jobs, side by side: the algorithms table alone takes about 16 minutes and graphty-element's
+    # benchmarks about 30, and run one after the other they outgrew the one job's 44 minutes (issue #8148).
+    algorithms-benchmarks:
+        name: Algorithms Benchmarks
         needs: packages
-        if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
+        if: github.event_name != 'pull_request' && needs.packages.outputs.light != 'true'
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 50
@@ -2206,6 +2327,78 @@ jobs:
             contents: read
             id-token: write
         steps:
+            - name: Note when the benchmarks must end
+              run: echo "DEADLINE=$(( $(date +%s) + 44 * 60 ))" >> "$GITHUB_ENV"
+
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # Every package's dist: the benchmark runs algorithms from source under tsx, and that
+            # source imports @graphty/graph-format, which resolves to graph-format's dist.
+            - name: Download all package builds
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-packages
+                  path: .
+
+            - name: Run the algorithms benchmarks
+              id: algorithms-bench
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec nx run algorithms:benchmark
+              env:
+                  CI: "true"
+                  NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
+
+            # Each result to the pipeline health dashboard, which keeps every benchmark's trend and flags a
+            # sustained regression (design/ci/health-dashboard.md, section 4.3). Fire and forget: it never fails
+            # the job. Only after the benchmark passed, which rewrote the session file: the copy in git is not
+            # this run's numbers.
+            - name: Post the algorithms benchmark results to the health dashboard
+              if: steps.algorithms-bench.outcome == 'success'
+              timeout-minutes: 2
+              env:
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: node tools/results/post-benchmarks.mjs algorithms algorithms/benchmark-results/benchmark-sessions-*-comprehensive.json
+
+    # graphty-element's browser timing benchmarks, in Chromium. Its own job, beside Performance Benchmarks: run one
+    # after the other under one 44-minute deadline, the bench step got whatever this one left (6 to 12 minutes)
+    # and ran out of it on a slower runner (issue #9544; #8148 moved the algorithms benchmark out the same way).
+    browser-benchmarks:
+        name: Browser Benchmarks
+        needs: packages
+        if: github.event_name != 'pull_request' && needs.packages.outputs.light != 'true'
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 50
+        permissions:
+            contents: read
+        steps:
+            - name: Note when the benchmarks must end
+              run: echo "DEADLINE=$(( $(date +%s) + 44 * 60 ))" >> "$GITHUB_ENV"
+
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
@@ -2233,37 +2426,91 @@ jobs:
               env:
                   HUSKY: "0"
 
-            # Every package's dist: the benchmark runs algorithms from source under tsx, and that
-            # source imports @graphty/graph-format, which resolves to graph-format's dist.
+            # Every package's dist: graphty-element imports the other packages through their dist.
             - name: Download all package builds
               uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
 
-            - name: Run the algorithms benchmarks
-              id: algorithms-bench
-              run: pnpm exec nx run algorithms:benchmark
-              env:
-                  CI: "true"
-                  NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
+            # browser-bench runs in Chromium only.
+            - name: Restore Playwright browsers
+              if: ${{ !cancelled() }}
+              uses: actions/cache/restore@v6
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
-            # Each result to the pipeline health dashboard, which keeps every benchmark's trend and flags a
-            # sustained regression (design/ci/health-dashboard.md, section 4.3). Fire and forget: it never fails
-            # the job. Only after the benchmark passed, which rewrote the session file: the copy in git is not
-            # this run's numbers.
-            - name: Post the algorithms benchmark results to the health dashboard
-              if: steps.algorithms-bench.outcome == 'success'
-              env:
-                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
-              run: node tools/results/post-benchmarks.mjs algorithms algorithms/benchmark-results/benchmark-sessions-*-comprehensive.json
+            - uses: ./.github/actions/drop-microsoft-apt-source
+              if: ${{ !cancelled() }}
 
-            # Both benchmark projects launch browsers: browser-bench runs in Chromium, and bench's
-            # test/lifecycle/autosave-engines.bench.test.ts launches Chromium, Firefox and WebKit
-            # through Playwright. Installed as the graphty-element-lifecycle shard installs them (same
-            # cache key, all three browsers' system packages), before either benchmark runs.
-            # A failed algorithms benchmark must not cost the browser numbers, so these run whatever
-            # came before them.
+            - name: Install Playwright system packages
+              if: ${{ !cancelled() }}
+              uses: ./.github/actions/playwright-system-deps
+
+            - name: Install Playwright browsers
+              if: ${{ !cancelled() }}
+              run: pnpm exec playwright install chromium
+
+            - name: Run the graphty-element browser timing benchmarks
+              if: ${{ !cancelled() }}
+              working-directory: graphty-element
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=browser-bench
+
+    # graphty-element's timing benchmarks (the bench project) and the graphty app's load time; the browser timing
+    # benchmarks run beside it, in Browser Benchmarks.
+    performance:
+        name: Performance Benchmarks
+        needs: packages
+        if: github.event_name != 'pull_request' && needs.packages.outputs.light != 'true'
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 50
+        # id-token: write is the health API's credential (tools/results/post-benchmarks.mjs posts the numbers)
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - name: Note when the benchmarks must end
+              run: echo "DEADLINE=$(( $(date +%s) + 44 * 60 ))" >> "$GITHUB_ENV"
+
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: pnpm/action-setup@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # Every package's dist: graphty-element imports the other packages through their dist.
+            - name: Download all package builds
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-packages
+                  path: .
+
+            # bench's test/lifecycle/autosave-engines.bench.test.ts launches Chromium, Firefox and WebKit
+            # through Playwright, and the app's load time runs in Chromium. Installed as the
+            # graphty-element-lifecycle shard installs them (same cache key, all three browsers' system packages).
             # Restore only: saving all three browsers under the shared key would hand Firefox and WebKit
             # to every Chromium-only shard that restores it.
             - name: Restore Playwright browsers
@@ -2287,20 +2534,37 @@ jobs:
               if: ${{ !cancelled() }}
               run: pnpm exec playwright install chromium firefox webkit
 
-            # Before the bench project: its three-engine autosave run is the long one, and a job that
-            # runs out of time there must not cost the browser numbers.
-            - name: Run the graphty-element browser timing benchmarks
-              if: ${{ !cancelled() }}
-              working-directory: graphty-element
-              run: pnpm exec vitest run --project=browser-bench
-
             # The repaint's frame budget and undo's cost against a load, timed without coverage. A
             # stopwatch measures whatever else the machine is doing, so these never gate a push;
             # the mechanisms they time are pinned by counts in the test shards.
             - name: Run the graphty-element timing benchmarks
               if: ${{ !cancelled() }}
               working-directory: graphty-element
-              run: pnpm exec vitest run --project=bench
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=bench
+
+            # The built app's landing page timed in Chromium (graphty/bench/load-time.bench.test.ts): usable, its graph's
+            # first frame and first settled frame, medians of 15 first visits. The element's own connect-to-settled
+            # rows were written by the bench project above (test/load/load-time.bench.test.ts). Issue #8018.
+            - name: Run the graphty app load-time benchmark
+              if: ${{ !cancelled() }}
+              working-directory: graphty
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=bench
+
+            # Fails the job when a median and its minimum both regressed past tools/load-time.mjs's margin against the
+            # baseline of this runner's CPU model (benchmarks/results/load-time.json); a CPU model with no baseline
+            # prints every row as new.
+            - name: Compare the load times with the baseline
+              id: load-time
+              if: ${{ !cancelled() }}
+              timeout-minutes: 2
+              run: node tools/load-time.mjs
+
+            - name: Post the load times to the health dashboard
+              if: ${{ !cancelled() }}
+              timeout-minutes: 2
+              env:
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: node tools/results/post-benchmarks.mjs graphty-load benchmarks/out/load-time-*.json
 
     # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
     # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the
@@ -2314,6 +2578,96 @@ jobs:
         if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && needs.packages.outputs.reuse-run == '' && needs.packages.outputs.cost-accuracy == 'true'
         runs-on: ubuntu-24.04
         timeout-minutes: 10
+        # id-token: write is the results store's credential (tools/results/run-group.mjs posts the test's record)
+        permissions:
+            contents: read
+            checks: write
+            id-token: write
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download all package builds
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-packages
+                  path: .
+
+            # Recorded in the results store; RESULTS_RECORD_ONLY: run once, no retry (a retry would hide an estimate
+            # at its tolerance edge), exit code untouched
+            - name: Time the estimates against real runs
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  RESULTS_RECORD_ONLY: "1"
+              run: |
+                  set -o pipefail
+                  node tools/results/run-group.mjs cost-accuracy "cd graphty-element && COST_GUARD_VERBOSE=1 npm run test:cost" 2>&1 | tee "$RUNNER_TEMP/cost.log"
+
+            - name: Write the ratios to the job summary
+              if: ${{ !cancelled() }}
+              run: |
+                  {
+                      echo "### Cost estimate / measured run (bounds 0.95 to 4)"
+                      echo '```'
+                      grep -E "ratio [0-9.]+, machine speed" "$RUNNER_TEMP/cost.log" || echo "no rows ran"
+                      echo '```'
+                  } >> "$GITHUB_STEP_SUMMARY"
+
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
+            - name: Fail the summary checks now
+              if: failure() && github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: ./.github/actions/early-verdict
+              with:
+                  job: cost-accuracy
+                  advisory: ${{ needs.packages.outputs.advisory-checks }}
+
+    # The selection workspace's acceptance test (graphty/acceptance/selection-workspace-uat.mjs) against the built
+    # app, in Chromium and in Playwright's WebKit, Safari's engine: a slider defect that only Safari showed passed
+    # every Chromium run (#8309). Real clicks, drags and keys over every scenario, one browser per job. Report-only
+    # for now (All Checks Pass does not wait for it): it becomes required once its runs have shown it steady.
+    selection-workspace:
+        name: Selection workspace (${{ matrix.browser }})
+        needs: packages
+        if: contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        strategy:
+            fail-fast: false
+            matrix:
+                browser: [chromium, webkit]
         steps:
             - uses: actions/checkout@v7
               with:
@@ -2353,31 +2707,35 @@ jobs:
                   name: build-packages
                   path: .
 
-            - name: Time the estimates against real runs
-              working-directory: graphty-element
-              run: |
-                  set -o pipefail
-                  COST_GUARD_VERBOSE=1 npm run test:cost 2>&1 | tee "$RUNNER_TEMP/cost.log"
+            # A light pull request's package builds leave the app out (the Build job's --exclude=graphty), so it is
+            # built here from them, as the Lint job does; a full run's artifact already holds it.
+            - name: Build the graphty app
+              if: needs.packages.outputs.full == 'false'
+              run: pnpm exec nx run graphty:build --exclude-task-dependencies
+              env:
+                  VITE_BASE_PATH: /
 
-            - name: Write the ratios to the job summary
-              if: ${{ !cancelled() }}
-              run: |
-                  {
-                      echo "### Cost estimate / measured run (bounds 0.95 to 4)"
-                      echo '```'
-                      grep -E "ratio [0-9.]+, machine speed" "$RUNNER_TEMP/cost.log" || echo "no rows ran"
-                      echo '```'
-                  } >> "$GITHUB_STEP_SUMMARY"
+            - uses: ./.github/actions/drop-microsoft-apt-source
 
-            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
-            # ends (.github/actions/early-verdict).
-            - name: Fail the summary checks now
-              if: failure() && github.event_name == 'pull_request'
-              continue-on-error: true
-              uses: ./.github/actions/early-verdict
+            - name: Install Playwright system packages
+              uses: ./.github/actions/playwright-system-deps
               with:
-                  job: cost-accuracy
-                  advisory: ${{ needs.packages.outputs.advisory-checks }}
+                  browsers: ${{ matrix.browser }}
+
+            - name: Install the browser
+              run: pnpm exec playwright install ${{ matrix.browser }}
+
+            - name: Run the selection workspace's acceptance test
+              run: node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist --browser ${{ matrix.browser }} --out "$RUNNER_TEMP/selection-workspace"
+
+            - name: Keep the screenshots of failed scenarios
+              if: failure()
+              uses: actions/upload-artifact@v7
+              with:
+                  name: selection-workspace-${{ matrix.browser }}
+                  path: ${{ runner.temp }}/selection-workspace
+                  if-no-files-found: ignore
+                  retention-days: 7
 
     # Master's newest capture of each project the Stories jobs capture: the reference a capture compares a story
     # without a baseline against. Found once per run and handed to every Stories job as an artifact of this run:
@@ -2461,7 +2819,7 @@ jobs:
 
     # The light check's Stories jobs (design/ci/channels-pipeline/merging.md section 4.1, #3443 part b): the
     # stories a pull request's change can reach (the Build job's light plan, tools/test-select.mjs storyBins()),
-    # packed into bins of about 3 minutes of capture (STORY_BIN_LIMIT_MS, at each project's measured capture rate;
+    # packed into bins of about 6 minutes of capture (LIGHT_STORY_BIN_LIMIT_MS, at each project's measured capture rate;
     # longer, up to STORY_BIN_MAX_MS, when that would make more than STORY_JOB_BUDGET jobs),
     # each captured with visual-review capture (the built-Storybook capture), but only those stories
     # (--stories). A broken story blocks its pull request: one that
@@ -3241,10 +3599,10 @@ jobs:
     # Gate job - ensures all required checks pass before release/deploy. It is the required status check,
     # so it runs even when a job it needs failed (if: always()) and decides for itself.
     # On a pull request a job this run chose not to start (a test job for an unaffected
-    # package) is "skipped", and skipped counts as passing; failure and cancelled never do. Build is needed
+    # package) is "skipped", and skipped counts as passing; failure and canceled never do. Build is needed
     # here and must succeed, because when it fails every other job is skipped too, and without it that
     # would read as a pass. A push to master (light=true) skips every test job by design, so skipped passes
-    # there too, and Build must still succeed. On dispatch, the release train and the merge queue every job
+    # there too, and Build must still succeed. On dispatch and the release train every job
     # must succeed: nothing is meant to be skipped there, so a skip means the plan went wrong and must
     # not pass silently. When Build did not run at all this job still runs, and FAILS: GitHub counts a
     # skipped required check as passing, so a skip here could let a pull request merge with no CI at all.
@@ -3353,7 +3711,7 @@ jobs:
                   fi
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
-            # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
+            # this job's success does not replace, so a re-run that passed stayed red (#2639).
             # The run's token shares its API limits with every run of the repository, and a busy hour used one
             # up: the calls failed, the step was continue-on-error, and the early verdict stayed red with the
             # pull request blocked (#3857). So a failed call waits for the limit to reset and tries again, and
@@ -3657,6 +4015,69 @@ jobs:
                   gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number --jq '.[].number' > "$RUNNER_TEMP/open-prs.txt"
                   node tools/cache-hygiene.mjs "$RUNNER_TEMP/caches.ndjson" "$RUNNER_TEMP/open-prs.txt" --apply
 
+    # The recorded file durations a pull request's bins step packs by when the results store does not answer its
+    # plan read (#7851): master's push build reads them one family at a time, at most once an hour, merges them
+    # over the previous snapshot and saves it as a cache, which every pull request restores. Never gates.
+    durations-snapshot:
+        name: Durations snapshot
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        # id-token: write is the results store's credential (tools/results/client.mjs)
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }} # every checkout names it; empty on this push, so the pushed commit
+                  # tools/ci-test-matrix.mjs reads the feature registry (tools/features-on.mjs)
+                  sparse-checkout: |
+                      tools
+                      graphty-element/src/features
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            - name: Restore the durations snapshot
+              uses: actions/cache/restore@v6
+              with:
+                  path: ${{ runner.temp }}/durations-snapshot
+                  key: results-durations-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: results-durations-
+
+            # exit 3: under an hour old, or no family answered; the previous snapshot stands
+            - name: Read the durations one family at a time
+              id: refresh
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: |
+                  status=0
+                  node tools/results/plan-read.mjs --refresh-snapshot "$RUNNER_TEMP/durations-snapshot/durations.json" || status=$?
+                  [ "$status" = 0 ] && echo "refreshed=true" >> "$GITHUB_OUTPUT"
+                  [ "$status" = 0 ] || [ "$status" = 3 ]
+
+            - name: Save the durations snapshot
+              if: steps.refresh.outputs.refreshed == 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ${{ runner.temp }}/durations-snapshot
+                  key: results-durations-${{ github.run_id }}-${{ github.run_attempt }}
+
     # Flaky screenshots: an item whose first capture differed from its baseline and whose second matched
     # (`flaky: true` in results.json) passes the gate as unchanged, yet the story drew two different
     # pictures in one run -- a timing race. This job lists every one as a warning annotation
@@ -3683,7 +4104,6 @@ jobs:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: |
                       tools/results
-                      tools/sonar
 
             # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
             - name: Use the workflow's own tools and actions
@@ -3867,6 +4287,8 @@ jobs:
                 docs,
                 test,
                 links,
+                algorithms-benchmarks,
+                browser-benchmarks,
                 performance,
                 cost-accuracy,
                 story-tests-merge,

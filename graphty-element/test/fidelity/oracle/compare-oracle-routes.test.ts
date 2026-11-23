@@ -154,6 +154,43 @@ describe("routes at nodes that cut a line badly", () => {
         assert.strictEqual(passRate(o, g, "edge.route"), 1);
     });
 
+    it("cuts a line to the middle of a node the oracle drew no body for at the box the program says it drew", () => {
+        // vis-network runs a line to its text node's middle (json-vis-synth 3 -> 4); graphty stops at its own node's
+        // box.
+        const o = (drawnBox: boolean): PScene =>
+            scene(
+                "oracle",
+                [
+                    node("q", 300, 200, {
+                        w: 40,
+                        h: 20,
+                        shape: null,
+                        fill: null,
+                        faceless: [],
+                        ...(drawnBox ? { drawnBox: true as const } : {}),
+                    }),
+                ],
+                [
+                    edge("e", "q", [
+                        [300, 300],
+                        [300, 200],
+                    ]),
+                ],
+            );
+        const g = scene(
+            "graphty",
+            [node("q", 300, 200, { w: 40, h: 20, shape: "other", fill: null, faceless: [] })],
+            [
+                edge("e", "q", [
+                    [300, 280],
+                    [300, 210],
+                ]),
+            ],
+        );
+        assert.strictEqual(passRate(o(true), g, "edge.route"), 1);
+        assert.strictEqual(passRate(o(false), g, "edge.route"), 0);
+    });
+
     it("pairs an edge at a node the oracle draws nothing of, its end named after graphty's node", () => {
         // the oracle's association names the end after graphty's node it found no body for (drawn under another)
         const o = scene(
@@ -286,5 +323,24 @@ describe("a route judged where it runs between its own nodes", () => {
         });
         assert.strictEqual(passRate(wide("oracle", 0), wide("graphty", 0), "edge.route"), 1);
         assert.strictEqual(passRate(wide("oracle", 0), wide("graphty", 45), "edge.route"), 0);
+    });
+});
+
+describe("an edge between two nodes the program drew on one another", () => {
+    const line = edge("p", "q", [
+        [300, 200],
+        [300, 300],
+    ]);
+    const g = scene("graphty", [node("p", 300, 180), node("q", 300, 320)], [line]);
+
+    it("is no extra edge of graphty's where the oracle's two nodes cover the whole line between them", () => {
+        // cx-radiation-bibliography 588 -> 90: the program's layout overlapped the two, its line and head under them
+        const o = scene("oracle", [node("p", 300, 200, { w: 60 }), node("q", 330, 215, { w: 60 })], []);
+        assert.strictEqual(passRate(o, g, "edge.extra"), 1);
+    });
+
+    it("is still one where the oracle draws the two apart and no line between them", () => {
+        const o = scene("oracle", [node("p", 300, 180), node("q", 300, 320)], []);
+        assert.strictEqual(passRate(o, g, "edge.extra"), 0);
     });
 });

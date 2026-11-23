@@ -14,6 +14,8 @@ import { browserProjects, type GraphSession } from "@graphty/graphty-element/ses
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { watchDownloads } from "../../../test/downloads";
+import { withoutFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -161,29 +163,9 @@ async function closeFromMenu(): Promise<void> {
     await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
 }
 
-/**
- * Records every download the element starts, without saving a file.
- * @returns the downloads, filled as they happen.
- */
-function watchDownloads(): { name: string; blob: Blob }[] {
-    const downloads: { name: string; blob: Blob }[] = [];
-    const blobs = new Map<string, Blob>();
-    const create = URL.createObjectURL.bind(URL);
-    vi.spyOn(URL, "createObjectURL").mockImplementation((object: Blob | MediaSource) => {
-        const url = create(object);
-        if (object instanceof Blob) {
-            blobs.set(url, object);
-        }
-        return url;
-    });
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
-        const blob = blobs.get(this.href);
-        if (this.download !== "" && blob !== undefined) {
-            downloads.push({ name: this.download, blob });
-        }
-    });
-    return downloads;
-}
+// Saving through the name-only Save as and opening at once; version 2 save files replace both,
+// tested in SaveFilesV2.real-element.test.tsx.
+withoutFeatures(["save-files-v2"]);
 
 beforeEach(async () => {
     await clearRecent();
@@ -332,6 +314,35 @@ describe("T14: save and reopen, on the real element", () => {
         await closeFromMenu();
         const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
         await userEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
+    });
+
+    it("shows the name the element holds after a refused rename and after an Undo of a rename", async () => {
+        const store = createWorkspaceStore();
+        const { session } = await buildProject(store);
+        assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine families" }));
+
+        // A name past the element's 256 characters is refused: the header keeps the name the
+        // project holds, and says the rename did not happen.
+        const long = "x".repeat(257);
+        await userEvent.keyboard("{F2}");
+        await userEvent.fill(await screen.findByRole("textbox", { name: "Project name" }), long);
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, `The project could not be renamed ${long}.`);
+        });
+        assert.equal(session.project.name, "Florentine families");
+        assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine families" }));
+
+        await userEvent.keyboard("{F2}");
+        const field = await screen.findByRole("textbox", { name: "Project name" });
+        await userEvent.clear(field);
+        await userEvent.type(field, "Florentine B{Enter}");
+        assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine B" }));
+        assert.equal(session.project.name, "Florentine B");
+
+        await userEvent.keyboard("{Control>}z{/Control}");
+        assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine families" }));
+        assert.equal(session.project.name, "Florentine families");
     });
 
     it("keeps the old name and still asks before Close when the browser cannot keep the project", async () => {

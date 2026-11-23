@@ -59,7 +59,7 @@ bottom, and the flask at the bottom looks like science-y analysis. I'll click th
 **Saw:** a popup with a filter box and a list under "Rank nodes and edges": Degree ("How many edges
 each node has"), Betweenness, Edge betweenness, Closeness, PageRank with a blue "Start here" tag
 ("Which nodes are connected to other well-connected nodes"), Eigenvector, Katz, HITS, All-pairs
-distance, and greyed ones (Depth-first order "Select a node first", Most flow).
+distance, and grayed ones (Depth-first order "Select a node first", Most flow).
 
 **Think-aloud:** "That's a lot of words I don't know. Betweenness, Eigenvector, Katz, HITS...
 jargon. But each has one plain line under it, which helps, and one says 'Start here'. 'Degree --
@@ -139,7 +139,7 @@ guess? I'll try the plus next to Shape."
 little chain icon beside it -- let me hover."
 
 **Hesitation:** the main snag of the session. A fixed number appeared instead of "by Influence",
-and the link icon is unlabelled until hovered.
+and the link icon is unlabeled until hovered.
 
 ## Step 10 -- hover the chain icon
 

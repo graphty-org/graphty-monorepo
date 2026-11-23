@@ -1,3 +1,5 @@
+import type { SnapshotFlags } from "@graphty/graph-format";
+
 /**
  * The stable code every error an algorithm throws on purpose carries as `error.code`, so a caller can tell the
  * cases apart without matching message text (which may change):
@@ -39,6 +41,119 @@ export function withCode<E extends Error>(
     code: AlgorithmErrorCode,
 ): E & { readonly code: AlgorithmErrorCode } {
     return Object.assign(error, { code });
+}
+
+/** What {@link checkNumber} accepts besides being finite: bounds and integrality. */
+export interface NumberRule {
+    /** Smallest allowed value, inclusive. */
+    readonly min?: number;
+    /** Largest allowed value, inclusive. */
+    readonly max?: number;
+    /** The value must be strictly greater than this. */
+    readonly above?: number;
+    /** The value must be an integer. */
+    readonly integer?: boolean;
+}
+
+/**
+ * Refuse a numeric option that is NaN, infinite, outside its bounds or not an integer when it must be one.
+ * @param fn - The algorithm's name, for the message
+ * @param name - The option's name
+ * @param value - Its value
+ * @param rule - What it must satisfy
+ * @throws RangeError with code `E_BAD_OPTION`
+ */
+export function checkNumber(fn: string, name: string, value: number, rule: NumberRule): void {
+    const { min, max, above, integer } = rule;
+    const ok =
+        Number.isFinite(value) &&
+        (integer !== true || Number.isInteger(value)) &&
+        (min === undefined || value >= min) &&
+        (max === undefined || value <= max) &&
+        (above === undefined || value > above);
+    if (!ok) {
+        const bounds = [
+            integer === true ? "an integer" : "finite",
+            min === undefined ? "" : `>= ${String(min)}`,
+            above === undefined ? "" : `> ${String(above)}`,
+            max === undefined ? "" : `<= ${String(max)}`,
+        ].filter((b) => b !== "");
+        throw withCode(
+            new RangeError(`${fn}: ${name} must be ${bounds.join(" and ")}, got ${String(value)}`),
+            "E_BAD_OPTION",
+        );
+    }
+}
+
+/** The seed option every seeded algorithm takes. @public */
+export interface SeedOptions {
+    /** Seed of the algorithm's random draws; one seed gives one result, bit for bit. An integer; default 42. */
+    readonly seed?: number | undefined;
+    /** The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major. */
+    readonly randomSeed?: number | undefined;
+}
+
+/**
+ * The seed a seeded algorithm runs with: `seed`, else the deprecated `randomSeed`, else 42.
+ * @param fn - The algorithm's name, for the message
+ * @param options - The algorithm's options
+ * @returns The seed
+ * @throws RangeError with code `E_BAD_OPTION` when the seed is not an integer
+ */
+export function seedOption(fn: string, options: SeedOptions): number {
+    const seed = options.seed ?? options.randomSeed ?? 42;
+    checkNumber(fn, "seed", seed, { integer: true });
+    return seed;
+}
+
+/**
+ * Refuse a weight vector of the wrong length (`E_BAD_OPTION`) or holding a NaN weight, or an infinite or negative one
+ * unless `ordered` allows it (`E_BAD_WEIGHT`).
+ * @param fn - The algorithm's name, for the message
+ * @param weights - The weights, or null for none (always accepted)
+ * @param length - The length they must have, or undefined to skip that check
+ * @param ordered - Accept every weight that can be ordered: negative and infinite ones too, only NaN refused (a
+ *   spanning tree only compares weights); default false
+ * @param flags - The snapshot's weight flags when `weights` is its own arc array: when they already rule a bad weight
+ *   out, the per-arc scan is skipped (it cost Dijkstra and Prim about a fifth of a call)
+ * @throws RangeError with code `E_BAD_OPTION` or `E_BAD_WEIGHT`
+ */
+export function checkWeights(
+    fn: string,
+    weights: ArrayLike<number> | null,
+    length?: number,
+    ordered = false,
+    flags?: Pick<SnapshotFlags, "nonNegativeWeights" | "finiteWeights">,
+): void {
+    if (weights === null) {
+        return;
+    }
+    if (length !== undefined && weights.length !== length) {
+        throw withCode(
+            new RangeError(
+                `${fn}: weights has ${String(weights.length)} entries; the graph has ${String(length)} arcs`,
+            ),
+            "E_BAD_OPTION",
+        );
+    }
+    // A NaN fails both flags, so either one rules it out.
+    if (
+        flags !== undefined &&
+        (ordered ? flags.nonNegativeWeights || flags.finiteWeights : flags.nonNegativeWeights && flags.finiteWeights)
+    ) {
+        return;
+    }
+    for (let i = 0; i < weights.length; i++) {
+        const w = weights[i];
+        if (Number.isNaN(w) || (!ordered && (!Number.isFinite(w) || w < 0))) {
+            throw withCode(
+                new RangeError(
+                    `${fn}: weight ${String(i)} is ${String(w)}; it needs ${ordered ? "numeric" : "finite, non-negative"} weights`,
+                ),
+                "E_BAD_WEIGHT",
+            );
+        }
+    }
 }
 
 /**

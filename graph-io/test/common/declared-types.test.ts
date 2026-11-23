@@ -201,6 +201,9 @@ describe("parseScalarText", () => {
         });
         expect(parsePointText("{x:1, y:2, z:3, srid:9157}")).toEqual({ x: 1, y: 2, z: 3, srid: 9157 });
         expect(parsePointText("{}")).toEqual({});
+        const proto = parsePointText("{__proto__: 1, x: 2}");
+        expect(Object.keys(proto)).toEqual(["__proto__", "x"]);
+        expect(Object.getOwnPropertyDescriptor(proto, "__proto__")?.value).toBe(1);
         expect(codeOf(() => parsePointText("x:1"))).toBe("E_COLUMN_TYPE");
         expect(codeOf(() => parsePointText("{x}"))).toBe("E_COLUMN_TYPE");
         expect(codeOf(() => parsePointText("{x:abc}"))).toBe("E_COLUMN_TYPE");

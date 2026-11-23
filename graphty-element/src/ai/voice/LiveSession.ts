@@ -95,7 +95,7 @@ export class LiveSession {
         // Closed while it opened.
         if (abort.signal.aborted) {
             opened.connection.close();
-            return { code: "AI_CANCELLED", params: {} };
+            return { code: "AI_CANCELED", params: {} };
         }
 
         this.connection = opened.connection;
@@ -145,24 +145,24 @@ export class LiveSession {
         return this.messages?.busy() ?? false;
     }
 
-    /** Cut off the answer being spoken: it ends with `AI_CANCELLED`. */
+    /** Cut off the answer being spoken: it ends with `AI_CANCELED`. */
     interrupt(): void {
         if (this.speaking) {
             this.connection?.interrupt();
-            this.speechEnd("AI_CANCELLED");
+            this.speechEnd("AI_CANCELED");
         }
     }
 
     /**
-     * Close the connection: a held press ends with `AI_CANCELLED`, an answer being spoken too, and
-     * an opening still under way is cancelled.
+     * Close the connection: a held press ends with `AI_CANCELED`, an answer being spoken too, and
+     * an opening still under way is canceled.
      */
     close(): void {
         this.abort?.abort();
         this.abort = undefined;
         this.opening = undefined;
         const { connection } = this;
-        this.drop("AI_CANCELLED", {});
+        this.drop("AI_CANCELED", {});
         connection?.close();
     }
 
@@ -179,13 +179,13 @@ export class LiveSession {
         this.stopListening = undefined;
         this.connection = undefined;
         if (this.speaking) {
-            this.speechEnd("AI_CANCELLED");
+            this.speechEnd("AI_CANCELED");
         }
 
         if (this.held) {
             this.held = false;
             this.stopLevels();
-            this.host.ended("AI_CANCELLED", {});
+            this.host.ended("AI_CANCELED", {});
         }
     }
 
@@ -209,7 +209,7 @@ export class LiveSession {
                 break;
             case "interrupted":
                 if (this.speaking) {
-                    this.speechEnd("AI_CANCELLED");
+                    this.speechEnd("AI_CANCELED");
                 }
 
                 break;
@@ -234,7 +234,7 @@ export class LiveSession {
 
     /**
      * The answer stopped being spoken.
-     * @param code - `AI_COMPLETED`, or `AI_CANCELLED` when it was cut off.
+     * @param code - `AI_COMPLETED`, or `AI_CANCELED` when it was cut off.
      */
     private speechEnd(code: AiResultCode): void {
         this.speaking = false;

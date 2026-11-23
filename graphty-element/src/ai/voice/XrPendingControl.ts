@@ -8,17 +8,14 @@
  * @module ai/voice/XrPendingControl
  */
 
-import {
-    DynamicTexture,
-    Mesh,
-    MeshBuilder,
-    type Observer,
-    PointerEventTypes,
-    type PointerInfo,
-    type Scene,
-    StandardMaterial,
-    Vector3,
-} from "@babylonjs/core";
+import type { Observer } from "@babylonjs/core";
+import { PointerEventTypes, type PointerInfo } from "@babylonjs/core/Events/pointerEvents.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { AiResultCode } from "../../catalog/ai";
 import { ASSISTANT_TOOLS } from "../../catalog/assistant";
@@ -315,7 +312,7 @@ export function paintCard(ctx: CardCanvas, card: XrCard): void {
     });
 }
 
-/** Metres per card pixel. */
+/** Meters per card pixel. */
 const SCALE = 0.4 / CARD_WIDTH;
 
 /** A stack of cards floating in front of the reader, where it was when they were shown. */
@@ -327,17 +324,25 @@ export class XrCardStack {
      * A stack.
      * @param scene - The scene.
      * @param name - Its meshes' name prefix.
-     * @param height - Metres above (positive) or below eye level.
+     * @param height - Meters above (positive) or below eye level.
+     * @param side - Meters to the reader's right (positive) or left of straight ahead.
      */
     constructor(
         private readonly scene: Scene,
         private readonly name: string,
         private readonly height: number,
+        private readonly side = 0,
     ) {
         // A card is pressed as any mesh is in XR: pointing at it and pulling the trigger or pinching.
+        // Only this stack's cards: every stack listens to the same scene.
         this.picks = scene.onPointerObservable.add((info) => {
-            const act = (info.pickInfo?.pickedMesh?.metadata as { xrAiCard?: () => void } | null)?.xrAiCard;
-            if (info.type === PointerEventTypes.POINTERUP && act !== undefined) {
+            const picked = info.pickInfo?.pickedMesh;
+            const act = (picked?.metadata as { xrAiCard?: () => void } | null)?.xrAiCard;
+            if (
+                info.type === PointerEventTypes.POINTERUP &&
+                act !== undefined &&
+                this.meshes.includes(picked as Mesh)
+            ) {
                 act();
             }
         });
@@ -357,7 +362,11 @@ export class XrCardStack {
         const forward = camera.getForwardRay(1).direction;
         forward.y = 0;
         const ahead = forward.lengthSquared() < 1e-6 ? new Vector3(0, 0, 1) : forward.normalize();
-        let top = camera.globalPosition.add(ahead.scale(0.9)).addInPlaceFromFloats(0, this.height, 0);
+        const right = new Vector3(ahead.z, 0, -ahead.x);
+        let top = camera.globalPosition
+            .add(ahead.scale(0.9))
+            .addInPlace(right.scale(this.side))
+            .addInPlaceFromFloats(0, this.height, 0);
         cards.forEach((card, index) => {
             const height = cardHeight(card);
             const name = `${this.name}-${index}`;

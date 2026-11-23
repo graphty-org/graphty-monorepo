@@ -24,8 +24,18 @@ import { LIT_SURFACE_PRESETS, presetId } from "../../../../stories/shaders/litSu
 import { drawnFrames } from "../../../helpers/drawn-frames";
 import { mountLitScene } from "./lit-surface-scene";
 
-/** Frames timed per measurement. */
+/** Frames timed per batch. */
 const FRAMES = 20;
+
+/**
+ * Batches timed per measurement; the fastest counts. For about the first 60 to 100 frames after a
+ * scene is mounted, the software GPU process is busy with work of its own and a frame takes up to
+ * five times its steady cost (all of it in the wait for the GPU, none in the page). Timing one
+ * batch per shader caught some shaders inside that window and others after it, so a ratio to the
+ * flat shader swung from 0.4 to over 4 depending on which ran when (#9772). The fastest of several
+ * drained batches is each shader's own steady cost.
+ */
+const BATCHES = 8;
 
 /** The most a frame of each class may cost, as a multiple of the flat shader's. */
 const CLASS_LIMIT: Readonly<Record<string, number>> = { light: 3, medium: 8, heavy: Infinity };
@@ -46,16 +56,22 @@ async function frameMs(shader: string, params: ShaderParams, quality: (typeof QU
         const scene = element.graph.getScene();
         const { engine } = element.graph;
         await drawnFrames(scene, 3);
-        await engine.readPixels(0, 0, 1, 1);
         // Drawn back to back, not on animation frames, so the display's refresh does not pace them;
-        // the read after them waits for the GPU to finish every one.
-        const started = performance.now();
-        for (let i = 0; i < FRAMES; i++) {
-            scene.render();
+        // the read before a batch drains what came before it, and the read after waits for the
+        // GPU to finish every frame of it.
+        await engine.readPixels(0, 0, 1, 1);
+        let fastest = Infinity;
+        for (let batch = 0; batch < BATCHES; batch++) {
+            const started = performance.now();
+            for (let i = 0; i < FRAMES; i++) {
+                scene.render();
+            }
+
+            await engine.readPixels(0, 0, 1, 1);
+            fastest = Math.min(fastest, (performance.now() - started) / FRAMES);
         }
 
-        await engine.readPixels(0, 0, 1, 1);
-        return (performance.now() - started) / FRAMES;
+        return fastest;
     } finally {
         dispose();
     }

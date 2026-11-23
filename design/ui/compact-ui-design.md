@@ -1,5 +1,8 @@
 # Compact UI Design System
 
+Status: historical record (completed 2025-12-07). The compact theme it describes is now the
+`@graphty/compact-mantine` package, locked to Figma (`compact-mantine/design/figma-spec.md`).
+
 This document defines Graphty's approach to UI density, specifically how we use Mantine's theming system to create a consistent compact style for data-dense interfaces like the properties sidebar.
 
 ---
@@ -32,23 +35,23 @@ Graphty should have a unified styling approach where **UI density is controlled 
 ### Target Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         MantineProvider                          │
-│                              theme                               │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                    Global Theme Config                       ││
-│  │  • colors (dark palette)                                     ││
-│  │  • fontFamily                                                ││
-│  │  • defaultRadius                                             ││
-│  │  • spacing scale                                             ││
-│  │  • components with custom "compact" size                     ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
-│  │  Left Panel  │  │    Main      │  │    Properties Panel    │ │
-│  │  size="sm"   │  │  size="md"   │  │    size="compact"      │ │
-│  └──────────────┘  └──────────────┘  └────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
++-----------------------------------------------------------------+
+|                         MantineProvider                          |
+|                              theme                               |
+|  +-------------------------------------------------------------+|
+|  |                    Global Theme Config                       ||
+|  |  * colors (dark palette)                                     ||
+|  |  * fontFamily                                                ||
+|  |  * defaultRadius                                             ||
+|  |  * spacing scale                                             ||
+|  |  * components with custom "compact" size                     ||
+|  +-------------------------------------------------------------+|
+|                                                                  |
+|  +--------------+  +--------------+  +------------------------+ |
+|  |  Left Panel  |  |    Main      |  |    Properties Panel    | |
+|  |  size="sm"   |  |  size="md"   |  |    size="compact"      | |
+|  +--------------+  +--------------+  +------------------------+ |
++-----------------------------------------------------------------+
 ```
 
 ### Success Criteria
@@ -68,7 +71,7 @@ Graphty should have a unified styling approach where **UI density is controlled 
 We implemented a Figma-style properties sidebar with compact controls (24px height inputs). The initial approach used inline styles:
 
 ```tsx
-// ❌ Initial approach - inline styles on every component
+// Rejected: initial approach - inline styles on every component
 <TextInput
     styles={{
         input: {
@@ -92,7 +95,7 @@ We implemented a Figma-style properties sidebar with compact controls (24px heig
 We refactored to centralize styles in `sidebar-styles.ts`:
 
 ```tsx
-// ⚠️ Better, but still not Mantine-native
+// WARNING: Better, but still not Mantine-native
 export const inputStyles = {
   root: { "--input-height": "24px", "--input-fz": "11px" },
   input: { backgroundColor: "var(--mantine-color-dark-8)", ... }
@@ -132,38 +135,38 @@ This design document captures the path forward.
 Following industry best practices for design tokens:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    TIER 1: Global Tokens                     │
-│                   (Primitive/Base values)                    │
-│                                                              │
-│  Colors:     dark-0 through dark-9, blue-0 through blue-9   │
-│  Spacing:    4px, 8px, 12px, 16px, 24px, 32px               │
-│  Typography: 10px, 11px, 12px, 13px, 14px                   │
-│  Radii:      2px, 4px, 8px                                  │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   TIER 2: Semantic Tokens                    │
-│                  (Purpose-driven aliases)                    │
-│                                                              │
-│  surface-primary    → dark-7                                │
-│  surface-input      → dark-8                                │
-│  text-primary       → dark-0                                │
-│  text-secondary     → dark-2                                │
-│  separator          → dark-5                                │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 TIER 3: Component Tokens                     │
-│                   (Size/variant specific)                    │
-│                                                              │
-│  input-height-md      → 36px                                │
-│  input-height-sm      → 32px                                │
-│  input-height-xs      → 28px                                │
-│  input-height-compact → 24px   ← NEW                        │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                    TIER 1: Global Tokens                     |
+|                   (Primitive/Base values)                    |
+|                                                              |
+|  Colors:     dark-0 through dark-9, blue-0 through blue-9   |
+|  Spacing:    4px, 8px, 12px, 16px, 24px, 32px               |
+|  Typography: 10px, 11px, 12px, 13px, 14px                   |
+|  Radii:      2px, 4px, 8px                                  |
++-------------------------------------------------------------+
+                              |
+                              v
++-------------------------------------------------------------+
+|                   TIER 2: Semantic Tokens                    |
+|                  (Purpose-driven aliases)                    |
+|                                                              |
+|  surface-primary    -> dark-7                                |
+|  surface-input      -> dark-8                                |
+|  text-primary       -> dark-0                                |
+|  text-secondary     -> dark-2                                |
+|  separator          -> dark-5                                |
++-------------------------------------------------------------+
+                              |
+                              v
++-------------------------------------------------------------+
+|                 TIER 3: Component Tokens                     |
+|                   (Size/variant specific)                    |
+|                                                              |
+|  input-height-md      -> 36px                                |
+|  input-height-sm      -> 32px                                |
+|  input-height-xs      -> 28px                                |
+|  input-height-compact -> 24px   <- NEW                        |
++-------------------------------------------------------------+
 ```
 
 ### What Should Be Global
@@ -192,7 +195,7 @@ These properties vary based on the UI context:
 
 ### The Key Insight
 
-**Density is not about breaking consistency—it's about appropriate consistency.**
+**Density is not about breaking consistency--it's about appropriate consistency.**
 
 A properties panel with 15 controls needs compact sizing to be usable. A login form with 2 fields needs comfortable sizing to feel welcoming. Both should use the _same design system_ with _different density settings_.
 
@@ -442,8 +445,8 @@ const theme = createTheme({
 
 **Gate:** Does TextInput with `size="compact"` render at 24px height?
 
-- ✅ Yes → Proceed to Phase 2
-- ❌ No → Debug CSS variables, check Mantine docs
+- Yes -> Proceed to Phase 2
+- No -> Debug CSS variables, check Mantine docs
 
 ---
 
@@ -547,8 +550,8 @@ declare module "@mantine/core" {
 
 **Gate:** Do all input components support `size="compact"` without type errors?
 
-- ✅ Yes → Proceed to Phase 3
-- ❌ No → Fix type augmentation or component vars
+- Yes -> Proceed to Phase 3
+- No -> Fix type augmentation or component vars
 
 ---
 
@@ -615,8 +618,8 @@ declare module "@mantine/core" {
 
 **Gate:** Do all tests pass AND visual appearance matches?
 
-- ✅ Yes → Proceed to Phase 4
-- ❌ No → Debug failing tests or visual differences
+- Yes -> Proceed to Phase 4
+- No -> Debug failing tests or visual differences
 
 ---
 
@@ -644,8 +647,8 @@ declare module "@mantine/core" {
 
 **Gate:** Clean build, all tests pass, visual parity confirmed?
 
-- ✅ Yes → Migration complete
-- ❌ No → Restore deleted files, debug
+- Yes -> Migration complete
+- No -> Restore deleted files, debug
 
 ---
 
@@ -748,7 +751,7 @@ export function ControlGroup({ label, actions, children }) {
 
 ## Migration Checklist
 
-**Status: ✅ COMPLETED (2025-12-07)**
+**Status: COMPLETED (2025-12-07)**
 
 ### Phase 1: Theme Setup (Input Components)
 

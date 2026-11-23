@@ -5,8 +5,9 @@
 // windowValue() reads as twenty-four 15-minute buckets for the page), so the state now and the state at each
 // 5-minute step of the last 24 h come from one path. Slow members and costs read daily buckets.
 
+import { groupTimes } from "../model/groups.js";
 import { quantile } from "../model/histogram.js";
-import { type Bucket, DAY, floorTo, HOUR, type SourceItem, sourceKey, STEP_MS } from "../model/items.js";
+import { type Agg, type Bucket, DAY, floorTo, HOUR, type SourceItem, sourceKey, STEP_MS } from "../model/items.js";
 import { quotaUsed } from "../model/raw.js";
 import { aggQuantile, emptyAgg, loadSeries, mergeAgg, mergeBucket } from "../model/rollup.js";
 import type { Store } from "../model/store.js";
@@ -118,6 +119,7 @@ interface Ctx {
     daily: Map<string, Series>;
     metas: Map<string, SourceItem>;
     quota: number;
+    reads: number;
     sources: Map<string, SourceStatus>;
 }
 
@@ -162,7 +164,12 @@ function merged(series: Series | undefined, from: number, to: number): Bucket {
     return out;
 }
 
-const metricsOf = (m: Measure): string[] => ("metric" in m ? [m.metric] : []);
+const metricsOf = (m: Measure): string[] => {
+    if (m.type === "rate_per_last") {
+        return [m.metric, m.per];
+    }
+    return "metric" in m ? [m.metric] : [];
+};
 
 /** Days of spend a month-end projection takes its daily rate from. */
 export const PROJECTION_DAYS = 7;
@@ -275,23 +282,62 @@ function coveredDays(ctx: Ctx, c: MemberConfig, today: number): number {
     return Number.isFinite(first) ? Math.max(0, Math.min(days, (today - floorTo(first, "1d")) / DAY + 1)) : 0;
 }
 
+/**
+ * A metric's dimensions merged over the daily buckets from `from` to `today`.
+ * @param ctx - what evaluate loaded
+ * @param metric - the metric
+ * @param from - the first day's start
+ * @param today - the last day's start
+ * @returns each dimension's merged aggregate
+ */
+function dimsBetween(ctx: Ctx, metric: string, from: number, today: number): Map<string, Agg> {
+    const dims = new Map<string, Agg>();
+    for (const [s, b] of ctx.daily.get(metric) ?? new Map<number, Bucket>()) {
+        if (s >= from && s <= today) {
+            for (const [d, a] of Object.entries(b.dims ?? {})) {
+                const into = dims.get(d) ?? emptyAgg();
+                dims.set(d, into);
+                mergeAgg(into, a);
+            }
+        }
+    }
+    return dims;
+}
+
+/**
+ * The slowest group's newest full run against its test step's deadline: the share as the value, with its total,
+ * the deadline and how many members ran slower than their GROUP_MEMBER_SECONDS entry as facts.
+ * @param dims - ci.full_group_member_time's dimensions over the window
+ * @returns the computed value, n = the groups with a run
+ */
+function groupDeadline(dims: Map<string, Agg>): Computed {
+    const groups = groupTimes(dims);
+    const worst = groups[0];
+    if (!worst) {
+        return { n: 0 };
+    }
+    return {
+        value: worst.newest.share,
+        n: groups.length,
+        facts: {
+            group_total_ms: worst.newest.totalMs,
+            limit_ms: worst.limitMs,
+            stale_members: groups.reduce((k, g) => k + g.members.filter((x) => x.stale).length, 0),
+        },
+    };
+}
+
 function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
     const days = slowDays(c);
     const today = floorTo(end, "1d");
     const from = today - (days - 1) * DAY;
     const covered = coveredDays(ctx, c, today);
     const m = c.measure;
+    if (m.type === "group_deadline") {
+        return { ...groupDeadline(dimsBetween(ctx, m.metric, from, today)), covered };
+    }
     if (m.type === "dims_median_over") {
-        const dims = new Map<string, Bucket>();
-        for (const [s, b] of ctx.daily.get(m.metric) ?? new Map<number, Bucket>()) {
-            if (s >= from && s <= today) {
-                for (const [d, a] of Object.entries(b.dims ?? {})) {
-                    const into = dims.get(d) ?? emptyAgg();
-                    dims.set(d, into);
-                    mergeAgg(into, a);
-                }
-            }
-        }
+        const dims = dimsBetween(ctx, m.metric, from, today);
         const judged = [...dims.values()].filter((a) => a.n >= m.minPerDim);
         return {
             value: judged.filter((a) => (aggQuantile(a, 0.5) ?? 0) > (m.over ?? a.sum / a.n)).length,
@@ -300,6 +346,12 @@ function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
         };
     }
     const b = merged(ctx.daily.get(metricsOf(m)[0]), from, today);
+    if (m.type === "rate_per_last") {
+        // Runner-minutes per issue: the 7-day rate per merge over another source's newest per-merge reading.
+        const per = merged(ctx.daily.get(m.per), from, today);
+        const div = per.lastAt === undefined ? undefined : per.last;
+        return { ...(b.n > 0 && div ? { value: b.sum / b.n / div } : {}), n: b.n, covered };
+    }
     return { value: measureValue(m, b, (covered || days) * DAY), n: b.n, covered };
 }
 
@@ -411,6 +463,8 @@ function engineValue(ctx: Ctx, name: Extract<Measure, { type: "engine" }>["name"
         }
         case "write_budget":
             return { value: ctx.quota / ctx.cfg.dailyRowLimit };
+        case "read_budget":
+            return { value: ctx.reads / ctx.cfg.dailyReadLimit };
         default:
             return {};
     }
@@ -478,7 +532,7 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
     if (m.type === "month") {
         return monthComputed(ctx, m, p);
     }
-    if (m.type === "dims_median_over") {
+    if (m.type === "dims_median_over" || m.type === "group_deadline") {
         return null;
     }
     const series = ctx.five.get(m.metric);
@@ -763,7 +817,7 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
     if (partial) {
         return { ...status, state: "PARTIAL WINDOW", reason: partial };
     }
-    // A slow window the history does not yet cover still shows its value, labelled with the days it covers,
+    // A slow window the history does not yet cover still shows its value, labeled with the days it covers,
     // and is never gray only for too few samples while history is short.
     const short = c.window === "slow" && v.value !== undefined && (v.covered ?? 0) < slowDays(c);
     const out = short
@@ -1091,6 +1145,7 @@ async function load(store: Store, nowMs: number, cfg: SlaConfig): Promise<Ctx> {
         daily: new Map(),
         metas: new Map(),
         quota: 0,
+        reads: 0,
         sources: new Map(),
     };
     // The oldest step's 6 h window starts 24 h + 6 h back.
@@ -1107,7 +1162,9 @@ async function load(store: Store, nowMs: number, cfg: SlaConfig): Promise<Ctx> {
             ctx.metas.set(id, meta);
         }
     }
-    ctx.quota = await quotaUsed(store, nowMs);
+    const used = await quotaUsed(store, nowMs);
+    ctx.quota = used.rows;
+    ctx.reads = used.reads;
     for (const id of Object.keys(cfg.sources)) {
         ctx.sources.set(id, sourceStatus(ctx, id));
     }

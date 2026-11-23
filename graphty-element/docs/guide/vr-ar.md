@@ -33,7 +33,14 @@ in time reads `"unsupported"`. `"disabled"` means `xr.enabled` (or `xr.vr.enable
 
 Enter a mode with the `view.immersive` command; `mode: null` leaves it. From 2D it switches to 3D
 first, in the same undo step. A refused entry rejects, and is also reported as an `error` event
-with `context: "xr"`.
+with `context: "xr"`. The rejection is a `GraphtyError`: `E_UNSUPPORTED` when XR is off or the
+browser has no WebXR, `E_XR_SESSION_FAILED` when the browser or headset would not start the session
+(its `cause` is what the browser said). Nothing is left half built, so asking again starts clean.
+
+Changing `element.xr` (or calling `setXRConfig`) during a session leaves the session running: the
+drag settings under `input` apply at once, and the session settings (`vr`, `ar`,
+`input.handTracking`, `input.nearInteraction`) from the next session. Only turning `xr.enabled`
+off ends it.
 
 ```html
 <select id="mode">
@@ -108,6 +115,35 @@ all of them, the session runs in the `viewer` space, lowered to standing height.
 | `immersive-vr` | Full VR headset experience       |
 | `immersive-ar` | AR with environment pass-through |
 | `inline`       | Non-immersive (in-page preview)  |
+
+## An In-Headset Menu
+
+Inside a headset the page around the graph is out of sight, so the element can draw a menu in the
+scene for you. Give it items; each has an `id` and the `label` drawn on it. When a session starts,
+the menu floats to the reader's left; pointing a controller at an item and pulling the trigger (or
+pinching) fires `xr-menu-select` with that item's `id`. What an item does is up to you:
+
+```javascript
+const element = document.querySelector("graphty-element");
+
+element.xr = {
+    enabled: true,
+    menu: [
+        { id: "circle", label: "Circle layout" },
+        { id: "rank", label: "Rank nodes" },
+        { id: "exit", label: "Leave VR" },
+    ],
+};
+
+element.addEventListener("xr-menu-select", (event) => {
+    if (event.detail.id === "circle") element.layout = "circular";
+    if (event.detail.id === "rank") element.run("degree");
+    if (event.detail.id === "exit") element.setViewMode("3d");
+});
+```
+
+Setting `menu` again during a session redraws it where the reader is now; an empty list, or no
+`menu` at all, draws nothing.
 
 ## Exiting XR
 
@@ -221,13 +257,10 @@ For AR experiences:
 4. **Occlusion**: Real objects can occlude the graph
 
 ::: warning Not yet published
-Placing and scaling the graph in the room is not something the element publishes an API for. The
-`graph.setScale()` and `graph.setPosition()` calls this page used to teach have never existed in
-any version, and a reader who copied them got a `TypeError`. Recorded in
-`design/element-api/capability-losses.md`.
+The element has no API for placing and scaling the graph in the room.
 
 What IS published for AR and VR today is the mode switch and the XR configuration: set
-`element.viewMode` to `"ar"` or `"vr"`, and use `element.xrConfig` for the session options. The
+`element.viewMode` to `"ar"` or `"vr"`, and use `element.xr` for the session options. The
 reader's own headset places the scene.
 :::
 

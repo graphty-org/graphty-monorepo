@@ -4,7 +4,6 @@ import { fromEdgeArrays } from "@graphty/graph-format";
 import { describe, it } from "vitest";
 
 import { Lcg, LCG_A, LCG_C, LCG_M, seedPositions } from "../../src/simulation/seed";
-import { RandomNumberGenerator } from "../../src/utils/random";
 
 function ring(n: number) {
     const src = new Uint32Array(n);
@@ -23,18 +22,52 @@ describe("Lcg", () => {
         assert.equal(LCG_C, 1);
     });
 
-    it("is the package's RandomNumberGenerator bit for bit over 10,000 draws (the W1 cross-test of design 9.3)", () => {
-        for (const seed of [1, 7, 42, 123456, 999999]) {
+    it("steps state = (a * state + c) % m from state = seed % m over 10,000 draws", () => {
+        for (const seed of [0, 1, 7, 42, 123456, 999999, LCG_M + 5]) {
             const lcg = new Lcg(seed);
-            const rng = new RandomNumberGenerator(seed);
+            let state = seed % LCG_M;
             for (let k = 0; k < 10000; k++) {
-                assert.equal(lcg.next(), rng.rand(), `seed ${seed}, draw ${k}`);
+                state = (LCG_A * state + LCG_C) % LCG_M;
+                assert.equal(lcg.next(), state / LCG_M, `seed ${seed}, draw ${k}`);
             }
         }
     });
 
-    it("seed 0 and null are unseeded, as the port's `seed || random` quirk has it", () => {
-        assert.ok(new Lcg(0).seed > 0 && new Lcg(null).seed > 0);
+    it("treats seed 0 as an ordinary seed: the same stream every time", () => {
+        const a = new Lcg(0);
+        const b = new Lcg(0);
+        assert.equal(a.seed, 0);
+        for (let k = 0; k < 10; k++) {
+            assert.equal(a.next(), b.next());
+        }
+    });
+
+    it("draws a random integer seed below 1e6 for null", () => {
+        const lcg = new Lcg(null);
+        assert.ok(Number.isInteger(lcg.seed) && lcg.seed >= 0 && lcg.seed < 1000000);
+    });
+
+    it("refuses a negative, fractional or non-finite seed with E_BAD_OPTION", () => {
+        for (const seed of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+            assert.throws(
+                () => new Lcg(seed),
+                (err: unknown) => {
+                    const e = err as { code?: unknown; params?: { option?: unknown; value?: unknown } };
+                    return (
+                        err instanceof RangeError &&
+                        e.code === "E_BAD_OPTION" &&
+                        e.params?.option === "seed" &&
+                        Object.is(e.params.value, seed)
+                    );
+                },
+                `seed ${seed}`,
+            );
+        }
+    });
+
+    it("refuses a bad seed in seedPositions even when no row needs seeding", () => {
+        const positions = new Float32Array(9);
+        assert.throws(() => seedPositions(ring(3), positions, -1, 2, 1, null, "fa2"), /seed must be/);
     });
 });
 
@@ -43,10 +76,10 @@ describe("seedPositions", () => {
         const s = ring(4);
         const positions = new Float32Array(12).fill(Number.NaN);
         seedPositions(s, positions, 7, 2, 1, null, "fa2");
-        const rng = new RandomNumberGenerator(7);
+        const rng = new Lcg(7);
         for (let i = 0; i < 4; i++) {
-            assert.equal(positions[3 * i], Math.fround((rng.rand() as number) * 2 - 1));
-            assert.equal(positions[3 * i + 1], Math.fround((rng.rand() as number) * 2 - 1));
+            assert.equal(positions[3 * i], Math.fround(rng.next() * 2 - 1));
+            assert.equal(positions[3 * i + 1], Math.fround(rng.next() * 2 - 1));
             assert.equal(positions[3 * i + 2], 0);
         }
     });

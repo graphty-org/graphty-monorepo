@@ -9,6 +9,7 @@ import {
     assertSameMembers,
     defineTask,
     degrees,
+    isColorNamed,
     neighborhood,
     nodeValues,
     runOf,
@@ -236,10 +237,16 @@ export const COMMUNITY_TASKS = [
                 JSON.stringify(layer.encode?.["node.color"] ?? {}).includes("conference"),
             );
             assert.isTrue(byConference, "no layer colors the teams by conference");
-            const shaped = layers.some((layer) =>
-                JSON.stringify(layer.encode?.["node.shape"] ?? {}).includes(`results.${run.id}.`),
-            );
-            assert.isTrue(shaped, "no layer gives each community a shape");
+            // Judged on the shapes the nodes get, not on how: one encode on the run, or one layer
+            // per community selecting it, are both right answers (#7186).
+            const shapeOf = new Map<string, string>();
+            for (const [id, group] of nodeValues(s, run.id, "group")) {
+                const shape = JSON.stringify(styleOf(s, id, "node.shape") ?? null);
+                const key = String(group);
+                assert.strictEqual(shapeOf.get(key) ?? shape, shape, `community ${key} has more than one shape`);
+                shapeOf.set(key, shape);
+            }
+            assert.isAbove(new Set(shapeOf.values()).size, 1, "no layer gives each community a shape");
         },
     }),
     defineTask({
@@ -342,10 +349,8 @@ export const PATH_TASKS = [
                 run.id,
                 run.fields.some((field) => field.name === "onPath") ? "onPath" : "level",
             );
-            const red = (id: string): boolean =>
-                JSON.stringify(styleOf(s, id, "node.color"))
-                    .toLowerCase()
-                    .includes("ff0000") || JSON.stringify(styleOf(s, id, "node.color")).includes('"r":255,"g":0,"b":0');
+            // Any red the model picks reads as red, not only #ff0000 (#9510: it chose #e41a1c).
+            const red = (id: string): boolean => isColorNamed(styleOf(s, id, "node.color"), "red");
             for (const id of ["Medici", "Ridolfi", "Strozzi"]) {
                 assert.isTrue(
                     red(id),
@@ -424,7 +429,7 @@ export const PATH_TASKS = [
         tier: ["catalog", "multi-step"],
         dataset: "knuth-miles",
         prompts: ["Show me the cheapest road network that still connects every city."],
-        tools: ["run_algorithm", "style", "results"],
+        tools: ["run_algorithm", "style", "filter", "results"],
         reference: [[[{ tool: "run_algorithm", args: { name: "kruskal", style: true } }]]],
         check: ({ s }) => {
             const run = runOf(s, "kruskal", "prim");
@@ -436,7 +441,10 @@ export const PATH_TASKS = [
                         JSON.stringify(layer.selector).includes(`results.${run.id}.`) ||
                         JSON.stringify(layer.encode ?? {}).includes(`results.${run.id}.`),
                 );
-            assert.isTrue(painted, "the tree is not shown");
+            // Showing only the tree's roads shows it as well as painting them does.
+            const tree = [...s.data.edges()].map((edge) => edge.id).filter((id) => run.result?.edge(id)?.in === true);
+            const filtered = s.visibility.edges.size === tree.length && tree.every((id) => s.visibility.edges.has(id));
+            assert.isTrue(painted || filtered, "the tree is not shown");
         },
     }),
     defineTask({

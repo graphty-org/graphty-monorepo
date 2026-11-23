@@ -1,7 +1,7 @@
 {
     "sample": "gephi-json-specimen-node-sizes-opacity",
     "program": "sigma.js",
-    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "version": "sigma 4.0.6, graphology 0.26.0, @sigma/export-image 4.0.0",
     "command": "graph.import(file moved into graphology's { key, attributes } shape); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
     "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
     "svgKind": "raster",
@@ -25,7 +25,7 @@
         "labelsShown": 18
     },
     "drawn": {
-        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness), as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness) * sigma.correctionRatio * the pixels one framed graph unit spans, as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
         "nodes": [
             {
                 "id": "cap-default",

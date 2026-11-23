@@ -21,5 +21,7 @@ export default {
         "Run.rerun",
         "RunsApi.batch",
         "RunsApi.remove",
+        "RunsApi.stability",
+        "RunsApi.sweep",
     ],
 } satisfies CountedWork;

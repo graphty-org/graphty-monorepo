@@ -77,7 +77,14 @@ describe("JsonDataSource", () => {
             });
             const jdp = new JsonDataSource({ data, node: { schema } });
 
-            await jdp.getData().next();
+            const chunks: DataSourceChunk[] = [];
+            for await (const chunk of jdp.getData()) {
+                chunks.push(chunk);
+            }
+
+            assert.isAbove(chunks.length, 0);
+            assert.isAbove(chunks[0].nodes.length, 0);
+            assert.deepEqual(jdp.getErrorAggregator().getErrors(), [], "every node matched the schema");
         });
 
         it("fails", async () => {

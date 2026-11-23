@@ -1,8 +1,8 @@
 import type { F32, F64, GraphSnapshot, NumericVector, ReverseView, U32 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { checkNumber, checkWeights, withCode } from "../errors.js";
 
-/** Options of the index-based PageRank (graph-format design 14.2 Port 3). @public */
+/** Options of {@link pageRank}. @public */
 export interface PageRankOptions {
     /** Probability of following a link; default 0.85. */
     readonly dampingFactor?: number | undefined;
@@ -12,7 +12,7 @@ export interface PageRankOptions {
     readonly tolerance?: number | undefined;
     /** Use the snapshot's arc weights; default false. */
     readonly weighted?: boolean | undefined;
-    /** Starting rank per node index, normalised to sum 1 (when the sum is positive); default uniform. */
+    /** Starting rank per node index, normalized to sum 1 (when the sum is positive); default uniform. */
     readonly initialRanks?: F32 | F64 | undefined;
     /**
      * How the per-iteration change is measured against `tolerance`: `"l1"` (default) sums it over
@@ -38,6 +38,8 @@ export interface PageRankResult {
  * @param s - The snapshot
  * @param o - Algorithm options
  * @returns The scores, the iteration count and the convergence flag
+ * @throws RangeError (code `E_BAD_OPTION`) for a dampingFactor outside [0, 1] or a NaN or negative maxIterations or
+ *   tolerance, or (code `E_BAD_WEIGHT`) for a NaN, infinite or negative weight when `weighted` is set
  * @public
  */
 export function pageRank(s: GraphSnapshot, o: PageRankOptions = {}): PageRankResult {
@@ -46,7 +48,7 @@ export function pageRank(s: GraphSnapshot, o: PageRankOptions = {}): PageRankRes
 
 /**
  * Personalized PageRank, as the legacy function computes it: the personalization vector,
- * normalised to sum 1, replaces the uniform `1 / n` in the teleport, and each node receives
+ * normalized to sum 1, replaces the uniform `1 / n` in the teleport, and each node receives
  * `d * dangling / n` of the dangling mass scaled by its personalization. That keeps only a
  * `1 / n` share of the dangling mass, so on a graph with a dangling node the scores sum to less
  * than 1 (networkx spreads all of it). An all-zero vector gives plain PageRank, as the legacy
@@ -174,7 +176,7 @@ function inflow(
  * @returns The change, by the chosen norm
  * @param arrays - The adjacency and out-weights
  * @param revW - The reverse-arc weights, or null when unweighted
- * @param p - The normalised personalization, or null for the uniform teleport
+ * @param p - The normalized personalization, or null for the uniform teleport
  * @param d - The damping factor
  * @param useMax - Measure the change by the max norm rather than L1
  * @param rank - The current ranks
@@ -205,13 +207,28 @@ function powerStep(
 }
 
 /**
+ * Refuse PageRank options out of range (`E_BAD_OPTION`), and NaN, infinite or negative weights when `weighted` is
+ * set (`E_BAD_WEIGHT`).
+ * @param s - The snapshot
+ * @param o - Algorithm options
+ * @internal
+ */
+export function checkPageRankOptions(s: GraphSnapshot, o: PageRankOptions | undefined): void {
+    checkNumber("pageRank", "dampingFactor", o?.dampingFactor ?? 0.85, { min: 0, max: 1 });
+    checkNumber("pageRank", "maxIterations", o?.maxIterations ?? 100, { min: 0, integer: true });
+    checkNumber("pageRank", "tolerance", o?.tolerance ?? 1e-6, { min: 0 });
+    checkWeights("pageRank", o?.weighted === true ? (exactWeights(s) ?? s.weights) : null);
+}
+
+/**
  * The shared power iteration.
  * @param s - The snapshot
- * @param p - The normalised personalization, or null for the uniform teleport
+ * @param p - The normalized personalization, or null for the uniform teleport
  * @param o - Algorithm options
  * @returns The scores, the iteration count and the convergence flag
  */
 function run(s: GraphSnapshot, p: F64 | null, o: PageRankOptions): PageRankResult {
+    checkPageRankOptions(s, o);
     const n = s.nodeCount;
     const maxIter = o.maxIterations ?? 100;
     const tol = o.tolerance ?? 1e-6;
@@ -271,11 +288,11 @@ function rowSums(s: GraphSnapshot, perArc: F64): F64 {
 }
 
 /**
- * Check a per-node mass vector and normalise it to sum 1.
+ * Check a per-node mass vector and normalize it to sum 1.
  * @param v - The caller's vector
  * @param n - The node count
  * @param name - The option's name, for the message
- * @returns A normalised copy, or null when every entry is 0
+ * @returns A normalized copy, or null when every entry is 0
  */
 function distribution(v: F32 | F64, n: number, name: string): F64 | null {
     if (v.length !== n) {

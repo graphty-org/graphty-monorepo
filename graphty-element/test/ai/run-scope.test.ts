@@ -8,7 +8,6 @@ import { assert, describe, it } from "vitest";
 import type { GraphSession } from "../../session";
 import { assistantSession, callsTurn, ScriptedAssistant, textTurn } from "../helpers/assistant";
 
-const ON = ["assistant"];
 const WHOLE = { tool: "run_algorithm", args: { name: "degree", style: false } };
 
 /**
@@ -30,7 +29,7 @@ async function send(
     bound: boolean,
     ...calls: { tool: string; args: Record<string, unknown> }[]
 ): Promise<{ session: GraphSession; read: ReturnType<ScriptedAssistant["lastResults"]> }> {
-    const session = await assistantSession(undefined, ON);
+    const session = await assistantSession();
     await session.selection.apply({ ids: ["a", "b"] });
     const assistant = new ScriptedAssistant(session, { gate: false });
     assistant.engine.push(...calls.map((call, turn) => callsTurn([call], turn)), textTurn("done"));

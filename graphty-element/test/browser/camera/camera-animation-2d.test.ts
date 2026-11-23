@@ -2,7 +2,7 @@ import { afterEach, assert, test } from "vitest";
 
 import { TwoDCameraController } from "../../../src/cameras/TwoDCameraController.js";
 import { Graph } from "../../../src/Graph.js";
-import { animationFramesOf } from "../../helpers/animation-clock.js";
+import { animationFramesOf, cameraStateAtFrame } from "../../helpers/animation-clock.js";
 import { cleanupTestGraph, createTestGraph, setBehavior } from "../../helpers/testSetup.js";
 
 let graph: Graph;
@@ -82,21 +82,24 @@ test("animates 2D pan smoothly", async () => {
 
 test("applies easing to 2D animations", async () => {
     await setup2DGraph();
+    const startZoom = graph.getCameraState().zoom ?? Number.NaN;
 
-    // Track ortho size changes during animation
-    const orthoSizes: number[] = [];
+    // How far the zoom has got at a frame of a 19-frame (300 ms) animation, on the constant
+    // animation clock
+    async function progressAt(frame: number, easing: "linear" | "easeInOut"): Promise<number> {
+        await graph.setCameraZoom(startZoom, { animate: false });
+        const { atFrame, end } = await cameraStateAtFrame(graph, frame, () =>
+            graph.setCameraZoom(1.5 * startZoom, { animate: true, duration: 300, easing }),
+        );
+        assert.closeTo(end.zoom ?? Number.NaN, 1.5 * startZoom, 0.01 * startZoom, `${easing} final zoom`);
+        return ((atFrame.zoom ?? Number.NaN) - startZoom) / ((end.zoom ?? Number.NaN) - startZoom);
+    }
 
-    const listenerId = graph.eventManager.addListener("camera-state-changed", () => {
-        const size = (cameraController.camera.orthoRight ?? 1) - (cameraController.camera.orthoLeft ?? -1);
-        orthoSizes.push(size);
-    });
-
-    await graph.setCameraZoom(1.5, { animate: true, duration: 300, easing: "easeInOut" });
-
-    graph.eventManager.removeListener(listenerId);
-
-    // With easeInOut, we should see zoom changes (animation occurred)
-    assert.ok(orthoSizes.length > 0, "Animation should trigger camera-state-changed events");
+    // easeInOut is behind linear early on and ahead of it late
+    const early = { linear: await progressAt(5, "linear"), easeInOut: await progressAt(5, "easeInOut") };
+    const late = { linear: await progressAt(14, "linear"), easeInOut: await progressAt(14, "easeInOut") };
+    assert.isBelow(early.easeInOut, early.linear, `early: ${JSON.stringify(early)}`);
+    assert.isAbove(late.easeInOut, late.linear, `late: ${JSON.stringify(late)}`);
 });
 
 test("emits camera-state-changed event after 2D animation", async () => {

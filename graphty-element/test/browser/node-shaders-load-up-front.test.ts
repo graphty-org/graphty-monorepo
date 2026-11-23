@@ -47,8 +47,12 @@ describe("node shaders", () => {
 
     it("are not imported by a material drawn in the same task it was made in", () => {
         // A node's material is made in an update pass and drawn by the render that follows, in
-        // the same task. Babylon announces a new material to the scene in a LATER task, so a pin
-        // applied from that announcement came too late for the first compile (issue #4241).
+        // the same task (issue #4241). Babylon.js 9 keeps "already loaded" per material class, on
+        // a private static loader; this sets it back to a fresh page's state, so the first scene
+        // shows Babylon's own lazy import and the second that the pin skips it.
+        const loader = (
+            StandardMaterial as unknown as { _ShaderLoader: Record<"_webGL" | "_webGPU", { loaded: boolean }> }
+        )._ShaderLoader;
         const canvas = document.createElement("canvas");
         const engine = new Engine(canvas);
         const lazySteps: Record<string, boolean> = {};
@@ -57,18 +61,20 @@ describe("node shaders", () => {
         engine.createEffect = ((...args: Parameters<Engine["createEffect"]>) => {
             const options = args[1] as { extraInitializationsAsync?: unknown };
             if (args[0] === "default") {
-                lazySteps[pinnedNow ? "pinned" : "other"] = options.extraInitializationsAsync !== undefined;
+                lazySteps[pinnedNow ? "pinned" : "unpinned"] = options.extraInitializationsAsync !== undefined;
             }
 
             return createEffect(...args);
         }) as Engine["createEffect"];
         try {
-            for (const pinned of [true, false]) {
+            for (const pinned of [false, true]) {
                 pinnedNow = pinned;
+                loader._webGL.loaded = false;
+                loader._webGPU.loaded = false;
                 const scene = new Scene(engine);
                 new FreeCamera("camera", new Vector3(0, 0, -5), scene).setTarget(Vector3.Zero());
                 if (pinned) {
-                    useBundledStandardShaders(scene);
+                    useBundledStandardShaders();
                 }
 
                 MeshBuilder.CreateBox("box", {}, scene).material = new StandardMaterial("material", scene);
@@ -77,10 +83,11 @@ describe("node shaders", () => {
 
             assert.deepEqual(
                 lazySteps,
-                { pinned: false, other: true },
-                "the element's scene compiles without the import; a scene it was not given keeps Babylon's own",
+                { unpinned: true, pinned: false },
+                "Babylon imports the shaders for a fresh class; the element's pin skips the import",
             );
         } finally {
+            useBundledStandardShaders();
             engine.dispose();
         }
     });

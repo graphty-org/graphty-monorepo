@@ -74,7 +74,7 @@ function mount(autosave: string | null, configure?: (element: Graphty) => void):
 }
 
 /**
- * Whether the page would ask before closing now: a `beforeunload` listener cancelled the event.
+ * Whether the page would ask before closing now: a `beforeunload` listener canceled the event.
  * @returns True when one did.
  */
 function guardArmed(): boolean {
@@ -102,7 +102,7 @@ async function until(element: Graphty, condition: (status: AutosaveStatus) => bo
  */
 async function loaded(element: Graphty): Promise<void> {
     await element.autosaver.ready;
-    for (let frame = 0; frame < 600 && element.session.data.snapshot().edgeCount < EDGES.length; frame++) {
+    while (element.session.data.snapshot().edgeCount < EDGES.length) {
         await new Promise<void>((resolve) => {
             requestAnimationFrame(() => resolve());
         });
@@ -469,7 +469,7 @@ describe("waiting for the picture", () => {
         ]);
 
         // The empty canvas is drawn and stable while the restore is still undecided.
-        for (let frame = 0; frame < 600 && !element.isFrameStable; frame++) {
+        while (!element.isFrameStable) {
             await new Promise<void>((resolve) => {
                 requestAnimationFrame(() => resolve());
             });

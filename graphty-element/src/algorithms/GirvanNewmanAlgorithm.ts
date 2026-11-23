@@ -125,7 +125,7 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
         // Undirected: the edge betweenness this splits on is defined over unordered pairs.
         const { snapshot, run } = this.accelerated("girvanNewman", "undirected");
 
-        context.report({ phase: "Cutting bridges", total: null });
+        context.report({ phase: "cutting-bridges", total: null });
 
         // maxCommunities is only passed on when it was set: 0 means "find the best split".
         const { value: dendrogram, precision } = await run((dispatch, s) =>
@@ -142,7 +142,7 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
         // dendrogram is right to record that, because it is what the cuts produced, but this
         // option reads "stop when this many communities reached", and publishing more communities
         // than the caller asked for would make that a false promise. So the published cut is
-        // chosen among the levels that honour the cap, counting only communities of at least
+        // chosen among the levels that honor the cap, counting only communities of at least
         // `minCommunitySize` nodes, as the option says.
         const counted = (labels: Uint32Array): number => {
             const sizes = new Map<number, number>();
@@ -154,7 +154,7 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
         const levels = dendrogram.levels.map((labels, index) => ({ labels, modularity: dendrogram.modularity[index] }));
         const within = maxCommunities > 0 ? levels.filter((level) => counted(level.labels) <= maxCommunities) : levels;
 
-        // Nothing honours the cap when the graph arrived in more pieces than the cap allows,
+        // Nothing honors the cap when the graph arrived in more pieces than the cap allows,
         // before a single edge was cut. The first level is then the closest thing to an answer,
         // and it is the graph's own shape rather than anything this chose.
         const choices = within.length > 0 ? within : levels.slice(0, 1);
@@ -167,7 +167,7 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
         // Every node keeps the community its level put it in, a small one included: a community
         // below `minCommunitySize` only stops counting towards the cap.
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
             nodes.push({ id: nodeId, values: { group: best.labels[snapshot.ids.indexOf(nodeId)] ?? 0 } });
         });
 

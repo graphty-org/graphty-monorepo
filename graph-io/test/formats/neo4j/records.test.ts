@@ -10,6 +10,7 @@ import {
 } from "../../../src/formats/csv/records.js";
 import { ImportError, type ImportInput } from "../../../src/types.js";
 import { byteChunks, textChunksOf } from "../../helpers/corpus.js";
+import { expectImportError } from "../../helpers/import-error.js";
 
 interface Record {
     cells: string[];
@@ -112,16 +113,9 @@ describe("RecordReader", () => {
     });
 
     it("aborts on a quoted field that is never closed", async () => {
-        const report = new ImportReportBuilder("neo4j", 100);
-        await expect(read('a,b\n1,"open\n2,x\n', undefined, report)).rejects.toThrow(ImportError);
-        try {
-            await read('a,b\n1,"open\n2,x\n');
-        } catch (err) {
-            expect(err).toBeInstanceOf(ImportError);
-            const { report: partial } = err as ImportError;
-            expect(partial.issues[0].code).toBe(UNCLOSED_QUOTE_CODE);
-            expect(partial.issues[0].line).toBe(2);
-        }
+        const { report } = await expectImportError(() => read('a,b\n1,"open\n2,x\n'), { format: "neo4j" });
+        expect(report.issues[0].code).toBe(UNCLOSED_QUOTE_CODE);
+        expect(report.issues[0].line).toBe(2);
     });
 
     it("produces the same records whatever the chunk boundaries", async () => {
@@ -160,12 +154,9 @@ describe("checkRecordSyntax", () => {
         [{ delimiter: ",", quote: '""' }, "quote"],
         [{ delimiter: ",", quote: "," }, "delimiter"],
     ])("rejects %j", (syntax, option) => {
+        expect(() => checkRecordSyntax(syntax)).toThrow(
+            expect.objectContaining({ code: "E_UNSUPPORTED", details: expect.objectContaining({ option }) as unknown }),
+        );
         expect(() => checkRecordSyntax(syntax)).toThrow(GraphFormatError);
-        try {
-            checkRecordSyntax(syntax);
-        } catch (err) {
-            expect((err as GraphFormatError).code).toBe("E_UNSUPPORTED");
-            expect((err as GraphFormatError).details.option).toBe(option);
-        }
     });
 });

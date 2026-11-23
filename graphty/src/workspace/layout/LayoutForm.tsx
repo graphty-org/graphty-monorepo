@@ -1,4 +1,4 @@
-import { FieldRow, PanelField, PanelLabelsProvider, ResetButton, SegmentedControl } from "@graphty/compact-mantine";
+import { FieldRow, PanelField, SegmentedControl } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { LayoutDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { BasemapConfig } from "@graphty/graphty-element/schema";
@@ -7,17 +7,23 @@ import { Button, Checkbox, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { costLine, optionWords } from "../analyze/words";
-import { selectionWorkspaceOn } from "../features";
 import { OptionRow, OptionsForm } from "../options/OptionsForm";
+import { layoutChanged } from "../privacy/useUsageEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { MapSourceFields } from "./MapSourceFields";
-import { engineOf, isDrawn, LAYOUT_SEED, layoutName, randomSeed, startingValues, unavailable } from "./methods";
+import {
+    engineOf,
+    isDrawn,
+    LAYOUT_SEED,
+    layoutName,
+    MAP_LAYOUT,
+    randomSeed,
+    startingValues,
+    unavailable,
+} from "./methods";
 import { columnFitWords, layoutErrorWords, locationFieldWords } from "./refusalWords";
 import { TransitionRow } from "./TransitionRow";
 import { SHOWN_ONLY_WORDS } from "./words";
-
-/** The location map's id, whose form names the columns it read and picks the map it draws on. */
-const MAP_LAYOUT = "location-map";
 
 /**
  * The map's options its form does not draw: Data > Fields designates its location columns, Shape
@@ -61,12 +67,22 @@ function drawnLine(element: GraphtyElement | null): string | undefined {
     return location.kind === "columns" ? `${location.latitude}, ${location.longitude}` : location.column;
 }
 
+/** A form's unapplied values, with the values it opened on. */
+type Draft = { basis: Record<string, unknown>; values: Record<string, unknown> };
+
+/**
+ * What the reader edited in each layout's form and has not applied, by session and layout row, with
+ * the values the form opened on: a form closed without Apply opens again on the edits, as long as
+ * it would still open on the same values (the drawn layout, the selection, unchanged).
+ */
+const drafts = new WeakMap<GraphSession, Map<string, Draft>>();
+
 /** Props for LayoutForm. */
 interface LayoutFormProps {
     session: GraphSession;
     /** The layout being edited. */
     descriptor: LayoutDescriptor;
-    /** Drawn above the description (the popover's Back and name). */
+    /** Drawn first (the popover's Back and name). */
     header?: React.ReactNode;
     /** Focus starts on the button (the popover), so Enter applies at once. */
     focusButton?: boolean;
@@ -172,26 +188,20 @@ function shapePicked(
 /**
  * Shape: whether the layout is drawn in 3D or flat in the 3D view.
  * @param props - Component props
- * @param props.id - The layout's id, for the label's id
  * @param props.shape - The shape asked for
  * @param props.onPick - Called with the shape picked
- * @param props.row - Drawn as a line of the `selection-workspace` forms
  * @returns The field
  */
 function ShapeField({
-    id,
     shape,
     onPick,
-    row,
 }: Readonly<{
-    id: string;
     shape: "2d" | "3d";
     onPick: (picked: "2d" | "3d") => void;
-    row: boolean;
 }>): React.JSX.Element {
     const control = (
         <SegmentedControl
-            {...(row ? { "aria-label": "Shape" } : { "aria-labelledby": `layout-shape-${id}` })}
+            aria-label="Shape"
             fullWidth
             value={shape}
             data={[
@@ -203,96 +213,48 @@ function ShapeField({
             }}
         />
     );
-    return row ? (
-        <OptionRow label="Shape">{control}</OptionRow>
-    ) : (
-        <Stack gap={2}>
-            <Text size="xs" id={`layout-shape-${id}`}>
-                Shape
-            </Text>
-            {control}
-        </Stack>
-    );
+    return <OptionRow label="Shape">{control}</OptionRow>;
 }
 
 /**
- * Seed, with its reset, and Reshuffle, which applies a new seed at once.
+ * Seed, and Reshuffle, which applies a new seed at once.
  * @param props - Component props
  * @param props.values - The form's values
  * @param props.edit - Writes the form's values
  * @param props.onReshuffle - Applies the layout with a new random seed
- * @param props.row - Drawn as a line of the `selection-workspace` forms
  * @returns The fields
  */
 function SeedField({
     values,
     edit,
     onReshuffle,
-    row,
 }: Readonly<{
     values: Record<string, unknown>;
     edit: (next: Record<string, unknown>) => void;
     onReshuffle: () => void;
-    row: boolean;
 }>): React.JSX.Element {
     const seed = typeof values.seed === "number" ? values.seed : undefined;
-    if (row) {
-        return (
-            <OptionRow
-                label="Seed"
-                after={
-                    <Button size="compact-xs" variant="default" onClick={onReshuffle}>
-                        Reshuffle
-                    </Button>
-                }
-            >
-                <PanelField
-                    label="Seed"
-                    kind="number"
-                    width="fill"
-                    value={seed ?? LAYOUT_SEED}
-                    step={1}
-                    decimalScale={0}
-                    onChange={(next) => {
-                        edit({ ...values, seed: Number(next) });
-                    }}
-                />
-            </OptionRow>
-        );
-    }
     return (
-        <Group gap={8} wrap="nowrap" align="flex-end">
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <PanelLabelsProvider showLabels>
-                    <FieldRow
-                        trailing={
-                            seed !== undefined && (
-                                <ResetButton
-                                    label="Seed"
-                                    onClick={() => {
-                                        edit({ ...values, seed: undefined });
-                                    }}
-                                />
-                            )
-                        }
-                    >
-                        <PanelField
-                            label="Seed"
-                            kind="number"
-                            value={seed ?? LAYOUT_SEED}
-                            step={1}
-                            decimalScale={0}
-                            onChange={(next) => {
-                                edit({ ...values, seed: Number(next) });
-                            }}
-                        />
-                    </FieldRow>
-                </PanelLabelsProvider>
-            </div>
-            <Button size="compact-xs" variant="default" onClick={onReshuffle}>
-                Reshuffle
-            </Button>
-        </Group>
+        <OptionRow
+            label="Seed"
+            after={
+                <Button size="compact-xs" variant="default" onClick={onReshuffle}>
+                    Reshuffle
+                </Button>
+            }
+        >
+            <PanelField
+                label="Seed"
+                kind="number"
+                width="fill"
+                value={seed ?? LAYOUT_SEED}
+                step={1}
+                decimalScale={0}
+                onChange={(next) => {
+                    edit({ ...values, seed: Number(next) });
+                }}
+            />
+        </OptionRow>
     );
 }
 
@@ -384,11 +346,9 @@ function MapLocation({
 /**
  * The layout form's "Shown nodes only" row: a layout over only the nodes the filter shows, laid
  * out again when the filter changes. A view preference, written on the element by the host.
- * @param props - Component props
- * @param props.row - Whether the form draws its settings as rows.
  * @returns The row
  */
-function ShownOnlyRow({ row }: Readonly<{ row: boolean }>): React.JSX.Element {
+function ShownOnlyRow(): React.JSX.Element {
     const { store } = useWorkspace();
     const checked = useWorkspaceState((state) => state.layoutShownOnly);
     const box = {
@@ -397,25 +357,24 @@ function ShownOnlyRow({ row }: Readonly<{ row: boolean }>): React.JSX.Element {
             store.set({ layoutShownOnly: event.currentTarget.checked });
         },
     };
-    return row ? (
+    return (
         <OptionRow label={SHOWN_ONLY_WORDS.shownOnly}>
             <Checkbox size="xs" aria-label={SHOWN_ONLY_WORDS.shownOnly} {...box} />
         </OptionRow>
-    ) : (
-        <Checkbox size="xs" label={SHOWN_ONLY_WORDS.shownOnly} {...box} />
     );
 }
 
 /**
  * The form for one layout (the Layout popover's second level, and inline in the graph's
  * inspector): Shape, its key options, the Advanced fold with Seed and Reshuffle, the cost line
- * and Apply. Nothing runs while the reader edits; Apply (or Enter) lays the graph out, as one
+ * and Apply. Nothing runs while the reader edits; Apply (or Enter on it) lays the graph out, as one
  * undoable step of the element's, and a disabled "Applied" says the graph is drawn so already.
+ * Enter in a field applies too but keeps the form open, so several values can be tried in turn.
  * A refusal shows above the button and the form stays.
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.descriptor - The layout
- * @param props.header - Drawn above the description
+ * @param props.header - Drawn first
  * @param props.focusButton - Whether focus starts on the button
  * @param props.onApplied - Called once a layout has been applied
  * @param props.onKeyDown - The host's key handling
@@ -439,7 +398,16 @@ export function LayoutForm({
         values: startingValues(session, descriptor),
         engine: engineOf(descriptor),
     }));
-    const [values, setValues] = useState<Record<string, unknown>>(start.values);
+    const draftKey = `${descriptor.id}/${start.engine ?? ""}`;
+    const [values, setValues] = useState<Record<string, unknown>>(() => {
+        const draft = drafts.get(session)?.get(draftKey);
+        return draft !== undefined && sameValues(draft.basis, start.values) ? draft.values : start.values;
+    });
+    useEffect(() => {
+        const own = drafts.get(session) ?? new Map<string, Draft>();
+        drafts.set(session, own);
+        own.set(draftKey, { basis: start.values, values });
+    }, [session, draftKey, start.values, values]);
     // Undefined: the catalog's default engine for the layout. Each engine has a row of its own.
     const { engine } = start;
     const [error, setError] = useState<string | null>(null);
@@ -471,16 +439,23 @@ export function LayoutForm({
         setValues(next);
         setError(null);
     };
-    const apply = (asked: Record<string, unknown>): void => {
+    const apply = (asked: Record<string, unknown>, close = true): void => {
         setError(null);
-        session.layout
-            .set(descriptor.id, engine === undefined ? { options: asked } : { engine, options: asked })
-            .then(onApplied, (failure: unknown) => {
+        session.layout.set(descriptor.id, engine === undefined ? { options: asked } : { engine, options: asked }).then(
+            () => {
+                layoutChanged(session, descriptor.id, "applied");
+                if (close) {
+                    onApplied?.();
+                }
+            },
+            (failure: unknown) => {
+                layoutChanged(session, descriptor.id, "failed");
                 setError(
                     layoutErrorWords(failure) ??
                         `${layoutName(descriptor)} could not lay out this graph, so the drawing is unchanged`,
                 );
-            });
+            },
+        );
     };
     // A new map is drawn under nodes that stay where they are, so on the applied map with nothing
     // else edited it applies at once, and the form stays open.
@@ -489,9 +464,15 @@ export function LayoutForm({
         if (isCurrent && !differs) {
             setValues(next);
             setError(null);
-            session.layout.set(descriptor.id, { options: next }).catch(() => {
-                setError(`${layoutName(descriptor)} could not draw this map`);
-            });
+            session.layout.set(descriptor.id, { options: next }).then(
+                () => {
+                    layoutChanged(session, descriptor.id, "applied");
+                },
+                () => {
+                    layoutChanged(session, descriptor.id, "failed");
+                    setError(`${layoutName(descriptor)} could not draw this map`);
+                },
+            );
             return;
         }
         edit(next);
@@ -507,10 +488,8 @@ export function LayoutForm({
     const words = (option: OptionDescriptor): ReturnType<typeof optionWords> => optionWords(descriptor.id, option);
 
     const takesSeed = descriptor.options.some((o) => o.name === "seed");
-    const row = selectionWorkspaceOn(session);
     const seed = takesSeed ? (
         <SeedField
-            row={row}
             values={values}
             edit={edit}
             onReshuffle={() => {
@@ -522,25 +501,23 @@ export function LayoutForm({
     ) : undefined;
 
     return (
-        <form // NOSONAR(S6847): catches Esc bubbling from the form's own controls for the host
+        <form // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- catches Esc bubbling from the form's own controls for the host
             aria-label={layoutName(descriptor)}
             ref={formRef}
             onKeyDown={onKeyDown}
             onSubmit={(event) => {
                 event.preventDefault();
+                // A field submits the form on Enter and keeps focus: apply, and leave the form open.
+                const focused = document.activeElement;
+                const fromField = focused instanceof HTMLInputElement && formRef.current?.contains(focused) === true;
                 if (differs && reason === null) {
-                    apply(values);
+                    apply(values, !fromField);
                 }
             }}
         >
-            <Stack gap={row ? 4 : 8} className={row ? "ws-options-rows" : undefined}>
+            <Stack gap={4} className="ws-options-rows">
                 {header}
-                {descriptor.description === "" || row ? null : (
-                    <Text size="xs" c="dimmed">
-                        {descriptor.description}
-                    </Text>
-                )}
-                {showShape ? <ShapeField id={descriptor.id} shape={shape} onPick={pickShape} row={row} /> : null}
+                {showShape ? <ShapeField shape={shape} onPick={pickShape} /> : null}
                 {current.dimension === "3d" && descriptor.maxDimensions === 2 ? (
                     <Text size="xs" c="dimmed">
                         Draws flat
@@ -576,7 +553,7 @@ export function LayoutForm({
                     after={seed}
                     choiceNote={(_option, refusal) => columnFitWords(refusal) ?? ""}
                 />
-                <ShownOnlyRow row={row} />
+                <ShownOnlyRow />
                 <TransitionRow session={session} />
                 {isMap ? (
                     <MapSourceFields value={values.map as BasemapConfig | null | undefined} onChange={pickMap} />

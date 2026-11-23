@@ -28,9 +28,9 @@ export interface AcceleratorRegistration {
      * Yes opens the engine with every limit and feature of `adapter`, and `factory` then gets
      * that device. Left out, or if it throws, the backend finds its own.
      * @param adapter - The `GPUAdapter`, opaque here.
-     * @returns True to share.
+     * @returns True to share, or a promise of it (the WebGPU registration loads its peer first).
      */
-    readonly sharesDevice?: (adapter: unknown) => boolean;
+    readonly sharesDevice?: (adapter: unknown) => boolean | Promise<boolean>;
 }
 
 /** How a second registration under an existing name behaves. */
@@ -43,6 +43,12 @@ export interface RegisterAcceleratorOptions {
      */
     readonly strict?: boolean;
 }
+
+/**
+ * Factories the element registered for itself, which an explicit registration under the same
+ * name replaces without the "second accelerator" warning.
+ */
+const DEFAULT_FACTORIES = new WeakSet<AcceleratorFactory>();
 
 /**
  * A set of accelerator factories.
@@ -93,7 +99,8 @@ export class AcceleratorRegistry {
                 return;
             }
 
-            if (options?.strict === true) {
+            const replacingDefault = DEFAULT_FACTORIES.has(existing.factory);
+            if (options?.strict === true && !replacingDefault) {
                 throw new GraphtyError({
                     code: "E_DUPLICATE_PLUGIN",
                     message: `an accelerator named "${registration.name}" is already registered`,
@@ -102,7 +109,9 @@ export class AcceleratorRegistry {
                 });
             }
 
-            if (!this.#warned.has(registration.name)) {
+            // A default the element registered for itself (the root entry's lazy WebGPU loader)
+            // is meant to be replaced by an explicit registration, so that replacement is silent.
+            if (!replacingDefault && !this.#warned.has(registration.name)) {
                 this.#warned.add(registration.name);
                 console.warn(
                     `graphty: a second accelerator named "${registration.name}" replaced the first. ` +
@@ -207,4 +216,25 @@ export const acceleratorRegistry = sharedStore("accelerator", () => new Accelera
  */
 export function registerAccelerator(registration: AcceleratorRegistration, options?: RegisterAcceleratorOptions): void {
     acceleratorRegistry.register(registration, options);
+}
+
+/**
+ * Registers a factory the element provides for itself, unless something is already registered
+ * under its name.
+ *
+ * Internal: the root entry point uses it for the lazy WebGPU loader. An explicit registration
+ * made before it wins, and one made after it replaces it silently.
+ * @param registration - The name, the backend and the factory.
+ * @param registry - The registry to register into. Defaults to the page's registry.
+ */
+export function registerDefaultAccelerator(
+    registration: AcceleratorRegistration,
+    registry: AcceleratorRegistry = acceleratorRegistry,
+): void {
+    if (registry.has(registration.name)) {
+        return;
+    }
+
+    DEFAULT_FACTORIES.add(registration.factory);
+    registry.register(registration);
 }

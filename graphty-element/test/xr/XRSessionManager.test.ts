@@ -1,6 +1,5 @@
 import { NullEngine, Scene } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { referenceSpaceFallbacks, XRSessionManager } from "../../src/xr/XRSessionManager";
 

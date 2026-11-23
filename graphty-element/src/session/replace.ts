@@ -283,8 +283,18 @@ export function rejoined(
     };
     const matched = held.edges.filter((row) => found(row, sourcePath) && found(row, targetPath)).length;
     const columns = [...new Set(held.edges.flatMap((row) => Object.keys(row)))];
+    // The ends the newer copy makes join the ones the join made already.
+    const ends = held.edges.flatMap((row) => [
+        idText(readEndpoint(row, sourcePath)),
+        idText(readEndpoint(row, targetPath)),
+    ]);
+    const made =
+        join.made === undefined
+            ? undefined
+            : [...new Set([...join.made, ...ends.filter((id): id is string => id !== null && !hasNode(id))])];
     return Object.freeze({
         ...join,
+        ...(made === undefined ? {} : { made: Object.freeze(made) }),
         rows: held.edges.length,
         matched,
         table: Object.freeze({

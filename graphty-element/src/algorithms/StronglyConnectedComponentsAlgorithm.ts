@@ -45,12 +45,12 @@ export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
            that is the question asked of it.
 
            Components are numbered in the order Tarjan's walk completes them, trying each node's
-           neighbours in the order their edges were declared -- the numbering the element has
+           neighbors in the order their edges were declared -- the numbering the element has
            always published, which is what a palette keyed on the group reads. No accelerator
            computes strong components, so this is the CPU port's decision. */
         const { snapshot, run } = this.accelerated("stronglyConnectedComponents", "directed");
 
-        context.report({ phase: "Finding pieces", total: null });
+        context.report({ phase: "finding-pieces", total: null });
         const { value, precision } = await run((dispatch, s) =>
             s.directed
                 ? dispatch.stronglyConnectedComponents(s, { arcOrder: declarationArcOrder(s) })
@@ -58,7 +58,7 @@ export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
         );
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
             const index = snapshot.ids.indexOf(nodeId);
             nodes.push({ id: nodeId, values: { group: index === INVALID_INDEX ? 0 : value.labels[index] } });
         });

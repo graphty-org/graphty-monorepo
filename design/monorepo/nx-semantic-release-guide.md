@@ -1,5 +1,9 @@
 # Semantic Releases with Nx - Complete Guide
 
+> **Superseded.** This is research from before the release tool was chosen. Releases use Nx Release (`nx release`,
+> configured in `nx.json`); neither Changesets nor semantic-release is used. How releases work today:
+> `.github/workflows/README.md`.
+
 ## Overview
 
 Nx provides **Nx Release** as its built-in semantic release solution, which replaced the need for external semantic-release tools. However, you can still use traditional semantic-release with Nx if preferred.

@@ -39,6 +39,34 @@ index 9621ffe8b50ca12d8c31771becee860db899bd51..2f010b7f24cc2039a647098cfb2c3291
      let description = parsedMessage.description;
      // Extract issue and PR references from the commit
      const references = extractReferencesFromCommit(commit);
+diff --git a/dist/src/command-line/release/utils/repository-git-tags.js b/dist/src/command-line/release/utils/repository-git-tags.js
+index 42d6cf7a2a148a8c73972589ce0729db016ca598..75d29eebf4a85b86d6227caccad46c0f68334111 100644
+--- a/dist/src/command-line/release/utils/repository-git-tags.js
++++ b/dist/src/command-line/release/utils/repository-git-tags.js
+@@ -110,7 +110,8 @@ async function _RepoGitTags_alwaysCheckAllBranches(checkAllBranchesWhen) {
+             // Check if any glob pattern matches next
+             if (!alwaysCheckAllBranches) {
+                 alwaysCheckAllBranches = checkAllBranchesWhen.some((pattern) => {
+-                    const r = minimatch_1.minimatch.makeRe(pattern, { dot: true });
++                    // graphty patch (issue #7725): minimatch 11 (security floor) removed makeRe; match through minimatch() instead.
++                    const r = { test: (s) => (0, minimatch_1.minimatch)(s, pattern, { dot: true }) };
+                     if (!r) {
+                         return false;
+                     }
+diff --git a/dist/src/generators/utils/glob.js b/dist/src/generators/utils/glob.js
+index af0e4c3a456ca9e650f0796ed378ae3eb8535ca7..27266d37ab8e5c301998ff8ba13c86f2bca41b87 100644
+--- a/dist/src/generators/utils/glob.js
++++ b/dist/src/generators/utils/glob.js
+@@ -33,7 +33,8 @@ async function globAsync(tree, patterns) {
+ function combineGlobResultsWithTree(tree, patterns, results) {
+     const matches = new Set(results);
+     const combinedGlob = (0, globs_1.combineGlobPatterns)(patterns);
+-    const matcher = minimatch_1.minimatch.makeRe(combinedGlob);
++    // graphty patch (issue #7725): minimatch 11 (security floor) removed makeRe; match through minimatch() instead.
++    const matcher = { test: (s) => (0, minimatch_1.minimatch)(s, combinedGlob) };
+     if (!matcher) {
+         throw new Error('Invalid glob pattern: ' + combinedGlob);
+     }
 diff --git a/dist/src/tasks-runner/process-metrics-service.js b/dist/src/tasks-runner/process-metrics-service.js
 index 71c92ebcef00f4c833ffa7ed8911388aed06f81b..6705c620363fd62ffa7c614fa7e2ab9aa9811585 100644
 --- a/dist/src/tasks-runner/process-metrics-service.js
@@ -64,3 +92,17 @@ index 71c92ebcef00f4c833ffa7ed8911388aed06f81b..6705c620363fd62ffa7c614fa7e2ab9a
          }
          try {
              // Start collection on first subscription (idempotent - safe to call multiple times)
+diff --git a/dist/src/utils/find-matching-projects.js b/dist/src/utils/find-matching-projects.js
+index ba4e40ca3fc26599b8fc8e44606128603639527f..994bee3e93e3a0fc099a9a3267f713a636d9b5d4 100644
+--- a/dist/src/utils/find-matching-projects.js
++++ b/dist/src/utils/find-matching-projects.js
+@@ -201,7 +201,8 @@ exports.getMatchingStringsWithCache = (() => {
+         }
+         const patternCache = minimatchCache.get(pattern);
+         if (!regexCache.has(pattern)) {
+-            const regex = minimatch_1.minimatch.makeRe(pattern, { dot: true });
++            // graphty patch (issue #7725): minimatch 11 (security floor) removed makeRe; match through minimatch() instead.
++            const regex = { test: (s) => (0, minimatch_1.minimatch)(s, pattern, { dot: true }) };
+             if (regex) {
+                 regexCache.set(pattern, regex);
+             }

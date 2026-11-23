@@ -320,7 +320,7 @@ console.log(counts.join(", "));
 <!-- generated:begin output:saving/shared-options -->
 
 ```text
-json 107/352, graphml 107/352, gexf 107/352, csv 107/352, gml 107/352, dot 107/352, pajek 107/352, neo4j 107/352, xgmml 107/352, cx2 107/352, cx 107/352, obo 107/352, cys 107/352
+json 107/352, graphml 107/352, gexf 107/352, csv 107/352, gml 107/352, dot 107/352, pajek 107/352, neo4j 107/352, xgmml 107/352, cx2 107/352, cx 107/352, obo 107/352, cys 107/352, sif 107/352
 ```
 
 <!-- generated:end -->

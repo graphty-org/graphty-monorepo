@@ -38,7 +38,7 @@ Replayed from the previous pass's success walk; all 11 steps matched the screen.
   on Staff" and took the colleague's orange away.
 - A click on Undo and then Ctrl+Z (`touched-1/09.png`, `10.png`): nothing changes; the orange on
   Staff stays (4 of 14), the filter card stays. Redo reads "Nothing to redo" (`touched-1/11.png`):
-  the cancelled card never comes back.
+  the canceled card never comes back.
 - Carried on to the task's end from there (`touched-1/12.png`, `13.png`): 10 of 24, Which nodes 6
   of 10, the same answer as the success path.
 

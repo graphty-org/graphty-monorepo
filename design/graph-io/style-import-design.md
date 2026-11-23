@@ -542,7 +542,7 @@ Rules for every reader:
 
 **Defaults of the writing tool.** A file states only what differs from its writer's defaults, or
 less: a Cytoscape session omits what the style leaves unset, a DOT file draws every node as an
-unfilled black ellipse labelled with its name unless it says otherwise, a yFiles 3 file writes only
+unfilled black ellipse labeled with its name unless it says otherwise, a yFiles 3 file writes only
 what differs from the style's defaults. Drawn with graphty's own defaults instead, the graph would
 not look as it does in the program that made it. So each style reader identifies the writing tool
 and adds that tool's defaults for every property the file leaves unset. The values, their sources
@@ -896,7 +896,7 @@ Required before file styles ship:
    typography can only be `set`, so each distinct value needs a layer: the import spends at most 8
    label layers per kind (a declared mapping on one column gets one layer per key; else one per
    distinct tuple; else one per group of fields plus the most common values covering at least
-   max(3, 5%) of the labelled elements), and draws the rest as the nearest kept value, noted per
+   max(3, 5%) of the labeled elements), and draws the rest as the nearest kept value, noted per
    element. This is the main remaining approximation: 1,230 label values in the real-file corpus
    (12,800 over all corpora with the mutants), almost all label sizes from Cytoscape continuous
    mappings.

@@ -79,6 +79,23 @@ export const SPEC: Record<string, Spec> = {
     "pr.oldest_open": { id: "pull-requests.oldest_open", unit: "h", k: toH, link: "/pull-requests" },
     "pr.merge_ratio": { id: "pull-requests.merge_ratio", unit: "ratio", link: "/pull-requests" },
     "pr.caused_failures": { id: "pull-requests.caused_failures", unit: "pct", k: PCT, link: "/pull-requests" },
+    // Issue grouping (design/ci/issue-grouping.md section 9).
+    "pr.issues_per_merge": { id: "pull-requests.issues_per_merge", unit: "ratio", link: "/pull-requests" },
+    "pr.multi_issue_share": { id: "pull-requests.multi_issue_share", unit: "pct", k: PCT, link: "/pull-requests" },
+    "pr.runner_minutes_per_issue": {
+        id: "pull-requests.runner_minutes_per_issue",
+        unit: "min",
+        link: "/ci/runner-minutes",
+    },
+    "pr.group_released_share": {
+        id: "pull-requests.group_released_share",
+        unit: "pct",
+        k: PCT,
+        link: "/pull-requests",
+        now: true,
+    },
+    "pr.groups_ready": { id: "pull-requests.groups_ready", link: "/pull-requests", now: true },
+    "pr.groups_combinable": { id: "pull-requests.groups_combinable", link: "/pull-requests", now: true },
     "pr.automerge_green_stuck": { id: "pull-requests.automerge_green_stuck", link: "/pull-requests" },
     "pr.automerge_armed_long": { id: "pull-requests.automerge_armed_long", link: "/pull-requests" },
     "pr.screenshot_backlog": {
@@ -103,6 +120,7 @@ export const SPEC: Record<string, Spec> = {
     "ci.bins_over_8": { id: "ci.bins_over", unit: "pct", k: PCT, link: "/ci/shards" },
     "ci.reruns": { id: "ci.reruns", unit: "pct", k: PCT, link: "/ci" },
     "ci.full_shards_over_budget": { id: "ci.shards_over", link: "/ci/shards" },
+    "ci.full_group_deadline": { id: "ci.group_deadline", unit: "pct", k: PCT, link: "/ci/shards" },
     "ci.runner_minutes_per_merge": { id: "ci.runner_minutes", unit: "min", link: "/ci/runner-minutes" },
     "ci.superseded_running": { id: "ci.superseded", link: "/ci/runners/superseded" },
     "ci.chronic_jobs": {
@@ -171,6 +189,91 @@ export const SPEC: Record<string, Spec> = {
     "cost.t4": { id: "costs.t4", unit: "usd", link: "/costs" },
     "cost.llm": { id: "costs.llm", unit: "usd", link: "/costs" },
     "cost.aws": { id: "costs.aws", unit: "usd", link: "/costs" },
+    "cost.cloudflare": { id: "costs.cloudflare", unit: "usd", link: "/costs" },
+    "cost.usage_cf_requests": {
+        id: "costs.usage_cf_requests",
+        unit: "pct",
+        k: PCT,
+        link: "/costs",
+        now: true,
+        also: { "usage.cf_requests_growth": (v) => f("cost.usage_growth.note", { x: round(v * 100) / 100 }) },
+    },
+    "cost.usage_cf_d1_rows_read": {
+        id: "costs.usage_cf_d1_rows_read",
+        unit: "pct",
+        k: PCT,
+        link: "/costs",
+        now: true,
+        also: { "usage.cf_d1_rows_read_growth": (v) => f("cost.usage_growth.note", { x: round(v * 100) / 100 }) },
+    },
+    "cost.usage_cf_d1_rows_written": {
+        id: "costs.usage_cf_d1_rows_written",
+        unit: "pct",
+        k: PCT,
+        link: "/costs",
+        now: true,
+        also: { "usage.cf_d1_rows_written_growth": (v) => f("cost.usage_growth.note", { x: round(v * 100) / 100 }) },
+    },
+    "cost.usage_cf_r2_class_a": {
+        id: "costs.usage_cf_r2_class_a",
+        unit: "pct",
+        k: PCT,
+        link: "/costs",
+        now: true,
+        also: { "usage.cf_r2_class_a_growth": (v) => f("cost.usage_growth.note", { x: round(v * 100) / 100 }) },
+    },
+    "cost.usage_cf_r2_class_b": {
+        id: "costs.usage_cf_r2_class_b",
+        unit: "pct",
+        k: PCT,
+        link: "/costs",
+        now: true,
+        also: { "usage.cf_r2_class_b_growth": (v) => f("cost.usage_growth.note", { x: round(v * 100) / 100 }) },
+    },
+    "cost.usage_cf_r2_storage_bytes": {
+        id: "costs.usage_cf_r2_storage_bytes",
+        unit: "pct",
+        k: PCT,
+        link: "/costs",
+        now: true,
+        also: { "usage.cf_r2_storage_bytes_growth": (v) => f("cost.usage_growth.note", { x: round(v * 100) / 100 }) },
+    },
+    "cost.usage_aws_dynamo_write_units": {
+        id: "costs.usage_aws_dynamo_write_units",
+        unit: "pct",
+        k: PCT,
+        link: "/costs",
+        now: true,
+        also: {
+            "usage.aws_dynamo_write_units_growth": (v) => f("cost.usage_growth.note", { x: round(v * 100) / 100 }),
+        },
+    },
+    "cost.usage_aws_dynamo_read_units": {
+        id: "costs.usage_aws_dynamo_read_units",
+        unit: "pct",
+        k: PCT,
+        link: "/costs",
+        now: true,
+        also: { "usage.aws_dynamo_read_units_growth": (v) => f("cost.usage_growth.note", { x: round(v * 100) / 100 }) },
+    },
+    "cost.usage_aws_lambda_invocations": {
+        id: "costs.usage_aws_lambda_invocations",
+        unit: "pct",
+        k: PCT,
+        link: "/costs",
+        now: true,
+        also: {
+            "usage.aws_lambda_invocations_growth": (v) => f("cost.usage_growth.note", { x: round(v * 100) / 100 }),
+        },
+    },
+    "cost.usage_aws_api_requests": {
+        id: "costs.usage_aws_api_requests",
+        unit: "pct",
+        k: PCT,
+        link: "/costs",
+        now: true,
+        also: { "usage.aws_api_requests_growth": (v) => f("cost.usage_growth.note", { x: round(v * 100) / 100 }) },
+    },
     "cost.cloudflare_usage": { id: "costs.cloudflare_usage", unit: "pct", k: PCT, link: "/data-sources/not-set-up" },
     "cost.sentry_usage": { id: "costs.sentry_usage", unit: "pct", k: PCT, link: "/data-sources/not-set-up" },
     "data.stress_run": {
@@ -187,6 +290,7 @@ export const SPEC: Record<string, Spec> = {
     "data.collector": { id: "data-sources.collector", unit: "min", k: toMin, ago: true, link: "/data-sources/sources" },
     "data.rate_limit": { id: "data-sources.app_rate", unit: "pct", k: PCT, link: "/data-sources/sources" },
     "data.write_budget": { id: "data-sources.write_budget", unit: "pct", k: PCT, link: "/data-sources/sources" },
+    "data.read_budget": { id: "data-sources.read_budget", unit: "pct", k: PCT, link: "/data-sources/sources" },
 };
 
 /**
@@ -534,6 +638,17 @@ async function sparkOf(reads: Reads, c: MemberConfig, spec: Spec, range: Range):
 }
 
 /**
+ * The tests flaky.no_issue counts, by name (#8795).
+ * @param reads - the store reads shared by this build
+ * @param s - the member's status
+ * @returns the note, or undefined when it counts none
+ */
+async function untrackedNote(reads: Reads, s: MemberStatus): Promise<Fact | undefined> {
+    const tests = s.value ? await readSnapshot(reads.store, "flaky-no-issue") : undefined;
+    return tests?.length ? f("note.flaky_no_issue", { tests }) : undefined;
+}
+
+/**
  * What is known about a member now, under its definition: the pull requests behind a PR count, and how many
  * chronically failing jobs have no open issue (that, not the count, turns the row red).
  * @param reads - the store reads shared by this build
@@ -544,6 +659,12 @@ async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> 
     if (s.id === "ci.chronic_jobs") {
         const n = s.facts?.["ci.chronic_no_issue"];
         return n ? f("note.chronic_no_issue", { n }) : undefined;
+    }
+    if (s.id === "pr.groups_combinable") {
+        return combinableNote(reads);
+    }
+    if (s.id === "flaky.no_issue") {
+        return untrackedNote(reads, s);
     }
     if (s.id === "flaky.net_new") {
         const added = s.facts?.["flaky.net_added"];
@@ -561,6 +682,20 @@ async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> 
     }
     const list = (s.id === "pr.automerge_green_stuck" ? prs?.greenStuck : prs?.armedLong) ?? [];
     return list.length ? f("note.prs", { prs: list }) : undefined;
+}
+
+/**
+ * The branches the combinable families hold, from the ledger's newest daily reading in 7 days.
+ * @param reads - the store reads shared by this build
+ * @returns the note, or undefined when no reading carries the count
+ */
+async function combinableNote(reads: Reads): Promise<Fact | undefined> {
+    const today = floorTo(reads.now, "1d");
+    const days = await reads.series("issues.groups_combinable_branches", "1d", today - 6 * DAY, today);
+    const newest = [...days.values()]
+        .filter((b) => b.lastAt !== undefined)
+        .sort((a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0))[0];
+    return newest?.last === undefined ? undefined : f("note.combinable_branches", { n: newest.last });
 }
 
 /**

@@ -1,0 +1,17 @@
+id: data-table-panel
+name: Data Table Panel
+category: display
+description: "Panel listing nodes or edges as rows with their attributes as columns, sortable and linked to the canvas selection."
+status: implemented
+notes: "Ships: graphty/src/workspace/table/TableDock.tsx."
+implements_capabilities:
+    - details-on-demand
+    - node-selection
+used_in_workflows:
+    - W20
+dependencies: []
+props: {}
+sources: []
+version: 1.0.0
+created_at: 2026-11-18T07:06:16.000Z
+updated_at: 2026-11-18T07:06:16.000Z

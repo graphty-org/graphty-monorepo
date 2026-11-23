@@ -42,14 +42,6 @@
                 "cwd": "algorithms"
             }
         },
-        "semantic-release": {
-            "executor": "nx:run-commands",
-            "dependsOn": ["build"],
-            "options": {
-                "command": "semantic-release",
-                "cwd": "algorithms"
-            }
-        },
         "benchmark": {
             "executor": "nx:run-commands",
             "options": {

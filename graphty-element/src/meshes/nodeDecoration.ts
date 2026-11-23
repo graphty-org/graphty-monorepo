@@ -1,7 +1,7 @@
 /**
  * @file The pieces drawn over a node's face: a pie's slices, a striped fill's bands and an image's
  * placement (`pie`, `stripes` and `image` of a node style), as plain geometry in the node's own
- * plane, centred on the node, y up. No Babylon.js, so it is tested on its own.
+ * plane, centered on the node, y up. No Babylon.js, so it is tested on its own.
  */
 import type { NodeStyleConfig } from "../config";
 import { toColorValue } from "../session/styles/channels";
@@ -14,6 +14,8 @@ export interface ColorPiece {
     readonly rgb: readonly [number, number, number];
     /** 0..1. */
     readonly opacity: number;
+    /** A color for each point of its outline in place of `rgb`, blended between them: a gradient. */
+    readonly vertexRgb?: readonly (readonly [number, number, number])[];
 }
 
 /** A box in the node's plane, y up. */
@@ -143,7 +145,7 @@ export function pieSlices(pie: NodeStyleConfig["pie"], width: number, height: nu
 /**
  * A striped fill's bands over a node `width` x `height`: bands following one another top to bottom
  * (`direction` "down", the default) or left to right ("right"), each its share of the box, over a
- * box `size` times the node's, centred on it.
+ * box `size` times the node's, centered on it.
  * @param stripes - The node style's stripes block.
  * @param width - The node's width.
  * @param height - Its height.
@@ -522,31 +524,76 @@ export function shapeLinePieces(
 
 /**
  * A table label's backgrounds (`BGCOLOR`) as filled boxes, in the order given, each box in fractions of the node's
- * half width and half height, y up; a color that cannot be read is dropped.
- * @param fills - The boxes and their colors.
+ * half width and half height, y up; a rounded one filled inside its outline, a gradient one blended from its color to
+ * the gradient's across its box; a color that cannot be read is dropped.
+ * @param fills - The boxes, their colors, gradients and outlines.
  * @param width - The face's width.
  * @param height - Its height.
  * @returns The pieces.
  */
 export function tableFillPieces(
-    fills: readonly { readonly box: PieceBox; readonly color: string }[],
+    fills: readonly {
+        readonly box: PieceBox;
+        readonly color: string;
+        readonly gradient?: { readonly to: string; readonly angle: number };
+        readonly outline?: readonly (readonly [number, number])[];
+    }[],
     width: number,
     height: number,
 ): (ColorPiece & { readonly box: PieceBox })[] {
     const [hw, hh] = [width / 2, height / 2];
-    return fills.flatMap(({ box: b, color }) => {
+    return fills.flatMap(({ box: b, color, gradient, outline: drawn }) => {
         const c = paint(color);
         if (c === null) {
             return [];
         }
         const box = { x0: b.x0 * hw, y0: b.y0 * hh, x1: b.x1 * hw, y1: b.y1 * hh };
-        const outline: Point2[] = [
-            [box.x0, box.y0],
-            [box.x1, box.y0],
-            [box.x1, box.y1],
-            [box.x0, box.y1],
-        ];
-        return [{ outline, box, ...c }];
+        // a rounded outline is laid clockwise on screen; the pieces are counter-clockwise
+        const outline: Point2[] =
+            drawn === undefined
+                ? [
+                      [box.x0, box.y0],
+                      [box.x1, box.y0],
+                      [box.x1, box.y1],
+                      [box.x0, box.y1],
+                  ]
+                : drawn.map(([x, y]): Point2 => [x * hw, y * hh]).reverse();
+        const to = gradient === undefined ? null : paint(gradient.to);
+        if (gradient === undefined || to === null) {
+            return [{ outline, box, ...c }];
+        }
+        return [{ outline, box, ...c, vertexRgb: gradientColors(outline, box, c.rgb, to.rgb, gradient.angle) }];
+    });
+}
+
+/**
+ * The colors of a linear gradient at each point of an outline: from one color at the box's middle less half its width
+ * times the angle's cosine and half its height times its sine (y down), to the other as far the other way, as a node's
+ * gradient runs over its box; held at the end colors past them.
+ * @param outline - The points, y up.
+ * @param box - The box the gradient runs over, y up.
+ * @param from - Its first color.
+ * @param to - Its last color.
+ * @param angle - Which way it runs, in degrees clockwise on screen from left to right.
+ * @returns A color for each point.
+ */
+function gradientColors(
+    outline: readonly Point2[],
+    box: PieceBox,
+    from: readonly [number, number, number],
+    to: readonly [number, number, number],
+    angle: number,
+): [number, number, number][] {
+    const a = (angle * Math.PI) / 180;
+    const [w, h] = [box.x1 - box.x0, box.y1 - box.y0];
+    // ponytail: colors blend linearly between points, so a gradient held at its ends (a diagonal one past a box's
+    // corners) blends a little off inside; exact at 0, 90, 180 and 270 degrees
+    return outline.map(([x, y]) => {
+        const u = w > 0 ? (x - box.x0) / w : 0.5;
+        const v = h > 0 ? (box.y1 - y) / h : 0.5;
+        const t = Math.max(0, Math.min(1, 0.5 + (u - 0.5) * Math.cos(a) + (v - 0.5) * Math.sin(a)));
+        const mix = (i: number): number => from[i] + (to[i] - from[i]) * t;
+        return [mix(0), mix(1), mix(2)];
     });
 }
 
@@ -614,7 +661,8 @@ function numbers(text: string | undefined): number[] {
  * (bottom to top, or with `horizontal` left to right); the values' categories along the other (left to right, or top
  * to bottom), each an equal share of it after `margin` at each end and `gap` between them. Item i is drawn in color
  * i of `colors`, the last one again for the rest; a box draws its whiskers in the first color too and its median in
- * the second. A bar and a box are outlined `borderWidth` wide in `borderColor`.
+ * the second. A bar and a box are outlined `borderWidth` wide in `borderColor`. `backgroundColor` at
+ * `backgroundOpacity` fills the whole plot box under the rest, first.
  * @param chart - The node style's chart block.
  * @param width - The node's width.
  * @param height - Its height.
@@ -681,41 +729,46 @@ export function chartPieces(chart: NodeStyleConfig["chart"], width: number, heig
     const step = band + (slots > 1 ? gap / (slots - 1) : 0);
     const slot = (i: number): [number, number] => [margin + i * step, margin + i * step + band];
     const base = along(Math.max(lo, Math.min(hi, 0)));
-    switch (kind) {
-        case "bar":
-            return values.flatMap((v, i) => filled(rect(...slot(i), base, along(v)), color(i)));
-        case "stacked-bar": {
-            let sum = 0;
-            return values.flatMap((v, i) => {
-                const from = along(sum);
-                sum += Math.max(0, v);
-                return filled(rect(...slot(0), from, along(sum)), color(i));
-            });
+    const backdrop = paint(chart.backgroundColor, chart.backgroundOpacity);
+    const background: ChartPiece[] = backdrop === null ? [] : [{ outline: rect(0, 1, 0, 1), ...backdrop }];
+    const body = ((): ChartPiece[] => {
+        switch (kind) {
+            case "bar":
+                return values.flatMap((v, i) => filled(rect(...slot(i), base, along(v)), color(i)));
+            case "stacked-bar": {
+                let sum = 0;
+                return values.flatMap((v, i) => {
+                    const from = along(sum);
+                    sum += Math.max(0, v);
+                    return filled(rect(...slot(0), from, along(sum)), color(i));
+                });
+            }
+            case "cells":
+                return values.flatMap((_, i) => filled(rect(...slot(i), 0, 1), color(i)));
+            case "line": {
+                const points = values.map((v, i) => at((slot(i)[0] + slot(i)[1]) / 2, along(v)));
+                return points.slice(1).flatMap((p, i) => stroke([points[i], p], color(0)));
+            }
+            case "box": {
+                const [low, q1, median, q3, high] = [0, 1, 2, 3, 4].map((j) => values[Math.min(j, values.length - 1)]);
+                const [c0, c1] = slot(0);
+                const mid = (c0 + c1) / 2;
+                const fill = color(0);
+                return [
+                    ...stroke([at(mid, along(high)), at(mid, along(q3))], fill),
+                    ...stroke([at(c0, along(high)), at(c1, along(high))], fill),
+                    ...stroke([at(mid, along(low)), at(mid, along(q1))], fill),
+                    ...stroke([at(c0, along(low)), at(c1, along(low))], fill),
+                    ...filled(rect(c0, c1, along(q1), along(q3)), fill),
+                    ...stroke(
+                        [at(c0, along(median)), at(c1, along(median))],
+                        colors.length > 1 ? color(1) : paint("#000000"),
+                    ),
+                ];
+            }
+            default:
+                return [];
         }
-        case "cells":
-            return values.flatMap((_, i) => filled(rect(...slot(i), 0, 1), color(i)));
-        case "line": {
-            const points = values.map((v, i) => at((slot(i)[0] + slot(i)[1]) / 2, along(v)));
-            return points.slice(1).flatMap((p, i) => stroke([points[i], p], color(0)));
-        }
-        case "box": {
-            const [low, q1, median, q3, high] = [0, 1, 2, 3, 4].map((j) => values[Math.min(j, values.length - 1)]);
-            const [c0, c1] = slot(0);
-            const mid = (c0 + c1) / 2;
-            const fill = color(0);
-            return [
-                ...stroke([at(mid, along(high)), at(mid, along(q3))], fill),
-                ...stroke([at(c0, along(high)), at(c1, along(high))], fill),
-                ...stroke([at(mid, along(low)), at(mid, along(q1))], fill),
-                ...stroke([at(c0, along(low)), at(c1, along(low))], fill),
-                ...filled(rect(c0, c1, along(q1), along(q3)), fill),
-                ...stroke(
-                    [at(c0, along(median)), at(c1, along(median))],
-                    colors.length > 1 ? color(1) : paint("#000000"),
-                ),
-            ];
-        }
-        default:
-            return [];
-    }
+    })();
+    return [...background, ...body];
 }

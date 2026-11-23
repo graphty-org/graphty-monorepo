@@ -73,7 +73,10 @@ describe("the weight a run records is the one it read", () => {
         await run;
 
         assert.deepEqual(run.caveats.weight, { attribute: "conf", meaning: "strength" });
-        assert.include(run.caveats.notes, 'acme-read-weight read: edge "conf".');
+        assert.deepInclude(run.caveats.facts, {
+            code: "defined.inputs-read",
+            params: { algorithm: "acme-read-weight", targets: ["edge"], paths: ["conf"] },
+        });
     });
 
     it("records no weight when the declared weight was never read", async () => {
@@ -110,8 +113,25 @@ describe("the weight a run records is the one it read", () => {
         const run = element.run("acme-fixed-path");
         await run;
 
-        assert.include(run.caveats.notes, 'acme-fixed-path read: edge "conf".');
+        assert.deepInclude(run.caveats.facts, {
+            code: "defined.inputs-read",
+            params: { algorithm: "acme-fixed-path", targets: ["edge"], paths: ["conf"] },
+        });
         assert.isNull(run.caveats.weight, "a number read is an attribute, not a weight");
+    });
+});
+
+describe("a function that measures nothing", () => {
+    it("says so as a coded fact", async () => {
+        defineAlgorithm({ id: "acme-nothing", node: () => Number.NaN });
+
+        const run = element.run("acme-nothing");
+        await run;
+
+        assert.deepInclude(run.caveats.facts, {
+            code: "defined.nothing-measured",
+            params: { algorithm: "acme-nothing", kind: "node" },
+        });
     });
 });
 
@@ -138,7 +158,12 @@ describe("a function that holds the page", () => {
 
             const advice =
                 "acme-spin: nodes() held the page for over 200 ms at a time; await context.progress(i / n) inside its loop.";
-            assert.include(run.caveats.notes, advice);
+            assert.deepInclude(run.caveats.facts, {
+                code: "defined.long-task",
+                params: { algorithm: "acme-spin", member: "nodes", ms: 200 },
+            });
+            // The fact is for a reader's application; the console warning is for the author.
+            assert.notInclude(run.caveats.notes, advice);
             assert.include(warned, advice);
         } finally {
             console.warn = original;
@@ -183,9 +208,10 @@ describe("parallel edges and self-loops", () => {
         const run = element.run("acme-count");
         const result = await run;
 
-        assert.isFalse(
-            run.caveats.notes.some((note) => note.includes("merged")),
-            `no merge note; the notes are ${JSON.stringify(run.caveats.notes)}`,
+        assert.notInclude(
+            run.caveats.facts.map((fact) => fact.code),
+            "parallel-edges.merged",
+            "no merge fact",
         );
         assert.strictEqual(result.node("b")?.value, 4, "b touches a-b twice, b-a and c-b");
     });

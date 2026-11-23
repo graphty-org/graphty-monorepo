@@ -19,7 +19,7 @@ const IDS = (LES_MISERABLES.ids ?? []).map(String);
  * @returns The session and the layer's id.
  */
 async function painted(): Promise<{ session: GraphSession; red: string }> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     await session.data.addNodes(IDS.map((id) => ({ id })));
     await session.data.addEdges(
         [...LES_MISERABLES.src].map((src, e) => ({ source: IDS[src], target: IDS[LES_MISERABLES.dst[e]] })),
@@ -360,7 +360,7 @@ describe("the cost of a branches view", () => {
         const { assertScalesLinearly, visitsDuring } = await import("../../helpers/cost");
         await assertScalesLinearly(
             async (size) => {
-                const session = createGraphSession();
+                const session = createGraphSession({ workingGraph: false });
                 const ids = Array.from({ length: size }, (_, at) => `n${String(at)}`);
                 await session.data.addNodes(ids.map((id) => ({ id })));
                 await session.data.addEdges(ids.slice(1).map((id, at) => ({ source: ids[at], target: id })));

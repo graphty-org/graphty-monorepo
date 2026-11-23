@@ -1,0 +1,305 @@
+{
+  "format": "sif",
+  "description": "SIF (Cytoscape's Simple Interaction Format): Cytoscape's own reader test files, with the node and edge counts and interactions its SIFNetworkViewReaderTest asserts, and authored cases of the rules in the Cytoscape manual (tab versus space separation, one-to-many lines, single-name nodes).",
+  "fixtures": [
+    {
+      "file": "cytoscape/typical.sif",
+      "origin": "https://github.com/cytoscape/cytoscape-impl/blob/6c63e97c5152516678afc2ed4579a801587e26ea/io-impl/impl/src/test/resources/testData/sif/typical.sif",
+      "license": "LGPL-2.1-or-later (test-only, never published)",
+      "version": "cytoscape-impl 6c63e97c",
+      "exercises": "space-separated lines, one line with three targets, a self-loop",
+      "oracle": "cytoscape-impl SIFNetworkViewReaderTest",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 31,
+        "edges": 27,
+        "edgeChecks": [
+          {
+            "source": "YNL312W",
+            "target": "YPL111W"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "YNL312W",
+            "target": "YPL111W",
+            "column": "interaction",
+            "value": "pd"
+          }
+        ]
+      }
+    },
+    {
+      "file": "cytoscape/degenerate.sif",
+      "origin": "https://github.com/cytoscape/cytoscape-impl/blob/6c63e97c5152516678afc2ed4579a801587e26ea/io-impl/impl/src/test/resources/testData/sif/degenerate.sif",
+      "license": "LGPL-2.1-or-later (test-only, never published)",
+      "version": "cytoscape-impl 6c63e97c",
+      "exercises": "single names only: nodes with no edges",
+      "oracle": "cytoscape-impl SIFNetworkViewReaderTest",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 9,
+        "edges": 0
+      }
+    },
+    {
+      "file": "cytoscape/orphanFirst.sif",
+      "origin": "https://github.com/cytoscape/cytoscape-impl/blob/6c63e97c5152516678afc2ed4579a801587e26ea/io-impl/impl/src/test/resources/testData/sif/orphanFirst.sif",
+      "license": "LGPL-2.1-or-later (test-only, never published)",
+      "version": "cytoscape-impl 6c63e97c",
+      "exercises": "a lone node first, then a tab-separated line",
+      "oracle": "cytoscape-impl SIFNetworkViewReaderTest",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 4,
+        "edges": 1,
+        "edgeAttrs": [
+          {
+            "source": "YNL314W",
+            "target": "YIR028W",
+            "column": "interaction",
+            "value": "pd"
+          }
+        ]
+      }
+    },
+    {
+      "file": "cytoscape/multiWordProteins.sif",
+      "origin": "https://github.com/cytoscape/cytoscape-impl/blob/6c63e97c5152516678afc2ed4579a801587e26ea/io-impl/impl/src/test/resources/testData/sif/multiWordProteins.sif",
+      "license": "LGPL-2.1-or-later (test-only, never published)",
+      "version": "cytoscape-impl 6c63e97c",
+      "exercises": "tab-separated names with spaces, repeated lines (parallel edges)",
+      "oracle": "cytoscape-impl SIFNetworkViewReaderTest",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 28,
+        "edges": 31,
+        "edgeAttrs": [
+          {
+            "source": "26S ubiquitin dependent proteasome",
+            "target": "I-kappa-B-alpha",
+            "column": "interaction",
+            "value": "interactsWith"
+          },
+          {
+            "source": "TRAF6",
+            "target": "HJKOL coltrane",
+            "column": "interaction",
+            "value": "interactsWith"
+          }
+        ]
+      }
+    },
+    {
+      "file": "cytoscape/multiWordProteinsFileTrailingSpaces.sif",
+      "origin": "https://github.com/cytoscape/cytoscape-impl/blob/6c63e97c5152516678afc2ed4579a801587e26ea/io-impl/impl/src/test/resources/testData/sif/multiWordProteinsFileTrailingSpaces.sif",
+      "license": "LGPL-2.1-or-later (test-only, never published)",
+      "version": "cytoscape-impl 6c63e97c",
+      "exercises": "the same with spaces before the tabs, trimmed",
+      "oracle": "cytoscape-impl SIFNetworkViewReaderTest",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 28,
+        "edges": 31,
+        "edgeAttrs": [
+          {
+            "source": "TRAF6",
+            "target": "ABCDE oopah",
+            "column": "interaction",
+            "value": "interactsWith"
+          }
+        ]
+      }
+    },
+    {
+      "file": "cytoscape/SIF-Japanese.sif",
+      "origin": "https://github.com/cytoscape/cytoscape-impl/blob/6c63e97c5152516678afc2ed4579a801587e26ea/io-impl/impl/src/test/resources/testData/sif/SIF-Japanese.sif",
+      "license": "LGPL-2.1-or-later (test-only, never published)",
+      "version": "cytoscape-impl 6c63e97c",
+      "exercises": "non-ASCII names and interactions, CRLF line ends, no final line end",
+      "oracle": "cytoscape-impl SIFNetworkViewReaderTest",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 6,
+        "edges": 3,
+        "edgeAttrs": [
+          {
+            "source": "\u3053\u308c\u306f",
+            "target": "\u30c6\u30b9\u30c8\u3067\u3059",
+            "column": "interaction",
+            "value": "\u65e5\u672c\u8a9e\u306e"
+          },
+          {
+            "source": "mixed",
+            "target": "English",
+            "column": "interaction",
+            "value": "with"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/one_to_many.sif",
+      "origin": "authored for graph-io",
+      "license": "MIT (authored)",
+      "version": "authored 2026-11-18",
+      "exercises": "a line with several targets is one edge per target",
+      "oracle": "spec (Cytoscape manual, SIF)",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 4,
+        "edges": 4,
+        "nodeIds": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "edgeAttrs": [
+          {
+            "source": "A",
+            "target": "D",
+            "column": "interaction",
+            "value": "pp"
+          },
+          {
+            "source": "B",
+            "target": "C",
+            "column": "interaction",
+            "value": "pd"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/tabs_names_with_spaces.sif",
+      "origin": "authored for graph-io",
+      "license": "MIT (authored)",
+      "version": "authored 2026-11-18",
+      "exercises": "a file with a tab splits on tabs only: names and interactions keep their spaces",
+      "oracle": "spec (Cytoscape manual, SIF)",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 3,
+        "edges": 1,
+        "nodeIds": [
+          "IRAK Complex",
+          "TRAF6",
+          "lone node"
+        ],
+        "edgeAttrs": [
+          {
+            "source": "IRAK Complex",
+            "target": "TRAF6",
+            "column": "interaction",
+            "value": "interacts with"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/no_target.sif",
+      "origin": "authored for graph-io",
+      "license": "MIT (authored)",
+      "version": "authored 2026-11-18",
+      "exercises": "an interaction without a target keeps its node and warns; by content a two-field line reads as a CSV edge list",
+      "oracle": "spec (Cytoscape manual, SIF)",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 3,
+        "edges": 1,
+        "warnings": [
+          "W_SIF_NO_TARGET"
+        ]
+      },
+      "sniffByContentAs": "csv"
+    },
+    {
+      "file": "authored/crlf_blank_lines.sif",
+      "origin": "authored for graph-io",
+      "license": "MIT (authored)",
+      "version": "authored 2026-11-18",
+      "exercises": "CRLF line ends and a blank line",
+      "oracle": "spec (Cytoscape manual, SIF)",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 3,
+        "edges": 2
+      }
+    },
+    {
+      "file": "authored/parallel_edges.sif",
+      "origin": "authored for graph-io",
+      "license": "MIT (authored)",
+      "version": "authored 2026-11-18",
+      "exercises": "a repeated line is a second edge",
+      "oracle": "spec (Cytoscape manual, SIF)",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 2,
+        "edges": 2
+      }
+    },
+    {
+      "file": "authored/numeric_ids.sif",
+      "origin": "authored for graph-io",
+      "license": "MIT (authored)",
+      "version": "authored 2026-11-18",
+      "exercises": "integer names read as numbers under the canonical id rule; by content every line is `a b <number>`, a headerless weighted edge list",
+      "oracle": "spec (Cytoscape manual, SIF)",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 3,
+        "edges": 2,
+        "nodeIds": [
+          1,
+          2,
+          10
+        ]
+      },
+      "sniffByContentAs": "csv"
+    },
+    {
+      "file": "authored/empty.sif",
+      "origin": "authored for graph-io",
+      "license": "MIT (authored)",
+      "version": "authored 2026-11-18",
+      "exercises": "an empty file is an empty network",
+      "oracle": "spec (Cytoscape manual, SIF)",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 0,
+        "edges": 0
+      },
+      "sniffByContentAs": null
+    },
+    {
+      "file": "authored/single_line.sif",
+      "origin": "authored for graph-io",
+      "license": "MIT (authored)",
+      "version": "authored 2026-11-18",
+      "exercises": "one interaction line: too little to recognize by content, so only the .sif name tells",
+      "oracle": "spec (Cytoscape manual, SIF)",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 2,
+        "edges": 1
+      },
+      "sniffByContentAs": null
+    }
+  ]
+}

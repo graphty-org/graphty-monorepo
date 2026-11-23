@@ -1,14 +1,9 @@
 /**
  * Dimension Switch Regression Test
  *
- * Regression test for the bug where nodes disappear when switching between
- * 2D and 3D modes via the setDimension AI command.
- *
- * Root cause: When meshCache.clear() was called during dimension switch,
- * node meshes were disposed. However, Node.update() only called updateStyle()
- * if there were style changes pending, so disposed meshes were never recreated.
- *
- * Fix: Added a check in Node.update() to recreate disposed meshes.
+ * Switching between 2D and 3D through the setDimension AI command clears the mesh cache. Every
+ * node must still have a live mesh afterwards, and every edge must still be drawn: a line with
+ * length, read through the edge's public drawn state.
  *
  * @module test/browser/ai/dimension-switch-regression
  */
@@ -191,13 +186,9 @@ describe("Dimension Switch Regression Test", () => {
         });
     });
 
-    describe("edge meshes remain valid after dimension switch", () => {
-        it("edge meshes should remain valid after switching to 2D", async () => {
-            const dataManager = graph.getDataManager();
-            const edges = Array.from(dataManager.edges.values());
-
-            // Verify initial state
-            assert.strictEqual(edges.length, 5, "Should have 5 edges");
+    describe("edges remain drawn after dimension switch", () => {
+        it("every edge is still drawn after switching to 2D", async () => {
+            assert.strictEqual(graph.getDataManager().edges.size, 5, "Should have 5 edges");
 
             // Switch to 2D
             const provider = getProvider();
@@ -206,25 +197,19 @@ describe("Dimension Switch Regression Test", () => {
                 toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "2d" } }],
             });
 
-            await graph.aiCommand("switch to 2D");
+            const result = await graph.aiCommand("switch to 2D");
+            assert.strictEqual(result.success, true, `setDimension should succeed: ${result.message}`);
 
-            // Verify edge meshes are still valid
-            let disposedEdges = 0;
+            // The edges the graph holds now, each read through what it draws: a batched line
+            // shares one mesh with every edge of its look, so a mesh check says nothing per edge.
+            const edges = Array.from(graph.getDataManager().edges.values());
+            assert.strictEqual(edges.length, 5, "the switch keeps every edge");
             for (const edge of edges) {
-                // Edge mesh might be PatternedLineMesh which doesn't have isDisposed
-                // Check if it's a regular AbstractMesh first
-                if ("isDisposed" in edge.mesh && typeof edge.mesh.isDisposed === "function") {
-                    if (edge.mesh.isDisposed()) {
-                        disposedEdges++;
-                    }
-                }
+                const line = edge.drawnLine;
+                assert.isNotNull(line, `edge ${edge.id} is drawn`);
+                assert.isAbove(line?.length ?? 0, 0, `edge ${edge.id} is drawn with length`);
+                assert.isAbove(line?.visibility ?? 0, 0, `edge ${edge.id} is visible`);
             }
-
-            assert.strictEqual(
-                disposedEdges,
-                0,
-                `No edge meshes should be disposed, but ${disposedEdges} were disposed`,
-            );
         });
     });
 });

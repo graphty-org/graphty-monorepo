@@ -30,6 +30,7 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import { WITHDRAWN_CAPABILITIES } from "../../src/catalog/unreachable";
 import { EdgeStyle } from "../../src/config/EdgeStyle";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import type { GraphSession } from "../../src/session";
 import { isChannel } from "../../src/session/styles/channels";
 
@@ -120,7 +121,9 @@ describe("an edge tooltip, withdrawn in 2.0", () => {
 
         assert.isNotEmpty(edges, "the graph holds no edge, so this file measured nothing");
 
-        const pickable = edges.filter((edge) => edge.mesh.isPickable).map((edge) => edge.mesh.name);
+        // a patterned line has no mesh of its own to pick
+        const meshes = edges.flatMap((edge) => (edge.mesh instanceof PatternedLineMesh ? [] : [edge.mesh]));
+        const pickable = meshes.filter((mesh) => mesh.isPickable).map((mesh) => mesh.name);
 
         assert.deepStrictEqual(
             pickable,

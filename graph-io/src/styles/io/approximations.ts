@@ -6,6 +6,7 @@
 import type { LossNote } from "../../types.js";
 import { STYLE_ISSUE } from "../codes.js";
 import type { StyleTarget } from "../types.js";
+import { isStyleProperty } from "../vocabulary.js";
 
 /** Counts the values written as the nearest value a format holds, per target and property. */
 export class StyleApproximations {
@@ -40,7 +41,7 @@ export class StyleApproximations {
                 message: `${target} ${property} is written as the nearest value ${holder} has for ${String(a.count)} ${target}${a.count === 1 ? "" : "s"} (${[...a.samples].join(", ")}); the graphty.styles block keeps the exact value`,
                 column: null,
                 count: a.count,
-                style: Object.freeze({ target, property: property as never }),
+                style: isStyleProperty(target, property) ? Object.freeze({ target, property }) : undefined,
             });
         });
     }

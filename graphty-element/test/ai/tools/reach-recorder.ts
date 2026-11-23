@@ -20,17 +20,21 @@ const SESSION_PARTS: Readonly<Record<string, string>> = {
     scope: "ScopeApi",
     sets: "SetsApi",
     notes: "NotesApi",
+    groups: "GroupsApi",
     selection: "SelectionApi",
     visibility: "VisibilityApi",
     styles: "StylesApi",
     views: "SessionViews",
+    tours: "SessionTours",
     layout: "SessionLayout",
     positions: "SessionPositions",
+    hidden: "SessionHidden",
     config: "SessionConfig",
     history: "SessionHistory",
     project: "ProjectApi",
     time: "TimeApi",
     shaders: "SessionShaders",
+    assets: "AssetsApi",
 };
 
 /** The root a call's result is, by the root and member called. */

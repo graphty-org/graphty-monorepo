@@ -41,9 +41,10 @@ describe("a camera turn after a switch to 3D", () => {
     /**
      * Switch to 3D, optionally turn the camera on the next frame, and let the layout settle.
      * @param turn - Place a rotation-only camera state on the frame after the switch.
-     * @returns The camera distance once everything settled.
+     * @returns The camera distance once everything settled, and the distance a fresh fit of the
+     *     settled graph gives from the same view.
      */
-    async function switchTo3d(turn: boolean): Promise<number> {
+    async function switchTo3d(turn: boolean): Promise<{ framed: number; fit: number }> {
         await graph.setViewMode("3d");
         if (turn) {
             await nextFrame();
@@ -52,12 +53,23 @@ describe("a camera turn after a switch to 3D", () => {
 
         await graph.waitForSettled();
         await graph.waitForStableFrame();
-        const distance = graph.getCameraState().cameraDistance;
-        assert.isDefined(distance);
-        return distance;
+        const framed = graph.getCameraState().cameraDistance;
+        // Move the camera off, so the fit below is seen to land rather than to leave it in place.
+        await graph.setCameraState({ cameraDistance: 1 });
+        graph.zoomToFit();
+        await graph.waitForStableFrame();
+        const fit = graph.getCameraState().cameraDistance;
+        assert.isDefined(framed);
+        assert.isDefined(fit);
+        return { framed, fit };
     }
 
     it("frames the settled graph on every 2D -> 3D switch, as a switch with no turn does", async () => {
+        // A 3D fit depends on the view: the camera stands as far out as the box needs along its own
+        // axes (issue #9506), and a lifted drawing is flatter than it is wide (issue #9372). So a
+        // turned switch is compared with a fit of the settled graph from its own view, not with an
+        // unturned switch's distance (issue #9578). Withdrawn, the framing stayed on the compact
+        // starting layout, about 6.5x too close (issue #3153).
         const untouched = await switchTo3d(false);
         await graph.setViewMode("2d");
         await graph.waitForSettled();
@@ -66,7 +78,13 @@ describe("a camera turn after a switch to 3D", () => {
         await graph.waitForSettled();
         const second = await switchTo3d(true);
 
-        assert.closeTo(first, untouched, untouched * 0.1, "the turn withdrew the 3D framing");
-        assert.closeTo(second, untouched, untouched * 0.1, "a second switch framed the graph differently");
+        assert.closeTo(
+            untouched.framed,
+            untouched.fit,
+            untouched.fit * 0.01,
+            "a switch did not frame the settled graph",
+        );
+        assert.closeTo(first.framed, first.fit, first.fit * 0.01, "the turn withdrew the 3D framing");
+        assert.closeTo(second.framed, second.fit, second.fit * 0.01, "a second switch framed the graph differently");
     });
 });

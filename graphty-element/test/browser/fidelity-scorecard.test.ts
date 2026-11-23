@@ -22,6 +22,7 @@ import { CORPUS_SAMPLES } from "../../../graph-io/test/fidelity/corpus-samples";
 import { SAMPLES } from "../../../graph-io/test/fidelity/samples";
 import { PROPERTIES } from "../../../graph-io/test/fidelity/scene";
 import { drawnScene, mountSample, nodeKeys, readJson, referenceScenes, unmount } from "../fidelity/mount";
+import { floorsFileText } from "../fidelity/oracle/floors";
 
 const FLOORS = "test/fidelity/drawn-floors.json";
 const RECORD = (import.meta.env.GRAPHTY_FIDELITY_RECORD as string | undefined) === "1";
@@ -133,7 +134,11 @@ describe("style fidelity scorecard: what graphty-element draws", () => {
             }
             const worst = result.properties[p as keyof typeof result.properties].worst
                 .slice(0, 3)
-                .map((w) => `${w.id} (reference ${JSON.stringify(w.ref)}, drawn ${JSON.stringify(w.got)})`);
+                // What the style asked for tells a style that missed the element from a draw that missed the style.
+                .map(
+                    (w) =>
+                        `${w.id} (reference ${JSON.stringify(w.ref)}, drawn ${JSON.stringify(w.got)}, requested ${JSON.stringify(w.requested ?? null)})`,
+                );
             return [
                 `${id} ${p}: ${rate === undefined ? "no longer judged" : rate.toFixed(4)} < floor ${floor.toFixed(4)}; worst: ${worst.join("; ") || "none listed"}`,
             ];
@@ -148,7 +153,7 @@ describe("style fidelity scorecard: what graphty-element draws", () => {
 
     afterAll(async () => {
         if (RECORD) {
-            await commands.writeFile(FLOORS, `${JSON.stringify({ ...stored, floors: recorded }, null, 4)}\n`);
+            await commands.writeFile(FLOORS, floorsFileText({ ...stored, floors: recorded }));
         }
     });
 });

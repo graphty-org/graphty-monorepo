@@ -20,6 +20,8 @@ export type WeightReads = WeightMeaning["meaning"];
 export interface LoadedWeightFact {
     readonly attribute: string;
     readonly meaning: WeightReads | null;
+    /** Under source-steps: the edges' weights mix meanings (design 8.6), with their sources. */
+    readonly mixed?: { readonly sources: readonly string[] };
 }
 
 /** What a run reads, and what its input is built with. */
@@ -121,6 +123,18 @@ export function resolveRunWeight(
         return { weight: null, input: null };
     }
 
+    if (named === undefined && loaded?.mixed !== undefined) {
+        // The one weight rule (design 8.6): weights of several meanings are read as none.
+        return {
+            weight: null,
+            input: null,
+            skipped: Object.freeze({
+                code: "weight.meaning-mixed",
+                params: Object.freeze({ sources: Object.freeze([...loaded.mixed.sources]) }),
+            }),
+        };
+    }
+
     const candidate = named === undefined ? loaded : { attribute: named.attribute, meaning: named.meaning ?? reads };
 
     if (candidate === null) {
@@ -152,7 +166,7 @@ export function resolveRunWeight(
 
 /** What a layout's warning about its weight says: a code and its parameters, never a sentence. */
 interface LayoutWeightWarning {
-    readonly code: "W_WEIGHT_MEANING_ASSUMED" | "W_WEIGHT_MEANING_MISMATCH";
+    readonly code: "W_WEIGHT_MEANING_ASSUMED" | "W_WEIGHT_MEANING_MISMATCH" | "W_WEIGHT_MEANING_MIXED";
     readonly params: Readonly<Record<string, unknown>>;
 }
 
@@ -179,6 +193,9 @@ export interface LayoutWeightReading {
  */
 export function resolveLayoutWeight(loaded: LoadedWeightFact | null): LayoutWeightReading {
     const reading = resolveRunWeight(loaded?.meaning === "distance" ? "distance" : "strength", undefined, loaded);
+    if (reading.skipped?.code === "weight.meaning-mixed") {
+        return { meaning: null, warning: { code: "W_WEIGHT_MEANING_MIXED", params: reading.skipped.params } };
+    }
     if (reading.skipped !== undefined) {
         const { attribute, meaning } = reading.skipped.params;
         return { meaning: null, warning: { code: "W_WEIGHT_MEANING_MISMATCH", params: { attribute, meaning } } };
@@ -207,4 +224,19 @@ export function resolveLayoutWeight(loaded: LoadedWeightFact | null): LayoutWeig
  */
 export function asStrength(weight: number, meaning: "strength" | "distance"): number {
     return meaning === "distance" ? 1 / Math.max(weight, 1e-6) : weight;
+}
+
+/**
+ * The `weight` a run asks for: its own option, else the default its algorithm's `weight` option
+ * declares (an algorithm whose weighted form is opt-in declares null). Absent from both, the run
+ * reads the weight the graph was loaded with.
+ * @param asked - The run's `weight` option.
+ * @param options - The algorithm's option descriptors.
+ * @returns What to hand {@link resolveRunWeight} as `asked`.
+ */
+export function askedWeight(
+    asked: unknown,
+    options: readonly { readonly name: string; readonly default?: unknown }[] | undefined,
+): unknown {
+    return asked === undefined ? options?.find((option) => option.name === "weight")?.default : asked;
 }

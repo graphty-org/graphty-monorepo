@@ -31,8 +31,8 @@ describe("Disabled Logging Overhead", () => {
         resetLoggingConfig();
     });
 
-    describe("zero overhead when disabled", () => {
-        test("should have zero overhead when disabled", async () => {
+    describe("disabled logging", () => {
+        test("writes nothing to the console at any level", async () => {
             await GraphtyLogger.configure({
                 enabled: false,
                 level: LogLevel.TRACE,
@@ -42,7 +42,6 @@ describe("Disabled Logging Overhead", () => {
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
 
-            // Log many messages
             for (let i = 0; i < 1000; i++) {
                 logger.trace("trace message");
                 logger.debug("debug message");
@@ -51,14 +50,13 @@ describe("Disabled Logging Overhead", () => {
                 logger.error("error message");
             }
 
-            // No console methods should be called
             assert.strictEqual(consoleDebugSpy.mock.calls.length, 0);
             assert.strictEqual(consoleInfoSpy.mock.calls.length, 0);
             assert.strictEqual(consoleWarnSpy.mock.calls.length, 0);
             assert.strictEqual(consoleErrorSpy.mock.calls.length, 0);
         });
 
-        test("should not construct messages when disabled", async () => {
+        test("reports every level guard as off, so guarded messages are never built", async () => {
             await GraphtyLogger.configure({
                 enabled: false,
                 level: LogLevel.TRACE,
@@ -67,77 +65,28 @@ describe("Disabled Logging Overhead", () => {
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            const messageConstructor = vi.fn().mockReturnValue("expensive message");
 
-            // Call the logger with the result of the function
-            // If the logger is disabled, the function should NOT be called
-            // because we use isDebugEnabled() guard
-            if (logger.isDebugEnabled()) {
-                logger.debug(messageConstructor());
-            }
-
-            assert.strictEqual(messageConstructor.mock.calls.length, 0);
-        });
-
-        test("should not call expensive data functions when level filtered", async () => {
-            await GraphtyLogger.configure({
-                enabled: true,
-                level: LogLevel.WARN, // Only warn and above
-                modules: "*",
-                format: { timestamp: true, module: true },
-            });
-
-            const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            const expensiveDataFn = vi.fn().mockReturnValue({ computed: "data" });
-
-            // Use the level guard to avoid calling expensive function
-            if (logger.isDebugEnabled()) {
-                logger.debug("message", expensiveDataFn());
-            }
-
-            // Expensive function should not be called because debug is filtered
-            assert.strictEqual(expensiveDataFn.mock.calls.length, 0);
+            assert.isFalse(logger.isTraceEnabled());
+            assert.isFalse(logger.isDebugEnabled());
         });
     });
 
-    describe("level guards prevent overhead", () => {
-        test("isTraceEnabled prevents expensive operations when trace is filtered", async () => {
+    describe("level guards", () => {
+        test("isTraceEnabled and isDebugEnabled are off below the configured level", async () => {
             await GraphtyLogger.configure({
                 enabled: true,
-                level: LogLevel.INFO, // Trace is filtered
+                level: LogLevel.WARN,
                 modules: "*",
                 format: { timestamp: true, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            const expensiveFn = vi.fn().mockReturnValue("expensive");
 
-            if (logger.isTraceEnabled()) {
-                logger.trace("expensive operation", { data: expensiveFn() });
-            }
-
-            assert.strictEqual(expensiveFn.mock.calls.length, 0);
+            assert.isFalse(logger.isTraceEnabled());
+            assert.isFalse(logger.isDebugEnabled());
         });
 
-        test("isDebugEnabled prevents expensive operations when debug is filtered", async () => {
-            await GraphtyLogger.configure({
-                enabled: true,
-                level: LogLevel.WARN, // Debug is filtered
-                modules: "*",
-                format: { timestamp: true, module: true },
-            });
-
-            const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            const expensiveFn = vi.fn().mockReturnValue("expensive");
-
-            if (logger.isDebugEnabled()) {
-                logger.debug("expensive operation", { data: expensiveFn() });
-            }
-
-            assert.strictEqual(expensiveFn.mock.calls.length, 0);
-        });
-
-        test("isDebugEnabled allows logging when debug is enabled", async () => {
+        test("isDebugEnabled is on at debug level, and isTraceEnabled stays off", async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.DEBUG,
@@ -146,14 +95,9 @@ describe("Disabled Logging Overhead", () => {
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            const expensiveFn = vi.fn().mockReturnValue("expensive");
 
-            if (logger.isDebugEnabled()) {
-                logger.debug("expensive operation", { data: expensiveFn() });
-            }
-
-            // Function should be called because debug is enabled
-            assert.strictEqual(expensiveFn.mock.calls.length, 1);
+            assert.isTrue(logger.isDebugEnabled());
+            assert.isFalse(logger.isTraceEnabled());
         });
     });
 

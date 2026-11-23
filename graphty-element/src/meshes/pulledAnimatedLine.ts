@@ -1,6 +1,14 @@
-import { Color3, Constants, Effect, Mesh, RawTexture, type Scene, ShaderMaterial, VertexData } from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { Effect } from "@babylonjs/core/Materials/effect.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import { PULLED_ORDER_GLSL, PULLED_TRIM_GLSL, pulledTexelGlsl } from "./edgeJoinShader";
 
 /**
  * @file A straight animated line (`line.animationSpeed`) pulled from the row table: the object path's greased line,
@@ -26,6 +34,8 @@ uniform float handed;
 uniform float scroll;
 uniform highp sampler2D rowPosition;
 uniform highp sampler2D edgeRows;
+${PULLED_ORDER_GLSL}
+${PULLED_TRIM_GLSL}
 flat varying vec3 vColor;
 varying vec2 vUV;
 
@@ -33,9 +43,7 @@ vec4 rowAt(int i) {
     return texelFetch(rowPosition, ivec2(i & 1023, i >> 10), 0);
 }
 
-vec4 edgeAt(int i) {
-    return texelFetch(edgeRows, ivec2(i & 1023, i >> 10), 0);
-}
+${pulledTexelGlsl("edgeRows", "edgeAt")}
 
 vec2 grlFix(vec4 i) {
     vec2 res = i.xy / i.w;
@@ -43,9 +51,13 @@ vec2 grlFix(vec4 i) {
     return res;
 }
 
+const int CORNER_OF[${String(ANIMATED_TEMPLATE.indices.length)}] = int[${String(ANIMATED_TEMPLATE.indices.length)}](${ANIMATED_TEMPLATE.indices.join(", ")});
+
 void main(void) {
-    int piece = gl_VertexID / 4;
-    int corner = gl_VertexID - piece * 4;
+    // unindexed: six corners a piece, each naming one of its four vertices
+    int slot = gl_VertexID / ${String(ANIMATED_TEMPLATE.indices.length)};
+    int corner = CORNER_OF[gl_VertexID - slot * ${String(ANIMATED_TEMPLATE.indices.length)}];
+    int piece = pulledPiece(slot);
     vec4 head = edgeAt(piece * 2);
     vec4 tint = edgeAt(piece * 2 + 1);
     vColor = tint.rgb;
@@ -61,10 +73,14 @@ void main(void) {
         return;
     }
 
+    // stopped at a translucent end's outline, as a pulled plain line is (#8281)
+    vec3 lineStart = a.xyz;
+    vec3 lineEnd = b.xyz;
+    pulledTrim(int(head.x + 0.5), int(head.y + 0.5), a.w, b.w, lineStart, lineEnd);
     bool end = corner >= 2;
     float side = (corner & 1) == 0 ? 1.0 : -1.0;
-    vec3 p = end ? b.xyz : a.xyz;
-    vec3 nearPosition = p + (b.xyz - a.xyz) * 0.01;
+    vec3 p = end ? lineEnd : lineStart;
+    vec3 nearPosition = p + (lineEnd - lineStart) * 0.01;
     mat4 grlMatrix = viewProjection * world;
     vec4 grlFinalPosition = grlMatrix * vec4(p, 1.0);
     vec4 screenNearPos = grlMatrix * vec4(nearPosition, 1.0);
@@ -147,7 +163,6 @@ export function createPulledAnimatedLineMesh(scene: Scene): Mesh {
     const mesh = new Mesh("edge-moving-pulled", scene);
     const vertexData = new VertexData();
     vertexData.positions = new Array<number>(ANIMATED_TEMPLATE.vertices * 3).fill(0);
-    vertexData.indices = [...ANIMATED_TEMPLATE.indices];
     vertexData.applyToMesh(mesh);
 
     const material = new ShaderMaterial(
@@ -156,8 +171,17 @@ export function createPulledAnimatedLineMesh(scene: Scene): Mesh {
         { vertex: "edgeAnimated", fragment: "edgeAnimated" },
         {
             attributes: [],
-            uniforms: ["world", "viewProjection", "projection", "aspect", "handed", "scroll", "baseColor"],
-            samplers: ["rowPosition", "edgeRows", "movingMask"],
+            uniforms: [
+                "world",
+                "viewProjection",
+                "projection",
+                "aspect",
+                "handed",
+                "scroll",
+                "baseColor",
+                "edgeOrdered",
+            ],
+            samplers: ["rowPosition", "edgeRows", "movingMask", "edgeOrder", "rowExtent", "rowOutline"],
         },
     );
     // (base, moving), sampled nearest and wrapped, as the greased line's moving texture is

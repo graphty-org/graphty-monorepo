@@ -11,7 +11,7 @@ import { afterAll, afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../../index.js";
 import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
-import { operationQueueOf } from "../../../src/Graph";
+import { operationQueueOf, renderManagerOf } from "../../../src/Graph";
 import { EdgeShaderDrawing } from "../../../src/meshes/EdgeShaderDrawing";
 import { presetId } from "../../../stories/shaders/edgePresets";
 
@@ -35,8 +35,7 @@ afterAll(() => {
  * @returns How many of them drew a frame.
  */
 async function loopChances(element: Graphty, chances: number): Promise<number> {
-    const { ticks } = (element.graph as unknown as { renderManager: { ticks: { drawn: number; rested: number } } })
-        .renderManager;
+    const { ticks } = renderManagerOf(element.graph);
     const start = ticks.drawn + ticks.rested;
     const drawnBefore = ticks.drawn;
     while (ticks.drawn + ticks.rested - start < chances) {
@@ -47,12 +46,12 @@ async function loopChances(element: Graphty, chances: number): Promise<number> {
 }
 
 /**
- * Wait passively until a condition holds; fail after a bound of page frames.
+ * Wait passively, a page frame at a time, until a condition holds.
  * @param what - What is awaited.
  * @param holds - The condition.
  */
 async function until(what: string, holds: () => boolean): Promise<void> {
-    for (let i = 0; i < 600 && !holds(); i++) {
+    while (!holds()) {
         await new Promise((resolve) => requestAnimationFrame(resolve));
     }
 

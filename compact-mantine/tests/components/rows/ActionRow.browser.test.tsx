@@ -8,6 +8,7 @@ import { compactTheme } from "../../../src";
 import { ActionRow } from "../../../src/components/rows/ActionRow";
 import { PANEL_GRID } from "../../../src/constants/panel";
 import { UiGlyph } from "../../../src/icons";
+import { tap } from "../../harness/touch";
 
 /**
  * Render inside the compact theme, the way the package is consumed.
@@ -32,25 +33,20 @@ function renderRtl(ui: React.ReactElement): ReturnType<typeof render> {
     );
 }
 
-const originalMatchMedia = window.matchMedia;
-
 /**
- * Make every media query report the given match, so the "(hover: none)" branch
- * can be exercised in jsdom.
- * @param matches - What matchMedia should report for every query
+ * Answer the "(hover: none)" query the way a touch screen (true) or a mouse (false) does, leaving
+ * every other query to the browser. Chromium's touch emulation would do it too, but once on it
+ * leaves (hover: none) matching for every later test file.
+ * @param matches - What "(hover: none)" reports
  */
-function setMatchMedia(matches: boolean): void {
-    window.matchMedia = ((query: string): MediaQueryList =>
-        ({
-            matches,
-            media: query,
-            onchange: null,
-            addListener: () => undefined,
-            removeListener: () => undefined,
-            addEventListener: () => undefined,
-            removeEventListener: () => undefined,
-            dispatchEvent: () => true,
-        }) as unknown as MediaQueryList) as typeof window.matchMedia;
+function setNoHover(matches: boolean): void {
+    const real = window.matchMedia.bind(window);
+    vi.spyOn(window, "matchMedia").mockImplementation((query: string) => {
+        const list = real(query);
+        return query === "(hover: none)"
+            ? (Object.create(list, { matches: { value: matches } }) as MediaQueryList)
+            : list;
+    });
 }
 
 // The real pointer stays wherever the last test left it, and a row under it reads as hovered and
@@ -60,7 +56,6 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-    window.matchMedia = originalMatchMedia;
     vi.restoreAllMocks();
 });
 
@@ -526,7 +521,7 @@ describe("ActionRow", () => {
 
     describe("a pointer that cannot hover", () => {
         it("makes every hidden action resident", () => {
-            setMatchMedia(true);
+            setNoHover(true);
             renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
 
             const actions = screen.getByTestId("action-row-actions");
@@ -534,10 +529,9 @@ describe("ActionRow", () => {
             expect(actions).toHaveStyle({ opacity: "1" });
         });
 
-        it("lets a hidden action be pressed with no hover first", async () => {
-            setMatchMedia(true);
+        it("lets a hidden action be tapped with no hover first", async () => {
+            setNoHover(true);
             const onClick = vi.fn();
-            const user = userEvent.setup();
             renderRow(
                 <ActionRow
                     reveal="hover"
@@ -546,13 +540,17 @@ describe("ActionRow", () => {
                 />,
             );
 
-            await user.click(screen.getByRole("button", { name: "Copy reading" }));
+            // A finger comes down on the action with no pointer over the row before it.
+            expect(screen.getByTestId("action-row-actions")).toHaveAttribute("data-visible", "true");
+            await tap(screen.getByRole("button", { name: "Copy reading" }));
 
-            expect(onClick).toHaveBeenCalledTimes(1);
+            await vi.waitFor(() => {
+                expect(onClick).toHaveBeenCalledTimes(1);
+            });
         });
 
         it("keeps the split on a pointer that can hover", () => {
-            setMatchMedia(false);
+            setNoHover(false);
             renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
 
             expect(screen.getByTestId("action-row-actions")).toHaveAttribute("data-visible", "false");

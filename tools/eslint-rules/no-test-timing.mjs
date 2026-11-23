@@ -22,7 +22,9 @@
  *   skips or adds frames, so a count of frames is a sleep (#2398, #2446, #2466). An awaited frame is
  *   `new Promise((r) => requestAnimationFrame(r))`, a function that returns only that, or an
  *   imported `nextFrame()`. A single frame is a yield and is not reported, nor is a loop that does
- *   work besides waiting (`render(); await nextFrame();`);
+ *   work besides waiting (`render(); await nextFrame();`). A count that bounds a condition wait
+ *   (`for (let f = 0; f < 900 && !ready(); f++) await nextFrame();`) is reported too: it fails a
+ *   correct test on a machine that draws fewer frames (#7241);
  * - a timer in code handed to the page: `setTimeout(fn, n)` with a delay inside a function passed
  *   to `evaluate`, `evaluateHandle`, `$eval`, `$$eval`, `addInitScript` or `evaluateOnNewDocument`.
  *   The page then runs its steps on the clock instead of on the events they wait on (#2422, #2447).
@@ -36,13 +38,20 @@
  *   (`storyWaitOptions(n)`). A wait's deadline decides pass or fail on a busy machine while the work
  *   it waits on still finishes; one global hang guard (tools/test-wait-guard.mjs) ends every wait
  *   that hangs. Fixable: `--fix` removes the option.
+ * - a timer that settles a wait: a `setTimeout` with a delay whose callback rejects, resolves, fails
+ *   or throws (`setTimeout(() => reject(new Error("never framed")), 5000)`), the settling names being
+ *   `reject`, `resolve`, `fail` and the parameters of each enclosing Promise executor. It races the
+ *   awaited event against the clock, so a busy machine fails or skips a wait that would have
+ *   finished (#6986, #7241).
  * - any other local deadline: a timeout or interval option on a call that waits (`waitForStableFrame({
  *   timeoutMs })`, `untilIdle(x, { intervalMs })`) or runs a process or a request (`execFile(cmd, {
  *   timeout })`, `fetch`), a helper parameter that defaults to one, a
  *   `testTimeout` / `hookTimeout` / `teardownTimeout` anywhere (a per-project value in a vitest
  *   config), and a deadline loop or check (`while (Date.now() < deadline)`, `if (performance.now() -
  *   start > budget) throw`). There is one hang guard, set in one place; nothing else may end a test
- *   on the clock. Only the guard's own constants (`WAIT_GUARD_MS`, `TEST_GUARD_MS`) may be passed:
+ *   on the clock. Playwright's `setDefaultTimeout(n)` and `setDefaultNavigationTimeout(n)` are
+ *   reported too, unless `n` is 0 (no deadline). Only the guard's own constants (`WAIT_GUARD_MS`,
+ *   `TEST_GUARD_MS`) may be passed:
  *   a synchronous child process (`spawnSync`) blocks the event loop, so no test timeout can end it.
  *   A timeout option of the code under test (a notifier's `timeoutMs`, graphviz's) is what the test
  *   checks, not a deadline on the test, and is not reported.
@@ -136,7 +145,11 @@ const LOCATOR_ACTIONS = new Set([
     "innerText",
     "inputValue",
     "getAttribute",
+    "ariaSnapshot",
 ]);
+// Playwright's page- or context-wide wait deadline: `page.setDefaultTimeout(20_000)` gives every wait
+// a deadline of its own. Zero (no deadline) and the guard's own constants are allowed.
+const DEFAULT_TIMEOUT_SETTERS = new Set(["setDefaultTimeout", "setDefaultNavigationTimeout"]);
 // Matchers whose argument is the expected value, not options: `expect(x).toEqual({ timeout: 5000 })`.
 const VALUE_MATCHER =
     /^to(Be|Equal|StrictEqual|MatchObject|ContainEqual|Contain|HaveProperty|HaveBeen.*|HaveReturned.*|HaveLastReturned.*|HaveNthReturned.*|Throw.*|Match.*Snapshot|Satisfy|HaveLength)$/;
@@ -202,7 +215,7 @@ const rule = {
 
         // A directive that names this rule (under any plugin prefix) or no rule switches it off. The
         // report goes where that directive does not reach, or the directive would hide it: on the
-        // comment for -next-line, on a neighbouring line for -line, just before the comment for a
+        // comment for -next-line, on a neighboring line for -line, just before the comment for a
         // block disable.
         // Known gap: a -line directive in a one-line file, or a block disable that is the file's
         // first character, still hides its report; no test file is either.
@@ -428,7 +441,7 @@ const rule = {
         const frameAwaits = [];
         const timers = [];
 
-        // The value of a number literal, arithmetic over them, or a const initialised to one.
+        // The value of a number literal, arithmetic over them, or a const initialized to one.
         const numValue = (n) => {
             if (n?.type === "Literal" && typeof n.value === "number") {
                 return n.value;
@@ -511,7 +524,14 @@ const rule = {
         // A `for` loop whose only statement awaits one frame: its counter and bound, else undefined.
         const frameLoop = (loop) => {
             const body = loop.body.type === "BlockStatement" ? loop.body.body : [loop.body];
-            const { test, init } = loop;
+            const { init } = loop;
+            // A counter that bounds a condition wait, `i < 900 && !ready()`, is a frame deadline too.
+            let test = loop.test;
+            while (test?.type === "LogicalExpression" && test.operator === "&&") {
+                test = [test.left, test.right].find(
+                    (t) => t.type === "BinaryExpression" || t.type === "LogicalExpression",
+                );
+            }
             if (body.length !== 1 || awaitedFrames(body[0]) !== 1 || test?.type !== "BinaryExpression") {
                 return undefined;
             }
@@ -610,10 +630,41 @@ const rule = {
             }
             return false;
         };
+        // A timer whose callback settles the wait: it rejects, resolves, fails or throws (`setTimeout(() =>
+        // reject(new Error("never framed")), 5000)`). The names it settles with are GIVE_UP_CALLS and the
+        // parameters of each enclosing Promise executor.
+        const settlesWait = (call) => {
+            const names = new Set(GIVE_UP_CALLS);
+            for (let p = call.parent; p; p = p.parent) {
+                if (isFunction(p) && p.parent?.type === "NewExpression" && p.parent.callee.name === "Promise") {
+                    p.params.forEach((q) => q.type === "Identifier" && names.add(q.name));
+                }
+            }
+            const settles = (n) => {
+                if (!n || typeof n !== "object" || isFunction(n)) {
+                    return false;
+                }
+                if (n.type === "ThrowStatement" || (n.type === "CallExpression" && names.has(n.callee.name))) {
+                    return true;
+                }
+                return Object.entries(n).some(
+                    ([k, v]) => k !== "parent" && (Array.isArray(v) ? v.some(settles) : v?.type && settles(v)),
+                );
+            };
+            const [cb] = call.arguments;
+            if (cb?.type === "Identifier") {
+                return names.has(cb.name);
+            }
+            return isFunction(cb) && settles(cb.body);
+        };
         const checkTimers = () => {
-            timers
-                .filter((call) => !isPromiseSleep(call) && inPageCode(call))
-                .forEach((node) => context.report({ node, messageId: "pageTimer" }));
+            for (const call of timers.filter((c) => !isPromiseSleep(c))) {
+                if (inPageCode(call)) {
+                    context.report({ node: call, messageId: "pageTimer" });
+                } else if (settlesWait(call) && !inSimulatedWork(call)) {
+                    context.report({ node: call, messageId: "deadline" });
+                }
+            }
         };
         // Calls the frame and page-timer checks judge at the end of the file.
         const collectCall = (node, name) => {
@@ -934,6 +985,13 @@ const rule = {
                 }
                 if (isTimeoutCall(node, name)) {
                     context.report({ node, messageId: "timeout" });
+                } else if (
+                    DEFAULT_TIMEOUT_SETTERS.has(name) &&
+                    callee.type === "MemberExpression" &&
+                    !isZero(node.arguments[0]) &&
+                    !isGuard(node.arguments[0])
+                ) {
+                    context.report({ node, messageId: "deadline" });
                 } else {
                     checkTimeoutArgs(node);
                 }

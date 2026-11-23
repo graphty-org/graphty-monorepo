@@ -25,7 +25,7 @@
  *
  * WHAT THIS FILE CANNOT CHECK. A selector naming a run or an attribute that does not exist
  * parses perfectly and matches NOTHING, and an empty result reads exactly like a correct answer
- * of zero. Deciding that requires the run list and the attribute catalogue, which the compiler
+ * of zero. Deciding that requires the run list and the attribute catalog, which the compiler
  * does not have, so {@link CompiledSelector.paths} reports every column the selector reads and
  * the caller resolves them -- `E_UNKNOWN_RUN` and `E_UNKNOWN_ATTRIBUTE`, with candidates.
  *
@@ -45,10 +45,12 @@ import type {
     TopTies,
 } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
+import { pathsRead } from "../sets/dependencies";
 import {
     columnsFor,
     type CompiledSelector,
     compileExpressionPredicate,
+    expressionPaths,
     expressionRule,
     hasPredicate,
     hoverPredicate,
@@ -94,7 +96,7 @@ export type Selector =
      * The top `n` elements by one run field, `results.<run>.<field>`, cut only between tie
      * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
      * So a layer never paints more than `n` elements, and paints none on a graph whose highest
-     * value is shared by more than `n`. `RunResult.top` is the same cut with its reason. With
+     * value is shared by more than `n`. `RunResult.top` is the same cut, with the tie group it left out. With
      * `ties: "all"` the group the cut falls in is painted whole instead, past `n`.
      */
     | { readonly match: "top"; readonly path: Path; readonly n: number; readonly ties?: TopTies }
@@ -109,12 +111,19 @@ export type Selector =
      * the data the same way. `edges` defaults to `clipped`, the edges between the rule's nodes.
      * "Top N by" any number column is a `threshold` leaf with `top`.
      */
-    | { readonly match: "rule"; readonly where: RuleTree; readonly edges?: EdgeReading }
+    | {
+          /** Selects by a rule tree. */
+          readonly match: "rule";
+          /** The rule tree that decides which nodes are in. */
+          readonly where: RuleTree;
+          /** Which edges come with the rule's nodes. Default `clipped`: the edges between them. */
+          readonly edges?: EdgeReading;
+      }
     /**
      * The elements a reader is pointing at now: in the selection (`"selected"`, nodes and edges as
      * the selection holds them), or under the pointer (`"hovered"`, one node at most; no edge is
-     * ever hovered), or drawn outside the time window (`"ghosted"`, while the timeline setting
-     * `outside` is `"ghost"`), or pinned in place (`"pinned"`, nodes only, as
+     * ever hovered), drawn while a held filter condition would remove it (`"ghosted"`), outside
+     * the time window (`"outsideWindow"`), or pinned in place (`"pinned"`, nodes only, as
      * `session.positions.pinned` holds them). View state, never data: the layer follows each
      * change without a step.
      * @since 3.26.0
@@ -129,16 +138,52 @@ export type Selector =
           readonly reach?: "node" | "neighbors";
           readonly invert?: boolean;
           readonly orSelected?: boolean;
-      };
+      }
+    /**
+     * The elements of some types, under the source-steps experiment: those whose one type
+     * (`graphty.type`, design section 3.7) is listed. Matches nothing while the experiment is off.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    | { readonly match: "type"; readonly types: readonly string[] };
 
 /** Every element state, for a refusal that lists what was allowed. */
-const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered", "ghosted", "pinned"];
+const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered", "ghosted", "outsideWindow", "pinned"];
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Every selector kind, for a refusal that lists what was allowed. */
-const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member", "rule", "state", "hover"] as const;
+const SELECTOR_KINDS = [
+    "everything",
+    "expression",
+    "has",
+    "ids",
+    "top",
+    "member",
+    "rule",
+    "state",
+    "hover",
+    "type",
+] as const;
+
+/** The selector kinds while the source-steps experiment is off, which leave out "type". */
+const KINDS_WITHOUT_TYPE = SELECTOR_KINDS.filter((kind) => kind !== "type");
+
+/**
+ * The selector kinds a session accepts, for a refusal that lists them.
+ * @param sourceSteps - Whether the source-steps experiment is on.
+ * @returns The kinds.
+ */
+function kindsFor(sourceSteps: boolean): readonly string[] {
+    return sourceSteps ? SELECTOR_KINDS : KINDS_WITHOUT_TYPE;
+}
+
+/** The readable path holding an element's one type under the source-steps experiment. */
+const TYPE_PATH = "graphty.type";
+
+/** What a `type` selector reads. */
+const TYPE_PATHS: readonly Path[] = Object.freeze([TYPE_PATH]);
 
 /** The prefix of the only paths a top selector ranks: a run's published fields. */
 const RESULT_PATH_PREFIX = "results.";
@@ -212,8 +257,11 @@ function assertIdList(ids: unknown, field: string): void {
 /**
  * Refuse a value that is not even an object with a "match", such as a legacy selector string.
  * @param given - The value offered as a selector.
+ * @param sourceSteps - Whether the source-steps experiment is on, which decides the kinds named.
  */
-function assertSelectorObject(given: unknown): void {
+function assertSelectorObject(given: unknown, sourceSteps: boolean): void {
+    const kinds = kindsFor(sourceSteps).join(", ");
+
     // Read through `unknown` because these refusals are about a value the type system was
     // told is a Selector and that arrived as something else -- a legacy selector string, most of
     // all, which is the shape every layer in the element carries today.
@@ -223,15 +271,13 @@ function assertSelectorObject(given: unknown): void {
                 ? 'The empty string matched every element, so write { match: "everything" } if that is what it meant.'
                 : `Write { match: "expression", where: ${JSON.stringify(given)} }.`;
 
-        throw badShape(
-            "bare-string",
-            `A selector is an object naming one of ${SELECTOR_KINDS.join(", ")}, not a bare string. ${advice}`,
-            { selector: given },
-        );
+        throw badShape("bare-string", `A selector is an object naming one of ${kinds}, not a bare string. ${advice}`, {
+            selector: given,
+        });
     }
 
     if (typeof given !== "object" || given === null || !("match" in given)) {
-        throw badShape("not-a-selector", `A selector is an object with a "match" of ${SELECTOR_KINDS.join(", ")}.`, {
+        throw badShape("not-a-selector", `A selector is an object with a "match" of ${kinds}.`, {
             selector: given,
         });
     }
@@ -243,10 +289,12 @@ function assertSelectorObject(given: unknown): void {
  * Separate from compiling it so the shape is refused at the call that offered it, which is what
  * lets a form show the mistake where it was typed.
  * @param selector - The selector to check.
- * @throws A `GraphtyError` with code `E_BAD_SELECTOR`, or `E_SELECTOR_EMPTY` for an empty one.
+ * @param sourceSteps - Whether the source-steps experiment is on; off, a `type` selector is refused.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR`, `E_SELECTOR_EMPTY` for an empty one, or
+ *     `E_FEATURE_OFF` for a `type` selector while the source-steps experiment is off.
  */
-function assertSelector(selector: Selector): void {
-    assertSelectorObject(selector);
+function assertSelector(selector: Selector, sourceSteps: boolean): void {
+    assertSelectorObject(selector, sourceSteps);
 
     // Kept as a plain string beside the switch so the refusal below can name a kind the union
     // does not contain, which is exactly the case this check exists for.
@@ -278,6 +326,15 @@ function assertSelector(selector: Selector): void {
             return;
         case "member":
         case "rule":
+            if (!sourceSteps && selector.match === "member" && isTypesScope(selector.of)) {
+                throw new GraphtyError({
+                    code: "E_FEATURE_OFF",
+                    message: 'A { types } scope needs the "source-steps" experiment.',
+                    source: "style",
+                    details: { feature: "source-steps", key: "types" },
+                });
+            }
+
             assertScopeSelector(selector);
 
             return;
@@ -285,11 +342,41 @@ function assertSelector(selector: Selector): void {
             assertHoverSelector(selector);
 
             return;
+        case "type":
+            if (!sourceSteps) {
+                throw new GraphtyError({
+                    code: "E_FEATURE_OFF",
+                    message: 'A "type" selector needs the "source-steps" experiment.',
+                    source: "style",
+                    details: { feature: "source-steps", key: "type" },
+                });
+            }
+
+            if (!Array.isArray(selector.types) || !selector.types.every((t) => typeof t === "string")) {
+                throw badShape("bad-types", 'A "type" selector needs a list of type names.', {
+                    types: selector.types,
+                });
+            }
+
+            return;
         default:
             throw badShape("unknown-kind", `"${String(kind)}" is not a selector kind.`, {
                 match: kind,
-                kinds: SELECTOR_KINDS,
+                kinds: kindsFor(sourceSteps),
             });
+    }
+}
+
+/**
+ * The paths a query reads, or none when it does not parse (its own check refuses it).
+ * @param where - The query.
+ * @returns The paths.
+ */
+function queryPaths(where: Query): readonly Path[] {
+    try {
+        return expressionPaths(where);
+    } catch {
+        return EMPTY_PATHS;
     }
 }
 
@@ -311,7 +398,13 @@ export function selectorScope(selector: Selector): Scope | null {
 }
 
 /** A selector in its rule form, which an editor of rules reads and writes. */
-export type RuleSelector = Extract<Selector, { readonly match: "rule" }>;
+export type RuleSelector = Extract<
+    Selector,
+    {
+        /** Selects by a rule tree. */
+        readonly match: "rule";
+    }
+>;
 
 /**
  * Read any layer's selector as an editable rule, so an editor draws a run's layer the way it draws
@@ -506,6 +599,15 @@ function assertScopeSelector(selector: Extract<Selector, { match: "member" | "ru
 }
 
 /**
+ * Whether a scope is the `{ types }` form.
+ * @param scope - The scope.
+ * @returns True for `{ types }`.
+ */
+function isTypesScope(scope: unknown): boolean {
+    return typeof scope === "object" && scope !== null && "types" in scope;
+}
+
+/**
  * Check a "hover" selector's fields.
  * @param selector - The selector.
  */
@@ -549,7 +651,7 @@ function assertHoverSelector(selector: Extract<Selector, { match: "hover" }>): v
  *     or a `top` selector to one that cannot rank a run's column.
  */
 export function compileSelector(selector: Selector, target: SelectorTarget, source: SelectorSource): CompiledSelector {
-    assertSelector(selector);
+    assertSelector(selector, source.sourceSteps?.() === true);
 
     const columns = columnsFor(source, target);
 
@@ -615,13 +717,15 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
                 });
             }
 
-            const live = source.scope(parseScope(selectorScope(selector)));
+            const scope = selectorScope(selector);
+            const live = source.scope(parseScope(scope));
 
             return {
                 match: selector.match,
                 target,
                 test: scopePredicate(live, target),
-                paths: EMPTY_PATHS,
+                // What the rule reads ("results.louvain.group"), so the layer's reads name it.
+                paths: scope === null ? EMPTY_PATHS : Object.freeze(pathsRead(scope, queryPaths)),
                 problem: () => live.problem(),
             };
         }
@@ -642,6 +746,15 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
                 target,
                 test: hoverPredicate(hover, target, selector.reach ?? "node", selector.invert === true),
                 paths: EMPTY_PATHS,
+            };
+        }
+        case "type": {
+            const types = new Set(selector.types);
+            return {
+                match: "type",
+                target,
+                test: (index) => types.has(String(columns.value(index, TYPE_PATH))),
+                paths: TYPE_PATHS,
             };
         }
         default: {

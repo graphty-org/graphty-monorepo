@@ -4,6 +4,7 @@
  */
 import { assert, describe, test } from "vitest";
 
+import { roundedBoxOutline } from "../../src/meshes/labelTable";
 import {
     boxOf,
     chartPieces,
@@ -17,6 +18,7 @@ import {
     shapeLinePieces,
     shapePartPieces,
     stripeBands,
+    tableFillPieces,
 } from "../../src/meshes/nodeDecoration";
 import { earClip, type Point2 } from "../../src/meshes/shapeOutlines";
 
@@ -414,6 +416,15 @@ describe("a chart", () => {
         assert.approximately(top.x1 - top.x0, 60, 1e-9);
     });
 
+    test("fills the plot box under the chart with its background, and none unset", () => {
+        const chart = { kind: "cells" as const, values: "3 5", colors: "#b7cce1", size: 0.5 };
+        assert.lengthOf(chartPieces(chart, 60, 60), 2);
+        const [back, ...cells] = chartPieces({ ...chart, backgroundColor: "#e8eae8", backgroundOpacity: 0.5 }, 60, 60);
+        assert.lengthOf(cells, 2);
+        assert.deepEqual(boxOf(back.outline), { x0: -15, y0: -15, x1: 15, y1: 15 });
+        assert.approximately(back.opacity, 0.5, 1e-9);
+    });
+
     test("draws nothing without values or colors", () => {
         assert.lengthOf(chartPieces(undefined, 60, 60), 0);
         assert.lengthOf(chartPieces({ values: "1 2" }, 60, 60), 0);
@@ -440,5 +451,30 @@ describe("raisedStrips", () => {
         assert.strictEqual(raisedStrips(raised, 10, 6, 2)[0].box.x1, -3);
         assert.lengthOf(raisedStrips({ ...raised, width: 0 }, 10, 6), 0);
         assert.lengthOf(raisedStrips(undefined, 10, 6), 0);
+    });
+});
+
+describe("a label table's backgrounds", () => {
+    test("blends a gradient from its color at the bottom to its other at the top at 270 degrees (n_html3)", () => {
+        const box = { x0: -1, y0: -1, x1: 1, y1: 1 };
+        const [piece] = tableFillPieces([{ box, color: "#000000", gradient: { to: "#ffffff", angle: 270 } }], 20, 10);
+        const at = (x: number, y: number): number =>
+            piece.vertexRgb?.[piece.outline.findIndex(([px, py]) => px === x && py === y)]?.[0] ?? -1;
+        assert.closeTo(at(-10, -5), 0, 1e-9);
+        assert.closeTo(at(10, -5), 0, 1e-9);
+        assert.closeTo(at(10, 5), 1, 1e-9);
+        assert.closeTo(at(-10, 5), 1, 1e-9);
+    });
+
+    test("fills a rounded background inside its outline, counter-clockwise", () => {
+        // the outline in fractions of the half width and height, y up, laid clockwise on screen
+        const outline = roundedBoxOutline({ x: -1, y: -1, width: 2, height: 2 }, 0.5).map(
+            ([x, y]): [number, number] => [x, -y],
+        );
+        const [piece] = tableFillPieces([{ box: { x0: -1, y0: -1, x1: 1, y1: 1 }, color: "red", outline }], 4, 4);
+        assert.isAbove(area(piece.outline), 0);
+        assert.isBelow(area(piece.outline), 16);
+        assert.isAbove(area(piece.outline), 15);
+        assert.strictEqual(piece.vertexRgb, undefined);
     });
 });

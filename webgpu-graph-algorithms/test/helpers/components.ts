@@ -11,8 +11,8 @@ import { type GraphSnapshot } from "@graphty/graph-format";
 
 import { connectedComponents } from "../../src/algorithms/components.js";
 import { type GpuContext } from "../../src/context.js";
-import { isWebGpuGraphError } from "../../src/errors.js";
 import { componentsOracle } from "../oracle/components.js";
+import { refusedReport } from "./check-report.js";
 import { type EdgeSpec, randomEdges, snapshotOf } from "./graphs.js";
 
 /**
@@ -55,7 +55,7 @@ export function wccChecks(): readonly WccCheck[] {
     }
     // directed: the weak components are ONE, the strong ones are 1,000 (a directed path).
     const path: EdgeSpec[] = Array.from({ length: 999 }, (_, i): EdgeSpec => [i, i + 1]);
-    // directed: a 100-node core (a cycle plus its chords, so out-neighbours 0 and 1 of every core row are core
+    // directed: a 100-node core (a cycle plus its chords, so out-neighbors 0 and 1 of every core row are core
     // rows) and 900 leaves, each with one in-arc from the core and no out-arcs.
     const leaves: EdgeSpec[] = [];
     for (let c = 0; c < 100; c++) {
@@ -101,10 +101,8 @@ export async function wccWorstFactor(ctx: GpuContext, checks: readonly WccCheck[
                 }
             }
         } catch (error: unknown) {
-            if (!isWebGpuGraphError(error)) {
-                throw error;
-            }
-            console.warn(`[sabotage] ${check.name}: ${error.code} ${error.message}`);
+            const refused = refusedReport(check.name, error);
+            console.warn(`[sabotage] ${refused.worstLabel}`);
             worst = Number.POSITIVE_INFINITY;
             continue;
         }

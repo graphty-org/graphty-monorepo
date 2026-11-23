@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import { DataManager } from "../../src/managers/DataManager";
+import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
 import type { GraphContext } from "../../src/managers/GraphContext";
 import { Styles } from "../../src/Styles";
@@ -17,8 +17,11 @@ function makeManager(batched: boolean): { dm: DataManager; asked: () => number }
     dm.setGraphContext({} as unknown as GraphContext);
     dm.renderLimits = { ceilings: () => undefined, batched: () => batched };
     let asked = 0;
-    const between = dm.getEdgesBetween.bind(dm);
-    dm.getEdgesBetween = (source, target) => {
+    // The ingest host's pair question. It reads the store directly rather than through the public
+    // `getEdgesBetween`, which builds the `Edge` of every row it finds.
+    const host = dm as unknown as { existingBetween: (source: string, target: string) => unknown };
+    const between = host.existingBetween.bind(dm);
+    host.existingBetween = (source, target) => {
         asked++;
         return between(source, target);
     };
@@ -68,5 +71,13 @@ describe("repeat checks in a batch on the batched path", () => {
         dm.addEdges([{ src: "a", dst: "b" }], { repeated: "first" });
         dm.addEdges([{ src: "a", dst: "b" }], { repeated: "first" });
         assert.strictEqual(dm.getSnapshot().edgeCount, 1);
+    });
+
+    it("lets go of the batch's pair index once a batch outside a load ends", () => {
+        const { dm } = makeManager(true);
+        dm.addEdges(BATCH);
+        // One Set per source node, kept after the batch, was 58 MB at 1M + 1M; the next batch
+        // outside a load starts its own index anyway.
+        assert.strictEqual(dataManagerInternals.pairIndexSources(dm), 0);
     });
 });

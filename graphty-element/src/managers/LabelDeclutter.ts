@@ -1,18 +1,16 @@
-import {
-    AbstractMesh,
-    type Camera,
-    Matrix,
-    type Mesh,
-    type Observer,
-    type Scene,
-    Vector3,
-    Viewport,
-} from "@babylonjs/core";
+import type { Observer } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Viewport } from "@babylonjs/core/Maths/math.viewport.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { LabelDeclutterOrder } from "../catalog/label-style";
 import type { Edge } from "../Edge";
 import type { RichTextLabel } from "../meshes/RichTextLabel";
 import type { Node } from "../Node";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { animatesEveryFrame } from "./everyFrameAnimations";
 import type { GraphContext } from "./GraphContext";
 import { LabelSampler } from "./LabelSampler";
@@ -77,7 +75,16 @@ export interface NodeLabel {
      * `closeButton`, when the label is not drawn, or when it is behind the camera.
      * @since 3.29.0
      */
-    readonly closeRect?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+    readonly closeRect?: {
+        /** The left edge, in CSS pixels from the canvas's left side. */
+        readonly x: number;
+        /** The top edge, in CSS pixels from the canvas's top. */
+        readonly y: number;
+        /** The width, in CSS pixels. */
+        readonly width: number;
+        /** The height, in CSS pixels. */
+        readonly height: number;
+    };
 }
 
 /** The counts before any label is drawn. */
@@ -171,7 +178,7 @@ interface Entry {
     home: Vector3;
     /** Where `avoidNodesAndEdges` last moved it to, while it is moved. */
     placed: Vector3 | null;
-    /** On screen, this pass: the label's own centre, half its plane, and world units per pixel. */
+    /** On screen, this pass: the label's own center, half its plane, and world units per pixel. */
     cx: number;
     cy: number;
     across: number;
@@ -179,7 +186,7 @@ interface Entry {
     perPixelX: number;
     perPixelY: number;
     /**
-     * On screen, this pass: its node's centre, how far the node reaches across and down from it
+     * On screen, this pass: its node's center, how far the node reaches across and down from it
      * (its radius twice for a round node, its box's half-size otherwise), and the node's slot,
      * -1 when not drawn.
      */
@@ -228,17 +235,18 @@ const NODE_STRIDE = 5;
  * Hides node labels that would be drawn on top of each other, when the graph's behavior
  * configuration asks for it (`labels.declutter`, off by default).
  *
- * Every node label is its own billboarded plane, so two labelled nodes that land near each other
- * on screen draw their words over one another. The pass projects each drawn label's WORDS -- not
- * its padded plane -- to a screen rectangle, orders the labels by priority -- a selected node
+ * Every node label is its own billboarded plane, so two labeled nodes that land near each other
+ * on screen draw their words over one another. The pass projects what each label DRAWS -- its words
+ * with their outline, and the panel behind them when it has one, not its padded plane -- to a
+ * screen rectangle, orders the labels by priority -- a selected node
  * first, then the node with more edges, then the node id so the answer is stable -- and keeps a
  * label only if its rectangle meets no label already kept. Kept rectangles are bucketed in a
- * screen grid, so each label is tested against its neighbours rather than against every label.
+ * screen grid, so each label is tested against its neighbors rather than against every label.
  *
  * THE PASS RUNS ONLY WHEN SOMETHING THAT DECIDES PLACEMENT CHANGED: the camera's view or
  * projection, the viewport size, a label added, rebuilt or removed, a node moved, shown, hidden
  * or (de)selected, an edge added or removed, or the setting itself. A still scene costs one cheap
- * walk over the labelled nodes per frame and no projection at all.
+ * walk over the labeled nodes per frame and no projection at all.
  *
  * A label that loses is hidden with `isVisible`, never with `setEnabled` and never through a
  * style. `setEnabled` is the visibility mask's switch (`Node.applyRenderState`), and a style is
@@ -261,7 +269,7 @@ const NODE_STRIDE = 5;
  * taking the first that covers nothing and otherwise the one that covers least (a label worst,
  * then a node, then an edge). A moved label's plane is moved on its node; it goes back to its
  * own place when the setting is turned off. That setting also makes the pass run, and watch every
- * node rather than only the labelled ones, while `declutter` is off -- it then moves labels and
+ * node rather than only the labeled ones, while `declutter` is off -- it then moves labels and
  * never hides one.
  */
 export class LabelDeclutter {
@@ -302,7 +310,7 @@ export class LabelDeclutter {
     /** Reused every pass while avoiding: each drawn node and edge on screen, and their buckets. */
     private readonly nodeSlots = new Map<Node, number>();
     /**
-     * Each drawn node on screen, {@link NODE_STRIDE} numbers a slot: centre x and y, how far it
+     * Each drawn node on screen, {@link NODE_STRIDE} numbers a slot: center x and y, how far it
      * reaches across and down, and 1 when it is a circle of that radius, 0 when a rectangle.
      */
     private nodeAreas = new Float64Array(0);
@@ -414,11 +422,23 @@ export class LabelDeclutter {
      */
     static withholds(scene: Scene, context: GraphContext, node: Node, wanted: boolean): boolean {
         if (context.getStyles().config.behavior.labels.sampleCell === undefined) {
-            const declutter: unknown = scene.metadata?.labelDeclutter;
+            const declutter: unknown = (scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
             return declutter instanceof LabelDeclutter ? declutter.sampler.withholds(node, wanted) : false;
         }
 
         return LabelDeclutter.of(scene, context).sampler.withholds(node, wanted);
+    }
+
+    /**
+     * A row drawn plain past `limits.objectRows` wants a label: while label sampling is on, a pass is owed,
+     * which may pick the row and build it a `Node` for the label.
+     * @param scene - The scene the labels are drawn in.
+     * @param context - The graph.
+     */
+    static notePlainLabel(scene: Scene, context: GraphContext): void {
+        if (context.getStyles().config.behavior.labels.sampleCell !== undefined) {
+            LabelDeclutter.of(scene, context).sampler.pending = true;
+        }
     }
 
     /**
@@ -441,12 +461,12 @@ export class LabelDeclutter {
      * @returns The pass.
      */
     private static of(scene: Scene, context: GraphContext): LabelDeclutter {
-        scene.metadata = scene.metadata ?? {};
-        if (!(scene.metadata.labelDeclutter instanceof LabelDeclutter)) {
-            scene.metadata.labelDeclutter = new LabelDeclutter(scene, context);
+        scene.metadata ??= {};
+        if (!((scene.metadata as GraphSceneMetadata).labelDeclutter instanceof LabelDeclutter)) {
+            (scene.metadata as GraphSceneMetadata).labelDeclutter = new LabelDeclutter(scene, context);
         }
 
-        return scene.metadata.labelDeclutter as LabelDeclutter;
+        return (scene.metadata as GraphSceneMetadata).labelDeclutter as LabelDeclutter;
     }
 
     /** Stop running before frames. */
@@ -455,8 +475,8 @@ export class LabelDeclutter {
         this.releaseFrames?.();
         this.releaseFrames = null;
         this.release();
-        if (this.scene.metadata?.labelDeclutter === this) {
-            this.scene.metadata.labelDeclutter = undefined;
+        if ((this.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter === this) {
+            (this.scene.metadata as GraphSceneMetadata).labelDeclutter = undefined;
         }
     }
 
@@ -626,6 +646,23 @@ export class LabelDeclutter {
     }
 
     /**
+     * Move the labels for a camera a framing has just set, so the framing measures them where
+     * they are drawn from it (issue #8250). Only the labels' places change the room they take:
+     * hiding one (`declutter`) leaves its plane where it was, so nothing runs without
+     * `avoidNodesAndEdges`.
+     * @param camera - The camera the framing set.
+     * @returns True when labels were placed.
+     */
+    placeForFraming(camera: Camera): boolean {
+        if (!this.context.getStyles().config.behavior.labels.avoidNodesAndEdges) {
+            return false;
+        }
+
+        this.place(camera);
+        return true;
+    }
+
+    /**
      * One full pass: decide which labels are drawn, node labels first and then edge texts.
      * @param camera - The camera the frame is drawn from.
      */
@@ -645,9 +682,9 @@ export class LabelDeclutter {
         this.remember(camera);
 
         const engine = this.scene.getEngine();
-        // Read from the ref, not the return value: Babylon 8's toGlobalToRef fills `ref` and then
-        // returns the camera's own normalised viewport, which would put every label inside a
-        // one-pixel screen.
+        // Read from the ref, not the return value: Babylon's toGlobalToRef (8 and 9) fills `ref`
+        // and then returns the camera's own normalized viewport, which would put every label
+        // inside a one-pixel screen.
         camera.viewport.toGlobalToRef(engine.getRenderWidth(), engine.getRenderHeight(), this.viewport);
         const { viewport } = this;
         // World to pixels in one matrix, built once a pass: Vector3.ProjectToRef rebuilds it for
@@ -781,7 +818,7 @@ export class LabelDeclutter {
      */
     private project(entry: Entry, mesh: Mesh, camera: Camera, view: ArrayLike<number>): boolean {
         const { viewport } = this;
-        // The label's centre from its NODE's world matrix, not its own. A label is a billboard,
+        // The label's center from its NODE's world matrix, not its own. A label is a billboard,
         // so its own world matrix depends on the camera and is stale until the render
         // recomputes it; the node's is cached and costs nothing while the node stands still.
         // Computed here rather than read, so a node moved this frame is measured where it
@@ -808,7 +845,7 @@ export class LabelDeclutter {
         const c = Vector3.TransformCoordinatesToRef(centre, this.worldToPixels, this.centreOnScreen);
         const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
         // Half the plane, on screen. The words are a part of it: `text` is where, from the
-        // plane's top-left, so 0 maps to one half-extent before the centre and 1 to one after.
+        // plane's top-left, so 0 maps to one half-extent before the center and 1 to one after.
         const across = Math.abs(k.x - c.x);
         const down = Math.abs(k.y - c.y);
         entry.cx = c.x;
@@ -840,7 +877,7 @@ export class LabelDeclutter {
 
     /**
      * Count the edge texts and, with declutter on, hide each one that would overlap a label kept
-     * before it: every node label first, then edge texts in the order their edges were labelled.
+     * before it: every node label first, then edge texts in the order their edges were labeled.
      * Runs after {@link LabelDeclutter.placeNodes}, whose grid and projection it uses.
      * @param declutter - Whether to hide overlapping texts. Off, every text is shown and counted.
      */
@@ -938,7 +975,7 @@ export class LabelDeclutter {
         const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
         const across = Math.abs(k.x - c.x);
         const down = Math.abs(k.y - c.y);
-        const words = text.textBounds;
+        const words = text.drawnBounds;
         const { box, viewport } = this;
         box.left = c.x + (2 * words.left - 1) * across;
         box.right = c.x + (2 * words.right - 1) * across;
@@ -1092,7 +1129,7 @@ export class LabelDeclutter {
 
         if (mesh !== entry.mesh && node.label) {
             entry.mesh = mesh;
-            entry.text = node.label.textBounds;
+            entry.text = node.label.drawnBounds;
             entry.home.copyFrom(mesh.position);
             entry.placed = null;
         }
@@ -1332,7 +1369,7 @@ export class LabelDeclutter {
 
     /**
      * Write a node's screen rectangle -- the eight corners of its world bounding box, projected --
-     * into its slot, as half-sizes about the centre already there. A box, a tall cylinder or a
+     * into its slot, as half-sizes about the center already there. A box, a tall cylinder or a
      * torus is not the circle its largest half-extent draws: a box's corners reach past it, and a
      * tall or flat node's circle hides labels beside it for nothing.
      * @param node - The node, its world matrix computed.
@@ -1421,7 +1458,7 @@ export class LabelDeclutter {
     private placeAround(size: number, declutter: boolean): number {
         // ponytail: projects every node and edge on every pass, about 5 ms at 1,000 nodes and
         // 60 to 80 ms at 10,000 (test/browser/overlap-avoidance.bench.test.ts); reuse the
-        // labelled nodes' projections or skip passes while a layout moves if a large graph needs it.
+        // labeled nodes' projections or skip passes while a layout moves if a large graph needs it.
         this.projectGraph(size);
         let hidden = 0;
         for (const entry of this.order) {
@@ -1583,13 +1620,13 @@ export class LabelDeclutter {
     }
 
     /**
-     * Move a label's plane, on its node, so its centre is where its rectangle now is.
+     * Move a label's plane, on its node, so its center is where its rectangle now is.
      * @param entry - The label, framed at the place it takes.
      * @param mesh - Its plane, at its own place.
      */
     private move(entry: Entry, mesh: Mesh): void {
         const { text } = entry;
-        // The plane's centre from the words' rectangle: the inverse of `frame`.
+        // The plane's center from the words' rectangle: the inverse of `frame`.
         const x = entry.left - (2 * text.left - 1) * entry.across;
         const y = entry.top - (2 * text.top - 1) * entry.down;
         const world = entry.node.drawnWorldMatrix();
@@ -1759,8 +1796,8 @@ function edgeDrawn(edge: Edge): boolean {
  * @param rect.right - Its right edge.
  * @param rect.top - Its top edge.
  * @param rect.bottom - Its bottom edge.
- * @param x - The circle's centre.
- * @param y - The circle's centre.
+ * @param x - The circle's center.
+ * @param y - The circle's center.
  * @param r - Its radius.
  * @returns True when they overlap.
  */

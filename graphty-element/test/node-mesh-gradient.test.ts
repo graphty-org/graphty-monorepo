@@ -1,4 +1,4 @@
-import { Mesh, NullEngine, Scene, StandardMaterial } from "@babylonjs/core";
+import { DynamicTexture, Mesh, NullEngine, Scene, StandardMaterial } from "@babylonjs/core";
 import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, test } from "vitest";
 
 import { NodeShapes } from "../src/config/NodeStyle";
@@ -18,7 +18,7 @@ import { NodeMesh } from "../src/meshes/NodeMesh";
  *    "torus-knot" for it.
  *
  * 2. GRADIENT COLOUR. `createMaterial` used to leave a StandardMaterial completely unstyled for a
- *    gradient colour, so a gradient node rendered flat white. These tests run in the default
+ *    gradient color, so a gradient node rendered flat white. These tests run in the default
  *    (Node.js) project where there is no 2D canvas, so `DynamicTexture` cannot be allocated --
  *    which is exactly the fallback path worth pinning here: a gradient must still produce a
  *    COLOUR, taken from its first stop. The texture-based tests, which need a real canvas, live in
@@ -109,7 +109,7 @@ describe("NodeMesh gradient colour without a canvas", () => {
         });
 
         // The defect this replaces: NOTHING was assigned, so the node rendered at the raw
-        // StandardMaterial default. A colour -- any colour from the gradient -- is the floor.
+        // StandardMaterial default. A color -- any color from the gradient -- is the floor.
         assert.isNull(mat.diffuseTexture);
         assert.closeTo(mat.diffuseColor.r, 0, 0.001);
         assert.closeTo(mat.diffuseColor.g, 0, 0.001);
@@ -174,9 +174,9 @@ class StubGradient {
     readonly stops: { offset: number; color: string }[] = [];
 
     /**
-     * Records a colour stop, standing in for CanvasGradient.addColorStop.
+     * Records a color stop, standing in for CanvasGradient.addColorStop.
      * @param offset - Stop position from 0 to 1
-     * @param color - Stop colour
+     * @param color - Stop color
      */
     addColorStop(offset: number, color: string): void {
         this.stops.push({ offset, color });
@@ -369,6 +369,40 @@ describe("NodeMesh gradient textures with a stand-in canvas", () => {
 
         assert.isTrue(fellBack, "the per-scene texture ceiling must engage");
         assert.isAtMost(textured, 32);
+    });
+
+    test("a gradient no material draws any more gives its slot back, and its texture is disposed", () => {
+        // Each gradient a style editor drags through is a new key. Once its meshes are gone the
+        // texture must go too, or 32 dead ramps spend the budget and every later gradient is flat.
+        const dead: DynamicTexture[] = [];
+        for (let i = 0; i < 32; i++) {
+            const mat = materialFor(`tex-old-${i}`, { ...linear, direction: i });
+            assert.instanceOf(mat.diffuseTexture, DynamicTexture);
+            dead.push(mat.diffuseTexture);
+        }
+
+        meshCache.clear();
+        const mat = materialFor("tex-new", { ...linear, direction: 100 });
+
+        assert.instanceOf(mat.diffuseTexture, DynamicTexture);
+        assert.isTrue(
+            dead.every((texture) => !scene.textures.includes(texture)),
+            "the dead ramps are disposed",
+        );
+    });
+
+    test("a shared gradient texture lives while any material still draws it", () => {
+        const a = materialFor("tex-share-a", linear);
+        const b = materialFor("tex-share-b", { ...linear });
+        const texture = b.diffuseTexture;
+        assert.instanceOf(texture, DynamicTexture);
+
+        a.dispose();
+        assert.include(scene.textures, texture);
+        assert.strictEqual(materialFor("tex-share-c", { ...linear }).diffuseTexture, texture);
+
+        b.dispose();
+        assert.include(scene.textures, texture, "tex-share-c still draws it");
     });
 
     test("the ceiling is per scene, so a fresh scene starts with a fresh budget", () => {

@@ -3,8 +3,9 @@
  * 7.4), the edge half of change flash: a white-hot front draws in from the source when an edge
  * arrives or its data changes, and a removed edge shrinks to its middle over its exit.
  *
- * Its 0.5 s plays still read the clock fields directly in the body; until its parameters are
- * bound to `since.added`, `since.changed` and `since.unmatched`, the element times no play for it.
+ * Each 0.5 s play is one parameter bound to its clock, and the body reads only those parameters.
+ * The change and leave times start at -0.5, since their clocks read -1 when nothing happened: a
+ * time below 0 is not playing, so at rest each sits there.
  *
  * Catalog data only, no GLSL; nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -32,14 +33,14 @@ export const EDGE_CHANGE: ShaderDescriptor = Object.freeze({
             name: "changeTime",
             plainName: "Change time",
             type: "number",
-            default: Object.freeze({ by: "since.changed", domain: [0, 0.5], range: [0, 0.5] }),
+            default: Object.freeze({ by: "since.changed", domain: [-0.5, 0.5], range: [-0.5, 0.5] }),
         },
         // Seconds on the layer's clock, so the element plays it for exactly that long.
         {
             name: "leaveTime",
             plainName: "Leave time",
             type: "number",
-            default: Object.freeze({ by: "since.unmatched", domain: [0, 0.5], range: [0, 0.5] }),
+            default: Object.freeze({ by: "since.unmatched", domain: [-0.5, 0.5], range: [-0.5, 0.5] }),
         },
     ]),
     reads: Object.freeze<ShaderInput[]>(["color", "opacity", "times"]),

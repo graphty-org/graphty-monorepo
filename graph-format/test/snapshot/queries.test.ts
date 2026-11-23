@@ -71,9 +71,11 @@ describe("findArc / arcsBetween / multiplicity (design section 3.5 semantics)", 
         expect(s.outDegreeOf(2)).toBe(0);
     });
 
-    it("out-of-range indices are unchecked and yield a miss rather than throwing", () => {
+    it("out-of-range indices are unchecked: nothing throws, findArc and hasArc miss, the rest is unspecified", () => {
         expect(s.findArc(7, 1)).toBe(INVALID_INDEX);
         expect(s.hasArc(0, 99)).toBe(false);
+        // design section 11.1: no bounds checks in hot paths, so these values are unspecified (today NaN
+        // and [undefined, undefined]); the only promise is that the call does not throw
         expect(() => s.multiplicity(99, 0)).not.toThrow();
         expect(() => s.arcsBetween(99, 0)).not.toThrow();
     });

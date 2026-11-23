@@ -2,7 +2,7 @@
  * The WGSL compile matrix (spec 5.1, 11.3; contract 5.5 P2): every OVERRIDE_MATRIX case compiles through the
  * PipelineCache on the real device and on Dawn's backend=null adapter, twin cases on both feature settings; the
  * matrix is bounded (its size is pinned per phase); matrixCovers accepts every key these compiles created and
- * canonicalises the ways a factory may spell an override set. The browser twin is test/browser/compile-matrix.test.ts;
+ * canonicalizes the ways a factory may spell an override set. The browser twin is test/browser/compile-matrix.test.ts;
  * the completeness half (every key the node suite creates is a case) is test/setup/global.ts's teardown, whose
  * pieces are unit-tested here too.
  */
@@ -61,7 +61,7 @@ describe("OVERRIDE_MATRIX (pure)", () => {
         expect(counts.get("reduce")).toBe(19);
         expect(counts.get("fill")).toBe(1);
         expect(counts.get("segmented-reduce")).toBe(148);
-        expect(counts.get("fa2-attraction")).toBe(145);
+        expect(counts.get("fa2-attraction")).toBe(289);
         expect(counts.get("spmv-pull")).toBe(49);
         expect(counts.get("fa2-repulsion-exact")).toBe(25);
         expect(counts.get("fa2-speed-finalize")).toBe(3);
@@ -79,6 +79,7 @@ describe("OVERRIDE_MATRIX (pure)", () => {
         expect(counts.get("collide-gather")).toBe(1);
         expect(counts.get("collide-apply")).toBe(1);
         expect(counts.get("to-drawn")).toBe(1);
+        expect(counts.get("envelope")).toBe(1);
         expect(counts.get("grid-centroid")).toBe(1);
         expect(counts.get("grid-centroid-hub")).toBe(1);
         expect(counts.get("grid-downsample")).toBe(1);

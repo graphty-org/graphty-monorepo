@@ -16,7 +16,7 @@ describe("Edge 2D Arrows Integration", () => {
         const graph = new Graph(container);
 
         await graph.setViewMode("2d");
-        // The arrow's own colour is not a channel: `edge.arrowHead` chooses WHICH arrow is drawn
+        // The arrow's own color is not a channel: `edge.arrowHead` chooses WHICH arrow is drawn
         // and the rest of its appearance follows the line. What these tests are about is the
         // material an arrow is built with, which the type decides.
         await styleEveryEdge(graph, {
@@ -65,10 +65,9 @@ describe("Edge 2D Arrows Integration", () => {
         // replaces: that one read a property set when the mesh was built and would have passed
         // on an edge that never placed its cap at all.
         //
-        // The two ends are moved apart by hand first. The layout has not run at this point, so
-        // both nodes still sit at the origin, and an edge whose ends coincide draws no cap --
-        // which is the same reason `edge-arrowhead-position.test.ts` pulls node positions out of
-        // the layout engine before it reads an arrow.
+        // The two ends are moved apart by hand first. This graph was never started with
+        // `init()`, so no frame has moved the nodes off the origin, and an edge whose ends
+        // coincide draws no cap.
         edge.srcNode.mesh.position.set(0, 0, 0);
         edge.dstNode.mesh.position.set(4, 0, 0);
         edge.invalidatePositionCache();

@@ -1,6 +1,7 @@
 /**
- * @file The model chunk loads a GLB, an OBJ with its MTL and PNG, and a binary STL without asking
- * the network for anything: no Babylon.js CDN, no lazily split shader or loader file, nothing but
+ * @file The model chunk loads a GLB, an OBJ with its MTL and PNG, a binary STL and FBX files without
+ * asking the network for anything, and a USDZ asking for nothing but the OpenUSD importer files
+ * babylonjs-models ships: no Babylon.js CDN, no lazily split shader or loader file, nothing but
  * the files the caller handed it. And a page that draws no model never downloads the chunk.
  *
  * Runs in Chromium (project "browser") and WebKit (project "models-webkit"), because Safari is
@@ -9,7 +10,9 @@
  * Requests are recorded three ways for the length of each load and its first draw: every
  * `fetch`, every `XMLHttpRequest.open` and every image `src` (which see `blob:` URLs too), and the
  * page's resource timing (which sees module scripts the dev server would serve for a lazy
- * `import()`). The fixtures are built here as bytes and handed over as `blob:` URLs, so any
+ * `import()`). A module worker started while recording (the OpenUSD importer runs in one) is
+ * started behind a module of the test's own that records the worker's `fetch` calls and resource
+ * timing the same way and reports them over a BroadcastChannel. The fixtures are built here as bytes and handed over as `blob:` URLs, so any
  * http(s) request at all is one the chunk made on its own.
  */
 
@@ -21,12 +24,23 @@ import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight.js";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader.js";
 import { SceneLoaderFlags } from "@babylonjs/core/Loading/sceneLoaderFlags.js";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { Scene } from "@babylonjs/core/scene.js";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { operationQueueOf } from "../../../src/Graph";
 import { useBundledStandardShaders } from "../../../src/meshes/bundledStandardShaders";
+import { loadChunk, loadModel } from "../../../src/models/loadModel";
+
+/** The FBX and USD fixtures, by path. */
+const FIXTURES = import.meta.glob<string>(
+    [
+        "../../../../babylonjs-models/test/fixtures/variants/fbx-*/**",
+        "../../../../babylonjs-models/test/fixtures/variants/usdz/*",
+    ],
+    { query: "?url", import: "default", eager: true },
+);
 
 const cleanups: (() => void)[] = [];
 
@@ -40,6 +54,81 @@ afterEach(() => {
 interface Recording {
     urls: string[];
     stop: () => string[];
+    /** Stop, after every module worker started while recording has reported all it requested. */
+    stopWithWorkers: () => Promise<string[]>;
+}
+
+/**
+ * The module run in a worker before the worker's own script: it reports every URL the worker
+ * fetches or loads, and answers a flush with `done` once everything before it has been sent.
+ * @param channelName - The BroadcastChannel the recording listens on.
+ * @returns The module's source.
+ */
+function workerRecorderSource(channelName: string): string {
+    return `
+const channel = new BroadcastChannel(${JSON.stringify(channelName)});
+const observer = new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) channel.postMessage({ url: entry.name });
+});
+observer.observe({ type: "resource", buffered: true });
+const originalFetch = self.fetch;
+self.fetch = (input, init) => {
+    channel.postMessage({ url: input instanceof Request ? input.url : String(input) });
+    return originalFetch(input, init);
+};
+channel.onmessage = (event) => {
+    if (event.data === "flush") {
+        for (const entry of observer.takeRecords()) channel.postMessage({ url: entry.name });
+        channel.postMessage({ done: true });
+    }
+};
+`;
+}
+
+/**
+ * A module worker script that runs the recorder's module and then the worker's own script, which
+ * runs as it would: a module's imports are evaluated in order before it.
+ * @param script - The worker's own script.
+ * @param channelName - The channel the recorder reports on.
+ * @returns The wrapper's blob: URL.
+ */
+function recordedWorkerScript(script: string, channelName: string): string {
+    const recorder = URL.createObjectURL(new Blob([workerRecorderSource(channelName)], { type: "text/javascript" }));
+    const wrapper = `import ${JSON.stringify(recorder)};\nimport ${JSON.stringify(script)};\n`;
+    return URL.createObjectURL(new Blob([wrapper], { type: "text/javascript" }));
+}
+
+/**
+ * Add every URL a recorded worker reports to `urls`.
+ * @param channelName - The channel the worker's recorder reports on.
+ * @param urls - Where the URLs go.
+ * @returns A flush: asks the worker for the rest, and settles once all of it has arrived.
+ */
+function listenToWorker(channelName: string, urls: string[]): () => Promise<void> {
+    const channel = new BroadcastChannel(channelName);
+    channel.onmessage = (event: MessageEvent<{ url?: string }>): void => {
+        if (event.data.url !== undefined) {
+            urls.push(event.data.url);
+        }
+    };
+    let report: Promise<void> | undefined;
+    return async (): Promise<void> => {
+        report ??= new Promise<void>((resolve) => {
+            channel.onmessage = (event: MessageEvent<{ url?: string; done?: boolean }>): void => {
+                if (event.data.url !== undefined) {
+                    urls.push(event.data.url);
+                } else if (event.data.done === true) {
+                    channel.close();
+                    resolve();
+                }
+            };
+            // A second channel object on the same name: a channel never hears its own messages.
+            const asker = new BroadcastChannel(channelName);
+            asker.postMessage("flush");
+            asker.close();
+        });
+        await report;
+    };
 }
 
 /**
@@ -83,19 +172,71 @@ function recordRequests(): Recording {
         },
     });
 
+    /** Each module worker's flush: settles once the worker has sent everything it requested. */
+    const flushes: (() => Promise<void>)[] = [];
+    const OriginalWorker = window.Worker;
+    window.Worker = class RecordedWorker extends OriginalWorker {
+        /** Ask the worker for the rest of its requests; settles when they have all arrived. */
+        readonly #flush: (() => Promise<void>) | undefined;
+
+        constructor(scriptURL: string | URL, options?: WorkerOptions) {
+            const script = new URL(String(scriptURL), location.href).href;
+            urls.push(script);
+            const channelName = options?.type === "module" ? `no-requests-${crypto.randomUUID()}` : undefined;
+            super(channelName === undefined ? scriptURL : recordedWorkerScript(script, channelName), options);
+            this.#flush = channelName === undefined ? undefined : listenToWorker(channelName, urls);
+            if (this.#flush !== undefined) {
+                flushes.push(this.#flush);
+            }
+        }
+
+        /** A worker its owner ends (the USD importer's is ended after each load) reports first. */
+        override terminate(): void {
+            if (this.#flush === undefined) {
+                super.terminate();
+                return;
+            }
+
+            void this.#flush().then(() => {
+                super.terminate();
+            });
+        }
+    };
+
+    const stop = (): string[] => {
+        for (const entry of observer.takeRecords()) {
+            urls.push(entry.name);
+        }
+        observer.disconnect();
+        window.fetch = originalFetch;
+        XMLHttpRequest.prototype.open = originalOpen;
+        Object.defineProperty(HTMLImageElement.prototype, "src", src);
+        window.Worker = OriginalWorker;
+        return urls;
+    };
+    cleanups.push(() => {
+        window.Worker = OriginalWorker;
+    });
+
     return {
         urls,
-        stop: (): string[] => {
-            for (const entry of observer.takeRecords()) {
-                urls.push(entry.name);
-            }
-            observer.disconnect();
-            window.fetch = originalFetch;
-            XMLHttpRequest.prototype.open = originalOpen;
-            Object.defineProperty(HTMLImageElement.prototype, "src", src);
-            return urls;
+        stop,
+        stopWithWorkers: async (): Promise<string[]> => {
+            const result = stop();
+            await Promise.all(flushes.map(async (flush) => await flush()));
+            return result;
         },
     };
+}
+
+/**
+ * Import the model chunk and babylonjs-models before a recording starts, so the dev server's
+ * module requests are not counted as the load's.
+ * @returns The model chunk.
+ */
+async function modelModules(): Promise<Awaited<ReturnType<typeof loadChunk>>> {
+    await import("babylonjs-models");
+    return await loadChunk();
 }
 
 /**
@@ -219,7 +360,7 @@ function makeScene(): Scene {
     document.body.appendChild(canvas);
     const engine = new Engine(canvas, false);
     const scene = new Scene(engine);
-    useBundledStandardShaders(scene);
+    useBundledStandardShaders();
     new FreeCamera("camera", new Vector3(0, 0, -3), scene).setTarget(Vector3.Zero());
     new HemisphericLight("light", new Vector3(0, 1, 0), scene);
     cleanups.push(() => {
@@ -248,7 +389,12 @@ describe("the model chunk", () => {
         const drawn = recording.stop();
 
         const chunkUrls = (urls: string[]): string[] =>
-            urls.filter((url) => url.includes("/src/models/") || url.includes("babylonjs_loaders"));
+            urls.filter(
+                (url) =>
+                    url.includes("/src/models/") ||
+                    url.includes("babylonjs_loaders") ||
+                    url.includes("babylonjs-models"),
+            );
         assert.deepEqual(chunkUrls(drawn), [], "drawing a graph fetched nothing of the model chunk");
         // The chunk's code has not run on this page at all, from this test's imports or any other.
         assert.isFalse(SceneLoader.IsPluginForExtensionAvailable(".glb"), "no glTF loader is registered");
@@ -263,12 +409,12 @@ describe("the model chunk", () => {
     });
 
     it("loads a GLB with a PBR material and an embedded texture with no request", async () => {
-        const { loadModelContainer, neutralEnvironment } = await import("../../../src/models/chunk");
+        const { neutralEnvironment } = await modelModules();
         const scene = makeScene();
         const png = await pngBytes();
 
         const recording = recordRequests();
-        const container = await loadModelContainer(scene, glbBytes(png), ".glb");
+        const container = await loadModel(scene, new Map([["model.glb", glbBytes(png)]]), "model.glb", "glb");
         container.addAllToScene();
         const materials = scene.materials.filter((material) => material instanceof PBRMaterial);
         assert.lengthOf(materials, 1, "the glTF material loads as PBR");
@@ -284,13 +430,12 @@ describe("the model chunk", () => {
         assertNoNetwork(urls);
     });
 
-    it("loads an OBJ with its MTL and PNG from the caller's blob: URLs only", async () => {
-        const { loadModelContainer } = await import("../../../src/models/chunk");
+    it("loads an OBJ with its MTL and PNG from blob: URLs of its own files only", async () => {
+        await modelModules();
         const scene = makeScene();
-        const pngUrl = blobUrl(await pngBytes(), "image/png");
-        const mtlUrl = blobUrl(`newmtl paint\nKd 1 1 1\nmap_Kd ${pngUrl}\n`, "text/plain");
+        const mtl = new TextEncoder().encode("newmtl paint\nKd 1 1 1\nmap_Kd paint.png\n");
         const obj = [
-            `mtllib ${mtlUrl}`,
+            "mtllib paint.mtl",
             "v 0 0 0",
             "v 1 0 0",
             "v 0 1 0",
@@ -302,8 +447,14 @@ describe("the model chunk", () => {
             "",
         ].join("\n");
 
+        const files = new Map([
+            ["model.obj", new TextEncoder().encode(obj)],
+            ["paint.mtl", mtl],
+            ["paint.png", await pngBytes()],
+        ]);
+
         const recording = recordRequests();
-        const container = await loadModelContainer(scene, new TextEncoder().encode(obj), ".obj");
+        const container = await loadModel(scene, files, "model.obj", "obj");
         container.addAllToScene();
         await vi.waitFor(() => {
             assert.isTrue(scene.isReady(), "the scene compiled its shaders and loaded its texture");
@@ -312,18 +463,17 @@ describe("the model chunk", () => {
         const urls = recording.stop();
 
         assert.isAbove(container.meshes.length, 0, "the model has meshes");
-        assert.include(urls, mtlUrl, "the MTL was read from the caller's URL");
-        assert.include(urls, pngUrl, "the texture was read from the caller's URL");
+        assert.isNotEmpty(urls, "the MTL and the texture were read from blob: URLs, which the recorder sees");
         assert.lengthOf(container.textures, 1, "the MTL's texture belongs to the model");
         assertNoNetwork(urls);
     });
 
     it("loads a binary STL with no request", async () => {
-        const { loadModelContainer } = await import("../../../src/models/chunk");
+        await modelModules();
         const scene = makeScene();
 
         const recording = recordRequests();
-        const container = await loadModelContainer(scene, stlBytes(), ".stl");
+        const container = await loadModel(scene, new Map([["model.stl", stlBytes()]]), "model.stl", "stl");
         container.addAllToScene();
         await vi.waitFor(() => {
             assert.isTrue(scene.isReady(), "the scene compiled its shaders");
@@ -335,8 +485,9 @@ describe("the model chunk", () => {
         assertNoNetwork(urls);
     });
 
-    it("refuses a decoder it does not bundle instead of fetching one", async () => {
-        const { loadModelContainer } = await import("../../../src/models/chunk");
+    it("refuses a decoder that is turned off instead of fetching one", async () => {
+        await modelModules();
+        const { configureDecoders } = await import("babylonjs-models");
         const scene = makeScene();
         const gltf = JSON.stringify({
             asset: { version: "2.0" },
@@ -344,10 +495,14 @@ describe("the model chunk", () => {
             extensionsRequired: ["KHR_draco_mesh_compression"],
         });
 
+        configureDecoders({ draco: false });
+        cleanups.push(() => {
+            configureDecoders({ draco: undefined });
+        });
         const recording = recordRequests();
         let failed = false;
         try {
-            await loadModelContainer(scene, new TextEncoder().encode(gltf), ".gltf");
+            await loadModel(scene, new Map([["model.gltf", new TextEncoder().encode(gltf)]]), "model.gltf", "gltf");
         } catch {
             failed = true;
         }
@@ -357,17 +512,20 @@ describe("the model chunk", () => {
         assertNoNetwork(urls);
     });
 
-    it("refuses Babylon's CDN while a model loads, and only then", async () => {
-        const { loadModelContainer } = await import("../../../src/models/chunk");
+    it("refuses a model's own reference to Babylon's CDN, and leaves the hooks alone after", async () => {
+        await modelModules();
         const { Tools } = await import("@babylonjs/core/Misc/tools.js");
         const scene = makeScene();
         const cdn = "https://assets.babylonjs.com/environments/backgroundGround.png";
-        const mtlUrl = blobUrl(`newmtl paint\nmap_Kd ${cdn}\n`, "text/plain");
-        const obj = `mtllib ${mtlUrl}\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl paint\nf 1 2 3\n`;
+        const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
+        const files = new Map([
+            ["model.obj", encode("mtllib paint.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl paint\nf 1 2 3\n")],
+            ["paint.mtl", encode(`newmtl paint\nmap_Kd ${cdn}\n`)],
+        ]);
 
         const recording = recordRequests();
         try {
-            await loadModelContainer(scene, new TextEncoder().encode(obj), ".obj");
+            await loadModel(scene, files, "model.obj", "obj");
         } catch {
             // Refusing the texture may fail the whole load; either way nothing is fetched.
         }
@@ -378,4 +536,119 @@ describe("the model chunk", () => {
         assert.include(Tools.GetBabylonScriptURL("https://cdn.babylonjs.com/x.js"), "cdn.babylonjs.com");
         assert.strictEqual(Tools.PreprocessUrl(cdn), cdn);
     });
+
+    it("lets a page's own babylonjs.com texture load while a model loads (issue #7437)", async () => {
+        await modelModules();
+        const { Tools } = await import("@babylonjs/core/Misc/tools.js");
+        const scene = makeScene();
+        const png = await pngBytes();
+        const pageTexture = "https://assets.babylonjs.com/textures/grass.png";
+        const pngUrl = blobUrl(png, "image/png");
+
+        // No real network: the page texture's image is answered by a local PNG at the last step,
+        // below every Babylon hook, so whatever refuses it has already had its chance.
+        const requested: string[] = [];
+        const src = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "src");
+        assert.isDefined(src?.set, "images have a src setter to intercept");
+        Object.defineProperty(HTMLImageElement.prototype, "src", {
+            configurable: true,
+            get(this: HTMLImageElement): string {
+                return src.get?.call(this) as string;
+            },
+            set(this: HTMLImageElement, value: string): void {
+                requested.push(value);
+                src.set?.call(this, value === pageTexture ? pngUrl : value);
+            },
+        });
+        cleanups.push(() => {
+            Object.defineProperty(HTMLImageElement.prototype, "src", src);
+        });
+
+        // The loader starts once the model's files are under the request guard.
+        const started = new Promise<void>((resolve) => {
+            SceneLoader.OnPluginActivatedObservable.addOnce(() => {
+                resolve();
+            });
+        });
+        const loading = loadModel(scene, new Map([["model.glb", glbBytes(png)]]), "model.glb", "glb");
+        await started;
+        // The model load is running: Babylon's CDN scripts are refused ...
+        assert.throws(() => Tools.ScriptPreprocessUrl("https://cdn.babylonjs.com/draco.js"), /Babylon's CDN/);
+        // ... and the page's own texture from a babylonjs.com host is requested all the same.
+        const texture = new Texture(pageTexture, scene);
+        await loading;
+
+        await vi.waitFor(() => {
+            assert.isTrue(texture.isReady() || texture.loadingError, "the page texture settled");
+        });
+        assert.isFalse(texture.loadingError, "the page texture was not refused");
+        assert.include(requested, pageTexture, "the page texture was requested from its own URL");
+    });
+
+    it("loads an FBX with its picture beside it, and one with its picture inside, with no request", async () => {
+        await modelModules();
+        for (const [variant, names] of [
+            ["fbx-textured", ["cube.fbx", "textures/cube.png"]],
+            ["fbx-ascii-embedded-texture", ["cube.fbx"]],
+        ] as const) {
+            const scene = makeScene();
+            const files = new Map<string, Uint8Array>();
+            for (const name of names) {
+                files.set(name, await fixtureBytes(variant, name));
+            }
+
+            const recording = recordRequests();
+            const container = await loadModel(scene, files, "cube.fbx", "fbx");
+            container.addAllToScene();
+            await vi.waitFor(() => {
+                assert.isTrue(scene.isReady(), "the scene compiled its shaders and loaded its textures");
+            });
+            scene.render();
+            // The FBX loader's own module is imported the first time an FBX file loads, as a decoder is.
+            const urls = recording
+                .stop()
+                .filter((url) => !/babylonjs_loaders_FBX|@babylonjs\/loaders\/FBX\//.test(url));
+            assert.isAbove(container.textures.length, 0, `${variant} draws its picture`);
+            assertNoNetwork(urls);
+        }
+    });
+
+    it("loads a USDZ asking for nothing but the package's own OpenUSD importer files", async () => {
+        await modelModules();
+        const scene = makeScene();
+        const files = new Map([["cube.usdz", await fixtureBytes("usdz", "cube.usdz")]]);
+        const recording = recordRequests();
+        const container = await loadModel(scene, files, "cube.usdz", "usdz");
+        const urls = await recording.stopWithWorkers();
+        assert.isAbove(container.meshes.length, 0, "the model has meshes");
+        // The importer fetches its WebAssembly inside its worker: seeing it proves the worker is watched.
+        assert.isTrue(
+            urls.some((url) => url.includes("babylon-usd-importer.wasm")),
+            "the worker's requests are recorded",
+        );
+        const babylon = urls.filter((url) => /(^|\.)babylonjs\.com$/.test(new URL(url, location.href).hostname));
+        assert.deepEqual(babylon, [], "nothing is requested from Babylon's hosts");
+        const network = urls.filter((url) => !url.startsWith("blob:") && !url.startsWith("data:"));
+        for (const url of network) {
+            assert.strictEqual(new URL(url, location.href).origin, location.origin, url);
+            // The loader's and the importer's modules, imported on first use as each decoder's is, and
+            // the importer's files.
+            assert.match(
+                url,
+                /\/babylonjs-models\/dist\/(?:wasm\/babylon-usd-importer\.|decoders\/usd\.js)|babylonjs_loaders_USD|@babylonjs\/loaders\/USD\//,
+                url,
+            );
+        }
+    });
 });
+
+/**
+ * A variant fixture's bytes (babylonjs-models/test/fixtures/variants).
+ * @param variant - The variant.
+ * @param name - The file.
+ * @returns Its bytes.
+ */
+async function fixtureBytes(variant: string, name: string): Promise<Uint8Array> {
+    const url = FIXTURES[`../../../../babylonjs-models/test/fixtures/variants/${variant}/${name}`];
+    return new Uint8Array(await (await fetch(url)).arrayBuffer());
+}

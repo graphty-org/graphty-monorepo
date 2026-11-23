@@ -2460,6 +2460,8 @@ const idleFacts = (c, sweep) => {
     sinks.unopened = new Set(
         (sweep.claims ?? [])
             .filter((x) => x.kind === "ready" && x.action === "stranded" && c.now - x.at > OPEN_AFTER_MS)
+            // a branch whose issue waits on another pull request cannot open yet (#9764: #8193 on #9592)
+            .filter((x) => !liveWaits(ledger).some((w) => w.issue === x.n))
             .map((x) => x.branch)
             .filter((b) => !notMine.has(b)),
     ).size;

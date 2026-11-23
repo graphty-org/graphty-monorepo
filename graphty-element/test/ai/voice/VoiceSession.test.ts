@@ -317,7 +317,7 @@ describe("spoken answers", () => {
         h.voice.talk(true);
 
         await vi.waitFor(() => {
-            assert.deepStrictEqual(of(h, "ai-speech-end"), [{ code: "AI_CANCELLED", params: {} }]);
+            assert.deepStrictEqual(of(h, "ai-speech-end"), [{ code: "AI_CANCELED", params: {} }]);
         });
         h.voice.talk(false);
     });
@@ -331,7 +331,7 @@ describe("spoken answers", () => {
         });
         h.voice.stopSpeech();
         await vi.waitFor(() => {
-            assert.deepStrictEqual(of(h, "ai-speech-end"), [{ code: "AI_CANCELLED", params: {} }]);
+            assert.deepStrictEqual(of(h, "ai-speech-end"), [{ code: "AI_CANCELED", params: {} }]);
         });
 
         h.voice.talk(true);
@@ -582,7 +582,7 @@ describe("a press's limits", () => {
 
                 const text = await transcribing;
                 return signal.aborted
-                    ? { code: "AI_CANCELLED", params: {} }
+                    ? { code: "AI_CANCELED", params: {} }
                     : { code: "AI_COMPLETED", params: {}, text };
             },
         });
@@ -629,8 +629,8 @@ describe("a press's limits", () => {
             assert.lengthOf(ends, 2, "both presses ended");
         });
         await flushMicrotasks();
-        assert.deepStrictEqual(sent, [], "the cancelled press sent nothing");
-        assert.deepStrictEqual(ends, ["AI_CANCELLED", "AI_CANCELLED"]);
+        assert.deepStrictEqual(sent, [], "the canceled press sent nothing");
+        assert.deepStrictEqual(ends, ["AI_CANCELED", "AI_CANCELED"]);
     });
 });
 

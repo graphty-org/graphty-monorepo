@@ -1,6 +1,5 @@
 /**
- * The layer panel's words on the REAL graphty-element and Les Miserables: a selection's Style tab
- * says the first style makes its layer, and the notice after it does not repeat the count; a
+ * The layer panel's words on the REAL graphty-element and Les Miserables: a
  * "+" that adds one thing has one name in its tooltip and its accessible name; the shape list keeps
  * its value in its name; "Which nodes" is a heading; undo words name the kind and the act.
  */
@@ -14,7 +13,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { historyTip } from "../../frame/historyWords";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -55,33 +54,22 @@ async function clickRow(name: string): Promise<void> {
 }
 
 describe("the layer panel's words", () => {
-    it("says the first style makes the selection's layer, and then says it once", async () => {
-        const { session, idOf } = await openScene();
-        await act(async () => {
-            await session.selection.apply({ nodes: [idOf("Cosette"), idOf("Marius"), idOf("Valjean")] });
+    it("a '+' that adds one thing has one name in its tooltip and its accessible name", async () => {
+        const { session } = await openScene();
+        await session.styles.add({
+            name: "Sized",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.size": 2 },
         });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        await screen.findByText("The first style you set makes a layer for the 3 selected nodes.");
-        // A "+" with one thing to add: its tooltip is its name.
+        await session.styles.settled();
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Sized, / }));
         const fill = await screen.findByRole("button", { name: "Add to node fill" });
         await userEvent.hover(fill);
         // The theme opens a tooltip after 1000 ms, the whole of findByRole's default wait.
         const tip = await screen.findByRole("tooltip", {});
         assert.strictEqual(tip.textContent, "Add to node fill", "the tooltip is the button's name");
-        await userEvent.unhover(fill);
-        await userEvent.click(await screen.findByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        await waitFor(() => {
-            assert.isNotNull(document.activeElement?.closest('[data-line="node.size"]'), "focus on the new line");
-        });
-        await userEvent.keyboard("{Control>}a{/Control}3{Enter}");
-        await waitFor(() => {
-            assert.match(
-                document.querySelector(".ws-notice-slot")?.textContent ?? "",
-                /^Made a layer for the 3 selected nodes/,
-            );
-        });
-        assert.isNull(screen.queryByText(/^The first style you set/), "said only before the layer is made");
     });
 
     it("keeps the shape's value in its name, and reads its selection as the Style Nodes... line", async () => {

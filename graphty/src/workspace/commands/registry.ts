@@ -62,6 +62,18 @@ export interface Command {
      * renames the project anywhere else).
      */
     readonly rowKeys?: readonly string[];
+    /**
+     * Keys it takes over from the command that holds them, only while `shown` holds: Stop tour
+     * takes Escape from Clear selection while a tour plays. They run before every other key, once
+     * an inner control (a field, an open list, a menu, a dialog) had its turn, and are not checked
+     * against other commands' keys.
+     */
+    readonly whileShownKeys?: readonly string[];
+    /**
+     * False leaves it out of Quick actions while its keys still work: the camera keys, whose
+     * cameras Quick actions lists itself. Absent means listed.
+     */
+    readonly inPalette?: boolean;
     /** Extra words Quick actions matches ("field", "column"). */
     readonly keywords?: readonly string[];
     /** A tooltip sentence, where the label alone is not enough. */
@@ -152,6 +164,16 @@ export interface InspectedKind {
     readonly alwaysOpenOn?: "style" | "values";
 }
 
+/**
+ * A Quick actions row a package draws from what is loaded now (one per algorithm graphty-element's
+ * catalog holds), listed under its own heading after the Analyze commands. It has no other door,
+ * so it is not in the command list, and it binds no keys.
+ */
+export interface PaletteRow extends Omit<Command, "group" | "stub"> {
+    /** The heading Quick actions lists it under while nothing is typed. */
+    readonly group: string;
+}
+
 /** What one package hands the Frame. */
 export interface WorkspaceRegistration {
     /** The package's directory under `workspace/`, such as `"export"`. */
@@ -164,6 +186,8 @@ export interface WorkspaceRegistration {
     readonly sourceRow?: readonly SourceRowCommand[];
     /** Its commands on a table column's header menu. */
     readonly columnHeader?: readonly ColumnHeaderCommand[];
+    /** Its Quick actions rows for what is loaded now, read each time the palette opens. */
+    readonly paletteRows?: (ctx: CommandContext) => readonly PaletteRow[];
 }
 
 /**
@@ -224,6 +248,17 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
     ],
     analyze: ["analyze.open"],
     layout: ["layout.open", "layout.rerun", "layout.reshuffle"],
+    "views-place": [
+        "place.views",
+        "camera.save",
+        "camera.key-1",
+        "camera.key-2",
+        "camera.key-3",
+        "camera.key-4",
+        "camera.key-6",
+        "camera.key-7",
+        "camera.key-8",
+    ],
     "graph-place": [
         "find.focus",
         "row.rename",
@@ -251,6 +286,12 @@ export interface WorkspaceCommands {
     readonly sourceRow: readonly SourceRowCommand[];
     /** Every table column header command, in registration order. */
     readonly columnHeader: readonly ColumnHeaderCommand[];
+    /**
+     * Every package's Quick actions rows for what is loaded now, in registration order.
+     * @param ctx - what the rows read.
+     * @returns the rows.
+     */
+    paletteRows: (ctx: CommandContext) => readonly PaletteRow[];
     /**
      * A command by id.
      * @param id - the command id.
@@ -352,6 +393,7 @@ export function createRegistry(registrations: readonly WorkspaceRegistration[]):
         kinds,
         sourceRow,
         columnHeader,
+        paletteRows: (ctx) => registrations.flatMap((registration) => registration.paletteRows?.(ctx) ?? []),
         get: (id) => byId.get(id),
         built: (id) => {
             const command = byId.get(id);

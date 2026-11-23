@@ -13,6 +13,7 @@ import type { z } from "zod";
 
 import type {
     AiHostedToolId,
+    AiImageModelDescriptor,
     AiPageRetrieval,
     AiProviderId,
     AiReasoningEffort,
@@ -211,7 +212,7 @@ export type TurnEvent =
           readonly params: AiResultParams;
           /**
            * What failed, already safe to hand on: name, message and stack with every credential
-           * removed (`toSafeError`), plus the HTTP status. `AI_CANCELLED` means the turn's signal fired.
+           * removed (`toSafeError`), plus the HTTP status. `AI_CANCELED` means the turn's signal fired.
            */
           readonly cause: Error;
           /** Whether asking again may succeed: a rate limit, a server error, a lost connection. */
@@ -322,7 +323,7 @@ export interface SpeakOptions {
 
 /**
  * What a transcription heard: `AI_COMPLETED` with the text, or the code it failed with
- * (`AI_KEY_REJECTED`, `AI_PROVIDER_ERROR`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`) and no text.
+ * (`AI_KEY_REJECTED`, `AI_PROVIDER_ERROR`, `AI_CANCELED`, `AI_VOICE_UNAVAILABLE`) and no text.
  * Never thrown.
  */
 export type TurnText =
@@ -335,6 +336,14 @@ export type TurnText =
  */
 export type SpokenAudio =
     | { readonly code: "AI_COMPLETED"; readonly params: AiResultParams; readonly audio: Blob }
+    | { readonly code: Exclude<AiResultCode, "AI_COMPLETED">; readonly params: AiResultParams };
+
+/**
+ * What generating a picture produced: `AI_COMPLETED` with the picture (a `Blob` of the provider's
+ * content type), or the code it failed with and no picture. Never thrown.
+ */
+export type GeneratedImage =
+    | { readonly code: "AI_COMPLETED"; readonly params: AiResultParams; readonly image: Blob }
     | { readonly code: Exclude<AiResultCode, "AI_COMPLETED">; readonly params: AiResultParams };
 
 /** One attempt at a provider's speech call: its value, or a coded error like a turn's. */
@@ -423,7 +432,7 @@ export interface LiveConnection {
 
 /**
  * What opening a live conversation gave: `AI_COMPLETED` with the connection, or the code it
- * failed with (`AI_KEY_REJECTED`, `AI_PROVIDER_ERROR`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`).
+ * failed with (`AI_KEY_REJECTED`, `AI_PROVIDER_ERROR`, `AI_CANCELED`, `AI_VOICE_UNAVAILABLE`).
  * Never thrown.
  */
 export type LiveOpened =
@@ -458,6 +467,13 @@ export interface AiEngine {
     /** A live conversation with the provider; absent, like `transcribe`, where it has none. */
     openLive?(options: LiveOptions, signal: AbortSignal): Promise<LiveOpened>;
     /**
+     * Make a picture from a prompt with the provider's image model. Absent, like `transcribe`, on
+     * an engine whose provider makes none; present together with `imageModel`.
+     */
+    generateImage?(prompt: string, signal: AbortSignal): Promise<GeneratedImage>;
+    /** The model `generateImage` uses and what one picture costs. */
+    readonly imageModel?: AiImageModelDescriptor;
+    /**
      * Whether `openLive` can open now: a key is set, and a custom `baseUrl` (which live cannot
      * reach) is not. Absent, it can whenever `openLive` exists.
      */
@@ -476,7 +492,10 @@ export type ProgramBindings = Readonly<Record<string, ProgramBinding>>;
 
 /** How far a program may go before it is stopped. */
 export interface ProgramLimits {
-    /** Wall time, in milliseconds, before the program is interrupted (`program-timeout`). */
+    /**
+     * Wall time, in milliseconds, before the program is interrupted (`program-timeout`). `Infinity`
+     * sets no time limit, leaving the memory and call limits and the abort signal to stop it.
+     */
     readonly timeoutMs: number;
     /** Binding calls allowed; the next one fails and the program ends `program-call-limit`. */
     readonly maxCalls: number;
@@ -488,7 +507,7 @@ export interface ProgramLimits {
 
 /** Why a program failed: the `cause` of its `AI_TOOL_FAILED`. */
 export type ProgramFailureCause =
-    "program-threw" | "program-timeout" | "program-memory" | "program-call-limit" | "program-cancelled";
+    "program-threw" | "program-timeout" | "program-memory" | "program-call-limit" | "program-canceled";
 
 /**
  * What a program did. `AI_COMPLETED` with the value it returned, or `AI_TOOL_FAILED` with

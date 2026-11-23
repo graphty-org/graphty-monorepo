@@ -1,11 +1,10 @@
 /**
  * What the Assistant shows a reader to check an answer by: effects on a message, targets, peek and a
- * message's scope. All of it needs the `assistant` experiment; with it off, or with nothing set,
- * the assistant behaves as it did before.
+ * message's scope. With nothing set, the assistant behaves as it did before.
  * @module test/ai/assistant-evidence.test
  */
 
-import { assert, beforeEach, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import type { GraphSession } from "../../session";
 import type { AiCommandOptions } from "../../src/ai/AiController";
@@ -13,11 +12,7 @@ import { readConversation, writeConversation } from "../../src/ai/conversation/f
 import { MemoryStore } from "../../src/ai/conversation/MemoryStore";
 import { conversationSnapshot } from "../../src/ai/conversation/snapshot";
 import type { AiEffect } from "../../src/catalog/ai";
-import { isGraphtyError } from "../../src/errors";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { assistantSession, callsTurn, ScriptedAssistant, textTurn } from "../helpers/assistant";
-
-const ON = ["assistant"];
 
 /**
  * A graph of numbered nodes in a ring, a quarter of them `kind: "core"`.
@@ -69,28 +64,9 @@ async function selectFirst(session: GraphSession, count: number): Promise<void> 
     await session.selection.apply({ ids: Array.from({ length: count }, (_, index) => `n${String(index)}`) });
 }
 
-/**
- * Whether a rejection is `E_FEATURE_OFF` for a key.
- * @param run - What should reject.
- * @param key - The key it names.
- */
-async function refusedOff(run: () => Promise<unknown>, key: string): Promise<void> {
-    let thrown: unknown;
-    try {
-        await run();
-    } catch (error) {
-        thrown = error;
-    }
-
-    assert.isTrue(isGraphtyError(thrown), "it rejects with a GraphtyError");
-    const error = thrown as { code: string; details: unknown };
-    assert.strictEqual(error.code, "E_FEATURE_OFF");
-    assert.deepEqual(error.details, { feature: "assistant", key });
-}
-
 describe("effects", () => {
     it("a style run's effect names a target that finds the same nodes and follows the data", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("color the servers", [
             {
@@ -116,7 +92,7 @@ describe("effects", () => {
     });
 
     it("a target whose layer is gone is refused, so its elements can be told gone", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("color", [
             {
@@ -138,7 +114,9 @@ describe("effects", () => {
     });
 
     it("counts the matched elements a filter hides", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
+        // Over the whole graph: with the working graph on, a style reaches only what is shown.
+        session.workingGraph = false;
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("hide team blue, then color the servers", [
             { tool: "filter", args: { action: "hide", where: "data.team == 'blue'" } },
@@ -155,24 +133,18 @@ describe("effects", () => {
         assert.strictEqual(style.params.hidden, 1);
     });
 
-    it("records how long each call ran, with the experiment on and not with it off", async () => {
-        const durations = async (features?: readonly string[]): Promise<(number | undefined)[]> => {
-            const session = await assistantSession(undefined, features);
-            const assistant = new ScriptedAssistant(session, { history: "memory" });
-            await assistant.say("what is here?", [{ tool: "query", args: { action: "overview" } }]);
-            return (assistant.controller.getConversation()?.messages ?? []).flatMap((message) =>
-                message.role === "assistant" ? message.calls.map((call) => call.durationMs) : [],
-            );
-        };
-        const [on] = await durations(ON);
-        assert.isAtLeast(on ?? -1, 0);
-        // Off even where every experiment is on by default (the "-features-on" projects).
-        setDefaultFeatures([]);
-        assert.deepEqual(await durations(), [undefined]);
+    it("records how long each call ran", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session, { history: "memory" });
+        await assistant.say("what is here?", [{ tool: "query", args: { action: "overview" } }]);
+        const [ran] = (assistant.controller.getConversation()?.messages ?? []).flatMap((message) =>
+            message.role === "assistant" ? message.calls.map((call) => call.durationMs) : [],
+        );
+        assert.isAtLeast(ran ?? -1, 0);
     });
 
     it("an empty read is an effect naming what was searched", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("which are big?", [{ tool: "query", args: { action: "nodes", where: "data.load > `5`" } }]);
 
@@ -182,7 +154,7 @@ describe("effects", () => {
     });
 
     it("a read that finds elements points at them; a write refused for matching nothing is empty too", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say(
             "the servers",
@@ -207,7 +179,7 @@ describe("effects", () => {
     });
 
     it("a removed run says so, with the layers that went with it", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory", gate: false });
         await assistant.say(
             "run it, then take it away",
@@ -224,7 +196,7 @@ describe("effects", () => {
     });
 
     it("a ranking that selects says so beside what it found; one that only reads does not", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory", gate: false });
         await assistant.say(
             "the top two, selected",
@@ -246,7 +218,7 @@ describe("effects", () => {
     });
 
     it("a ranking run names its leader as found, a target that selects the top node", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory", gate: false });
         await assistant.say("which is the most connected?", [
             { tool: "run_algorithm", args: { action: "run", name: "degree", style: false } },
@@ -262,7 +234,7 @@ describe("effects", () => {
     });
 
     it("says what a whole-graph read found and how a grouping run grouped", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory", gate: false });
         await assistant.say(
             "summarize and group",
@@ -283,7 +255,7 @@ describe("effects", () => {
     });
 
     it("words every other kind of change as a code with its facts", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory", gate: false });
         await assistant.say(
             "all of it",
@@ -323,7 +295,7 @@ describe("effects", () => {
     });
 
     it("a reader's message carries the id its history steps do, so an application can offer its undo", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("color", [
             { tool: "style", args: { action: "add", where: "all", values: { "node.color": "#ff0000" } } },
@@ -339,7 +311,7 @@ describe("effects", () => {
     });
 
     it("a batch taken back reports no effect", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("two things", [
             { tool: "select", args: { action: "set", where: "data.type == 'server'" } },
@@ -350,7 +322,7 @@ describe("effects", () => {
     });
 
     it("keeps effects and scope through a saved conversation, read back as it was", async () => {
-        const session = await assistantSession(ring(8), ON);
+        const session = await assistantSession(ring(8));
         await selectFirst(session, 3);
         const store = new MemoryStore();
         const assistant = new ScriptedAssistant(session, { history: "memory", store });
@@ -382,7 +354,7 @@ describe("effects", () => {
 
 describe("a target on an approval's preview", () => {
     it("covers all twelve nodes where `ids` stops at ten", async () => {
-        const session = await assistantSession(ring(20), ON);
+        const session = await assistantSession(ring(20));
         const assistant = new ScriptedAssistant(session);
         const twelve = Array.from({ length: 12 }, (_, index) => `n${String(index)}`);
         await assistant.say("remove twelve", [{ tool: "edit_data", args: { action: "remove_nodes", ids: twelve } }]);
@@ -394,7 +366,7 @@ describe("a target on an approval's preview", () => {
     });
 
     it("is the rule when the call named a rule", async () => {
-        const session = await assistantSession(ring(20), ON);
+        const session = await assistantSession(ring(20));
         const assistant = new ScriptedAssistant(session);
         await assistant.say("remove the leaves", [
             { tool: "edit_data", args: { action: "remove_nodes", where: "data.kind == 'leaf'" } },
@@ -407,7 +379,7 @@ describe("a target on an approval's preview", () => {
 
 describe("peek", () => {
     it("adds no undo step, changes no selection and saves nothing, and clears", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         await session.selection.apply({ ids: ["a"] });
         const { position, steps } = session.history;
         const saved = (await session.project.save()).text;
@@ -430,7 +402,7 @@ describe("peek", () => {
     });
 
     it("goes when the graph changes, and at the session's end", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         await session.selection.peek({ ids: ["a"] });
         await session.data.addNodes([{ id: "z" }]);
         await session.selection.count({ ids: ["a"] });
@@ -442,7 +414,7 @@ describe("peek", () => {
     });
 
     it("refuses a target the selection refuses, and leaves what was showing", async () => {
-        const session = await assistantSession(undefined, ON);
+        const session = await assistantSession();
         await session.selection.peek({ ids: ["a"] });
         let code: unknown;
         try {
@@ -458,7 +430,7 @@ describe("peek", () => {
 
 describe("scope", () => {
     it('"selection" binds all 42 selected nodes, not 20', async () => {
-        const session = await assistantSession(ring(60), ON);
+        const session = await assistantSession(ring(60));
         await selectFirst(session, 42);
         const assistant = new ScriptedAssistant(session, { history: "memory" });
 
@@ -479,7 +451,9 @@ describe("scope", () => {
     });
 
     it("names the selection by reference, limits a rule to it, and counts hidden members", async () => {
-        const session = await assistantSession(ring(60), ON);
+        const session = await assistantSession(ring(60));
+        // Over the whole graph: with the working graph on, a filter drops the hidden members.
+        session.workingGraph = false;
         await selectFirst(session, 42);
         await session.visibility.set({ kind: "not", of: { kind: "member", of: { nodes: ["n0", "n1"] } } });
         const assistant = new ScriptedAssistant(session, { history: "memory" });
@@ -511,7 +485,7 @@ describe("scope", () => {
     });
 
     it('"graph" ignores the selection', async () => {
-        const session = await assistantSession(ring(60), ON);
+        const session = await assistantSession(ring(60));
         await selectFirst(session, 42);
         const assistant = new ScriptedAssistant(session, { history: "memory" });
 
@@ -529,7 +503,7 @@ describe("scope", () => {
     });
 
     it("a selection changed while the message runs does not change its scope", async () => {
-        const session = await assistantSession(ring(60), ON);
+        const session = await assistantSession(ring(60));
         await selectFirst(session, 42);
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         assistant.engine.push(async function* changedMidRun() {
@@ -542,7 +516,7 @@ describe("scope", () => {
     });
 
     it("the selection as sent still binds a held change after a reload", async () => {
-        const session = await assistantSession(ring(60), ON);
+        const session = await assistantSession(ring(60));
         await selectFirst(session, 42);
         const store = new MemoryStore();
         const first = new ScriptedAssistant(session, { history: "memory", store });
@@ -561,7 +535,7 @@ describe("scope", () => {
     });
 
     it("the model's own tools for a read stay limited to it", async () => {
-        const session = await assistantSession(ring(60), ON);
+        const session = await assistantSession(ring(60));
         await selectFirst(session, 42);
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await send(assistant, [{ tool: "query", args: { action: "count", where: "selection" } }], {
@@ -572,40 +546,9 @@ describe("scope", () => {
     });
 });
 
-describe("with the experiment off", () => {
-    // Off even where every experiment is on by default (the "-features-on" projects).
-    beforeEach(() => {
-        setDefaultFeatures([]);
-    });
-
-    it("records no effect and no target", async () => {
-        const session = await assistantSession(ring(20));
-        const assistant = new ScriptedAssistant(session, { history: "memory" });
-        await assistant.say("color", [
-            { tool: "style", args: { action: "add", where: "all", values: { "node.color": "#ff0000" } } },
-        ]);
-        const twelve = Array.from({ length: 12 }, (_, index) => `n${String(index)}`);
-        await assistant.say("remove", [{ tool: "edit_data", args: { action: "remove_nodes", ids: twelve } }]);
-
-        const messages = assistant.controller.getConversation()?.messages ?? [];
-        assert.isFalse(messages.some((message) => "effects" in message));
-        const [request] = assistant.controller.getPendingApprovals();
-        assert.notProperty(request.preview, "target");
-    });
-
-    it("refuses a scope and a peek with E_FEATURE_OFF, substituting nothing", async () => {
-        const session = await assistantSession(ring(8));
-        const assistant = new ScriptedAssistant(session);
-
-        await refusedOff(() => assistant.controller.execute("hello", { scope: "selection" }), "scope");
-        await refusedOff(() => session.selection.peek({ ids: ["n0"] }), "selection.peek");
-        assert.lengthOf(assistant.engine.requests, 0, "nothing was sent");
-    });
-});
-
 describe("with nothing set", () => {
     it("tells the model how much is selected, as before, and reports no scope", async () => {
-        const session = await assistantSession(ring(8), ON);
+        const session = await assistantSession(ring(8));
         await selectFirst(session, 3);
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("hello");
@@ -619,7 +562,7 @@ describe("with nothing set", () => {
     });
 
     it("reads a target as written, the selection untouched", async () => {
-        const session = await assistantSession(ring(8), ON);
+        const session = await assistantSession(ring(8));
         await selectFirst(session, 3);
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("all", [

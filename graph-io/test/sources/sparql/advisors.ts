@@ -23,5 +23,5 @@ export const WIKIDATA_ADVISORS = Object.freeze({
     query: QUERY,
     pageSize: 100,
     language: "en",
-    predicates: ["http://www.wikidata.org/prop/direct/"], // NOSONAR(S5332): an RDF namespace IRI, never fetched; Wikidata's IRIs are http
+    predicates: ["http://www.wikidata.org/prop/direct/"], // an RDF namespace IRI, never fetched; Wikidata's IRIs are http
 });

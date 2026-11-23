@@ -1,5 +1,5 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -840,10 +840,13 @@ describe("MetricRow", () => {
 
             const row = screen.getByTestId("metric-row");
             await user.click(row);
-            // The row is not focusable without a handler, so the key is
-            // delivered straight to it: the guard, and not the missing tab stop,
-            // is what has to hold.
-            fireEvent.keyDown(row, { key: "Enter" });
+            // The row is not focusable without a handler, so the test gives it
+            // focus itself and presses a real Enter there: the guard, and not
+            // the missing tab stop, is what has to hold.
+            row.tabIndex = -1;
+            row.focus();
+            expect(row).toHaveFocus();
+            await user.keyboard("{Enter}");
 
             expect(row).toBeInTheDocument();
             expect(row).toHaveStyle({ cursor: "default" });

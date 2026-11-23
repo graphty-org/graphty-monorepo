@@ -24,6 +24,9 @@ import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import { respelledPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
+import type { PositionColumnExtra } from "../../positions/types.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { PAJEK_STYLE_CAPABILITIES, pajekStyledExport } from "./styles.js";
@@ -31,12 +34,12 @@ import {
     encodeCharacterReferences,
     formatIntervals,
     isParameterKey,
+    isShapeKeyword,
     LABEL_COLUMN,
     ORIGINAL_ID_KEY,
     POSITION_COLUMN,
     RELATION_COLUMN,
     SHAPE_COLUMN,
-    SHAPES,
     VOIDING_KEYS,
 } from "./syntax.js";
 
@@ -448,7 +451,7 @@ function unlabeled(nodeCount: number, labels: Column | null): number {
  */
 function allShapeKeywords(column: Column): boolean {
     for (let r = 0; r < column.length; r++) {
-        if (column.isSet(r) && !SHAPES.has(column.value(r) as string)) {
+        if (column.isSet(r) && !isShapeKeyword(column.value(r) as string)) {
             return false;
         }
     }
@@ -666,7 +669,7 @@ function firstModeOf(snapshot: GraphSnapshot): number | null {
  * the vertex number, otherwise null (no label needed). A label is forced when something follows
  * it on the line, because Pajek's grammar puts the label second.
  * @param labels - the label column, or null
- * @param ids - the sanitised ids
+ * @param ids - the sanitized ids
  * @param i - the node index
  * @param needed - whether the line has more after the label
  * @returns the label text, or null
@@ -703,19 +706,23 @@ function spellsText(column: Column, row: number): string | null {
     return formatIntervals(pairs);
 }
 
+/** How Pajek spells a coordinate: y grows downward and depth is centered on 0.5 (as the importer reads it). */
+const PAJEK_SPELLING: PositionColumnExtra = { yAxis: "down", zOrigin: 0.5 };
+
 /**
  * The coordinates text of a vertex, or null when unset.
  * @param column - the position column (2 or 3 components)
  * @param i - the node index
  * @param writeZ - whether z is written for a 3-component column
+ * @param spelled - the column's rows in Pajek's spelling (`respelledPositions`), or null to write them as stored
  * @returns "x y" or "x y z", or null
  */
-function coordinatesText(column: Column, i: number, writeZ: boolean): string | null {
+function coordinatesText(column: Column, i: number, writeZ: boolean, spelled: Float64Array | null): string | null {
     if (!column.isSet(i)) {
         return null;
     }
     const dtype = column.dtype as "f32" | "f64" | "i32" | "u32" | "u8";
-    const vector = column.value(i) as ArrayLike<number>;
+    const vector = spelled === null ? (column.value(i) as ArrayLike<number>) : spelled.subarray(3 * i, 3 * i + 3);
     // the importer reads coordinates by position, so the shortest text of each is enough
     const x = formatNumber(vector[0], dtype);
     const y = formatNumber(vector[1], dtype);
@@ -817,7 +824,7 @@ function withoutReservedKey(nodePlan: readonly PlannedColumn[], mangle: boolean)
  * and under "mangle" an original id whose text reads back as the other type under ids
  * "canonical" is reported (the importer coerces the parameter text like every id cell).
  * @param nodeCount - the node count
- * @param ids - the sanitised ids
+ * @param ids - the sanitized ids
  * @param mangle - whether the original ids are written as parameters
  * @param notes - where to record
  */
@@ -861,7 +868,7 @@ function checkIdTexts(nodeCount: number, ids: SanitizedIds, mangle: boolean, not
 /**
  * The vertex lines: number, label, coordinates, shape, parameters and interval.
  * @param snapshot - the snapshot
- * @param ids - the sanitised ids
+ * @param ids - the sanitized ids
  * @param nodePlan - the node column plan
  * @param mangle - whether a renumbered vertex carries its original id as a parameter
  * @yields one line per vertex
@@ -875,8 +882,10 @@ function* writeVertices(
 ): Generator<string, void, undefined> {
     const slots = vertexSlots(nodePlan);
     const writeZ = slots.position !== null && needsZ(slots.position);
+    // Pajek draws y downward with depth centered on 0.5: a column spelled another way is converted
+    const spelled = respelledPositions(snapshot, slots.position, PAJEK_SPELLING);
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        const parts = vertexParts(slots, i, writeZ);
+        const parts = vertexParts(slots, i, writeZ, spelled);
         if (mangle && ids.isChanged(i)) {
             parts.push(`${ORIGINAL_ID_KEY} ${quotePajekLabel(idText(ids.originalAt(i)))}`);
         }
@@ -949,12 +958,13 @@ function vertexSlots(nodePlan: readonly PlannedColumn[]): VertexSlots {
  * @param slots - the node columns by slot
  * @param i - the vertex's index
  * @param writeZ - whether coordinates carry a z
+ * @param spelled - the position column's rows in Pajek's spelling, or null to write them as stored
  * @returns the parts, in order
  */
-function vertexParts(slots: VertexSlots, i: number, writeZ: boolean): string[] {
+function vertexParts(slots: VertexSlots, i: number, writeZ: boolean, spelled: Float64Array | null): string[] {
     const { position, shape } = slots;
     const parts: string[] = [];
-    const coordinates = position === null ? null : coordinatesText(position, i, writeZ);
+    const coordinates = position === null ? null : coordinatesText(position, i, writeZ, spelled);
     if (coordinates !== null) {
         parts.push(coordinates);
     }
@@ -962,7 +972,7 @@ function vertexParts(slots: VertexSlots, i: number, writeZ: boolean): string[] {
     const shaped = shape?.isSet(i) === true;
     if (shaped) {
         const keyword = cellText(shape, i);
-        parts.push(SHAPES.has(keyword) ? keyword : `${SHAPE_COLUMN} ${quotePajekLabel(keyword)}`);
+        parts.push(isShapeKeyword(keyword) ? keyword : `${SHAPE_COLUMN} ${quotePajekLabel(keyword)}`);
     }
     const named = parts.length;
     for (const column of slots.params) {
@@ -1150,47 +1160,49 @@ function resolvePajekOptions(
  * The Pajek NET exporter.
  * @category Built-in formats
  */
-export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
-    format: "pajek",
-    options: Object.freeze(["name", "networkHeader"]),
-    capabilities: CAPABILITIES,
-    styles: Object.freeze({ capabilities: PAJEK_STYLE_CAPABILITIES }),
+export const pajekExporter: GraphExporter<PajekExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: "pajek",
+        options: Object.freeze(["name", "networkHeader"]),
+        capabilities: CAPABILITIES,
+        styles: Object.freeze({ capabilities: PAJEK_STYLE_CAPABILITIES }),
 
-    /**
-     * Pre-flight: the generic capability gaps plus the Pajek-specific ones; with styles, also the values written as
-     * the nearest ones Pajek has.
-     * @param snapshot - the snapshot
-     * @param options - export options
-     * @returns the loss notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: PajekWriteOptions): readonly LossNote[] {
-        const styled = pajekStyledExport(snapshot, options?.styles);
-        if (styled === null) {
-            return checkPlain(snapshot, options);
-        }
-        return Object.freeze([...checkPlain(styled.snapshot, withOriginalIds(options)), ...styled.notes]);
-    },
+        /**
+         * Pre-flight: the generic capability gaps plus the Pajek-specific ones; with styles, also the values written as
+         * the nearest ones Pajek has.
+         * @param snapshot - the snapshot
+         * @param options - export options
+         * @returns the loss notes, empty when the export is exact
+         */
+        check(snapshot: GraphSnapshot, options?: PajekWriteOptions): readonly LossNote[] {
+            const styled = pajekStyledExport(snapshot, options?.styles);
+            if (styled === null) {
+                return checkPlain(snapshot, options);
+            }
+            return Object.freeze([...checkPlain(styled.snapshot, withOriginalIds(options)), ...styled.notes]);
+        },
 
-    /**
-     * Write the snapshot as UTF-8 chunks.
-     * @param snapshot - the snapshot
-     * @param options - export options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: PajekWriteOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(styledParts(snapshot, options));
-    },
+        /**
+         * Write the snapshot as UTF-8 chunks.
+         * @param snapshot - the snapshot
+         * @param options - export options
+         * @returns the chunks
+         */
+        export(snapshot: GraphSnapshot, options?: PajekWriteOptions): AsyncIterable<Uint8Array> {
+            return encodeChunks(styledParts(snapshot, options));
+        },
 
-    /**
-     * Write the snapshot as one string.
-     * @param snapshot - the snapshot
-     * @param options - export options
-     * @returns the document
-     */
-    exportToString(snapshot: GraphSnapshot, options?: PajekWriteOptions): Promise<string> {
-        return joinText(styledParts(snapshot, options));
-    },
-});
+        /**
+         * Write the snapshot as one string.
+         * @param snapshot - the snapshot
+         * @param options - export options
+         * @returns the document
+         */
+        exportToString(snapshot: GraphSnapshot, options?: PajekWriteOptions): Promise<string> {
+            return joinText(styledParts(snapshot, options));
+        },
+    }),
+);
 
 /**
  * The text parts of a Pajek document, with its styles when they are given.

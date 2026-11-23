@@ -46,7 +46,7 @@ GTS).
       180 ms a layout.
     - 2 fresh-instance failures where native succeeds (a circo stack overflow, one patchwork
       crash), probably the small wasm stack; 2 genuine Graphviz bugs abort native and wasm alike.
-    - Layout is synchronous and cannot be cancelled; only `Worker.terminate()` stops it.
+    - Layout is synchronous and cannot be canceled; only `Worker.terminate()` stops it.
 - Maintenance: one dependency. Graphviz upstream fixes arrive by bumping it (hpcc: 10 releases
   July to September 2026, 0 open issues). License: wrapper Apache-2.0, Graphviz EPL-1.0;
   graphty-element (MIT) never redistributes it as an optional peer.
@@ -106,7 +106,7 @@ precedent puts optional accelerators in graphty-element, which owns detection an
 
 - Where it lives: graphty-element, registered through the same snapshot-layout mechanism
   (`registerSnapshotLayout`, whose `compute` may return a Promise) every other layout uses, so the
-  catalogue, `setLayout`, undo and the app see nothing new. The loader and Worker are internal to
+  catalog, `setLayout`, undo and the app see nothing new. The loader and Worker are internal to
   graphty-element. graph-io changes nothing about layout: its DOT importer already keeps the graph
   attribute `layout` (and `rankdir`, `nodesep`, ... ) as graph values, and it already decodes the
   file's charset before anything reaches Graphviz.

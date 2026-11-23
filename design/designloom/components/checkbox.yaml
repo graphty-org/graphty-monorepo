@@ -2,7 +2,8 @@ id: checkbox
 name: Checkbox
 category: control
 description: Checkbox input for boolean or tri-state selections. Supports indeterminate state for partial selections.
-status: planned
+status: implemented
+notes: "Ships: Mantine Checkbox, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
 used_in_workflows: []
 dependencies: []

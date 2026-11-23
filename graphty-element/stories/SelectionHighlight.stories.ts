@@ -111,7 +111,7 @@ async function selected(canvasElement: HTMLElement, story: string): Promise<Draw
     const scene = await drawn(canvasElement, `Styles/Selection Highlight ${story}`);
     await assertGraphLoaded(scene, { nodes: 5, edges: 4 });
 
-    scene.graph.selectNode(SELECTED);
+    scene.element.selectNode(SELECTED);
     // The halo reaches the frame: the picture once the selection has been drawn.
     await scene.element.waitForStableFrame();
 
@@ -124,7 +124,7 @@ async function selected(canvasElement: HTMLElement, story: string): Promise<Draw
  * The mesh cache keeps the source beside the instances, hidden and parked ten thousand units
  * below the graph, so a search by name alone finds the source and reports its unscaled size.
  * @param scene - The scene to read.
- * @returns The colour, opacity and drawn size of the halo, or null when none is drawn.
+ * @returns The color, opacity and drawn size of the halo, or null when none is drawn.
  */
 function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: number } | null {
     const mesh = scene.graph.scene.meshes.find(
@@ -148,9 +148,9 @@ function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: 
         return Math.max(extent.x, extent.y, extent.z);
     };
 
-    // MEASURED AGAINST THE NODE, never as a raw scaling number. The halo used to be drawn
-    // smaller than the node it rings, so it was inside it and invisible -- and a scaling of 1.45
-    // looked perfectly correct while that was true.
+    // MEASURED AGAINST THE NODE, never as a raw scaling number: a halo drawn smaller than the
+    // node it rings sits inside it and is invisible, while a raw scaling of 1.45 still looks
+    // correct.
     return {
         color: lit.emissiveColor.toHexString(),
         alpha: lit.alpha,
@@ -161,7 +161,7 @@ function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: 
 /**
  * Assert the halo on screen looks the way the story says it does.
  * @param scene - The scene to read.
- * @param want - The colour, opacity and drawn size expected.
+ * @param want - The color, opacity and drawn size expected.
  */
 async function assertHalo(scene: Drawn, want: { color: string; alpha: number; clearance: number }): Promise<void> {
     const halo = haloOnScreen(scene);
@@ -198,7 +198,7 @@ export const Default: Story = {
     },
 };
 
-/** The halo in a colour of the consumer's own. */
+/** The halo in a color of the consumer's own. */
 export const Color: Story = {
     args: { selectionStyle: { color: "#00BCD4" } },
     play: async ({ canvasElement }) => {
@@ -247,7 +247,7 @@ export const RestyledWhileSelected: Story = {
 
 /**
  * A selected EDGE: the line keeps its own paint down the middle, with a solid band of the edge
- * selection colour drawn behind it on both sides -- `edgeColor`, `edgeScale` and `edgeOpacity`,
+ * selection color drawn behind it on both sides -- `edgeColor`, `edgeScale` and `edgeOpacity`,
  * the edge's own three settings, because a pale see-through band beside a thin line vanishes.
  */
 export const SelectedEdge: Story = {

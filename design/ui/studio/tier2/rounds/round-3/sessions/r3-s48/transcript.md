@@ -64,7 +64,7 @@ only these.
 
 07.png: the top bar now says "12 of 15 nodes" with a filter icon; three dots are gone, 12
 highlighted dots left. The legend says "PageRank, full graph" -- good, it tells me the sizes were
-counted over all 15, not the 12. The button greys out. Now I check one link: Pazzi is in the list
+counted over all 15, not the 12. The button grays out. Now I check one link: Pazzi is in the list
 but did not marry a Medici, so who connects them? I type Pazzi in the find box.
 
 ## Step 8
@@ -96,7 +96,7 @@ The session ended with no further request.
     each second-step name.
   - The drawing still has no names on it. The answer is in names in the panel, so it did not stop
     me, but the filtered picture alone is not something I could hand an editor.
-  - After filtering, "Filter to neighbors" just greys out. The top bar's "12 of 15 nodes" told me
+  - After filtering, "Filter to neighbors" just grays out. The top bar's "12 of 15 nodes" told me
     it worked; I did not see where to undo it here, and I did not need to.
 
 ## Note on the tool (not in character)

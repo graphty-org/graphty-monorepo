@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, waitFor } from "storybook/test";
 
+import { setAnalyticsCallsForTests } from "../../lib/analytics";
+import { loadSiteConfig, resetSiteConfig, siteConfig } from "../../siteConfig";
 import { realInput } from "../../stories/real-input";
+import { TEST_ANALYTICS } from "../../test/usage-recorders";
 import { answerUsageData, forgetUsageAnswer } from "../privacy/usageData";
 import { clearRecent, rememberRecent } from "../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../settings/preferences";
@@ -57,6 +60,24 @@ async function heroDrawn(canvasElement: HTMLElement): Promise<void> {
             `hero caption shown after ${String(captionMs)} ms, then: ${error instanceof Error ? error.message : String(error)}`,
         );
     }
+}
+
+/**
+ * A story's `beforeEach` that gives the site PostHog ids, as graphty.app's site.json does (the words
+ * follow whether the page sends PostHog anything), keeping whatever experiments the configuration
+ * has on. PostHog's code never arrives, so nothing is sent.
+ * @returns the cleanup, which takes the ids away again.
+ */
+async function withUsageAnalytics(): Promise<() => void> {
+    const kept = siteConfig().features;
+    resetSiteConfig();
+    const site = { site: "production", features: kept, analytics: TEST_ANALYTICS };
+    await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
+    setAnalyticsCallsForTests({ hostname: () => "graphty.app", importPostHog: () => new Promise(() => undefined) });
+    return () => {
+        setAnalyticsCallsForTests();
+        resetSiteConfig();
+    };
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -219,6 +240,15 @@ export const SettingsPrivacyOn: Story = {
     beforeEach: () => {
         answerUsageData("share");
     },
+};
+
+/** First launch on a site with PostHog ids: the question says anonymous counts are sent. */
+export const UsageAnalyticsFirstRun: Story = { beforeEach: withUsageAnalytics };
+
+/** Settings > Privacy, usage data off, on a site with PostHog ids: the counts and the privacy page. */
+export const UsageAnalyticsSettingsPrivacy: Story = {
+    args: { initialState: { dialog: "settings:privacy" } },
+    beforeEach: withUsageAnalytics,
 };
 
 /** Settings > Accessibility and input (`#/settings/accessibility`). */

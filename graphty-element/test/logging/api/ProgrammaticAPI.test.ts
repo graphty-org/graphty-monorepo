@@ -344,7 +344,7 @@ describe("Programmatic API", () => {
         });
 
         test("should receive log records in custom sink", () => {
-            const writeFn = vi.fn();
+            const writeFn = vi.fn<Sink["write"]>();
             const customSink: Sink = {
                 name: "test-receiver-sink",
                 write: writeFn,

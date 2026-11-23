@@ -183,7 +183,9 @@ describe("neo4j corpus (design 16.5)", () => {
         it("typed-properties.csv", async () => {
             const { snapshot, report } = await load(neo4jText("typed-properties.csv"));
             expect(snapshot.ids.toArray()).toEqual([1, 2, 3]);
-            expect(snapshot.nodes.value("p", 0)).toEqual({ x: 1.5, y: 2, crs: "cartesian" });
+            // the point property is the position
+            expect(snapshot.nodes.byRole("position")?.meta.name).toBe("p");
+            expect(Array.from(snapshot.nodes.value("p", 0) as ArrayLike<number>)).toEqual([1.5, 2, 0]);
             expect(snapshot.nodes.value("zdt.text", 0)).toBe("2024-02-29T13:45:00+02:00");
             expect(snapshot.nodes.value("l", 1)).toBe(-12);
             expect(snapshot.nodes.value("ld", 0)).toEqual([0.5, 1.5]);

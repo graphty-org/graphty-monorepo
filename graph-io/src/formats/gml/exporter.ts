@@ -1,8 +1,8 @@
 /**
  * The GML exporter (design section 8.5, research note 07 sections 2.2 and 9): writes a snapshot in
- * the NetworkX dialect of GML. Node ids must be integers (`idCharset: "integer"`; `sanitizeIds:
- * "mangle"` renumbers the others and keeps the original in a `graphty_originalId` key the importer
- * restores); columns are written per dtype (`int` for the integer dtypes, `real` with a decimal
+ * the NetworkX dialect of GML. Node ids are integers (`idCharset: "integer"`): other ids are
+ * renumbered and the original kept in a `graphty_originalId` key the importer restores, unless
+ * `sanitizeIds: "error"` is passed, which refuses them; columns are written per dtype (`int` for the integer dtypes, `real` with a decimal
  * point guaranteed for f32 / f64 so the dtype survives a re-import, quoted strings with `&#NN;`
  * references, repeated keys for lists with the `_networkx_list_start` marker for one-element
  * lists and `"[]"` for empty ones, nested records for json objects); the position role becomes
@@ -44,8 +44,10 @@ import { type ResolvedExportOptions, resolveExportOptions } from "../../common/o
 import { agree, plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
+import { gmlWrittenPositions } from "./positions.js";
 import { GML_STYLE_CAPABILITIES, gmlStyledExport } from "./styles.js";
 import {
     EMPTY_LIST_TEXT,
@@ -239,7 +241,11 @@ interface WrittenColumn {
  * @returns the plan
  */
 function planOf(snapshot: GraphSnapshot, options: (GmlExportOptions & CommonExportOptions) | undefined): GmlExportPlan {
-    const common = resolveExportOptions(options);
+    // GML ids are integers: unless the caller says otherwise, other ids are renumbered and kept in graphty_originalId,
+    // which the importer restores, so every graph the GML importer reads can be written back (as NetworkX does)
+    const common = resolveExportOptions(
+        options?.sanitizeIds === undefined ? { ...options, sanitizeIds: "mangle" } : options,
+    );
     // a JavaScript caller can pass any value
     const mode: unknown = options?.sanitizeKeys ?? "error";
     if (mode !== "error" && mode !== "mangle") {
@@ -1329,6 +1335,8 @@ interface WriteContext {
     readonly graphColumns: readonly WrittenColumn[];
     readonly topColumns: readonly WrittenColumn[];
     readonly position: Column | null;
+    /** The position column's rows in the written file's spelling (`respelledPositions`), or null to write them as stored. */
+    readonly spelled: Float64Array | null;
     readonly graphics: JsonColumn | null;
     readonly originalIds: Column | null;
     readonly edgeIds: Column | null;
@@ -1371,6 +1379,7 @@ function contextOf(
     const edgeIds = snapshot.edges.byRole("id");
     const edgeReserved = edgeReservedKeys(snapshot, plan, edgeIds);
     const topReserved = topReservedKeys(snapshot);
+    const position = positionColumn(snapshot);
     return {
         snapshot,
         plan,
@@ -1388,7 +1397,9 @@ function contextOf(
         edgeColumns: selectColumns(snapshot.edges, edgeReserved, "edge", plan, null, (c) => c !== edgeIds),
         graphColumns: selectColumns(snapshot.graph, GRAPH_RESERVED, "graph", plan, null, (c) => !isTopLevel(c)),
         topColumns: selectColumns(snapshot.graph, topReserved, "top-level", plan, null, isTopLevel),
-        position: positionColumn(snapshot),
+        position,
+        // the file's Creator is written back, and the GML importer reads y up or down by it
+        spelled: gmlWrittenPositions(snapshot),
         graphics: graphicsColumn(snapshot),
         originalIds,
         edgeIds,
@@ -1543,7 +1554,7 @@ function writeEdge(w: GmlWriter, context: WriteContext, row: EdgeRow): void {
  * @param i - the node
  */
 function writeGraphics(w: GmlWriter, context: WriteContext, i: number): void {
-    const { position, graphics } = context;
+    const { position, spelled, graphics } = context;
     const hasPosition = position?.isSet(i) === true;
     const graphicsValue = graphics?.isSet(i) ? graphics.values[i] : undefined;
     if (!hasPosition) {
@@ -1558,7 +1569,8 @@ function writeGraphics(w: GmlWriter, context: WriteContext, i: number): void {
     const extra: [string, string][] = [];
     const names = ["x", "y", "z"];
     for (let k = 0; k < lanes; k++) {
-        extra.push([names[k], numberText(numeric.data[i * components + k], numeric.meta)]);
+        const value = spelled === null ? numeric.data[i * components + k] : spelled[3 * i + k];
+        extra.push([names[k], numberText(value, numeric.meta)]);
     }
     let record: Record<string, unknown> = {};
     if (graphicsValue !== undefined) {
@@ -1581,44 +1593,46 @@ function writeGraphics(w: GmlWriter, context: WriteContext, i: number): void {
  * The GML exporter plugin.
  * @category Built-in formats
  */
-export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
-    format: "gml",
-    options: Object.freeze(["sanitizeKeys", "weightKey"]),
-    capabilities: GML_CAPABILITIES,
-    styles: Object.freeze({ capabilities: GML_STYLE_CAPABILITIES }),
-    /**
-     * Pre-flight: the common capability notes, the GML-specific ones and, with styles, the values written as the
-     * nearest ones yEd's GML has.
-     * @param snapshot - the snapshot
-     * @param options - the options
-     * @returns the notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: GmlWriteOptions): readonly LossNote[] {
-        const styled = gmlStyledExport(snapshot, options?.styles);
-        const graph = styled?.snapshot ?? snapshot;
-        const notes = check(ogdfClusters(graph)?.rest ?? graph, options);
-        return styled === null ? notes : Object.freeze([...notes, ...styled.notes]);
-    },
-    /**
-     * Write the snapshot as UTF-8 chunks; the context is resolved on the first pull, so the
-     * errors check() announced surface from the iteration.
-     * @param snapshot - the snapshot
-     * @param options - the options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: GmlWriteOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(lazyParts(snapshot, options));
-    },
-    /**
-     * Write the snapshot as one string.
-     * @param snapshot - the snapshot
-     * @param options - the options
-     * @returns the document
-     */
-    exportToString(snapshot: GraphSnapshot, options?: GmlWriteOptions): Promise<string> {
-        return joinText(lazyParts(snapshot, options));
-    },
-});
+export const gmlExporter: GraphExporter<GmlExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: "gml",
+        options: Object.freeze(["sanitizeKeys", "weightKey"]),
+        capabilities: GML_CAPABILITIES,
+        styles: Object.freeze({ capabilities: GML_STYLE_CAPABILITIES }),
+        /**
+         * Pre-flight: the common capability notes, the GML-specific ones and, with styles, the values written as the
+         * nearest ones yEd's GML has.
+         * @param snapshot - the snapshot
+         * @param options - the options
+         * @returns the notes, empty when the export is exact
+         */
+        check(snapshot: GraphSnapshot, options?: GmlWriteOptions): readonly LossNote[] {
+            const styled = gmlStyledExport(snapshot, options?.styles);
+            const graph = styled?.snapshot ?? snapshot;
+            const notes = check(ogdfClusters(graph)?.rest ?? graph, options);
+            return styled === null ? notes : Object.freeze([...notes, ...styled.notes]);
+        },
+        /**
+         * Write the snapshot as UTF-8 chunks; the context is resolved on the first pull, so the
+         * errors check() announced surface from the iteration.
+         * @param snapshot - the snapshot
+         * @param options - the options
+         * @returns the chunks
+         */
+        export(snapshot: GraphSnapshot, options?: GmlWriteOptions): AsyncIterable<Uint8Array> {
+            return encodeChunks(lazyParts(snapshot, options));
+        },
+        /**
+         * Write the snapshot as one string.
+         * @param snapshot - the snapshot
+         * @param options - the options
+         * @returns the document
+         */
+        exportToString(snapshot: GraphSnapshot, options?: GmlWriteOptions): Promise<string> {
+            return joinText(lazyParts(snapshot, options));
+        },
+    }),
+);
 
 /**
  * The document parts, with the context resolved when iteration starts.

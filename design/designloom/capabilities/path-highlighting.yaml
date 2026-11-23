@@ -3,7 +3,8 @@ name: Path Highlighting
 category: interaction
 description: Visually highlight paths between nodes in the visualization. After computing shortest path, show the path
     clearly with distinctive styling while dimming surrounding context.
-status: planned
+status: implemented
+notes: "Ships: path results styled through their suggested style layers, started from graphty/src/workspace/analyze/PathForm.tsx."
 algorithms: []
 used_by_workflows:
     - W05

@@ -50,7 +50,7 @@ group "..." menu.
 In the import filter: Add filter, "deg", Enter (card holds "Degree, No test"), Escape (card closes,
 focus on the row), Escape again: the filter card is gone, focus lands on "Add filter", nothing is
 announced and Undo is disabled (`sr-filter/33.png` card present, `sr-filter/34.png` card gone,
-undo greyed). The same card with a tested step (Degree 3 to 36) survives the same two Escapes. Spec
+undo grayed). The same card with a tested step (Degree 3 to 36) survives the same two Escapes. Spec
 section 1 ("A step with a value is kept"), section 3 (Escape "keeps edits") and acceptance 4 all
 say the step stays.
 

@@ -20,6 +20,7 @@ import a97Url from "../../../graph-io/test/conformance/fixtures/pajek/bavla/A97.
 import xgmmlUrl from "../../../graph-io/test/conformance/fixtures/xgmml/ngscheckmate/test.out.xgmml?url";
 import yedUrl from "../../../graph-io/test/corpus/graphml/yfiles-sample.graphml?url";
 import { Graph } from "../../src/Graph";
+import { FixedLayout } from "../../src/layout/FixedLayoutEngine";
 
 const SAMPLES: readonly (readonly [string, string, string])[] = [
     ["GML", gmlUrl, "gml"],
@@ -105,6 +106,9 @@ describe("every node of a corpus file sits where graph-io's extractPositions put
             assert.strictEqual(session.layout.id, "fixed", "every node is placed, so the drawing is kept");
             assert.isAbove(expected.size, 1, "the sample stores positions for several nodes");
             assert.strictEqual(snapshot.nodeCount, expected.size, "the element has one node per placed node");
+            // A file drawn closer than the fixed layout's spacing is spread in proportion (issue #1171).
+            const engine = graph.getLayoutManager().layoutEngine;
+            const spread = engine instanceof FixedLayout ? engine.spread : 1;
             const at = { x: 0, y: 0, z: 0 };
             for (let row = 0; row < snapshot.nodeCount; row++) {
                 const id = String(snapshot.ids.idOf(row));
@@ -114,7 +118,12 @@ describe("every node of a corpus file sits where graph-io's extractPositions put
                 // The lane is float32: compare to its precision, relative to the coordinate's size.
                 [at.x, at.y, at.z].forEach((got, axis) => {
                     const value = want?.[axis] ?? Number.NaN;
-                    assert.approximately(got, value, 1e-4 * Math.max(1, Math.abs(value)), `node ${id} axis ${axis}`);
+                    assert.approximately(
+                        got / spread,
+                        value,
+                        1e-4 * Math.max(1, Math.abs(value)),
+                        `node ${id} axis ${axis}`,
+                    );
                 });
             }
         });

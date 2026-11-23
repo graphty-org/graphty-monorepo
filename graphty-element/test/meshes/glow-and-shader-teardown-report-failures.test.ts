@@ -10,6 +10,7 @@ import { resetLoggingConfig } from "../../src/logging/LoggerConfig.js";
 import { LogLevel, type LogRecord } from "../../src/logging/types.js";
 import { NodeEffects } from "../../src/meshes/NodeEffects";
 import { ShaderRuntime } from "../../src/shaders/runtime/ShaderRuntime";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 
 // The scene uniform buffer needs a real GPU engine; the release order is what is under test here.
 const uniformsReleased = vi.hoisted(() => ({ count: 0 }));
@@ -52,7 +53,8 @@ describe("glow setup and shader runtime teardown report their failures", () => {
         try {
             NodeEffects.applyGlowEffect(mesh, { glow: { color: "#ff0000", strength: 2 } });
 
-            const strengths = scene.metadata?.glowStrengths as Map<unknown, unknown> | undefined;
+            const strengths = (scene.metadata as GraphSceneMetadata | null)?.glowStrengths as
+                Map<unknown, unknown> | undefined;
             assert.isFalse(strengths?.has(mesh) ?? false);
             const logged = records.find((record) => record.message === "Glow not applied");
             assert.strictEqual(logged?.error?.message, "mesh in a bad state");

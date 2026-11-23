@@ -8,6 +8,7 @@ import type { AutosaveEntry } from "@graphty/graphty-element";
 import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import { type GraphSession, listAutosaves, removeAutosave } from "@graphty/graphty-element/session";
 
+import { count } from "../../lib/analytics";
 import type { CommandContext } from "../commands/registry";
 import { baseName } from "../data-page/words";
 import { focusMainHeading } from "../frame/focus";
@@ -88,6 +89,7 @@ function reopen(
                 const opened = report.name ?? (shown === undefined ? dataName(session) : null) ?? name;
                 store.set((now) => ({ project: now.project && { ...now.project, name: opened } }));
                 after(opened, place);
+                closeUnclaimedWorkspace(store, session);
             },
             ...(focus === undefined ? {} : { focus }),
         }),
@@ -102,6 +104,7 @@ function reopen(
 export function restoreRecovered(store: WorkspaceStore, entry: AutosaveEntry): void {
     logger.info("restore pressed", { entry: entry.id, nodes: entry.nodes, edges: entry.edges });
     reopen(store, entry, (_name, place) => {
+        count("project_reopened", { from: "kept" });
         store.set({ ...place, notice: { message: reopenedSentence(entry) } });
     });
 }
@@ -119,7 +122,23 @@ export function reopenOwn(store: WorkspaceStore, entry: AutosaveEntry): void {
     reopen(
         store,
         entry,
-        (name) => {
+        (name, stashed) => {
+            // Safari can end a background tab and load it again with this tab's session storage
+            // emptied (issue #9655): the place then comes back from the one stashed with the work.
+            if (Object.keys(where).length === 0) {
+                // A reader who went somewhere while the work reopened (from the Graph place it
+                // opens on) stays there, with no workspace reopened over it.
+                const now = store.get();
+                const moved = now.page !== "panels" || now.place !== "graph" || now.inspected !== null;
+                const stays = {
+                    page: now.page,
+                    place: now.place,
+                    inspected: now.inspected,
+                    selectionWorkspace: now.selectionWorkspace,
+                };
+                store.set({ ...stashed, ...(moved ? stays : {}), announcement: reopenedTabSentence(name) });
+                return;
+            }
             // The row is put back once the data is in, so it exists; a reader who went somewhere
             // meanwhile (a rail click while the work reopened) stays there.
             const { page, place, inspected } = store.get();
@@ -136,6 +155,29 @@ export function reopenOwn(store: WorkspaceStore, entry: AutosaveEntry): void {
     // Graph place first and a place the reader left open (the Assistant) is open from the start,
     // never flipped on under a click that meant to open it.
     store.set(where);
+}
+
+/**
+ * Closes a kept selection workspace whose editor cannot come back once the work is in: a new
+ * filter card reloaded before its first edit has no draft in graphty-element, and a filter or
+ * layer can be gone. Left open, it would keep the panels inert with no editor to close it.
+ * @param store - the workspace store.
+ * @param session - the restored session.
+ */
+function closeUnclaimedWorkspace(store: WorkspaceStore, session: GraphSession): void {
+    const owner = store.get().selectionWorkspace?.owner;
+    if (owner === undefined) {
+        return;
+    }
+    // The key is `<kind>:<id>:<side>` (SelectionEditor's workspaceKey).
+    const id = owner.slice(owner.indexOf(":") + 1, owner.lastIndexOf(":"));
+    const { visibility } = session;
+    const back = owner.startsWith("filter:")
+        ? visibility.conditions.some((each) => each.id === id) || visibility.draftOf(id) !== null
+        : session.styles.get(id) !== undefined;
+    if (!back) {
+        store.set({ selectionWorkspace: null });
+    }
 }
 
 /**

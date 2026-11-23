@@ -71,6 +71,7 @@ describe("the Data page's choices", () => {
             directed: "auto",
             styles: "file",
             styleOptions: { lengths: "spacing", framing: "file" },
+            layout: "recommended",
         });
         const report = await draft.report(choices);
         assert.deepEqual(report.unmatched, { rows: 1, values: 1 });

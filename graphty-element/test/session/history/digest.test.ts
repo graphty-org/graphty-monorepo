@@ -16,8 +16,8 @@ describe("the state digest", () => {
             sets: new Map(),
             pins: new Set(["n1", "n2"]),
             views: new Map([
-                ["home", { zoom: 1 }],
-                ["far", { zoom: 4 }],
+                ["home", { camera: { zoom: 1 } }],
+                ["far", { camera: { zoom: 4 } }],
             ]),
         });
         const two = createProjectState({
@@ -27,12 +27,19 @@ describe("the state digest", () => {
             ]),
             pins: new Set(["n2", "n1"]),
             views: new Map([
-                ["far", { zoom: 4 }],
-                ["home", { zoom: 1 }],
+                ["far", { camera: { zoom: 4 } }],
+                ["home", { camera: { zoom: 1 } }],
             ]),
+            // The views' order is project state of its own (`viewOrder`), not the map's.
+            viewOrder: ["home", "far"],
         });
 
         assert.strictEqual(stateDigest(one), stateDigest(two));
+        assert.notStrictEqual(
+            stateDigest(one),
+            stateDigest(createProjectState({ ...two, viewOrder: ["far", "home"] })),
+            "the views' order is part of the project",
+        );
     });
 
     it("changes when a value changes, and comes back when the change is undone", () => {

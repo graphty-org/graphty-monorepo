@@ -9,12 +9,11 @@
 
 import { accelerated, hits, katzCentrality } from "@graphty/algorithms";
 import { type GraphSnapshot } from "@graphty/graph-format";
-import { onTestFinished, type TestContext } from "vitest";
+import { onTestFinished } from "vitest";
 
 import { createAccelerator } from "../../src/accelerator.js";
-import { type GpuContext } from "../../src/context.js";
 import { KARATE_EDGES, randomEdges, randomEdgesLoose, snapshotOf } from "../helpers/graphs.js";
-import { acquire, requireGpu } from "../setup/gpu.js";
+import { sharedContext } from "../setup/gpu.js";
 
 /** Absolute agreement per node: f32 iterates against f64 ones, on vectors of unit scale. */
 const CLOSE = 1e-4;
@@ -29,14 +28,7 @@ function expectClose(actual: ArrayLike<number>, expected: ArrayLike<number>, lab
 }
 
 describe("HITS and Katz through the dispatcher match the CPU ports", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "spectral-dispatch" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "spectral-dispatch" });
 
     const graphs: readonly [string, () => GraphSnapshot][] = [
         ["karate, undirected", () => snapshotOf(KARATE_EDGES)],

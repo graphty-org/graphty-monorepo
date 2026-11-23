@@ -105,7 +105,7 @@ registerCameraView({
         const { center, maxDimension } = input.bounds;
 
         if (input.mode === "2d") {
-            // zoom 1 shows 5 units either side of the centre; 10 / maxDimension shows the whole box
+            // zoom 1 shows 5 units either side of the center; 10 / maxDimension shows the whole box
             return { type: "orthographic", zoom: 10 / maxDimension, pan: { x: center.x, y: center.y } };
         }
 
@@ -135,7 +135,7 @@ const state = graph.resolveCameraPreset("acme-corner");
 ```
 
 Animation, easing, queueing, cancellation and the `camera-state-changed` event all come with the
-name: a registered view is animated to and cancelled part way exactly as a built-in is.
+name: a registered view is animated to and canceled part way exactly as a built-in is.
 
 ## Framing a subset
 

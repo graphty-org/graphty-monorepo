@@ -1,10 +1,10 @@
 /**
- * The UniformRing of spec 5.3: one UNIFORM buffer holding UNIFORM_SLOT_BYTES-stride slots for the
+ * The UniformRing: one UNIFORM buffer holding UNIFORM_SLOT_BYTES-stride slots for the
  * per-iteration params of a batch. A batch reserves k contiguous slots, writes their values into the
  * host shadow, flushes them with ONE queue.writeBuffer and records k dispatches that select their slot
  * through a dynamic offset -- no per-iteration writeBuffer and no host round trip. The stride is 256
  * because minUniformBufferOffsetAlignment is 256 on every runtime the package targets (the Dawn-node
- * ADAPTER advertises 64, which the package never requests; spec 2.6).
+ * ADAPTER advertises 64, which the package never requests).
  */
 
 import { UNIFORM_SLOT_BYTES } from "../constants.js";
@@ -14,7 +14,7 @@ import { WebGpuGraphError } from "../errors.js";
 import type { Binding } from "../types/memory.js";
 import type { UniformBlock, UniformValues } from "./struct-block.js";
 
-/** One UNIFORM buffer with UNIFORM_SLOT_BYTES-stride slots for the per-iteration params of a batch (spec 5.3). */
+/** One UNIFORM buffer with UNIFORM_SLOT_BYTES-stride slots for the per-iteration params of a batch. */
 export class UniformRing {
     /** Number of slots. */
     readonly slots: number;
@@ -22,7 +22,7 @@ export class UniformRing {
      * How many reservations covered a DIRTY slot (written since the last `flush()`): the one reuse that corrupts,
      * because the batch being recorded still reads that record and the shadow overwrites it before the flush sends
      * either. A wrap onto slots an earlier, flushed batch wrote is harmless: its `writeBuffer` is ordered before that
-     * batch's submit and the next flush after it. A driver sizes its ring so this stays 0 (P8-T12: `bfsRingSlots`).
+     * batch's submit and the next flush after it. A driver sizes its ring so this stays 0 (see `bfsRingSlots`).
      */
     overruns = 0;
     private readonly dirty: Uint8Array;

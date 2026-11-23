@@ -10,11 +10,9 @@
 import type { GraphSession, Layer, UnionLeaf } from "@graphty/graphty-element/session";
 import React, { useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import type { Side } from "../style/cards";
 import { useStepWriter } from "../style/useStepWriter";
 import { SelectionEditor } from "./SelectionEditor";
-import { SelectionEditorInline } from "./SelectionEditorInline";
 import { layerSelection } from "./values";
 
 /**
@@ -44,6 +42,7 @@ export function StyleSelection({
     onWriting?: (on: boolean) => void;
 }>): React.JSX.Element | null {
     // The rule as last edited, until the element holds it: typing is never undone by a write on its way.
+    // on reload: fresh: in flight: an edit on its way to the layer, which holds it once written
     const [local, setLocal] = useState<UnionLeaf | null>(null);
     const busy = useRef<() => boolean>(() => false);
     const writer = useStepWriter(
@@ -64,11 +63,10 @@ export function StyleSelection({
     if (held === null) {
         return null;
     }
-    // The full-screen workspace is an experiment; off, the outline-and-pane editor is drawn.
-    const Editor = selectionWorkspaceOn(session) ? SelectionEditor : SelectionEditorInline;
     return (
-        <Editor
+        <SelectionEditor
             session={session}
+            workspaceKey={`selector:${layer.id}:${side}`}
             rule={local ?? held}
             host="selector"
             ownerName={name}

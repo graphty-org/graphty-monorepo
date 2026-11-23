@@ -66,10 +66,10 @@ export const VECTOR_COLUMN = "vector";
 
 /**
  * The vertex shape keywords of the Pajek manual, lower-cased; a file may write them in any case
- * (use isShapeKeyword()).
- * @category Plugin helpers
+ * (use isShapeKeyword()), and the importer keeps one as written, though Pajek draws a keyword in any
+ * other case (`Box`) as an ellipse.
  */
-export const SHAPES: ReadonlySet<string> = new Set([
+const SHAPES: ReadonlySet<string> = new Set([
     "ellipse",
     "box",
     "diamond",
@@ -230,7 +230,7 @@ class LineTokens {
         // character at a time builds a rope node per character, and a 50 MB label spent seconds in GC
         let end = i + 1;
         while (end < this.line.length) {
-            const d = this.line.charCodeAt(end); // NOSONAR(S7758): reads UTF-16 code units on purpose
+            const d = this.line.charCodeAt(end); // eslint-disable-line unicorn/prefer-code-point -- reads UTF-16 code units on purpose
             if (d === 34 || (!this.quoted && isBlank(d))) {
                 break;
             }

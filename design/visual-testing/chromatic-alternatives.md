@@ -28,7 +28,7 @@ Chromatic's paid plans have no spending cap: "Review and testing will not be int
 Additional billed snapshots beyond the included amount are charged at the end of the billing
 period" [S1]. The owner wants a replacement that is free, or cheap with a hard cap.
 
-A change that makes Chromatic opt-in (it runs only on a pull request labelled `chromatic`, or on a
+A change that makes Chromatic opt-in (it runs only on a pull request labeled `chromatic`, or on a
 manual dispatch, and never on a push to master) is on the branch `ci/chromatic-opt-in` and not yet
 merged. It cuts the volume, but not the lack of a cap.
 
@@ -155,7 +155,7 @@ More detail from the same runs:
 
 - Plans [S7]:
     - Hobby: free, 5,000 screenshots a month, uploads blocked at the limit. Personal accounts only,
-      so a GitHub organisation needs Pro [S8].
+      so a GitHub organization needs Pro [S8].
     - Pro: $100 a month for 35,000 screenshots, then $0.004 each, or $0.0015 for a Storybook
       screenshot.
 - Hard cap: Pro can "Pause builds on all your projects when the amount is reached", with alerts at
@@ -237,7 +237,7 @@ More detail from the same runs:
 
 **Vitest 4 browser mode, `toMatchScreenshot`.**
 
-- It exists: added in Vitest 4, still labelled experimental [S30][S31].
+- It exists: added in Vitest 4, still labeled experimental [S30][S31].
 - How it works: it retries the capture until two consecutive screenshots match, then compares with
   pixelmatch (`threshold`, `allowedMismatchedPixelRatio`, anti-aliasing ignored by default).
 - Files: baselines go to `__screenshots__/<test file>/<name>-<browser>-<platform>.png`, and the

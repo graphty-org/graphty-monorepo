@@ -18,13 +18,14 @@ import {
     openLegacyScope,
     TEMPLATE_RUNS,
 } from "../session/commands/algo";
-import { englishNotes } from "../session/english";
 import { dispatcherOf } from "../session/GraphSession";
 import type { UndoableContext } from "../session/project/Dispatcher";
 import { createRunResult, resultPath, type RunResult } from "../session/results";
 import type { RunExecutionContext, RunOutcome, RunProgressReport } from "../session/runs";
-import { caveat, caveatSentence, noted } from "../session/runs/caveatFacts";
+import { caveat, type CaveatCode, noted } from "../session/runs/caveatFacts";
 import { resolutionBehind } from "../session/scope/ScopeApi";
+import type { CodedFact } from "../session/shared";
+import { wholeGraph } from "../session/working/graphs";
 import type { AlgorithmSpecificOptions } from "../utils/queue-migration";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
@@ -41,7 +42,7 @@ import type { Manager } from "./interfaces";
  * @returns how many edges the simplification removes; zero for a graph with no parallel edges
  */
 function mergedParallelEdges(data: { getSnapshot(): GraphSnapshot }): number {
-    const declared = data.getSnapshot();
+    const declared = wholeGraph(data);
     if (!declared.flags.multigraph) {
         return 0;
     }
@@ -77,10 +78,10 @@ function satisfies(required: Readonly<Record<string, unknown>>, given: Readonly<
  *
  * Two 2.0 keys fold several 1.10 classes together and the fold is a PARAMETER, not a rename:
  * `components` at `{ strength: "strong" }` is the strongly-connected class and `components` with
- * nothing said is the connected one; `shortest-path` picks its engine the same way. The catalogue
+ * nothing said is the connected one; `shortest-path` picks its engine the same way. The catalog
  * already states both halves, so this reads them rather than restating them -- a shim that
  * remembered the rename and forgot the parameters would silently compute the wrong answer.
- * @param descriptor - The algorithm's catalogue entry.
+ * @param descriptor - The algorithm's catalog entry.
  * @param params - The parameters the run is starting with.
  * @returns The 1.10 key to build.
  */
@@ -97,8 +98,8 @@ function legacyKeyFor(
     }
 
     // Nothing selected an engine, so the key that needs no parameters is the one that was meant.
-    // Where every key names one -- shortest-path, whose three engines are all parameterised -- the
-    // first is the catalogue's declared default.
+    // Where every key names one -- shortest-path, whose three engines are all parameterized -- the
+    // first is the catalog's declared default.
     return descriptor.legacyKeys.find((candidate) => candidate.params === undefined) ?? descriptor.legacyKeys[0];
 }
 
@@ -136,29 +137,29 @@ export class AlgorithmManager implements Manager {
     /**
      * Run one algorithm on behalf of the session's run machinery.
      *
-     * This is the seam that keeps the session free of the renderer. Every algorithm this package
-     * ships is constructed from a `Graph` and reads the graph through its data manager, so the
-     * session -- which must resolve in Node with no Babylon.js, Lit or DOM anywhere in its import
-     * graph -- cannot build one. It is handed this function instead, and what comes back is a
-     * plain result object.
+     * This is the seam that keeps the session free of the renderer. An algorithm reads its graph
+     * through an `AlgorithmHost` -- this `Graph`, or a session's data surface -- but the run
+     * machinery around it (the legacy dispatch, the caveats appended here) is the element's, so
+     * the session, which must resolve in Node with no Babylon.js, Lit or DOM anywhere in its import
+     * graph, is handed this function, and what comes back is a plain result object.
      *
      * What it does NOT do is write `algorithmResults`. The algorithm's own entry point publishes
      * the result and projects the 1.10 view from it, in the one place that projection lives.
      *
-     * The catalogue entry arrives as an argument rather than being looked up here, because the
+     * The catalog entry arrives as an argument rather than being looked up here, because the
      * run machinery has already resolved it -- that is what validated the parameters -- and
      * looking it up a second time is how two parts of one package come to disagree about what an
      * algorithm is.
      * @param context - The run id, the algorithm, its parameters, the signal and the progress
      *   channel.
-     * @param descriptor - What the catalogue says about this algorithm, or undefined when the
-     *   catalogue carries no entry for it.
+     * @param descriptor - What the catalog says about this algorithm, or undefined when the
+     *   catalog carries no entry for it.
      * @returns What the run produced.
      * @throws A `GraphtyError` when nothing registers the key, or whatever the work threw.
      */
     async execute(context: RunExecutionContext, descriptor?: BuiltInAlgorithmDescriptor): Promise<RunOutcome> {
         /* A REGISTERED PLUGIN IS RESOLVED THE SAME WAY A BUILT-IN IS, and that is the whole point
-           of it being in the catalogue. The built-in table is a compile-time constant, so the
+           of it being in the catalog. The built-in table is a compile-time constant, so the
            caller that hands a descriptor in looks it up there; a plugin arrives when somebody
            imports it, so its address is looked up here instead. Everything after this line is
            identical for both, which is what makes a plugin startable as a run rather than
@@ -219,14 +220,20 @@ export class AlgorithmManager implements Manager {
         const { caveats } = result.summary();
         const policy = algorithm.parallelEdgePolicy() ?? "sum";
         const merged = policy === "none" ? 0 : mergedParallelEdges(this.graph.getDataManager());
-        const mergedFact = caveat("parallel-edges.merged", { count: merged, policy });
+        const added: CodedFact<CaveatCode>[] =
+            merged === 0 ? [] : [caveat("parallel-edges.merged", { count: merged, policy })];
+        // A file can mix directed and undirected edges; an algorithm reads every edge with the
+        // graph's one default direction, and a reader has no other way to learn that either.
+        const mixed = algorithm.mixedDirection();
+        if (mixed !== null) {
+            added.push(caveat("direction.mixed", { directed: mixed }));
+        }
         const stated =
-            merged === 0 || policy === "none"
+            added.length === 0
                 ? caveats
                 : {
                       ...caveats,
-                      facts: [...caveats.facts, mergedFact],
-                      notes: [...englishNotes(caveats), caveatSentence(mergedFact)],
+                      facts: [...caveats.facts, ...added],
                   };
 
         return {
@@ -290,8 +297,8 @@ export class AlgorithmManager implements Manager {
      * Run a specific algorithm by its 1.10 registry address, as one undoable step.
      *
      * This is the path a PLUGIN algorithm takes. A plugin registers itself under a
-     * `namespace:type` and publishes no catalogue descriptor, so it cannot be started by key and
-     * the run machinery -- which agrees with the catalogue rather than restating it -- has nothing
+     * `namespace:type` and publishes no catalog descriptor, so it cannot be started by key and
+     * the run machinery -- which agrees with the catalog rather than restating it -- has nothing
      * to agree with. Everything this package ships goes through {@link AlgorithmManager.execute}
      * instead, reached from `graph.run` and `session.runs.start`.
      *
@@ -348,8 +355,9 @@ export class AlgorithmManager implements Manager {
 
             // Also call configure for backward compatibility with legacy algorithms
             // that use the deprecated configure() method instead of constructor options
-            if (options && "configure" in alg && typeof alg.configure === "function") {
-                alg.configure(options);
+            const legacy = alg as typeof alg & { configure?: (options: object) => void };
+            if (options && typeof legacy.configure === "function") {
+                legacy.configure(options);
             }
 
             await alg.run(facade);
@@ -359,7 +367,7 @@ export class AlgorithmManager implements Manager {
             close();
         }
 
-        // Reading the draft throws once the command was cancelled, so nothing late is written.
+        // Reading the draft throws once the command was canceled, so nothing late is written.
         const { draft } = ctx;
         const written = scope.writes();
         const service = ctx.services.data;
@@ -430,7 +438,7 @@ export class AlgorithmManager implements Manager {
 
     /**
      * Which registered class to build for one run, and with what.
-     * @param descriptor - The algorithm's catalogue entry.
+     * @param descriptor - The algorithm's catalog entry.
      * @param params - The parameters the run is starting with.
      * @returns The target.
      */
@@ -461,7 +469,7 @@ export class AlgorithmManager implements Manager {
 
         const { reading } = behind;
 
-        return { ...(behind.graph === this.graph.getDataManager().getSnapshot() ? behind : behind.now()), reading };
+        return { ...(behind.graph === wholeGraph(this.graph.getDataManager()) ? behind : behind.now()), reading };
     }
 
     /**
@@ -474,7 +482,7 @@ export class AlgorithmManager implements Manager {
      * `undefined` and no way to tell "nothing to measure" from "never ran".
      * @param algorithm - The instance to run.
      * @param context - What the run handed the work.
-     * @param descriptor - The algorithm's catalogue entry, whose field descriptors name what a
+     * @param descriptor - The algorithm's catalog entry, whose field descriptors name what a
      *   reader sees.
      * @returns The result.
      */
@@ -518,7 +526,7 @@ export class AlgorithmManager implements Manager {
  * A timeout rather than a microtask: a microtask runs before the browser paints, so yielding to
  * one hands the frame back to nobody. The element's own history is the argument -- a 70,000-node
  * graph estimated at 2.10 seconds held the frame for 10.4, and nothing could be drawn or
- * cancelled while it did.
+ * canceled while it did.
  * @returns A promise that settles once the host has had a chance to paint.
  */
 function yieldToHost(): Promise<void> {
@@ -533,9 +541,9 @@ function yieldToHost(): Promise<void> {
  * It declares the algorithm's fields even though it filled none of them, so that
  * `results.<runId>.value` is an empty column rather than an unknown name: a consumer asking a
  * finished run for its ranking wants an empty list, not a thrown error about a field the
- * catalogue told it to expect.
+ * catalog told it to expect.
  * @param context - What the run handed the work.
- * @param descriptor - The algorithm's catalogue entry.
+ * @param descriptor - The algorithm's catalog entry.
  * @returns An empty result of the right shape.
  */
 function emptyResult(context: RunExecutionContext, descriptor: AlgorithmDescriptor): RunResult {

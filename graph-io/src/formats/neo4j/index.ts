@@ -18,6 +18,7 @@ import {
     PRECISION_CODE,
     ROLE_DROPPED_CODE,
     SINK_OPTION_CODE,
+    SYNTAX_CODE,
     UNKNOWN_ATTR_TYPE_CODE,
     UNKNOWN_ENCODING_CODE,
     WEIGHT_KEY_CLASH_CODE,
@@ -46,6 +47,7 @@ import {
     MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE,
     MISSING_TYPE_CODE,
+    POINT_CRS_CODE,
     ROLE_TAKEN_CODE,
     SECTION_KIND_CODE,
 } from "./importer.js";
@@ -98,8 +100,13 @@ export const NEO4J_ISSUE = Object.freeze({
      * import stops.
      */
     CSV_QUOTE: BAD_QUOTE_CODE,
-    /** The file has no header, or a header neo4j-admin would refuse. The import stops. */
+    /**
+     * The file has no header, a header neo4j-admin would refuse, or JSON that is not an apoc.export.json export. The
+     * import stops.
+     */
     HEADER: HEADER_CODE,
+    /** A line of an apoc.export.json file is not JSON. The import stops. */
+    SYNTAX: SYNTAX_CODE,
     /** A row with a different field count than the header. */
     COLUMN_COUNT: COLUMN_COUNT_CODE,
     /** A node row without an id. */
@@ -116,6 +123,12 @@ export const NEO4J_ISSUE = Object.freeze({
     ID_MERGED: ID_MERGED_CODE,
     /** A header brace option the importer does not apply. */
     HEADER_OPTION_IGNORED: HEADER_OPTION_CODE,
+    /**
+     * A point of the position property is in another coordinate reference system than its first point: a geographic
+     * point among cartesian ones (or the reverse) is dropped; a 2D point among 3D ones is kept with a 0 for the missing
+     * coordinate.
+     */
+    POINT_CRS: POINT_CRS_CODE,
     /** A declared type the format does not define (kept as string). */
     UNKNOWN_ATTR_TYPE: UNKNOWN_ATTR_TYPE_CODE,
     /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */

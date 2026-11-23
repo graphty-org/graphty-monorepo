@@ -823,7 +823,7 @@ export function ShaderEditorDialog({
             const { id } = added.descriptor;
             // The write joins the add's step, so one Undo takes both back.
             const { history } = session;
-            const step = history.steps[history.position - 1]?.id;
+            const step = history.position > 0 ? history.steps.at(history.position - 1)?.id : undefined;
             await session.transaction(
                 `Add the shader ${id}`,
                 (tx) => put(tx, id, {}),
@@ -1072,14 +1072,14 @@ export function ShaderEditorDialog({
                     />
                 )}
                 {problems.length > 0 && (
-                    <div // NOSONAR(S6819): a list of block buttons and lines styled as one column; a ul would bring its own margin and bullets
+                    <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a list of block buttons and lines styled as one column; a ul would bring its own margin and bullets
                         role="list"
                         aria-label={EDITOR_WORDS.problems}
                         className="ws-paste-problems"
                         id={problemsId}
                     >
                         {sited.map(({ problem, site }, index) => (
-                            <div // NOSONAR(S6819): an item of the ARIA list above, which is a div for the same reason
+                            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an item of the ARIA list above, which is a div for the same reason
                                 role="listitem"
                                 key={`${problem.code}:${String(index)}`}
                             >

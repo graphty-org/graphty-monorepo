@@ -53,10 +53,10 @@ function stringLiterals(node) {
 }
 
 /**
- * Reads the first paragraph of an interface's JSDoc comment, if it has one, as one line: a
+ * Reads the first paragraph of a declaration's JSDoc comment, if it has one, as one line: a
  * sentence wrapped over several lines is kept whole.
- * @param {ts.InterfaceDeclaration} declaration The interface to read.
- * @returns {string} The description, or an empty string when the interface carries no JSDoc.
+ * @param {ts.InterfaceDeclaration | ts.PropertySignature} declaration The interface or member to read.
+ * @returns {string} The description, or an empty string when the declaration carries no JSDoc.
  */
 function description(declaration) {
     const doc = ts.getJSDocCommentsAndTags(declaration).find((d) => ts.isJSDoc(d));
@@ -191,13 +191,14 @@ export function readDomEvents(eventsFile) {
  * already relies on. The analyzer cannot produce it: it misses events dispatched from the
  * constructor and invents one named after the variable a computed name is held in.
  * @param {string} elementFile Absolute path to `src/graphty-element.ts`.
- * @returns {{ name: string, type: string }[]} One entry per event, in declaration order. `type`
- *     is the declared event type, `CustomEvent<...>`, as written.
+ * @returns {{ name: string, type: string, description: string }[]} One entry per event, in
+ *     declaration order. `type` is the declared event type, `CustomEvent<...>`, as written, and
+ *     `description` the member's doc comment, empty when it has none.
  * @throws {Error} When the declaration is not found, which means its shape changed.
  */
 export function readOwnDomEvents(elementFile) {
     const source = ts.createSourceFile(elementFile, readFileSync(elementFile, "utf8"), ts.ScriptTarget.ES2022, true);
-    /** @type {{ name: string, type: string }[]} */
+    /** @type {{ name: string, type: string, description: string }[]} */
     const events = [];
 
     /** @param {ts.Node} node The node to search. */
@@ -205,7 +206,11 @@ export function readOwnDomEvents(elementFile) {
         if (ts.isInterfaceDeclaration(node) && node.name.text === "HTMLElementEventMap") {
             for (const member of node.members) {
                 if (ts.isPropertySignature(member) && member.name && ts.isStringLiteral(member.name) && member.type) {
-                    events.push({ name: member.name.text, type: member.type.getText(source).replaceAll(/\s+/g, " ") });
+                    events.push({
+                        name: member.name.text,
+                        type: member.type.getText(source).replaceAll(/\s+/g, " "),
+                        description: description(member),
+                    });
                 }
             }
         }

@@ -13,14 +13,14 @@
 import "@graphty/graphty-element";
 
 import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
-import { type GraphSession, listAutosaves } from "@graphty/graphty-element/session";
+import { type GraphSession, isGraphtyError, listAutosaves } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
+import { onUsageEvent } from "../../../lib/analytics";
 import { openBy } from "../../../test/open";
 import { pickSample, sampleTile } from "../../../test/samples-dialog";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -416,132 +416,148 @@ describe("Workspace autosave with the real graphty-element", () => {
         second.view.unmount();
     });
 
-    it("reopens this tab's timed work after a reload with exactly the style layers it had", async () => {
-        resetSiteConfig();
-        await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify({ features: ["timeline"] }))}`);
-        try {
-            const first = mountWorkspace();
-            await openBy(first.store, () => pickSample(MARVEL.name));
-            const { element, session } = openedElement();
-            // The reader times the films by release, which brings the Ghost row: a time field read
-            // back on reopening once brought every starting row back beside the saved ones (issue
-            // #7843).
-            await session.time.setField({ edges: { start: "released" } });
-            assert.include(
-                session.styles.tree().map((row) => row.name),
-                "Ghost",
-            );
-            const rows = session.styles.tree().map((row) => row.name);
-            const layers = JSON.stringify(session.styles.list());
-            await leave(element, first.view);
+    it("ends a reopen the browser's storage never answers in a reported failure, and reopens once it does (#8207)", async () => {
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(FLORENTINE.name));
+        await leave(openedElement().element, first.view);
 
-            const second = mountWorkspace();
-            await openBy(second.store, () => Promise.resolve());
-            const reopened = openedElement();
-            assert.strictEqual(reopened.session.data.statistics().nodeCount, MARVEL.nodes);
-            assert.deepEqual(
-                reopened.session.styles.tree().map((row) => row.name),
-                rows,
+        // Another tab holds the entries' parts in a write it never finishes: the listing (entries
+        // only) answers, so the reload reopens this tab's work, and the reopen cannot read it.
+        const release = await holdParts(DATABASE, "parts");
+        const boot: { line?: string; done?: boolean }[] = [];
+        const hear = (event: Event): void => {
+            boot.push((event as CustomEvent<{ line?: string; done?: boolean }>).detail);
+        };
+        document.addEventListener("graphty-boot", hear);
+        const second = mountWorkspace();
+        const error = await openBy(second.store, () => Promise.resolve()).then(
+            () => null,
+            (failure: unknown) => failure,
+        );
+        assert.isTrue(isGraphtyError(error) && error.code === "E_AUTOSAVE_STALLED", String(error));
+        await screen.findByText(
+            `${FLORENTINE.name} could not be opened: the browser's storage did not answer; close other graphty tabs, then reload.`,
+            { selector: ".cm-toast-message" },
+        );
+        // The loading screen is told the open is over, and never that the project opened.
+        await waitFor(() => {
+            assert.isTrue(
+                boot.some((detail) => detail.done === true),
+                "the loading screen was not ended",
             );
-            assert.strictEqual(JSON.stringify(reopened.session.styles.list()), layers);
-            second.view.unmount();
-        } finally {
-            resetSiteConfig();
-        }
+        });
+        assert.isFalse(boot.some((detail) => detail.line === "project opened"));
+        document.removeEventListener("graphty-boot", hear);
+
+        // The other tab lets go: the next reload reopens the same work.
+        release();
+        second.view.unmount();
+        const third = mountWorkspace();
+        await openBy(third.store, () => Promise.resolve());
+        assert.equal(openedElement().session.data.statistics().nodeCount, FLORENTINE.nodes);
+        third.view.unmount();
+    });
+
+    it("reopens this tab's timed work after a reload with exactly the style layers it had", async () => {
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(MARVEL.name));
+        const { element, session } = openedElement();
+        // The timeline gives the project its Timeline Hidden row, and the reader times the films
+        // by release: a time field read back on reopening once brought every starting row back
+        // beside the saved ones (issue #7843).
+        await session.time.setField({ edges: { start: "released" } });
+        assert.include(
+            session.styles.tree().map((row) => row.name),
+            "Timeline Hidden",
+        );
+        const rows = session.styles.tree().map((row) => row.name);
+        const layers = JSON.stringify(session.styles.list());
+        await leave(element, first.view);
+
+        const second = mountWorkspace();
+        await openBy(second.store, () => Promise.resolve());
+        const reopened = openedElement();
+        assert.strictEqual(reopened.session.data.statistics().nodeCount, MARVEL.nodes);
+        assert.deepEqual(
+            reopened.session.styles.tree().map((row) => row.name),
+            rows,
+        );
+        assert.strictEqual(JSON.stringify(reopened.session.styles.list()), layers);
+        second.view.unmount();
     });
 
     it("keeps a rail click made while this tab's work reopens after a reload", async () => {
-        resetSiteConfig();
-        await loadSiteConfig(
-            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
-        );
-        try {
-            const first = mountWorkspace();
-            await openBy(first.store, () => pickSample(FLORENTINE.name));
-            await leave(openedElement().element, first.view);
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(FLORENTINE.name));
+        await leave(openedElement().element, first.view);
 
-            // The reload, with the work's read held back: the reader clicks the rail's Assistant
-            // before the work is in.
-            const release = await holdParts();
-            const second = mountWorkspace();
-            const rail = await screen.findByRole("toolbar", { name: "Places" });
-            await userEvent.click(await within(rail).findByRole("button", { name: "Assistant" }));
-            await screen.findByRole("region", { name: "Assistant" });
-            assert.notInclude(
+        // The reload, with the work's read held back: the reader clicks the rail's Assistant
+        // before the work is in.
+        const release = await holdParts();
+        const second = mountWorkspace();
+        const rail = await screen.findByRole("toolbar", { name: "Places" });
+        await userEvent.click(await within(rail).findByRole("button", { name: "Assistant" }));
+        await screen.findByRole("region", { name: "Assistant" });
+        assert.notInclude(
+            screen.getAllByRole("status").map((status) => status.textContent),
+            `Reopened ${FLORENTINE.name}`,
+            "the click came before the work was in",
+        );
+        release();
+
+        // The work comes in, and the reader is still where they went.
+        await waitFor(() => {
+            assert.include(
                 screen.getAllByRole("status").map((status) => status.textContent),
                 `Reopened ${FLORENTINE.name}`,
-                "the click came before the work was in",
             );
-            release();
-
-            // The work comes in, and the reader is still where they went.
-            await waitFor(() => {
-                assert.include(
-                    screen.getAllByRole("status").map((status) => status.textContent),
-                    `Reopened ${FLORENTINE.name}`,
-                );
-            });
-            assert.equal(openedElement().session.data.statistics().nodeCount, FLORENTINE.nodes);
-            assert.isNotNull(screen.queryByRole("region", { name: "Assistant" }), "the Assistant closed");
-            assert.strictEqual(second.store.get().place, "assistant");
-            second.view.unmount();
-        } finally {
-            resetSiteConfig();
-        }
+        });
+        assert.equal(openedElement().session.data.statistics().nodeCount, FLORENTINE.nodes);
+        assert.isNotNull(screen.queryByRole("region", { name: "Assistant" }), "the Assistant closed");
+        assert.strictEqual(second.store.get().place, "assistant");
+        second.view.unmount();
     });
 
     it("brings back an Assistant left open at a reload by itself, drawn whenever the rail marks it", async () => {
-        resetSiteConfig();
-        await loadSiteConfig(
-            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
-        );
-        try {
-            const first = mountWorkspace();
-            await openBy(first.store, () => pickSample(FLORENTINE.name));
-            const firstRail = await screen.findByRole("toolbar", { name: "Places" });
-            await userEvent.click(await within(firstRail).findByRole("button", { name: "Assistant" }));
-            await screen.findByRole("region", { name: "Assistant" });
-            await leave(openedElement().element, first.view);
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(FLORENTINE.name));
+        const firstRail = await screen.findByRole("toolbar", { name: "Places" });
+        await userEvent.click(await within(firstRail).findByRole("button", { name: "Assistant" }));
+        await screen.findByRole("region", { name: "Assistant" });
+        await leave(openedElement().element, first.view);
 
-            // The reload, with the work's read held back. A click on a rail button marked as the
-            // open place closes it, so the rail must never mark the Assistant without its panel.
-            let markedWithoutPanel = false;
-            const watch = new MutationObserver(() => {
-                const marked = document.querySelector('[data-assistant-door][aria-current="page"]') !== null;
-                const drawn = document.querySelector('section[aria-label="Assistant"]') !== null;
-                markedWithoutPanel ||= marked && !drawn;
-            });
-            watch.observe(document.body, { childList: true, subtree: true, attributes: true });
-            const release = await holdParts();
-            const second = mountWorkspace();
-            // The panel is back with no click, before the work is in.
-            await screen.findByRole("region", { name: "Assistant" });
-            assert.notInclude(
+        // The reload, with the work's read held back. A click on a rail button marked as the
+        // open place closes it, so the rail must never mark the Assistant without its panel.
+        let markedWithoutPanel = false;
+        const watch = new MutationObserver(() => {
+            const marked = document.querySelector('[data-assistant-door][aria-current="page"]') !== null;
+            const drawn = document.querySelector('section[aria-label="Assistant"]') !== null;
+            markedWithoutPanel ||= marked && !drawn;
+        });
+        watch.observe(document.body, { childList: true, subtree: true, attributes: true });
+        const release = await holdParts();
+        const second = mountWorkspace();
+        // The panel is back with no click, before the work is in.
+        await screen.findByRole("region", { name: "Assistant" });
+        assert.notInclude(
+            screen.getAllByRole("status").map((status) => status.textContent),
+            `Reopened ${FLORENTINE.name}`,
+            "the panel waited for the work",
+        );
+        release();
+        await waitFor(() => {
+            assert.include(
                 screen.getAllByRole("status").map((status) => status.textContent),
                 `Reopened ${FLORENTINE.name}`,
-                "the panel waited for the work",
             );
-            release();
-            await waitFor(() => {
-                assert.include(
-                    screen.getAllByRole("status").map((status) => status.textContent),
-                    `Reopened ${FLORENTINE.name}`,
-                );
-            });
-            watch.disconnect();
-            assert.isNotNull(screen.queryByRole("region", { name: "Assistant" }), "the Assistant closed");
-            assert.isFalse(markedWithoutPanel, "the rail marked the Assistant before its panel was drawn");
-            second.view.unmount();
-        } finally {
-            resetSiteConfig();
-        }
+        });
+        watch.disconnect();
+        assert.isNotNull(screen.queryByRole("region", { name: "Assistant" }), "the Assistant closed");
+        assert.isFalse(markedWithoutPanel, "the rail marked the Assistant before its panel was drawn");
+        second.view.unmount();
     });
 
     it("keeps a chat started with New chat while the saved chats and the work load: neither replaces it", async () => {
-        resetSiteConfig();
-        await loadSiteConfig(
-            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
-        );
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
         await new Promise((resolve) => {
             indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
@@ -611,7 +627,6 @@ describe("Workspace autosave with the real graphty-element", () => {
             second.view.unmount();
         } finally {
             writeAssistantChoice(null);
-            resetSiteConfig();
         }
     });
 
@@ -698,7 +713,19 @@ describe("Workspace autosave with the real graphty-element", () => {
         assert.include(region.textContent, FLORENTINE.name);
         assert.include(region.textContent, `${String(FLORENTINE.nodes)} nodes`);
 
+        const counted: Readonly<Record<string, unknown>>[] = [];
+        const offUsage = onUsageEvent((name, props) => {
+            if (name === "project_reopened") {
+                counted.push(props);
+            }
+        });
         await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
+        offUsage();
+        // Counted as a reopen of work kept from an earlier visit, never by its name.
+        assert.deepEqual(
+            counted.map((props) => ({ ...props })),
+            [{ from: "kept" }],
+        );
         const reopened = openedElement();
         assert.equal(reopened.session.data.statistics().nodeCount, FLORENTINE.nodes);
         assert.equal(reopened.session.project.name, FLORENTINE.name);
@@ -753,9 +780,9 @@ describe("Workspace autosave with the real graphty-element", () => {
         const first = mountWorkspace();
         await openBy(first.store, () => pickSample(FLORENTINE.name));
         const { element, session } = openedElement();
-        const inspector = (): ReturnType<typeof within> =>
-            within(screen.getByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(inspector().getByRole("tab", { name: "Style" }));
+        const inspector = (): Within => within(screen.getByRole("complementary", { name: "Inspector" }));
+        // A project opens on its Everything row's Style tab (#3409): the reader picks Values.
+        await userEvent.click(inspector().getByRole("tab", { name: "Values" }));
         await session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
         const layers = JSON.stringify(session.styles.list());
         await fromAnotherTab(await leave(element, first.view));
@@ -765,7 +792,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
         assert.strictEqual(JSON.stringify(openedElement().session.styles.list()), layers);
         await waitFor(() => {
-            assert.strictEqual(inspector().getByRole("tab", { selected: true }).textContent, "Style");
+            assert.strictEqual(inspector().getByRole("tab", { selected: true }).textContent, "Values");
         });
         second.view.unmount();
     });

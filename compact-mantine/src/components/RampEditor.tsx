@@ -313,7 +313,7 @@ function Handle({
     };
 
     return (
-        <div // NOSONAR(S6819): a custom two-handle range on a histogram axis, keyboard-steppable with full slider ARIA
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a custom two-handle range on a histogram axis, keyboard-steppable with full slider ARIA
             role="slider"
             tabIndex={0}
             className="cm-focus-outside"

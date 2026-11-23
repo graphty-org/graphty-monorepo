@@ -46,20 +46,19 @@ export const NOUNS: Readonly<Record<Side, { one: string; many: string }>> = {
 export const countWords = (count: number, of: number, side: Side): string =>
     `${String(count)} of ${String(of)} ${of === 1 ? NOUNS[side].one : NOUNS[side].many}`;
 
-export { letterOf } from "./model";
-
-/** From this count up, a sidebar row writes it short ("200k"); its tooltip has every digit. */
-const SHORT_FROM = 10_000;
-
 /**
- * A count as a narrow sidebar row writes it: in full under 10,000, else short ("50k", "1.2m").
- * @param count - the count.
- * @returns the words.
+ * What a count over the whole graph adds while other filters hide some of its matches: ", 49 shown".
+ * A filter's own count reads the whole graph, so beside other filters it can count nodes that are
+ * not drawn; this says how many are. Empty when every match is shown.
+ * @param total - the count and how many of it are shown.
+ * @param total.count - how many match.
+ * @param total.shown - how many of them are shown.
+ * @returns the words, or "".
  */
-export const shortCount = (count: number): string =>
-    count < SHORT_FROM
-        ? formatNumber(count)
-        : new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(count).toLowerCase();
+export const shownWords = (total: { readonly count: number; readonly shown: number }): string =>
+    total.shown < total.count ? `, ${formatNumber(total.shown)} shown` : "";
+
+export { letterOf } from "./model";
 
 /**
  * A count written short from 1,000 up ("1.9k"), for a row's "N values".
@@ -86,6 +85,7 @@ const REASONS: Readonly<Record<StepReasonCode, { short: string; long: string }>>
     "input-empty": { short: "Passes none", long: "Nothing comes into this step" },
     "reference-empty": { short: "Passes none", long: "The reference holds no node now" },
     "frozen-from": { short: "Frozen", long: "Frozen to the nodes it held when written" },
+    "unknown-algorithm": { short: "Unknown", long: "This algorithm is not available here: the step passes none" },
 };
 
 /**
@@ -115,7 +115,7 @@ export function reasonWords(
             return { short: `Run (${about})`, long: `${words.long} (${about})` };
         }
     }
-    return words ?? { short: reason.code, long: reason.code };
+    return words;
 }
 
 /**

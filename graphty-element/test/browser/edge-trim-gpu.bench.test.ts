@@ -36,7 +36,7 @@ function seeded(): () => number {
     };
 }
 
-/** Rows on a 2D plane, the harness's lean scene, with one edge in a hundred between near neighbours. */
+/** Rows on a 2D plane, the harness's lean scene, with one edge in a hundred between near neighbors. */
 function scene(): { rowBounds: Float32Array; ends: Int32Array } {
     const random = seeded();
     const rowBounds = new Float32Array(ROWS * 4);
@@ -350,7 +350,12 @@ describe.skipIf(!GPU_LANE)("trimmed ends at a million edges, CPU rays against a 
                 drawnScaling: Vector3.One(),
                 drawnByRowScan: true,
             };
-            const scan = new RowScan(babylon, { rows: ROWS, rowBounds }, () => node, null);
+            const scan = new RowScan(
+                babylon,
+                { rows: ROWS, rowBounds, centerOf: (row) => Vector3.FromArray(rowBounds, row * 4) },
+                () => node,
+                null,
+            );
 
             const cpuStart = performance.now();
             const cpu = cpuReach(scan, rowBounds, ends, CPU_EDGES);

@@ -42,6 +42,7 @@ export type OptionShorthand =
     | string
     | boolean
     | (Readonly<Partial<Omit<OptionDescriptor, "name" | "type" | "on">>> & {
+          /** The option's type, which decides the value it resolves to and the control a form shows. */
           readonly type: Exclude<OptionType, "unknown">;
           /**
            * For type "attribute" or "partition": whether the attribute is read from nodes (the
@@ -60,17 +61,39 @@ export type ShorthandValue<S> = S extends number
       ? boolean
       : S extends string
         ? string
-        : S extends { readonly type: "number" | "integer" | "seed" }
+        : S extends {
+                /** A numeric option resolves to a number. */
+                readonly type: "number" | "integer" | "seed";
+            }
           ? number
-          : S extends { readonly type: "boolean" }
+          : S extends {
+                  /** A boolean option resolves to a boolean. */
+                  readonly type: "boolean";
+              }
             ? boolean
-            : S extends { readonly type: "node-id" }
+            : S extends {
+                    /** A node option resolves to a node id. */
+                    readonly type: "node-id";
+                }
               ? NodeId
-              : S extends { readonly type: "node-set" }
+              : S extends {
+                      /** A node-set option resolves to node ids. */
+                      readonly type: "node-set";
+                  }
                 ? readonly NodeId[]
-                : S extends { readonly type: "enum"; readonly values: readonly { readonly value: infer V }[] }
-                  ? V
-                  : string;
+                : S extends {
+                        /** An edge-set option resolves to edge ids. */
+                        readonly type: "edge-set";
+                    }
+                  ? readonly string[]
+                  : S extends {
+                          /** An enum option resolves to one of its values. */
+                          readonly type: "enum";
+                          /** The choices; the option resolves to the type of their `value`s. */
+                          readonly values: readonly { readonly value: infer V }[];
+                      }
+                    ? V
+                    : string;
 
 /**
  * The resolved option values an extension's functions receive, typed from the declaration with no
@@ -83,7 +106,13 @@ export type OptionValuesOf<O extends OptionsShorthand> = {
     // The default's union is "anything but null or undefined": a default of null leaves the
     // option unbound, which is exactly the case the `| undefined` branch describes.
     readonly [K in keyof O]: O[K] extends
-        number | string | boolean | { readonly default: object | string | number | boolean | bigint | symbol }
+        | number
+        | string
+        | boolean
+        | {
+              /** A default other than null, which makes the option always present. */
+              readonly default: object | string | number | boolean | bigint | symbol;
+          }
         ? ShorthandValue<O[K]>
         : ShorthandValue<O[K]> | undefined;
 };
@@ -94,7 +123,7 @@ export interface DefinitionBase<O extends OptionsShorthand> {
     readonly id: string;
     /** What pickers show. Default: the id in sentence case ("acme-hop-reach" reads "Acme hop reach"). */
     readonly name?: string;
-    /** One sentence for pickers and the catalogue. Default: "". */
+    /** One sentence for pickers and the catalog. Default: "". */
     readonly description?: string;
     /** The options a reader may set, in short form: `{ spacing: 2, weight: { type: "attribute", on: "edge" } }`. */
     readonly options?: O;
@@ -146,7 +175,7 @@ export interface NodeView {
      * edges().length: a self-loop counts ONCE and each parallel edge counts. This is NOT the
      * built-in "degree" algorithm's number, which counts a self-loop twice and a repeated edge
      * (same ends, same direction) once. NetworkX and igraph count a self-loop twice: add
-     * edgesTo(node).length to match them. For the number of distinct neighbours, use
+     * edgesTo(node).length to match them. For the number of distinct neighbors, use
      * neighbors().length.
      */
     readonly degree: number;
@@ -233,12 +262,12 @@ export interface AlgorithmContext<V> {
     readonly options: V;
     /** The whole graph. */
     readonly graph: GraphView;
-    /** Aborted when the run is cancelled. Only a whole-graph function needs it. */
+    /** Aborted when the run is canceled. Only a whole-graph function needs it. */
     readonly signal: AbortSignal;
     /**
      * Only a whole-graph function needs it: the share of the work done, 0 to 1. AWAIT it inside a
      * loop: the promise lets the page draw a frame, and rejects with the abort reason when the run
-     * was cancelled.
+     * was canceled.
      */
     progress(fraction: number): Promise<void>;
     /** A sentence for the run record's caveats ("Dangling mass returns to the seeds."). */
@@ -257,7 +286,12 @@ interface AlgorithmDefinitionBase<O extends OptionsShorthand> extends Definition
      * Optional: the edge "attribute" option that holds weights, and what they mean. Only what the
      * run record says a weight meant; the weight it records is the one the run actually read.
      */
-    readonly weights?: { readonly option: keyof O & string; readonly meaning: "distance" | "strength" };
+    readonly weights?: {
+        /** The name of the edge "attribute" option the weights are read through. */
+        readonly option: keyof O & string;
+        /** Whether a larger weight is a longer edge (`"distance"`) or a tighter tie (`"strength"`). */
+        readonly meaning: "distance" | "strength";
+    };
     /** For a whole-graph function that walks the graph repeatedly: the integer option that caps the passes. */
     readonly passes?: keyof O & string;
     /**
@@ -272,8 +306,11 @@ interface AlgorithmDefinitionBase<O extends OptionsShorthand> extends Definition
 export interface NodeScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {
     /** The score of one node; called once per node. Return the number itself, not a promise. */
     readonly node: (node: NodeView, context: AlgorithmContext<OptionValuesOf<O>>) => Score;
+    /** Not given with `node`: a definition has exactly one of `node`, `edge`, `nodes` or `groups`. */
     readonly edge?: never;
+    /** Not given with `node`: a definition has exactly one of `node`, `edge`, `nodes` or `groups`. */
     readonly nodes?: never;
+    /** Not given with `node`: a definition has exactly one of `node`, `edge`, `nodes` or `groups`. */
     readonly groups?: never;
 }
 
@@ -281,8 +318,11 @@ export interface NodeScoreDefinition<O extends OptionsShorthand> extends Algorit
 export interface EdgeScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {
     /** The score of one edge; called once per edge. Return the number itself, not a promise. */
     readonly edge: (edge: EdgeView, context: AlgorithmContext<OptionValuesOf<O>>) => Score;
+    /** Not given with `edge`: a definition has exactly one of `node`, `edge`, `nodes` or `groups`. */
     readonly node?: never;
+    /** Not given with `edge`: a definition has exactly one of `node`, `edge`, `nodes` or `groups`. */
     readonly nodes?: never;
+    /** Not given with `edge`: a definition has exactly one of `node`, `edge`, `nodes` or `groups`. */
     readonly groups?: never;
 }
 
@@ -293,8 +333,11 @@ export interface WholeGraphScoreDefinition<O extends OptionsShorthand> extends A
         graph: GraphView,
         context: AlgorithmContext<OptionValuesOf<O>>,
     ) => ReadonlyMap<NodeId, Score> | Promise<ReadonlyMap<NodeId, Score>>;
+    /** Not given with `nodes`: a definition has exactly one of `node`, `edge`, `nodes` or `groups`. */
     readonly node?: never;
+    /** Not given with `nodes`: a definition has exactly one of `node`, `edge`, `nodes` or `groups`. */
     readonly edge?: never;
+    /** Not given with `nodes`: a definition has exactly one of `node`, `edge`, `nodes` or `groups`. */
     readonly groups?: never;
 }
 
@@ -307,8 +350,11 @@ export interface GroupingDefinition<O extends OptionsShorthand> extends Algorith
     ) =>
         | ReadonlyMap<NodeId, string | number | null | undefined>
         | Promise<ReadonlyMap<NodeId, string | number | null | undefined>>;
+    /** Not given with `groups`: a definition has exactly one of `node`, `edge`, `nodes` or `groups`. */
     readonly node?: never;
+    /** Not given with `groups`: a definition has exactly one of `node`, `edge`, `nodes` or `groups`. */
     readonly edge?: never;
+    /** Not given with `groups`: a definition has exactly one of `node`, `edge`, `nodes` or `groups`. */
     readonly nodes?: never;
 }
 
@@ -361,24 +407,24 @@ export interface LayoutDefinition<O extends OptionsShorthand> extends Definition
 // Palette
 // =============================================================================================
 
-/** A colour-vision deficiency a palette may claim to stay distinguishable under. */
+/** A color-vision deficiency a palette may claim to stay distinguishable under. */
 export type ColorVisionDeficiency = PaletteDescriptor["colorblindSafe"][number];
 
-/** What definePalette takes: an id, a kind and the colours. */
+/** What definePalette takes: an id, a kind and the colors. */
 export interface PaletteDefinition {
     /** Permanent id: lower case, hyphenated, vendor-prefixed ("acme-brand"). */
     readonly id: string;
-    /** "categorical" (one colour per group), "sequential" (low to high) or "diverging" (through a middle). */
+    /** "categorical" (one color per group), "sequential" (low to high) or "diverging" (through a middle). */
     readonly kind: PaletteDescriptor["kind"];
     /**
-     * Any colour CSS can parse EXCEPT var(), which definePalette refuses with the fix in the
-     * message. Normalised to six-digit hex, so an alpha channel is discarded. A categorical
-     * palette has one colour per group; the element never wraps. A ramp needs at least two.
+     * Any color CSS can parse EXCEPT var(), which definePalette refuses with the fix in the
+     * message. Normalized to six-digit hex, so an alpha channel is discarded. A categorical
+     * palette has one color per group; the element never wraps. A ramp needs at least two.
      */
     readonly colors: readonly string[];
     /** What pickers show. Default: the id in sentence case. */
     readonly name?: string;
-    /** One sentence for pickers and the catalogue. */
+    /** One sentence for pickers and the catalog. */
     readonly description?: string;
     /** A claim the element takes on trust. Default: no claim. */
     readonly colorblindSafe?: readonly ColorVisionDeficiency[];
@@ -386,11 +432,11 @@ export interface PaletteDefinition {
 
 /**
  * The consumer call the simple tier adds to the element and to session.styles: the palette a
- * colour binding uses when it names none, one per kind, resolved when a layer is written.
+ * color binding uses when it names none, one per kind, resolved when a layer is written.
  */
 export interface DefaultPaletteControls {
     /**
-     * Choose the palette each kind of colour binding uses when it names none. Call it before
+     * Choose the palette each kind of color binding uses when it names none. Call it before
      * adding layers; `{ reapply: true }` repaints layers already written with the previous default.
      * Settles once those layers are repainted; rejects when one could not be.
      */
@@ -424,7 +470,14 @@ export interface PlainLogRecord {
     /** The facts attached, when there are any. They can hold graph content. */
     readonly data?: Readonly<Record<string, unknown>>;
     /** The failure as plain data, so JSON.stringify(record) keeps it. */
-    readonly error?: { readonly name: string; readonly message: string; readonly stack?: string };
+    readonly error?: {
+        /** The error's class name, such as `"TypeError"`. */
+        readonly name: string;
+        /** The error's message. */
+        readonly message: string;
+        /** The stack trace, when the runtime gave one. */
+        readonly stack?: string;
+    };
 }
 
 /** What defineLogDestination takes: an id and `write`. */
@@ -433,7 +486,7 @@ export interface LogDestinationDefinition {
     readonly id: string;
     /** What a destination picker shows. Default: the id in sentence case. */
     readonly name?: string;
-    /** One sentence for the catalogue. */
+    /** One sentence for the catalog. */
     readonly description?: string;
     /** The least severe level delivered. Default "warn". */
     readonly level?: LogLevelName;
@@ -470,6 +523,7 @@ export type ShaderParamShorthand =
     | ((
           | Exclude<OptionShorthand, number | string | boolean>
           | (Readonly<Partial<Omit<OptionDescriptor, "name" | "type" | "on" | "default">>> & {
+                /** The parameter's starting value; its type says the parameter's when `type` is left out. */
                 readonly default: number | boolean | string | ShaderClockBinding;
             })
       ) & {

@@ -105,6 +105,21 @@ describe("the canvas on the real element", () => {
         assert.isNull(screen.queryByText(/^Hidden by your layer/), "a run that painted gives no notice");
     });
 
+    it("says every node is hidden, with a door to Filters, when a filter hides the whole graph", async () => {
+        const session = await newProject();
+        await session.data.addNodes(NODES);
+        await session.data.addEdges(EDGES);
+        await session.visibility.addCondition({
+            effect: "keep",
+            rule: { kind: "categories", attribute: "data.kind", values: ["absent"] },
+        });
+        const card = await screen.findByRole("region", { name: "Every node is hidden" });
+        assert.isNull(screen.queryByRole("region", { name: "No nodes to draw" }), "the graph is not empty");
+        // The way out is the filters, never loading other data.
+        assert.isNotNull(within(card).getByRole("button", { name: "Filters" }));
+        assert.isNull(within(card).queryByRole("button", { name: /Samples/ }));
+    });
+
     it("paints Louvain over Betweenness, and names it the color winner (T8)", async () => {
         const session = await newProject();
         await session.data.addNodes(NODES);

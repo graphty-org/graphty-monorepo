@@ -2,11 +2,12 @@ import { ComboInput, CompactColorInput, PanelField } from "@graphty/compact-mant
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Text, TextInput } from "@mantine/core";
+import { TextInput, VisuallyHidden } from "@mantine/core";
 import React from "react";
 
-import { useModelPicture } from "../canvas/models";
+import { modelName, useModelPicture } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
+import { useWorkspace } from "../state/WorkspaceContext";
 import { ValueListbox } from "./parts/ValueListbox";
 import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
 
@@ -86,7 +87,7 @@ interface ValueFieldProps {
     /** Writes a value, once per gesture. */
     readonly onChange: (value: string | number | boolean) => void;
     /**
-     * The model a Shape field holds in place of a built-in shape (the node-models experiment): the
+     * The model a Shape field holds in place of a built-in shape: the
      * field shows its picture (else the cube) and its name, and its list checks no shape.
      */
     readonly model?: { readonly name: string; readonly thumbnail?: string };
@@ -165,13 +166,15 @@ export function ValueField({
     if (kind === "choice") {
         return <ChoiceValueField {...props} />;
     }
+    if (kind === "text" && descriptor.channel === "node.model") {
+        return <ModelNameField label={label} value={value} />;
+    }
     if (kind === "text") {
         return <TextValueField {...props} />;
     }
     return (
-        <Text size="xs" c="dimmed" aria-label={`${label}: ${channelWord(descriptor.channel)} has no field`}>
-            -
-        </Text>
+        // No visible stand-in in the sidebar (#8739): a screen reader still hears why there is no field.
+        <VisuallyHidden>{`${label}: ${channelWord(descriptor.channel)} has no field`}</VisuallyHidden>
     );
 }
 
@@ -312,11 +315,11 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
         GLYPH_TABLES[descriptor.channel] === undefined
             ? undefined
             : Object.fromEntries([
-                  ...options.map((o) => [
+                  ...options.map((o): [string, React.ReactNode] => [
                       o.value,
                       <CatalogGlyph key={o.value} channel={descriptor.channel} value={o.value} />,
                   ]),
-                  ...extraChoices.map((o) => [
+                  ...extraChoices.map((o): [string, React.ReactNode] => [
                       o.value,
                       o.picture === undefined ? (
                           (o.glyph ?? null)
@@ -394,6 +397,20 @@ function TextValueField(props: KindFieldProps): React.JSX.Element {
             }}
         />
     );
+}
+
+/**
+ * The Model line (`node.model`): the model's name, never its asset id; the Shape field picks it.
+ * @param props - Component props
+ * @param props.label - its accessible name
+ * @param props.value - what the line names
+ * @returns The field
+ */
+export function ModelNameField({ label, value }: Readonly<{ label: string; value: unknown }>): React.JSX.Element {
+    const { session } = useWorkspace();
+    const ref = typeof value === "string" ? value : "";
+    const name = session === null || ref === "" ? ref : modelName(session, ref);
+    return <TextInput size="xs" aria-label={label} value={name} title={ref} readOnly />;
 }
 
 /**

@@ -23,7 +23,7 @@ No hesitation. I did not answer the usage-data question.
 
 ### 2. Open the sample -- `--step $S --click "Les Miserables"` (02.png)
 
-Think-aloud: "There it is. Blue balls and grey lines, a bit of a hairball in the middle, but I can
+Think-aloud: "There it is. Blue balls and gray lines, a bit of a hairball in the middle, but I can
 see a cluster at the top and a fan at the bottom. On the right: Nodes 77, Edges 254, Density,
 Components... I guess nodes are the characters. 'Undirected, from the file: directed 0' -- no
 idea what that means. Bottom left says 'Analyze (Shift+A) to add results here'. That sounds like
@@ -41,7 +41,7 @@ Think-aloud: "Which of these little icons at the bottom is Analyze? The flask, p
 -- yes, 'Analyze Shift+A'. Click."
 
 Saw: a list headed "Rank nodes and edges": Degree, Betweenness, Edge betweenness, Closeness,
-PageRank with a "Start here" tag, Eigenvector, Katz, HITS, All-pairs distance, and some greyed-out
+PageRank with a "Start here" tag, Eigenvector, Katz, HITS, All-pairs distance, and some grayed-out
 ones further down.
 
 Think-aloud: "Lots of words I don't know. But each has a one-line explanation, and one says
@@ -98,7 +98,7 @@ influence. What's the chain icon?"
 ### 10. `--step $S --hover-at 1381,256`, then `--click-at 1381,256` (11.png, 12.png)
 
 Saw: tooltip "Size by attribute". Clicking it showed a list: Influence, Influence rank, Influence
-percentile; greyed out below "Cannot be used: Holds groups, not amounts": id, name.
+percentile; grayed out below "Cannot be used: Holds groups, not amounts": id, name.
 
 Think-aloud: "'Attribute' is a bit techie but 'Size by Influence' is exactly what I want."
 
@@ -108,7 +108,7 @@ Hesitated: had to hover to learn what the chain icon does -- I would not have gu
 ### 11. `--step $S --click-at 1193,324` (13.png)
 
 Saw: Size now "1 to 3". Valjean in the middle is a big dark ball, Myriel at the bottom is big too,
-a handful of mid-sized ones. The key gained a "Size: Influence" row with a grey wedge.
+a handful of mid-sized ones. The key gained a "Size: Influence" row with a gray wedge.
 
 Think-aloud: "**Part 3 done: bigger dots for the characters that matter more.** Now it actually
 reads -- the big one in the middle jumps out."

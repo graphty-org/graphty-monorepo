@@ -304,7 +304,11 @@ export const GOLDEN_MASTERS = {
 
 #### 4. Property-Based Random Tests
 
-~200 property-based tests (50 per element type) generate random combinations to find edge cases:
+~200 property-based tests (50 per element type) generate random combinations to find edge cases.
+
+The assertions in this sketch only check that a mesh exists and has positive scaling, so they pass
+whether the rendering is right or wrong. A real property test asserts the exact mesh values the
+generated style implies (the scaling a given size produces, the color a given color sets).
 
 ```typescript
 export const propertyTests = {
@@ -556,45 +560,7 @@ expect(mesh.scaling).toEqual(new Vector3(style.size, style.size, style.size));
 2. **Precise Validation**: Exact parameter checking, not fuzzy pixel matching
 3. **Complete Coverage**: Property-based testing explores edge cases
 4. **Easy Debugging**: Full operation history available
-5. **Comprehensive**: ~200 golden masters + ~200 property tests for thorough coverage
+5. **Comprehensive**: ~208 golden masters + ~200 property tests for thorough coverage
 6. **Extensible**: Easy to add new properties and validations
-
-### Example Test Output
-
-```
-Comprehensive Mesh Test Results:
-✓ Node golden masters: 57/57 passed
-  - All 27 shape types validated
-  - Material variations confirmed
-  - Effect combinations working
-✓ Edge golden masters: 48/48 passed
-  - Line type variations confirmed
-  - Arrow combinations validated
-  - Animation states working
-✓ Label golden masters: 103/103 passed
-  - Text content variations confirmed
-  - Background styles validated
-  - Border combinations working
-  - Text effects confirmed
-  - Speech bubble variations working
-  - Badge configurations validated
-
-✓ Property tests: 200/200 passed
-  - Node: 50/50 property tests (25,000 random inputs)
-  - Edge: 50/50 property tests (25,000 random inputs)
-  - Label: 50/50 property tests (25,000 random inputs)
-  - Arrowhead: 50/50 property tests (25,000 random inputs)
-  - Found 23 edge cases and validated fixes
-  - Performance: All tests completed in 890ms
-
-✓ Tracking mock validation:
-  - 47,832 mesh configurations recorded
-  - 23,156 drawing operations validated
-  - 0 pixel-level comparisons needed
-
-Coverage: 99.2% of style properties tested
-Total test count: 408 tests
-Total execution time: 890ms
-```
 
 This approach provides comprehensive mesh testing without the overhead and brittleness of visual testing, while maintaining high confidence in rendering correctness.

@@ -2,7 +2,7 @@
  * @file An edge thinner than one pixel draws as a continuous faint line, not a row of dots.
  *
  * A zoomed-out file graph (Cytoscape sessions, XGMML, CX, CX2, DOT) draws its edges 0.13 to
- * 0.27 pixels wide. Rasterized at that width, a line's triangles cover a pixel centre only here
+ * 0.27 pixels wide. Rasterized at that width, a line's triangles cover a pixel center only here
  * and there, and the edge broke into dots where Cytoscape.js and Graphviz draw a continuous
  * hairline. Both line renderers now draw a sub-pixel line one pixel wide with its opacity scaled
  * by its width in pixels. These read the drawn pixels back: every column the line crosses has
@@ -177,6 +177,10 @@ describe("a sub-pixel 2D line", () => {
         assert.equal(batch.mesh.visibility, 1, "an opaque line stays in the opaque pass");
         const { lineWidth, lineOpacity } = batch.mesh.metadata as { lineWidth: number; lineOpacity: number };
         assert.equal(lineOpacity, 1);
-        assert.closeTo((material as ShaderMaterial).serialize().floats.width as number, lineWidth, 1e-9);
+        assert.closeTo(
+            ((material as ShaderMaterial).serialize() as { floats: Record<string, number> }).floats.width,
+            lineWidth,
+            1e-9,
+        );
     });
 });

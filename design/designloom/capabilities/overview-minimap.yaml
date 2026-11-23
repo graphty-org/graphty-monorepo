@@ -3,7 +3,8 @@ name: Overview Minimap
 category: interaction
 description: Show a small overview window displaying the entire graph with a viewport indicator. Helps users maintain
     orientation when zoomed in and enables quick navigation to different regions.
-status: planned
+status: implemented
+notes: "Ships: the element's minimap attribute (graphty-element/src/graphty-element.ts)."
 algorithms: []
 used_by_workflows:
     - W02

@@ -87,6 +87,8 @@ const VALUE_EXPORTS = [
     "minimumSpanningTree",
     // the device self-check (the capability record a caller reads before committing work to a device)
     "verifyDevice",
+    // the package's own version, which a run it computed records beside the result
+    "VERSION",
 ];
 
 /**

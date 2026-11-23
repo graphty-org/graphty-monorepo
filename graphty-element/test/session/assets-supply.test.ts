@@ -9,12 +9,12 @@
 
 import { readFileSync } from "node:fs";
 
+import { WHITE_PNG, withSkips } from "babylonjs-models/files";
 import { zipSync } from "fflate";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { isGraphtyError } from "../../src/errors";
 import { type AssetRecord, createAssetsApi } from "../../src/session/assets/AssetsApi";
-import { WHITE_PNG, withSkips } from "../../src/session/assets/textFormats";
 import { createNetworkApi, type NetworkRequest } from "../../src/session/network";
 import { utf8 } from "../fixtures/models/fixtures";
 import { baseSession, sessionWithRuns } from "../helpers/project-session";

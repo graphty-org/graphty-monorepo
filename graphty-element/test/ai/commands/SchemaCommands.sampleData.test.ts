@@ -8,8 +8,7 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { sampleData } from "../../../src/ai/commands/SchemaCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createCommandGraph } from "../../helpers/session-graph";
-import { createMockContext } from "../../helpers/test-graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 
 describe("sampleData command", () => {
     let graph: Graph;
@@ -17,7 +16,7 @@ describe("sampleData command", () => {
 
     beforeEach(async () => {
         graph = await createCommandGraph({ nodeCount: 25, edgeCount: 40 });
-        context = createMockContext(graph);
+        context = createCommandContext(graph);
     });
 
     describe("basic functionality", () => {

@@ -8,8 +8,7 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { setImmersiveMode } from "../../../src/ai/commands/ModeCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createCommandGraph } from "../../helpers/session-graph";
-import { createMockContext } from "../../helpers/test-graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 
 describe("ModeCommands", () => {
     let graph: Graph;
@@ -27,7 +26,7 @@ describe("ModeCommands", () => {
             edgeCount: 40,
             renderer: { getXRHelper: () => xrHelper, exitImmersiveMode: () => undefined },
         });
-        context = createMockContext(graph);
+        context = createCommandContext(graph);
     });
 
     describe("setImmersiveMode", () => {

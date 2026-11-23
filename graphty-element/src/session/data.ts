@@ -6097,8 +6097,9 @@ export class SessionData implements SessionDataApi {
 
     /**
      * The network load a load's nodes came from: of the loads no earlier entry took, the one most
-     * of the nodes it supplied carry, the newest of those on a tie. A node two loads share can
-     * carry the older load alone, so the first key a node carries can be another entry's.
+     * of the nodes it supplied carry; on a tie, the one most of them name first (a merge appends
+     * its key, an edit puts its new key first), then the newest. A node two loads share names
+     * both, so the first key a node carries can be another entry's.
      * @param nodes - The nodes the load supplied.
      * @param order - Every load's key, oldest first.
      * @param taken - The loads earlier entries took.
@@ -6111,25 +6112,35 @@ export class SessionData implements SessionDataApi {
     ): string | undefined {
         const snapshot = this.current();
         const counts = new Map<string, number>();
+        const leads = new Map<string, number>();
         for (const id of nodes) {
             const index = snapshot.ids.indexOf(id);
             if (index !== INVALID_INDEX) {
                 // An expansion's key is `<load>/x<n>`: the load is the part before the slash.
-                const loads = new Set(
-                    sourceLoadsOf(this.records?.nodeAttributes(index, id)).map((k) => k.split("/")[0]),
-                );
-                loads.forEach((load) => {
-                    if (!taken.has(load)) {
-                        counts.set(load, (counts.get(load) ?? 0) + 1);
-                    }
-                });
+                const loads = [
+                    ...new Set(sourceLoadsOf(this.records?.nodeAttributes(index, id)).map((k) => k.split("/")[0])),
+                ].filter((load) => !taken.has(load));
+                loads.forEach((load) => counts.set(load, (counts.get(load) ?? 0) + 1));
+                if (loads.length > 0) {
+                    leads.set(loads[0], (leads.get(loads[0]) ?? 0) + 1);
+                }
             }
         }
 
+        const rank = (load: string): readonly number[] => [
+            counts.get(load) ?? 0,
+            leads.get(load) ?? 0,
+            order.indexOf(load),
+        ];
+        const outranks = (load: string, other: string | undefined): boolean => {
+            const mine = rank(load);
+            const theirs = other === undefined ? [-1, -1, -1] : rank(other);
+            const at = mine.findIndex((value, i) => value !== theirs[i]);
+            return at !== -1 && mine[at] > theirs[at];
+        };
         let best: string | undefined;
-        for (const [load, count] of counts) {
-            const most = best === undefined ? -1 : (counts.get(best) ?? 0);
-            if (count > most || (count === most && order.indexOf(load) > order.indexOf(best ?? ""))) {
+        for (const load of counts.keys()) {
+            if (outranks(load, best)) {
                 best = load;
             }
         }

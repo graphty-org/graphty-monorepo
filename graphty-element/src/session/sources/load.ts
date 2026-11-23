@@ -252,8 +252,8 @@ function importCommand(
     options: SourceLoadOptions & { readonly sourceKey?: SourceKey },
 ): DataImportSourceCommand {
     // Every row names the load that brought it, so expand, collapse and refresh can find its source.
-    // ponytail: a merge that keeps or replaces an existing row's `_source.loads` does not union the
-    // keys; union them here if a row two loads bring must answer to both.
+    // A merge joins a held node's `_source.loads` to this key (ingest's withHeldLoads). ponytail: an
+    // edge the graph holds keeps its own keys; join them too if an edge must answer to both loads.
     const stamp = (row: Record<string, unknown>): Record<string, unknown> => ({ ...row, [SOURCE_ATTR.loads]: [key] });
     const merge = options.mode === "merge";
     // A node no expansion has fetched around reads "none" (design section 14.4); a merge keeps

@@ -273,15 +273,17 @@ import { EdgeIdTarget } from "./render/EdgeIdTarget";
 import { NodeIdTarget } from "./render/NodeIdTarget";
 import {
     type CanvasPoint,
+    clickEdgeAt,
     hoverEdgeAt,
     insidePolygon,
     openRowScan,
     pickAsDrawn,
     pickCloseLabel,
-    pickEdgeId,
     pickNodeId,
     pickWorldPoint,
+    pressEdgeAt,
     regionWork,
+    type RowLinePicks,
     rowScanOf,
     screenProjector,
     useEdgeIdTarget,
@@ -1874,6 +1876,7 @@ export class Graph implements GraphContext {
         this.updateManager.fitAnnotations = () => {
             this.#annotations?.refit();
         };
+        this.updateManager.annotationMeshes = () => this.#annotations?.placedMeshes ?? [];
         this.updateManager.picturesLoading = () =>
             this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
         // Late-bound: a change of renderer replaces the render manager.
@@ -5638,7 +5641,9 @@ export class Graph implements GraphContext {
             this.#edgeIds = new EdgeIdTarget(this.scene, {
                 positionTexture: () => places.positionTexture,
                 edges: () => this.builtEdges(),
+                rowLines: () => this.#edgeRowLines,
                 root: () => this.scene.getTransformNodeByName("graph-root"),
+                moves: (settle) => (settle ? places.settledMoves() : places.moves),
                 requestFrame: () => {
                     this.renderManager.requestFrame();
                 },
@@ -6043,6 +6048,7 @@ export class Graph implements GraphContext {
                 this.scene.pointerX,
                 this.scene.pointerY,
                 (point) => this.worldToScreen(point),
+                this.rowLinePicks(),
             );
             if (edgeId instanceof Promise) {
                 void edgeId.then(over);
@@ -6090,7 +6096,39 @@ export class Graph implements GraphContext {
             return;
         }
 
-        const edgeId = this.pickEdgeId(x, y);
+        // On the "batched" path on WebGPU the edge can be known only once the edge ID target is read back.
+        const edgeId = clickEdgeAt(
+            this.scene,
+            () => this.builtEdges(),
+            x,
+            y,
+            (point) => this.worldToScreen(point),
+            this.rowLinePicks(),
+        );
+        if (edgeId instanceof Promise) {
+            void edgeId.then((id) => {
+                this.clickAt(id, x, y, event);
+            });
+        } else {
+            this.clickAt(edgeId, x, y, event);
+        }
+    }
+
+    /**
+     * The rest of {@link handleBackgroundClick}, once the edge under the click is known.
+     * @param edgeId - The edge, or undefined for none.
+     * @param x - The pointer's x on the canvas.
+     * @param y - The pointer's y on the canvas.
+     * @param event - The pointer event.
+     * @param event.button - The mouse button; 2 is the secondary one.
+     * @param event.shiftKey - Whether Shift was held.
+     */
+    private clickAt(
+        edgeId: EdgeId | undefined,
+        x: number,
+        y: number,
+        event: { button?: number; shiftKey?: boolean },
+    ): void {
         const secondary = event.button === 2;
         if (edgeId === undefined) {
             const outline = this.renderManager.pickGroupOutline(x, y);
@@ -7693,7 +7731,33 @@ export class Graph implements GraphContext {
     }
 
     private pickEdgeId(x: number, y: number): EdgeId | undefined {
-        return pickEdgeId(this.scene, this.builtEdges(), x, y, (point) => this.worldToScreen(point));
+        return pressEdgeAt(
+            this.scene,
+            () => this.builtEdges(),
+            x,
+            y,
+            (point) => this.worldToScreen(point),
+            this.rowLinePicks(),
+        );
+    }
+
+    /**
+     * The edges drawn with no `Edge` on the `"batched"` path, as an edge pick measures them: a pick names such an
+     * edge by its id and builds no `Edge` for it.
+     * @returns Them, or null off the `"batched"` path.
+     */
+    private rowLinePicks(): RowLinePicks | null {
+        const lines = this.#edgeRowLines;
+        if (lines === null) {
+            return null;
+        }
+
+        return {
+            forEachShown: (visit, only) => {
+                lines.forEachShown(visit, only);
+            },
+            idOf: (row) => dataManagerInternals.unbuiltEdgeId(this.dataManager, row),
+        };
     }
 
     /**
@@ -8402,6 +8466,9 @@ export class Graph implements GraphContext {
                 this.renderManager.requestFrame();
             },
             () => this.session.styles.legend(),
+            () => {
+                this.renderManager.drawNow();
+            },
         );
         // Under antialias "at-rest" a screenshot is the multisampled picture, moving or not.
         const release = this.renderManager.holdSmooth();
@@ -9244,6 +9311,11 @@ export class Graph implements GraphContext {
      * reads `position`, `target`, `alpha`, `beta`, `radius`, `pivotRotation`, `cameraDistance` and
      * `fov`). `{}` fits both and changes nothing. A named view resolves first and is judged as the
      * state it resolves to.
+     *
+     * A 2D `zoom` never depends on the data: the same zoom draws the same half-width however the
+     * graph grows. The camera stays where it is placed until the next node add, load or layout
+     * change, which the element frames again on its own while auto-framing is on (see
+     * {@link setAutoFrame}); a caller that drives the camera while the data grows turns it off.
      * @param state - Camera state or preset name to apply
      * @param options - Optional animation configuration
      * @returns Settles once the camera has arrived.

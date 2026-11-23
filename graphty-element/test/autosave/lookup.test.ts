@@ -195,6 +195,17 @@ describe("listAutosaves after the tab lost its session storage", () => {
         assert.deepEqual(ownIds(await listAutosavesIn(env, key, { store })), []);
     });
 
+    it("two lookups at once both report the adopted entry as own (issue #9646)", async () => {
+        const { store, key } = await kept();
+        const { env } = lostPage("reload");
+        const [first, second] = await Promise.all([
+            listAutosavesIn(env, key, { store }),
+            listAutosavesIn(env, key, { store }),
+        ]);
+        assert.deepEqual(ownIds(first), [`mine-${key}`]);
+        assert.deepEqual(ownIds(second), [`mine-${key}`]);
+    });
+
     it("a reload that kept session storage adopts nothing, though the key's note is gone", async () => {
         const { store, key } = await kept();
         const items = new Map<string, string>();

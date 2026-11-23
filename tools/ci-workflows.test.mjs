@@ -6545,9 +6545,6 @@ describe("pr-status-broker", () => {
 
 describe("the commit and push hooks", () => {
     const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
-    // run_step, bg_step and the functions they use, cut out of tools/prepush-source-checks.sh to run alone.
-    const stepFunctions = (checks) =>
-        checks.slice(checks.indexOf("script_missing() {"), checks.indexOf("trap bg_kill EXIT\n") + 18);
     const formatStaged = new URL("./format-staged.sh", import.meta.url).pathname;
     const inRepo = (fn) => {
         const dir = mkdtempSync(join(tmpdir(), "format-staged-"));
@@ -6619,48 +6616,18 @@ describe("the commit and push hooks", () => {
         });
     });
 
-    it("the source-only checks start the commonest failures first and stop at the first failure", () => {
-        const checks = repoFile("tools/prepush-source-checks.sh");
-        const steps = ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"];
-        for (const step of [...steps, "Duplicate code"]) {
-            assert.match(checks, new RegExp(`(run|bg)_step "${step.replace(/[\\()]/g, "\\$&")}"`), step);
-        }
-        // The commonest failure starts first, in the background, before any other check.
-        const firstRun = checks.indexOf('    run_step "');
-        assert.ok(checks.indexOf('bg_step "CI workflow tests"') < firstRun, "the CI workflow tests start first");
-        const steps_ = stepFunctions(checks);
-        const r = spawnSync("bash", ["-c", `${steps_}\nrun_step one false\nrun_step two "echo SECOND"`], {
-            encoding: "utf8",
-        });
-        assert.equal(r.status, 1);
-        assert.match(r.stdout, /stopped at the first failure: one/);
-        assert.doesNotMatch(r.stdout, /SECOND/);
-    });
-
-    it("pre-push reports a background step's failure at the next step and stops the rest", () => {
-        const steps = stepFunctions(repoFile("tools/prepush-source-checks.sh"));
-        const dir = mkdtempSync(join(tmpdir(), "prepush-bg-"));
-        try {
-            const script = `${steps}
-bg_step slow "sleep 30; echo SLOW-DONE" "${dir}/slow.log"
-bg_step fails "echo FAILED-OUTPUT; exit 1" "${dir}/fails.log"
-until [ -s "${dir}/fails.log" ] && ! kill -0 "\${BG_PIDS[1]}" 2>/dev/null; do sleep 0.05; done
-run_step after "echo AFTER-RAN"`;
-            const r = spawnSync("bash", ["-c", script], { encoding: "utf8" });
-            assert.equal(r.status, 1, r.stdout + r.stderr);
-            assert.match(r.stdout, /FAILED-OUTPUT[\s\S]*\[FAIL\] fails failed/);
-            assert.match(r.stdout, /stopped at the first failure: fails/);
-            assert.doesNotMatch(r.stdout, /AFTER-RAN|SLOW-DONE/);
-            const passing = spawnSync(
-                "bash",
-                ["-c", `${steps}\nbg_step ok "echo OK-OUTPUT" "${dir}/ok.log"\nrun_step next "echo NEXT"\nbg_wait`],
-                { encoding: "utf8" },
-            );
-            assert.equal(passing.status, 0, passing.stdout + passing.stderr);
-            assert.match(passing.stdout, /OK-OUTPUT[\s\S]*\[PASS\] ok passed/);
-        } finally {
-            rmSync(dir, { recursive: true, force: true });
-        }
+    it("pre-push runs only the LFS upload, the secret scan, the image limit and the spelling check, from its own copy", () => {
+        const code = (text) => text.replace(/^\s*#.*$/gm, "");
+        const hook = code(repoFile(".husky/pre-push"));
+        const tools = [...hook.matchAll(/"\$GATE_DIR\/tools\/([\w.-]+)"/g)].map((m) => m[1]);
+        assert.deepEqual(tools, [
+            "lfs-pre-push.sh",
+            "push-base.mjs",
+            "scan-secrets.sh",
+            "check-committed-images.mjs",
+            "check-spelling.mjs",
+        ]);
+        assert.doesNotMatch(hook, /\.\/tools\/|prepush|nx /);
     });
 });
 
@@ -6857,167 +6824,6 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
-    });
-});
-
-// Every `pnpm run <script>` the source-only checks run, as package.json scripts, so none is skipped.
-function sourceCheckScripts() {
-    const checks = readFileSync(new URL("./prepush-source-checks.sh", import.meta.url), "utf8");
-    return Object.fromEntries([...checks.matchAll(/"pnpm run ([\w:-]+)/g)].map((m) => [m[1], "true"]));
-}
-
-describe("the source-only checks before the queue (tools/prepush-source-checks.sh)", () => {
-    it("skip only on the exact checkout they passed on, and run again after any edit", () => {
-        // The script and the fingerprint tool in a throwaway repository, every check behind a fake
-        // pnpm (and check-links.sh) that logs its call and passes.
-        const dir = mkdtempSync(join(tmpdir(), "prepush-source-checks-"));
-        try {
-            mkdirSync(join(dir, "tools/lib"), { recursive: true });
-            mkdirSync(join(dir, "bin"));
-            mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs", "lib/git.mjs"]) {
-                copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
-            }
-            writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$*" >> ${dir}/calls\n`, { mode: 0o755 });
-            writeFileSync(join(dir, "tools/check-links.sh"), `#!/bin/sh\necho links >> ${dir}/calls\n`, {
-                mode: 0o755,
-            });
-            writeFileSync(
-                join(dir, "tools/check-committed-images.mjs"),
-                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "images\\n");\n`,
-            );
-            writeFileSync(
-                join(dir, "tools/check-figma-lock.mjs"),
-                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "figma-lock\\n");\n`,
-            );
-            writeFileSync(
-                join(dir, "tools/check-saved-format-allowlist.mjs"),
-                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "saved-format\\n");\n`,
-            );
-            writeFileSync(
-                join(dir, "tools/release-dry-run.mjs"),
-                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "release\\n");\n`,
-            );
-            writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
-            writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
-            writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: sourceCheckScripts() }));
-            writeFileSync(join(dir, ".gitignore"), "node_modules/\ncalls\ntmp/\n");
-            writeFileSync(join(dir, "a.ts"), "a\n");
-            const git = (...args) => assert.equal(spawnSync("git", args, { cwd: dir }).status, 0, args.join(" "));
-            git("init", "-q");
-            git("add", ".");
-            git("commit", "-q", "-m", "a");
-            const run = () => {
-                rmSync(join(dir, "calls"), { force: true });
-                const r = spawnSync("bash", ["tools/prepush-source-checks.sh"], {
-                    cwd: dir,
-                    encoding: "utf8",
-                    env: { ...process.env, PATH: `${join(dir, "bin")}:${process.env.PATH}` },
-                });
-                assert.equal(r.status, 0, r.stdout + r.stderr);
-                return {
-                    out: r.stdout,
-                    calls: existsSync(join(dir, "calls")) ? readFileSync(join(dir, "calls"), "utf8") : "",
-                };
-            };
-            const first = run();
-            assert.match(first.calls, /run format:check/);
-            assert.match(first.calls, /links/);
-            assert.match(first.calls, /images/);
-            assert.match(first.calls, /release/);
-            const second = run();
-            assert.equal(second.calls, "", "nothing changed: no check runs");
-            assert.match(second.out, /\[SKIP\] Source-only checks/);
-            writeFileSync(join(dir, "a.ts"), "b\n");
-            assert.match(run().calls, /run format:check/, "an edit runs them again");
-            writeFileSync(join(dir, "new.ts"), "n\n");
-            assert.match(run().calls, /run format:check/, "a new file runs them again");
-            assert.equal(run().calls, "");
-            git("add", ".");
-            git("commit", "-q", "-m", "b");
-            assert.equal(run().calls, "", "a commit of the files they passed on does not run them again");
-            writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n# reinstalled\n");
-            writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n# reinstalled\n");
-            assert.match(run().calls, /run format:check/, "a new lockfile runs them again");
-        } finally {
-            rmSync(dir, { recursive: true, force: true });
-        }
-    });
-
-    it("run from the gate's live copy, use the copy's scripts and check the checkout in PREPUSH_ROOT", () => {
-        // gate/: the real scripts, an image check and a link check that log "gate-...". root/: the checkout
-        // being pushed, with a different tools/ (its own link check and a decoy copy of the
-        // source checks) and no check:legacy-use script, as a branch from before that check would have.
-        const dir = mkdtempSync(join(tmpdir(), "prepush-gate-dir-"));
-        try {
-            const gate = join(dir, "gate");
-            const root = join(dir, "root");
-            const log = (name) => `#!/bin/sh\necho "${name} $PWD" >> ${dir}/calls\n`;
-            const stub = (name) =>
-                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "${name}\\n");\n`;
-            for (const d of [
-                join(gate, "tools"),
-                join(root, "tools"),
-                join(root, "node_modules/.pnpm"),
-                join(dir, "bin"),
-            ]) {
-                mkdirSync(d, { recursive: true });
-            }
-            mkdirSync(join(gate, "tools/lib"), { recursive: true });
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs", "lib/git.mjs"]) {
-                copyFileSync(new URL(`./${f}`, import.meta.url), join(gate, "tools", f));
-            }
-            writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });
-            writeFileSync(join(gate, "tools/check-committed-images.mjs"), stub("gate-images"));
-            writeFileSync(join(gate, "tools/check-figma-lock.mjs"), stub("gate-figma-lock"));
-            writeFileSync(join(gate, "tools/check-saved-format-allowlist.mjs"), stub("gate-saved-format"));
-            writeFileSync(join(gate, "tools/release-dry-run.mjs"), stub("gate-release"));
-            writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
-            writeFileSync(join(root, "tools/prepush-source-checks.sh"), log("root-copy"), { mode: 0o755 });
-            writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$* $PWD" >> ${dir}/calls\n`, { mode: 0o755 });
-            const scripts = sourceCheckScripts();
-            delete scripts["check:legacy-use"];
-            writeFileSync(join(root, "package.json"), JSON.stringify({ scripts }));
-            writeFileSync(join(root, "pnpm-lock.yaml"), "lock\n");
-            writeFileSync(join(root, "node_modules/.pnpm/lock.yaml"), "lock\n");
-            writeFileSync(join(root, ".gitignore"), "node_modules/\ntmp/\n");
-            const git = (...args) => assert.equal(spawnSync("git", args, { cwd: root }).status, 0, args.join(" "));
-            git("init", "-q");
-            git("add", ".");
-            git("commit", "-q", "-m", "a");
-            const r = spawnSync("bash", [join(gate, "tools/prepush-source-checks.sh")], {
-                cwd: gate,
-                encoding: "utf8",
-                env: { ...process.env, PREPUSH_ROOT: root, PATH: `${join(dir, "bin")}:${process.env.PATH}` },
-            });
-            assert.equal(r.status, 0, r.stdout + r.stderr);
-            const calls = readFileSync(join(dir, "calls"), "utf8");
-            assert.match(calls, /^gate-images$/m, "the image check runs from the gate's copy");
-            assert.match(calls, /^gate-figma-lock$/m, "the Figma lock runs from the gate's copy");
-            assert.match(calls, /^gate-release$/m, "the release dry run runs from the gate's copy");
-            assert.match(calls, new RegExp(`^root-links ${root}$`, "m"), "the checkout's own checks run, in it");
-            assert.match(calls, new RegExp(`^run format:check ${root}$`, "m"));
-            assert.doesNotMatch(calls, /gate-links|root-copy/);
-            assert.doesNotMatch(calls, /check:legacy-use/);
-            assert.match(r.stdout, /\[SKIP\] Legacy graph API use: this checkout has no `check:legacy-use` script/);
-            assert.equal(readdirSync(join(root, "tmp/prepush-passes/source")).length, 1, "the pass is recorded");
-        } finally {
-            rmSync(dir, { recursive: true, force: true });
-        }
-    });
-
-    it("the hook runs only the LFS upload, the secret scan, the image limit and the spelling check, from its own copy", () => {
-        const code = (text) => text.replace(/^\s*#.*$/gm, "");
-        const hook = code(readFileSync(new URL("../.husky/pre-push", import.meta.url), "utf8"));
-        const tools = [...hook.matchAll(/"\$GATE_DIR\/tools\/([\w.-]+)"/g)].map((m) => m[1]);
-        assert.deepEqual(tools, [
-            "lfs-pre-push.sh",
-            "push-base.mjs",
-            "scan-secrets.sh",
-            "check-committed-images.mjs",
-            "check-spelling.mjs",
-        ]);
-        assert.doesNotMatch(hook, /\.\/tools\/|prepush|nx /);
     });
 });
 

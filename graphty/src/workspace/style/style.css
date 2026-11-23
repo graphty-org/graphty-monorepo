@@ -896,7 +896,8 @@
 
 [data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-field-control,
 [data-thing-popover] .ws-row:is([data-rule="R8f"], [data-rule="R2"]) > .ws-field[data-named] > .ws-field-control {
-    flex: 1 1 0;
+    /* The line's width less its two 24px slots, which follow it on the same line. */
+    flex: 0 0 calc(100% - 48px);
 }
 
 /* Style panel v2's shader rows (Shaders, group outlines): the empty place column gives its width to

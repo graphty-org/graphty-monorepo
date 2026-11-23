@@ -304,14 +304,16 @@ describe("Style panel v2's '+' lists", () => {
             await onlyPlusAdds(session, section, section.textContent ?? "a section");
         }
 
-        // A pop-over's group: a Size, added from its section's menu (Size and Shape, ia-design 2), has sub-groups.
-        const shape = sectionOf(tab, "node-shape");
-        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        // A pop-over's group: a Chart, added from Fill's menu, has sub-groups its "+" adds (Size's are all rare now,
+        // in its Advanced dialog).
+        const chartFill = sectionOf(tab, "node-fill");
+        await userEvent.click(within(chartFill).getByRole("button", { name: "Add to node fill" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Chart" }));
         await waitFor(() => {
-            assert.isNotNull(shape.querySelector('[data-thing="size"]'));
+            assert.isNotNull(chartFill.querySelector('[data-thing="chart"]'));
         });
-        await userEvent.click(within(shape).getByRole("button", { name: /^Node size settings/ }));
+        await userEvent.keyboard("{Escape}");
+        await userEvent.click(within(chartFill).getByRole("button", { name: /^Node chart settings/ }));
         const pop = await waitFor(() => {
             const found = document.querySelector<HTMLElement>("[data-thing-popover]");
             assert.isNotNull(found);
@@ -324,14 +326,14 @@ describe("Style panel v2's '+' lists", () => {
         const groupTitle = (group: Element): string =>
             group.querySelector('[data-testid="control-group-label"]')?.textContent ?? "";
         const titles = [...pop.querySelectorAll('[data-plus-list="group"]')].map(groupTitle);
-        assert.isNotEmpty(titles, "Size's pop-over has groups");
+        assert.isNotEmpty(titles, "Chart's pop-over has groups");
         for (const title of titles) {
             const group = [
                 ...document.querySelectorAll<HTMLElement>('[data-thing-popover] [data-plus-list="group"]'),
             ].find((each) => groupTitle(each) === title);
-            assert.isDefined(group, `Size's ${title} group`);
+            assert.isDefined(group, `Chart's ${title} group`);
             if (group !== undefined) {
-                await onlyPlusAdds(session, group, `Size's ${title}`);
+                await onlyPlusAdds(session, group, `Chart's ${title}`);
             }
         }
         await userEvent.keyboard("{Escape}");

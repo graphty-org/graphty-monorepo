@@ -9292,6 +9292,8 @@ export class UpdateManager implements Manager {
     adoptBuiltEdge(edge: Edge): void;
     // @internal
     adoptBuiltNode(node: Node_2): void;
+    // @internal
+    annotationMeshes: (() => readonly Mesh[]) | null;
     autoTurning: boolean;
     get awaitsLanding(): boolean;
     bindViewMasks(masks: ViewMasks | null): void;

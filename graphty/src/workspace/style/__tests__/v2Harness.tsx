@@ -254,9 +254,24 @@ export async function openKind(row: HTMLElement, title: string | RegExp): Promis
     if (settings !== null && settings.getAttribute("aria-expanded") !== "true") {
         await userEvent.click(settings);
     }
-    const scope = settings === null ? within(row) : screen;
+    // The pop-over's own Kind: a basic Shape row draws one in the panel too.
+    const scope = settings === null ? within(row) : within(await popoutOf(settings));
     await userEvent.click(await scope.findByRole("combobox", { name: "Kind" }));
     return screen.findByRole("listbox");
+}
+
+/**
+ * The pop-out a button opens, once open.
+ * @param button - the button.
+ * @returns the pop-out.
+ */
+async function popoutOf(button: HTMLElement): Promise<HTMLElement> {
+    return waitFor(() => {
+        const id = button.getAttribute("aria-controls");
+        const found = id === null ? null : document.getElementById(id);
+        assert.isNotNull(found, "the pop-out is open");
+        return found;
+    });
 }
 
 /**
@@ -276,7 +291,8 @@ export async function pickKind(row: HTMLElement, title: string | RegExp, kind: s
 export async function closeSettings(): Promise<void> {
     await userEvent.keyboard("{Escape}");
     await waitFor(() => {
-        assert.isNull(screen.queryByRole("combobox", { name: "Kind" }));
+        // A basic Shape row's own Kind line stays in the panel: the pop-over is what closes.
+        assert.isNull(document.querySelector("[data-thing-popover]"));
     });
 }
 
@@ -294,8 +310,50 @@ export async function kindOf(row: HTMLElement, title: string | RegExp): Promise<
     if (settings.getAttribute("aria-expanded") !== "true") {
         await userEvent.click(settings);
     }
-    const kind = await screen.findByRole<HTMLInputElement>("combobox", { name: "Kind" });
+    const kind = await within(await popoutOf(settings)).findByRole<HTMLInputElement>("combobox", { name: "Kind" });
     const { value } = kind;
     await closeSettings();
     return value;
+}
+
+/**
+ * Opens a pop-over's Advanced dialog (its rare settings, the second and last pop-out level), as a reader does.
+ * @param pop - the pop-over.
+ * @returns the dialog.
+ */
+export async function openAdvanced(pop: HTMLElement): Promise<HTMLElement> {
+    const button = await within(pop).findByRole("button", { name: / advanced settings$/ });
+    if (button.getAttribute("aria-expanded") !== "true") {
+        await userEvent.click(button);
+    }
+    return waitFor(() => {
+        const id = button.getAttribute("aria-controls");
+        const dialog = id === null ? null : document.getElementById(id);
+        assert.isNotNull(dialog, "the Advanced dialog is open");
+        return dialog;
+    });
+}
+
+/**
+ * A line of a pop-over, or of its Advanced dialog when the line is one of its rare settings.
+ * @param pop - the pop-over.
+ * @param selector - the line.
+ * @returns the line.
+ */
+export async function popoverLine(pop: HTMLElement, selector: string): Promise<HTMLElement> {
+    // The pop-over has drawn once its Main legend (or its Advanced line) is there.
+    const here = await waitFor(() => {
+        const line = pop.querySelector<HTMLElement>(selector);
+        assert.isTrue(line !== null || pop.querySelector('[data-line="advanced"]') !== null, "the pop-over is drawn");
+        return line;
+    });
+    if (here !== null) {
+        return here;
+    }
+    const dialog = await openAdvanced(pop);
+    return waitFor(() => {
+        const line = dialog.querySelector<HTMLElement>(selector);
+        assert.isNotNull(line, `${selector} in the pop-over or its Advanced dialog`);
+        return line;
+    });
 }

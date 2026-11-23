@@ -21,7 +21,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
-import { pickKind, picture, pixelsApart, sectionOf, written } from "./v2Harness";
+import { openAdvanced, pickKind, picture, pixelsApart, popoverLine, sectionOf, written } from "./v2Harness";
 
 /**
  * Opens three nodes, two edges and a layer "Links" over every edge that sets only its color, on
@@ -134,7 +134,7 @@ function rowNames(list: HTMLElement): string[] {
 async function settingsLine(row: HTMLElement, title: string, selector: string): Promise<HTMLElement> {
     await userEvent.click(within(row).getByRole("button", { name: new RegExp(`^${title} settings`) }));
     const pop = await found(document, "[data-thing-popover]");
-    return found(pop, selector);
+    return popoverLine(pop, selector);
 }
 
 /**
@@ -292,28 +292,17 @@ describe("Style panel v2's edge things", () => {
         await userEvent.click(within(row).getByRole("button", { name: /^Edge target settings/ }));
         const pop = await found(document, "[data-thing-popover]");
         await userEvent.click(within(pop).getByRole("button", { name: "Add to edge target settings" }));
-        // A caption offers the label's nine groups too, in their tiers (ia-design "Label settings groups").
+        // A caption offers the label's groups too, in their tiers (ia-design "Label settings groups"); the groups
+        // all of whose lines are rare (Position, Wrap, Callout) are its Advanced dialog's (design "Input rules").
         const menu = await screen.findByRole("menu");
         assert.deepEqual(
             [...menu.querySelectorAll('[role="menuitem"], .mantine-Menu-divider')].map((item) =>
                 item.getAttribute("role") === "menuitem" ? (item.textContent ?? "") : "|",
             ),
-            [
-                "Position",
-                "|",
-                "Letters",
-                "Wrap",
-                "Background",
-                "Box stroke",
-                "|",
-                "Label shadow",
-                "Callout",
-                "Badge",
-                "Behavior",
-            ],
+            ["Letters", "Background", "Box stroke", "|", "Label shadow", "Badge", "Behavior"],
         );
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Position" }));
-        const position = await within(pop).findByRole("group", { name: "Position" });
+        await userEvent.keyboard("{Escape}");
+        const position = await within(await openAdvanced(pop)).findByRole("group", { name: "Position" });
         await typeInto(await found(position, '.ws-row[data-line="edge.arrowHeadTextDistance"]'), "0.5");
         await waitFor(() => {
             assert.equal(written(session, id, "edge.arrowHeadTextDistance"), 0.5);
@@ -394,9 +383,8 @@ describe("Style panel v2's edge things", () => {
         const before = await settledPicture(session, element);
         const row = await found(sectionOf(tab, "edge-line"), '[data-thing="line"]');
         const colorFrom = await settingsLine(row, "Edge line", '.ws-row[data-line="edge.colorFrom"]');
-        await userEvent.click(await found(colorFrom, '[data-value-listbox="edge.colorFrom"]'));
-        const list = await screen.findByRole("group", { name: /values$/ });
-        await userEvent.click(within(list).getByRole("option", { name: /^Source/ }));
+        // Three choices: grouped buttons (design "Input rules"), in the line's Advanced dialog.
+        await userEvent.click(within(colorFrom).getByText("Source"));
         await waitFor(() => {
             assert.equal(written(session, id, "edge.colorFrom"), "source");
         });
@@ -405,7 +393,9 @@ describe("Style panel v2's edge things", () => {
             0,
             "the line takes the node's color",
         );
-        // The color from a node is a Solid line's: another kind takes it off.
+        // The color from a node is a Solid line's: another kind takes it off. Escape first closes the Advanced
+        // dialog, back to the pop-over.
+        await userEvent.keyboard("{Escape}");
         await pickKind(row, "Edge line", "Strands");
         await waitFor(() => {
             assert.isDefined(written(session, id, "edge.strandColors"));

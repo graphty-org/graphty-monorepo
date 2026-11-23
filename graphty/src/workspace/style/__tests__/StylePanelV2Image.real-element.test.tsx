@@ -17,7 +17,17 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
 import { choose } from "./modelHarness";
-import { openGraph, openKind, openStyle, picture, pixelsApart, sectionOf, switchView, written } from "./v2Harness";
+import {
+    openAdvanced,
+    openGraph,
+    openKind,
+    openStyle,
+    picture,
+    pixelsApart,
+    sectionOf,
+    switchView,
+    written,
+} from "./v2Harness";
 
 /**
  * Waits for a thing's row in a section.
@@ -106,7 +116,8 @@ describe("Style panel v2's Image wraps around the shape", () => {
 
         const row = await rowOf(fill, "image");
         const pop = await openSettings(row, "Node image settings");
-        const wrap = await within(pop).findByRole("checkbox", { name: "Wrap around shape" });
+        // Wrap around shape is a rare setting: the pop-over's Advanced dialog's (design "Input rules").
+        const wrap = await within(await openAdvanced(pop)).findByRole("checkbox", { name: "Wrap around shape" });
         assert.isFalse((wrap as HTMLInputElement).checked, "off: placed on the node");
         const fitLine = pop.querySelector('.ws-row[data-line="node.imageFit"]');
         assert.isNotNull(fitLine, "Fit");
@@ -124,11 +135,13 @@ describe("Style panel v2's Image wraps around the shape", () => {
             assert.equal(dimmed(fit), "Only when Wrap around shape is off", "placing settings dim while wrapped");
         });
 
-        await userEvent.click(within(pop).getByRole("checkbox", { name: "Wrap around shape" }));
+        await userEvent.click(within(await openAdvanced(pop)).getByRole("checkbox", { name: "Wrap around shape" }));
         await waitFor(() => {
             assert.strictEqual(written(session, nodes, "node.image"), asset, "off again: placed");
             assert.isUndefined(written(session, nodes, "node.texture"));
         });
+        // Escape closes the Advanced dialog, then the pop-over.
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
 
         // The picture's one home is Image: Fill's Kind select lists no Picture.

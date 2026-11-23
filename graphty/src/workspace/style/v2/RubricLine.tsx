@@ -5,7 +5,7 @@
  * value bound to data, a list, an asset or a text source keeps today's field.
  */
 
-import { ComboInput, PanelField, SegmentedControl, Slider, ToggleIconButton } from "@graphty/compact-mantine";
+import { ComboInput, PanelField, SegmentedControl, ToggleIconButton } from "@graphty/compact-mantine";
 import {
     type Channel,
     type ChannelDescriptor,
@@ -68,7 +68,6 @@ const AUTO = "Auto";
  * @param props.value - the value set, if any
  * @param props.letter - its slot's letter (a pair's "X" or "W"), else its name's initial
  * @param props.onWrite - writes a number, or undefined to unset
- * @param props.slider - a number with a fixed minimum and maximum is a slider
  * @returns The field
  */
 export function NumberLine({
@@ -77,7 +76,6 @@ export function NumberLine({
     percent,
     value,
     letter,
-    slider = false,
     onWrite,
 }: Readonly<{
     descriptor: ChannelDescriptor;
@@ -85,28 +83,11 @@ export function NumberLine({
     percent?: boolean;
     value: unknown;
     letter?: string;
-    /** A number with a fixed minimum and maximum is a slider (design "Input rules"); not in a pair. */
-    slider?: boolean;
     onWrite: (value: number | undefined) => void;
 }>): React.JSX.Element {
     const scale = (percent ?? isPercent(descriptor)) ? 100 : 1;
     const { min, max } = descriptor;
     const name = label ?? fieldName(descriptor.channel);
-    if (slider && typeof value === "number" && min !== undefined && max !== undefined) {
-        return (
-            <SliderLine
-                name={name}
-                min={min * scale}
-                max={max * scale}
-                step={descriptor.step === undefined ? ((max - min) * scale) / 100 : descriptor.step * scale}
-                suffix={scale === 100 ? "%" : ""}
-                value={Math.round(value * scale * 100) / 100}
-                onWrite={(next) => {
-                    onWrite(next / scale);
-                }}
-            />
-        );
-    }
     // Emptied and Enter unsets the line (design 2.2): the number field commits no empty text itself.
     const onEmptyEnter = (event: React.KeyboardEvent<HTMLDivElement>): void => {
         const input = event.target;
@@ -137,59 +118,6 @@ export function NumberLine({
                 }}
             />
         </div>
-    );
-}
-
-/**
- * A number in a fixed range (R5s): compact-mantine's slider, its value on its thumb while dragged and in its
- * tooltip, written when the drag ends.
- * @param props - Component props
- * @param props.name - its accessible name
- * @param props.min - its least value, as shown
- * @param props.max - its greatest value, as shown
- * @param props.step - one step
- * @param props.suffix - after the value ("%")
- * @param props.value - the value shown
- * @param props.onWrite - writes a value, as shown
- * @returns The slider
- */
-function SliderLine({
-    name,
-    min,
-    max,
-    step,
-    suffix,
-    value,
-    onWrite,
-}: Readonly<{
-    name: string;
-    min: number;
-    max: number;
-    step: number;
-    suffix: string;
-    value: number;
-    onWrite: (value: number) => void;
-}>): React.JSX.Element {
-    const [moving, setMoving] = React.useState<number | undefined>(undefined);
-    return (
-        <Tooltip label={`${name}: ${String(moving ?? value)}${suffix}`}>
-            <div>
-                <Slider
-                    size="compact"
-                    min={min}
-                    max={max}
-                    step={step}
-                    value={moving ?? value}
-                    thumbLabel={name}
-                    label={(shown) => `${String(Math.round(shown * 100) / 100)}${suffix}`}
-                    onChange={setMoving}
-                    onChangeEnd={(next) => {
-                        setMoving(undefined);
-                        onWrite(next);
-                    }}
-                />
-            </div>
-        </Tooltip>
     );
 }
 
@@ -462,7 +390,6 @@ function numberControl(args: ControlArgs): React.ReactNode {
             <NumberLine
                 descriptor={descriptor}
                 value={value ?? drawnValue(ctx, channel)}
-                slider
                 onWrite={(next) => {
                     write(channel, next);
                 }}

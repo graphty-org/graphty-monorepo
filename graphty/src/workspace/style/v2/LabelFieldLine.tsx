@@ -178,14 +178,13 @@ function numberShown(style: Readonly<LabelStyle>, field: LabelField): unknown {
  */
 function numberControl({ label, line, field, descriptor, name, split }: LineControlArgs): React.ReactNode {
     const percent = field.endsWith("pacity");
-    const one = (which: LabelField, letter: string | undefined, words: string, slider = false): React.JSX.Element => (
+    const one = (which: LabelField, letter: string | undefined, words: string): React.JSX.Element => (
         <NumberLine
             descriptor={describedField(label, which) ?? descriptor}
             label={words}
             percent={percent}
             value={numberShown(label.style, which)}
             letter={letter}
-            slider={slider}
             onWrite={(next) => {
                 label.write({ [which]: next });
             }}
@@ -225,7 +224,7 @@ function numberControl({ label, line, field, descriptor, name, split }: LineCont
         );
     }
     if (line.pair === undefined) {
-        return one(field, undefined, name, true);
+        return one(field, undefined, name);
     }
     const [a, b] = line.letters ?? ["", ""];
     // A lettered pair's fields are the line's name and its letter ("Node label pointer size H"); else the second's own.

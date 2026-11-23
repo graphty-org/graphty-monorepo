@@ -8,7 +8,7 @@
 
 import { CompactColorInput } from "@graphty/compact-mantine";
 import { type Channel, type ChannelDescriptor, listItemAddress } from "@graphty/graphty-element/catalog";
-import { Group } from "@mantine/core";
+import { Group, Tooltip } from "@mantine/core";
 import React from "react";
 
 import { shownChannel } from "../offered";
@@ -130,17 +130,22 @@ export function colorItems({
                                 const fill =
                                     range !== undefined && range.share !== true ? range.max : 1 / colors.length;
                                 const percent = range?.max === 1;
+                                // Its quantity ("Share", "Opacity") is its tooltip: the line has no name column.
                                 return (
-                                    <NumberLine
-                                        key={number.channel}
-                                        descriptor={itemDescriptor(descriptor)}
-                                        label={`${name} ${number.name.toLowerCase()}`}
-                                        percent={percent}
-                                        value={at < items.length ? Number(items[at]) : undefined}
-                                        onWrite={(next) => {
-                                            setNumber(number.channel, at, next, fill);
-                                        }}
-                                    />
+                                    <Tooltip key={number.channel} label={number.name}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <NumberLine
+                                                descriptor={itemDescriptor(descriptor)}
+                                                label={`${name} ${number.name.toLowerCase()}`}
+                                                percent={percent}
+                                                // Unset, the value drawn: an even share, or a fraction's top.
+                                                value={at < items.length ? Number(items[at]) : fill}
+                                                onWrite={(next) => {
+                                                    setNumber(number.channel, at, next, fill);
+                                                }}
+                                            />
+                                        </div>
+                                    </Tooltip>
                                 );
                             })}
                         </Group>

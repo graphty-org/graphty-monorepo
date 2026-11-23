@@ -354,6 +354,7 @@ export const MUTATING: readonly string[] = [
     "StylesApi.setValueEntry",
     "StylesApi.setValueHidden",
     "StylesApi.showBranches",
+    "StylesApi.showDraft",
     "StylesApi.update",
     // A model's own settings, saved with the project as one undoable step.
     "AssetsApi.setDefaults",

@@ -60,15 +60,18 @@ describe("node.texture and the stable frame", () => {
         // The meshes the frame being drawn drew: Babylon calls a mesh's draw observers only once
         // its shader is ready, so a frame that skipped a mesh never calls them.
         const drew = new Set<AbstractMesh>();
+        const watched = new WeakSet<AbstractMesh>();
         const watch = (mesh: AbstractMesh): void => {
-            if (mesh.getClassName() !== "InstancedMesh" && "onBeforeDrawObservable" in mesh) {
+            if (!watched.has(mesh) && mesh.getClassName() !== "InstancedMesh" && "onBeforeDrawObservable" in mesh) {
+                watched.add(mesh);
                 (mesh as Mesh).onBeforeDrawObservable.add(() => drew.add(mesh));
             }
         };
-        scene.meshes.forEach(watch);
-        scene.onNewMeshAddedObservable.add(watch);
+        // Every mesh is watched as each draw starts, not from onNewMeshAddedObservable: Babylon tells
+        // that observable on a later task, so a node batch built and drawn in one frame drew unseen.
         scene.onBeforeDrawPhaseObservable.add(() => {
             drew.clear();
+            scene.meshes.forEach(watch);
         });
         // Force the race: the first frame that would be called final with the picture on draws
         // while the textured material's shader is "not ready", and is ready again before the

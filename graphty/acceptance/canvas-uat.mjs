@@ -18,17 +18,31 @@
  * check passed, 1 when one failed, 2 on a usage error. See README.md beside this file.
  */
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
-import { launch, serve } from "./run.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../..");
+const gitArgs = ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"];
+const commonDir = spawnSync("git", gitArgs, { encoding: "utf8" }); // eslint-disable-line sonarjs/no-os-command-from-path -- the developer's own git
+// The dry run's GPU browser (run.mjs, "launch"): ANGLE on Vulkan, with the extracted libEGL.so.1 in the
+// main checkout's tmp/egl, without which these flags hang the first page instead of failing.
+const EGL =
+    process.env.DRY_RUN_EGL_DIR || join(dirname(commonDir.stdout.trim()), "tmp/egl/root/usr/lib/x86_64-linux-gnu");
+const GPU_ARGS = [
+    "--enable-unsafe-webgpu",
+    "--enable-features=Vulkan",
+    "--use-angle=vulkan",
+    "--disable-vulkan-surface",
+];
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json" };
 
 const { values: args } = parseArgs({
     options: {
@@ -327,6 +341,47 @@ export const scenarios = [
 // ---------------------------------------------------------------- the run
 
 /**
+ * Serve a build on a loopback port; every path that is not a file is the app's own page.
+ * @param dist the build
+ * @returns the listening server
+ */
+function serve(dist) {
+    const http = createServer(async (req, res) => {
+        const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^[/\\]+/, ""); // eslint-disable-line sonarjs/no-clear-text-protocols -- parses the request's path; the server is loopback only
+        const f = join(dist, path);
+        if (f !== dist && !f.startsWith(dist + sep)) return res.writeHead(403).end();
+        const body = await readFile(f).catch(() => null);
+        if (body)
+            return res.writeHead(200, { "content-type": TYPES[extname(f)] ?? "application/octet-stream" }).end(body);
+        if (extname(f)) return res.writeHead(404).end();
+        res.writeHead(200, { "content-type": "text/html" }).end(await readFile(join(dist, "index.html")));
+    });
+    return new Promise((ok) => http.listen(0, "127.0.0.1", () => ok(http)));
+}
+
+/**
+ * A browser drawing on the NVIDIA card, or a loud failure: a software renderer is never used.
+ * @param chromium Playwright's chromium
+ * @returns its page and a close
+ */
+async function launch(chromium) {
+    if (!existsSync(join(EGL, "libEGL.so.1"))) throw new Error(`no libEGL.so.1 in ${EGL}: see README.md, "Running it"`);
+    const env = { ...process.env, LD_LIBRARY_PATH: [EGL, process.env.LD_LIBRARY_PATH].filter(Boolean).join(":") };
+    const browser = await chromium.launch({ headless: true, args: GPU_ARGS, env });
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const renderer = await page.evaluate(() => {
+        const g = document.createElement("canvas").getContext("webgl2");
+        const e = g?.getExtension("WEBGL_debug_renderer_info");
+        return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : "no WebGL";
+    });
+    if (!/NVIDIA/i.test(renderer)) {
+        await browser.close();
+        throw new Error(`the browser draws with "${renderer}", not the NVIDIA card`);
+    }
+    return { page, close: () => browser.close() };
+}
+
+/**
  * Walk one scenario in its own browser and run its checks on what it recorded.
  * @param chromium Playwright's chromium
  * @param origin the served app, with its query
@@ -351,6 +406,10 @@ async function walk(chromium, origin, scenario) {
             }
         }
         if (errors.length) failed.push(`the page threw: ${errors.join("; ")}`);
+        // the app draws with the batched path exactly when the cosmograph experiment is on
+        result.renderPath = await b.page.evaluate(() => document.querySelector("graphty-element").renderPath);
+        const path = args.features.split(",").includes("cosmograph") ? "batched" : "objects";
+        if (result.renderPath !== path) failed.push(`drawn with the ${result.renderPath} render path, not ${path}`);
         result.result = failed.length ? "fail" : "pass";
         result.reason = failed.join(" | ") || null;
     } catch (err) {

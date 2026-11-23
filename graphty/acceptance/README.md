@@ -76,23 +76,16 @@ each frees up.
 
 graphty-element draws a graph one of two ways: its default render path, one mesh per node and edge,
 and the batched path, which draws every node and edge from tables on the GPU. The app switches to the
-batched path only with its `cosmograph` experiment on (`?features=cosmograph`), so a plain run walks
-the default path alone. `--features` opens the app with experiments on; each such run writes to its
-own folder (`tmp/dry-run-<features>/`), and `compare-reports.mjs` puts two runs side by side:
-
-```bash
-node graphty/acceptance/run.mjs                           # the default render path: tmp/dry-run/
-node graphty/acceptance/run.mjs --features cosmograph     # the batched render path: tmp/dry-run-cosmograph/
-node graphty/acceptance/compare-reports.mjs tmp/dry-run/report.json tmp/dry-run-cosmograph/report.json
-```
-
-`compare-reports.mjs` prints each route whose result differs, with both reasons, and exits 1 when one
-does. `pnpm run check:quick --with-dry-run` walks every route, and the canvas test below, both ways.
+batched path only with its `cosmograph` experiment on (`?features=cosmograph`), so the dry run walks
+the default path alone. The canvas test below and the selection workspace's test take `--features` to
+open the app with experiments on, and `compare-reports.mjs` puts two runs side by side: it prints each
+scenario whose result differs, with both reasons, and exits 1 when one does.
+`pnpm run check:quick --with-dry-run` runs the canvas test both ways after the routes.
 
 ### Pointing at the canvas: `canvas-uat.mjs`
 
-A route may not read the element while it walks, so what the batched path changed underneath the
-pointer has its own test, `canvas-uat.mjs`. It walks the same build in the dry run's browser (on the
+A route may only click and type (the guard below), so pointing at what the element drew has its own
+test, `canvas-uat.mjs`. It walks the same build in the dry run's browser (on the
 NVIDIA card, holding a browser slot and the GPU slot), moves and clicks the real mouse, and reads
 graphty-element's public API in the page (`nodeScreenPosition`, `elementAt`, `session.selection`):
 

@@ -249,6 +249,7 @@ import {
     type ModelPreviewOptions,
     PreviewEngines,
 } from "./meshes/ModelPreview";
+import { drawLast } from "./meshes/moveInstance";
 import { type ColumnRow, NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
@@ -5614,11 +5615,6 @@ export class Graph implements GraphContext {
                 },
                 this.scene,
             );
-            // A node whose mesh was read on the objects path shares its look's source, which the batch hides.
-            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
-                node.holdOffBatch();
-            }
-
             this.#edgeRowLines = new EdgeRowLines({
                 scene: this.scene,
                 cache: this.dataManager.meshCache,
@@ -5664,6 +5660,11 @@ export class Graph implements GraphContext {
             this.#edgeRowLines = null;
             this.#nodeBatches.dispose();
             this.#nodeBatches = null;
+            const nodes = [...dataManagerInternals.builtNodes(this.dataManager)];
+            // Translucent instances blend in the order the scene lists them: in row order, as the objects path
+            // builds them, not with the Nodes built under batches (a read, a hover) before the rest.
+            nodes.sort((a, b) => a.index - b.index);
+            drawLast(nodes.flatMap((node) => node.drawnPickMesh ?? []));
         }
 
         // Plain edges are pulled on "batched" (`Edge.pullsLine`): repaint them when that changes.

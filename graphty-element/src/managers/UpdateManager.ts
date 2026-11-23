@@ -2001,33 +2001,58 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Take one batch of pending nodes and the paint each is to be drawn with.
+     * Take one batch of pending nodes and paint it, in row order.
+     *
+     * A row built here is painted at once; its rebuilt mesh goes with the batch's (#9184). A node
+     * that has its `Node` already is painted at its turn among them, not after them: a look's meshes
+     * are made when its first row is painted, and opaque looks at one depth draw in the order their
+     * meshes were made, so painting the built rows first drew a `Node` read before the frame (issue
+     * #9185) under looks the objects path draws it over.
      * @param painter - Where the paint is read from.
      * @param rows - Every node, by index.
      * @param size - The most nodes the batch takes.
-     * @returns Each node of the batch and its paint.
+     * @returns Each node of the batch and its paint, how many rows were taken, and what painting them resized and rebuilt.
      */
-    private takeNodeBatch(
+    private paintNodeBatch(
         painter: StylePainter,
         rows: ReadonlyMap<number, Node>,
         size: number,
-    ): { painted: [Node, NodePaint][]; taken: number } {
+    ): { painted: [Node, NodePaint][]; taken: number; resized: ReadonlySet<Node>; rebuilt: boolean } {
         const painted: [Node, NodePaint][] = [];
         const taken = painter.takeNodes(size);
-
-        // A row built here is painted at once; its rebuilt mesh goes with the batch's (#9184).
-        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
-            for (const index of taken) {
-                const node = rows.get(index) ?? this.unbuiltPainted(painter, index);
-                const paint = node === undefined ? null : painter.nodePaint(index);
-
-                if (node !== undefined && paint !== null) {
-                    painted.push([node, paint]);
-                }
+        const existing: [Node, NodePaint][] = [];
+        for (const index of taken) {
+            const node = rows.get(index);
+            const paint = node === undefined ? null : painter.nodePaint(index);
+            if (node !== undefined && paint !== null) {
+                existing.push([node, paint]);
             }
+        }
+
+        // one teardown for the whole batch, before any of it is painted (see `paintNodes`)
+        const rebuilt = releaseRebuiltMeshes(existing);
+        let resized: ReadonlySet<Node> = new Set();
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            resized = collectResizedNodes(() => {
+                for (const index of taken) {
+                    const own = rows.get(index);
+                    const node = own ?? this.unbuiltPainted(painter, index);
+                    const paint = node === undefined ? null : painter.nodePaint(index);
+                    if (node === undefined || paint === null) {
+                        continue;
+                    }
+
+                    painted.push([node, paint]);
+                    if (own !== undefined) {
+                        const toggles = own.togglesOwnMeshes();
+                        own.applySessionPaint(paint);
+                        this.ownMeshesPainted ||= toggles || own.togglesOwnMeshes();
+                    }
+                }
+            });
         });
 
-        return { painted, taken: taken.length };
+        return { painted, taken: taken.length, resized, rebuilt: rebuilt.length > 0 };
     }
 
     /**
@@ -2221,12 +2246,11 @@ export class UpdateManager implements Manager {
         // however large the graph. Labels the batch's rebuilds drop are released together too.
         const { resized, rebuilt } = disposeLabelsTogether(() => {
             const start = performance.now();
-            const { painted: batch, taken } = this.takeNodeBatch(
-                painter,
-                rows,
-                this.nodeBatchSize(deadline - start, this.dataManager.nodes.size),
-            );
-            const painted = this.paintNodes(batch);
+            const {
+                painted: batch,
+                taken,
+                ...painted
+            } = this.paintNodeBatch(painter, rows, this.nodeBatchSize(deadline - start, this.dataManager.nodes.size));
             if (painter.nodesFromBuildsOnly) {
                 for (const [node] of batch) {
                     this.builtNodesPainted.add(node);
@@ -4763,6 +4787,58 @@ export class UpdateManager implements Manager {
      */
     meshesShownOrHidden(): void {
         this.sceneChanged = true;
+    }
+
+    /**
+     * The nodes whose mesh a consumer read (`Node.mesh`), with whether that mesh was shown at the last
+     * frame: a consumer shows or hides it through no method of ours, and a frozen scene drew a hidden
+     * one on (issue #9185).
+     */
+    private readonly heldMeshes = new Map<Node, boolean>();
+
+    /**
+     * A consumer read a node's mesh: from now on a frame that finds it shown or hidden since the last
+     * one re-reads what is drawn.
+     * @param node - The node.
+     * @internal
+     */
+    holdsMesh(node: Node): void {
+        this.heldMeshes.set(node, true);
+        this.sceneChanged = true;
+        // Before every render, a frame of the loop's or one drawn by hand: the loop's own pass does
+        // not run for a frame drawn by hand, and a consumer's change asks for no frame.
+        this.watchingHeld ??= this.graphContext.getScene().onBeforeRenderObservable.add(() => {
+            if (this.heldMeshesToggled()) {
+                this.sceneChanged = true;
+                this.thawActiveMeshes();
+            }
+        });
+    }
+
+    /** What watches the read meshes, once a mesh has been read ({@link UpdateManager.holdsMesh}). */
+    private watchingHeld: Nullable<Observer<Scene>> = null;
+
+    /**
+     * Whether a read mesh was shown or hidden since the last frame, and forget the nodes gone.
+     * @returns True when one was.
+     */
+    private heldMeshesToggled(): boolean {
+        let toggled = false;
+        for (const [node, shown] of this.heldMeshes) {
+            if (node.isDisposed()) {
+                this.heldMeshes.delete(node);
+                continue;
+            }
+
+            const mesh = node.drawnPickMesh;
+            const now = mesh !== null && mesh.isVisible && mesh.isEnabled();
+            if (now !== shown) {
+                this.heldMeshes.set(node, now);
+                toggled = true;
+            }
+        }
+
+        return toggled;
     }
 
     /**

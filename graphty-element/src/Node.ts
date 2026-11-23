@@ -645,15 +645,18 @@ export class Node implements ModelUser {
     /**
      * The node's own mesh, for a consumer. Nothing in graphty-element reads it: the element reads
      * the private field, and every other file a `drawn*` accessor (`local/node-mesh-funnel`).
-     * Under `render-path="batched"`, reading it keeps this node drawn by its own mesh from then on,
-     * never by a node batch, so what a consumer does to the mesh shows. The rest of its look stays
-     * on the batch.
+     * Under `render-path="batched"`, reading it keeps this node's own mesh from then on, and its
+     * look's batch draws the row from that mesh's world matrix and visibility, in the row's own
+     * place among its look, so what a consumer does to the mesh shows as on `"objects"`.
      * @returns The mesh.
      */
     get mesh(): AbstractMesh {
         if (!this.#meshHeld) {
             this.#meshHeld = true;
-            this.holdOffBatch();
+            if (!this.disposed) {
+                this.context.getNodeBatches?.()?.sync(this);
+                this.context.getUpdateManager?.().holdsMesh(this);
+            }
         }
 
         if (this.#mesh === null) {
@@ -2115,7 +2118,6 @@ export class Node implements ModelUser {
         const style = this.drawnStyle ?? null;
         return (
             style !== null &&
-            !this.#meshHeld &&
             // A row the batch draws gave up its instance: only an instance can leave its mesh.
             (this.#mesh === null || this.#mesh instanceof InstancedMesh) &&
             !this.drawnAsGroup &&
@@ -2187,12 +2189,14 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The opacity the node is drawn at: its mesh's visibility, or for a row a batch draws, the batch's.
+     * The opacity the node is drawn at: its mesh's visibility, or for a row a batch draws, the batch's,
+     * held rows included, whose mesh shares the source the batch hides.
      * @returns The opacity.
      * @internal
      */
     get drawnOpacity(): number {
-        return this.#mesh?.visibility ?? this.batchOpacity;
+        const mirrored = this.#meshHeld && this.context.getNodeBatches?.()?.mirrors(this) === true;
+        return mirrored ? this.batchOpacity : (this.#mesh?.visibility ?? this.batchOpacity);
     }
 
     /**
@@ -3091,65 +3095,16 @@ export class Node implements ModelUser {
     }
 
     /**
-     * Give a held node a source mesh of its own while node batches draw: on a read of its mesh, and
-     * when the graph switches to batched drawing after that read. A batch hides its whole source, so
-     * a held node sharing it took every row of its look off the batch (#8038, #8073).
+     * Whether a consumer read this node's mesh ({@link Node.mesh}), which keeps it from then on.
+     * @returns True when one did.
      * @internal
      */
-    holdOffBatch(): void {
-        const batches = this.disposed ? undefined : this.context.getNodeBatches?.();
-        if (!this.#meshHeld || !batches) {
-            return;
-        }
-
-        batches.leave(this);
-        this.drawFromOwnSource();
-        batches.sync(this);
-    }
-
-    /**
-     * Move a held node's instance onto its own source mesh ({@link Node.sourceArgs}), if it is not there.
-     */
-    private drawFromOwnSource(): void {
-        const mesh = this.#mesh;
-        if (!(mesh instanceof InstancedMesh) || this.drawnModel !== null) {
-            return;
-        }
-
-        const { meshKey, style } = this.#fit;
-        const source = NodeMesh.source(
-            this.context.getMeshCache(),
-            ...this.sourceArgs(meshKey, style, this.drawnImage),
-            this.context.getScene(),
-        );
-        // A group draws from a fill of its own, built over the shared source it stands for (see fitGroupFill)
-        const drawn = mesh.sourceMesh === this.groupFill ? this.groupFillKeep?.sourceMesh : mesh.sourceMesh;
-        if (source !== drawn) {
-            moveInstance(mesh, source);
-            this.#source = source;
-            // A new source has no color buffer until a paint registers one: paint the instance again.
-            this.applyInstancePaint(this.drawnStyle ?? style, this.drawnColor);
-            // and a group's fill is rebuilt over it at once, never drawn stretched until the next frame
-            const box = this.context.getLayoutManager().groupBox(this.id);
-            if (box !== undefined && this.drawnAsGroup) {
-                this.drawAsGroup(box);
-            }
-        }
-    }
-
-    /**
-     * Whether this node draws from a source of its own: a consumer holds its mesh while node batches
-     * draw, which hide the shared source. The objects path keeps sharing.
-     * @returns True when it does.
-     */
-    private drawsOwnSource(): boolean {
-        return this.#meshHeld && !this.disposed && (this.context.getNodeBatches?.() ?? null) !== null;
+    get drawnHeld(): boolean {
+        return this.#meshHeld;
     }
 
     /**
      * What {@link NodeMesh.create} and {@link NodeMesh.source} are asked for this node's source mesh.
-     * A held node under node batches draws from a source of its own, so a batch can keep hiding
-     * the shared one.
      * @param meshKey - The source mesh key.
      * @param o - The resolved style.
      * @param image - The picture on its shape, or null.
@@ -3163,7 +3118,7 @@ export class Node implements ModelUser {
         return [
             // A source mesh with its picture is another source mesh than the one drawn while it loads.
             {
-                styleId: `${meshKey}${image === null ? "" : "|image"}${this.drawsOwnSource() ? "|held" : ""}`,
+                styleId: `${meshKey}${image === null ? "" : "|image"}`,
                 is2D: this.context.is2D(),
                 size: this.size,
             },

@@ -403,7 +403,9 @@ function ParamRow({
             </NumberParam>
         );
     } else {
-        const control = <ParamControl ctx={ctx} option={option} label={label} shown={shown} write={write} />;
+        const control = (
+            <ParamControl ctx={ctx} option={option} label={label} shown={shown} write={write} segments={unsetRemoves} />
+        );
         body = (
             <>
                 {name()}
@@ -431,6 +433,7 @@ function ParamRow({
  * @param props.label - its name
  * @param props.shown - the value shown
  * @param props.write - sets it
+ * @param props.segments - Style panel v2: fewer than six choices are grouped buttons (design "Input rules")
  * @returns The control
  */
 export function ParamControl({
@@ -439,12 +442,14 @@ export function ParamControl({
     label,
     shown,
     write,
+    segments = false,
 }: Readonly<{
     ctx: RowContext | undefined;
     option: ShaderParamDescriptor;
     label: string;
     shown: unknown;
     write: (next: Value) => void;
+    segments?: boolean;
 }>): React.ReactNode {
     let control: React.ReactNode;
     if (option.choices !== undefined) {
@@ -480,9 +485,9 @@ export function ParamControl({
         const pick = (picked: string): void => {
             write(option.type === "boolean" ? picked === "on" : picked);
         };
-        // Fewer than six choices are grouped buttons, six or more a drop-down (design "Input rules").
+        // v2: fewer than six choices are grouped buttons, six or more a drop-down (design "Input rules").
         control =
-            data.length < 6 ? (
+            segments && data.length < 6 ? (
                 <SegmentedControl
                     label={label}
                     fullWidth

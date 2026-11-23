@@ -14,8 +14,7 @@ import { findNodes } from "../../../src/ai/commands/QueryCommands";
 import { CONNECTED_BY_SYNTAX, nodeScopeOf, SELECTOR_SYNTAX } from "../../../src/ai/commands/selectors";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createCommandGraph } from "../../helpers/session-graph";
-import { createMockContext } from "../../helpers/test-graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 import { makeSession } from "../../session/helpers";
 
 describe("AI command selectors", () => {
@@ -30,7 +29,7 @@ describe("AI command selectors", () => {
             // A headless session has no camera; zoomToNodes only hands it the nodes it matched.
             renderer: { applyCameraView: () => Promise.resolve() },
         });
-        context = createMockContext(graph);
+        context = createCommandContext(graph);
     });
 
     it("findNodes and zoomToNodes match the same nodes for the same data. selector", async () => {

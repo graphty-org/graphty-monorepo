@@ -9,8 +9,7 @@ import { z } from "zod";
 import { setDimension, setLayout } from "../../../src/ai/commands/LayoutCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createCommandGraph } from "../../helpers/session-graph";
-import { createMockContext } from "../../helpers/test-graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 
 describe("LayoutCommands", () => {
     let graph: Graph;
@@ -18,7 +17,7 @@ describe("LayoutCommands", () => {
 
     beforeEach(async () => {
         graph = await createCommandGraph({ nodeCount: 25, edgeCount: 40 });
-        context = createMockContext(graph);
+        context = createCommandContext(graph);
     });
 
     describe("setLayout", () => {

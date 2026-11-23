@@ -69,6 +69,12 @@ const NodeBehaviorOpts = z.preprocess(migrateDepthIndependent, NodeBehaviorShape
  */
 export const LABEL_TEXT_VALUES = ["canvas", "glyphs"] as const;
 
+/**
+ * How node labels draw their words while `labels.labelText` is unset: each label on its own canvas.
+ * @since 3.67.0
+ */
+export const DEFAULT_LABEL_TEXT: (typeof LABEL_TEXT_VALUES)[number] = "canvas";
+
 const LabelBehaviorOpts = z
     .strictObject({
         /**

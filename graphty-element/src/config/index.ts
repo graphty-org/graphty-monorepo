@@ -15,7 +15,7 @@ export type { FramingExtent } from "./Framing";
 export { DEFAULT_FRAMING_EXTENT, FRAMING_EXTENT_VALUES } from "./Framing";
 export type { FetchEdgesFn, FetchNeighborEdgesFn, FetchNodesFn, FitInsets, GraphBehaviorConfig } from "./GraphBehavior";
 export type { NodeIdType } from "./GraphBehavior";
-export { GraphBehaviorOpts, LABEL_TEXT_VALUES } from "./GraphBehavior";
+export { DEFAULT_LABEL_TEXT, GraphBehaviorOpts, LABEL_TEXT_VALUES } from "./GraphBehavior";
 export type {
     ColorScheme,
     GraphBackgroundConfig,

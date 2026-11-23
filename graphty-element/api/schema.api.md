@@ -169,6 +169,9 @@ export const DEFAULT_DARK_BACKGROUND_COLOR = "#121212";
 export const DEFAULT_FRAMING_EXTENT: FramingExtent;
 
 // @public
+export const DEFAULT_LABEL_TEXT: (typeof LABEL_TEXT_VALUES)[number];
+
+// @public
 export const DEFAULT_LIGHTING: Lighting;
 
 // @public

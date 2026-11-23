@@ -2,6 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import type { Channel, FieldDescriptor, LayerSpec, PaletteId, RunId } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
+import { createGraphSession } from "../../../src/session";
 import type { RunRef } from "../../../src/session/results/types";
 import type { ColorValue } from "../../../src/session/styles/channels";
 import {
@@ -56,7 +57,7 @@ function countsOf(prepared: PreparedBinding): BindingCounts {
     return prepared.counts;
 }
 
-/** The hex a painted colour carries, so a colour assertion reads as a colour. */
+/** The hex a painted color carries, so a color assertion reads as a color. */
 function hex(value: EncodedValue | undefined): string | undefined {
     return value === undefined ? undefined : (value as ColorValue).hex;
 }
@@ -351,7 +352,7 @@ describe("the palette's capacity", () => {
     });
 
     it("gives a binding that names no palette and no overflow a palette big enough to name it", () => {
-        // The eight-colour default cannot name ten groups, and a categorical palette never wraps.
+        // The eight-color default cannot name ten groups, and a categorical palette never wraps.
         // What the element must NOT do is hand ITSELF that palette and then refuse its own layer:
         // this is a run of ten communities that got exactly that, and drew nothing at all.
         // encode() now writes overflow "other" onto such a binding (see overflow.test.ts); a layer
@@ -376,7 +377,7 @@ describe("the palette's capacity", () => {
 
     it("still refuses a palette the CALLER named that cannot name the groups", () => {
         // The element choosing for itself is what changed. A consumer who asked for these eight
-        // colours and has ten groups is told so, rather than shown a picture in colours it did
+        // colors and has ten groups is told so, rather than shown a picture in colors it did
         // not ask for.
         const chosen: PaletteId = "okabe-ito";
         const layer = plan({ run: "louvain", channel: "node.color", palette: chosen });
@@ -846,7 +847,7 @@ describe("encode()", () => {
         // A palette written in here would be a guess: nothing at this point has read a single one
         // of the run's values, and how many groups there are is what decides whether a palette can
         // name them. The guess was made and it was wrong -- a ten-community result was planned
-        // onto the eight-colour default, refused by the capacity check one step later, and left in
+        // onto the eight-color default, refused by the capacity check one step later, and left in
         // the stack enabled and painting nothing. Choosing is deferred to the paint, where the
         // count is known; see the capacity tests below for the choice itself.
         assert.isUndefined(bindingOf(plan({ run: "louvain", channel: "node.color" }), "node.color").palette);
@@ -1008,5 +1009,51 @@ describe("a number written as label text", () => {
             codeOf(() => prepare("node.label", { by: "x", format: { maximumSignificantDigits: 0 } }, [1])),
             "E_BAD_LAYER",
         );
+    });
+});
+
+describe("a color bound to a column with no scale named (issue #9622)", () => {
+    /** The node.color legend block of a session whose nodes carry `values` under `data.v`. */
+    async function colorBlock(values: readonly (string | number)[], entry?: [string, string]) {
+        const s = createGraphSession();
+        await s.data.addNodes(values.map((v, at) => ({ id: `n${at}`, v })));
+        const layer = await s.styles.add({
+            name: "By v",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.color": { by: "data.v" } },
+        });
+        await s.styles.settled();
+        if (entry !== undefined) {
+            await s.styles.setValueEntry(layer.id, "node.color", entry[0], entry[1]);
+            await s.styles.settled();
+        }
+        const block = s.styles.legend().find((each) => each.channel === "node.color");
+        assert.isDefined(block);
+        return block;
+    }
+
+    it("reads a text column as groups, one palette color per value", async () => {
+        const block = await colorBlock(["#0640A0", "#A00640", "#40A006", "#0640A0"]);
+        assert.strictEqual(block.kind, "categorical");
+        assert.sameMembers(
+            block.swatches.map((swatch) => swatch.value),
+            ["#0640A0", "#A00640", "#40A006"],
+        );
+        assert.lengthOf(new Set(block.swatches.map((swatch) => swatch.color)), 3, "each group its own color");
+    });
+
+    it("keeps reading a text column as groups after one value is given its own color", async () => {
+        const block = await colorBlock(["gene", "protein", "drug"], ["gene", "#000000"]);
+        assert.strictEqual(block.kind, "categorical");
+        assert.strictEqual(block.swatches.find((swatch) => swatch.value === "gene")?.color, "#000000");
+        assert.lengthOf(new Set(block.swatches.map((swatch) => swatch.color)), 3);
+    });
+
+    it("still ramps a numeric column", async () => {
+        const block = await colorBlock([1, 2, 3, 4]);
+        assert.strictEqual(block.kind, "sequential");
+        assert.strictEqual(block.domain?.min, 1);
+        assert.strictEqual(block.domain?.max, 4);
     });
 });

@@ -6,7 +6,7 @@ algorithms. Each one takes a graph snapshot and a start node index, and returns 
 
 ## Breadth-First Search (BFS)
 
-BFS explores nodes level by level, visiting all neighbours of a node before moving to the next level.
+BFS explores nodes level by level, visiting all neighbors of a node before moving to the next level.
 
 <!-- doc-check -->
 
@@ -174,6 +174,31 @@ console.log(weaklyConnectedComponents(directed).count); // 1
 console.log(stronglyConnectedComponents(directed).count); // 2
 ```
 
+## Articulation Points and Bridges
+
+An articulation point is a node whose removal splits its piece of the graph; a bridge is an edge
+whose removal does. Both come from one linear-time depth-first search, on an undirected graph.
+
+<!-- doc-check -->
+
+```typescript
+import { GraphBuilder } from "@graphty/graph-format";
+import { articulationPoints, bridges } from "@graphty/algorithms";
+
+// A triangle a-b-c with a tail c-d
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("a", "b");
+builder.addEdge("b", "c");
+builder.addEdge("c", "a");
+builder.addEdge("c", "d");
+const graph = builder.freeze();
+
+console.log(Array.from(articulationPoints(graph).nodes, (i) => graph.ids.idOf(i))); // ["c"]
+console.log(
+    Array.from(bridges(graph).edges, (e) => [graph.ids.idOf(graph.edgeSource(e)), graph.ids.idOf(graph.edgeTarget(e))]),
+); // [["c", "d"]]
+```
+
 ## Bipartite Test
 
 <!-- doc-check -->
@@ -198,5 +223,6 @@ console.log(isBipartite(builder.freeze()).bipartite); // true
 | DFS              | O(V + E)        | O(V)             | Connectivity, cycles        |
 | Topological Sort | O(V + E)        | O(V)             | Dependency order            |
 | Components       | O(V + E)        | O(V)             | Splitting a graph in pieces |
+| Cuts             | O(V + E)        | O(V)             | Single points of failure    |
 
 Where V = vertices and E = edges.

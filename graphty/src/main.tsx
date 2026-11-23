@@ -10,15 +10,17 @@ import ReactDOM from "react-dom/client";
 
 import { App } from "./App.tsx";
 import { loadGraphtyElement } from "./elementLoader";
+import { bootQuery, startAnalyticsAtBoot } from "./lib/analytics";
 import { loadSiteConfig } from "./siteConfig";
 import { theme } from "./theme";
 import { loadFrame } from "./workspace/frameLoader";
-import { startUsageDataIfShared } from "./workspace/privacy/usageData";
 
-// Nothing is sent until the reader says Share usage data in the question a first visit is asked or in Settings >
-// Privacy; a reader who said so on an earlier visit starts sending again here, once the site's
-// site.json (fetched first, before the element) has said how this site labels its errors.
-void loadSiteConfig().then(startUsageDataIfShared); // eslint-disable-line unicorn/prefer-top-level-await -- a top-level await would hold the first paint for the fetch
+// Analytics start once the site's site.json (fetched first, before the element) has given its ids:
+// PostHog's anonymous counts for every visitor (its code loads after first paint), and PostHog's
+// shared mode and error reporting for a reader who said Share usage data, on this visit or an
+// earlier one (lib/analytics.ts startAnalyticsAtBoot). Anything
+// that reads the query after boot reads bootQuery(): Share removes the query from the address bar.
+void loadSiteConfig().then(startAnalyticsAtBoot); // eslint-disable-line unicorn/prefer-top-level-await -- a top-level await would hold the first paint for the fetch
 
 // The element reads nothing off the page's address, so the app turns its logging on from the
 // documented parameter: `?graphty-element-logging=voice:debug` shows what speech recognition did.
@@ -42,11 +44,11 @@ if (import.meta.env.DEV) {
 
 /** Logs what a remote log reader needs to tie a session to a server, a browser and a navigation. */
 function logPageStart(): void {
-    const [navigation] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+    const navigation = (performance.getEntriesByType("navigation") as PerformanceNavigationTiming[]).at(0);
     GraphtyLogger.getLogger(["graphty", "workspace"]).info("page start", {
         origin: location.origin,
         path: location.pathname,
-        features: new URLSearchParams(location.search).get("features"),
+        features: bootQuery().get("features"),
         userAgent: navigator.userAgent,
         navigationType: navigation?.type ?? null,
     });
@@ -62,8 +64,9 @@ function logUncaught(): void {
             column: event.colno,
         });
     });
-    globalThis.addEventListener("unhandledrejection", (event) => {
-        const { reason } = event as PromiseRejectionEvent & { reason: unknown };
+    // `reason` is typed any in the DOM's types; reading it through this view keeps it unknown.
+    globalThis.addEventListener("unhandledrejection", (event: { reason: unknown }) => {
+        const { reason } = event;
         log.error("unhandled rejection", reason instanceof Error ? reason : new Error(String(reason)));
     });
 }

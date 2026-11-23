@@ -216,7 +216,7 @@ describe("gateRun: above the cap with no approximate method", () => {
         assert.equal(code, "E_CAP_EXCEEDED");
         assert.equal(details.capSeconds, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS);
         assert.isAbove(details.estimateSeconds as number, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS);
-        assert.equal(details.confidence, "modelled");
+        assert.equal(details.confidence, "modeled");
         assert.isObject(details.basisFacts);
         assert.deepEqual(details.graph, { nodes: 70000, edges: 350000 });
         assert.isFalse(details.approximable);
@@ -394,12 +394,6 @@ describe("gateRun: the structural cases, which are not the cap", () => {
 
     it("reports an algorithm nothing registers as E_UNKNOWN_ALGORITHM", () => {
         const decision = gateRun({ algorithm: "acme:nope", statistics: statistics() });
-
-        assert.equal(refusal(decision).code, "E_UNKNOWN_ALGORITHM");
-    });
-
-    it("reports the removed all-paths name as E_UNKNOWN_ALGORITHM, like any name nothing registers", () => {
-        const decision = gateRun({ algorithm: "all-paths", statistics: statistics() });
 
         assert.equal(refusal(decision).code, "E_UNKNOWN_ALGORITHM");
     });

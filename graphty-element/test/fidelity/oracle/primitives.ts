@@ -226,6 +226,10 @@ export interface PStroke {
     line?: number;
     /** A stroke painted with a gradient (its first stop is also its `color`), or null for a flat color. */
     gradient?: PGradient | null;
+    /** A line drawn as parallel strands side by side: their colors, in the order drawn. */
+    strands?: readonly string[];
+    /** How its corners are joined, where not mitered (SVG's default): what a thick-stroked arrowhead's tip reaches. */
+    join?: "round" | "bevel";
 }
 
 /** Text as drawn. */
@@ -506,6 +510,12 @@ export interface PArrow {
      * the barb meets it; graphty stopped it at the head's back, short of a barb that meets the line only near its tip.
      */
     lineGap?: number;
+    /**
+     * Drawn wholly under a node other than its edge's ends, which is painted over it, so this drawing shows it nowhere.
+     * The head is left out only where the other side's head at the same end of the paired edge is hidden too
+     * (`withoutHiddenInBoth`); a head hidden in one drawing and shown in the other is judged as any other.
+     */
+    hidden?: boolean;
 }
 
 /** An edge as drawn. */
@@ -534,6 +544,12 @@ export interface PEdge {
      * an end at a node drawn wholly under another at the same place is seen at the node over it. Absent: the same.
      */
     ownEnds?: { source: string; target: string };
+    /**
+     * The oracle's: ends with no arrowhead read where the drawing still has a filled head-sized piece at the line's
+     * end wholly under a node other than its ends, painted after it (`markHiddenHeads`), so the program's head there is
+     * hidden. Judged only beside graphty's head at the same end hidden too (`withoutHiddenInBoth`). Absent: none.
+     */
+    hiddenEnds?: ArrowEnd[];
 }
 
 /** A group box as drawn. */
@@ -568,6 +584,8 @@ export interface PStray {
     text: string | null;
     /** Words a program drew as glyph outlines (`isLettering`), whose words it does not say. */
     lettering?: true;
+    /** A picture graphty draws in a node's label (yEd's label icon). */
+    label?: true;
 }
 
 /** One side's drawing, associated with graph elements. */
@@ -684,9 +702,9 @@ export function boxOfPoints(pts: readonly Pt[]): PBox {
 }
 
 /**
- * Places for the nodes a drawing has none for, from their neighbours': each at the middle of its neighbours that have
- * one, taken in rounds so a node whose neighbours have none waits for them. A node with fewer than two placed
- * neighbours stays without: one neighbour says nothing of where beside it the node stood. A position-matched drawing moves graphty's nodes to where the program drew them, and a node the
+ * Places for the nodes a drawing has none for, from their neighbors': each at the middle of its neighbors that have
+ * one, taken in rounds so a node whose neighbors have none waits for them. A node with fewer than two placed
+ * neighbors stays without: one neighbor says nothing of where beside it the node stood. A position-matched drawing moves graphty's nodes to where the program drew them, and a node the
  * program's drawing does not show (drawn wholly under another, as in a dense clique) would otherwise stay where graphty's
  * own layout put it, far from the drawing it is moved into.
  * @param placed - the nodes that have a place
@@ -767,6 +785,26 @@ const areaOf = (b: PBox): number => (b.x1 - b.x0) * (b.y1 - b.y0);
 const holds = (outer: PBox, inner: PBox): boolean =>
     inner.x0 > outer.x0 && inner.y0 > outer.y0 && inner.x1 < outer.x1 && inner.y1 < outer.y1;
 const median = (xs: readonly number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
+
+/**
+ * The line width of a ring drawn as two square boxes, one inside the other, where its sides are not all as wide: the
+ * narrowest side is the line, and a wider side is a band painted with it (yEd's DemoGroup, a 1 px frame whose top is
+ * its 22 px header, yed-graphml-specimen-groups). Null for any other ring, or one as wide all round.
+ * @param outer - the outer outline
+ * @param inner - the inner outline
+ * @returns the narrowest side's width, or null
+ */
+function boxFrameWidth(outer: readonly Pt[], inner: readonly Pt[]): number | null {
+    const square = (q: readonly Pt[]): boolean => Math.abs(signedArea(q)) >= 0.98 * areaOf(boxOfPoints(q));
+    if (!square(outer) || !square(inner)) {
+        return null;
+    }
+    const o = boxOfPoints(outer);
+    const i = boxOfPoints(inner);
+    const sides = [i.x0 - o.x0, i.y0 - o.y0, o.x1 - i.x1, o.y1 - i.y1];
+    const narrowest = Math.min(...sides);
+    return narrowest > 0 && Math.max(...sides) >= 3 * narrowest ? narrowest : null;
+}
 
 /** The sectors a painted outline is read in, around its box's center. */
 const SECTORS = 36;
@@ -1220,9 +1258,10 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[], nonze
         // lengthen its outlines but not its band: its width is how far its two outlines most often are apart, where
         // the line runs straight.
         const waved = dashClass === "zigzag" || dashClass === "sinewave";
+        const inner = subpaths[1 - boxes.indexOf(outerBox)];
         return patternResult(
             dashClass,
-            waved ? outlinesApart(outer, subpaths[1 - boxes.indexOf(outerBox)]) : width,
+            waved ? outlinesApart(outer, inner) : (boxFrameWidth(outer, inner) ?? width),
             box,
         );
     }
@@ -1291,6 +1330,12 @@ export interface PaintedBand extends PaintedOutline {
      * straight and runs between its `ends`.
      */
     route?: Pt[];
+    /**
+     * How far apart its pieces are along it, where the band is drawn in pieces: a program that draws only whole pieces
+     * (Cytoscape desktop's arrows and slashes) stops the line up to this far short of where it ends. Absent for a band
+     * of one outline.
+     */
+    piece?: number;
 }
 
 /**
@@ -1355,7 +1400,9 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
             return [x + 2 * c * u[1], y - 2 * c * u[0]];
         },
     });
-    const result = { ...patternResult(dashClass, width, box), ends, across: spread };
+    const order = subpaths.map((q) => q.reduce((t, p) => t + alongOf(p), 0) / q.length).sort((a, b) => a - b);
+    const piece = median(order.slice(1).map((a, i) => a - order[i]));
+    const result = { ...patternResult(dashClass, width, box), ends, across: spread, piece };
     // A straight band reaches across its axis as far as one of its pieces does; one that reaches twice as far bends,
     // and is routed through its pieces' centers, in order along it, its ends the end pieces' centers carried out along
     // the axis to the band's ends.

@@ -85,7 +85,7 @@ describe("neo4jExporter (design 8.5)", () => {
             hierarchy: false,
             temporal: "none",
             graphAttributes: false,
-            positions: false,
+            positions: true,
             viz: false,
         });
         // a dict column reads back as string (the header has no enumeration type)
@@ -221,9 +221,10 @@ describe("neo4jExporter (design 8.5)", () => {
                 "2,,,,,,,,,,2020-01-02T02:04:05Z,,,,\n";
             const s = await imported(source);
             const text = await neo4jExporter.exportToString(s, { part: "nodes" });
+            // the point property is the position column, declared at its first point, so it is written last
             expect(lines(text)).toEqual([
-                "id:ID,i:int,by:byte,sh:short,l:long,f:float,d:double,c:char,du:duration,dt:date,zdt:datetime,t:time,p:point,li:int[],ld:date[]",
-                "1,1,2,3,4,0.1,0.1,x,P1D,2020-01-02,2020-01-02T03:04:05+01:00,10:00:00Z,\"{x:1, y:2.5, crs:'cartesian'}\",1;2,2020-01-01;2020-01-02",
+                "id:ID,i:int,by:byte,sh:short,l:long,f:float,d:double,c:char,du:duration,dt:date,zdt:datetime,t:time,li:int[],ld:date[],p:point",
+                "1,1,2,3,4,0.1,0.1,x,P1D,2020-01-02,2020-01-02T03:04:05+01:00,10:00:00Z,1;2,2020-01-01;2020-01-02,\"{x:1, y:2.5, crs:'cartesian'}\"",
                 "2,,,,,,,,,,2020-01-02T02:04:05Z,,,,",
             ]);
             expect(neo4jExporter.check(s)).toEqual([]);
@@ -290,13 +291,13 @@ describe("neo4jExporter (design 8.5)", () => {
                 ]);
             });
             const notes = neo4jExporter.check(s);
-            expect(notes.filter((n) => n.code === LOSS.COMPONENTS).map((n) => n.column)).toEqual([
-                "vec",
-                "pos",
-                "pairs",
-            ]);
+            // the position is written as a point, which reads back as the position
+            expect(notes.filter((n) => n.code === LOSS.COMPONENTS).map((n) => n.column)).toEqual(["vec", "pairs"]);
             const text = await neo4jExporter.exportToString(s, { part: "nodes" });
-            expect(lines(text)).toEqual([":ID,pos:float[],vec:double[],pairs:int[]", "n,1;2;3,0.5;1.5,1;2;3;4"]);
+            expect(lines(text)).toEqual([
+                ":ID,pos:point,vec:double[],pairs:int[]",
+                "n,\"{x:1, y:2, z:3, crs:'cartesian-3d'}\",0.5;1.5,1;2;3;4",
+            ]);
         });
 
         it("writes explicit weights only, from the shadow column or the arc array", async () => {
@@ -450,7 +451,7 @@ describe("neo4jExporter (design 8.5)", () => {
                 lines(await neo4jExporter.exportToString(s, { onMixedDirection: "directed", part: "relationships" })),
             ).toEqual([":START_ID,:END_ID,weight:double", "a,b,", "b,c,2", "c,c,"]);
 
-            // "undirected" is honoured as far as Neo4j can: the pairs fold and every relationship is
+            // "undirected" is honored as far as Neo4j can: the pairs fold and every relationship is
             // directed, which the notes say
             const asUndirected = neo4jExporter.check(s, { onMixedDirection: "undirected" });
             expect(codes(asUndirected)).toEqual([LOSS.MIXED_DIRECTION, UNDIRECTED_LOSS]);

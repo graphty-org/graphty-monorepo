@@ -2,7 +2,7 @@
  * @file A layer's halo channels draw the selection halo on the node under the pointer.
  *
  * The `node.halo*` channels draw the same halo as the selection -- the node's own shape,
- * scaled about its centre -- on any node a layer picks. With a `{ match: "hover" }` layer that is
+ * scaled about its center -- on any node a layer picks. With a `{ match: "hover" }` layer that is
  * the node under the pointer. These tests drive the browser's own mouse
  * (test/helpers/real-input.ts) in a 3D view whose camera is turned so the hovered node sits near
  * the side of the view, where a flat screen-space ring would drift off the node, and read the
@@ -85,7 +85,7 @@ async function applied(element: Graphty): Promise<void> {
  * Where a node is drawn on screen.
  * @param element - The element.
  * @param id - The node.
- * @returns Its centre in CSS pixels from the element's top-left corner.
+ * @returns Its center in CSS pixels from the element's top-left corner.
  */
 function at(element: Graphty, id: string): Point {
     const position = element.nodeScreenPosition(id);
@@ -116,7 +116,7 @@ async function pointTo(element: Graphty, point: Point): Promise<void> {
 }
 
 /**
- * Assert one halo is drawn around a node: centred on it and its own shape scaled about that centre.
+ * Assert one halo is drawn around a node: centered on it and its own shape scaled about that center.
  * @param element - The element.
  * @param id - The node.
  * @param scale - The scale the halo should be drawn at.

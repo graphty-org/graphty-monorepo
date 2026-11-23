@@ -5,7 +5,7 @@ import type { Node as GraphNode } from "../Node";
 import { NodeSizeSpaces } from "./NodeStyle";
 
 const NodeBehaviorShape = z.strictObject({
-    /*
+    /**
      * Whether dropping a dragged node fixes it where the reader put it.
      *
      * IT STAYS ON BY DEFAULT even though a pin now survives a layout change, a 2D/3D switch
@@ -21,7 +21,7 @@ const NodeBehaviorShape = z.strictObject({
      */
     pinOnDrag: z.boolean().default(true),
 
-    /*
+    /**
      * How a node's drawn size follows the camera, for every node whose style sets no
      * `node.sizeSpace` (see `NodeSizeSpaces`).
      *
@@ -34,7 +34,7 @@ const NodeBehaviorShape = z.strictObject({
      */
     sizeSpace: NodeSizeSpaces.optional(),
 
-    /*
+    /**
      * How wide a node outline is drawn when its style sets no width (the `node.outlineWidth`
      * channel), as a multiple of the ring's own band. Unset, the ring's own width (1).
      */
@@ -61,7 +61,7 @@ const NodeBehaviorOpts = z.preprocess(migrateDepthIndependent, NodeBehaviorShape
 
 const LabelBehaviorOpts = z
     .strictObject({
-        /*
+        /**
          * Whether node labels that would be drawn on top of each other are thinned out.
          *
          * OFF BY DEFAULT, so a graph looks the way it always has: every label a style asks for is
@@ -71,7 +71,7 @@ const LabelBehaviorOpts = z
          * the selection changes, and never on a frame where none of them did.
          */
         declutter: z.boolean().default(false),
-        /*
+        /**
          * Whether a node label moves off the other nodes and the edges it would cover.
          *
          * OFF BY DEFAULT, so a label is drawn where its style puts it. On, the element tries the
@@ -82,7 +82,7 @@ const LabelBehaviorOpts = z
          * style puts it. Decided again whenever `declutter` is.
          */
         avoidNodesAndEdges: z.boolean().default(false),
-        /*
+        /**
          * The size, in CSS pixels, of the square screen cells label sampling keeps one node label
          * in.
          *
@@ -95,7 +95,7 @@ const LabelBehaviorOpts = z
          * were built.
          */
         sampleCell: z.number().positive().optional(),
-        /*
+        /**
          * How node labels draw their words.
          *
          * UNSET BY DEFAULT, which is "canvas": every label is drawn on its own canvas, as it always was. "glyphs"
@@ -113,7 +113,7 @@ const LabelBehaviorOpts = z
 
 const CameraBehaviorOpts = z
     .strictObject({
-        /*
+        /**
          * Whether the selection becomes the camera's pivot.
          *
          * OFF BY DEFAULT, so the camera turns about the point it always has. On, selecting one node
@@ -126,7 +126,7 @@ const CameraBehaviorOpts = z
          * leaves the camera where it is, so a menu opened at the pointer stays beside its node.
          */
         pivotOnSelection: z.boolean().default(false),
-        /*
+        /**
          * Which selection changes move the pivot, by who made them: the `cause` of the
          * `selection:changed` event -- `user` (a click or a shift-click on the canvas), `api` (a
          * call such as `session.selection.apply`), `command` (a filter condition whose effect is
@@ -137,19 +137,19 @@ const CameraBehaviorOpts = z
          * reader's does, until the selection changes again. Only read while `pivotOnSelection` is on.
          */
         pivotOnSelectionCauses: z.array(z.enum(["user", "api", "command", "history"])).optional(),
-        /*
+        /**
          * How fast the 3D camera turns on its own, in radians per second, about the graph's
          * vertical axis.
          *
          * 0 BY DEFAULT, so the camera stays where the reader put it. Above 0 the 3D view turns at
          * that speed every frame, and stops while the reader drags, pinches, holds an arrow key
          * or drags a node, carrying on from wherever they left it. The 2D view and a VR or AR
-         * session never turn. A page that honours `prefers-reduced-motion` sets 0 for those
+         * session never turn. A page that honors `prefers-reduced-motion` sets 0 for those
          * readers. The turning does not hold back `graph-frame-stable`: the picture is finished
          * when the layout and the styles are, however the camera moves.
          */
         autoRotate: z.number().min(0).default(0),
-        /*
+        /**
          * How long `autoRotate` waits after the reader last moved the camera -- a press or drag on
          * the canvas, a pinch, a wheel, a camera key, a node drag -- before it turns again, in
          * milliseconds of frames drawn, or "never".
@@ -161,7 +161,7 @@ const CameraBehaviorOpts = z
          * to the pivot) and `setCameraState` are not the reader's moves and never start a wait.
          */
         autoRotateResume: z.union([z.number().min(0), z.literal("never")]).default(0),
-        /*
+        /**
          * Room, in CSS pixels, that framing the graph leaves clear at each edge of the canvas, for
          * a page that draws its own panels over the graph.
          *
@@ -173,23 +173,28 @@ const CameraBehaviorOpts = z
          */
         fitInsets: z
             .strictObject({
+                /** CSS pixels left clear at the top edge; 0 by default. */
                 top: z.number().min(0).default(0),
+                /** CSS pixels left clear at the right edge; 0 by default. */
                 right: z.number().min(0).default(0),
+                /** CSS pixels left clear at the bottom edge; 0 by default. */
                 bottom: z.number().min(0).default(0),
+                /** CSS pixels left clear at the left edge; 0 by default. */
                 left: z.number().min(0).default(0),
             })
             .prefault({}),
-        /*
+        /**
          * What zoom-to-fit fits into view in 3D.
          *
-         * "box" BY DEFAULT: every corner of the box around the nodes and labels, as seen from
-         * the front. "turning" fits the nodes and labels themselves at every angle the view turns
+         * "box" BY DEFAULT: as far out as every corner of the box around the nodes and labels
+         * needs, as seen from the front, with the nodes and labels drawn in the middle of the
+         * canvas. "turning" fits the nodes and labels themselves at every angle the view turns
          * to about the graph's vertical axis -- as `autoRotate` and a sideways drag turn it -- so
          * a turning graph stays in the frame and is not drawn smaller to make room for the empty
          * corners of its box. 2D always fits the box.
          */
         fitBounds: z.enum(["box", "turning"]).default("box"),
-        /*
+        /**
          * Whether a canvas resize frames the graph again.
          *
          * OFF BY DEFAULT: a resize that lands after the picture was reported final leaves the camera
@@ -206,7 +211,7 @@ const CameraBehaviorOpts = z
 
 const ExpandBehaviorOpts = z
     .strictObject({
-        /*
+        /**
          * What expands a node from the network source that loaded it.
          *
          * "none" BY DEFAULT, so a click and a double-click do what they always did. Set, the
@@ -215,15 +220,15 @@ const ExpandBehaviorOpts = z
          * file has nothing to ask, and the expansion fails with E_SOURCE_UNSUPPORTED. Experimental.
          */
         trigger: z.enum(["none", "click", "double-click"]).default("none"),
-        /* How many hops. */
+        /** How many hops. */
         depth: z.number().int().positive().default(1),
-        /* Which edges to follow. */
+        /** Which edges to follow. */
         direction: z.enum(["out", "in", "both"]).default("both"),
-        /* At most this many new nodes per expansion; no limit when unset, the source's own default. */
+        /** At most this many new nodes per expansion; no limit when unset, the source's own default. */
         limit: z.number().int().positive().optional(),
-        /* Only these relationship types; every type when unset. */
+        /** Only these relationship types; every type when unset. */
         relationshipTypes: z.array(z.string()).optional(),
-        /* "continue" plays the layout so it places the new nodes; "none" leaves it as it is. */
+        /** "continue" plays the layout so it places the new nodes; "none" leaves it as it is. */
         layout: z.enum(["continue", "none"]).default("continue"),
     })
     .prefault({});
@@ -232,15 +237,19 @@ export type FitBounds = "box" | "turning";
 
 /** Room framing leaves clear at each edge of the canvas, in CSS pixels. */
 export interface FitInsets {
+    /** CSS pixels left clear at the top edge. */
     readonly top: number;
+    /** CSS pixels left clear at the right edge. */
     readonly right: number;
+    /** CSS pixels left clear at the bottom edge. */
     readonly bottom: number;
+    /** CSS pixels left clear at the left edge. */
     readonly left: number;
 }
 
 /** The rendering settings: the fields `setRenderSettings` accepts. */
 export const RenderSettingsOpts = z.strictObject({
-    /*
+    /**
      * Whether a frame is drawn only when the picture can have changed.
      *
      * OFF BY DEFAULT, so the element draws every animation frame, as Babylon.js does and as a
@@ -250,7 +259,9 @@ export const RenderSettingsOpts = z.strictObject({
      * the picture. A still graph then costs the page nothing per frame, which on a software GPU
      * is tens to hundreds of milliseconds of every frame. Something added to or removed from the
      * scene from outside the element is drawn; a property changed on something already in it
-     * is not seen until something else asks for a frame.
+     * is not seen until something else asks for a frame. Under renderPath "batched", the frames
+     * between two landings of a running GPU layout are skipped even while this is off, so such a
+     * property change waits for the layout's next landing then.
      */
     onDemand: z.boolean().default(false),
 });
@@ -258,26 +269,34 @@ export const RenderSettingsOpts = z.strictObject({
 const RenderingBehaviorOpts = RenderSettingsOpts.prefault({});
 
 const GraphLayoutOpts = z.strictObject({
+    /** The layout engine's id, as the layout catalog names it; "ngraph" by default. */
     type: z.string().default("ngraph"),
+    /** Simulation steps run before the first frame is drawn; 0 by default. */
     preSteps: z.number().default(0),
+    /** Simulation steps run per frame; 1 by default. */
     stepMultiplier: z.number().default(1),
+    /** The move in one round of steps below which the layout has settled and stops; 0 (the default) is off. */
     minDelta: z.number().default(0),
+    /** Layout steps between zoom-to-fit updates while the layout runs; at least 1, and 1 by default. */
     zoomStepInterval: z.number().min(1).default(1),
 
-    /*
+    /**
      * How many iterations of a simulation layout one frame computes.
      *
      * LEFT UNSET ON PURPOSE by default, because the right answer depends on the graph in front of
      * the reader rather than on the host: a simulation resolves it at every load from
      * `stepMultiplier`, raising it fourfold once the graph is large enough that one round trip per
-     * iteration costs more than the arithmetic. Setting it here pins the count whatever the size.
+     * iteration costs more than the arithmetic. On a hardware accelerator each frame's batch then ramps up
+     * from that count (1, 1, 2, 4, ... up to 128, fewer on a graph of more than 31,250 nodes), so a
+     * large graph settles in seconds rather than at one iteration per frame. Setting it here pins
+     * the count whatever the size and whatever the hardware.
      *
      * It reaches nothing but a simulation layout -- `forceatlas2`, `spring` and `spring-electrical`
      * -- because no other engine computes in batches.
      */
     iterationsPerStep: z.number().int().positive().optional(),
 
-    /*
+    /**
      * How many accelerated batches a simulation layout may have in flight at once.
      *
      * Two is one being computed while the next is being prepared, which is what keeps the device
@@ -287,7 +306,7 @@ const GraphLayoutOpts = z.strictObject({
      */
     maxInFlight: z.number().int().min(1).max(4).default(2),
 
-    /*
+    /**
      * Whether a group node with no stored position follows its members.
      *
      * A file can nest nodes in another node: a Graphviz cluster, a yEd group, a Cytoscape compound
@@ -299,7 +318,7 @@ const GraphLayoutOpts = z.strictObject({
      */
     groupsFollowMembers: z.boolean().optional(),
 
-    /*
+    /**
      * Whether a layout runs over only what is shown: the working graph, what the filters leave
      * shown. The time window is never part of it: a window step, a play and its pause hide
      * elements by drawing and lay nothing out.
@@ -307,14 +326,14 @@ const GraphLayoutOpts = z.strictObject({
      * True: a node a filter hides takes no part in the layout -- it pushes and pulls nothing, its
      * edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot -- and
      * it stays where it was, so taking the filter away shows it where it was. The layout runs again
-     * whenever a filter changes what is shown, and when this is switched. Every layout honours it.
+     * whenever a filter changes what is shown, and when this is switched. Every layout honors it.
      * False: a layout runs over the whole graph, hidden nodes included. Unset, the default: as the
      * session's `workingGraph` option says.
      */
     visibleOnly: z.boolean().optional(),
 });
 
-/** How the element drives a layout, as the behaviour configuration resolves it. */
+/** How the element drives a layout, as the behavior configuration resolves it. */
 export type GraphLayoutBehavior = z.infer<typeof GraphLayoutOpts>;
 
 /** How the element drives the layout, as a caller supplies it: every field optional. */
@@ -322,7 +341,7 @@ export type GraphBehaviorConfig = z.input<typeof GraphBehaviorOpts>;
 
 const SelectionBehaviorOpts = z
     .strictObject({
-        /*
+        /**
          * What Shift and a drag that starts on empty canvas does.
          *
          * "off" BY DEFAULT, so it pans or turns the camera as it always has. "rectangle" draws a
@@ -336,15 +355,32 @@ const SelectionBehaviorOpts = z
 
 export const GraphBehaviorOpts = z.strictObject({
     // dimensions: z.int().min(2).max(3).default(3),
+    /** How the layout is driven: its engine, its stepping and what it runs over. */
     layout: GraphLayoutOpts.prefault({}),
+    /** Node behavior: pinning on drag, how drawn size follows the camera, the outline width. */
     node: NodeBehaviorOpts,
+    /** Node label behavior: decluttering, avoiding nodes and edges, sampling and how words are drawn. */
     labels: LabelBehaviorOpts,
+    /** Rendering settings: the fields `setRenderSettings` accepts. */
     rendering: RenderingBehaviorOpts,
+    /** Camera behavior: the selection pivot, turning on its own, and how zoom-to-fit frames the graph. */
     camera: CameraBehaviorOpts,
+    /** How a node is expanded from the network source that loaded it. */
     expand: ExpandBehaviorOpts,
+    /** Selection behavior: what Shift and a drag on empty canvas selects. */
     selection: SelectionBehaviorOpts,
+    /** A host function that returns the nodes for a set of node ids (see `FetchNodesFn`). */
     fetchNodes: z.optional(z.instanceof(Function)),
+    /** A host function that returns the edges of a node (see `FetchEdgesFn`). */
     fetchEdges: z.optional(z.instanceof(Function)),
+    /**
+     * A host function that returns the edges of the nodes an expansion just fetched (see
+     * `FetchNeighborEdgesFn`). Unset BY DEFAULT, so an expansion adds the expanded node's own
+     * edges and its neighbors and nothing else. Set, an expansion also hands it the ids of the
+     * nodes it fetched and adds the edges it returns whose ends are both in the graph or just
+     * fetched, in the same step.
+     */
+    fetchNeighborEdges: z.optional(z.instanceof(Function)),
 });
 
 /* ******* REFACTOR EVERYTHING BELOW THIS LINE *********/
@@ -373,3 +409,9 @@ interface EdgeObjectType {
 
 export type FetchNodesFn = (nodeIds: Set<NodeIdType>, g: Graph) => Set<NodeObjectType>;
 export type FetchEdgesFn = (node: GraphNode, g: Graph) => Set<EdgeObjectType>;
+/**
+ * The edges of the nodes an expansion just fetched, so a fresh neighborhood is drawn with the
+ * edges among its members and to the nodes already in the graph, rather than as a star. An edge
+ * whose other end is neither in the graph nor just fetched is left out.
+ */
+export type FetchNeighborEdgesFn = (nodeIds: Set<NodeIdType>, g: Graph) => Iterable<EdgeObjectType>;

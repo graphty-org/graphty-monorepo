@@ -421,6 +421,15 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     /**
+     * Step again from where the bodies are: the layout manager lifted them toward 3D.
+     * @returns True: the next refresh reheats the simulation.
+     */
+    override wakeForLift(): boolean {
+        this.reheat = true;
+        return true;
+    }
+
+    /**
      * Start the simulation again because a node's drawn size changed, when `nodeGap` keeps nodes apart by that size.
      * @returns True when the frame loop has to start stepping this layout again.
      */
@@ -793,7 +802,7 @@ export class D3GraphEngine extends LayoutEngine {
             return;
         }
 
-        // A 2D simulation never initialises or moves z, so it starts, and stays, at 0.
+        // A 2D simulation never initializes or moves z, so it starts, and stays, at 0.
         this.newNodeMap.set(n, body ?? (this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id }));
     }
 
@@ -891,7 +900,7 @@ export class D3GraphEngine extends LayoutEngine {
         const snapshot = this.rowBodies.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
-            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
+            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at, this.rowSource?.positions)) {
                 body.x = at.x;
                 body.y = at.y;
                 body.z = this.dim === 2 ? 0 : at.z;
@@ -967,7 +976,7 @@ export class D3GraphEngine extends LayoutEngine {
         super.setHoldMask(mask, rows);
         this.refresh();
         // A group following its members pushes nothing; d3 reads a strength once per node at
-        // initialisation, so the accessor is set again whenever the followers change.
+        // initialization, so the accessor is set again whenever the followers change.
         const followers = new Set<NodeIdType>();
         for (const node of this.nodeMapping.keys()) {
             if (this.isFollower(node.index)) {

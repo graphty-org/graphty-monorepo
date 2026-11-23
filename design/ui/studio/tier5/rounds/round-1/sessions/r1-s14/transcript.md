@@ -16,7 +16,7 @@ Command: --step --click "Betweenness"
 
 ## Step 3
 Command: --step --click "Run"
-04.png: It ran and coloured EVERY node on a 0-25 orange-brown gradient, and added a Betweenness layer. Colours I didn't choose, and the council wants only three orange. First I need the numbers: the table says 9 columns now, so the score must be off to the right. Dragging the table's scrollbar right.
+04.png: It ran and colored EVERY node on a 0-25 orange-brown gradient, and added a Betweenness layer. Colors I didn't choose, and the council wants only three orange. First I need the numbers: the table says 9 columns now, so the score must be off to the right. Dragging the table's scrollbar right.
 
 ## Step 4
 Command: --step --drag 760,868 1100,868
@@ -30,7 +30,7 @@ Command: --step --click-at 1114,509 (Betweenness header)
 Command: --step --click-at 480,542 --shift-click-at 480,608
 (no shift-click by point in the tool; retried by name)
 Command: --step --click "Cedar Bend" --shift-click "Mill Pond"
-07.png: Three rows selected, "3 nodes selected" on the right, ringed on the network. The right panel has a Style tab for the selection -- that's where I coloured clusters before. Opening it.
+07.png: Three rows selected, "3 nodes selected" on the right, ringed on the network. The right panel has a Style tab for the selection -- that's where I colored clusters before. Opening it.
 
 ## Step 7
 Command: --step --click "role=tab:Style"
@@ -38,15 +38,15 @@ Command: --step --click "role=tab:Style"
 
 ## Step 8
 Command: --step --click-at 1404,301 (Fill +)
-09.png: A Color box, empty, "Not set yet: the first color you pick makes the layer". Clicking the colour box.
+09.png: A Color box, empty, "Not set yet: the first color you pick makes the layer". Clicking the color box.
 
 ## Step 9
 Command: --step --click-at 1312,335 (Color box)
-10.png: No colour swatches appeared, just a text cursor in the box. I'll type a hex for orange like I would in Cytoscape and press Enter.
+10.png: No color swatches appeared, just a text cursor in the box. I'll type a hex for orange like I would in Cytoscape and press Enter.
 
 ## Step 10
 Command: --step --type "#FFA500" --key Enter
-11.png: "Made a layer for the 3 selected nodes", a "3 nodes" layer, FFA500, "Picked by hand: 3 nodes". Good. But the Betweenness layer is still painting every other gauge in orange-to-brown, so the picture says "everything is orange". In Cytoscape I'd remove that mapping. I'll hide the Betweenness layer with its eye, then click empty canvas to drop the selection so I can see the real colours.
+11.png: "Made a layer for the 3 selected nodes", a "3 nodes" layer, FFA500, "Picked by hand: 3 nodes". Good. But the Betweenness layer is still painting every other gauge in orange-to-brown, so the picture says "everything is orange". In Cytoscape I'd remove that mapping. I'll hide the Betweenness layer with its eye, then click empty canvas to drop the selection so I can see the real colors.
 
 ## Step 11
 Command: --step --click-at 276,280 (Betweenness eye) --click-at 760,200 (empty canvas)
@@ -62,8 +62,8 @@ What went well: the Analyze list said in one line what Betweenness means ("which
 
 What confused or bothered me:
 - Running Betweenness painted ALL eleven gauges on an orange-to-brown gradient I didn't ask for. With my three set to orange the picture still read as "everything is orange" until I hid the Betweenness layer. I had to know to do that.
-- The colour box gave me no swatches or picker when I clicked it, only a text cursor; I typed a hex because I know hex. Someone who doesn't would be stuck.
-- The network says Directed. The Betweenness card doesn't say whether it followed the arrows (river flow) or ignored them. For "journeys along the river" that matters, and the only control on the card was an unlabelled gear I wasn't going to click.
+- The color box gave me no swatches or picker when I clicked it, only a text cursor; I typed a hex because I know hex. Someone who doesn't would be stuck.
+- The network says Directed. The Betweenness card doesn't say whether it followed the arrows (river flow) or ignored them. For "journeys along the river" that matters, and the only control on the card was an unlabeled gear I wasn't going to click.
 - Only 10 of 11 rows fit in the table without scrolling; I had to sort to be sure I wasn't missing the top one.
 - The score has no unit or scale explained (is 25 a count of journeys? of pairs?). Fine for ranking, but I couldn't put it in a methods sentence.
 
@@ -71,4 +71,4 @@ What confused or bothered me:
 
 Facilitator: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to walk away), how did the program feel while you did this? Say the number. Then name the moment you were least sure where to look or what to do next, and what was on the screen."
 
-Maren: 3. Most of it was calm -- the Analyze list told me what Betweenness meant, sorting the column gave me the top three, and the Style tab said what it would do before I did it. The moment I was least sure was right after I typed FFA500 and pressed Enter (11.png). The toast said "Made a layer for the 3 selected nodes" and the right panel showed my orange, but the network itself still looked all orange and brown, because the Betweenness gradient was painting every gauge. The legend box at the top left said "Color: 3 nodes" and underneath it "Color: Betweenness" with a 0-25 bar, and the layer list on the left had "3 nodes" sitting above "Betweenness" with eye icons on both. I couldn't tell at first whether my colour had worked or been swallowed, and nothing on screen said "the Betweenness layer is also colouring nodes -- hide it if you only want your three". I worked out from the layer list that I had to switch the Betweenness eye off; in Cytoscape I'd have deleted the mapping, so I guessed. A smaller wobble just before that: clicking the colour box gave me only a text cursor, no swatches, so I typed a hex.
+Maren: 3. Most of it was calm -- the Analyze list told me what Betweenness meant, sorting the column gave me the top three, and the Style tab said what it would do before I did it. The moment I was least sure was right after I typed FFA500 and pressed Enter (11.png). The toast said "Made a layer for the 3 selected nodes" and the right panel showed my orange, but the network itself still looked all orange and brown, because the Betweenness gradient was painting every gauge. The legend box at the top left said "Color: 3 nodes" and underneath it "Color: Betweenness" with a 0-25 bar, and the layer list on the left had "3 nodes" sitting above "Betweenness" with eye icons on both. I couldn't tell at first whether my color had worked or been swallowed, and nothing on screen said "the Betweenness layer is also colouring nodes -- hide it if you only want your three". I worked out from the layer list that I had to switch the Betweenness eye off; in Cytoscape I'd have deleted the mapping, so I guessed. A smaller wobble just before that: clicking the color box gave me only a text cursor, no swatches, so I typed a hex.

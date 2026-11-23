@@ -52,13 +52,16 @@ import {
 import { resolveNodeMass, resolveWeights } from "./inputs.js";
 import {
     assertMaxInFlightUnchanged,
+    assertNoFixedPatch,
     compileAttraction,
     invalid,
     isPositiveInteger,
     type Overrides,
     pickBoolean,
+    pickFixed,
     pickNumber,
     pickSharedForceOptions,
+    resolveFixed,
     scalar,
     subset,
 } from "./model-common.js";
@@ -86,6 +89,7 @@ const DEFAULT_RESOLVED: ResolvedForceAtlas2Options = Object.freeze<ResolvedForce
     nodeMass: null,
     nodeSize: null,
     weight: null,
+    fixed: null,
     center: [0, 0, 0],
     seed: null,
 });
@@ -150,6 +154,7 @@ export function resolveForceAtlas2Options(
         nodeSize,
         weight: o.weight === undefined ? base.weight : o.weight,
         dissuadeHubs: pickBoolean("dissuadeHubs", o.dissuadeHubs, base.dissuadeHubs),
+        fixed: pickFixed(o.fixed, base.fixed),
         ...pickSharedForceOptions(o, base),
     };
     return Object.freeze(resolved);
@@ -253,7 +258,8 @@ export class ForceAtlas2Model
     }
 
     /**
-     * { mass: resolveNodeMass(s, resolved.nodeMass), weights: resolveWeights(s, resolved.weight) } (see inputs.ts).
+     * { mass: resolveNodeMass(s, resolved.nodeMass), weights: resolveWeights(s, resolved.weight), fixed: the `fixed`
+     * option or the role-`fixed` column } (see inputs.ts and model-common.ts).
      * Also remembers the grid of this load (`tierFor(tuning, n)`) for onLoad() and specs(): the simulation
      * calls inputs() first, then onLoad() before bind().
      * @param s - the snapshot being loaded
@@ -264,7 +270,11 @@ export class ForceAtlas2Model
         const resolved = resolveForceAtlas2Options(options, this.current);
         const n = s.nodeCount;
         // resolve first: a throwing mass / weight resolution leaves the remembered grid of the previous load intact
-        const inputs = { mass: resolveNodeMass(s, resolved.nodeMass), weights: resolveWeights(s, resolved.weight) };
+        const inputs = {
+            mass: resolveNodeMass(s, resolved.nodeMass),
+            weights: resolveWeights(s, resolved.weight),
+            fixed: resolveFixed(s, resolved.fixed),
+        };
         this.nextGrid = tierFor(this.tuning, n) === "grid" ? gridSpecFor(n, resolved.dim, this.tuning) : null;
         return inputs;
     }
@@ -525,13 +535,14 @@ export function writeGridFrame(state: StateWriter, spec: GridSpec, extentFactor:
 // ============================================================ the factory
 
 /**
- * The resolve callback of the simulation's setParams: the patch over the current record, re-validated (the current
- * record is re-resolved first so the callback is typed without a cast).
+ * The resolve callback of the simulation's setParams: `fixed` is refused (it is applied at load), then the patch over
+ * the current record, re-validated (the current record is re-resolved first so the callback is typed without a cast).
  * @param patch - the setParams patch
  * @param current - the simulation's current option record
  * @returns the new record
  */
 function resolvePatch(patch: Partial<ForceAtlas2Options>, current: ForceAtlas2Options): ForceAtlas2Options {
+    assertNoFixedPatch(patch);
     return resolveForceAtlas2Options(patch, resolveForceAtlas2Options(current));
 }
 

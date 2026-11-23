@@ -419,6 +419,28 @@ describe("yEd Live GraphML: edge label model parameters", () => {
     });
 });
 
+describe("yEd Live GraphML: a self-loop with no bends", () => {
+    it("runs round its node's top left corner 20 out, from the top side's middle to the left side's", async () => {
+        const file = `<?xml version="1.0"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/yfiles-common/3.0"
+    xmlns:yjs="http://www.yworks.com/xml/yfiles-for-html/2.0/xaml">
+<key id="g" for="node" attr.name="NodeGeometry" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/NodeGeometry"/>
+<key id="eg" for="edge" attr.name="EdgeGeometry" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/EdgeGeometry"/>
+<key id="es" for="edge" attr.name="EdgeStyle" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/EdgeStyle"/>
+<graph id="G" edgedefault="directed">
+<node id="a"><data key="g"><y:RectD X="0" Y="0" Width="100" Height="40"/></data></node>
+<edge id="loop" source="a" target="a"><data key="es"><yjs:PolylineEdgeStyle/></data></edge>
+</graph></graphml>`;
+        const result = await registry.importGraph(new TextEncoder().encode(file), {
+            format: "graphml",
+            styles: { toolDefaults: true },
+        });
+        assert(result.styles !== null && result.styles !== undefined);
+        // in halves of the 100 x 40 node, y up: 20 above the top, 20 left of the left side
+        expect(resolveStyles(result.styles, "edge", "bends", result.snapshot)).toEqual(["0,2 -1.4,2 -1.4,0"]);
+    });
+});
+
 describe("yEd Live GraphML: a LinearGradient fill", () => {
     it("reads a FlowchartNodeStyle's shared gradient from corner to corner", async () => {
         const result = await registry.importGraph(
@@ -833,6 +855,16 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
         expect(p4.node("height", "v2-group-folder-state")).toBe(40);
         const icon = decodeURIComponent(String(p4.node("image", "v2-group-folder-state")).split(",")[1]);
         expect(icon).toContain('transform="translate(49 11) scale(1)"');
+    });
+});
+
+describe("yEd Live GraphML: a node's second label", () => {
+    it("is drawn as the external label, in the box yEd Live draws 2 in from the node's bottom", async () => {
+        const { node } = await sheet("specimen-labels.graphml");
+        expect(node("label", "two-labels")).toBe("Top");
+        expect(node("xlabel", "two-labels")).toBe("Bottom");
+        expect(node("xlabelOffsetX", "two-labels")).toBe(0);
+        expect(node("xlabelOffsetY", "two-labels")).toBe(7);
     });
 });
 

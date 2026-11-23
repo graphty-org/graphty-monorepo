@@ -8,8 +8,8 @@ Which filter API to use:
 
 - **Conditions** (this page) for filters a reader switches on and off, each with its own count.
 - `visibility.set(rule)` for one filter your code sets. It combines with the conditions by AND.
-- `visibility.steps` and `setSteps` are the older, ordered form: a view of the keep and exclude
-  conditions. Prefer conditions in new code.
+- **Steps** ([Filter Steps](./filter-steps)) to read the keep and exclude conditions in order,
+  each with what it leaves out, and to reorder them.
 
 ## Quick start
 

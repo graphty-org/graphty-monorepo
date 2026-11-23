@@ -232,7 +232,7 @@ async function planByFamily(cfg, { sha, base, variants, files }, why) {
  * @param [o.sha] the commit tested
  * @param [o.base] the base commit
  * @param [o.files] the changed files
- * @param [o.snapshot] a durations snapshot's path (refreshSnapshot()), packed by when the store gives no plan
+ * @param [o.snapshot] a durations snapshot's path (refreshSnapshot()), packed by for each family the store gave no file times
  * @param [o.env] the environment
  * @returns `{ plan, durations }`
  */
@@ -247,8 +247,13 @@ export async function planRead({ root, affected, out, sha, base, files = [], sna
     const { plan, why } = await storePlan(config(env, root), { sha, base, variants, files });
     // `families`: what the store was asked about; a group of another family keeps the committed quarantine list
     const families = [...new Set(variants.map((v) => v.split("|")[0]))];
-    const snap = !plan && variants.length > 0 ? readSnapshot(snapshot) : null;
-    const durations = snap ? pick(snap.durations, families) : durationsOf(plan);
+    const snap = variants.length > 0 ? readSnapshot(snapshot) : null;
+    // a family the store gave no file times (no plan, or its own read failed in planByFamily) is packed by the
+    // snapshot: without them each of its files counts as 30 s, and graphty-element-default's ~880 files became
+    // 81 one-minute jobs and their twin's 81 more in PR run 44633908672 instead of about 8 each (#5404)
+    const answered = Object.fromEntries(Object.entries(durationsOf(plan)).filter(([, d]) => Object.keys(d).length > 0));
+    const filled = snap ? families.filter((f) => !answered[f] && snap.durations[f]) : [];
+    const durations = { ...pick(snap?.durations ?? {}, filled), ...answered };
     mkdirSync(out, { recursive: true });
     // `changed`: the files the pull request changes, which prJudge() never excuses (a re-run's plan keeps it)
     const changed = files.length > 0 ? { changed: files } : {};
@@ -260,8 +265,15 @@ export async function planRead({ root, affected, out, sha, base, files = [], sna
     writeFileSync(join(out, "durations.json"), JSON.stringify(durations));
     const n = Object.values(durations).reduce((t, d) => t + Object.keys(d).length, 0);
     const also = readers.length > 0 ? ` (with ${readers.join(", ")}: its files import an affected package)` : "";
-    if (plan) console.log(`results store: plan read for ${variants.length} variants${also}, durations of ${n} files`);
-    else if (variants.length === 0) console.log(`results store: no plan (${why})`);
+    if (plan) {
+        console.log(`results store: plan read for ${variants.length} variants${also}, durations of ${n} files`);
+        if (filled.length > 0) {
+            const at = new Date(snap.at).toISOString();
+            console.log(
+                `results store: no file times for ${filled.join(", ")}; packed by the durations snapshot of ${at}`,
+            );
+        }
+    } else if (variants.length === 0) console.log(`results store: no plan (${why})`);
     else fallback(why, snap);
     return { plan, durations };
 }
@@ -304,7 +316,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
             snapshot: values.snapshot,
         });
     } catch (e) {
-        // fail open: the plan is an optimisation, never a reason to fail the run
+        // fail open: the plan is an optimization, never a reason to fail the run
         const snap = readSnapshot(values.snapshot);
         fallback(e.message.split("\n")[0], snap);
         mkdirSync(out, { recursive: true });

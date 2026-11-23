@@ -130,7 +130,7 @@ describe("OperationQueueManager", () => {
             errors.push(event);
         });
         eventManager.onGraphEvent.add((event) => {
-            if (event.type === "operation-obsoleted" || event.type === "operation-cancelled") {
+            if (event.type === "operation-obsoleted" || event.type === "operation-canceled") {
                 queueEvents.push(event.type);
             }
         });
@@ -295,7 +295,7 @@ describe("OperationQueueManager", () => {
             assert.equal(vi.getTimerCount(), 2, "each finished operation scheduled its cleanup");
 
             queueManager.dispose();
-            assert.equal(vi.getTimerCount(), 0, "dispose cancelled the cleanups");
+            assert.equal(vi.getTimerCount(), 0, "dispose canceled the cleanups");
         } finally {
             vi.useRealTimers();
         }

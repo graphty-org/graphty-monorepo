@@ -8,14 +8,31 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { setCameraPosition, zoomToNodes } from "../../../src/ai/commands/CameraCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
+import { createCommandGraph } from "../../helpers/session-graph";
+import { createMockContext } from "../../helpers/test-graph";
 
 describe("CameraCommands", () => {
     let graph: Graph;
     let context: CommandContext;
 
-    beforeEach(() => {
-        graph = createMockTestGraph();
+    /** What the commands asked of the camera, in order. */
+    let asked: { verb: string; args: unknown[] }[];
+
+    beforeEach(async () => {
+        asked = [];
+        // A headless session has no camera, so the camera here only records what it was asked;
+        // a real element's camera answers these commands in test/browser/ai/commands-e2e.test.ts.
+        const record =
+            (verb: string) =>
+            (...args: unknown[]): Promise<void> => {
+                asked.push({ verb, args });
+                return Promise.resolve();
+            };
+        graph = await createCommandGraph({
+            nodeCount: 25,
+            edgeCount: 40,
+            renderer: { setCameraState: record("setCameraState"), applyCameraView: record("applyCameraView") },
+        });
         context = createMockContext(graph);
     });
 
@@ -68,6 +85,12 @@ describe("CameraCommands", () => {
                 },
                 context,
             );
+
+            assert.strictEqual(result.success, true);
+        });
+
+        it("applies camera preset 'bottomView'", async () => {
+            const result = await setCameraPosition.execute(graph, { preset: "bottomView" }, context);
 
             assert.strictEqual(result.success, true);
         });
@@ -143,6 +166,7 @@ describe("CameraCommands", () => {
 
             // Should fail or handle gracefully
             assert.ok(!result.success || result.message.toLowerCase().includes("unknown"));
+            assert.lengthOf(asked, 0, "an unknown view never reaches the camera");
         });
     });
 
@@ -215,6 +239,14 @@ describe("CameraCommands", () => {
             assert.strictEqual(result.success, true);
             // Should return info about which nodes were zoomed to
             assert.ok(result.affectedNodes !== undefined || result.data !== undefined);
+            // ...and frame exactly those nodes: every third node is a server
+            const servers = Array.from({ length: 25 }, (_, i) => `node-${String(i)}`).filter((_, i) => i % 3 === 0);
+            assert.deepStrictEqual(result.affectedNodes, servers);
+            assert.deepStrictEqual(asked.at(-1)?.args[1], {
+                scope: { nodes: servers },
+                animate: true,
+                description: "Zooming to fit matching nodes",
+            });
         });
     });
 

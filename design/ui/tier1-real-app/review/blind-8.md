@@ -103,7 +103,7 @@ Yes -- but only because I ignored the guide's own idiom. Scratch is in
    keep the sentence as a default rendering, or drop the sentence.
 
 10. **Failure and cancellation semantics are missing, and a second rejecting promise is a
-    hazard.** If the run fails or is cancelled, does `landing` reject, resolve empty, or never
+    hazard.** If the run fails or is canceled, does `landing` reject, resolve empty, or never
     settle? If it rejects, every consumer who awaits only the run (the guide's whole idiom) and never
     touches `landing` gets an `unhandledrejection` for a promise they did not create -- on every
     `Run` per finding 2. A never-settling promise leaks the awaiting code. The page must state it,

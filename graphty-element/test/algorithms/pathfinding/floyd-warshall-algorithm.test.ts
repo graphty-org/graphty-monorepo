@@ -2,17 +2,17 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { FloydWarshallAlgorithm } from "../../../src/algorithms/FloydWarshallAlgorithm";
-import { createMockGraph, type MockGraph } from "../../helpers/mockGraph";
+import { createSessionGraph, type SessionGraph } from "../../helpers/session-graph";
 
-const mockGraph = createMockGraph;
+const mockGraph = createSessionGraph;
 
 /**
  * A small graph for testing Floyd-Warshall, which is O(n^3): A -- B -- C -- D.
  * @returns the mock graph
  */
 
-async function mockSmallGraph(): Promise<MockGraph> {
-    return createMockGraph({
+async function mockSmallGraph(): Promise<SessionGraph> {
+    return createSessionGraph({
         nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
         edges: [
             { srcId: "A", dstId: "B", value: 1 },
@@ -77,7 +77,7 @@ describe("FloydWarshallAlgorithm", () => {
             // Eccentricity is published under the node-metric shape's own name for "the number
             // this run measured on this element", which is `value`. Published under a name of its
             // own it was unpaintable: the shape a run declares is what tells the element there is
-            // a per-element measurement here to colour by at all.
+            // a per-element measurement here to color by at all.
             for (const node of smallGraph.nodes.values()) {
                 assert.property(result.node(node.id as string) ?? {}, "value");
             }

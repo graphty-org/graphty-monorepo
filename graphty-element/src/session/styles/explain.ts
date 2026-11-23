@@ -20,7 +20,7 @@
  * a change to how layers stack changes both readings, because there is one reading.
  *
  * THIS IS THE ONE CASE THE COLUMNAR REPAINT LEAVES TO A CALLER. Building a 23-key resolved style
- * costs 47 ms at fifty thousand nodes, so the repaint keeps columns and materialises a style only
+ * costs 47 ms at fifty thousand nodes, so the repaint keeps columns and materializes a style only
  * where something asks about ONE element. This is that ask. It is O(the stack's depth), it
  * allocates one object, and it is a synchronous read like every other question about state the
  * session already holds.
@@ -68,7 +68,13 @@ import {
 import { type PreparedBinding, requireChannel, type StyleAdjustmentCode } from "./encoding";
 import type { CompiledLayer, Layer, PathDirectory } from "./Layer";
 import type { EncodingLookup, ValueReach } from "./legend";
-import { columnsFor, type ElementColumns, type SelectorSource, type SelectorTarget } from "./predicate";
+import {
+    columnsFor,
+    type ElementColumns,
+    type ElementPredicate,
+    type SelectorSource,
+    type SelectorTarget,
+} from "./predicate";
 import type { ResolvedStyle } from "./repaint";
 
 // ---------------------------------------------------------------------------------------------
@@ -76,7 +82,15 @@ import type { ResolvedStyle } from "./repaint";
 // ---------------------------------------------------------------------------------------------
 
 /** The element being asked about: one node, or one edge. */
-export type ExplainTarget = { readonly node: NodeId } | { readonly edge: EdgeId };
+export type ExplainTarget =
+    | {
+          /** The node's id. */
+          readonly node: NodeId;
+      }
+    | {
+          /** The edge's id. */
+          readonly edge: EdgeId;
+      };
 
 /** One layer's share of what an element is painted. */
 export interface StyleContribution {
@@ -239,7 +253,12 @@ export interface StyleAgreement {
      * row matches across all its layers, each counted once.
      * @since 3.40.0
      */
-    readonly elements?: { readonly nodes: number; readonly edges: number };
+    readonly elements?: {
+        /** How many nodes. */
+        readonly nodes: number;
+        /** How many edges. */
+        readonly edges: number;
+    };
 }
 
 /**
@@ -353,7 +372,12 @@ const COVERS_LISTED = 3;
  */
 export interface ChannelCovers {
     /** The layers that cover it most, most elements first, each with how many it covers. */
-    readonly layers: readonly { readonly layerId: LayerId; readonly count: number }[];
+    readonly layers: readonly {
+        /** The layer. */
+        readonly layerId: LayerId;
+        /** How many elements it covers the channel on. */
+        readonly count: number;
+    }[];
     /** How many further layers cover it on some elements, beyond `layers`. */
     readonly more: number;
 }
@@ -511,6 +535,54 @@ export interface ExplainSources {
      * cannot say, and no lift is reported as drawing nothing.
      */
     readonly liftDrawn?: () => boolean;
+    /**
+     * Whether a selector's test matches an element, answered from what an earlier reading of the
+     * same moment already tested ({@link createSelectorMatches}). Absent, every test is run.
+     */
+    readonly matches?: SelectorMatches;
+}
+
+/**
+ * Whether a selector's test matches the element on a row.
+ * @param test - The selector's test.
+ * @param index - The element's dense index.
+ * @returns True when it matches.
+ */
+export type SelectorMatches = (test: ElementPredicate, index: number) => boolean;
+
+/**
+ * Selector answers kept per test, one byte per element row (0 untested, 1 no, 2 yes), so the
+ * several readings a style panel takes of one moment test each layer's selector on each element
+ * once between them (issue #7966: every reading tested every layer on all 50,000 nodes). Valid
+ * only while nothing a selector reads changes: the caller drops it when the moment moves.
+ * @returns The answers, filled as they are asked for.
+ */
+export function createSelectorMatches(): SelectorMatches {
+    const masks = new WeakMap<ElementPredicate, Uint8Array>();
+    return (test, index) => {
+        let mask = masks.get(test);
+        if (mask === undefined || index >= mask.length) {
+            const grown = new Uint8Array(Math.max(index + 1, (mask?.length ?? 0) * 2, 64));
+            grown.set(mask ?? []);
+            mask = grown;
+            masks.set(test, mask);
+        }
+        if (mask[index] === 0) {
+            mask[index] = testSelector(test, index) ? 2 : 1;
+        }
+        return mask[index] === 2;
+    };
+}
+
+/**
+ * Run a selector's test once, counted.
+ * @param test - The selector's test.
+ * @param index - The element's dense index.
+ * @returns True when it matches.
+ */
+function testSelector(test: ElementPredicate, index: number): boolean {
+    agreementCounters.selectorTests++;
+    return test(index);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -631,16 +703,17 @@ interface Winner {
  * Whether a layer has anything to say about this element.
  * @param entry - The compiled layer.
  * @param at - Where the element sits.
+ * @param matches - Selector answers an earlier reading kept. Absent, the selector is tested.
  * @returns True when the layer is enabled, paints this kind of element, and matches it.
  */
-function applies(entry: CompiledLayer, at: Located): boolean {
+function applies(entry: CompiledLayer, at: Located, matches?: SelectorMatches): boolean {
     const { layer, selector } = entry;
 
     if (!layer.enabled || layer.target !== at.target) {
         return false;
     }
 
-    return selector.test === null || selector.test(at.index);
+    return selector.test === null || (matches ?? testSelector)(selector.test, at.index);
 }
 
 /** One layer of the stack with the bindings it paints from, looked up once per read. */
@@ -670,15 +743,17 @@ function prepareStack(sources: ExplainSources): readonly StackEntry[] {
  * @param columns - What the session can read about elements of its kind.
  * @param paint - Called once per value painted, in paint order; a later call for the same channel
  *     paints over an earlier one.
+ * @param matches - Selector answers an earlier reading kept. Absent, each selector is tested.
  */
 function paintOne(
     stack: readonly StackEntry[],
     at: Located,
     columns: ElementColumns,
     paint: (layer: Layer, prepared: PreparedBinding, result: unknown) => void,
+    matches?: SelectorMatches,
 ): void {
     for (const { entry, bindings } of stack) {
-        if (!applies(entry, at)) {
+        if (!applies(entry, at, matches)) {
             continue;
         }
 
@@ -883,6 +958,8 @@ function tallyOne(
 export const agreementCounters = {
     /** Walks of the stack over one element. */
     walks: 0,
+    /** Selector tests run to find which layers apply to an element. */
+    selectorTests: 0,
 };
 
 /**
@@ -928,18 +1005,24 @@ export function styleAgreement(
         let uses: unknown;
         const useLayers = new Map<ShaderUse, LayerId>();
         let shapeLayer: LayerId | undefined;
-        paintOne(stack, { target, index }, columns, (layer, prepared, result) => {
-            if (prepared.channel === list) {
-                uses = mergeListValue(list, uses, result, layer.id, useLayers);
-            } else if (prepared.channel === "node.shape") {
-                shapeLayer = layer.id;
-            }
+        paintOne(
+            stack,
+            { target, index },
+            columns,
+            (layer, prepared, result) => {
+                if (prepared.channel === list) {
+                    uses = mergeListValue(list, uses, result, layer.id, useLayers);
+                } else if (prepared.channel === "node.shape") {
+                    shapeLayer = layer.id;
+                }
 
-            if (only === undefined || prepared.channel === only) {
-                const value = prepared.channel === list ? uses : result;
-                winners.set(prepared.channel, { layerId: layer.id, value });
-            }
-        });
+                if (only === undefined || prepared.channel === only) {
+                    const value = prepared.channel === list ? uses : result;
+                    winners.set(prepared.channel, { layerId: layer.id, value });
+                }
+            },
+            sources.matches,
+        );
         const covering = coveringShader(
             target,
             { [list]: uses },
@@ -970,7 +1053,7 @@ export function styleAgreement(
 
         const groups = new Map<string, { index: number; weight: number }>();
         for (const index of indices) {
-            countInGroup(groups, appliesKey(stack, { target, index }), index);
+            countInGroup(groups, appliesKey(stack, { target, index }, sources.matches), index);
         }
 
         for (const { index, weight } of groups.values()) {
@@ -1222,7 +1305,11 @@ function walkWins(stack: readonly StackEntry[], at: Located, columns: ElementCol
             ? mergeListValue(channel, values[channel], result, winner.id, useLayers)
             : result;
         if (winner.id === layerId) {
-            own[channel] = isShaderListChannel(channel) ? [...((own[channel] as []) ?? []), ...(result as [])] : result;
+            // A bound shader parameter paints a patch to one use, not a list: merged, as the
+            // repaint merges it.
+            own[channel] = isShaderListChannel(channel)
+                ? mergeChannelValue(channel, own[channel], result as object)
+                : result;
         }
     });
 
@@ -1470,14 +1557,15 @@ function countInGroup(groups: Map<string, { index: number; weight: number }>, ke
  * Which layers of the stack apply to one element, as a key: equal keys walk alike.
  * @param stack - The stack.
  * @param at - Where the element sits.
+ * @param matches - Selector answers an earlier reading kept. Absent, each selector is tested.
  * @returns One character per layer.
  */
-function appliesKey(stack: readonly StackEntry[], at: Located): string {
+function appliesKey(stack: readonly StackEntry[], at: Located, matches?: SelectorMatches): string {
     let key = "";
     for (const { entry } of stack) {
         // A layer of the other kind never applies: left out, the key is as long as the kind's stack.
         if (entry.layer.target === at.target) {
-            key += applies(entry, at) ? "1" : "0";
+            key += applies(entry, at, matches) ? "1" : "0";
         }
     }
 
@@ -1488,7 +1576,7 @@ function appliesKey(stack: readonly StackEntry[], at: Located): string {
  * Count what one layer covers and where it wins.
  *
  * ONE PASS over the elements of the layer's kind. Each matched element is read through the same
- * walk {@link explainStyle} takes, so "this layer decides the colour of 77 nodes" agrees with an
+ * walk {@link explainStyle} takes, so "this layer decides the color of 77 nodes" agrees with an
  * explanation of each of those 77.
  * @param layerId - The layer.
  * @param elements - Every node and edge in the session, as dense indices.
@@ -1577,7 +1665,7 @@ export function styleCounts(
         // An edge's own direction decides the head no layer chose, so edges of differing direction
         // never stand for each other.
         const key =
-            appliesKey(stack, { target: layer.target, index }) +
+            appliesKey(stack, { target: layer.target, index }, sources.matches) +
             (layer.target === "edge" && edgeDirected(index) ? "d" : "");
         countInGroup(groups, key, index);
     }
@@ -1889,7 +1977,7 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
  *
  * The largest group for an encoding that names categories, and the middle of the extent for one
  * that reads numbers. Both are a value the rule actually measured, which is what makes the fixed
- * value a colour from this picture rather than an invented one.
+ * value a color from this picture rather than an invented one.
  * @param prepared - The prepared binding.
  * @returns The value to ask it about, or undefined when it has nothing to be asked about.
  */
@@ -1912,7 +2000,7 @@ function representative(prepared: PreparedBinding): unknown {
 /**
  * Turn what a channel is painted into what a layer is authored with.
  *
- * A colour comes back from the encoding as parsed components with its hex string alongside, and a
+ * A color comes back from the encoding as parsed components with its hex string alongside, and a
  * layer is written with the string: a document that says `"#4b0082"` explains itself, and one
  * that says four numbers does not.
  * @param painted - What the encoding painted.

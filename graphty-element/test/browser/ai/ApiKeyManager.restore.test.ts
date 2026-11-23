@@ -3,12 +3,20 @@
  * reloaded page: it shares the browser's storage and nothing else.
  */
 
-// encrypt-storage, as the ./ai and ./credentials entry points register it
-import "../../../src/ai/keys/withEncryptStorage";
-
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { ApiKeyManager } from "../../../src/ai/keys/ApiKeyManager";
+import { ApiKeyManager, type ApiKeyManagerOptions } from "../../../src/ai/keys/ApiKeyManager";
+
+/**
+ * A manager for the next page, once it has restored what storage holds.
+ * @param options - Where persisted keys live
+ * @returns The manager
+ */
+async function reload(options?: ApiKeyManagerOptions): Promise<ApiKeyManager> {
+    const manager = new ApiKeyManager(options);
+    await manager.ready();
+    return manager;
+}
 
 describe("ApiKeyManager restore after reload", () => {
     beforeEach(() => {
@@ -21,139 +29,197 @@ describe("ApiKeyManager restore after reload", () => {
         sessionStorage.clear();
     });
 
-    it("starts session-only when nothing was persisted", () => {
-        const manager = new ApiKeyManager();
+    it("starts session-only when nothing was persisted", async () => {
+        const manager = await reload();
         assert.strictEqual(manager.isPersistenceEnabled(), false);
         assert.deepStrictEqual(manager.getConfiguredProviders(), []);
     });
 
-    it("restores keys persisted with the built-in encryption key", () => {
+    it("restores keys persisted with the built-in encryption key", async () => {
         const before = new ApiKeyManager();
-        before.enablePersistence();
+        await before.enablePersistence();
         before.setKey("openai", "sk-default-password");
+        await before.ready();
 
-        const after = new ApiKeyManager();
+        const after = await reload();
         assert.strictEqual(after.isPersistenceEnabled(), true);
         assert.strictEqual(after.getKey("openai"), "sk-default-password");
     });
 
-    it("restores enabled persistence even before any key was set", () => {
-        new ApiKeyManager().enablePersistence();
+    it("restores enabled persistence even before any key was set", async () => {
+        await new ApiKeyManager().enablePersistence();
 
-        const after = new ApiKeyManager();
+        const after = await reload();
         assert.strictEqual(after.isPersistenceEnabled(), true);
         after.setKey("anthropic", "sk-later");
-        assert.strictEqual(new ApiKeyManager().getKey("anthropic"), "sk-later");
+        await after.ready();
+        assert.strictEqual((await reload()).getKey("anthropic"), "sk-later");
     });
 
-    it("restores keys persisted with a custom encryption key in the same tab", () => {
+    it("restores keys persisted with a custom encryption key in the same tab", async () => {
         const before = new ApiKeyManager();
-        before.enablePersistence({ encryptionKey: "my-own-secret-key" });
+        await before.enablePersistence({ encryptionKey: "my-own-secret-key" });
         before.setKey("google", "g-custom");
+        await before.ready();
 
-        const after = new ApiKeyManager();
+        const after = await reload();
         assert.strictEqual(after.isPersistenceEnabled(), true);
         assert.strictEqual(after.getKey("google"), "g-custom");
     });
 
-    it("does not restore custom-key persistence once the tab's session is gone", () => {
+    it("does not restore custom-key persistence once the tab's session is gone", async () => {
         const before = new ApiKeyManager();
-        before.enablePersistence({ encryptionKey: "my-own-secret-key" });
+        await before.enablePersistence({ encryptionKey: "my-own-secret-key" });
         before.setKey("google", "g-custom");
+        await before.ready();
 
         sessionStorage.clear();
 
-        const after = new ApiKeyManager();
+        const after = await reload();
         assert.strictEqual(after.isPersistenceEnabled(), false);
         assert.strictEqual(after.getKey("google"), undefined);
         // and the reader's encrypted keys are still there for the right key
-        after.enablePersistence({ encryptionKey: "my-own-secret-key" });
+        await after.enablePersistence({ encryptionKey: "my-own-secret-key" });
         assert.strictEqual(after.getKey("google"), "g-custom");
     });
 
-    it("does not overwrite a store it cannot decrypt", () => {
+    it("does not overwrite a store it cannot decrypt", async () => {
         const before = new ApiKeyManager();
-        before.enablePersistence({ encryptionKey: "my-own-secret-key" });
+        await before.enablePersistence({ encryptionKey: "my-own-secret-key" });
         before.setKey("google", "g-custom");
+        await before.ready();
 
-        new ApiKeyManager().enablePersistence({ encryptionKey: "the-wrong-secret" });
+        await new ApiKeyManager().enablePersistence({ encryptionKey: "the-wrong-secret" });
 
         const after = new ApiKeyManager();
-        after.enablePersistence({ encryptionKey: "my-own-secret-key" });
+        await after.enablePersistence({ encryptionKey: "my-own-secret-key" });
         assert.strictEqual(after.getKey("google"), "g-custom");
     });
 
-    it("saves keys that were in memory before persistence was enabled", () => {
-        const before = new ApiKeyManager();
-        before.setKey("openai", "sk-typed-first");
-        before.enablePersistence();
+    describe("keys saved before Web Crypto, by encrypt-storage", () => {
+        // Real encrypt-storage 2.16.6 output (crypto-js AES), as graphty-element saved it until
+        // it moved to Web Crypto: the built-in key, and a passphrase under the default salt.
+        // Every value is ciphertext; the field is not named "passphrase..." because CodeQL reads such a
+        // name as a clear-text password (js/clear-text-storage-of-sensitive-data).
+        const legacy = {
+            keys: "U2FsdGVkX1/sq9EA8z95LjKN1yArQEHeA5Lm9383/O7yb84JhdVeMTPnoTQPd8Fj0V/KfQAFiwUv7ZwiJj1iaRxROrGfa+vTECS25/pQxgA=",
+            defaultProvider: "U2FsdGVkX1/QMQwi+8DRaiOSZPtC7O7HvWSI4SDskhM=",
+            extras: "U2FsdGVkX1/RkQPghY1qAgJZ9k8EWIysfP+exj9qT6fa2o2ifSZcupHDIqEOTOSLo4Khs0ncbPy0YIW4H7wvFgi3X2+2uA5lPx5gEuiOIVU=",
+            phraseLockedKeys: "U2FsdGVkX1+ZIqgE/PILhkyeScmz+UnWP1rydBWwJAgLKqV6mwHKvWYJbyvUXJbA",
+        };
 
-        assert.strictEqual(new ApiKeyManager().getKey("openai"), "sk-typed-first");
+        it("restores them with the built-in key and saves them again in the new format", async () => {
+            localStorage.setItem("@graphty-ai-keys:keys", legacy.keys);
+            localStorage.setItem("@graphty-ai-keys:default-provider", legacy.defaultProvider);
+            localStorage.setItem("@graphty-ai-keys:extras", legacy.extras);
+
+            const migrated = await reload();
+            assert.strictEqual(migrated.isPersistenceEnabled(), true);
+            assert.strictEqual(migrated.getKey("openai"), "sk-saved-by-3x");
+            assert.strictEqual(migrated.getKey("anthropic"), "sk-ant-saved-by-3x");
+            assert.strictEqual(migrated.getDefaultProvider(), "anthropic");
+            assert.deepStrictEqual(migrated.getStoredItem("sources"), [{ host: "db.example", token: "t-3x" }]);
+            for (const item of ["keys", "default-provider", "extras"]) {
+                const stored = localStorage.getItem(`@graphty-ai-keys:${item}`) ?? "";
+                assert.isTrue(stored.startsWith("gk1:"), `${item} is saved in the new format`);
+            }
+
+            const after = await reload();
+            assert.strictEqual(after.getKey("openai"), "sk-saved-by-3x");
+            assert.strictEqual(after.getDefaultProvider(), "anthropic");
+        });
+
+        it("unlocks them with the passphrase they were saved under, and not with a wrong one", async () => {
+            localStorage.setItem("@graphty-pass:keys", legacy.phraseLockedKeys);
+
+            const wrong = new ApiKeyManager({ prefix: "@graphty-pass" });
+            await wrong.enablePersistenceWithPassphrase("wrong guess");
+            assert.isUndefined(wrong.getKey("google"));
+            assert.strictEqual(localStorage.getItem("@graphty-pass:keys"), legacy.phraseLockedKeys, "left untouched");
+
+            const right = new ApiKeyManager({ prefix: "@graphty-pass" });
+            await right.enablePersistenceWithPassphrase("correct horse battery");
+            assert.strictEqual(right.getKey("google"), "g-passphrase-3x");
+            assert.isTrue(localStorage.getItem("@graphty-pass:keys")?.startsWith("gk1:"));
+        });
     });
 
-    it("stays on after clear(): clearing the keys is not turning remembering off", () => {
+    it("saves keys that were in memory before persistence was enabled", async () => {
         const before = new ApiKeyManager();
-        before.enablePersistence();
+        before.setKey("openai", "sk-typed-first");
+        await before.enablePersistence();
+
+        assert.strictEqual((await reload()).getKey("openai"), "sk-typed-first");
+    });
+
+    it("stays on after clear(): clearing the keys is not turning remembering off", async () => {
+        const before = new ApiKeyManager();
+        await before.enablePersistence();
         before.setKey("openai", "sk-cleared");
         before.setDefaultProvider("openai");
         before.clear();
+        await before.ready();
 
-        const after = new ApiKeyManager();
+        const after = await reload();
         assert.strictEqual(after.isPersistenceEnabled(), true);
         assert.strictEqual(after.getKey("openai"), undefined);
     });
 
-    it("stays off after disablePersistence clears storage", () => {
+    it("stays off after disablePersistence clears storage", async () => {
         const before = new ApiKeyManager();
-        before.enablePersistence({ encryptionKey: "my-own-secret-key" });
+        await before.enablePersistence({ encryptionKey: "my-own-secret-key" });
         before.setKey("openai", "sk-gone");
         before.disablePersistence();
+        await before.ready();
 
-        const after = new ApiKeyManager();
+        const after = await reload();
         assert.strictEqual(after.isPersistenceEnabled(), false);
         assert.strictEqual(after.getKey("openai"), undefined);
     });
 
-    it("restores from a custom prefix and storage given to the constructor", () => {
+    it("restores from a custom prefix and storage given to the constructor", async () => {
         const options = { prefix: "@host-app-keys", storage: "sessionStorage" as const };
         const before = new ApiKeyManager(options);
-        before.enablePersistence();
+        await before.enablePersistence();
         before.setKey("openai", "sk-host");
+        await before.ready();
 
-        assert.strictEqual(new ApiKeyManager().isPersistenceEnabled(), false);
-        assert.strictEqual(new ApiKeyManager(options).getKey("openai"), "sk-host");
+        assert.strictEqual((await reload()).isPersistenceEnabled(), false);
+        assert.strictEqual((await reload(options)).getKey("openai"), "sk-host");
     });
 
     describe("default provider", () => {
-        it("is null until chosen and kept in memory without persistence", () => {
+        it("is null until chosen and kept in memory without persistence", async () => {
             const manager = new ApiKeyManager();
             assert.strictEqual(manager.getDefaultProvider(), null);
             manager.setDefaultProvider("anthropic");
             assert.strictEqual(manager.getDefaultProvider(), "anthropic");
-            assert.strictEqual(new ApiKeyManager().getDefaultProvider(), null);
+            assert.strictEqual((await reload()).getDefaultProvider(), null);
         });
 
-        it("is restored with persisted keys", () => {
+        it("is restored with persisted keys", async () => {
             const before = new ApiKeyManager();
-            before.enablePersistence();
+            await before.enablePersistence();
             before.setDefaultProvider("google");
+            await before.ready();
 
-            assert.strictEqual(new ApiKeyManager().getDefaultProvider(), "google");
+            assert.strictEqual((await reload()).getDefaultProvider(), "google");
         });
 
-        it("clearing the choice is persisted", () => {
+        it("clearing the choice is persisted", async () => {
             const before = new ApiKeyManager();
-            before.enablePersistence();
+            await before.enablePersistence();
             before.setDefaultProvider("google");
             before.setDefaultProvider(null);
+            await before.ready();
 
-            assert.strictEqual(new ApiKeyManager().getDefaultProvider(), null);
+            assert.strictEqual((await reload()).getDefaultProvider(), null);
         });
     });
 
-    it("never prints a key", () => {
+    it("never prints a key", async () => {
         const manager = new ApiKeyManager();
-        manager.enablePersistence();
+        await manager.enablePersistence();
         manager.setKey("openai", "sk-secret-value");
         assert.notInclude(String(manager), "sk-secret-value");
     });

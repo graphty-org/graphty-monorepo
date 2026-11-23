@@ -45,6 +45,8 @@ import { LOSS } from '@graphty/graph-io';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
 import { ModelFormat } from 'babylonjs-models/detect';
+import type { ModelLimits as ModelLimits_2 } from 'babylonjs-models/files';
+import type { ModelSummary } from 'babylonjs-models/files';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
@@ -581,9 +583,7 @@ export type AiVoiceConversationMode = "turns" | "live";
 export interface AiVoiceEndEvent {
     code?: AiResultCode;
     params?: AiResultParams;
-    // (undocumented)
     reason: "user" | "timeout" | "error";
-    // (undocumented)
     type: "ai-voice-end";
 }
 
@@ -640,7 +640,6 @@ export interface AiVoiceStartEvent {
     code?: AiResultCode;
     mode?: AiVoiceConversationMode;
     params?: AiResultParams;
-    // (undocumented)
     type: "ai-voice-start";
 }
 
@@ -659,12 +658,9 @@ export interface AiVoiceSupportChangeEvent {
 
 // @public
 export interface AiVoiceTranscriptEvent {
-    // (undocumented)
     isFinal: boolean;
     pointing?: AiPointing;
-    // (undocumented)
     transcript: string;
-    // (undocumented)
     type: "ai-voice-transcript";
 }
 
@@ -673,18 +669,19 @@ export class ApiKeyManager {
     constructor(options?: ApiKeyManagerOptions);
     clear(): void;
     disablePersistence(clearStorage?: boolean): void;
-    enablePersistence(config?: PersistenceConfig): void;
+    enablePersistence(config?: PersistenceConfig): Promise<void>;
     enablePersistenceWithPassphrase(passphrase: string, config?: PassphrasePersistenceConfig): Promise<void>;
-    forgetKey(provider: ProviderType): void;
-    forgetKeys(): void;
+    forgetKey(provider: ProviderType): Promise<void>;
+    forgetKeys(): Promise<void>;
     getConfiguredProviders(): ProviderType[];
     getDefaultProvider(): ProviderType | null;
     getKey(provider: ProviderType): string | undefined;
     getStoredItem(name: string): unknown;
     hasKey(provider: ProviderType): boolean;
     isPersistenceEnabled(): boolean;
+    ready(): Promise<void>;
     removeKey(provider: ProviderType): void;
-    retireOtherStorage(): void;
+    retireOtherStorage(): Promise<void>;
     setDefaultProvider(provider: ProviderType | null): void;
     setKey(provider: ProviderType, key: string): void;
     setStoredItem(name: string, value: unknown): void;
@@ -708,21 +705,14 @@ export interface AssistantGateLimits {
 
 // @public
 export interface AttributeHistogramBin {
-    // (undocumented)
     count: number;
-    // (undocumented)
     max: number;
-    // (undocumented)
     min: number;
-    // (undocumented)
     range: string;
 }
 
 // @public
 export const captureScreenshot: GraphCommand;
-
-// @public
-export const captureVideo: GraphCommand;
 
 // @public
 export const clearStyles: GraphCommand;
@@ -924,15 +914,10 @@ export class MockLlmProvider implements LlmProvider {
 
 // @public
 export interface NumericStatistics {
-    // (undocumented)
     avg: number;
-    // (undocumented)
     count: number;
-    // (undocumented)
     max: number;
-    // (undocumented)
     median: number;
-    // (undocumented)
     min: number;
 }
 
@@ -996,7 +981,7 @@ export const sampleData: GraphCommand;
 
 // @public
 export class SchemaExtractor {
-    constructor(graph: Graph, options?: SchemaExtractorOptions);
+    constructor(graph: Graph | GraphSession, options?: SchemaExtractorOptions);
     extract(): SchemaSummary;
 }
 
@@ -1012,7 +997,7 @@ export interface SchemaExtractorOptions {
 
 // @public
 export class SchemaManager {
-    constructor(graph: Graph, options?: SchemaExtractorOptions);
+    constructor(graph: Graph | GraphSession, options?: SchemaExtractorOptions);
     extract(): SchemaSummary;
     getFormattedSchema(): string;
     getSchema(): SchemaSummary | null;

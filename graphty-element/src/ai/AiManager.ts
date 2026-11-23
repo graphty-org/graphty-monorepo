@@ -55,9 +55,6 @@ import type { AssistantGateLimits } from "./tools/types";
 import type * as VoicePrime from "./voice/prime";
 import type { ProviderLiveSpeech, ProviderSpeech, VoiceSession } from "./voice/VoiceSession";
 
-// Loaded before an AiManager is built: its key manager restores persisted keys as it is built.
-export { loadEncryptStorage } from "./keys";
-
 /** The graph events after which the schema is read again: the data it describes changed. */
 const SCHEMA_STALE_EVENTS = ["data-added", "data-cleared", "snapshot-replaced", "snapshot-dropped"] as const;
 
@@ -472,6 +469,8 @@ export class AiManager {
     /** The priming, loaded with `voice` so the Enter VR / AR click can prime at once. */
     private voicePrime: typeof VoicePrime | undefined;
     private voicePrimeLoad: Promise<void> | undefined;
+    /** Settles once the key manager has loaded the stored keys. */
+    private keysLoad: Promise<void> | undefined;
     /** Unbinds the assistant from the immersive session it is bound to. */
     private xrUnbind: (() => void) | undefined;
     /** Counts binds and unbinds: a bind a later call superseded does nothing. */
@@ -529,6 +528,14 @@ export class AiManager {
             this.apiKeyManager.setKey(config.provider, config.apiKey);
         }
         this.provider = config.providerInstance ?? this.configuredProvider(config);
+        // Stored keys load asynchronously (Web Crypto): a provider given no key takes the restored one.
+        this.keysLoad = this.apiKeyManager.ready().then(() => {
+            const restored = this.apiKeyManager.getKey(config.provider);
+            const fromStorage = !config.apiKey && config.providerInstance === undefined && restored !== undefined;
+            if (fromStorage && this.provider?.name === config.provider) {
+                this.provider.configure({ ...this.providerOptions, apiKey: restored });
+            }
+        });
 
         const toolset = config.toolset ?? "commands";
         if (toolset === "generated") {
@@ -573,12 +580,13 @@ export class AiManager {
             return;
         }
 
-        this.apiKeyManager.enablePersistence({
+        // Both are queued on the key manager; `ready()` waits for them.
+        void this.apiKeyManager.enablePersistence({
             ...(persistence.encryptionKey === undefined ? {} : { encryptionKey: persistence.encryptionKey }),
             storage: persistence.storage ?? "localStorage",
             prefix: persistence.prefix,
         });
-        this.apiKeyManager.retireOtherStorage();
+        void this.apiKeyManager.retireOtherStorage();
     }
 
     /**
@@ -981,7 +989,7 @@ export class AiManager {
      * `ctx.tx` (`ctx.tx.styles.add`, `ctx.tx.layout.set`, `ctx.tx.run`): those changes are undone
      * with the rest of the message, and rolled back if a command throws. A change made through
      * `ctx.graph` is a step of its own and is not rolled back. A command stops when
-     * `ctx.abortSignal` fires, which happens when the message is cancelled or undone while it is
+     * `ctx.abortSignal` fires, which happens when the message is canceled or undone while it is
      * still going.
      * @param command - The command to register
      */
@@ -1111,7 +1119,7 @@ export class AiManager {
         void this.voiceSession?.then(act); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
-    /** Stop speaking an answer (`ai-speech-end` `{ code: "AI_CANCELLED" }`); nothing speaks without `voice`. */
+    /** Stop speaking an answer (`ai-speech-end` `{ code: "AI_CANCELED" }`); nothing speaks without `voice`. */
     stopSpeech(): void {
         this.withVoice((session) => {
             session.stopSpeech();
@@ -1120,7 +1128,7 @@ export class AiManager {
 
     /**
      * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
-     * `AI_CANCELLED`, and the next press opens another. Does nothing when none is open.
+     * `AI_CANCELED`, and the next press opens another. Does nothing when none is open.
      */
     endLive(): void {
         this.withVoice((session) => {
@@ -1178,11 +1186,12 @@ export class AiManager {
     }
 
     /**
-     * Resolves once the saved conversation is open: at once without `history`.
+     * Resolves once the saved conversation is open and the stored keys are loaded: at once without
+     * `history` or `keyPersistence`.
      * @returns When ready.
      */
     async ready(): Promise<void> {
-        await Promise.all([this.controller?.ready(), this.voicePrimeLoad]);
+        await Promise.all([this.controller?.ready(), this.voicePrimeLoad, this.keysLoad]);
     }
 
     /**

@@ -212,7 +212,7 @@ export type TurnEvent =
           readonly params: AiResultParams;
           /**
            * What failed, already safe to hand on: name, message and stack with every credential
-           * removed (`toSafeError`), plus the HTTP status. `AI_CANCELLED` means the turn's signal fired.
+           * removed (`toSafeError`), plus the HTTP status. `AI_CANCELED` means the turn's signal fired.
            */
           readonly cause: Error;
           /** Whether asking again may succeed: a rate limit, a server error, a lost connection. */
@@ -323,7 +323,7 @@ export interface SpeakOptions {
 
 /**
  * What a transcription heard: `AI_COMPLETED` with the text, or the code it failed with
- * (`AI_KEY_REJECTED`, `AI_PROVIDER_ERROR`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`) and no text.
+ * (`AI_KEY_REJECTED`, `AI_PROVIDER_ERROR`, `AI_CANCELED`, `AI_VOICE_UNAVAILABLE`) and no text.
  * Never thrown.
  */
 export type TurnText =
@@ -432,7 +432,7 @@ export interface LiveConnection {
 
 /**
  * What opening a live conversation gave: `AI_COMPLETED` with the connection, or the code it
- * failed with (`AI_KEY_REJECTED`, `AI_PROVIDER_ERROR`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`).
+ * failed with (`AI_KEY_REJECTED`, `AI_PROVIDER_ERROR`, `AI_CANCELED`, `AI_VOICE_UNAVAILABLE`).
  * Never thrown.
  */
 export type LiveOpened =
@@ -507,7 +507,7 @@ export interface ProgramLimits {
 
 /** Why a program failed: the `cause` of its `AI_TOOL_FAILED`. */
 export type ProgramFailureCause =
-    "program-threw" | "program-timeout" | "program-memory" | "program-call-limit" | "program-cancelled";
+    "program-threw" | "program-timeout" | "program-memory" | "program-call-limit" | "program-canceled";
 
 /**
  * What a program did. `AI_COMPLETED` with the value it returned, or `AI_TOOL_FAILED` with

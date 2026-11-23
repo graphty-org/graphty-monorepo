@@ -28,7 +28,7 @@ rules stay in [layout/CLAUDE.md](../../layout/CLAUDE.md); this file holds the de
 - `src/positions.ts`: `LayoutResult` (`{ positions, dim, n }`, a flat `dim`-stride `Float32Array` in node-index
   order, layout units) and its conversions: `toPositionMap` / `fromPositionMap` (the id-keyed map; `fill`
   writes the row of a node the map does not give), `toPositionColumn` / `fromPositionColumn` (the stride-3
-  scene-unit column: `v * scale + center`, a 2D row's z is the centre's z) and `rescaleInPlace` (`rescaleLayout` over
+  scene-unit column: `v * scale + center`, a 2D row's z is the center's z) and `rescaleInPlace` (`rescaleLayout` over
   a flat array, f64 scratch, within 1e-6 of it).
 - `resolveNodeVector(spec, s, fallback)` / `resolveWeights(spec, s)` (`inputs.ts`): the per-node and per-arc inputs
   resolve by graph-format ROLE. A node vector is `null` -> the role-`mass` column when present, else `fallback(i)`; a

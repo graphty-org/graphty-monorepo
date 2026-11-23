@@ -8,7 +8,7 @@
 import { hexToRgb, rgbToHex } from "../color/interpolation";
 
 /**
- * Convert hex color to RGB components, throwing on anything that is not a six-digit hex colour.
+ * Convert hex color to RGB components, throwing on anything that is not a six-digit hex color.
  * @param hex - Hex color string (e.g., "#FF0000" or "FF0000")
  * @returns Tuple of RGB values [r, g, b] where each component is 0-255
  */
@@ -172,9 +172,13 @@ export function isPaletteSafe(
     colors: string[],
     threshold = 10,
 ): {
+    /** Whether the colors stay apart for red-blind (protanopia) vision. */
     protanopia: boolean;
+    /** Whether the colors stay apart for green-blind (deuteranopia) vision. */
     deuteranopia: boolean;
+    /** Whether the colors stay apart for blue-blind (tritanopia) vision. */
     tritanopia: boolean;
+    /** Whether the colors stay apart in grayscale. */
     grayscale: boolean;
 } {
     const tests = {

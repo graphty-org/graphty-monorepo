@@ -37,7 +37,7 @@ was his last try, not the cause of his stopping. It is recorded under "Tool note
   right-click the source row, Replace with file..., Load, Rerun).
 - **Wrong turns: 3.**
     1. Main menu, "Open project or file..." (`03.png`, `04.png`), which went straight to the file
-       chooser and then to "Add to friends" (`05.png`). He cancelled there, so nothing was added.
+       chooser and then to "Add to friends" (`05.png`). He canceled there, so nothing was added.
     2. A left click on the "friends.csv" source row (`08.png`), expecting a way to swap the file. A
        left click shows only the source's facts; Replace is on the row's right-click menu or its "..."
        button, which is not drawn until the pointer hovers on the row.
@@ -66,7 +66,7 @@ Severity runs from 0 to 4 (Nielsen). Each was seen in this session only unless n
    Its summary line reads "friends-v2: 20 nodes, 82 edges" and the footer "41 edge rows read; the
    load makes 20 nodes and 82 edges". 82 is the old 41 ties plus the new 41 as parallel ties, so the
    total is right for an addition, but the summary line puts it under the new file's name, where the
-   file alone has 41. Tom read it correctly as "both lists on top of each other" and cancelled, which
+   file alone has 41. Tom read it correctly as "both lists on top of each other" and canceled, which
    saved his work but ended this route. Evidence: `04.png`, `05.png`, transcript step 4.
 3. **Severity 2 -- a file dropped on the graph canvas is ignored, with no message.** On the Data
    place the canvas takes no drop, while the Start screen and the data page do take one. Tom could
@@ -74,7 +74,7 @@ Severity runs from 0 to 4 (Nielsen). Each was seen in this session only unless n
    would add.) Evidence: `09.png` against `08.png`, transcript step 8.
 4. **Severity 1 -- "Higher means: Not set / Closer / Farther / Capacity" on the Add page asks a
    question he could not answer.** He did not know what his friend's numbers meant and said nobody
-   asked him that last time. It did not stop him; he cancelled for the count. Opinion, held one level
+   asked him that last time. It did not stop him; he canceled for the count. Opinion, held one level
    down from 2. Evidence: `05.png`, debrief.
 
 What worked: "Values" next to Style led him straight to a Top 10 with names, and he read "first

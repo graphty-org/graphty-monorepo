@@ -72,7 +72,9 @@ describe("the limits the element ships with", () => {
     it("says in each name what it measures", () => {
         // A node count and a duration are the two that used to collide, so they are the two worth
         // pinning: each is reachable under a name that states which it is.
-        assert.isAbove(DEFAULT_LIMITS.approximateAboveNodes, 0);
+        assert.isAbove(DEFAULT_LIMITS.graphMemoryBudgetBytes, 0);
+        // The node count that said when to approximate is gone (#302): the gate decides by seconds.
+        assert.notProperty(DEFAULT_LIMITS, "approximateAboveNodes");
         assert.isAbove(DEFAULT_COST_GATE_LIMITS.exactComputationSeconds, 0);
         assert.isAbove(DEFAULT_COST_GATE_LIMITS.runColumnBudgetBytes, 0);
     });
@@ -142,5 +144,16 @@ describe("RenderLimits", () => {
 
     it("is not ignoring anything when nothing was asked for", () => {
         assert.isFalse(new RenderLimits(false).ignored);
+    });
+
+    it("puts the full-detail triangle budget in force on either render path", () => {
+        const limits = new RenderLimits(false);
+        limits.request({ fullDetailTriangleBudget: 8_000_000 });
+        assert.strictEqual(limits.effective.fullDetailTriangleBudget, 8_000_000);
+        assert.strictEqual(limits.effective.renderCeiling, DEFAULT_LIMITS.renderCeiling);
+        assert.isFalse(limits.ignored, "the budget is not a ceiling the objects path sets aside");
+
+        limits.request({});
+        assert.strictEqual(limits.effective, DEFAULT_LIMITS);
     });
 });

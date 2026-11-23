@@ -230,6 +230,8 @@
             "labelColor": "#000000",
             "labelFont": "DejaVu Sans, sans-serif",
             "labelSize": 12,
+            "labelPadding": 2,
+            "labelLineHeight": 1,
             "labelKeepBlankLines": true,
             "fanned": false
         },

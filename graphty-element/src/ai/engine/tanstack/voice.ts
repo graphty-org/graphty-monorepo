@@ -51,7 +51,7 @@ const TRANSCRIBE_INSTRUCTION =
     "If the clip holds no speech, reply with nothing at all.";
 
 /**
- * graphty's recording fetch, cancelled by the call's signal too: the SDKs' audio calls do not
+ * graphty's recording fetch, canceled by the call's signal too: the SDKs' audio calls do not
  * pass TanStack's signal on to their request. It names the page's `Response`, which the OpenAI
  * SDK otherwise learns by fetching `data:,` before its first multipart request with a new fetch.
  * @param record - Where the response is recorded.
@@ -141,7 +141,7 @@ async function attempt<T>(
     let sent = false;
     try {
         if (signal.aborted) {
-            throw new DOMException("The call was cancelled.", "AbortError");
+            throw new DOMException("The call was canceled.", "AbortError");
         }
 
         const value = await call(
@@ -155,7 +155,7 @@ async function attempt<T>(
             ),
         );
         if (signal.aborted) {
-            throw new DOMException("The call was cancelled.", "AbortError");
+            throw new DOMException("The call was canceled.", "AbortError");
         }
 
         return { type: "done", value };

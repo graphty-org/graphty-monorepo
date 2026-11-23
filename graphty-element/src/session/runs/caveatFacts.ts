@@ -31,6 +31,9 @@ import type { CodedFact, CodedFactParam } from "../shared";
  * - `groups.merged` -- on a re-run, old groups' members now mostly sit in one group, which kept
  *   another number: `{ field, group, from }`, the field, the number it kept, and the numbers of
  *   the groups that merged into it.
+ * - `layers.kept` -- a re-run painted nothing new: the style layers already reading the run draw
+ *   its new result as they stand, with any change made to them since its first completion:
+ *   `{ layers }`, their ids.
  * - `paths.counted-exactly` -- every shortest path was counted exactly, over the graph read as
  *   undirected.
  * - `paths.hop-lengths` -- path lengths count edges, and edge weights were not read.
@@ -69,6 +72,10 @@ import type { CodedFact, CodedFactParam } from "../shared";
  *
  * One algorithm's own:
  *
+ * - `all-paths.length-bounded` -- only paths of at most `maxLength` edges were looked for:
+ *   `{ maxLength }`.
+ * - `all-paths.capped` -- the search stopped at its path cap, or at its own step budget, before it
+ *   had found every path: `{ maxPaths, found }`.
  * - `astar.straight-line` -- A* was steered by straight-line distance, so its route is the
  *   cheapest only when every edge weighs at least the distance it spans.
  * - `betweenness.sampled` -- betweenness was estimated from sampled sources, unscaled:
@@ -81,6 +88,8 @@ import type { CodedFact, CodedFactParam } from "../shared";
  * - `bfs.target-reached` -- the walk stopped at its target: `{ target }`.
  * - `bfs.target-unreached` -- the walk never reached its target, so it covered everything
  *   reachable: `{ target }`.
+ * - `bfs.depth-bounded` -- the walk stopped this many steps from its source, so a node further
+ *   away carries nothing, as if unreachable: `{ maxDepth }`.
  * - `dfs.walk` -- the walk's start and when it recorded a node: `{ source, order }`, `order`
  *   `"pre"` (as reached) or `"post"` (as left).
  * - `closeness.sampled` -- closeness was estimated from sampled sources, unscaled:
@@ -95,7 +104,8 @@ import type { CodedFact, CodedFactParam } from "../shared";
  * - `components.strong` -- strong components: a directed path must run each way.
  * - `components.undirected-strong` -- the graph is undirected, so its strong components are its
  *   connected ones.
- * - `degree.as-declared` -- degree was counted as the records declared the edges.
+ * - `degree.as-declared` -- on a directed graph, degree was counted as the records declared the
+ *   edges: `{ direction }`, which edges the value counts, `"in"`, `"out"` or `"total"` (both).
  * - `eigenvector.converged` -- power iteration converged: `{ tolerance, maxIterations }`.
  * - `eigenvector.scored-by` -- which nodes score a node: `{ mode }`, `"in"` (the nodes pointing
  *   at it) or anything else (the nodes it points at).
@@ -150,6 +160,7 @@ export type CaveatCode =
     | "community.resolution"
     | "groups.split"
     | "groups.merged"
+    | "layers.kept"
     | "paths.counted-exactly"
     | "paths.hop-lengths"
     | "tree.edge-count"
@@ -165,6 +176,8 @@ export type CaveatCode =
     | "sampled.instead-of-exact"
     | "sampled.exact-past-cap"
     | "sampled.still-past-cap"
+    | "all-paths.length-bounded"
+    | "all-paths.capped"
     | "astar.straight-line"
     | "betweenness.sampled"
     | "betweenness.halved"
@@ -172,6 +185,7 @@ export type CaveatCode =
     | "bfs.origin"
     | "bfs.target-reached"
     | "bfs.target-unreached"
+    | "bfs.depth-bounded"
     | "dfs.walk"
     | "closeness.sampled"
     | "closeness.exact"

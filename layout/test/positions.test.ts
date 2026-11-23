@@ -169,7 +169,7 @@ describe("rescaleInPlace", () => {
             center: [1, 2],
         },
         {
-            // every finite spread is zero, so every non-NaN component moves to the centre, the infinite axis too
+            // every finite spread is zero, so every non-NaN component moves to the center, the infinite axis too
             name: "every node at one point on an infinite axis",
             dim: 2,
             rows: [

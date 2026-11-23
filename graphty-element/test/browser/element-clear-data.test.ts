@@ -49,7 +49,7 @@ const SECOND_GRAPH = JSON.stringify({
 let mounted: Graphty | null = null;
 
 /**
- * Mounts a graphty-element and waits for it to initialise.
+ * Mounts a graphty-element and waits for it to initialize.
  * @returns the element.
  */
 async function createGraphtyElement(): Promise<Graphty> {
@@ -211,13 +211,13 @@ describe("graphty-element.clearData", () => {
 
         await loadInline(element, FIRST_GRAPH);
 
-        // Both setters call the initialiser; the guard is what stops the second call
+        // Both setters call the initializer; the guard is what stops the second call
         // loading the same data again on top of the first.
         assert.strictEqual(element.graph?.getDataManager().nodes.size, 2);
         assert.strictEqual(element.graph?.getDataManager().edges.size, 1);
     });
 
-    test("a pair assigned right after a clearData that cancelled a waiting pair still loads (issue #3524)", async () => {
+    test("a pair assigned right after a clearData that canceled a waiting pair still loads (issue #3524)", async () => {
         const element = await createGraphtyElement();
         const started = new Promise<void>((done) => (heldReadStarts = done));
         const reading = element.session.data.import({ source: "held-element-clear", config: {} });
@@ -257,7 +257,7 @@ describe("graphty-element.clearData", () => {
             openHeldRead();
             const line = loadLineOf(dispatcherOf(element.session));
             await vi.waitFor(() => {
-                assert.strictEqual(line.size, 0, "the cancelled pair left the load line");
+                assert.strictEqual(line.size, 0, "the canceled pair left the load line");
             });
 
             assert.strictEqual(element.graph.getDataManager().nodes.size, 0, `the ${clear} clear's pair came back`);
@@ -265,7 +265,7 @@ describe("graphty-element.clearData", () => {
         }
     });
 
-    test("a network pair a clearData cancelled reports no load failure (issue #3524)", async () => {
+    test("a network pair a clearData canceled reports no load failure (issue #3524)", async () => {
         const element = await createGraphtyElement();
         const failures: unknown[] = [];
         element.graph.on("data-loading-error", (event) => {
@@ -280,7 +280,7 @@ describe("graphty-element.clearData", () => {
         openHeldRead();
         const line = loadLineOf(dispatcherOf(element.session));
         await vi.waitFor(() => {
-            assert.strictEqual(line.size, 0, "the cancelled pair left the load line");
+            assert.strictEqual(line.size, 0, "the canceled pair left the load line");
         });
 
         assert.deepEqual(failures, []);

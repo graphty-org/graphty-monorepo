@@ -23,7 +23,7 @@ import {
  * The coded error event for what a provider threw.
  * @param error - What it threw.
  * @param provider - The provider's name, a fact of the code.
- * @param signal - The turn's signal: when it fired, the turn was cancelled whatever was thrown.
+ * @param signal - The turn's signal: when it fired, the turn was canceled whatever was thrown.
  * @param secrets - Values scrubbed from the message and stack, such as the configured key.
  * @returns The error event.
  */
@@ -35,7 +35,7 @@ export function providerFailure(
 ): TurnError {
     const cause = toSafeError(error, secrets);
     if (signal.aborted) {
-        return { type: "error", code: "AI_CANCELLED", params: {}, cause };
+        return { type: "error", code: "AI_CANCELED", params: {}, cause };
     }
 
     if (cause.name === API_KEY_MISSING_ERROR) {
@@ -162,7 +162,7 @@ export class LlmProviderEngine implements AiEngine {
             return;
         }
 
-        // A provider that does not watch the signal answers anyway: the turn was still cancelled.
+        // A provider that does not watch the signal answers anyway: the turn was still canceled.
         if (signal.aborted) {
             yield providerFailure(signal.reason, this.provider.name, signal);
             return;
@@ -194,7 +194,7 @@ export class LlmProviderEngine implements AiEngine {
 
     /**
      * Ask the provider whether its key is accepted.
-     * @param signal - Codes a failure after it fired as cancelled.
+     * @param signal - Codes a failure after it fired as canceled.
      * @returns `AI_COMPLETED`, `AI_KEY_REJECTED`, or the code of what failed.
      */
     async checkKey(signal: AbortSignal): Promise<EngineOutcome> {

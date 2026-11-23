@@ -6,12 +6,12 @@
  * at once, states its estimate, asks for confirmation, or refuses in place with "about 40 s --
  * run this at the desk". A promise cannot gate a click, so one estimate ({@link estimateCost}) is
  * synchronous and O(1) in the size of the graph. It reads the statistics the session already
- * maintains and the cost class the catalogue already declares, and it multiplies two numbers.
+ * maintains and the cost class the catalog already declares, and it multiplies two numbers.
  * The gate ({@link gateRun}) is synchronous too but not O(1): when a run does not fit, it bisects
  * over the node count for the largest graph that would (`fitsUpTo`, O(log n) estimates) and
  * estimates every kept set (`fittingScopes`). None of it walks the graph.
  *
- * Why this lives in the element rather than in the consumer: an application that modelled the
+ * Why this lives in the element rather than in the consumer: an application that modeled the
  * element's performance itself, holding a copy of an iteration bound declared in this package's
  * own schema, was wrong by 6.9x at 200,000 nodes -- a 70,000-node graph was estimated at 2.10
  * seconds, so the button showed no confirmation, and the frame then locked for 10.4 seconds. No
@@ -45,18 +45,18 @@ import type { GraphStatistics } from "../types";
  *
  * The four values are a ladder, not a mood. "measured" means this machine has run this algorithm
  * and the estimate was scaled from that run. "calibrated" means this machine's throughput was
- * probed but this algorithm has never run on it. "modelled" means neither, so built-in rates
+ * probed but this algorithm has never run on it. "modeled" means neither, so built-in rates
  * apply. "unknown" means the inputs do not support a number at all, and the estimate says so
  * rather than inventing one.
  */
-export type CostConfidence = "measured" | "calibrated" | "modelled" | "unknown";
+export type CostConfidence = "measured" | "calibrated" | "modeled" | "unknown";
 
 /**
  * What a run would cost, and how much the answer is worth.
  *
  * Every field is something a consumer would otherwise guess at. `seconds` gates the button,
  * `confidence` decides whether the sentence beside it reads "about" or "at least",
- * `blocksFrame` decides whether a spinner is honest, `cancellable` decides whether a Cancel
+ * `blocksFrame` decides whether a spinner is honest, `cancelable` decides whether a Cancel
  * button appears at all, `available` and `refusal` decide whether the control is offered, and
  * `basisFacts` says where the number came from.
  */
@@ -72,12 +72,12 @@ export interface CostEstimate {
     readonly seconds: number;
     /** How much the number is worth. */
     readonly confidence: CostConfidence;
-    /** The cost class the catalogue declares for this algorithm. */
+    /** The cost class the catalog declares for this algorithm. */
     readonly costClass: CostClass;
     /** Whether running it would hold the render loop, so a UI knows a spinner would freeze. */
     readonly blocksFrame: boolean;
     /** Whether the work can be stopped once it has started. */
-    readonly cancellable: boolean;
+    readonly cancelable: boolean;
     /** Whether it can run on this graph at all. */
     readonly available: boolean;
     /**
@@ -264,7 +264,7 @@ export function refused(reason: string, code: EstimateRefusalCode, params: Coded
  * The throughputs the model multiplies against, one per cost class.
  *
  * They are rates rather than a fitted curve on purpose. Five points from one machine cannot tell
- * an allocator's behaviour from a complexity term, a fitted curve is far harder for a per-device
+ * an allocator's behavior from a complexity term, a fitted curve is far harder for a per-device
  * probe to replace than a single rate, and a rate pinned to the floor of a measured band is
  * cautious everywhere inside that band.
  */
@@ -346,7 +346,7 @@ export interface MachineCalibration {
 
 /**
  * One completed run, kept so the next estimate of the same algorithm can be scaled from it
- * rather than modelled.
+ * rather than modeled.
  *
  * This is the loop that makes the element's estimate better than any consumer's: a consumer sees
  * one number and cannot check it, while the element sees what the run actually took and uses it
@@ -382,7 +382,7 @@ export const MEASUREMENT_EXTRAPOLATION_LIMIT = 10;
 /**
  * The iteration count assumed for an iterative algorithm that declares no bound of its own.
  *
- * An assumed bound is a guess, so it caps the confidence at "modelled" however well this machine
+ * An assumed bound is a guess, so it caps the confidence at "modeled" however well this machine
  * is calibrated. The number a real algorithm uses is read from its own option descriptor, which
  * is what stops this package's defaults from being copied into a consumer's model.
  */
@@ -434,7 +434,7 @@ const CACHE_MISSING_BYTES = 4 * 1024 * 1024;
  * to the share of the work that misses the cache. That share is read from the working set, one
  * 8-byte value per node and per edge, from none at {@link CACHE_RESIDENT_BYTES} to all of it at
  * {@link CACHE_MISSING_BYTES}, by the logarithm of the size. How local a graph's edges are (a
- * path's neighbours sit side by side in memory, a random graph's do not) decides how much of that
+ * path's neighbors sit side by side in memory, a random graph's do not) decides how much of that
  * work misses too, but the statistics do not say, so every shape is charged as a random one: the
  * cautious side.
  * @param nodes - Nodes in scope.
@@ -492,7 +492,7 @@ export interface CostInput {
     /** Which algorithm would run. */
     readonly algorithm: AlgorithmKey;
     /**
-     * Its catalogue descriptor.
+     * Its catalog descriptor.
      *
      * Absent means the key is not registered, which is an answer rather than a failure: the
      * estimate comes back unavailable with confidence "unknown", so a control can be disabled
@@ -586,7 +586,7 @@ function declaredIterationBound(
     return typeof fallback === "number" && Number.isFinite(fallback) && fallback > 0 ? fallback : undefined;
 }
 
-/** The option that samples a run's sources, by catalogue key: set, the run costs that share of the exact one. */
+/** The option that samples a run's sources, by catalog key: set, the run costs that share of the exact one. */
 const SAMPLE_OPTIONS: Readonly<Partial<Record<string, string>>> = { betweenness: "k", closeness: "k" };
 
 /**
@@ -687,7 +687,7 @@ function unavailableReason(
 
 /**
  * How much work a cost class implies at a given size.
- * @param costClass - The class the catalogue declares.
+ * @param costClass - The class the catalog declares.
  * @param nodes - Nodes in scope.
  * @param edges - Edges in scope.
  * @param iterations - The iteration bound, used by the iterative class only.
@@ -734,7 +734,7 @@ interface OwnCostModel {
 }
 
 /**
- * The element's own algorithms that carry their own model, by catalogue key.
+ * The element's own algorithms that carry their own model, by catalog key.
  *
  * Kept here rather than as a `static cost` on the class because that hook is read for plugins
  * only and answers in absolute seconds, which no calibration can scale. Each rate is pinned to the
@@ -809,7 +809,7 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
        steady 7.5 to 9 ns, so the cost is the NUMBER of scans, and that is set by the graph's
        community structure rather than its size. On a graph with none, the first two levels only
        pair nodes up, halving the node count while keeping almost every arc, and the third level --
-       about n / 5 super-nodes with about 40 neighbours each -- runs 10 to 22 scans of each original
+       about n / 5 super-nodes with about 40 neighbors each -- runs 10 to 22 scans of each original
        edge. On a graph with communities the first level gathers whole communities and the levels
        after it are small. One rate per element of n + m per unit of log2(n + m) cannot cover both:
        measured on 2026-10-03 it ran from 7.2 ns on planted partitions to 20.6 on random m = 5n and
@@ -854,7 +854,10 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
        0.55 to 2.3 ns per element per unit of log2(n + m) (48 ns on the object graph before), and a
        pass 1.7 to 7.1 ns per element, the most on sparse random graphs, whose passes miss the
        cache most. Pinned at 3.3 ns per unit of log2(n + m) (1 / (100 * the iterative rate)) and
-       7.4 ns per pass (1 / (45 * the iterative rate)) while the graph stays in a core's cache.
+       5.2 ns per pass (1 / (64 * the iterative rate)) while the graph stays in a core's cache.
+       The pass was 7.4 ns (1 / 45) until 2026-11-19 (issue #8475), when a pass stopped copying
+       the scores before scaling them: the 10,000-node grid then read 4.2 to 4.5x pessimistic and
+       random m = 1.2n at 100,000 nodes 1.9x, on CI and on the reference machine alike.
        A pass that misses the cache costs more beside the calibration probe, which never does: on
        2026-11-14 (issue #7920) a pass over random m = 1.2n at 100,000 nodes (about 1.8 MB) took
        6.7 ns per element on the reference machine against 3.3 on a 10,000-node grid, and on CI's
@@ -867,14 +870,14 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
         seconds: (nodes, edges, rates, iterations) =>
             ((nodes + edges) *
                 (Math.log2(Math.max(2, nodes + edges)) / 100 +
-                    (iterations / 45) * (1 + cacheMissShare(nodes, edges) / 2))) /
+                    (iterations / 64) * (1 + cacheMissShare(nodes, edges) / 2))) /
             rates.iterativeElementsPerSecond,
     },
 };
 
 /**
  * The rate a cost class's work is retired at.
- * @param costClass - The class the catalogue declares.
+ * @param costClass - The class the catalog declares.
  * @param rates - The throughputs in force.
  * @returns The rate, or NaN for a class no rate can describe.
  */
@@ -904,7 +907,7 @@ function rateFor(costClass: CostClass, rates: Readonly<CostRates>): number {
 
 /**
  * An estimate that could not be computed at all, with the reason it could not.
- * @param costClass - The class the catalogue declares, so a consumer can still group the entry.
+ * @param costClass - The class the catalog declares, so a consumer can still group the entry.
  * @param chunked - Whether the run would yield to the render loop between chunks.
  * @param available - Whether the algorithm could run at all, which is a separate question from
  * whether its cost is knowable.
@@ -924,7 +927,7 @@ function unknownEstimate(
         confidence: "unknown",
         costClass,
         blocksFrame: !chunked,
-        cancellable: chunked,
+        cancelable: chunked,
         available,
         basisFacts,
     };
@@ -933,7 +936,7 @@ function unknownEstimate(
 }
 
 /** The seconds and the provenance one rate model produced. */
-interface ModelledSeconds {
+interface ModeledSeconds {
     /** The estimate in seconds. */
     readonly seconds: number;
     /** How much it is worth. */
@@ -962,7 +965,7 @@ function fromMeasurement(
     units: number,
     iterations: number,
     machine: string | undefined,
-): ModelledSeconds | undefined {
+): ModeledSeconds | undefined {
     if (!isUsableCount(measurement.seconds) || !isUsableCount(measurement.nodes) || !isUsableCount(measurement.edges)) {
         return undefined;
     }
@@ -991,7 +994,7 @@ function fromMeasurement(
 
     return {
         seconds,
-        confidence: "modelled",
+        confidence: "modeled",
         source: provenanceOf("cost.extrapolated", {
             at: measurement.at,
             ratio,
@@ -1004,7 +1007,7 @@ function fromMeasurement(
  * What a run would cost, and how much the answer is worth.
  *
  * Synchronous and O(1) in the size of the graph: it reads the maintained statistics, the cost
- * class the catalogue declares, and the machine's calibration, and multiplies. It never walks
+ * class the catalog declares, and the machine's calibration, and multiplies. It never walks
  * the graph, never touches the renderer, and never returns a number it cannot defend -- an input
  * that does not support one comes back with `confidence: "unknown"` and an infinite estimate
  * rather than a plausible figure a button would act on.
@@ -1040,7 +1043,7 @@ export function estimateCost(input: CostInput): CostEstimate {
             confidence: "unknown" as const,
             costClass,
             blocksFrame: false,
-            cancellable: chunked,
+            cancelable: chunked,
             available: false,
             refusal,
             basisFacts: bareBasis("cost.refused", nodes, edges),
@@ -1064,7 +1067,7 @@ interface SizedRun {
     readonly chunked: boolean;
 }
 
-/** The work a run would do, in the units its cost is modelled in. */
+/** The work a run would do, in the units its cost is modeled in. */
 interface RunWork {
     /** The iteration bound the run would use. */
     readonly iterations: number;
@@ -1149,7 +1152,7 @@ function availableEstimate(input: CostInput, descriptor: AlgorithmDescriptor, ru
             ? undefined
             : fromMeasurement(measurement, work.unitsOf, units, iterations, calibration?.machine);
 
-    const modelled =
+    const modeled =
         scaled ??
         modelFromRates(
             descriptor,
@@ -1159,12 +1162,11 @@ function availableEstimate(input: CostInput, descriptor: AlgorithmDescriptor, ru
             ownUnits !== undefined,
             statistics,
         );
-    const confidence =
-        work.iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
+    const confidence = work.iterationsAreGuessed && modeled.confidence !== "modeled" ? "modeled" : modeled.confidence;
     const derivation = input.derivationSeconds ?? 0;
     const seconds =
-        Number.isFinite(modelled.seconds) && modelled.seconds >= 0
-            ? modelled.seconds + derivation
+        Number.isFinite(modeled.seconds) && modeled.seconds >= 0
+            ? modeled.seconds + derivation
             : Number.POSITIVE_INFINITY;
 
     return Object.freeze({
@@ -1172,7 +1174,7 @@ function availableEstimate(input: CostInput, descriptor: AlgorithmDescriptor, ru
         confidence,
         costClass,
         blocksFrame: !chunked && seconds > FRAME_BUDGET_SECONDS,
-        cancellable: chunked,
+        cancelable: chunked,
         available: true,
         basisFacts: Object.freeze({
             nodes,
@@ -1183,7 +1185,7 @@ function availableEstimate(input: CostInput, descriptor: AlgorithmDescriptor, ru
             iterationsAssumed: work.iterationsAreGuessed,
             sample: work.sample ?? null,
             derivationSeconds: derivation,
-            provenance: modelled.source,
+            provenance: modeled.source,
         } satisfies CostBasis),
     });
 }
@@ -1193,7 +1195,7 @@ function availableEstimate(input: CostInput, descriptor: AlgorithmDescriptor, ru
  *
  * A descriptor that declares its own `cost` function wins over the rate table, because its
  * author knows the shape of the work better than a cost class does -- but it is still a model
- * written somewhere else about some other machine, so it reports "modelled" however well this
+ * written somewhere else about some other machine, so it reports "modeled" however well this
  * one is calibrated.
  * @param descriptor - The algorithm's descriptor.
  * @param costClass - The class it declares.
@@ -1222,7 +1224,7 @@ function modelFromRates(
     calibration: MachineCalibration | undefined,
     ownUnits: boolean,
     statistics: GraphStatistics,
-): ModelledSeconds {
+): ModeledSeconds {
     const { nodes, edges, units, iterations, sampleFactor } = work;
     /* THE REGISTRATION IS ASKED FIRST, AND IT IS THE ONLY PLACE A PLUGIN CAN PUT ONE. A cost
        model is a function, and a function stops a descriptor surviving `JSON.stringify` and a
@@ -1239,7 +1241,7 @@ function modelFromRates(
         if (isUsableCount(declared)) {
             return {
                 seconds: declared * sampleFactor,
-                confidence: "modelled",
+                confidence: "modeled",
                 source: provenanceOf("cost.declared-model"),
             };
         }
@@ -1282,7 +1284,7 @@ function modelFromRates(
 
     return {
         seconds,
-        confidence: "modelled",
+        confidence: "modeled",
         source: provenanceOf("cost.built-in", { calibratedAt: calibration?.at ?? null }),
     };
 }
@@ -1415,7 +1417,7 @@ interface CostGateOptions {
  *
  * Counted from the fields the descriptor DECLARES rather than from a table of shapes kept here,
  * so an algorithm that publishes four node columns is charged for four. That is the difference
- * between agreeing with the catalogue and restating it.
+ * between agreeing with the catalog and restating it.
  * @param descriptor - The algorithm's descriptor.
  * @param nodes - Nodes in scope.
  * @param edges - Edges in scope.

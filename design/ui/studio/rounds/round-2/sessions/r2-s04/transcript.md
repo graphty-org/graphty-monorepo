@@ -16,7 +16,7 @@ Next: get rid of the usage-data box ("No thanks" -- I don't share lab stuff), th
 
 Command: `--step --click "No thanks" --click "Les Miserables"`
 
-Saw: the network is on screen. Purple-blue balls all the same size, grey lines, on a light background. Right panel says 77 nodes, 254 edges. No names on anything. Bottom left there's a hint: "Analyze (flask icon) in the toolbar (Shift+A) to add results here". There's a small toolbar at the bottom of the picture with a flask.
+Saw: the network is on screen. Purple-blue balls all the same size, gray lines, on a light background. Right panel says 77 nodes, 254 edges. No names on anything. Bottom left there's a hint: "Analyze (flask icon) in the toolbar (Shift+A) to add results here". There's a small toolbar at the bottom of the picture with a flask.
 
 PART 1 DONE: it's on screen. Didn't have to install anything. Good.
 
@@ -84,7 +84,7 @@ Next: click it.
 
 Command: `--step --click-at 1381,264`
 
-Saw: a pop-up list "Size by attribute": Influence, Influence rank, Influence percentile. Below, greyed out: id, name ("Cannot be used: holds groups, not amounts" -- fair enough). I'll pick plain "Influence", same as the color, so the two agree.
+Saw: a pop-up list "Size by attribute": Influence, Influence rank, Influence percentile. Below, grayed out: id, name ("Cannot be used: holds groups, not amounts" -- fair enough). I'll pick plain "Influence", same as the color, so the two agree.
 
 Next: click Influence in this list.
 
@@ -92,7 +92,7 @@ Next: click Influence in this list.
 
 Command: `--step --click-at 1193,372` (option "Influence")
 
-Saw: now it's a picture. A big dark ball in the middle and another big one at the bottom where the fan of lines meets; a few medium ones; most stay small. The Size box now says "1 to 3". The key at the top left now has two rows: "Size: Influence" (a grey wedge, 0.003299 to 0.07543) and "Color: Influence" (the orange bar, same numbers). So size and color both mean influence. The size difference I can actually see, unlike the oranges.
+Saw: now it's a picture. A big dark ball in the middle and another big one at the bottom where the fan of lines meets; a few medium ones; most stay small. The Size box now says "1 to 3". The key at the top left now has two rows: "Size: Influence" (a gray wedge, 0.003299 to 0.07543) and "Color: Influence" (the orange bar, same numbers). So size and color both mean influence. The size difference I can actually see, unlike the oranges.
 
 PART 3 DONE: dots are bigger for the characters that matter more.
 
@@ -138,7 +138,7 @@ Command: `--step --click "Export"` (tool note: "Export" matched the button and t
 
 Printed: a file was saved: les-miserables_current-view.png, 1806 x 1720 (downloads/les-miserables_current-view.png)
 
-Saw: the box closed and a message at the bottom: "Exported les-miserables_current-view.png". Opened the file: the drawing with the key in a white box at the top left, in big clear black type: "Size: Influence" with a grey wedge, "Color: Influence" with a light-to-dark orange bar, both running 0.003299 to 0.07543. The key is easy to read. The names on the balls, though, are blurry and smudged in the file -- fuzzy grey-black, like a photocopy of a photocopy. I can read Myriel, Napoleon, Old Man, Fantine; the crowded middle ones (and Valjean's own name, under his big ball) I can't make out. If I pasted this in a slide the PI would ask what the small print says.
+Saw: the box closed and a message at the bottom: "Exported les-miserables_current-view.png". Opened the file: the drawing with the key in a white box at the top left, in big clear black type: "Size: Influence" with a gray wedge, "Color: Influence" with a light-to-dark orange bar, both running 0.003299 to 0.07543. The key is easy to read. The names on the balls, though, are blurry and smudged in the file -- fuzzy gray-black, like a photocopy of a photocopy. I can read Myriel, Napoleon, Old Man, Fantine; the crowded middle ones (and Valjean's own name, under his big ball) I can't make out. If I pasted this in a slide the PI would ask what the small print says.
 
 PART 5 DONE: a picture file, with its key, that I could paste into a document.
 

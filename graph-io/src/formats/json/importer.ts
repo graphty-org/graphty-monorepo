@@ -14,7 +14,7 @@
  * than a rounded float, again with one warning.
  *
  * JSON awaits the whole text (design section 8.4: `JSON.parse` on 100 MB is fine; a streaming
- * tokeniser is a later improvement). The parsed records are iterated in place; the importer never
+ * tokenizer is a later improvement). The parsed records are iterated in place; the importer never
  * builds an intermediate array of node or edge objects. Ids are coerced per `ids` ("keep" by
  * default: JSON values are already typed); node ids that are JSON `true` / `false` / `null` are
  * reported as `unsupported` and coerced with `String(v)` only under `ids: "string"`. Attribute
@@ -24,7 +24,7 @@
  * DirectionResolver of design section 8.4; per-element errors are aggregated into the ImportReport
  * until the error limit (design section 8.6).
  *
- * Fatal errors (ImportError at once): empty input, invalid JSON, an unrecognised top-level shape, a
+ * Fatal errors (ImportError at once): empty input, invalid JSON, an unrecognized top-level shape, a
  * section that is not an array / object. Recoverable errors (an issue, the element skipped): a
  * missing nodes or edges array, a node without an id, an edge without an endpoint, a bad index
  * endpoint, a declared field of the wrong type, an unknown Cytoscape parent, an id the coercion rule
@@ -98,6 +98,7 @@ import {
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
+import { watchGeographic } from "../../positions/geographic.js";
 import { headBytes, sniffJsonDialectHead } from "../../sniff.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import {
@@ -4190,6 +4191,7 @@ interface CytoscapeNodeColumns {
     readonly position: ColumnHandle;
     readonly classes: ColumnHandle;
     readonly parent: ColumnHandle;
+    readonly locked: ColumnHandle;
 }
 
 /**
@@ -4257,8 +4259,20 @@ function cytoscapeNodeColumns(ctx: ImportContext, nodes: readonly unknown[]): Cy
             { name: PARENT_COLUMN, dtype: "u32", role: "parent", refersTo: "node", nullable: true },
             dataHas(nodes, "parent"),
         ),
+        // Cytoscape.js keeps a locked node where it is through any layout: the fixed role
+        locked: ctx.nodes.declareIf(
+            { name: LOCKED_KEY, dtype: "bool", role: "fixed", nullable: true },
+            nodes.some((n) => isJsonObject(n) && typeof n[LOCKED_KEY] === "boolean") &&
+                nodes.every(
+                    (n) => !isJsonObject(n) || n[LOCKED_KEY] === undefined || typeof n[LOCKED_KEY] === "boolean",
+                ) &&
+                !dataHas(nodes, LOCKED_KEY),
+        ),
     };
 }
+
+/** Cytoscape.js's element key for a node no layout or drag moves. */
+const LOCKED_KEY = "locked";
 
 /**
  * Add one Cytoscape node: its data as attributes (its parent kept for later), its position, classes and element keys.
@@ -4310,7 +4324,11 @@ function importCytoscapeNode(
         }
         writeCytoscapePosition(ctx, columns.position, index, record.position, element);
         writeClasses(ctx, ctx.nodes, columns.classes, index, record.classes, element);
-        writeElementKeys(ctx.nodes, index, record, element);
+        const locked = columns.locked === INVALID_INDEX ? null : LOCKED_KEY;
+        if (locked !== null && typeof record.locked === "boolean") {
+            ctx.nodes.set(columns.locked, index, record.locked);
+        }
+        writeElementKeys(ctx.nodes, index, record, element, locked);
     } catch (err) {
         report.recordError(err, { element: String(id) });
     }
@@ -4678,10 +4696,17 @@ function writeClasses(
  * @param row - the row
  * @param record - the element
  * @param element - the element name for issues
+ * @param written - a key the caller already wrote into a column of its own, or null
  */
-function writeElementKeys(writer: AttributeWriter, row: number, record: JsonRecord, element: string): void {
+function writeElementKeys(
+    writer: AttributeWriter,
+    row: number,
+    record: JsonRecord,
+    element: string,
+    written: string | null = null,
+): void {
     for (const key of Object.keys(record)) {
-        if (CYTOSCAPE_STRUCTURAL_KEYS.has(key)) {
+        if (CYTOSCAPE_STRUCTURAL_KEYS.has(key) || key === written) {
             continue;
         }
         const name = CYTOSCAPE_ELEMENT_KEYS.has(key) ? key : `${key}${SUFFIX.element}`;
@@ -4842,7 +4867,8 @@ function readGraph(
     options: (JsonImportOptions & CommonImportOptions) | undefined,
 ): void {
     const { root, dialect, text } = doc;
-    const ctx = new ImportContext(sink, report, resolved, json, options?.defaultDirected !== undefined);
+    const geographic = watchGeographic(sink);
+    const ctx = new ImportContext(geographic.sink, report, resolved, json, options?.defaultDirected !== undefined);
     ctx.text = text;
     // the obographs reader refuses missing endpoints itself, so addMissingNodes false holds on any sink
     reportSinkOptions(sink, options, report, dialect === "obographs");
@@ -4852,6 +4878,7 @@ function readGraph(
     ctx.reportDangling();
     ctx.nodes.reportNullOnly();
     ctx.edges.reportNullOnly();
+    geographic.finish();
     throwIfAborted(resolved.signal);
 }
 

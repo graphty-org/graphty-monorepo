@@ -43,6 +43,7 @@ import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype, jsonText, type TextDtype } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { EDGE_ID_NAMES, findColumn, LABEL_NAMES } from "./header.js";
 import { DELIMITER_CANDIDATES } from "./records.js";
@@ -1453,15 +1454,18 @@ function check(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExpor
  * The CSV / TSV exporter plugin (subpath `@graphty/graph-io/csv`).
  * @category Built-in formats
  */
-export const csvExporter: GraphExporter<CsvExportOptions> = Object.freeze({
-    format: "csv",
-    options: Object.freeze(["delimiter", "dialect", "header", "newline", "spreadsheetSafe", "table"]),
-    capabilities: CSV_CAPABILITIES,
-    check,
-    export(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(lines(snapshot, prepare(snapshot, options)));
-    },
-    exportToString(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExportOptions): Promise<string> {
-        return joinText(lines(snapshot, prepare(snapshot, options)));
-    },
-});
+export const csvExporter: GraphExporter<CsvExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: "csv",
+        options: Object.freeze(["delimiter", "dialect", "header", "newline", "spreadsheetSafe", "table"]),
+        capabilities: CSV_CAPABILITIES,
+        check,
+        export(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
+            return encodeChunks(lines(snapshot, prepare(snapshot, options)));
+        },
+        exportToString(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExportOptions): Promise<string> {
+            return joinText(lines(snapshot, prepare(snapshot, options)));
+        },
+    }),
+    (options) => options?.table === "nodes",
+);

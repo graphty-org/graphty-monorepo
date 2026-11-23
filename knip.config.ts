@@ -323,7 +323,7 @@ const config: KnipConfig = {
             ignoreDependencies: [
                 // Peer dependencies (provided by consumer)
                 "@mlc-ai/web-llm",
-                // The optional peers: the GPU package, Graphviz and the key store. Each is an optional
+                // The optional peers: the GPU package and Graphviz. Each is an optional
                 // peer and an exact devDependency, imported from src so the element works without it
                 // and lights up with it. `lint:knip:prod` runs --strict, which reads only peers and
                 // dependencies, and would report them as unlisted; the default run resolves them as
@@ -331,7 +331,6 @@ const config: KnipConfig = {
                 ...(production
                     ? [
                           "@graphty/webgpu-graph-algorithms",
-                          "encrypt-storage",
                           "@hpcc-js/wasm-graphviz",
                           // the types of React, for the types-only ./jsx entry (dist/jsx.d.ts imports
                           // "react"), which --production follows into the build
@@ -339,7 +338,7 @@ const config: KnipConfig = {
                       ]
                     : []),
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
-                // nothing externalises it), so each is a devDependency that production source imports.
+                // nothing externalizes it), so each is a devDependency that production source imports.
                 // TanStack AI is built into the AI engine's own chunks the same way, imported only by
                 // src/ai/engine/tanstack/ (design/ai/tanstack-ai-harness-design.md, section 3.2), and so
                 // is the in-page code sandbox (TanStack Code Mode's QuickJS driver and its WebAssembly).
@@ -457,7 +456,7 @@ const config: KnipConfig = {
     // be referenced once inside its own file, in all six workspaces.
     //
     // The narrower mechanism is per symbol: knip skips any export whose JSDoc block
-    // carries a `@public` tag (knip honours `@public` with no `tags` entry needed), so a
+    // carries a `@public` tag (knip honors `@public` with no `tags` entry needed), so a
     // deliberate public surface states that intent at the declaration and everything else
     // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
     // than reaching for a blanket setting or an ignore pattern.
@@ -504,6 +503,7 @@ const config: KnipConfig = {
         "pkill",
         "pgrep",
         "safaridriver",
+        "setsid", // util-linux, so a merge in tools/workspace-sync.mjs has no terminal to prompt on
         "ssh-keygen",
         "taskset",
     ],

@@ -49,6 +49,7 @@ import { type ResolvedExportOptions } from "../../common/options.js";
 import { plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { neutralPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import { cytoscapeCxAspect, type CytoscapeEmitted } from "../../styles/cytoscape/emit.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -1510,11 +1511,13 @@ function* mapIterable<T, U>(items: Iterable<T>, fn: (item: T) => U): Generator<U
  * The CX version 1 exporter plugin.
  * @category Built-in formats
  */
-export const cxExporter: GraphExporter<CxExportOptions> = cytoscapeExporter({
-    format: CX_FORMAT,
-    capabilities: CX_CAPABILITIES,
-    styleCapabilities: CX_STYLE_CAPABILITIES,
-    dialect: "desktop",
-    plan,
-    write,
-});
+export const cxExporter: GraphExporter<CxExportOptions> = writingGeographicAsColumns(
+    cytoscapeExporter({
+        format: CX_FORMAT,
+        capabilities: CX_CAPABILITIES,
+        styleCapabilities: CX_STYLE_CAPABILITIES,
+        dialect: "desktop",
+        plan,
+        write,
+    }),
+);

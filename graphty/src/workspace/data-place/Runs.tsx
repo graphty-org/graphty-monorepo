@@ -160,6 +160,7 @@ function ResultRow({
     inspected,
 }: Readonly<{ session: GraphSession; store: WorkspaceStore; run: Run; inspected: boolean }>): React.JSX.Element {
     const [asking, setAsking] = useState(false);
+    const pins = useWorkspaceState((state) => state.reportPins);
     const name = runName(session, run);
     const readers = session.runs.readers(run.id);
     const layers = session.runs.bindings(run.id);
@@ -173,7 +174,7 @@ function ResultRow({
         setAsking(false);
         session.runs.remove(run.id);
     };
-    // Kept, greyed, once it draws: the reader learns where the action lives.
+    // Kept, grayed, once it draws: the reader learns where the action lives.
     let applyReason: string | null = layers.length > 0 ? "Already styled" : null;
     if (applyReason === null && run.status !== "succeeded") {
         applyReason = "Not finished";
@@ -194,7 +195,7 @@ function ResultRow({
                 again.then(undefined, () => undefined);
             },
         },
-        ...resultItems(session, store, run),
+        ...resultItems(session, store, run, pins),
         {
             id: "remove",
             label: "Remove result",

@@ -152,7 +152,7 @@ export function AnalyzePopover({
     };
 
     useEffect(() => {
-        listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: "nearest" });
+        listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
     });
 
     const onKeyDown = (event: React.KeyboardEvent): void => {
@@ -573,6 +573,9 @@ function RunBar({
             </Text>
             <Button
                 ref={button}
+                // Opened on this row (Quick actions), the popover's focus trap would put focus on
+                // the filter after the effect above; this tells it to land on Run, so Enter runs it.
+                data-autofocus={ready || undefined}
                 size="xs"
                 disabled={!available}
                 data-disabled={plan.current || undefined}

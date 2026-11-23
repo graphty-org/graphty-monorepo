@@ -61,11 +61,52 @@ export const JsonDataSourceConfig = z.object({
     importOptions: z.record(z.string(), z.unknown()).optional(),
     edgeSrcIdPath: z.string().optional(),
     edgeDstIdPath: z.string().optional(),
+    // The keys naming an edge's ends, as every reader takes them; the paths above win when both are set.
+    edgeSource: z.string().optional(),
+    edgeTarget: z.string().optional(),
+    // A JSON Pointer (RFC 6901) to the part of the document read: an array is one collection, read
+    // as a table of rows; an object is read whole as a graph document. Checked when it is read.
+    pointer: z.string().optional(),
+    // String values read as unset: removed from each record handed over, compared after NFC.
+    missing: z.array(z.string()).optional(),
     node: JsonNodeConfig,
     edge: JsonEdgeConfig,
 });
 
 type JsonDataSourceConfigType = z.infer<typeof JsonDataSourceConfig>;
+
+/** One collection's rows as the draft holds them: no lines, no delimiter. */
+interface JsonRows {
+    readonly columns: readonly string[];
+    readonly rows: Record<string, unknown>[];
+    readonly lines: null;
+    readonly delimiter?: undefined;
+}
+
+/**
+ * Remove, in place, every top-level string value whose NFC text is one of the missing texts.
+ * Numbers, booleans, null and nested values are never compared: they are not cell texts.
+ * @param records - the records, changed in place
+ * @param missing - the missing option, or undefined
+ */
+function unsetMissing(records: readonly unknown[], missing: readonly string[] | undefined): void {
+    if (missing === undefined || missing.length === 0) {
+        return;
+    }
+
+    const texts = new Set(missing.map((text) => text.normalize("NFC")));
+    for (const record of records) {
+        if (!isObject(record)) {
+            continue;
+        }
+
+        for (const [key, value] of Object.entries(record)) {
+            if (typeof value === "string" && texts.has(value.normalize("NFC"))) {
+                Reflect.deleteProperty(record, key);
+            }
+        }
+    }
+}
 
 /**
  * The dialect of a document whose elements the default `nodes` and `edges` paths do not find: a
@@ -125,6 +166,25 @@ function readDirectedKey(document: unknown): { directed: boolean; statedBy: stri
 const ROW_KEY = "graphty.row";
 
 /**
+ * The session's configured end keys (`data.knownFields.edgeSrcIdPath` / `edgeDstIdPath`), set by the
+ * load beside the reader: a collection a pointer names is read as edges when its records carry
+ * them, as the load's endpoint decision would read them. A hint, not a declaration: records that
+ * carry neither are still a node table.
+ */
+const KNOWN_ENDS = new WeakMap<object, { source: string | null; target: string | null }>();
+
+/**
+ * Sets the session's configured end keys for a reader (see KNOWN_ENDS).
+ * @param reader - the reader
+ * @param ends - the configured keys, null for one left unset
+ * @param ends.source - the source key
+ * @param ends.target - the target key
+ */
+export function setKnownEnds(reader: object, ends: { source: string | null; target: string | null }): void {
+    KNOWN_ENDS.set(reader, ends);
+}
+
+/**
  * The import a document's records came from, each column at the top-level key of its own name on
  * the first record that holds a value of it.
  * @param imported - graph-io's import of the document
@@ -152,6 +212,40 @@ function recordsImport(
             Object.hasOwn(record, name) ? [name] : null,
         ),
     };
+}
+
+/**
+ * The value a JSON Pointer (RFC 6901) names in a document.
+ * @param document - the parsed document
+ * @param pointer - the pointer: "" for the whole document, else `/` and tokens
+ * @returns the value, or undefined when the pointer is malformed or names nothing
+ */
+function atPointer(document: unknown, pointer: string): unknown {
+    if (pointer === "") {
+        return document;
+    }
+
+    if (!pointer.startsWith("/")) {
+        return undefined;
+    }
+
+    let at: unknown = document;
+    for (const raw of pointer.slice(1).split("/")) {
+        if (/~(?![01])/.test(raw)) {
+            return undefined;
+        }
+
+        const token = raw.replaceAll("~1", "/").replaceAll("~0", "~");
+        if (Array.isArray(at) && /^(?:0|[1-9]\d*)$/.test(token)) {
+            at = at[Number(token)];
+        } else if (isObject(at) && Object.hasOwn(at, token)) {
+            at = at[token];
+        } else {
+            return undefined;
+        }
+    }
+
+    return at;
 }
 
 /** The keys a node record may carry its id under when no `nodeIdPath` is configured, in the order they are tried. */
@@ -218,6 +312,12 @@ export class JsonDataSource extends DataSource {
     static readonly listGraphs = (input: SourceInput): ReturnType<NonNullable<typeof jsonImporter.listGraphs>> =>
         (jsonImporter.listGraphs as NonNullable<typeof jsonImporter.listGraphs>)(input);
     opts: JsonDataSourceConfigType;
+    /**
+     * The keys a collection's records were read by: an edge collection's ends, or a node
+     * collection's id; unset for a document read any other way. A version 2 save names them in a
+     * referenced source's mapping, as it does a CSV table's header columns.
+     */
+    readBy: { readonly source: string; readonly target: string } | { readonly key: string } | undefined;
 
     /**
      * Creates a new JsonDataSource instance.
@@ -286,10 +386,139 @@ export class JsonDataSource extends DataSource {
             return;
         }
 
-        refuseGraphtyDocument(data);
-        if (!(yield* this.readWholeDocument(jsonString, data))) {
-            yield* this.readByPaths(jsonString, data);
+        // Only a pointer reads an array as one table of rows: an array at the root without one is a
+        // document (a Cytoscape elements array, or records the node and edge paths select).
+        const pointed = this.pointed(data);
+        if (this.opts.pointer !== undefined && Array.isArray(pointed)) {
+            yield* this.readCollection(pointed);
+            return;
         }
+
+        // A pointer to an object reads that object as the whole document.
+        const text = pointed === data ? jsonString : JSON.stringify(pointed);
+        refuseGraphtyDocument(pointed);
+        if (!(yield* this.readWholeDocument(text, pointed))) {
+            yield* this.readByPaths(text, pointed);
+        }
+    }
+
+    /**
+     * The collection the pointer names as rows, for a load whose columns the draft maps; null when
+     * there is no pointer, or it names an object (read whole), or the text does not parse (the read
+     * through `getData` reports it).
+     * @returns the one table, keyed `"rows"`, or null
+     */
+    async readRows(): Promise<Readonly<Record<string, JsonRows>> | null> {
+        if (this.opts.pointer === undefined) {
+            return null;
+        }
+
+        let data: unknown;
+        try {
+            data = JSON.parse(await this.getContent()) as unknown;
+        } catch {
+            return null;
+        }
+
+        const pointed = this.pointed(data);
+        if (!Array.isArray(pointed)) {
+            return null;
+        }
+
+        const rows = this.collectionRecords(pointed);
+        unsetMissing(rows, this.opts.missing);
+        const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+        return { rows: { columns, rows, lines: null } };
+    }
+
+    /**
+     * The part of the document the pointer names: the document itself without one.
+     * @param data - the parsed document
+     * @returns an array or an object
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` when the pointer is malformed, names nothing,
+     *     or names a value that is neither an array nor an object.
+     */
+    private pointed(data: unknown): unknown {
+        const { pointer } = this.opts;
+        if (pointer === undefined) {
+            return data;
+        }
+
+        const found = atPointer(data, pointer);
+        if (Array.isArray(found) || isObject(found)) {
+            return found;
+        }
+
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: `the pointer ${JSON.stringify(pointer)} names no array or object in this JSON document`,
+            source: "config",
+            details: { kind: "format", id: this.type, option: "pointer", value: pointer },
+        });
+    }
+
+    /**
+     * The object records of a collection; any other element is left out and reported.
+     * @param found - the array the pointer names
+     * @returns the records
+     */
+    private collectionRecords(found: readonly unknown[]): Record<string, unknown>[] {
+        const records: Record<string, unknown>[] = [];
+        found.forEach((row, index) => {
+            if (isObject(row)) {
+                records.push(row);
+            } else {
+                this.addError({
+                    message: `Row at index ${index} is not an object`,
+                    category: "validation-error",
+                    line: index,
+                });
+            }
+        });
+        return records;
+    }
+
+    /**
+     * Read one collection: an edge table when its records name their ends (the configured keys,
+     * else `source`/`target`, `src`/`dst` or `from`/`to`), else a node table keyed by
+     * `nodeIdPath`, else `id`, `name`, `key` or `label` -- the choice a CSV header gets. The
+     * columns it was read by are recorded, as a CSV reader records them.
+     * @param found - the array the pointer names
+     * @yields DataSourceChunk objects containing the collection's nodes or edges
+     */
+    private async *readCollection(found: readonly unknown[]): AsyncGenerator<DataSourceChunk, void, unknown> {
+        const records = this.collectionRecords(found);
+        const named = this.endsNamed();
+        const declared = named.source !== null || named.target !== null;
+        const known = declared ? null : this.knownEndsCarried(records);
+        const endpoints = records.length > 0 || declared ? (known ?? this.endpointKeys(records, named)) : null;
+        if (declared || endpoints !== null) {
+            if (endpoints !== null) {
+                this.readBy = endpoints;
+            }
+
+            yield* this.readArrays(null, [], records);
+            return;
+        }
+
+        const key = this.nodeIdKey(records);
+        if (key !== null) {
+            this.readBy = { key };
+        }
+
+        yield* this.readArrays(null, records, []);
+    }
+
+    /**
+     * Hand the records over with the missing option's values unset.
+     * @param nodes - the node records
+     * @param edges - the edge records
+     * @yields the chunks
+     */
+    protected override *chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk, void, unknown> {
+        unsetMissing(nodes, this.opts.missing);
+        unsetMissing(edges, this.opts.missing);
+        yield* super.chunkData(nodes, edges);
     }
 
     /**
@@ -365,11 +594,31 @@ export class JsonDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     private async *readByPaths(jsonString: string, data: unknown): AsyncGenerator<DataSourceChunk, void, unknown> {
-        const rawNodes = this.locate(data, this.opts.node.path, "nodes");
-        const rawEdges = this.locate(data, this.opts.edge.path, "edges");
+        yield* this.readArrays(
+            jsonString,
+            this.locate(data, this.opts.node.path, "nodes"),
+            this.locate(data, this.opts.edge.path, "edges"),
+        );
+    }
 
+    /**
+     * Reads node and edge arrays through graph-io's node-link importer.
+     * @param jsonString - the document's text, whose styles are read on demand; null for a collection
+     * @param rawNodes - the node records
+     * @param rawEdges - the edge records
+     * @yields DataSourceChunk objects containing parsed nodes and edges
+     */
+    private async *readArrays(
+        jsonString: string | null,
+        rawNodes: unknown[],
+        rawEdges: unknown[],
+    ): AsyncGenerator<DataSourceChunk, void, unknown> {
         const idKey = this.nodeIdKey(rawNodes);
         const endpoints = this.endpointKeys(rawEdges);
+        // Unset before graph-io checks the ends, so an end the missing option names leaves out that
+        // edge alone (as a CSV row), rather than reaching the element with no end to resolve.
+        unsetMissing(rawNodes, this.opts.missing);
+        unsetMissing(rawEdges, this.opts.missing);
 
         // graph-io is handed only what it checks -- each record's id or endpoints -- plus the
         // record's position, and the records the element receives are the file's own, so every
@@ -379,7 +628,13 @@ export class JsonDataSource extends DataSource {
         const imported = await importRecords(
             jsonImporter,
             JSON.stringify({
-                nodes: idKey === null ? [] : rawNodes.map((node, row) => stub(node, row, [idKey])),
+                // A node with a null, empty or missing id is left out and counted by the load: nothing to check.
+                nodes:
+                    idKey === null
+                        ? []
+                        : rawNodes.flatMap((node, row) =>
+                              isObject(node) && (node[idKey] ?? "") === "" ? [] : [stub(node, row, [idKey])],
+                          ),
                 edges:
                     endpoints === null
                         ? []
@@ -401,7 +656,7 @@ export class JsonDataSource extends DataSource {
         aggregateErrors(imported.report, this.errorAggregator, JsonDataSource.type);
 
         // An edge naming a node the file never declared adds that node to the import, with no
-        // position; the element materialises such an endpoint itself, and has never been handed a
+        // position; the element materializes such an endpoint itself, and has never been handed a
         // record for it.
         const rowsOf = (records: readonly { data: Record<string, unknown> }[]): number[] =>
             records.flatMap(({ data }) => (typeof data[ROW_KEY] === "number" ? [data[ROW_KEY]] : []));
@@ -417,7 +672,7 @@ export class JsonDataSource extends DataSource {
                 ? rawEdges.filter((edge, index) => this.isValidEdge(edge, index))
                 : rowsOf(imported.edges).map((row) => rawEdges[row]);
 
-        if (idKey !== null && endpoints !== null && this.usesDefaultPaths()) {
+        if (jsonString !== null && idKey !== null && endpoints !== null && this.usesDefaultPaths()) {
             // The file's styles, read on demand from the whole document: its graph attributes hold
             // the block a graphty export writes, which the import above was not handed.
             const options = {
@@ -509,7 +764,7 @@ export class JsonDataSource extends DataSource {
      * reader for its dialect; every column becomes a key of the record.
      * @param text - the document
      * @param data - the parsed document
-     * @param dialect - the dialect it was recognised as
+     * @param dialect - the dialect it was recognized as
      * @yields DataSourceChunk objects containing the graph's nodes and edges
      */
     private async *readWhole(
@@ -628,6 +883,33 @@ export class JsonDataSource extends DataSource {
     }
 
     /**
+     * The keys the load names an edge's ends by: `edgeSrcIdPath`/`edgeDstIdPath`, else
+     * `edgeSource`/`edgeTarget`; null for an end it leaves to the records.
+     * @returns the two keys
+     */
+    private endsNamed(): { source: string | null; target: string | null } {
+        const { edgeSrcIdPath, edgeDstIdPath, edgeSource, edgeTarget } = this.opts;
+        return { source: edgeSrcIdPath ?? edgeSource ?? null, target: edgeDstIdPath ?? edgeTarget ?? null };
+    }
+
+    /**
+     * The session's configured end keys, when some record carries both (see KNOWN_ENDS).
+     * @param records - the collection's records
+     * @returns the two keys, or null
+     */
+    private knownEndsCarried(records: readonly unknown[]): { source: string; target: string } | null {
+        const known = KNOWN_ENDS.get(this);
+        if (known === undefined || (known.source === null && known.target === null)) {
+            return null;
+        }
+        const ends = this.endpointKeys(records, known);
+        return ends !== null &&
+            records.some((record) => isObject(record) && ends.source in record && ends.target in record)
+            ? ends
+            : null;
+    }
+
+    /**
      * The keys that name an edge's endpoints, when graph-io can read them.
      *
      * The spelling is the one the element itself would resolve (`src/data/endpoints.ts`): the
@@ -635,15 +917,18 @@ export class JsonDataSource extends DataSource {
      * record carries. Null when no key names them, or when a configured one is a JMESPath
      * expression rather than a key: the records then reach the element as the file wrote them.
      * @param edges - the edge records
+     * @param ends - the keys asked for, null for an end left to the records
+     * @param ends.source - the source key
+     * @param ends.target - the target key
      * @returns the two keys, or null
      */
-    private endpointKeys(edges: readonly unknown[]): { source: string; target: string } | null {
+    private endpointKeys(
+        edges: readonly unknown[],
+        ends: { source: string | null; target: string | null } = this.endsNamed(),
+    ): { source: string; target: string } | null {
         let resolved: { source: string; target: string };
         try {
-            resolved = resolveEndpoints(edges.filter(isObject), {
-                source: this.opts.edgeSrcIdPath ?? null,
-                target: this.opts.edgeDstIdPath ?? null,
-            });
+            resolved = resolveEndpoints(edges.filter(isObject), ends);
         } catch {
             return null;
         }

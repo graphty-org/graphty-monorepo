@@ -110,7 +110,7 @@ const ArrowStyle = z.strictObject({
     /**
      * More caps drawn in a row behind this one, as Graphviz draws `boxdotnormal` and `lteeoldiamond`: cap types
      * separated by spaces, nearest this one first, each drawn from where the one before it ends, pointing the same way,
-     * in this cap's colour and opacity; the line stops at the last. A type may be followed by `:left` or `:right` for
+     * in this cap's color and opacity; the line stops at the last. A type may be followed by `:left` or `:right` for
      * the half it keeps (as `side`), then `*` and its size (as `size`; unset, this cap's), then `x` and its width (as
      * `width`), then `o` and its outline width (as `outlineWidth`; unset, this cap's): `"dot normal"`,
      * `"open-diamond:left*1.2x0.7"`, `"tee open-diamond:lefto2"`. A word that is not a cap type draws nothing. Unset,
@@ -119,18 +119,18 @@ const ArrowStyle = z.strictObject({
      */
     stack: z.string().optional(),
     /**
-     * The colour to draw the cap in, or unset to follow the line it caps.
+     * The color to draw the cap in, or unset to follow the line it caps.
      *
      * NO DEFAULT, DELIBERATELY, and the absence is load-bearing. `Edge` draws a cap with
-     * `style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF"`, so an unset colour is how an
+     * `style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF"`, so an unset color is how an
      * arrow is told to follow its line -- and a default here fills one in whenever the arrow key
      * is present at all, which made that fallback unreachable for the head. With the head pinned
      * and the tail (optional, and absent from the element's defaults) unpinned, one magenta edge
-     * with caps at both ends was drawn with a magenta tail and a grey head.
+     * with caps at both ends was drawn with a magenta tail and a gray head.
      */
     color: ColorStyle.optional(),
     /**
-     * The colour an open cap's inside is filled with (open-normal, open-diamond, open-dot, open-inverted, open-box),
+     * The color an open cap's inside is filled with (open-normal, open-diamond, open-dot, open-inverted, open-box),
      * inside its outline, which stays in `color`: yEd's framed edges fill their arrowheads so. Unset, the inside is left
      * empty. Other cap types ignore it.
      */
@@ -195,9 +195,15 @@ const LineStyle = z.strictObject({
      */
     minScreenWidth: z.number().nonnegative().optional(),
     /**
+     * Which of two crossing lines is drawn on top: the higher, from 0 to 100. A line with none is drawn over every
+     * line with one, and lines with none keep the order they always had. A line drawn as a row of shapes (dots,
+     * stars, boxes) is not ordered.
+     */
+    drawOrder: z.number().min(0).max(100).optional(),
+    /**
      * How many pattern elements (dots, dashes, ...) to draw along a patterned edge.
      *
-     * Unset means "as many as the spacing rule asks for", which is the historical behaviour:
+     * Unset means "as many as the spacing rule asks for", which is the historical behavior:
      * the elements sit one and a half element-widths apart, so a longer edge gets more of
      * them and a THINNER line gets more of them too. Each element is a real mesh with its
      * own draw call, so on a large graph at a small line width that count can reach tens of
@@ -232,7 +238,8 @@ const LineStyle = z.strictObject({
     /**
      * How long each dash of a "dash" line is, in the line's own width units. Unset, 3. On a "dot" line with a
      * `dashGap`, the length of each dot in a program's pattern: the dot is still drawn round, one width across, and
-     * the dots repeat every `dashLength + dashGap` widths, as the program's do. Unset there, 1.
+     * the dots repeat every `dashLength + dashGap` widths, as the program's do; a dot shorter than 1 is drawn as a
+     * square-ended dash that long, as a disc that short would not show. Unset there, 1.
      * @experimental file-styles
      */
     dashLength: z.number().nonnegative().optional(),
@@ -244,7 +251,22 @@ const LineStyle = z.strictObject({
      * @experimental file-styles
      */
     dashGap: z.number().nonnegative().optional(),
+    /**
+     * A pattern of several dash lengths: dashes and gaps alternating from the line's start, in the line's own width
+     * units, separated by spaces or commas ("8 1 2 1" draws a dash 8 widths long, a gap of 1, a dash of 2 and a gap of
+     * 1, then repeats). An odd count is repeated once, as an SVG dash array is; up to 8 numbers are drawn. Set on a
+     * "dash", "dot" or "dash-dot" line, the line is drawn as these square-ended dashes in place of its own elements,
+     * `dashLength`, `dashGap` and `patternCount`; unset, or on any other line type, it changes nothing.
+     * @experimental file-styles
+     */
+    dashArray: z.string().optional(),
     color: ColorStyle.optional(),
+    /**
+     * Draw the line in the color the style layers painted one of its nodes: "source" its source node's, "target" its
+     * target node's, in place of `color`. Kept current: a later layer that recolors the node recolors the line. An end
+     * node no layer colored leaves the line its own `color`. "none", or unset, draws the line in `color`.
+     */
+    colorFrom: z.enum(["source", "target", "none"]).optional(),
     opacity: z.number().min(0).max(1).optional(),
     /**
      * Fade the line with its length on screen, in CSS pixels (cosmos.gl's
@@ -319,6 +341,23 @@ const LineStyle = z.strictObject({
             kind: z.enum(["linear", "radial", "none"]).optional(),
         })
         .optional(),
+    /**
+     * Draw the line as parallel strands side by side, one per color, in place of its `color` (Graphviz's color list
+     * with no fractions, `color="red:green:blue"`): `colors` are CSS colors separated by spaces, the first strand on
+     * the right of the line's direction from its source to its target and the last on its left, each drawn over the
+     * one before; `spacing` is how far apart the strands' middles are, in the line's own width units (unset, 1:
+     * strands that touch). Each strand is as wide as the line. Fewer than two colors draw the line as it is. Drawn
+     * on solid lines; in 3D the strands are laid apart in the layout's plane.
+     * @experimental file-styles
+     */
+    strands: z
+        .strictObject({
+            /** The strands' CSS colors, separated by spaces, first on the right. */
+            colors: z.string().optional(),
+            /** How far apart the strands' middles are, in the line's width units (unset, 1). */
+            spacing: z.number().nonnegative().optional(),
+        })
+        .optional(),
     bezier: z.boolean().optional(),
     /**
      * The points the line passes through between its two nodes, as `along,across` pairs separated
@@ -332,6 +371,11 @@ const LineStyle = z.strictObject({
     bends: z.string().optional(),
     /** The width at the target as a multiple of the width at the source; 1 draws no taper. */
     taper: z.number().min(0).max(4).optional(),
+    /**
+     * The width at the source as a multiple of the line's width; 1 draws no taper there. When it and `taper` are both
+     * below 1, the line is its full width at the middle and narrows straight to each end.
+     */
+    taperSource: z.number().min(0).max(4).optional(),
     /** How far the route's middle rises out of a flat layout's plane in the 3D view, world units. */
     lift: z.number().optional(),
     /**
@@ -487,7 +531,7 @@ export const EdgeStyle = z.strictObject({
     xlabel: RichTextStyle.optional(),
     /**
      * A wider line drawn behind the edge's own, as a casing: the selection look, as a style.
-     * Drawn only when it names a colour. `scale` is a multiple of twice the line's width; the
+     * Drawn only when it names a color. `scale` is a multiple of twice the line's width; the
      * `edge.band*` channels write it.
      */
     band: z

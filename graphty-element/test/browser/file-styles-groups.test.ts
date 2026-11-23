@@ -5,8 +5,12 @@
  */
 import "../../src/graphty-element";
 
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { afterEach, assert, describe, test } from "vitest";
 
+import voctomixUrl from "../../../graph-io/test/corpus/styles/graphml/yed-shapenode/voc__voctomix__schema.graphml?url";
 import type { Graphty } from "../../index.js";
 import { readDrawn } from "../fidelity/drawn-scene";
 import { occluders } from "../fidelity/extract-scene";
@@ -73,7 +77,31 @@ describe("a file's groups in 2D", () => {
     });
 });
 
-/** A group with no position of its own around two members set far apart, every node bordered and labelled. */
+describe("a file's groups at their stored positions in 3D", () => {
+    test("are drawn flat behind their members, hiding none of them", async () => {
+        // yEd stores each group's box: the groups keep it, at their members' depth, and are drawn
+        // as flat regions as thick as the file's flat shapes, so only the z-index puts them behind
+        const element = document.createElement("graphty-element");
+        element.style.cssText = "display:block;width:800px;height:600px";
+        document.body.appendChild(element);
+        mounted = element;
+        await element.updateComplete;
+        await element.session.data.import(
+            { type: "graphml", config: { url: voctomixUrl } },
+            { styles: "file", layout: "recommended" },
+        );
+        await element.waitForSettled();
+        await element.session.styles.settled();
+        await element.waitForStableFrame();
+
+        assert.strictEqual(element.viewMode, "3d");
+        assert.strictEqual(element.layout, "fixed");
+        const drawn = readDrawn(element.graph);
+        assert.deepEqual([...occluders(drawn.nodes)], [], "no node is hidden behind another");
+    });
+});
+
+/** A group with no position of its own around two members set far apart, every node bordered and labeled. */
 const STRETCHED = JSON.stringify({
     elements: [
         { data: { id: "g" } },
@@ -143,5 +171,57 @@ describe("a group stretched over its members' box", () => {
             "the group's border is as wide as a member's",
         );
         assert.closeTo(group.label, member.label, member.label * 0.05, "the group's label is as tall as a member's");
+    });
+});
+
+/**
+ * How far in from its sides a mesh's top edge starts, in the scene: a rounded corner's reach along the top.
+ * @param mesh - The mesh.
+ * @returns The corner's reach, and the mesh's width.
+ */
+function cornerReach(mesh: AbstractMesh): { reach: number; width: number } {
+    mesh.computeWorldMatrix(true);
+    const world = mesh.getWorldMatrix();
+    const local = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+    const points: Vector3[] = [];
+    for (let i = 0; i < local.length; i += 3) {
+        points.push(Vector3.TransformCoordinates(new Vector3(local[i], local[i + 1], local[i + 2]), world));
+    }
+    const xs = points.map((p) => p.x);
+    const width = Math.max(...xs) - Math.min(...xs);
+    const top = Math.max(...points.map((p) => p.y));
+    const edge = points.filter((p) => top - p.y < width * 1e-4).map((p) => p.x);
+    return { reach: (width - (Math.max(...edge) - Math.min(...edge))) / 2, width };
+}
+
+describe("a rounded group stretched over its members' box", () => {
+    test("draws its fill's corners as round as its border's, not stretched with the box (#8194)", async () => {
+        const element = document.createElement("graphty-element");
+        element.style.cssText = "display:block;width:800px;height:600px";
+        element.viewMode = "2d";
+        document.body.appendChild(element);
+        mounted = element;
+        await element.updateComplete;
+        await element.session.data.import(
+            { type: "json", config: { data: STRETCHED.replaceAll('"rectangle"', '"round-rectangle"') } },
+            { styles: "file", layout: "recommended" },
+        );
+        await element.waitForSettled();
+        await element.session.styles.settled();
+        await element.waitForStableFrame();
+
+        const node = element.graph.getDataManager().nodes.get("g");
+        assert.isDefined(node);
+        const ring = node.mesh.getChildMeshes().find((mesh) => mesh.name.startsWith("node-border") && mesh.isEnabled());
+        assert.isDefined(ring, "the group has a border");
+        const drawnFill = cornerReach(node.mesh);
+        const drawnRing = cornerReach(ring);
+        assert.isAbove(drawnRing.reach, 0, "the border's corners are round");
+        assert.closeTo(
+            drawnFill.reach,
+            drawnRing.reach,
+            drawnRing.reach * 0.5 + (drawnRing.width - drawnFill.width) / 2,
+            "the fill's corner reaches as far along the top as the border's",
+        );
     });
 });

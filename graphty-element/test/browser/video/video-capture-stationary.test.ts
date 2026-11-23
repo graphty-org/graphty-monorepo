@@ -68,7 +68,7 @@ test("fires animation-progress events", async () => {
 
     graph.on("animation-progress", (event) => {
         assert.isNumber(event.progress);
-        progressEvents.push(Number(event.progress));
+        progressEvents.push(event.progress);
     });
 
     await graph.captureAnimation({
@@ -241,23 +241,23 @@ test("supports cancellation", async () => {
     assert.ok(graph.isAnimationCapturing(), "Should be capturing before cancel");
 
     // Cancel and check return value
-    const wasCancelled = graph.cancelAnimationCapture();
-    assert.ok(wasCancelled, "cancelAnimationCapture should return true when cancelling active capture");
+    const wasCanceled = graph.cancelAnimationCapture();
+    assert.ok(wasCanceled, "cancelAnimationCapture should return true when canceling active capture");
 
     // Should no longer be capturing
     assert.equal(graph.isAnimationCapturing(), false, "Should not be capturing after cancel");
 
-    // Cancelling again should return false
+    // Canceling again should return false
     const secondCancel = graph.cancelAnimationCapture();
     assert.equal(secondCancel, false, "Second cancel should return false");
 
-    // Should throw or reject with AnimationCancelledError
+    // Should throw or reject with AnimationCanceledError
     try {
         await capturePromise;
         assert.fail("Should have thrown cancellation error");
     } catch (error) {
         assert.ok(error instanceof Error);
-        assert.equal(error.name, "AnimationCancelledError", "Error should be AnimationCancelledError");
+        assert.equal(error.name, "AnimationCanceledError", "Error should be AnimationCanceledError");
         assert.ok(error.message.includes("cancel"), "Error message should mention cancellation");
     }
 

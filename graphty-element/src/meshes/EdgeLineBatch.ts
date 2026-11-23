@@ -23,7 +23,7 @@ import { discreteMeshCount } from "./PatternedLineMesh";
 /** Floats in one 4x4 world matrix, which is what a thin-instance slot holds. */
 const FLOATS_PER_MATRIX = 16;
 
-/** Floats in one slot of a plain batch: the piece and its neighbours (see `edgeJoinShader`). */
+/** Floats in one slot of a plain batch: the piece and its neighbors (see `edgeJoinShader`). */
 const FLOATS_PER_SLOT = JOIN_FLOATS_PER_PIECE;
 
 /** Slots a new batch starts with, before the first doubling. */
@@ -53,6 +53,42 @@ const batchMeshes = new WeakSet<Mesh>();
  */
 export function markEdgeLineBatchMesh(mesh: Mesh): void {
     batchMeshes.add(mesh);
+}
+
+/**
+ * Where a batch of edge lines with a draw order is drawn (Babylon draws a lower `alphaIndex` first): after the node
+ * surfaces (`NodeBillboardBatch`, 1e8), before the edge shaders' lines (`EdgeEffectBatch`, 1e9) and every edge batch
+ * that keeps the default, lowest order first.
+ */
+const EDGE_ORDER_ALPHA_INDEX = 1e9 - 1000;
+
+/**
+ * Draw a batch of edge lines after every batch of a lower `line.drawOrder` and before every edge batch with none, so
+ * where two lines cross at one depth the higher order is on top. The blended pass draws by `alphaIndex`, and the
+ * opaque pass orders the edge batches by it too (`Graph.#drawOverMap`). A batch with no order keeps the default, so a
+ * graph that sets none is drawn as it always was.
+ * @param mesh - The batch's mesh.
+ * @param drawOrder - Its lines' draw order, or undefined for none.
+ */
+export function stackByDrawOrder(mesh: Mesh, drawOrder: number | undefined): void {
+    if (drawOrder !== undefined) {
+        mesh.alphaIndex = EDGE_ORDER_ALPHA_INDEX + drawOrder;
+        drawOrdered.add(mesh);
+    }
+}
+
+/** The batch meshes {@link stackByDrawOrder} has given an order. */
+const drawOrdered = new WeakSet();
+
+/**
+ * Where an edge batch is drawn among the edge batches: its {@link stackByDrawOrder} place, or Infinity for one with
+ * no order, which keeps the order it always had.
+ * @param mesh - The mesh.
+ * @param mesh.alphaIndex - Its blended-pass place.
+ * @returns The place, lowest drawn first.
+ */
+export function edgeDrawPlace(mesh: { readonly alphaIndex: number }): number {
+    return drawOrdered.has(mesh) ? mesh.alphaIndex : Infinity;
 }
 
 /**
@@ -96,6 +132,8 @@ export interface EdgeLineMeta {
         elementLength: number;
         count?: number | undefined;
         gap?: number | undefined;
+        /** Dashes and gaps of several lengths (`line.dashArray`, world units), repeating every `elementLength + gap`. */
+        dashes?: readonly number[] | undefined;
     };
     /**
      * A joined line drawn with a shader or a taper (`edgeJoinShader`'s `EDGE_WIDENED`): each slot
@@ -478,7 +516,7 @@ export class EdgeLineBatch {
 
     /**
      * Take a slot drawn exactly as a slot of another batch is drawn: its placement copied, not
-     * placed again. What an edge whose colour or opacity changed takes, because those are its
+     * placed again. What an edge whose color or opacity changed takes, because those are its
      * batch's and nothing about where it is drawn moved.
      * @param from - The batch the edge is drawn in now.
      * @param index - Its slot there, which the caller releases afterwards.
@@ -1146,7 +1184,7 @@ export class EdgeLineBatch {
     }
 
     /**
-     * The dash or dot spacing for an edge of one length: the centre-to-centre distance that puts
+     * The dash or dot spacing for an edge of one length: the center-to-center distance that puts
      * the first element at the start and the last at the end, as `PatternedLineMesh` places its
      * elements on a straight line. 0 for a solid line.
      * @param length - The edge's length along its pieces.
@@ -1213,7 +1251,7 @@ export class EdgeLineBatch {
     }
 
     /**
-     * Write one piece of a run from points in a flat array. Its neighbours are the pieces either
+     * Write one piece of a run from points in a flat array. Its neighbors are the pieces either
      * side; the first piece's previous corner is its own start and the last's next corner its own
      * end, which the shader draws as a square end. The corner two pieces back is the previous
      * corner when there is none, and the corner two ahead the next corner. See

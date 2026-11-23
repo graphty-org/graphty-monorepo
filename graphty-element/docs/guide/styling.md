@@ -216,14 +216,15 @@ await element.session.styles.add({
 A path that starts `graphty.` reads a value the element itself provides, not a column of your
 data:
 
-| Path                                        | Value                                                                                                                     |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `graphty.notes.count`                       | How many notes name a node or an edge; no value when none do                                                              |
-| `graphty.notes.latest`                      | The text of the newest of those notes                                                                                     |
-| `graphty.notes.latestTime`                  | The `time` of the newest of those notes                                                                                   |
-| `graphty.degree`                            | How many edges a node has, as the graph stands now; no value on an edge                                                   |
-| `graphty.inDegree`, `graphty.outDegree`     | How many edges reach a node, and how many leave it                                                                        |
-| `graphty.style.<format>.<node\|edge>.<key>` | A value a load with `styles: "file"` wrote for the element; see [Styles from Files](./file-styles#values-the-load-writes) |
+| Path                                        | Value                                                                                                                                   |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `graphty.notes.count`                       | How many notes name a node or an edge; no value when none do                                                                            |
+| `graphty.notes.latest`                      | The text of the newest of those notes                                                                                                   |
+| `graphty.notes.latestTime`                  | The `time` of the newest of those notes                                                                                                 |
+| `graphty.degree`                            | How many edges a node has, as the graph stands now; no value on an edge                                                                 |
+| `graphty.inDegree`, `graphty.outDegree`     | How many edges reach a node, and how many leave it                                                                                      |
+| `graphty.members`                           | How many nodes a group holds directly; no value on a node that holds none. See [Groups](./data-sources#groups-nodes-inside-other-nodes) |
+| `graphty.style.<format>.<node\|edge>.<key>` | A value a load with `styles: "file"` wrote for the element; see [Styles from Files](./file-styles#values-the-load-writes)               |
 
 They work in a layer's `selector` and in a binding's `by`. A label or tooltip bound to one is drawn
 as literal text: a note reading `<bold>x</bold>` shows the tags, never bold text. See
@@ -322,6 +323,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.color`                  | any CSS color                                                                                                    |
 | `edge.width`                  | 0 or more; 0 draws no line (the caps and label still draw)                                                       |
 | `edge.opacity`                | 0 to 1                                                                                                           |
+| `edge.drawOrder`              | 0 to 100: which of two crossing lines is drawn on top                                                            |
 | `edge.fadeEnd`                | CSS pixels: a line this long on screen or longer draws at `edge.fadeOpacity` times its opacity; unset, no fade   |
 | `edge.fadeStart`              | CSS pixels: a line this long on screen or shorter does not fade (0)                                              |
 | `edge.fadeOpacity`            | 0 to 1: what the fade multiplies the longest lines' opacity by (0.25)                                            |
@@ -479,15 +481,24 @@ Edges end at their outline.
 In a 2D view, `node.zIndex` puts a node behind the rest of the drawing: a node below 0 is drawn
 behind every edge and every node with a higher value, so a group (compound) node at -1 never
 hides the nodes inside it, and an outer group at -2 stays behind an inner one. Loading a file
-with `styles: "file"` sets it on the file's group nodes. A 3D view draws by real depth and
-ignores it.
+with `styles: "file"` sets it on the file's group nodes. A 3D view moves a flat shape (a
+rectangle, an ellipse, any `node.planar` node) back the same way, so a flat group is drawn
+behind its members there too, and draws a solid shape by real depth.
 
 `node.drawOrder` decides which of two overlapping nodes is drawn on top in a 2D view: the one with
 the higher value, from 0 to 100. A node with a draw order is drawn in front of every edge and of
 every node without one; a node without one is drawn as before. Loading a file with
-`styles: "file"` sets it from the file's own order, so a node later in the file is drawn on top,
-as the program that wrote it draws it. Each distinct value is its own source mesh, so use a few
+`styles: "file"` sets it as the program that wrote the file stacks its nodes: by Cytoscape's
+stored `z` (XGMML, CX, CX2 and sessions) or Cytoscape.js's `z-index` where the file has one, and
+otherwise by the file's own order, a node later in the file on top. Each distinct value is its own source mesh, so use a few
 levels on a large graph. A 3D view draws by real depth and ignores it.
+
+`edge.drawOrder` decides which of two crossing lines is drawn on top: the one with the higher value, from 0 to 100.
+A line without one is drawn over every line with one, and lines without one keep the order they always had, so give
+every line that may cross a value. Loading a Cytoscape.js file with `styles: "file"` sets it on every edge from the
+file's `z-index` where its edges have different ones, a later edge on top among equal ones. It orders lines among
+lines only: a node is never hidden behind a line by it. A line drawn as a row of shapes (dots, stars, boxes) is
+not ordered.
 
 The numbers behind the default look -- the default edge width
 (`EDGE_CONSTANTS.DEFAULT_LINE_WIDTH`), arrow sizes, line pattern spacing and node shape

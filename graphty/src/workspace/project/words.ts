@@ -1,6 +1,6 @@
 /** The words Recent projects shows for an entry, and why a load did not open. */
 
-import { type CodedFactParam, isGraphtyError } from "@graphty/graphty-element/session";
+import { type CodedFact, type CodedFactParam, isGraphtyError } from "@graphty/graphty-element/session";
 
 import { codeWords } from "../server/words";
 import { formatCount } from "../settings/numberFormat";
@@ -114,7 +114,7 @@ function tooLarge(details: Details): string {
 }
 
 /** Why a load did not open, by the element's code (graph-io's arrive as these): a clause after "could not be opened: ". */
-const LOAD_REASONS: Readonly<Record<string, (details: Details) => string>> = {
+const LOAD_REASONS: Readonly<Partial<Record<string, (details: Details) => string>>> = {
     E_UNKNOWN_FORMAT: () => "graphty cannot tell what kind of file it is",
     E_BAD_DOCUMENT: () => "it is not a graphty project file",
     E_UNSUPPORTED_VERSION: () => "it was saved by a newer graphty; update graphty to open it",
@@ -154,7 +154,7 @@ const LOAD_REASONS: Readonly<Record<string, (details: Details) => string>> = {
 };
 
 /** Why a join choice was refused (`E_BAD_COMMAND` with a `reason`), by that reason. */
-const COMMAND_REASONS: Readonly<Record<string, (details: Details) => string>> = {
+const COMMAND_REASONS: Readonly<Partial<Record<string, (details: Details) => string>>> = {
     "unknown-column": (details) => {
         const column = text(details.column);
         return column === undefined ? "the table has no such column" : `the table has no column ${column}`;
@@ -215,4 +215,52 @@ export function errorWords(lead: string, error: unknown): string {
  */
 export function notReadWords(name: string, error: unknown, verb: "opened" | "added"): string {
     return errorWords(`${name} could not be ${verb}`, error);
+}
+
+/** Why a data source cannot be kept as a reference, by graphty-element's reason (`W_SOURCE_NO_PATH`). */
+const NO_PATH_WORDS: Readonly<Record<string, string>> = {
+    file: "Local file",
+    inline: "Pasted rows",
+    join: "Joined table",
+    "secret-url": "Private address",
+    "relative-url": "Not a web address",
+    "no-seed": "No seed",
+};
+
+/**
+ * Why a data source cannot be kept as a reference, as a short label beside its choice.
+ * @param reason - graphty-element's reason (an open union).
+ * @returns the label; an unknown reason shows as itself.
+ */
+export function noPathWords(reason: string): string {
+    return NO_PATH_WORDS[reason] ?? reason;
+}
+
+/** Why a reference could not be read again, by graphty-element's reason (`W_SOURCE_UNAVAILABLE`). */
+const UNAVAILABLE_WORDS: Readonly<Record<string, string>> = {
+    "not-found": "not found",
+    denied: "not allowed",
+    unreadable: "could not be read",
+};
+
+/**
+ * What became of a data source kept as a reference, in a sentence naming it, from graphty-element's
+ * `W_SOURCE_UNAVAILABLE` or `W_SOURCE_CHANGED`.
+ * @param fact - the element's fact.
+ * @param fact.code - its code.
+ * @param fact.params - its parameters.
+ * @param name - the source's name.
+ * @param saving - true for a save's report (the source was kept as a copy), false for an open's.
+ * @returns the sentence, or undefined for any other code.
+ */
+export function referenceWords({ code, params }: CodedFact, name: string, saving: boolean): string | undefined {
+    if (code === "W_SOURCE_CHANGED") {
+        return `${name} changed since it was saved.`;
+    }
+    if (code !== "W_SOURCE_UNAVAILABLE") {
+        return undefined;
+    }
+    const reason = typeof params.reason === "string" ? (UNAVAILABLE_WORDS[params.reason] ?? params.reason) : "";
+    const why = reason === "" ? "" : ` (${reason})`;
+    return saving ? `${name} was saved as a copy${why}.` : `${name} could not be read again${why}.`;
 }

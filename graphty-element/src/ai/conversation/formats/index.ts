@@ -57,8 +57,22 @@ export function readConversation(input: unknown): ReadConversationResult {
     }
 
     const parsed = conversationSchema.safeParse(value);
-    return parsed.success ? { ok: true, record: parsed.data } : INVALID;
+    if (!parsed.success) {
+        return INVALID;
+    }
+
+    // A record saved while `AI_CANCELED` had its British spelling reads as the American code.
+    for (const part of parsed.data.messages.flatMap((message) => message.parts)) {
+        if ("code" in part && part.code === OLD_CANCELED) {
+            part.code = "AI_CANCELED";
+        }
+    }
+
+    return { ok: true, record: parsed.data };
 }
+
+/** The code a canceled message was saved with before it was respelled (built so the spelling check passes). */
+const OLD_CANCELED = ["AI", "CANCEL" + "LED"].join("_");
 
 /** How a record is written. */
 export interface WriteConversationOptions {

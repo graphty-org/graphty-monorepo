@@ -36,7 +36,7 @@ import type { DrawnAnnotation } from "../annotations";
 import type { SessionCommand } from "../planning";
 import type { ImportSource } from "./data";
 
-/** A layer writing one fixed colour, for the colour replacement door. */
+/** A layer writing one fixed color, for the color replacement door. */
 const DOOR_RED: LayerSpec = {
     name: "door red",
     target: "node",
@@ -452,6 +452,7 @@ const REPLACE_SOURCE_STEPS: readonly SessionCommand[] = [
         source: DOOR_REPLACE_SOURCE,
         tables: ["door-ships-2.csv"],
         tableRows: ["edges"],
+        delimiter: { value: ",", detected: true },
         mode: "merge",
         held: {
             // An edge table's ends get node rows of their own, so the nodes they make are drawn.
@@ -494,6 +495,7 @@ const RELOAD_SOURCE_STEPS: readonly SessionCommand[] = [
         source: DOOR_SHIPS_SOURCE,
         tables: ["door-ships.csv"],
         tableRows: ["edges"],
+        delimiter: { value: ",", detected: true },
         mode: "merge",
         held: {
             nodes: [{ id: "r1" }, { id: "r2" }, { id: "r3" }],
@@ -748,6 +750,16 @@ const LOAD_FROM_FILE = calls(
     ],
 );
 
+/** A source-steps write: refused while the experiment is off, a `data.steps-set` step while it is on. */
+const SOURCE_STEPS_WRITE = exempt(
+    "Experimental (source-steps): refused with E_FEATURE_OFF while the experiment is off, as on every session " +
+        "the door rows run on; with it on it dispatches the undoable data.steps-set, covered by GESTURE_DOORS.",
+);
+/** A source draft's act: held in the draft, which no project file saves, until its commit. */
+const DRAFT_ACT = exempt(
+    "Experimental (source-steps): changes only the draft, which no project file saves and no step records; " +
+        "its commit is the one step.",
+);
 const CAMERA = exempt("The camera is view state, not saved in a project file.");
 const XR = exempt("An XR device session is view state, not saved in a project file.");
 const SELECTION = exempt("Selection is not a step; undo and redo select what they changed instead.");
@@ -756,6 +768,19 @@ const LIFECYCLE = exempt("Lifecycle of the element or a part of it; the history 
 const PROFILING = exempt("Profiling measures the renderer; it changes nothing a project file saves.");
 const MACHINE = exempt("A preference about this machine's hardware, not about the graph.");
 const CAPTURE = exempt("A capture reads the picture; it changes nothing.");
+
+/** What adding, removing or naming a model file is about undo. */
+const ASSET_FILES = exempt(
+    "Model files are kept beside the project, not in it: they are not commands, so adding or removing one is no step and no recipe entry, and limits and hosts are the page's own settings.",
+);
+
+/** The model the doors test gives settings to. */
+const DOOR_MODEL = "asset:door-model";
+
+/** One triangle as an ASCII STL: the smallest model `session.assets` accepts. */
+const DOOR_STL = new TextEncoder().encode(
+    "solid door\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid door\n",
+);
 const PREVIEW = exempt(
     "A model preview draws in a canvas and scene of its own; it changes nothing a project file saves.",
 );
@@ -768,6 +793,22 @@ export const RENDER = exempt(
 const HISTORY = exempt("Moves through the history or groups commands into a step; it is not a step itself.");
 const INPUT = exempt("Input handling and input preferences; the gestures it drives are doors of their own.");
 const IN_FLIGHT = exempt("Stops or pauses work in flight; work in flight is not saved.");
+
+/** The picture, model-check and animation-capture members the element and its graph both expose. */
+const CAPTURE_DOORS: Readonly<Record<string, Door>> = {
+    nodeThumbnail: CAPTURE,
+    modelThumbnail: CAPTURE,
+    modelPreview: CAPTURE,
+    checkModel: READ,
+    canCaptureScreenshot: READ,
+    captureAnimation: CAPTURE,
+    cancelAnimationCapture: CAPTURE,
+    stopAnimationCapture: CAPTURE,
+    cancelCameraAnimation: IN_FLIGHT,
+    playTour: CAMERA,
+    isAnimationCapturing: READ,
+    estimateAnimationCapture: READ,
+};
 const VIEW_SETTING = exempt("A rendering preference of this view, not saved in a project file.");
 const WORKING_GRAPH = exempt(
     "Which part of the graph readers read when they name none; a session setting, not saved in a project file.",
@@ -963,6 +1004,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     styles: READ,
     shaders: READ,
     views: READ,
+    tours: READ,
+    graphs: READ,
     annotations: READ,
     layout: READ,
     positions: READ,
@@ -990,6 +1033,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     canRedo: READ,
     history: READ,
     project: READ,
+    recipes: READ,
+    files: READ,
     transaction: HISTORY,
     estimate: READ,
     // Measures this machine for cost estimates; changes nothing a project file saves.
@@ -1059,12 +1104,18 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
 };
 
 /**
- * A door that changes the one condition `c1` (keep degree at least 1), which it adds first.
+ * A door that changes the conditions it adds first: by default the one condition `c1` (keep
+ * degree at least 1).
  * @param args - The arguments.
  * @param conditions - The conditions the call must leave.
+ * @param setup - The conditions added first.
  * @returns The door.
  */
-function conditionDoor(args: readonly unknown[], conditions: readonly unknown[]): Door {
+function conditionDoor(
+    args: readonly unknown[],
+    conditions: readonly unknown[],
+    setup: readonly unknown[] = [{ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }],
+): Door {
     return {
         kind: "dispatches",
         op: "visibility.conditions",
@@ -1073,7 +1124,7 @@ function conditionDoor(args: readonly unknown[], conditions: readonly unknown[])
             args,
             around: async (target) => {
                 const visibility = target as { setConditions(list: unknown[]): Promise<unknown> };
-                await visibility.setConditions([{ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }]);
+                await visibility.setConditions([...setup]);
                 return async () => visibility.setConditions([]);
             },
         },
@@ -1099,6 +1150,7 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     ),
     showContext: assigns(true, [{ op: "visibility.context", show: true }]),
     notDrawn: READ,
+    held: READ,
     steps: READ,
     setSteps: calls(
         [[{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }]],
@@ -1129,6 +1181,18 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     ),
     removeCondition: conditionDoor(["c1"], []),
     conditionCounts: READ,
+    moveStep: conditionDoor(
+        ["c2", 0],
+        [
+            { id: "c2", on: true, effect: "exclude", rule: { kind: "degree", min: 3 } },
+            { id: "c1", on: true, effect: "keep", rule: { kind: "degree", min: 1 } },
+        ],
+        [
+            { id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } },
+            { id: "c2", effect: "exclude", rule: { kind: "degree", min: 3 } },
+        ],
+    ),
+    stepCounts: READ,
     // Opening a draft writes nothing; its commit is `addCondition` or `updateCondition`.
     draft: READ,
 };
@@ -1340,7 +1404,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     parts: READ,
     colors: READ,
     grayCollisions: READ,
-    // One fixed colour written by a layer the call sets up; the swap is one update of it.
+    // One fixed color written by a layer the call sets up; the swap is one update of it.
     replaceColor: {
         kind: "dispatches",
         op: "style.patch",
@@ -1452,6 +1516,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     lockRow: calls(["no-such-row", true], [{ op: "style.patch", action: "lockRow", id: "no-such-row", locked: true }]),
     hideRow: calls(["no-such-row", true], [{ op: "style.patch", action: "hideRow", id: "no-such-row", hidden: true }]),
     deleteRow: calls(["no-such-row"], [{ op: "style.patch", action: "deleteRow", id: "no-such-row" }]),
+    duplicateRow: calls(["no-such-row"], [{ op: "style.patch", action: "duplicateRow", id: "no-such-row" }]),
     toFile: READ,
     setDefaultPalettes: PALETTE_DEFAULTS,
     setHighlightColor: HIGHLIGHT_DEFAULT,
@@ -1459,7 +1524,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
 
 /**
  * What applying the suggested styles of `degree` on the doors tests' small graph dispatches: the
- * run's suggested colour, in the call's one step. An unnamed degree run is named after its
+ * run's suggested color, in the call's one step. An unnamed degree run is named after its
  * algorithm, so the id is "degree" on every such graph.
  */
 const DEGREE_ENCODE: SessionCommand = {
@@ -1595,6 +1660,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             globeLook: VIEW_SETTING,
             cameraTransitionDuration: CAMERA,
             reducedMotion: VIEW_SETTING,
+            colorScheme: VIEW_SETTING,
             startingCameraDistance: CAMERA,
             autoFrame: CAMERA,
             zoomToPointer: CAMERA,
@@ -1605,17 +1671,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             xr: XR,
             captureScreenshot: CAPTURE,
             exportFigure: CAPTURE,
-            nodeThumbnail: CAPTURE,
-            modelThumbnail: CAPTURE,
-            modelPreview: CAPTURE,
-            canCaptureScreenshot: READ,
-            captureAnimation: CAPTURE,
-            cancelAnimationCapture: CAPTURE,
-            stopAnimationCapture: CAPTURE,
-            cancelCameraAnimation: IN_FLIGHT,
-            playTour: CAMERA,
-            isAnimationCapturing: READ,
-            estimateAnimationCapture: READ,
+            ...CAPTURE_DOORS,
+            planTour: READ,
             getViewMode: READ,
             setViewMode: calls(["2d"], [DIMENSION_2D]),
             isVRSupported: READ,
@@ -1702,6 +1759,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getXRConfig: READ,
             exitXR: XR,
             resolveCameraPreset: READ,
+            viewProblem: READ,
+            getCanvasSize: READ,
+            isMotionReduced: READ,
             applyCameraView: CAMERA,
             setInputEnabled: INPUT,
             shutdown: LIFECYCLE,
@@ -1795,6 +1855,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pinOnDrag: INPUT,
             fetchNodes: HOST_HOOK,
             fetchEdges: HOST_HOOK,
+            fetchNeighborEdges: HOST_HOOK,
             initialized: LIFECYCLE,
             runAlgorithmsOnLoad: assigns(false, [{ op: "config.set", values: { runAlgorithmsOnLoad: false } }]),
             enableDetailedProfiling: PROFILING,
@@ -1829,6 +1890,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setCameraTransitionDuration: CAMERA,
             getReducedMotion: READ,
             setReducedMotion: VIEW_SETTING,
+            getColorScheme: READ,
+            setColorScheme: VIEW_SETTING,
             setSelectionStyle: calls(
                 [{ color: "#00ff00" }],
                 [{ op: "config.set", values: { selectionStyle: { color: "#00ff00" } } }],
@@ -1995,17 +2058,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             waitForStableFrame: READ,
             waitForPainted: READ,
             captureScreenshot: CAPTURE,
-            nodeThumbnail: CAPTURE,
-            modelThumbnail: CAPTURE,
-            modelPreview: CAPTURE,
-            canCaptureScreenshot: READ,
-            captureAnimation: CAPTURE,
-            cancelAnimationCapture: CAPTURE,
-            stopAnimationCapture: CAPTURE,
-            cancelCameraAnimation: IN_FLIGHT,
-            playTour: CAMERA,
-            isAnimationCapturing: READ,
-            estimateAnimationCapture: READ,
+            ...CAPTURE_DOORS,
+            planTour: READ,
+            replaceTour: CAMERA,
+            applyCaptureCamera: CAMERA,
             getCameraState: READ,
             setCameraState: CAMERA,
             setCameraPosition: CAMERA,
@@ -2019,6 +2075,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             zoomToSelection: CAMERA,
             zoomToNodes: CAMERA,
             resolveCameraPreset: READ,
+            viewProblem: READ,
+            getCanvasSize: READ,
+            isMotionReduced: READ,
             applyCameraView: CAMERA,
             saveCameraPreset: calls(
                 ["door view", { zoom: 2 }],
@@ -2135,6 +2194,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             paintedColor: READ,
             borderReach: READ,
             borderReachAlong: READ,
+            screenBorder: READ,
             framingBounds: READ,
             drawnHalfExtents: READ,
             surfaceIsBox: READ,
@@ -2223,11 +2283,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             refreshShaderPaint: RENDER,
             shaderDataChanged: RENDER,
             drawnPattern: READ,
+            drawnCenter: READ,
             drawnCentre: READ,
             drawnCaps: READ,
             arrowHeadStackCaps: READ,
             arrowTailStackCaps: READ,
             drawnGradient: READ,
+            drawnStrands: READ,
             invalidatePositionCache: RENDER,
             update: RENDER,
             updateStyle: RENDER,
@@ -2250,6 +2312,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             togglesOwnMeshes: READ,
             columnEnd: READ,
             endRow: READ,
+            batchEndRow: READ,
+            endDrawnAsGroup: READ,
         },
     },
     {
@@ -2269,6 +2333,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             publishModelChange: EVENTS,
             emptyClick: EVENTS,
             elementClick: EVENTS,
+            cameraGestureEnd: EVENTS,
             groupOutlineClick: EVENTS,
             layoutMotion: EVENTS,
         },
@@ -2287,7 +2352,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             status: READ,
             progress: READ,
             determinate: READ,
-            cancellable: READ,
+            cancelable: READ,
             queuePosition: READ,
             startedAt: READ,
             durationMs: READ,
@@ -2302,7 +2367,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             record: READ,
             journalId: READ,
             cancel: IN_FLIGHT,
-            // Called on a run the doors test has already cancelled, so there is something to redo.
+            // Called on a run the doors test has already canceled, so there is something to redo.
             rerun: calls([], [RUN_DEGREE]),
             suggestEncodings: READ,
         },
@@ -2433,6 +2498,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             steppedPublishes: READ,
             reducedMotion: VIEW_SETTING,
             drawingHeld: READ,
+            // Asked by the frame loop once a frame: the frame after a switch to 2D flattened the arrangement takes no step.
+            takeFrameHold: TRANSPORT,
             placeGroups: TRANSPORT,
             groupBox: READ,
             getNodePosition: READ,
@@ -2797,6 +2864,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,
+            // Computes and caches a page's order; changes nothing a project holds.
+            preparePage: READ,
             resultColumns: READ,
             neighbors: READ,
             lastImport: READ,
@@ -2804,6 +2873,44 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             source: READ,
             sources: READ,
             sourcesOf: READ,
+            // The source-steps experiment: the reads read the committed sources and steps; the
+            // writes are refused with E_FEATURE_OFF on every session these rows run on, and with the
+            // experiment on dispatch data.steps-set (GESTURE_DOORS).
+            steps: READ,
+            staged: READ,
+            spaces: READ,
+            types: READ,
+            edits: READ,
+            ref: READ,
+            nodeRef: READ,
+            stage: SOURCE_STEPS_WRITE,
+            declareType: SOURCE_STEPS_WRITE,
+            removeEdit: SOURCE_STEPS_WRITE,
+            settleEdit: SOURCE_STEPS_WRITE,
+            resolveStep: SOURCE_STEPS_WRITE,
+            merge: SOURCE_STEPS_WRITE,
+            connect: SOURCE_STEPS_WRITE,
+            extract: SOURCE_STEPS_WRITE,
+            moveColumns: SOURCE_STEPS_WRITE,
+            pick: SOURCE_STEPS_WRITE,
+            use: SOURCE_STEPS_WRITE,
+            removeStep: SOURCE_STEPS_WRITE,
+            setStepOff: SOURCE_STEPS_WRITE,
+            add: SOURCE_STEPS_WRITE,
+            draft: exempt(
+                "Experimental (source-steps): opens a draft, which no project file saves; refused with " +
+                    "E_FEATURE_OFF while the experiment is off, as on every session the door rows run on.",
+            ),
+            currentDraft: READ,
+            matchCounts: READ,
+            matchValues: READ,
+            sourceTable: READ,
+            profile: READ,
+            setMapping: SOURCE_STEPS_WRITE,
+            lineage: READ,
+            values: READ,
+            cell: READ,
+            conflicts: READ,
             issues: READ,
             hiddenColumns: READ,
             derivedColumns: READ,
@@ -3100,6 +3207,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             loads: READ,
             sourceSettings: READ,
             sourceInput: READ,
+            copies: READ,
+            setCopy: exempt(
+                "How a save keeps a load (a copy or a reference) is a save choice, as save({ assets }) is: kept with the project outside the history, and it marks the project unsaved.",
+            ),
             nodeSource: READ,
             pendingSourceLoads: READ,
             expand: SOURCE_EXPANSION,
@@ -3475,6 +3586,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 ],
             ),
+            stability: calls(["degree", [1]], [{ op: "algo.run", algorithm: "degree", as: "degree_seed_1", seed: 1 }]),
             get: READ,
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
@@ -3541,6 +3653,90 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             commit: calls([], [{ op: "algo.remove", runId: "degree" }]),
             discard: calls([], [{ op: "algo.remove", runId: "degree" }]),
             started: READ,
+        },
+    },
+    {
+        // Reached only through data.draft(), refused on every session the door rows run on; its
+        // rows are called with the experiment on by test/session/source-steps/drafts-session.test.ts.
+        name: "SourceDraft",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            id: READ,
+            open: READ,
+            stage: DRAFT_ACT,
+            import: DRAFT_ACT,
+            add: DRAFT_ACT,
+            answerOverlap: DRAFT_ACT,
+            merge: DRAFT_ACT,
+            connect: DRAFT_ACT,
+            extract: DRAFT_ACT,
+            moveColumns: DRAFT_ACT,
+            renameColumn: DRAFT_ACT,
+            declareType: DRAFT_ACT,
+            pick: DRAFT_ACT,
+            use: DRAFT_ACT,
+            editStep: DRAFT_ACT,
+            removeStep: DRAFT_ACT,
+            moveStep: DRAFT_ACT,
+            removeSource: DRAFT_ACT,
+            removeEdit: DRAFT_ACT,
+            setMapping: DRAFT_ACT,
+            undo: DRAFT_ACT,
+            steps: READ,
+            types: READ,
+            edits: READ,
+            matchCounts: READ,
+            matchValues: READ,
+            sourceTable: READ,
+            profile: READ,
+            preview: READ,
+            pickAll: DRAFT_ACT,
+            clearPicks: DRAFT_ACT,
+            exclude: DRAFT_ACT,
+            include: DRAFT_ACT,
+            commit: SOURCE_STEPS_WRITE,
+            dispose: exempt("closes the draft, writing nothing"),
+            displayed: READ,
+            side: READ,
+            display: exempt(
+                "Experimental (source-steps): draws the draft on the graph, which is view state no project file saves.",
+            ),
+            show: exempt(
+                "Experimental (source-steps): picks the side of the commit a drawn draft shows, view state no project file saves.",
+            ),
+        },
+    },
+    {
+        // Returned by data.sourceTable() and SourceDraft.sourceTable(): reads of a source's rows as read.
+        name: "SourceTable",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            source: READ,
+            summary: READ,
+            profile: READ,
+        },
+    },
+    {
+        // Returned by SourceDraft.preview(): what the draft would do, and the rows behind each count.
+        name: "SourceDraftPreview",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            draft: READ,
+            before: READ,
+            after: READ,
+            nodes: READ,
+            edges: READ,
+            steps: READ,
+            sources: READ,
+            edits: READ,
+            issues: READ,
+            questions: READ,
+            rows: READ,
+            elements: READ,
+            cells: READ,
         },
     },
     {
@@ -3717,6 +3913,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 expect: [{ op: "config.set", values: { name: "Fixture project" } }],
             },
             assetChoices: READ,
+            describe: READ,
+            inspect: READ,
             save: exempt("Writes the session out as text and marks it saved; it changes nothing a project saves."),
             markSaved: exempt("Moves the save point that dirty is measured from; it changes nothing a project saves."),
             open: exempt(
@@ -3724,6 +3922,24 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     "which have rows of their own.",
             ),
         },
+    },
+    {
+        name: "RecipesApi",
+        file: "src/session/recipes/RecipesApi.ts",
+        half: "session",
+        doors: {
+            export: exempt("Writes the session's recipe and style out as text; it changes nothing a project saves."),
+            apply: exempt(
+                "Opens the recipe through project.open, one transaction whose writes go through the " +
+                    "session's own doors, which have rows of their own.",
+            ),
+        },
+    },
+    {
+        name: "FilesApi",
+        file: "src/session/files/kindOf.ts",
+        half: "session",
+        doors: { kindOf: READ },
     },
     {
         name: "NotesApi",
@@ -3794,9 +4010,46 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         name: "AssetsApi",
         file: "src/session/assets/AssetsApi.ts",
         half: "session",
-        whole: exempt(
-            "Model files are kept beside the project, not in it: they are not commands, so adding or removing one is no step and no recipe entry, and limits and hosts are the page's own settings.",
-        ),
+        doors: {
+            ...Object.fromEntries(
+                [
+                    "accept",
+                    "add",
+                    "addEach",
+                    "copy",
+                    "dropPart",
+                    "allowHosts",
+                    "files",
+                    "offer",
+                    "ready",
+                    "remove",
+                    "rename",
+                    "setLimits",
+                    "supply",
+                ].map((name) => [name, ASSET_FILES]),
+            ),
+            find: READ,
+            get: READ,
+            inspect: READ,
+            list: READ,
+            states: READ,
+            usedBy: READ,
+            waiting: READ,
+            setDefaults: {
+                kind: "dispatches",
+                op: "asset.defaults",
+                call: {
+                    kind: "call",
+                    args: [DOOR_MODEL, { style: { "node.modelTurn": 90 } }],
+                    around: async (target) => {
+                        const assets = target as { add(source: unknown, options: unknown): Promise<unknown> };
+                        await assets.add({ files: new Map([["door.stl", DOOR_STL]]) }, { name: DOOR_MODEL });
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [{ op: "asset.defaults", id: DOOR_MODEL, patch: { style: { "node.modelTurn": 90 } } }],
+            },
+        },
     },
     {
         name: "NetworkApi",
@@ -3847,6 +4100,67 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }],
             ),
             remove: calls([["door view"]], [{ op: "view.remove", names: ["door view"] }]),
+            // The parts the view keeps, as one step; the camera move is exempt, and this session
+            // draws nothing, so it has none.
+            open: {
+                kind: "dispatches",
+                op: "visibility.conditions",
+                call: {
+                    kind: "call",
+                    args: ["door kept"],
+                    around: async (target) => {
+                        const views = target as { save(list: unknown[]): Promise<void> };
+                        await views.save([{ name: "door kept", camera: { zoom: 2 }, filters: [] }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [{ op: "visibility.conditions", conditions: [] }],
+            },
+            rename: calls(
+                ["door view", "door renamed"],
+                [{ op: "view.rename", from: "door view", to: "door renamed" }],
+            ),
+            move: calls(["door view", 0], [{ op: "view.move", name: "door view", index: 0 }]),
+            setKey: calls(["door view", "7"], [{ op: "view.key", name: "door view", key: "7" }]),
+            // On a project nobody has changed it writes the baseline instead (no step); the door
+            // harness reaches the views after a change, so it dispatches.
+            setStartingCameras: calls(
+                [[{ name: "door start", follows: "topView" }]],
+                [{ op: "view.starting", views: [{ name: "door start", follows: "topView" }] }],
+            ),
+        },
+    },
+    {
+        name: "SessionTours",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            save: calls(
+                [[{ name: "door tour", tour: { stops: [{ view: "fitToGraph" }] } }]],
+                [{ op: "tour.save", tours: [{ name: "door tour", tour: { stops: [{ view: "fitToGraph" }] } }] }],
+            ),
+            remove: calls([["door tour"]], [{ op: "tour.remove", names: ["door tour"] }]),
+            rename: calls(
+                ["door tour", "door renamed"],
+                [{ op: "tour.rename", from: "door tour", to: "door renamed" }],
+            ),
+            move: calls(["door tour", 0], [{ op: "tour.move", name: "door tour", index: 0 }]),
+        },
+    },
+    {
+        name: "SessionGraphs",
+        file: "src/session/graphs/GraphsApi.ts",
+        half: "session",
+        doors: {
+            currentId: READ,
+            list: READ,
+            create: exempt(
+                "Saves the graph shown and opens its copy through project.save and project.open, whose rows " +
+                    "cover them; trimming the copy to its scope is data.removeNodes, then the copy's history starts.",
+            ),
+            switch: exempt(
+                "Saves the graph shown and opens another through project.save and project.open, whose rows cover them.",
+            ),
         },
     },
     {
@@ -3859,6 +4173,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             options: READ,
             dimension: READ,
             arrangedDimension: READ,
+            provenance: READ,
             motion: READ,
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),
@@ -3926,6 +4241,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             editableBase: READ,
             timelineHiddenLook: READ,
             timelineHiddenAdded: READ,
+            startingCamerasWritten: READ,
             runPlacement: READ,
             layoutBehavior: READ,
             layoutTransition: READ,
@@ -3993,6 +4309,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             owe: LANE,
             forgive: LANE,
             settle: LANE,
+            // One row of an owed publish, read without writing it.
+            owesRows: READ,
+            owedReadsSpill: READ,
+            readOwed: READ,
+            owedWrites: READ,
+            owedRowsRead: READ,
             keeps: READ,
             unsettledView: READ,
         },
@@ -4014,6 +4336,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgeRemovalChangesNothing: READ,
             endPeek: exempt("The session's end clears a peek, which is view state."),
             hoverAt: exempt("The pointer resting on a node is view state, not a step, like the selection."),
+            byInput: exempt(
+                "It only labels the changes its callback makes with the input; they are steps of their own.",
+            ),
             nodeMembers: READ,
             edgeMembers: READ,
             remapNodes: SELECTION,
@@ -4142,6 +4467,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             holdMask: READ,
             // A node's drawn size changed, so a layout keeping nodes apart by it starts again.
             wakeForResize: TRANSPORT,
+            // A 2D drawing rising into 3D was moved a step, so the engine steps from it again.
+            wakeForLift: TRANSPORT,
             // Whether the engine keeps nodes apart by their drawn size (`nodeGap`).
             spacesBySize: READ,
             // Reads a `clusterBy` path over the snapshot; the layout manager fills it in when it starts the engine.
@@ -4341,6 +4668,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             requestFrame: RENDER,
             applyBackground: RENDER,
             backgroundOverride: RENDER,
+            darkScheme: RENDER,
             bindShaderScene: RENDER,
             pickGroupOutline: READ,
             shaderPasses: READ,
@@ -4452,6 +4780,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
  * the test that checks it.
  */
 export const GESTURE_DOORS: Readonly<Record<string, string>> = {
+    "data.steps-set":
+        "Every data door that changes the graph (import, generate, loadDataset, loadExample, importColumns, a " +
+        "draft's load and join, editJoin, addNodes and the other direct edits, stage, declareType, removeEdit, merge, " +
+        "connect, extract, moveColumns, a renameColumn naming a source, pick, use, removeStep, setStepOff, add, " +
+        "setMapping, removeSource, replaceSource, reloadSource, a network refresh, settleEdit, resolveStep, a source draft's " +
+        "commit) while the " +
+        "source-steps " +
+        "experiment is on; the door rows here run with it off. Checked by test/session/source-steps/*.test.ts.",
     "data.expand":
         "Double-clicking a node when the layout behaviour supplies fetchNodes and fetchEdges (src/NodeBehavior.ts); " +
         "checked by test/browser/expansion-through-behaviour.test.ts.",

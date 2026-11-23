@@ -240,7 +240,7 @@ function causeWords(status: ResultParam, keyed: boolean): string {
 }
 
 /** Why a tool's step failed, by the cause it reported. */
-const STEP_CAUSES: Readonly<Record<string, string>> = {
+const STEP_CAUSES: Readonly<Partial<Record<string, string>>> = {
     AI_EMPTY_MATCH: "nothing matched",
     AI_UNKNOWN_ENTRY: "the assistant named something that does not exist",
     AI_PAINTED_NOTHING: "other layers cover it",
@@ -382,7 +382,7 @@ export function endWords(code: string, params: AiResultParams, provider: string,
             return retry("The assistant could not finish this step.");
         case "AI_TOOL_FAILED":
             return retry(failedStepWords(params.tool, params.cause));
-        case "AI_CANCELLED":
+        case "AI_CANCELED":
             return Number(params.steps) > 0
                 ? {
                       line: "Stopped. Changes taken back.",

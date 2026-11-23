@@ -237,6 +237,29 @@ describe("pr-open.sh", () => {
         assert.match(readFileSync(join(dir, "review.args"), "utf8"), /^1 /);
     });
 
+    it("writes Refs for its own issue known failures still cite, and refuses a commit closing one (#8888)", () => {
+        const known = JSON.stringify({ reasons: [{ reason: "drift in scene x, tracked by #1005", added: {} }] });
+        branch("fix/1005-scene", { "graphty-element/test/fidelity/oracle-known-failures.json": known });
+        let r = run();
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /#1005 is still cited by graphty-element\/test\/fidelity known failures/);
+        assert.match(readFileSync(join(dir, "body.md"), "utf8"), /^Refs #1005$/m);
+        assert.equal(
+            readFileSync(join(dir, "review.args"), "utf8").trim().split(" ")[0],
+            "1",
+            "the review is told Refs",
+        );
+
+        rmSync(ghLog, { force: true });
+        writeFileSync(join(work, "g.txt"), "g\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "fix(tools): more\n\nFixes #1005");
+        r = run();
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /closes #1005, which graphty-element\/test\/fidelity known-failure records still cite/);
+        assert.ok(!existsSync(ghLog), "gh was never called");
+    });
+
     it("logs the whole run's time and the review's, with their exit codes, to the step log", () => {
         branch("fix/1242-times");
         rmSync(stepLog, { force: true });

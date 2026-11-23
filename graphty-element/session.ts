@@ -76,6 +76,7 @@ export type {
     CommandOutcome,
     CommandOutcomeMap,
     ComponentStatistics,
+    CountedValue,
     CreateGraphSessionOptions,
     DataChange,
     DataChangeIds,

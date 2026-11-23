@@ -983,6 +983,12 @@ export interface GraphStatistics {
 }
 
 /**
+ * One value a path carries, as {@link ValueCounts.values} counts it.
+ * @since 3.40.0
+ */
+export type CountedValue = string | number | boolean;
+
+/**
  * How many elements carry each value of one readable path: what `session.data.valueCounts(path)`
  * returns. Unlike {@link ColumnHistogram} it reads any path `data.readableValues()` lists -- a data
  * column, a run's field, a node value read at an edge's end -- and it never bins or truncates.
@@ -992,7 +998,7 @@ export interface ValueCounts {
     /** Every value carried, most elements first; a tie keeps the order the values were first seen in. */
     readonly values: readonly {
         /** The value. */
-        readonly value: string | number | boolean;
+        readonly value: CountedValue;
         /** How many elements carry it. */
         readonly count: number;
     }[];

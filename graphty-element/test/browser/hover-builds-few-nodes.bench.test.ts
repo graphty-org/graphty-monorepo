@@ -10,6 +10,10 @@
  * WHAT IS ASSERTED IS COUNTED WORK: the `Node`s a batched hover builds stay a handful. The time from the hover to a
  * settled frame and the heap kept are printed as `[hover-builds-few-nodes]`, not asserted.
  *
+ * Without a GPU (`GRAPHTY_BROWSER_GPU` unset, as in CI) the 100,000-node cases are skipped: a cascade through the
+ * component fails the count at 10,000 nodes too, and those four cases cost CI's software renderer about 3 minutes
+ * (#9773).
+ *
  * This file gates no push: it runs in the "browser-bench" project.
  */
 
@@ -31,6 +35,9 @@ afterEach(() => {
     }
 });
 
+const GPU = ((import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "") !== "";
+/** The most nodes a case loads on the software renderer: see the file comment. */
+const SOFTWARE_NODES = 10_000;
 const CASES: { path: RenderPath; count: number }[] = [
     { path: "objects", count: 1_000 },
     { path: "objects", count: 10_000 },
@@ -110,52 +117,56 @@ describe("one real hover in a large connected arrowed graph", () => {
     for (const { path, count } of CASES) {
         for (const shape of SHAPES) {
             for (const target of TARGETS) {
-                it(`${path}, ${String(count)} ${shape} nodes, on a ${target}`, async () => {
-                    const element = await mounted(path, count, shape);
-                    const manager = element.graph.getDataManager();
-                    const atLoad = dataManagerInternals.nodesBuilt(manager);
-                    const middle = `n${String(Math.floor(count / 2))}`;
-                    const nextId = `n${String(Math.floor(count / 2) + 1)}`;
-                    // Framing the whole graph puts 100,000 nodes about a pixel apart, where the middle of an edge
-                    // touches the nodes beside it; frame the hovered pair instead, so where the pointer lands is
-                    // unambiguous. The camera reads two positions, so it is counted apart from the hover.
-                    await element.zoomToNodes([middle, nextId], { animate: false });
-                    await element.waitForStableFrame();
-                    const beforeHover = dataManagerInternals.nodesBuilt(manager);
-                    const center = element.nodeScreenPosition(middle);
-                    const next = element.nodeScreenPosition(nextId);
-                    assert.isDefined(center);
-                    assert.isDefined(next);
-                    const at = target === "node" ? center : { x: (center.x + next.x) / 2, y: (center.y + next.y) / 2 };
+                it.skipIf(!GPU && count > SOFTWARE_NODES)(
+                    `${path}, ${String(count)} ${shape} nodes, on a ${target}`,
+                    async () => {
+                        const element = await mounted(path, count, shape);
+                        const manager = element.graph.getDataManager();
+                        const atLoad = dataManagerInternals.nodesBuilt(manager);
+                        const middle = `n${String(Math.floor(count / 2))}`;
+                        const nextId = `n${String(Math.floor(count / 2) + 1)}`;
+                        // Framing the whole graph puts 100,000 nodes about a pixel apart, where the middle of an edge
+                        // touches the nodes beside it; frame the hovered pair instead, so where the pointer lands is
+                        // unambiguous. The camera reads two positions, so it is counted apart from the hover.
+                        await element.zoomToNodes([middle, nextId], { animate: false });
+                        await element.waitForStableFrame();
+                        const beforeHover = dataManagerInternals.nodesBuilt(manager);
+                        const center = element.nodeScreenPosition(middle);
+                        const next = element.nodeScreenPosition(nextId);
+                        assert.isDefined(center);
+                        assert.isDefined(next);
+                        const at =
+                            target === "node" ? center : { x: (center.x + next.x) / 2, y: (center.y + next.y) / 2 };
 
-                    const startHeap = await heap();
-                    const start = performance.now();
-                    await hover(element, at);
-                    await operationQueueOf(element.graph).waitForCompletion();
-                    await element.waitForSettled();
-                    await element.waitForStableFrame();
-                    await element.waitForStableFrame();
-                    const ms = performance.now() - start;
-                    const bytes = (await heap()) - startHeap;
-                    const builtByHover = dataManagerInternals.nodesBuilt(manager) - beforeHover;
-                    console.log(
-                        `[hover-builds-few-nodes] ${path} ${String(count)} ${shape} on a ${target}: hover to settled ${ms.toFixed(1)} ms, ` +
-                            `${(bytes / 1e6).toFixed(1)} MB heap kept, ${String(atLoad)} Nodes at load, ` +
-                            `${String(beforeHover - atLoad)} by the zoom, ${String(builtByHover)} by the hover`,
-                    );
-                    assert.equal(
-                        element.session.selection.hovered,
-                        target === "node" ? middle : null,
-                        "the hover's target",
-                    );
-                    if (path === "batched") {
-                        assert.isAtMost(
-                            beforeHover + builtByHover,
-                            4,
-                            "a batched zoom and hover build a handful of Nodes",
+                        const startHeap = await heap();
+                        const start = performance.now();
+                        await hover(element, at);
+                        await operationQueueOf(element.graph).waitForCompletion();
+                        await element.waitForSettled();
+                        await element.waitForStableFrame();
+                        await element.waitForStableFrame();
+                        const ms = performance.now() - start;
+                        const bytes = (await heap()) - startHeap;
+                        const builtByHover = dataManagerInternals.nodesBuilt(manager) - beforeHover;
+                        console.log(
+                            `[hover-builds-few-nodes] ${path} ${String(count)} ${shape} on a ${target}: hover to settled ${ms.toFixed(1)} ms, ` +
+                                `${(bytes / 1e6).toFixed(1)} MB heap kept, ${String(atLoad)} Nodes at load, ` +
+                                `${String(beforeHover - atLoad)} by the zoom, ${String(builtByHover)} by the hover`,
                         );
-                    }
-                });
+                        assert.equal(
+                            element.session.selection.hovered,
+                            target === "node" ? middle : null,
+                            "the hover's target",
+                        );
+                        if (path === "batched") {
+                            assert.isAtMost(
+                                beforeHover + builtByHover,
+                                4,
+                                "a batched zoom and hover build a handful of Nodes",
+                            );
+                        }
+                    },
+                );
             }
         }
     }

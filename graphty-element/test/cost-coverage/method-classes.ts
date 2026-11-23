@@ -1475,6 +1475,8 @@ export const READ_ONLY: readonly string[] = [
     "VisibilityApi.conditionCounts",
     // Opening and editing a draft writes nothing; its commit is mutating.
     "VisibilityApi.draft",
+    "VisibilityApi.draftOf",
+    "VisibilityApi.openDrafts",
     "FilterDraft.cancel",
     "FilterDraft.counts",
     "FilterDraft.update",

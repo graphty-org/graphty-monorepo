@@ -294,6 +294,7 @@ describe("the parts a change writes", () => {
         assert.deepStrictEqual(partsOf(store.log.at(-1) ?? [], saver.status.entry), [
             "arrangement",
             "data",
+            "drafts",
             "rest",
             "run:links",
             "sources",

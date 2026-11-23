@@ -304,7 +304,6 @@ export class ApiKeyManager {
      * Remove a provider's key from memory and from both storages, wherever an earlier page or
      * another `storage` setting left it. {@link removeKey} reaches only the storage in use. The
      * other providers' keys stay where they are.
-     * @experimental assistant
      * @param provider - The provider type
      * @returns A promise that resolves once both storages are rewritten
      */
@@ -324,7 +323,6 @@ export class ApiKeyManager {
 
     /**
      * Remove every provider's key from memory and from both storages; see {@link forgetKey}.
-     * @experimental assistant
      * @returns A promise that resolves once both storages are cleared
      */
     forgetKeys(): Promise<void> {
@@ -341,7 +339,6 @@ export class ApiKeyManager {
     /**
      * Move the keys another `storage` setting left into the storage in use, so a key is never kept
      * in the one the host just moved away from. Nothing without persistence on.
-     * @experimental assistant
      * @returns A promise that resolves once the keys are moved
      */
     retireOtherStorage(): Promise<void> {

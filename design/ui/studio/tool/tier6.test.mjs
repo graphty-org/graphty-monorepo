@@ -116,7 +116,7 @@ test("the key scan finds a planted key in a text file and a binary file, and pas
 });
 
 test("/site.json is answered for tier 6 only, and names no site", () => {
-    assert.deepEqual(JSON.parse(siteFile("6", "/site.json")), { features: ["assistant"] });
+    assert.deepEqual(JSON.parse(siteFile("6", "/site.json")), {});
     assert.equal(siteFile("6", "/index.html"), null);
     for (const tier of ["2", "3", "5", null]) assert.equal(siteFile(tier, "/site.json"), null);
 });

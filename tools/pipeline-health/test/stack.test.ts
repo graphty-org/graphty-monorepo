@@ -6,6 +6,7 @@ import { HealthStack } from "../infra/health-stack.ts";
 import { SECRETS } from "../src/alerts/index.js";
 import { APP_PARAMS, DISPATCH_APP_PARAMS } from "../src/collector/github.js";
 import { SLICE_STORE_PARAMS } from "../src/collector/slices.js";
+import { CLOUDFLARE_PARAMS } from "../src/collector/usage.js";
 import { LOCAL_TOKEN_PARAMETER } from "../src/handlers/ingest.js";
 
 let t: Template;
@@ -84,14 +85,14 @@ describe("health stack", () => {
         }
     });
 
-    it("throttles reads 20/40 and writes 50/100", () => {
+    it("throttles reads 5/20 and writes 20/100", () => {
         t.hasResourceProperties("AWS::ApiGatewayV2::Stage", {
-            DefaultRouteSettings: { ThrottlingRateLimit: 20, ThrottlingBurstLimit: 40 },
+            DefaultRouteSettings: { ThrottlingRateLimit: 5, ThrottlingBurstLimit: 20 },
             RouteSettings: {
-                "POST /v1/invocations": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
-                "POST /v1/verdicts": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
-                "POST /v1/local/{kind}": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
-                "PUT /v1/durations/tests/{name}": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
+                "POST /v1/invocations": { ThrottlingRateLimit: 20, ThrottlingBurstLimit: 100 },
+                "POST /v1/verdicts": { ThrottlingRateLimit: 20, ThrottlingBurstLimit: 100 },
+                "POST /v1/local/{kind}": { ThrottlingRateLimit: 20, ThrottlingBurstLimit: 100 },
+                "PUT /v1/durations/tests/{name}": { ThrottlingRateLimit: 20, ThrottlingBurstLimit: 100 },
             },
         });
     });
@@ -176,6 +177,21 @@ describe("health stack", () => {
         expect(services).toEqual(expect.arrayContaining(["budgets.amazonaws.com", "cloudwatch.amazonaws.com"]));
     });
 
+    it("lets the public reads add to the day's QUOTA item only, and the collector read CloudWatch", () => {
+        const statements = Object.values(t.findResources("AWS::IAM::Policy")).flatMap(
+            (p) => p.Properties.PolicyDocument.Statement as { Action: string | string[]; Condition?: unknown }[],
+        );
+        const quota = statements.filter((s) => s.Action === "dynamodb:UpdateItem");
+        expect(quota).toHaveLength(2);
+        for (const s of quota) {
+            expect(s.Condition).toEqual({ "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["QUOTA#*"] } });
+        }
+        expect(statements.some((s) => s.Action === "cloudwatch:GetMetricData")).toBe(true);
+        t.hasResourceProperties("AWS::Lambda::Function", {
+            Environment: { Variables: Match.objectLike({ API_ID: Match.anyValue() }) },
+        });
+    });
+
     it("lets the collector start and read the deploy build, and names the project", () => {
         t.hasResourceProperties("AWS::Lambda::Function", {
             Environment: { Variables: Match.objectLike({ DEPLOY_PROJECT: "graphty-health-deploy" }) },
@@ -219,6 +235,7 @@ describe("health stack", () => {
                 ...Object.values(DISPATCH_APP_PARAMS),
                 ...Object.values(SLICE_STORE_PARAMS),
                 ...Object.values(SECRETS),
+                ...Object.values(CLOUDFLARE_PARAMS),
             ].sort(),
         });
         expect(ssm("Backfill")).toEqual({ actions: ["ssm:GetParameters"], params: Object.values(APP_PARAMS).sort() });

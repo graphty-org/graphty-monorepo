@@ -4195,6 +4195,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         onNotDrawn: (notDrawn) => {
             publish(watchers, "visibility:not-drawn-changed", { notDrawn });
         },
+        onDraftsChanged: (open) => {
+            publish(watchers, "visibility:draft-changed", { open });
+        },
         // Not behind the experiment: a saved window's bounds are instants of the parsed column.
         instants: (path: Path) => timeInternals?.instants(path) ?? null,
         boundZone,
@@ -4632,8 +4635,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     const engine = query;
 
-    // Settled on first asking, as the session's `features` is.
-    let peekable: boolean | undefined;
     let peekLayers: readonly ElementLayerSpec[] = NO_LAYERS;
     selection = createSelectionApi({
         snapshot,
@@ -4734,10 +4735,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             peekLayers = peeked === null ? NO_LAYERS : peekLayersOf(peeked);
             advanceTick();
             repaintPeek(dirty);
-        },
-        canPeek: () => {
-            peekable ??= resolveFeatures(options.features?.()).has("assistant");
-            return peekable;
         },
         // The origin moved with no member: `selection:changed` stays a membership event, so the
         // origin has its own.

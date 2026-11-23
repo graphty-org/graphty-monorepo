@@ -11314,7 +11314,6 @@ export class Graph implements GraphContext {
      * Name a saved conversation, or clear its name so it is known by its first words again.
      * @param id - Its id.
      * @param name - The name, trimmed; null or "" clears it.
-     * @experimental assistant
      */
     async renameAiConversation(id: string, name: string | null): Promise<void> {
         await this.aiManager?.renameConversation(id, name);
@@ -11532,7 +11531,6 @@ export class Graph implements GraphContext {
      * @param options - Which keys.
      * @param options.provider - One provider's key; every provider's when absent.
      * @param options.prefix - `keyPersistence.prefix`, with no assistant enabled.
-     * @experimental assistant
      */
     async forgetAiKeys(
         options: { readonly provider?: import("./ai/providers").ProviderType; readonly prefix?: string } = {},

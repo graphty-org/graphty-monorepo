@@ -894,6 +894,23 @@ describe("ci.yml", () => {
         );
     });
 
+    it("lints graphty-element and graphty on runners of their own, so a cold full lint fits its limit (#9781)", () => {
+        const lint = parseYaml(ci).jobs.lint;
+        // the others leg keeps the name ci-reuse-plan.mjs requires
+        assert.equal(lint.name, "${{ matrix.part == 'others' && 'Lint' || format('Lint ({0})', matrix.part) }}");
+        assert.equal(lint.strategy["fail-fast"], false);
+        for (const heavy of ["graphty-element", "graphty"]) {
+            assert.ok(lint.strategy.matrix.part.includes(`',"${heavy}"'`), heavy);
+        }
+        assert.equal(
+            lint.env.LINT_EXCLUDE,
+            "${{ matrix.part == 'others' && 'graphty-element,graphty' || format('*,!{0}', matrix.part) }}",
+        );
+        for (const s of lint.steps.filter((x) => /nx (affected|run-many) -t lint/.test(x.run ?? ""))) {
+            assert.match(s.run, /--exclude="\$LINT_EXCLUDE"/, s.name);
+        }
+    });
+
     it("holds a full run to the rule that every job succeeds", () => {
         assert.match(
             job(ci, "all-checks"),
@@ -922,9 +939,11 @@ describe("ci.yml", () => {
         const steps = parseYaml(ci).jobs.lint.steps;
         const smoke = steps.find((s) => s.name === "Smoke check the built app");
         assert.equal(smoke.run, "node graphty/acceptance/smoke.mjs --dist graphty/dist");
-        assert.equal(
-            smoke.if,
-            "needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty')",
+        // the graphty leg, which exists on every full lint and on a pull request that affects the app
+        assert.equal(smoke.if, "matrix.part == 'graphty'");
+        assert.match(
+            parseYaml(ci).jobs.lint.strategy.matrix.part,
+            /\(needs\.packages\.outputs\.full == 'true' \|\| contains\(fromJSON\(needs\.packages\.outputs\.affected\), 'graphty'\)\) && ',"graphty"'/u,
         );
         // after the app is built (a pull request) and before the early verdict
         const at = (name) => steps.findIndex((s) => s.name === name);
@@ -1391,7 +1410,7 @@ describe("ci.yml", () => {
             assert.doesNotMatch(body, /event_name == 'push'|refs\/heads\/master/, name);
         }
         for (const name of ["algorithms-benchmarks", "browser-benchmarks", "performance"]) {
-            assert.match(job(ci, name), /if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
+            assert.match(job(ci, name), /if: github.event_name != 'pull_request' &&/, name);
         }
     });
 
@@ -1538,11 +1557,8 @@ describe("verification runs of ci.yml", () => {
         return { status: r.status, stderr: r.stderr, out };
     };
 
-    it("is called with a ref, an optional verify flag and an optional shard list", () => {
-        assert.match(
-            ci,
-            /\n {12}verify:\n {16}description: .*\n {16}type: boolean\n {16}required: false\n {16}default: false\n/,
-        );
+    it("is called with a ref and an optional shard list", () => {
+        assert.doesNotMatch(ci, /inputs\.verify|\n {12}verify:/);
         assert.match(
             ci,
             /\n {12}shards:\n {16}description: .*\n {16}type: string\n {16}required: false\n {16}default: ""\n/,
@@ -1574,12 +1590,6 @@ describe("verification runs of ci.yml", () => {
         );
         const bad = planStep({ EVENT: "workflow_dispatch", CALLED_REF: "abc123", SHARDS: '["nope"]' });
         assert.notEqual(bad.status, 0);
-    });
-
-    it("skips the benchmarks on a verification run", () => {
-        for (const name of ["algorithms-benchmarks", "browser-benchmarks", "performance"]) {
-            assert.match(job(ci, name), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
-        }
     });
 
     it("uploads every shard's JUnit reports, without letting the upload decide the shard", () => {
@@ -3422,8 +3432,10 @@ describe("actions/cache in the workflows", () => {
         const lint = job(workflow("ci.yml"), "lint");
         const restore = lint.match(/- name: Restore the ESLint caches.*\n\s+if: (.*)\n/);
         assert.ok(restore, "the Lint job restores the ESLint caches");
-        assert.equal(restore[1], "needs.packages.outputs.full == 'false'");
+        assert.equal(restore[1], "needs.packages.outputs.full == 'false' && matrix.part != 'others'");
         assert.match(lint, /- name: Save the ESLint caches.*\n\s+if: needs\.packages\.outputs\.full == 'true' &&/);
+        // one cache per heavy leg, keyed by the leg, so two legs never race to save one key
+        assert.match(lint, /prefix=eslint-v3-\$\{\{ matrix\.part \}\}-/);
         assert.match(
             lint,
             /\n {8}env:\n(?: +#.*\n)* +ESLINT_CACHE: --cache --cache-strategy content --cache-location node_modules\/\.cache\/eslint\/\n/,
@@ -8116,7 +8128,7 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
         const lint = job(ci, "lint");
         assert.match(
             lint,
-            /- name: Build the graphty app \(PR, when affected\)\n {14}if: needs\.packages\.outputs\.full == 'false' && contains\(fromJSON\(needs\.packages\.outputs\.affected\), 'graphty'\)\n {14}run: pnpm exec nx run graphty:build --exclude-task-dependencies\n/u,
+            /- name: Build the graphty app \(PR, when affected\)\n {14}if: matrix\.part == 'graphty' && needs\.packages\.outputs\.full == 'false'\n {14}run: pnpm exec nx run graphty:build --exclude-task-dependencies\n/u,
         );
         assert.ok(
             index("Plan the light check's test bins") < index("Upload all package builds"),

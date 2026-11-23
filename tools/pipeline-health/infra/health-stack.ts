@@ -37,8 +37,13 @@ export const RESULTS_READS = [
     "/v1/story-captures",
     "/v1/story-reach",
 ];
-export const READ_THROTTLE = { rate: 20, burst: 40 };
-export const WRITE_THROTTLE = { rate: 50, burst: 100 };
+/**
+ * Per-route request limits. A few viewers (60 s cache) and the MCP server read; one route at 5 a second is still
+ * 430,000 requests a day, so the daily read budget (DAILY_READ_LIMIT) caps what they cost in DynamoDB. CI's posts
+ * arrive in bursts when shards finish; 20 a second matches the Ingest Lambda's 20 reserved instances.
+ */
+export const READ_THROTTLE = { rate: 5, burst: 20 };
+export const WRITE_THROTTLE = { rate: 20, burst: 100 };
 export const MONTHLY_BUDGET_USD = 50;
 /** The release scheduler's switch: "dry-run" logs the dispatch it would make, "live" makes it (#3608). */
 export const RELEASE_DISPATCH_MODE: "dry-run" | "live" = "dry-run";
@@ -170,10 +175,15 @@ export class HealthStack extends Stack {
                 "results/token",
                 "pushover/app-token",
                 "pushover/user-key",
+                "cloudflare/token",
+                "cloudflare/account-id",
             ],
         );
         // The collector's AWS money line (design section 7): Cost Explorer, read once a day.
         collector.addToRolePolicy(new iam.PolicyStatement({ actions: ["ce:GetCostAndUsage"], resources: ["*"] }));
+        // Measured usage (src/collector/usage.ts): the table's consumed capacity, Lambda invocations and the API's
+        // requests by day, read hourly. GetMetricData takes no resource.
+        collector.addToRolePolicy(new iam.PolicyStatement({ actions: ["cloudwatch:GetMetricData"], resources: ["*"] }));
         // The collector starts the deploy build (deploy-stack.ts) when master's tools/pipeline-health changes. The
         // project lives in the other stack: an ARN string, no cross-stack reference.
         collector.addEnvironment("DEPLOY_PROJECT", DEPLOY_PROJECT);
@@ -188,6 +198,16 @@ export class HealthStack extends Stack {
         table.grantReadWriteData(ingest);
         table.grantReadData(read);
         table.grantReadData(results);
+        // The public reads' daily budget (readMeter in src/model/raw.ts): each read Lambda adds to the day's QUOTA item.
+        for (const f of [read, results]) {
+            f.addToRolePolicy(
+                new iam.PolicyStatement({
+                    actions: ["dynamodb:UpdateItem"],
+                    resources: [table.tableArn],
+                    conditions: { "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["QUOTA#*"] } },
+                }),
+            );
+        }
         table.grantReadWriteData(collector);
         // The four-week backfill (section 10.4): the collector's code invoked by hand with {"mode":"backfill"}, in
         // 15-minute slices that resume from a cursor, so it never holds up the scheduled cycle's one slot.
@@ -205,6 +225,7 @@ export class HealthStack extends Stack {
                 maxAge: Duration.hours(1),
             },
         });
+        collector.addEnvironment("API_ID", api.apiId);
         const readTarget = new HttpLambdaIntegration("ReadTarget", read);
         const ingestTarget = new HttpLambdaIntegration("IngestTarget", ingest);
         const resultsTarget = new HttpLambdaIntegration("ResultsTarget", results);

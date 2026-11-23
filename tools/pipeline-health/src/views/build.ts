@@ -254,6 +254,7 @@ class Builder {
             "stress",
             "hosts",
             "billing",
+            "aws-usage",
             "flaky-feed",
             "benchmarks",
             "local",

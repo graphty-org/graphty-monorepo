@@ -1355,7 +1355,7 @@ export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
+export type FeatureId = "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
 
 // @public
 export interface FieldBand {
@@ -2958,6 +2958,13 @@ export type GraphtyWarningCode =
 * Since 3.32.0.
 */
 | "W_FILTER_STEPS_DIFFER"
+/**
+* A filter draft autosave kept could not be opened again after a restore (the condition it
+* edited is gone, or its new condition's id is taken), so it was dropped. In an autosave
+* restore's report; `params.id` is the condition's id.
+* Since 3.40.0.
+*/
+| "W_FILTER_DRAFT_DROPPED"
 /**
 * A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
 * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
@@ -7081,6 +7088,10 @@ export interface SessionEventMap {
     };
     "visibility:changed": VisibilityChange;
     // @beta
+    "visibility:draft-changed": {
+        readonly open: readonly string[];
+    };
+    // @beta
     "visibility:not-drawn-changed": {
         readonly notDrawn: readonly HiddenNotDrawn[];
     };
@@ -9722,6 +9733,8 @@ export interface VisibilityApi {
     readonly conditions: readonly FilterCondition[];
     // @beta
     draft(target: FilterConditionInput | string): FilterDraft;
+    // @beta
+    draftOf(conditionId: string): FilterDraft | null;
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;
@@ -9733,6 +9746,8 @@ export interface VisibilityApi {
     readonly nodes: ReadonlySet<NodeId>;
     // @beta
     readonly notDrawn: readonly HiddenNotDrawn[];
+    // @beta
+    openDrafts(): readonly FilterCondition[];
     // @beta
     removeCondition(id: string, options?: RunOptions): Run<FilterResult>;
     set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;

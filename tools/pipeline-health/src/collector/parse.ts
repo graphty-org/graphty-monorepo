@@ -26,6 +26,7 @@ import {
     type WorkflowState,
 } from "../model/snapshots.js";
 import { failureGroups } from "./snapshots.js";
+import type { CloudflareRate } from "./usage.js";
 
 // ---------------------------------------------------------------------------------------------------------------
 // The REST shapes the collector reads (only the fields it uses).
@@ -1369,6 +1370,10 @@ export interface Rates {
         paidConclusions: string[];
     };
     fixedMonthly: Record<string, { usd: number } | null>;
+    /** Cloudflare's usage past the Workers Paid plan (collector/usage.ts cloudflareOverage), by usage metric. */
+    cloudflareUsage?: Record<string, CloudflareRate>;
+    /** Each AWS usage metric's daily allowance (collector/usage.ts allowances). */
+    awsUsage?: Record<string, { perDay: number }>;
 }
 
 const dayOf = (msTime: number): number => Math.floor(msTime / DAY) * DAY;

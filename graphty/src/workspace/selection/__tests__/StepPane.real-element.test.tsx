@@ -707,7 +707,10 @@ describe("a selection step's less traveled controls", () => {
         );
         // Six checked rows are drawn, so the two largest unchecked stay in reach: the seventh is said.
         await within(pane(modal)).findByText("1 more checked");
-        await userEvent.click(within(pane(modal)).getByRole("textbox", { name: "Search kind" }));
+        // A locator resolved at the click, not an element: the matches strip mounts its own search after
+        // the workspace's first paint, and an element's selector is generated before that, short
+        // enough ("Search") to match both once it does.
+        await userEvent.click(page.getByRole("textbox", { name: "Search kind", exact: true }));
         await userEvent.keyboard("k");
         // All ten match; eight are drawn.
         await within(pane(modal)).findByText("2 more");

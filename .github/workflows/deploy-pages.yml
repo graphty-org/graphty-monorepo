@@ -120,6 +120,14 @@ jobs:
                   run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Download babylonjs-models Storybook
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-storybook-babylonjs-models
+                  path: ./babylonjs-models/storybook-static/
+                  run-id: ${{ env.RUN_ID }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Download graph-io-fidelity Storybook
               uses: actions/download-artifact@v8
               with:

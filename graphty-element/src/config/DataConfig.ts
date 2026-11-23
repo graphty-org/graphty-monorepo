@@ -105,6 +105,11 @@ const GraphKnownFields = z.strictObject({
      */
     nodeCityPath: z.string().or(z.null()).optional(),
     /**
+     * The key that holds each node's kind (person, account, device), as `session.data.kinds()`
+     * counts it. Set by `data.setRole`, or at load by a file that declares kinds (Neo4j's `:LABEL`).
+     */
+    nodeKindPath: z.string().or(z.null()).optional(),
+    /**
      * The key that holds each node's x position. With `nodeYPath` also set, a node whose two values
      * are finite numbers is drawn there, scaled by `positionScale`, in place of a record's
      * `position`. Set by `data.setRole`.
@@ -165,6 +170,11 @@ const GraphKnownFields = z.strictObject({
     edgeTimeEndPath: z.string().or(z.null()).optional(),
     /** The key that holds each edge's list of time spells. Read only while the timeline is on. */
     edgeTimeSpellsPath: z.string().or(z.null()).optional(),
+    /**
+     * The key that holds each edge's kind, as `nodeKindPath` (Neo4j's `:TYPE`). Set by
+     * `data.setRole`, or at load by a file that declares kinds.
+     */
+    edgeKindPath: z.string().or(z.null()).optional(),
     // Must be > 0: zero collapses every file-placed node onto the origin, which reads as "unplaced",
     // and a negative factor mirrors the layout.
     /**

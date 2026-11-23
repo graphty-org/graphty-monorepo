@@ -7615,11 +7615,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.98,
-            "raster.edge": 0.97,
-            "raster.label": 0.91,
-            "raster.nodeBody": 0.92,
-            "raster.nodeOutline": 0.96,
+            "raster.canvas": 0.99,
+            "raster.edge": 0.98,
+            "raster.label": 0.92,
+            "raster.nodeBody": 0.95,
+            "raster.nodeOutline": 0.97,
             "edge.wiggle": 1
         },
         "cyjs-genemania@matched": {
@@ -26899,7 +26899,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeOutline": 0.95,
             "raster.canvas": 0.99,
             "stray.extra": 1
         },
@@ -30076,7 +30076,7 @@
             "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
             "raster.edge": 0.91,
-            "raster.label": 0.92,
+            "raster.label": 0.95,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.97,
             "edge.wiggle": 1
@@ -30149,7 +30149,7 @@
             "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
             "raster.edge": 0.91,
-            "raster.label": 0.92,
+            "raster.label": 0.95,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.97,
             "edge.wiggle": 1
@@ -56443,6 +56443,146 @@
                 "to": 0.997,
                 "reason": "pajek-1crn v1 sits at the half-pixel cover boundary once graphty draws Pajek samples on Pajek's own 500 x 500 canvas: covered on the oracle's side, shown on graphty's, though neither drawing shows a pixel of it (#9149)",
                 "date": "2026-11-20"
+            }
+        },
+        "vis-network-specimen-arrows": {
+            "edge.extra": {
+                "floor": 1,
+                "to": 0.983,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            },
+            "edge.arrow": {
+                "floor": 1,
+                "to": 0.988,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            }
+        },
+        "vis-network-specimen-arrows@matched": {
+            "edge.extra": {
+                "floor": 1,
+                "to": 0.983,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            },
+            "edge.arrow": {
+                "floor": 1,
+                "to": 0.988,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            }
+        },
+        "vis-network-specimen-edge-labels": {
+            "edge.extra": {
+                "floor": 1,
+                "to": 0.98,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            }
+        },
+        "vis-network-specimen-edge-labels@matched": {
+            "edge.extra": {
+                "floor": 1,
+                "to": 0.98,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            }
+        },
+        "vis-network-specimen-edges-lines": {
+            "edge.extra": {
+                "floor": 1,
+                "to": 0.932,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            }
+        },
+        "vis-network-specimen-edges-lines@matched": {
+            "edge.extra": {
+                "floor": 1,
+                "to": 0.932,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            }
+        },
+        "vis-network-specimen-images-charts": {
+            "node.width": {
+                "floor": 1,
+                "to": 0.75,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            },
+            "node.shape": {
+                "floor": 1,
+                "to": 0.806,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            },
+            "label.present": {
+                "floor": 1,
+                "to": 0.806,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            }
+        },
+        "vis-network-specimen-images-charts@matched": {
+            "node.width": {
+                "floor": 1,
+                "to": 0.75,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            },
+            "node.shape": {
+                "floor": 1,
+                "to": 0.806,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            },
+            "label.present": {
+                "floor": 1,
+                "to": 0.806,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            }
+        },
+        "vis-network-specimen-node-shapes": {
+            "node.width": {
+                "floor": 1,
+                "to": 0.973,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            },
+            "node.shape": {
+                "floor": 1,
+                "to": 0.973,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            },
+            "label.present": {
+                "floor": 1,
+                "to": 0.973,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            }
+        },
+        "vis-network-specimen-node-shapes@matched": {
+            "node.width": {
+                "floor": 1,
+                "to": 0.973,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            },
+            "node.shape": {
+                "floor": 1,
+                "to": 0.973,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
+            },
+            "label.present": {
+                "floor": 1,
+                "to": 0.973,
+                "reason": "vis-network specimen sheets judged through vis-network's drawn node boxes, added when the oracles were refreshed; comparator association or a graphty difference to decide per element (#9817)",
+                "date": "2026-11-23"
             }
         },
         "yed-live-graphml-specimen-labels-p5": {

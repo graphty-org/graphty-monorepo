@@ -10,6 +10,7 @@ import { collect, type CycleReport } from "../collector/collect.js";
 import { DISPATCH_APP_PARAMS, GitHub, installationToken, readAppConfig } from "../collector/github.js";
 import type { Rates } from "../collector/parse.js";
 import { quarantineReader, SLICE_STORE_PARAMS, sliceDeps } from "../collector/slices.js";
+import { CLOUDFLARE_PARAMS, cloudflareUsage, cloudWatchUsage } from "../collector/usage.js";
 import { dynamoStore } from "../dynamo.js";
 import { recompute } from "../model/rollup.js";
 import { recomputeAll } from "../recompute.js";
@@ -17,6 +18,7 @@ import { recomputeAll } from "../recompute.js";
 const doc = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const getParams = ssmGetParams();
 const awsCosts = costExplorerDaily();
+const awsUsage = cloudWatchUsage(process.env.TABLE_NAME ?? "graphty-health", process.env.API_ID);
 const deploy = process.env.DEPLOY_PROJECT ? codeBuildDeploy(process.env.DEPLOY_PROJECT) : undefined;
 
 /**
@@ -57,12 +59,19 @@ export async function handler(
     const app = await readAppConfig(getParams);
     const gh = app ? new GitHub(() => installationToken(app, fetch, Date.now())) : undefined;
     const storeParams = await getParams(Object.values(SLICE_STORE_PARAMS));
+    const cf = await getParams(Object.values(CLOUDFLARE_PARAMS));
+    const cfToken = cf[CLOUDFLARE_PARAMS.token];
+    const cfAccount = cf[CLOUDFLARE_PARAMS.account];
     const report = await collect({
         store,
         now,
         gh,
         fetch,
         awsCosts,
+        usage: {
+            aws: awsUsage,
+            ...(cfToken && cfAccount ? { cloudflare: cloudflareUsage(cfToken, cfAccount, fetch) } : {}),
+        },
         rates: rates as unknown as Rates,
         limits: slas.runnerLimits,
         org: "graphty-org",

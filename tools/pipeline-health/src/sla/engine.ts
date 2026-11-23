@@ -119,6 +119,7 @@ interface Ctx {
     daily: Map<string, Series>;
     metas: Map<string, SourceItem>;
     quota: number;
+    reads: number;
     sources: Map<string, SourceStatus>;
 }
 
@@ -462,6 +463,8 @@ function engineValue(ctx: Ctx, name: Extract<Measure, { type: "engine" }>["name"
         }
         case "write_budget":
             return { value: ctx.quota / ctx.cfg.dailyRowLimit };
+        case "read_budget":
+            return { value: ctx.reads / ctx.cfg.dailyReadLimit };
         default:
             return {};
     }
@@ -1142,6 +1145,7 @@ async function load(store: Store, nowMs: number, cfg: SlaConfig): Promise<Ctx> {
         daily: new Map(),
         metas: new Map(),
         quota: 0,
+        reads: 0,
         sources: new Map(),
     };
     // The oldest step's 6 h window starts 24 h + 6 h back.
@@ -1158,7 +1162,9 @@ async function load(store: Store, nowMs: number, cfg: SlaConfig): Promise<Ctx> {
             ctx.metas.set(id, meta);
         }
     }
-    ctx.quota = await quotaUsed(store, nowMs);
+    const used = await quotaUsed(store, nowMs);
+    ctx.quota = used.rows;
+    ctx.reads = used.reads;
     for (const id of Object.keys(cfg.sources)) {
         ctx.sources.set(id, sourceStatus(ctx, id));
     }

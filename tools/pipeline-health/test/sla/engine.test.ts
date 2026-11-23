@@ -17,7 +17,7 @@ import { type MemberConfig, type SlaConfig, SLAS } from "../../src/sla/config.js
 import { evaluate, projectMonth } from "../../src/sla/engine.js";
 import { HOUR, job, MIN, obs, pr, run, T0 } from "../model/helpers.js";
 
-const LIVE = ["collector", "views", "ci-results", "release", "npm", "billing", "coverage"];
+const LIVE = ["collector", "views", "ci-results", "release", "npm", "billing", "aws-usage", "coverage"];
 
 /** A store whose sources have written for hours and just now, holding `items`, recomputed. */
 async function world(items: RawItem[], now = T0, fresh = LIVE) {

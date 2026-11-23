@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PNG } from "pngjs";
 import { describe, expect, it } from "vitest";
@@ -206,6 +206,93 @@ describe("story tests' visual step", () => {
         const v = visualStoryTest({ project: "graphty-element", out, root });
         await report(v, root, { files: ["a.stories.ts"], ran: { "a.stories.ts": ["a--lost"] } });
         expect(read(out).partial).toMatchObject({ reported: false, missing: ["a--lost"] });
+    });
+
+    it("keeps the stories the first run missed as missing after a retry that does not reach them either", async () => {
+        const out = tempDir("story-test-out-");
+        const root = repo({});
+        const first = visualStoryTest({ project: "graphty-element", out, root });
+        await report(first, root, { files: ["a.stories.ts"], ran: { "a.stories.ts": ["a--lost", "a--gone"] } });
+        expect(read(out).partial).toMatchObject({ reported: false, missing: ["a--gone", "a--lost"] });
+        const retry = visualStoryTest({ project: "graphty-element", out, root });
+        await retry.commands.visualPlan(context([]), { id: "a--gone", chromatic: {} });
+        await report(retry, root, { files: ["a.stories.ts"], ran: {} });
+        expect(read(out).partial).toMatchObject({ reported: false, missing: ["a--lost"] });
+    });
+
+    it("starts afresh over an unreadable results.json, and refuses a project the config does not name", async () => {
+        const out = tempDir("story-test-out-");
+        const root = repo({});
+        writeFileSync(join(out, "results.json"), "{");
+        const v = visualStoryTest({ project: "graphty-element", out, root });
+        await report(v, root, { files: ["a.stories.ts"], ran: { "a.stories.ts": [] } });
+        expect(read(out)).toMatchObject({ project: "graphty-element", items: [] });
+        expect(read(out).retried).toBeUndefined();
+        expect(() => visualStoryTest({ project: "nope", out, root })).toThrow(
+            "visual-review: no project nope in the config",
+        );
+    });
+
+    it("records a failure with no reason as failed", async () => {
+        const out = tempDir("story-test-out-");
+        const root = repo({});
+        const v = visualStoryTest({ project: "graphty-element", out, root });
+        await v.commands.visualFail(context([]), { id: "a--quiet", modes: ["dark"], reason: "", console: [] });
+        await report(v, root, { files: ["a.stories.ts"], ran: { "a.stories.ts": ["a--quiet"] } });
+        expect(read(out).items).toMatchObject([{ id: "a--quiet", mode: "dark", status: "failed", reason: "failed" }]);
+    });
+
+    it("parks the pointer, focuses the tester iframe and presses Shift that the story never hears", async () => {
+        const v = visualStoryTest({ project: "graphty-element", out: tempDir("story-test-out-"), root: repo({}) });
+        const steps = [];
+        const listeners = [];
+        const frame = {
+            frameElement: async () => ({ focus: async () => steps.push("focus") }),
+            // The page script, run here against a window that records its listeners.
+            evaluate: async (fn) => {
+                const saved = globalThis.addEventListener;
+                globalThis.addEventListener = (type, fn, options) => listeners.push({ type, fn, options });
+                try {
+                    fn();
+                } finally {
+                    globalThis.addEventListener = saved;
+                }
+                steps.push("listen");
+            },
+        };
+        const page = {
+            mouse: { move: async (x, y) => steps.push(`move ${x},${y}`) },
+            keyboard: { press: async (key) => steps.push(`press ${key}`) },
+        };
+        await v.commands.visualPark({ page, frame: async () => frame });
+        expect(steps).toEqual(["move -1,-1", "focus", "listen", "press Shift"]);
+        expect(listeners.map((l) => [l.type, l.options])).toEqual([
+            ["keydown", { capture: true, once: true }],
+            ["keyup", { capture: true, once: true }],
+        ]);
+        let stopped = 0;
+        listeners[0].fn({ stopImmediatePropagation: () => (stopped += 1) });
+        expect(stopped).toBe(1);
+    });
+
+    it("gives the tester page the CSS of Storybook's own iframe.html, from the project's storybook package", () => {
+        const project = tempDir("story-test-project-");
+        const pkg = join(project, "node_modules/storybook");
+        mkdirSync(join(pkg, "assets/server"), { recursive: true });
+        writeFileSync(join(project, "package.json"), "{}");
+        writeFileSync(join(pkg, "package.json"), JSON.stringify({ name: "storybook", version: "9.0.0" }));
+        writeFileSync(
+            join(pkg, "assets/server/base-preview-head.html"),
+            "<style>.sb-show-main { margin: 0 }</style>\n<link rel=x>\n<style>.sb-main-centered { display: flex }</style>",
+        );
+        const v = visualStoryTest({ project: "graphty-element", out: tempDir("story-test-out-"), root: repo({}) });
+        const here = process.cwd();
+        process.chdir(project);
+        try {
+            expect(v.commands.visualHead()).toBe(".sb-show-main { margin: 0 }\n.sb-main-centered { display: flex }");
+        } finally {
+            process.chdir(here);
+        }
     });
     it("reports a shot that differed and then matched, and keeps it on record after a retry that settles (#3389)", async () => {
         const root = repo({ "a--flips.png": png(10) });

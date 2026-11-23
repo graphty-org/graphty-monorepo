@@ -124,7 +124,6 @@ export interface GraphCommand {
     /**
      * The default name an application may show for it, as `ASSISTANT_TOOLS` gives each built-in
      * tool's. Default: its `name`.
-     * @experimental assistant
      */
     readonly plainName?: string;
     /**

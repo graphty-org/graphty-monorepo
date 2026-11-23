@@ -124,6 +124,14 @@ import {
     supersededRuns,
     testSignatures,
 } from "./snapshots.js";
+import {
+    allowances,
+    cloudflareOverage,
+    mergeUsage,
+    type UsageDays,
+    usageObservations,
+    type UsageReader,
+} from "./usage.js";
 
 const WEEK = 7 * DAY;
 
@@ -136,6 +144,11 @@ export interface Deps {
     fetch: Fetch;
     /** Cost Explorer's daily cost, ISO days [from, to). Undefined: the AWS line is skipped. */
     awsCosts?: (from: string, to: string) => Promise<AwsCostDay[]>;
+    /**
+     * Measured usage by day (usage.ts), read hourly: Cloudflare's (undefined until its token is in SSM: the source
+     * cloudflare-token stays "not set up") and AWS's from CloudWatch (source aws-usage).
+     */
+    usage?: { cloudflare?: UsageReader; aws?: UsageReader };
     rates: Rates;
     limits: { linux_windows: number; macos: number };
     org: string;
@@ -1588,8 +1601,62 @@ async function costs(c: Cycle): Promise<void> {
             });
         }
     }
+    // Cloudflare past its plan, priced from the measured usage the hourly usage part keeps.
+    const over = cloudflareOverage(
+        await c.json<UsageDays>("usage", {}),
+        c.d.rates.cloudflareUsage ?? {},
+        monthStart,
+        c.now,
+    );
+    for (const [d, usd] of Object.entries(over)) {
+        const line = lines.find((l) => l.line === "cloudflare" && l.id === `cloudflare#${d}`);
+        if (line) {
+            line.usd += usd;
+        } else {
+            lines.push({
+                kind: "cost",
+                id: `cloudflare#${d}`,
+                attempt: 1,
+                line: "cloudflare",
+                day: Date.parse(d),
+                usd,
+            });
+        }
+    }
     c.items.push(...lines);
     await recordSource(c.d.store, "billing", c.now, { ok: true });
+}
+
+/**
+ * Measured cloud usage (usage.ts): the last three days from each reader merged into the kept 36, then yesterday's
+ * value of every metric and its growth as observations.
+ * @param c - the cycle
+ */
+async function usage(c: Cycle): Promise<void> {
+    const readers = c.d.usage ?? {};
+    let days = await c.json<UsageDays>("usage", {});
+    const from = day(c.now - 2 * DAY);
+    const to = day(c.now);
+    for (const [name, source] of [
+        ["cloudflare", "cloudflare-token"],
+        ["aws", "aws-usage"],
+    ] as const) {
+        const read = readers[name];
+        if (!read) {
+            continue;
+        }
+        const ok = await c.part(`usage-${name}`, source, async () => {
+            days = mergeUsage(days, await read(from, to), c.now);
+        });
+        if (ok) {
+            await recordSource(c.d.store, source, c.now, { ok: true });
+        }
+    }
+    await c.setJson("usage", days);
+    const per = allowances(c.d.rates.cloudflareUsage, c.d.rates.awsUsage);
+    for (const [metric, value] of usageObservations(days, per, c.now)) {
+        c.o(metric, value);
+    }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1824,6 +1891,7 @@ export async function collect(d: Deps): Promise<CycleReport> {
 
     if (hourly) {
         await c.part("coverage", "coverage", () => coverage(c));
+        await c.part("usage", undefined, () => usage(c));
     }
     if (daily) {
         await c.part("costs", "billing", () => costs(c));

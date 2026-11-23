@@ -198,8 +198,7 @@ const files = Object.keys(modules).filter(
     (file) =>
         !HANGS.test(file) &&
         !(RENDERER === "webgpu" && SWAP_REJECTS.test(file)) &&
-        (narrowed === "" || new RegExp(narrowed).test(file)) &&
-        /shaders\/EdgePresets/.test(file),
+        (narrowed === "" || new RegExp(narrowed).test(file)),
 );
 
 describe.each(files)("%s", async (file) => {

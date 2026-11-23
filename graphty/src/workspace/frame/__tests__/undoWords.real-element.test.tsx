@@ -8,10 +8,9 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, beforeAll, describe, it, onTestFinished } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { GRAPH_FILE_GML } from "../../data-place/fixtures";
 import { REGISTRATIONS } from "../../registrations";
@@ -82,12 +81,6 @@ describe("Undo, Redo and Clear selection words", () => {
     });
 
     it("keeps an Assistant message's Undo off the canvas while the panel is open, and still says it", async () => {
-        // A site with the Assistant, so its rail button shows.
-        resetSiteConfig();
-        await loadSiteConfig(
-            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
-        );
-        onTestFinished(resetSiteConfig);
         const { session, store } = await openWithGraph();
         const add = (name: string): Promise<unknown> =>
             session.transaction(

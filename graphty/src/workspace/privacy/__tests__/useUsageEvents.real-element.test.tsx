@@ -590,6 +590,7 @@ describe("usage counts from the real element", () => {
             }
         });
         await session.time.setSettings({ results: "rerun" });
+        await session.time.window({ from: start + day, to: start + 2 * day });
         await waitFor(() => {
             assert.isNotEmpty(reruns, "the timeline re-ran the run");
         });

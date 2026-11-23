@@ -8,6 +8,7 @@ design/ui/studio/tool/tier5.test.mjs
 design/ui/studio/tool/tier6.test.mjs
 design/ui/studio/tool/with-browser.test.mjs
 tools/acceptance.test.mjs
+tools/armable-prs.test.mjs
 tools/assemble-pages-site.test.mjs
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs

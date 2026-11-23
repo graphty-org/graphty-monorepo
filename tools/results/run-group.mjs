@@ -32,7 +32,8 @@
 // RESULTS_RECORD_ONLY=1 is the paid lanes' mode (gpu.yml's T4 job, work-protection-macos.yml, release.yml's LLM
 // job): the command runs once, exactly as it would bare -- no retry, no quarantine, no output budget, its exit code
 // untouched -- and only its one record is written (outcome from its JUnit report); no issue is filed. A retry there
-// costs paid minutes or paid API calls, and those lanes' verdicts are their own.
+// costs paid minutes or paid API calls, and those lanes' verdicts are their own. ci.yml's CI workflow tests (node:test,
+// no JUnit) and Cost Estimate Accuracy (a retry would hide an estimate at its tolerance edge) use it as well.
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";

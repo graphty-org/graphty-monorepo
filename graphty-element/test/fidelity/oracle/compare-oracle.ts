@@ -18,6 +18,7 @@ import {
     compareIds,
     type DashClass,
     dashClassOf,
+    figureOutlineDistance,
     insideFigure,
     isPattern,
     type PArrow,
@@ -934,6 +935,34 @@ function headParts(heads: readonly PArrow[]): number {
         }
     }
     return placed.length;
+}
+
+/**
+ * A head read with no color of its own takes the color of its twin painted last over it: a hollow head a program paints
+ * as a fill in the canvas's color and then its outline over it, arrows at one spot, is one head in that outline's color
+ * (yEd's white_delta, graphml-libcitygml-mapping n27 -> n25: its white fill, then its black outline; Cytoscape.js's
+ * hollow heads, json-cyjs-synth-edges arrow-hollow: no fill, a white stroke, then the head's own color).
+ * @param head - the head first read at an end
+ * @param heads - every head read on that side, in drawing order
+ * @returns the head, with its last twin's color where it has none
+ */
+export function withTwinColor(head: PArrow | undefined, heads: readonly PArrow[]): PArrow | undefined {
+    if (head?.color !== null || head.at === undefined) {
+        return head;
+    }
+    const { at } = head;
+    const twin = [...heads]
+        .reverse()
+        .find(
+            (a) =>
+                a !== head &&
+                a.end === head.end &&
+                a.color !== null &&
+                a.filled === head.filled &&
+                a.at !== undefined &&
+                Math.hypot(a.at[0] - at[0], a.at[1] - at[1]) <= Math.max(a.length, head.length) / 3,
+        );
+    return twin === undefined ? head : { ...head, color: twin.color };
 }
 
 /** A line's usual advance, in its font box's heights (CSS's `line-height: normal`, Graphviz's LINESPACING). */
@@ -2494,7 +2523,7 @@ export function compareOracle(
         (n.fill !== null || n.stroke !== null || (n.pictures?.length ?? 0) > 0);
     /**
      * An end's outline on each side, or none on either where one side draws none there. A figure (`PNode.figure`) cuts
-     * a line both sides draw it on and the oracle runs under it to its middle. Elsewhere both are cut at the ellipse
+     * a line both sides draw it on and the oracle runs under it to its middle or stops on its outline. Elsewhere both are cut at the ellipse
      * their boxes hold: where only one side draws a figure (Pajek draws its cross as an ellipse, graphty as a plus, a
      * shape judged apart as node.shape) the route is not judged on its node's shape, and a line the program stops at
      * the figure itself is not cut again (draw.io stops at a star's box, where graphty reaches its notch).
@@ -2531,7 +2560,12 @@ export function compareOracle(
                 { ...at, shape: "rect" },
             ];
         }
-        return at.figure !== undefined && runsToMiddle(on, end)
+        // a line the program stops on the figure's own outline is cut at the figures on both sides: graphty's, run to
+        // its middle, cut at the ellipse instead ended 5 px short of the corner both drawings stop at
+        // (xgmml-networkportal-nsoxphos -236 -> -348, at a vee's corner)
+        const stopsOnFigure =
+            on.figure !== undefined && end !== undefined && figureOutlineDistance(on.figure, on, end) <= pixel;
+        return at.figure !== undefined && (runsToMiddle(on, end) || stopsOnFigure)
             ? [on, at]
             : [
                   { ...on, figure: undefined },
@@ -2973,7 +3007,10 @@ export function compareOracle(
         const unseen = shownParts(o, g).every((pts) => pts === null || pathLength(pts) < pixel);
         for (const end of ["source", "target", "middle"] as const) {
             const gg = ga.find((a) => a.end === end);
-            const oa = unseen && gg === undefined ? undefined : oArrows.find((a) => a.end === end);
+            const oa = withTwinColor(
+                unseen && gg === undefined ? undefined : oArrows.find((a) => a.end === end),
+                oArrows,
+            );
             const at = `${id}@${end}`;
             j.add(
                 "edge.arrow",

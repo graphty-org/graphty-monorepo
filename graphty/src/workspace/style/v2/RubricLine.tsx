@@ -624,6 +624,8 @@ const CONTROLS: Readonly<Record<Exclude<Rule, "field" | "R15" | "R17">, (args: C
     R5: numberControl,
     R5b: presetControl,
     R7: checkboxControl,
+    // Font style toggles (R7t) are a label style's only: a channel's flag stays a checkbox.
+    R7t: checkboxControl,
     R8: segmentsControl,
     R8f: segmentsControl,
     R9: valueControl,

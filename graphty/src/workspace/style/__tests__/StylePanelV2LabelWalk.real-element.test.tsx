@@ -1,5 +1,5 @@
 /**
- * Every one of graphty-element's 96 label style fields is reachable from a node Label's row and changes the
+ * Every one of graphty-element's 98 label style fields is reachable from a node Label's row and changes the
  * picture (owner, 2026-11-20: "it seems like we are missing 90 label styles"; E673), on the REAL graphty-element
  * and real input. For each field the layer holds what the field needs beside it to draw (its `drawnWhen` partners,
  * as graphty-element's own label-fields render test sets them), except the partners graphty-element names as its
@@ -68,6 +68,8 @@ const CASES: Readonly<Record<LabelField, WalkCase>> = {
     weight: { value: "bold" },
     color: { value: "#ff0000" },
     italic: {},
+    underline: {},
+    strikethrough: {},
     wrapWidth: { value: 3 },
     wrapTrailingSpace: { text: SHORT_WORDS, bases: WRAP_SWEEP.map((wrapWidth) => ({ wrapWidth })) },
     wrapSkipEndSpace: {
@@ -177,7 +179,7 @@ interface Place {
     readonly row?: true;
     readonly group?: LabelGroup;
     readonly line: LabelLineSpec;
-    readonly how: "field" | "pair" | "side" | "unit" | "on";
+    readonly how: "field" | "pair" | "side" | "unit" | "on" | "toggle";
 }
 
 /**
@@ -212,6 +214,9 @@ function placeOf(field: LabelField): Place | undefined {
             }
             if (line.pair === field) {
                 return { group, line, how: "pair" };
+            }
+            if (line.toggles?.includes(field) === true) {
+                return { group, line, how: "toggle" };
             }
             if (line.sides?.includes(field) === true) {
                 return { group, line, how: "side" };
@@ -301,7 +306,7 @@ function same(got: unknown, want: unknown): boolean {
 describe("every label field is reachable from the Label row and draws (E673)", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("walks all 96 label fields by real clicks, each changing the picture", async () => {
+    it("walks all 98 label fields by real clicks, each changing the picture", async () => {
         const { session, element, nodes } = await openGraph();
         let tab = await openStyle("Key people");
         // The drawing itself, where a reader clicks.
@@ -538,6 +543,12 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                     return field === "sizeMode" ? "screen" : undefined;
                 }
                 const line = await lineIn(root, `node.labelStyle.${place.line.field}`);
+                if (place.line.rule === "R7t") {
+                    // A font style toggle (owner, 2026-11-23): Bold writes the weight, the others their flag.
+                    const word = field === "weight" ? "Bold" : `${field.charAt(0).toUpperCase()}${field.slice(1)}`;
+                    await userEvent.click(within(line).getByRole("button", { name: word }));
+                    return field === "weight" ? "bold" : true;
+                }
                 const inputs = (): HTMLInputElement[] => [...line.querySelectorAll<HTMLInputElement>("input")];
                 if (place.how === "pair") {
                     await typeIn(inputs()[1], String(test.value));
@@ -627,6 +638,6 @@ describe("every label field is reachable from the Label row and draws (E673)", (
         }
         assert.deepEqual(failed, [], "every field is reached, written and drawn from the panel");
         assert.sameMembers(reached, [...LABEL_STYLE_FIELDS], "every field is reached");
-        assert.lengthOf(LABEL_STYLE_FIELDS, 96);
+        assert.lengthOf(LABEL_STYLE_FIELDS, 98);
     });
 });

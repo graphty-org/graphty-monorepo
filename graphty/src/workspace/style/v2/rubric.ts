@@ -19,7 +19,22 @@ import type { GLYPHS } from "../../glyphs";
  * (a list, an asset, a text source, a value bound to data).
  */
 export type Rule =
-    "R1" | "R2" | "R5" | "R5b" | "R7" | "R8" | "R8f" | "R9" | "R10" | "R13" | "R14" | "R15" | "R17" | "XY" | "field";
+    | "R1"
+    | "R2"
+    | "R5"
+    | "R5b"
+    | "R7"
+    | "R7t"
+    | "R8"
+    | "R8f"
+    | "R9"
+    | "R10"
+    | "R13"
+    | "R14"
+    | "R15"
+    | "R17"
+    | "XY"
+    | "field";
 
 /** One line of the panel or a pop-over. */
 export interface LineSpec {

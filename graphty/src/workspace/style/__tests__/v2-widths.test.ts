@@ -193,6 +193,8 @@ describe("Style panel v2's label rubric", () => {
                 "font",
                 "weight",
                 "italic",
+                "underline",
+                "strikethrough",
                 "textAlign",
                 "location",
                 "sizeMode",
@@ -202,10 +204,11 @@ describe("Style panel v2's label rubric", () => {
             ],
             "Main",
         );
-        // Show, Font, Weight, Italic on its own line, Align, Location, then the size unit's segments.
+        // Show, Font, the Bold / Italic / Underline / Strikethrough toggles on one line, Align, Location, then the
+        // size unit's segments (owner, 2026-11-23).
         assert.deepEqual(
             LABEL_RUBRIC.main.map((line) => (line.unit === undefined ? line.name : "size unit")),
-            ["Show", "Font", "Weight", "Italic", "Align", "Location", "size unit"],
+            ["Show", "Font", "Style", "Align", "Location", "size unit"],
         );
         const IA: readonly (readonly [string, readonly LabelField[]])[] = [
             [
@@ -223,7 +226,19 @@ describe("Style panel v2's label rubric", () => {
                     "keepInView",
                 ],
             ],
-            ["Letters", ["opacity", "lineHeight", "rotation", "runAlign", "outline", "outlineWidth", "outlineOpacity"]],
+            [
+                "Letters",
+                [
+                    "weight",
+                    "opacity",
+                    "lineHeight",
+                    "rotation",
+                    "runAlign",
+                    "outline",
+                    "outlineWidth",
+                    "outlineOpacity",
+                ],
+            ],
             [
                 "Wrap",
                 [

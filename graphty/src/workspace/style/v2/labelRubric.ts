@@ -56,6 +56,8 @@ export interface LabelLineSpec {
     readonly unit?: readonly LabelUnit[];
     /** R6 sides: top, right, bottom and left; one number writes all four until its Separate sides line splits them. */
     readonly sides?: readonly [LabelField, LabelField, LabelField, LabelField];
+    /** R7t: the flags drawn as icon toggles after the line's own field, on one line (Bold, Italic, ...). */
+    readonly toggles?: readonly LabelField[];
 }
 
 /** One sub-group of a label's pop-over. */
@@ -140,9 +142,9 @@ export const LABEL_RUBRIC: LabelRubric = {
     main: [
         { field: "enabled", name: "Show" },
         { field: "font", name: "Font", rule: "R13" },
-        { field: "weight", name: "Weight", rule: "R5b" },
-        // Italic is a line of its own, as every other switch is: no glyph beside Weight (E674).
-        { field: "italic", name: "Italic" },
+        // Bold, Italic, Underline and Strikethrough as a text editor's toggles (owner, 2026-11-23); Bold writes the
+        // weight, whose number is the Letters group's.
+        { field: "weight", name: "Style", rule: "R7t", toggles: ["italic", "underline", "strikethrough"] },
         { field: "textAlign", name: "Align", rule: "R8" },
         { field: "location", name: "Location", rule: "R2" },
         { field: "size", name: "Unit", fullName: "Size unit", rule: "R8f", unit: SIZE_UNIT },
@@ -166,6 +168,7 @@ export const LABEL_RUBRIC: LabelRubric = {
         {
             name: "Letters",
             lines: [
+                { field: "weight", name: "Weight", rule: "R5b" },
                 { field: "opacity", name: "Opacity" },
                 { field: "lineHeight", name: "Line height" },
                 { field: "rotation", name: "Rotation" },
@@ -378,6 +381,7 @@ export function labelFieldDescriptor(field: LabelField): LabelStyleFieldDescript
 export function labelLineFields(line: LabelLineSpec): readonly LabelField[] {
     return [
         line.field,
+        ...(line.toggles ?? []),
         ...(line.pair === undefined ? [] : [line.pair]),
         ...(line.sides?.filter((side) => side !== line.field) ?? []),
         ...(line.units ?? []),

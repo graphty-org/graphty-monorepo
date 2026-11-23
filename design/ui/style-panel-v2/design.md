@@ -619,18 +619,18 @@ are **Label shadow**, not Shadow, so Find a setting never shows one word for two
 Label shadow, every stroke of the box in Box stroke and the letters' own stroke in Letters, so no look has two
 homes.
 
-| Sub-group           | Lines                                                                                                                                                                                                |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Main (always shown) | Show R7 (`enabled`); font R13; weight R5b; italic R7 (its own line, E674); textAlign R8 icons; location R2; Unit R8f (`sizeMode`); the look is the row's kind (2.3), never a line here               |
-| Position            | attachOffset R5, offset X \| Y, box R8f, onTop R7, shift X \| Y, shiftOf R8, gapOf R8, keepInView R7                                                                                                 |
-| Letters             | opacity, lineHeight, rotation R5; runAlign R8f; Letter outline R1 (`outline`), Letter outline width R5, Letter outline opacity R5                                                                    |
-| Wrap                | width \| maxLines, Break anywhere R7 (`wrapAnywhere`), Cut long lines R7 (`wrapEllipsis`), Ellipsis at max lines R7, keepBlankLines R7, wrapTrailingSpace R7, wrapSkipEndSpace R7, wrapSpaceCount R5 |
-| Background          | background R1, opacity R5; backgroundShape R8; cornerRadius R5; padding R5; boxPadding R5; gradient R7, gradientType R8, gradientColors R15, gradientDirection R5                                    |
-| Box stroke          | borderWidth R5, borderColor R1, borderOpacity R5, borderAlign R8 icons, lineBox R8f; margin top \| right, bottom \| left                                                                             |
-| Label shadow        | Text shadow R7 (`shadow`), Text shadow color R1, Text shadow blur R5, Text shadow offset X \| Y; Box shadow R7 (`panelShadow`), Box shadow color R1, Box shadow blur R5, Box shadow offset X \| Y    |
-| Callout             | pointerDirection R8f, width \| height, pointerOffset R5, pointerCurve R7                                                                                                                             |
-| Badge               | badge R9, then its kind's lines: Icon beside text R14 (`icon`), Icon side R8 icons (`iconPosition`); or progress R5; or maxNumber R5, overflowSuffix R14, smartOverflow R7                           |
-| Behavior            | minScreenSize R5, declutter R8, minNodeScreenSize R5, depthFade R7, near \| far, animation R9, animationSpeed R5, pickable R7, closeButton R7                                                        |
+| Sub-group           | Lines                                                                                                                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Main (always shown) | Show R7 (`enabled`); font R13; Style R7t (Bold, Italic, Underline, Strikethrough toggles; owner, 2026-11-23); textAlign R8 icons; location R2; Unit R8f (`sizeMode`); the look is the row's kind (2.3), never a line here |
+| Position            | attachOffset R5, offset X \| Y, box R8f, onTop R7, shift X \| Y, shiftOf R8, gapOf R8, keepInView R7                                                                                                                      |
+| Letters             | weight R5b (the number; Bold is Main's toggle); opacity, lineHeight, rotation R5; runAlign R8f; Letter outline R1 (`outline`), Letter outline width R5, Letter outline opacity R5                                         |
+| Wrap                | width \| maxLines, Break anywhere R7 (`wrapAnywhere`), Cut long lines R7 (`wrapEllipsis`), Ellipsis at max lines R7, keepBlankLines R7, wrapTrailingSpace R7, wrapSkipEndSpace R7, wrapSpaceCount R5                      |
+| Background          | background R1, opacity R5; backgroundShape R8; cornerRadius R5; padding R5; boxPadding R5; gradient R7, gradientType R8, gradientColors R15, gradientDirection R5                                                         |
+| Box stroke          | borderWidth R5, borderColor R1, borderOpacity R5, borderAlign R8 icons, lineBox R8f; margin top \| right, bottom \| left                                                                                                  |
+| Label shadow        | Text shadow R7 (`shadow`), Text shadow color R1, Text shadow blur R5, Text shadow offset X \| Y; Box shadow R7 (`panelShadow`), Box shadow color R1, Box shadow blur R5, Box shadow offset X \| Y                         |
+| Callout             | pointerDirection R8f, width \| height, pointerOffset R5, pointerCurve R7                                                                                                                                                  |
+| Badge               | badge R9, then its kind's lines: Icon beside text R14 (`icon`), Icon side R8 icons (`iconPosition`); or progress R5; or maxNumber R5, overflowSuffix R14, smartOverflow R7                                                |
+| Behavior            | minScreenSize R5, declutter R8, minNodeScreenSize R5, depthFade R7, near \| far, animation R9, animationSpeed R5, pickable R7, closeButton R7                                                                             |
 
 The **Callout** kind and the **Callout** group are one home: the kind is a look that writes the box fields
 and the Callout group's fields (`pointer`, `pointerDirection`), and those fields show in the Callout group like

@@ -7,7 +7,7 @@
  * that channel's field in the line's place, so it shows once, where it belongs.
  */
 
-import { AlignmentMatrix, type AlignmentMatrixValue, PanelField } from "@graphty/compact-mantine";
+import { AlignmentMatrix, type AlignmentMatrixValue, PanelField, ToggleIconButton } from "@graphty/compact-mantine";
 import {
     type Channel,
     type ChannelDescriptor,
@@ -21,6 +21,7 @@ import type { LabelStyle } from "@graphty/graphty-element/schema";
 import { Checkbox, Group, Stack } from "@mantine/core";
 import React from "react";
 
+import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { shownChannel } from "../offered";
 import { GradientBar } from "../parts/GradientRow";
@@ -358,6 +359,53 @@ function locationControl({ label, field, name }: LineControlArgs): React.ReactNo
     );
 }
 
+/** A font style toggle's glyph and word, by the field it writes. */
+const FONT_TOGGLES: Readonly<Partial<Record<string, { glyph: keyof typeof GLYPHS; word: string }>>> = {
+    weight: { glyph: "fontBold", word: "Bold" },
+    italic: { glyph: "fontItalic", word: "Italic" },
+    underline: { glyph: "fontUnderline", word: "Underline" },
+    strikethrough: { glyph: "fontStrikethrough", word: "Strikethrough" },
+};
+
+/**
+ * R7t: a text editor's font style buttons on one line (owner, 2026-11-23), each pressed while the label draws it
+ * (unset, graphty-element's default). Bold reads and writes the weight: pressed at "bold" or 600 and over.
+ * @param args - the line.
+ * @returns The toggles
+ */
+function fontToggles(args: LineControlArgs): React.ReactNode {
+    const { label, line } = args;
+    const fields = [line.field, ...(line.toggles ?? [])];
+    return (
+        <Group gap={2} wrap="nowrap" data-font-style="">
+            {fields.map((field) => {
+                const toggle = FONT_TOGGLES[field];
+                if (toggle === undefined) {
+                    return null;
+                }
+                const Glyph = GLYPHS[toggle.glyph];
+                const value = valueOf(label.style, field) ?? labelFieldDescriptor(field)?.default;
+                const on =
+                    field === "weight"
+                        ? value === "bold" || (typeof value === "number" && value >= 600)
+                        : value === true;
+                return (
+                    <ToggleIconButton
+                        key={field}
+                        label={toggle.word}
+                        icon={<Glyph size={14} aria-hidden />}
+                        checked={on}
+                        onChange={(next) => {
+                            const bold = next ? "bold" : "normal";
+                            label.write({ [field]: field === "weight" ? bold : next });
+                        }}
+                    />
+                );
+            })}
+        </Group>
+    );
+}
+
 /**
  * The control a line's rule picks.
  * @param args - the line.
@@ -387,6 +435,8 @@ function controlOf(args: LineControlArgs, rule: string): React.ReactNode {
                     onWrite={write}
                 />
             );
+        case "R7t":
+            return fontToggles(args);
         case "R7":
             return (
                 <Checkbox

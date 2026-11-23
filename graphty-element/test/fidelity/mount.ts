@@ -67,7 +67,7 @@ export async function readJson<T>(path: string): Promise<T | null> {
  * @param file - the sample's path under graph-io/test/
  * @returns the stored file's hash and the bytes to load
  */
-async function readSample(file: string): Promise<{ sha256: string; data: Blob }> {
+export async function readSample(file: string): Promise<{ sha256: string; data: Blob }> {
     const base64 = await commands.readFile(`../graph-io/test/${file}`, { encoding: "base64" });
     return sampleData(
         Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)),

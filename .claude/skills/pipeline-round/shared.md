@@ -186,6 +186,8 @@ right; it reads only trusted authors and orders markers by comment id.
 - `pipeline-round: fix attempt <branch> <cause> -- <one line>` (each fix subagent sent for a red pull request)
 - `pipeline-round: inherited <check> > <test> -- waits on #<issue>[, fix #<pr>]` (on the red pull request and its issue;
   see "Inherited failures")
+- `pipeline-round: owner-review -- <what he must review>` (on a red pull request only the owner can clear; its
+  fix-red job stays listed as held, never startable, until a newer marker)
 - `pipeline-round: restarted <branch> -- <reason>` (a subagent started again on the same job)
 - `pipeline-round: reran <run id>`
 - `pipeline-round: released -- <reason>` (always with the `in-progress` label removed in the same step:

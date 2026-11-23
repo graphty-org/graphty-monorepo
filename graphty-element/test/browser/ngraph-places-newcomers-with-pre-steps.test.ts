@@ -27,14 +27,18 @@ const EDGES = [
     { src: 3, dst: 5 },
 ];
 
-/** Where the Data/Basic story's nodes came to rest at f606a837, the approved picture. */
+/**
+ * Where the Data/Basic story's nodes come to rest. Approved at f606a837; measured again on
+ * 2026-11-21 when ngraph's start box grew with the node count (issue #9280), which moved every
+ * seeded ngraph picture.
+ */
 const APPROVED: Record<string, [number, number, number]> = {
-    0: [-0.3573, -1.2384, 4.0709],
-    1: [4.4114, 7.9174, 2.0887],
-    2: [2.2056, -7.4633, -4.5556],
-    3: [-5.6724, -1.1264, -5.151],
-    4: [5.1682, 0.3711, -4.425],
-    5: [-5.092, -10.2599, 0.2687],
+    0: [-0.6578, -2.1686, 3.6752],
+    1: [5.8186, 5.9402, 2.4318],
+    2: [2.6675, -8.2915, -4.4098],
+    3: [-5.1108, -1.4513, -6.3223],
+    4: [4.4181, 2.0032, -9.5726],
+    5: [-8.0154, -10.5006, -1.3379],
 };
 
 let mounted: Graphty | null = null;

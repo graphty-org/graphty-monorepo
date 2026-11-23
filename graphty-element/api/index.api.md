@@ -1018,7 +1018,7 @@ export const DEFAULT_LIGHTING: Lighting;
 // @public
 export const DEFAULT_VIEW_MODE: ViewMode;
 
-// @public (undocumented)
+// @public
 export const defaultEdgeStyle: EdgeStyleConfig;
 
 // @public
@@ -2641,7 +2641,7 @@ export const EdgeStyle: z.ZodObject<{
     visible: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>;
 
-// @public (undocumented)
+// @public
 export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
 
 // @public
@@ -9292,6 +9292,8 @@ export class UpdateManager implements Manager {
     adoptBuiltEdge(edge: Edge): void;
     // @internal
     adoptBuiltNode(node: Node_2): void;
+    // @internal
+    annotationMeshes: (() => readonly Mesh[]) | null;
     autoTurning: boolean;
     get awaitsLanding(): boolean;
     bindViewMasks(masks: ViewMasks | null): void;

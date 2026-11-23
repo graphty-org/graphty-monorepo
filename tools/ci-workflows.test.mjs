@@ -1702,6 +1702,15 @@ describe("verification runs of ci.yml", () => {
         // Through the results store like every test shard, and judged against the committed quarantine list.
         assert.match(job(ci, "story-tests"), /node tools\/results\/run-group\.mjs "\$SHARD"/);
         assert.match(job(ci, "story-tests"), /id-token: write/);
+        // the Checks job's CI workflow tests and Cost Estimate Accuracy are recorded too, once, verdict untouched (#3429)
+        for (const [name, group] of [
+            ["checks", "ci-workflows"],
+            ["cost-accuracy", "cost-accuracy"],
+        ]) {
+            assert.match(job(ci, name), new RegExp(`node tools/results/run-group\\.mjs ${group} "`));
+            assert.match(job(ci, name), /RESULTS_RECORD_ONLY: "1"/);
+            assert.match(job(ci, name), /id-token: write/);
+        }
         // the combine step judges by the very list the run step judged by, which the run step writes
         assert.match(
             job(ci, "story-tests"),

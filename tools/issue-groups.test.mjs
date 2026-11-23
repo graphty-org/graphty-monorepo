@@ -1832,6 +1832,49 @@ describe("pipeline jobs", () => {
         assert.match(jobLines(old)[0], /2 fix attempts: close it, branch kept$/);
     });
 
+    it("holds an open job whose every issue waits, and a fix-red only the owner can clear, out of startable (#9710)", () => {
+        // 2026-11-22: feat/9083 waited on #8596 (pr-open refused it) and #8180 failed only PR Integrity; both were
+        // counted startable, so the Stop hook asked for jobs after every reply while nothing could start
+        const l = withPrs([
+            pr(9301, { checks: "FAILURE", failing: ["PR Integrity"] }),
+            pr(9302, { failing: ["PR Integrity", "Lint"] }),
+            pr(9303, { failing: ["Lint"], markers: [{ kind: "owner-review", at: NOW - 8 * HOUR }] }),
+            pr(9304, { mergeable: "CONFLICTING", failing: ["PR Integrity"] }),
+        ]);
+        for (const n of [1, 2]) {
+            make(l, n);
+            start(l, `g${n}`, `fix/${n}-x`, NOW - 4 * HOUR);
+            ready(l, `g${n}`, `sha${n}`, NOW - 3 * HOUR);
+        }
+        addWait(l, { n: 1, on: "#8596", why: "pr-open refuses it", now: NOW - HOUR });
+        const r = ledgerJobs(l, [], NOW, { claims: [] });
+        assert.deepEqual(r.jobs.map((j) => j.pr ?? j.branch).sort(), [9302, 9304, "fix/2-x"].sort());
+        assert.deepEqual(
+            r.held.map((j) => [j.pr ?? j.branch, j.held]),
+            [
+                [9301, "owner review"],
+                [9303, "owner review"],
+                ["fix/1-x", "waits on #8596"],
+            ],
+        );
+        const lines = jobLines(r);
+        assert.ok(lines.some((x) => /^fix-red #9301 .*; held: owner review$/.test(x)));
+        assert.ok(lines.some((x) => /^open fix\/1-x .*; held: waits on #8596$/.test(x)));
+        assert.match(lines.at(-1), /; 2 fix-red, 1 open; 3 held$/);
+        const ledgerPath = join(tempDir(), "groups.json");
+        writeFileSync(ledgerPath, JSON.stringify(l));
+        const v = main(["idle", "--json"], {
+            ledgerPath,
+            now: NOW,
+            sweep: () => ({ claims: [], line: "claims: swept" }),
+            fetchOpen: () => [],
+            session: () => null,
+            sinks: () => ({}),
+            machine: () => ({ slots: { count: 4, held: 0, waitedMs: 0 }, load: 1, cores: 32 }),
+        });
+        assert.equal(JSON.parse(v.out).startable, 3);
+    });
+
     it("offers open for a ready branch with no pull request for over 2 h, never a landed or claimed one", () => {
         const l = withPrs([]);
         for (const n of [1, 2, 3]) {
@@ -1943,9 +1986,32 @@ describe("pipeline jobs", () => {
             author: { login: "graphty-agent" },
             labels: { nodes: [] },
             commits: {
-                nodes: [{ commit: { committedDate: "2026-11-16T01:00:00Z", statusCheckRollup: { state: "FAILURE" } } }],
+                nodes: [
+                    {
+                        commit: {
+                            committedDate: "2026-11-16T01:00:00Z",
+                            statusCheckRollup: {
+                                state: "FAILURE",
+                                contexts: {
+                                    nodes: [
+                                        { name: "Lint", conclusion: "FAILURE" },
+                                        { name: "Lint", conclusion: "SUCCESS" },
+                                        { name: "PR Integrity", conclusion: "FAILURE" },
+                                        { context: "legacy", state: "ERROR" },
+                                        { name: "Build", conclusion: "SUCCESS" },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                ],
             },
-            comments: { nodes: [c("pipeline-round: fix attempt fix/20-x abc -- x", "2026-11-16T03:00:00Z")] },
+            comments: {
+                nodes: [
+                    c("pipeline-round: fix attempt fix/20-x abc -- x", "2026-11-16T03:00:00Z"),
+                    c("pipeline-round: owner-review -- code-owner review", "2026-11-16T05:00:00Z"),
+                ],
+            },
             closingIssuesReferences: {
                 nodes: [
                     {
@@ -1980,8 +2046,10 @@ describe("pipeline jobs", () => {
         assert.equal(p.headAt, "2026-11-16T01:00:00Z");
         assert.deepEqual(
             p.markers.map((m) => m.kind),
-            ["inherited", "fix attempt"],
+            ["inherited", "fix attempt", "owner-review"],
         );
+        assert.deepEqual(p.failing, ["PR Integrity", "legacy"], "a check's newest result counts");
+        assert.match(pages[0], /contexts\(first: 100\)/);
         assert.equal(
             fetchAgentPrs(() => ({ repository: {} })),
             null,

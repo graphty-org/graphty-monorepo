@@ -1746,15 +1746,18 @@ export function framedBand(vertices: readonly Pt[], samples: number): FramedBand
         return plain;
     }
     const fromTarget = bandOf([v[v.length - 1], ...v.slice(0, -1)], samples);
-    return fromTarget === null
-        ? null
-        : {
-              route: [...fromTarget.route].reverse(),
-              width: fromTarget.width,
-              heads: fromTarget.heads
-                  .map((h) => ({ ...h, end: h.end === "source" ? ("target" as const) : ("source" as const) }))
-                  .reverse(),
-          };
+    if (fromTarget === null) {
+        // and some at the source's arrowhead, one corner before its tip, at its wing (graphml-stm32-func e36, Arrows
+        // source="standard" target="standard"): read from the tip, it is read as drawn
+        return bandOf([...v.slice(1), v[0]], samples);
+    }
+    return {
+        route: [...fromTarget.route].reverse(),
+        width: fromTarget.width,
+        heads: fromTarget.heads
+            .map((h) => ({ ...h, end: h.end === "source" ? ("target" as const) : ("source" as const) }))
+            .reverse(),
+    };
 }
 
 /**

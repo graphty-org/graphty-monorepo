@@ -386,6 +386,7 @@ export type SourceId =
     | "stress"
     | "hosts"
     | "billing"
+    | "aws-usage"
     | "flaky-feed"
     | "benchmarks"
     | "local";

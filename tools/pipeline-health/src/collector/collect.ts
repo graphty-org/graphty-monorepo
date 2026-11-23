@@ -146,7 +146,7 @@ export interface Deps {
     awsCosts?: (from: string, to: string) => Promise<AwsCostDay[]>;
     /**
      * Measured usage by day (usage.ts), read hourly: Cloudflare's (undefined until its token is in SSM: the source
-     * cloudflare-token stays "not set up") and AWS's from CloudWatch (recorded against billing).
+     * cloudflare-token stays "not set up") and AWS's from CloudWatch (source aws-usage).
      */
     usage?: { cloudflare?: UsageReader; aws?: UsageReader };
     rates: Rates;
@@ -1639,7 +1639,7 @@ async function usage(c: Cycle): Promise<void> {
     const to = day(c.now);
     for (const [name, source] of [
         ["cloudflare", "cloudflare-token"],
-        ["aws", "billing"],
+        ["aws", "aws-usage"],
     ] as const) {
         const read = readers[name];
         if (!read) {

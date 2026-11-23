@@ -1095,6 +1095,7 @@ export const LABEL: Record<string, string> = {
     "source.stress": "Weekly stress run",
     "source.hosts": "Host matrix",
     "source.billing": "Billing: AWS, T4 rates",
+    "source.aws-usage": "AWS usage (CloudWatch)",
     "source.flaky-feed": "Feed of CI's flaky detections",
     "source.benchmarks": "Benchmark results",
     "source.local": "Local writer",

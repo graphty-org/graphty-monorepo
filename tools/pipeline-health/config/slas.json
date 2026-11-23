@@ -83,8 +83,12 @@
             "yellowAfterMs": 900000
         },
         "billing": {
-            "label": "Billing and AWS usage (Cost Explorer, CloudWatch)",
+            "label": "Billing (Cost Explorer, Cloudflare, Sentry)",
             "yellowAfterMs": 129600000
+        },
+        "aws-usage": {
+            "label": "AWS usage (CloudWatch)",
+            "yellowAfterMs": 10800000
         },
         "benchmarks": {
             "label": "Benchmark results (CI's benchmark jobs)",
@@ -1386,7 +1390,7 @@
                     "fail": [">", 2]
                 }
             ],
-            "sources": ["billing"]
+            "sources": ["aws-usage"]
         },
         {
             "id": "cost.usage_aws_dynamo_read_units",
@@ -1406,7 +1410,7 @@
                     "fail": [">", 2]
                 }
             ],
-            "sources": ["billing"]
+            "sources": ["aws-usage"]
         },
         {
             "id": "cost.usage_aws_lambda_invocations",
@@ -1426,7 +1430,7 @@
                     "fail": [">", 2]
                 }
             ],
-            "sources": ["billing"]
+            "sources": ["aws-usage"]
         },
         {
             "id": "cost.usage_aws_api_requests",
@@ -1446,7 +1450,7 @@
                     "fail": [">", 2]
                 }
             ],
-            "sources": ["billing"]
+            "sources": ["aws-usage"]
         },
         {
             "id": "cost.sentry_usage",

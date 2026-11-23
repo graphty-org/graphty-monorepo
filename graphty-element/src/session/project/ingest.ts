@@ -24,7 +24,15 @@ import {
     setReaderSignal,
     settledOptionsOf,
 } from "../../data/DataSource";
-import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey, recordType, reducesInto } from "../../data/edgeIdentity";
+import {
+    decideRepeat,
+    duplicateEdgeError,
+    edgeCounterOf,
+    edgeIdOf,
+    pairKey,
+    recordType,
+    reducesInto,
+} from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import { keepSourceMetaExtra, readerMetaExtra } from "../../data/graph-io-import";
@@ -2317,15 +2325,7 @@ export class Ingest<K extends KnownEdge> {
         }
 
         if (decision.kind === "refuse") {
-            throw new GraphtyError({
-                code: "E_DUPLICATE_EDGE",
-                source: "data",
-                message:
-                    `Two edges run from ${JSON.stringify(sourceId)} to ${JSON.stringify(targetId)}, and ` +
-                    `data.knownFields.repeatedEdges is "error". Set it to "keep" to hold both, or to ` +
-                    `"first", "last", "sum", "min" or "max" to fold them into one.`,
-                details: { source: sourceId, target: targetId, existing: known.edgeIndex, repeat: record },
-            });
+            throw duplicateEdgeError(sourceId, targetId, record, known.edgeIndex);
         }
 
         if (decision.kind === "drop") {

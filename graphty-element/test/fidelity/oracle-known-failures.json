@@ -516,7 +516,7 @@
             "edge.dash": ["190->191#g0","190->599#g0"],
             "edge.dashPeriod": [],
             "edge.gradient": [],
-            "edge.arrow": ["141->142#g0@middle","141->142#g0@target","403->202#g0@source","6->16#g0@target","626->392#g0@source","626->392#g0@target","768->125#g0@source","768->125#g0@target"],
+            "edge.arrow": ["141->142#g0@middle","141->142#g0@target","403->202#g0@source","6->16#g0@target","768->125#g0@source","768->125#g0@target"],
             "edge.arrowShape": ["776->6#g0@target"],
             "edge.arrowParts": [],
             "edge.arrowPlace": [],
@@ -570,7 +570,7 @@
             "edge.dash": ["190->191#g0","190->599#g0"],
             "edge.dashPeriod": [],
             "edge.gradient": [],
-            "edge.arrow": ["403->202#g0@source","6->16#g0@target","626->392#g0@source","768->125#g0@source"],
+            "edge.arrow": ["403->202#g0@source","6->16#g0@target","768->125#g0@source"],
             "edge.arrowShape": ["776->6#g0@target"],
             "edge.arrowParts": [],
             "edge.arrowPlace": [],
@@ -7563,7 +7563,7 @@
             "stray.extra": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": ["frame"],
+            "frame.zoom": [],
             "background": []
         },
         "cys-import-and-save@matched": {
@@ -7611,7 +7611,7 @@
             "stray.extra": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": ["frame"],
+            "frame.zoom": [],
             "background": []
         },
         "cys-luad-vest-v2": {

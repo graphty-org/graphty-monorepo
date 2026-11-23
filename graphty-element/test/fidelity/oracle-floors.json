@@ -8091,13 +8091,13 @@
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.9,
-            "raster.edge": 0.95,
-            "raster.label": 0.91,
+            "raster.canvas": 0.98,
+            "raster.edge": 0.96,
+            "raster.label": 0.93,
             "raster.nodeBody": 0.92,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "cys-import-and-save@matched": {
@@ -8145,7 +8145,7 @@
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
             "edge.wiggle": 1
         },
@@ -15445,7 +15445,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.95,
+            "raster.label": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.95,
             "stray.extra": 1
@@ -15525,7 +15525,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.96,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95,
+            "raster.nodeOutline": 0.96,
             "stray.extra": 1
         },
         "dot-specimen-groups-p5@matched": {
@@ -15677,7 +15677,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.96,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95,
+            "raster.nodeOutline": 0.96,
             "stray.extra": 1
         },
         "dot-specimen-groups-p7@matched": {

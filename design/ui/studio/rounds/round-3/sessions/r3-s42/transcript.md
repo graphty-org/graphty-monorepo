@@ -10,7 +10,7 @@ Command: `node tool/real.mjs --start <session> setup:rounds/round-3/setups/T7-B.
 
 Saw (01.png): a drawing of blue dots joined by arrows, titled "friends". Left panel: a search box,
 "Selection", "Everything". Right panel: Graph, From friends.csv, Overview: Nodes 20, Edges 41,
-Directed, Density 0.1079, Components 1, Edges per node 3 to 6, mean 4.1. Bottom left in small grey:
+Directed, Density 0.1079, Components 1, Edges per node 3 to 6, mean 4.1. Bottom left in small gray:
 "Analyze (flask) in the toolbar (Shift+A) to add results here". A toolbar at the bottom with a flask,
 a chart icon, "3D" and a magnifier. "Local only" up top -- good, the club list stays here.
 
@@ -24,12 +24,12 @@ Command: `--step <session> --click-at 679,864` -> `at 679,864: button "Analyze"`
 
 Saw (02.png): a list headed "Rank nodes and edges": Degree, Betweenness, Edge betweenness,
 Closeness, PageRank (with a blue "Start here" tag), Eigenvector, Katz, HITS, All-pairs distance,
-then grey ones (Depth-first order "Select a node first", Most flow). Each has a small grey line under it.
+then gray ones (Depth-first order "Select a node first", Most flow). Each has a small gray line under it.
 
 Hesitation: a wall of names. Tom: "I don't know what any of these are, and I'm not learning them
 at 4 pm. 'Rank' is the word I want, at least. One of them says 'Start here', so somebody thinks that's
-the one. I'll take the one it tells me to." (He did not read the grey lines under each name; they are
-small and grey.)
+the one. I'll take the one it tells me to." (He did not read the gray lines under each name; they are
+small and gray.)
 
 ## Step 3 -- click PageRank
 
@@ -100,7 +100,7 @@ I am not sure it is the right measure for "depends on"; I picked the one marked 
 ### What confused me
 
 - The list of analyses was a page of names I do not know (Betweenness, Katz, HITS, Eigenvector).
-  The grey lines under them are small; I only went with PageRank because of the "Start here" tag,
+  The gray lines under them are small; I only went with PageRank because of the "Start here" tag,
   not because it matched my question. Nothing told me which one answers "who does the club depend on".
 - After Run, all I got was a color change, orange to brown. Several dots looked the same shade to
   me, and none had a name, so the drawing alone could not give me an order. The ranked list was two

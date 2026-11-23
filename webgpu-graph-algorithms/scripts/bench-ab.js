@@ -11,7 +11,13 @@
  *
  * What it does (run from webgpu-graph-algorithms, with the candidate already built):
  *   1. `git worktree add --detach` the base commit into a temporary directory, `pnpm install --frozen-lockfile` and
- *      build graph-format and this package there.
+ *      build graph-format and this package there, then copy the candidate's benchmarks/harness.ts over the base's,
+ *      so both builds are timed by the same instrument. The harness decides what happens around the timer (a garbage
+ *      collection before each run or not, issue #7368), and that moves the GPU's idle time and clock: with each side
+ *      on its own harness, the 32k exact-tier profiler row read 10 % slower against a release whose harness still
+ *      collected before every run, while its wall row did not move (issue #8490); on an RTX 4070 SUPER the same
+ *      pairing moved the small exact-tier wall rows to x0.6-0.9 with no change under src/, and back to x1.0 with one
+ *      harness. The harness imports nothing from src/, so the base's own benchmark files run under it unchanged.
  *   2. For R rounds, run `benchmarks/run.ts --no-save --runs N --samples-out <file>` once per build, base first in
  *      even rounds and candidate first in odd ones (ABBA), so a drift that is linear in time cancels.
  *   3. Per row (group/name) and round, take the log of candidate minimum over base minimum (the minimum, because
@@ -33,13 +39,16 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 /** The lower-bound factor above which a row is a regression (see the header). */
 export const DEFAULT_THRESHOLD = 1.08;
+
+/** The measuring instrument both sides run under: always the candidate's copy (see the header, step 1). */
+const HARNESS = join("benchmarks", "harness.ts");
 
 /** Two-sided 95 % Student t quantiles (0.975) for 1..30 degrees of freedom; beyond 30 the normal 1.96. */
 const T975 = [
@@ -182,6 +191,7 @@ function main(argv) {
             baseRepo,
         );
         const sides = { base: join(baseRepo, relative(repo, packageDir)), candidate: packageDir };
+        copyFileSync(join(packageDir, HARNESS), join(sides.base, HARNESS));
         const rounds = [];
         for (let r = 0; r < opts.rounds; r++) {
             const order = r % 2 === 0 ? ["base", "candidate"] : ["candidate", "base"];

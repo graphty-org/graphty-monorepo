@@ -12,7 +12,7 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { oneStep, openGenerated, openLayer, selectStep } from "./large-graph";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 describe("the selection editor on 50,000 nodes", () => {

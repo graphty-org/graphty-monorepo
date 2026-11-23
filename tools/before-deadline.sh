@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs a command and kills it at DEADLINE (epoch seconds), failing the step instead. For an advisory job
-# (continue-on-error): a job that reaches its own timeout-minutes is cancelled, and a cancelled job makes the whole
-# run conclude cancelled, which continue-on-error does not absorb (issue #7986). A failed step it does absorb.
+# (continue-on-error): a job that reaches its own timeout-minutes is canceled, and a canceled job makes the whole
+# run conclude canceled, which continue-on-error does not absorb (issue #7986). A failed step it does absorb.
 #
 #   DEADLINE=<epoch seconds> tools/before-deadline.sh <command> [args...]
 #

@@ -7,17 +7,15 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { seedOption, type SeedOptions, withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
 
 /** Options of the index-based label propagation. @public */
-export interface LabelPropagationOptions {
+export interface LabelPropagationOptions extends SeedOptions {
     /** Work cap, in node visits per node (full-sweep equivalents); default 100. */
     readonly maxIterations?: number | undefined;
-    /** Seed of the visit order and of the tie draws; default 42. */
-    readonly randomSeed?: number | undefined;
-    /** Sum arc weights (true, the default) or count each distinct neighbour once (false). */
+    /** Sum arc weights (true, the default) or count each distinct neighbor once (false). */
     readonly weighted?: boolean | undefined;
 }
 
@@ -27,7 +25,7 @@ export interface LabelPropagationResult extends LabelResult {
     readonly iterations: number;
     /**
      * True when the work queue emptied before the visit cap, which leaves every node's label
-     * dominant among its neighbours. False only says the cap was reached with nodes still queued:
+     * dominant among its neighbors. False only says the cap was reached with nodes still queued:
      * the labels may already be dominant.
      */
     readonly converged: boolean;
@@ -38,10 +36,10 @@ const EPOCH_LIMIT = 0x7fffffff;
 
 /**
  * Whether any arc other than a self-loop carries a positive vote under the chosen weighting, which
- * is exactly when the identity labelling is NOT dominant everywhere.
+ * is exactly when the identity labeling is NOT dominant everywhere.
  * @param s - The snapshot
  * @param weights - The arc weights in use, or null when every arc votes 1
- * @returns True when some node has a positive-weight neighbour
+ * @returns True when some node has a positive-weight neighbor
  */
 function hasVotingArc(s: GraphSnapshot, weights: NumericVector | null): boolean {
     for (let u = 0; u < s.nodeCount; u++) {
@@ -56,8 +54,8 @@ function hasVotingArc(s: GraphSnapshot, weights: NumericVector | null): boolean 
 }
 
 /**
- * Whether every node not held fixed holds a label at the largest vote among its neighbours (or has
- * no neighbour that votes).
+ * Whether every node not held fixed holds a label at the largest vote among its neighbors (or has
+ * no neighbor that votes).
  * @param tally - A tally over the voting rows
  * @param label - The label of every node
  * @param fixed - 1 for a node held at its label, or null when none is
@@ -108,9 +106,9 @@ export function exactEdgeWeights(s: GraphSnapshot): Float64Array | null {
 }
 
 /**
- * The rows a node's votes are read from, with the weights they carry. A node's neighbours are its
+ * The rows a node's votes are read from, with the weights they carry. A node's neighbors are its
  * out-row and, on a directed snapshot, its in-row read from the cached reverse view: the simple
- * symmetric view without materialising it (design section 2.3).
+ * symmetric view without materializing it (design section 2.3).
  */
 interface VotingRows {
     /** 1 on an undirected snapshot, 2 (out-row, in-row) on a directed one. */
@@ -157,18 +155,14 @@ function votingRows(s: GraphSnapshot, weighted: boolean): VotingRows {
  * Check the options every label propagation shares.
  * @param n - The node count
  * @param maxIterations - The work cap
- * @param randomSeed - The seed, or null when the variant takes none
  * @throws RangeError for a bad option
  */
-function checkOptions(n: number, maxIterations: number, randomSeed: number | null): void {
+function checkOptions(n: number, maxIterations: number): void {
     if (!Number.isInteger(maxIterations) || maxIterations < 0) {
         throw withCode(
             new RangeError(`maxIterations must be a non-negative integer, got ${maxIterations}`),
             "E_BAD_OPTION",
         );
-    }
-    if (randomSeed !== null && !Number.isInteger(randomSeed)) {
-        throw withCode(new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`), "E_BAD_OPTION");
     }
     if (maxIterations * n > Number.MAX_SAFE_INTEGER) {
         throw withCode(
@@ -189,7 +183,7 @@ class Tally {
     // nodes (design section 4). Started at -1, so label 0 is an ordinary label.
     readonly stamp: Int32Array;
     readonly touched: Uint32Array;
-    // weighted: false -- epoch that last counted neighbour v, so each distinct neighbour votes once
+    // weighted: false -- epoch that last counted neighbor v, so each distinct neighbor votes once
     // however many arcs join it.
     readonly seen: Int32Array | null;
     epoch = -1;
@@ -207,10 +201,10 @@ class Tally {
     }
 
     /**
-     * Sum the votes of u's neighbours per label into `acc`, listing the labels met in `touched`.
+     * Sum the votes of u's neighbors per label into `acc`, listing the labels met in `touched`.
      * @param u - The node
      * @param label - The label of every node
-     * @returns The largest vote, 0 when no neighbour votes
+     * @returns The largest vote, 0 when no neighbor votes
      */
     collect(u: number, label: U32): number {
         if (++this.epoch === EPOCH_LIMIT) {
@@ -235,7 +229,7 @@ class Tally {
     }
 
     /**
-     * Add the votes of u's neighbours on one side of the rows to the tally of the current visit.
+     * Add the votes of u's neighbors on one side of the rows to the tally of the current visit.
      * @param side - Which row (0 the out-row, 1 the in-row)
      * @param u - The node
      * @param label - The label of every node
@@ -262,7 +256,7 @@ class Tally {
             }
             const c = label[v];
             if (c === INVALID_INDEX) {
-                continue; // an unlabeled neighbour casts no vote
+                continue; // an unlabeled neighbor casts no vote
             }
             const vote = w === null ? 1 : w[a];
             if (stamp[c] === visit) {
@@ -279,7 +273,7 @@ class Tally {
     /**
      * The vote label c received in the last `collect`.
      * @param c - A label
-     * @returns Its vote, 0 when no neighbour holds it
+     * @returns Its vote, 0 when no neighbor holds it
      */
     voteOf(c: number): number {
         return this.stamp[c] === this.epoch ? this.acc[c] : 0;
@@ -327,7 +321,7 @@ function flpa(
         visits++;
         const max = tally.collect(u, label);
         if (max === 0) {
-            continue; // no positive-weight neighbour: keep the label
+            continue; // no positive-weight neighbor: keep the label
         }
         const pick = drawTiedLabel(tally, max, rand);
         if (pick === label[u]) {
@@ -400,8 +394,8 @@ function drawTiedLabel(tally: Tally, max: number, rand: () => number): number {
 }
 
 /**
- * Queue again every neighbour of u not queued, not fixed and not already holding u's new label. A
- * neighbour already holding it can only have been strengthened by the move. Both rows, so on a
+ * Queue again every neighbor of u not queued, not fixed and not already holding u's new label. A
+ * neighbor already holding it can only have been strengthened by the move. Both rows, so on a
  * directed snapshot the nodes that read u are requeued too.
  * @param rows - The voting rows
  * @param label - The label of every node
@@ -442,19 +436,19 @@ function requeueNeighbours(
  *
  * Every node starts in its own community. Nodes are visited from a queue that starts as a seeded
  * shuffle of all of them; a visited node adopts the label with the largest summed arc weight among
- * its neighbours, drawing uniformly at random among tied labels (its current label included, with
- * no priority). When its label changes, every neighbour holding a different label is queued again.
- * The run ends when the queue empties -- then every node's label is dominant among its neighbours
+ * its neighbors, drawing uniformly at random among tied labels (its current label included, with
+ * no priority). When its label changes, every neighbor holding a different label is queued again.
+ * The run ends when the queue empties -- then every node's label is dominant among its neighbors
  * and `converged` is true -- or after `maxIterations * nodeCount` node visits.
  *
  * Conventions: self-loops are skipped; parallel arcs are summed; on a directed snapshot a node's
- * neighbours are its out-arcs AND its in-arcs, so a reciprocal pair counts twice. With
- * `weighted: false` each distinct neighbour votes once. A negative, NaN or infinite weight throws.
+ * neighbors are its out-arcs AND its in-arcs, so a reciprocal pair counts twice. With
+ * `weighted: false` each distinct neighbor votes once. A negative, NaN or infinite weight throws.
  * Votes use the exact f64 weights when the snapshot keeps them (as `toSnapshot` does for a legacy
  * graph whose weights are not all f32-exact), so a weight rounded in the f32 arc array never
  * decides a vote.
  *
- * One `randomSeed` gives one result, bit for bit. The partitions differ from the legacy
+ * One `seed` gives one result, bit for bit. The partitions differ from the legacy
  * `labelPropagation` for the same seed: the random stream and the stop rule are different
  * (design `design/algorithms/label-propagation-indexed-port-design.md`, section 3).
  * @param s - Any snapshot
@@ -464,10 +458,10 @@ function requeueNeighbours(
  */
 export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOptions = {}): LabelPropagationResult {
     const maxIterations = options.maxIterations ?? 100;
-    const randomSeed = options.randomSeed ?? 42;
+    const randomSeed = seedOption("labelPropagation", options);
     const weighted = options.weighted ?? true;
     const n = s.nodeCount;
-    checkOptions(n, maxIterations, randomSeed);
+    checkOptions(n, maxIterations);
     const rows = votingRows(s, weighted);
     const label = new Uint32Array(n);
     for (let i = 0; i < n; i++) {
@@ -488,7 +482,7 @@ export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOpti
  *
  * A seeded node keeps its label for the whole run and is never visited. Every other node starts
  * UNLABELED, as a negative `initial` value means in igraph: it casts no vote, and on a visit it takes
- * the label with the largest summed vote among its labeled neighbours, drawing uniformly among tied
+ * the label with the largest summed vote among its labeled neighbors, drawing uniformly among tied
  * labels (its current one included), or stays unlabeled while it has none. So seed labels spread
  * outward from the seeds, and every node joined to a seed by a path of voting arcs (any arc but a
  * self-loop, with a positive weight when `weighted`) ends with some seed's label once the run
@@ -506,7 +500,7 @@ export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOpti
  * so a seed label's VALUE is not kept: read a seed's community through `labels[seedNode]`.
  *
  * `converged` is true when the work queue emptied, or when `maxIterations` is 0 and the starting
- * labels already are dominant: no unseeded node has a labeled neighbour whose label outvotes its own
+ * labels already are dominant: no unseeded node has a labeled neighbor whose label outvotes its own
  * (an unlabeled node next to a labeled one is not settled). Seeded nodes are not held to that.
  * @param s - Any snapshot
  * @param seeds - One entry per node: its fixed label, any value but `INVALID_INDEX`, or
@@ -522,7 +516,7 @@ export function labelPropagationSemiSupervised(
     options: LabelPropagationOptions = {},
 ): LabelPropagationResult {
     const maxIterations = options.maxIterations ?? 100;
-    const randomSeed = options.randomSeed ?? 42;
+    const randomSeed = seedOption("labelPropagationSemiSupervised", options);
     const weighted = options.weighted ?? true;
     const n = s.nodeCount;
     if (seeds.length !== n) {
@@ -531,7 +525,7 @@ export function labelPropagationSemiSupervised(
             "E_BAD_OPTION",
         );
     }
-    checkOptions(n, maxIterations, randomSeed);
+    checkOptions(n, maxIterations);
     const rows = votingRows(s, weighted);
     // The kernel's labels are node indices, so a seed label becomes the index of the first node
     // seeded with it. A free node starts unlabeled.
@@ -583,7 +577,7 @@ function labelUnreached(rows: VotingRows, label: U32): void {
 }
 
 /**
- * Give every unlabeled neighbour of `u` across a voting arc the label `root`, and push it.
+ * Give every unlabeled neighbor of `u` across a voting arc the label `root`, and push it.
  * @param rows - The voting rows
  * @param label - Labels, `INVALID_INDEX` for an unlabeled node; filled in place
  * @param u - The node whose rows are read
@@ -610,25 +604,25 @@ function labelNeighbours(rows: VotingRows, label: U32, u: number, root: number, 
 export interface SynchronousLabelPropagationOptions {
     /** Cap on synchronous passes over every node; default 100. */
     readonly maxIterations?: number | undefined;
-    /** Sum arc weights (true, the default) or count each distinct neighbour once (false). */
+    /** Sum arc weights (true, the default) or count each distinct neighbor once (false). */
     readonly weighted?: boolean | undefined;
 }
 
 /**
- * Label propagation in synchronous passes: every node reads its neighbours' labels from the
+ * Label propagation in synchronous passes: every node reads its neighbors' labels from the
  * previous pass, and all nodes move at once. Deterministic, with no random stream.
  *
- * A node keeps its label when that label is dominant among its neighbours; otherwise it takes, of
+ * A node keeps its label when that label is dominant among its neighbors; otherwise it takes, of
  * the labels with the largest summed vote, the one of lowest PRIORITY. A label's priority is a fixed
  * scramble of its value (the murmur3 32-bit finalizer, a one-to-one map, so no two labels share a
  * priority). Ranking labels by their raw value instead ties the outcome to the node numbering: on a
- * path or a cycle numbered in order every interior node is tied between its two neighbours, the
+ * path or a cycle numbered in order every interior node is tied between its two neighbors, the
  * lowest label wins every tie, and it spreads one node per two passes -- 1,998 passes to settle a
  * 1,000-node path, into a single community. Under the scrambled priority the winners of those ties
  * are spread along the chain, so a path or a cycle settles in a few passes into short runs of
  * nodes, as {@link labelPropagation} does, and a star or a clique still ends as one community.
  *
- * Synchronous updates alone make two neighbours trade labels for ever (on a single edge a-b, a takes
+ * Synchronous updates alone make two neighbors trade labels for ever (on a single edge a-b, a takes
  * b's label while b takes a's), so passes alternate a swap guard: an even pass (the first is pass 0)
  * lets a node move only to a label of higher priority, an odd pass only to one of lower priority
  * (the up/down rule of cuGraph's Louvain move phase). The run stops after two passes in a row with
@@ -643,7 +637,7 @@ export interface SynchronousLabelPropagationOptions {
  * This is what the legacy `labelPropagationAsync` does, despite its name, with the swap guard it
  * lacks and the tie rule applied to the finished tally rather than to a running one. Conventions
  * match {@link labelPropagation}: self-loops are skipped, parallel arcs summed, a directed snapshot
- * reads out- and in-neighbours, weights are the exact f64 ones when the snapshot keeps them, and a
+ * reads out- and in-neighbors, weights are the exact f64 ones when the snapshot keeps them, and a
  * negative, NaN or infinite weight throws.
  * @param s - Any snapshot
  * @param options - Pass cap and weighting
@@ -657,7 +651,7 @@ export function labelPropagationSynchronous(
     const maxIterations = options.maxIterations ?? 100;
     const weighted = options.weighted ?? true;
     const n = s.nodeCount;
-    checkOptions(n, maxIterations, null);
+    checkOptions(n, maxIterations);
     const rows = votingRows(s, weighted);
     const tally = new Tally(n, rows, weighted);
     let label = new Uint32Array(n);

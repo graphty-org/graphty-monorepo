@@ -53,6 +53,30 @@ async function rowsWritten(session: GraphSession, work: () => unknown): Promise<
 }
 
 describe("running the layout of a session with no renderer", () => {
+    it("lays out only what the filters show: a hidden node is never placed", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes(["a", "b", "c", "d", "e"].map((id) => ({ id, side: id === "e" ? "far" : "near" })));
+        await session.data.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+            { src: "c", dst: "d" },
+            { src: "d", dst: "e" },
+        ]);
+        await session.visibility.addCondition({
+            effect: "keep",
+            rule: { kind: "categories", attribute: "data.side", values: ["near"] },
+        });
+
+        for (const engine of ["force", "circular"] as const) {
+            await session.layout.set(engine, { options: { seed: 1 } });
+            await session.layout.settle();
+            for (const id of ["a", "b", "c", "d"]) {
+                assert.isDefined(session.positions.get(id), `${engine} places the shown node ${id}`);
+            }
+            assert.isUndefined(session.positions.get("e"), `${engine} never places the hidden node`);
+        }
+    });
+
     it("runs the force layout to rest and reports it", async () => {
         const session = await ring();
         const heard: unknown[] = [];
@@ -144,6 +168,46 @@ describe("running the layout of a session with no renderer", () => {
         );
 
         assert.propertyVal(refused, "code", "E_UNSUPPORTED");
+        session.dispose();
+    });
+
+    it("places nodes at their latitude and longitude with the geographic layout", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "north-east", latitude: 30, longitude: 60 },
+            { id: "south-west", latitude: "-30", longitude: "-60" },
+            { id: "nowhere" },
+        ]);
+        await session.layout.set("geographic");
+
+        await session.layout.settle();
+
+        // equirectangular on a globe of radius 100 (the default scalingFactor): x = 100 * lon, y = 100 * lat, in radians
+        const r = (degrees: number): number => (100 * degrees * Math.PI) / 180;
+        const ne = session.positions.get("north-east");
+        const sw = session.positions.get("south-west");
+        assert.isDefined(ne);
+        assert.isDefined(sw);
+        assert.closeTo(ne.x, r(60), 1e-3, "east is +x");
+        assert.closeTo(ne.y, r(30), 1e-3, "north is +y");
+        assert.closeTo(sw.x, r(-60), 1e-3, "a string attribute reads as degrees");
+        assert.closeTo(sw.y, r(-30), 1e-3);
+        assert.deepStrictEqual(session.positions.get("nowhere"), { x: 0, y: 0, z: 0 }, "no coordinates: the origin");
+        session.dispose();
+    });
+
+    it("reads the geographic layout's coordinates from the attributes its options or the designated fields name", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a", lat: 10, lon: 20, y: 40, x: 50 }]);
+        await session.config.set({ data: { knownFields: { nodeLatitudePath: "lat", nodeLongitudePath: "lon" } } });
+        await session.layout.set("geographic", { options: { projection: "equirectangular" } });
+        await session.layout.settle();
+        const r = (degrees: number): number => (100 * degrees * Math.PI) / 180;
+        assert.closeTo(session.positions.get("a")?.x ?? Number.NaN, r(20), 1e-3, "the designated longitude");
+
+        await session.layout.set("geographic", { options: { latitude: "y", longitude: "x" } });
+        await session.layout.settle();
+        assert.closeTo(session.positions.get("a")?.y ?? Number.NaN, r(40), 1e-3, "the option wins");
         session.dispose();
     });
 

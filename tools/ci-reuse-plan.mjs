@@ -9,7 +9,7 @@
  * passed every job but the screenshot ones, and reuses that run when the tree this run tests (the
  * merge of the pull request into its base) is identical to the tree that run tested once the
  * baselines and approvals directories are taken out. Anything else -- a changed file anywhere else,
- * a moved base, a failed or cancelled run, no record of the tree a run tested -- is a full run.
+ * a moved base, a failed or canceled run, no record of the tree a run tested -- is a full run.
  *
  * Every run records the tree it tested as the name of an artifact, `ci-tested-<tree>` (or
  * `ci-tested-<tree>-from-<run id>` when it reused that run's results), because the Actions API
@@ -43,10 +43,17 @@ import { fileURLToPath } from "node:url";
 const BUILD_JOBS = ["Build", "Storybooks"];
 const CHECK_JOBS = ["Lint", "Checks", "Docs"];
 // Jobs that say nothing about the tree's code: the screenshots (the gate judges them in every run),
-// the summaries, the draft probe (continue-on-error) and the benchmarks (never on a pull request).
+// the summaries, the draft probe (continue-on-error) and the three benchmark jobs (never on a pull request).
 const IGNORED = (name) =>
     name.startsWith("visual (") ||
-    ["All Checks Pass", "Queue Checks Pass", "Draft state", "Performance Benchmarks"].includes(name);
+    [
+        "All Checks Pass",
+        "Queue Checks Pass",
+        "Draft state",
+        "Algorithms Benchmarks",
+        "Browser Benchmarks",
+        "Performance Benchmarks",
+    ].includes(name);
 // What this run downloads from the earlier one instead of building: every package's dist and the
 // Storybooks the visual job captures. ci.yml's build job uploads exactly these (a test holds them
 // to it).

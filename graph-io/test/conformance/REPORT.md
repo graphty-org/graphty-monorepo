@@ -17,12 +17,13 @@ the expectation today; the reference points into
 | cys | 53 | 53 | 0 | 40 | 0 |
 | dot | 196 | 196 | 0 | 178 | 0 |
 | gexf | 110 | 110 | 0 | 107 | 0 |
-| gml | 109 | 109 | 0 | 98 | 4 |
+| gml | 109 | 109 | 0 | 98 | 0 |
 | graphml | 148 | 148 | 0 | 134 | 0 |
 | json | 427 | 427 | 0 | 109 | 0 |
-| neo4j | 45 | 30 | 15 | 29 | 0 |
+| neo4j | 45 | 45 | 0 | 44 | 0 |
 | obo | 102 | 102 | 0 | 101 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
+| sif | 14 | 14 | 0 | 14 | 0 |
 | xgmml | 77 | 77 | 0 | 75 | 0 |
 
 ## networkx differential
@@ -193,13 +194,7 @@ No known failures.
 
 ## gml
 
-### round trip: the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds "mangle" (sources.md 4.4) (#7744) (4)
-
-- `ogdf/invalid_invalid-integer.gml`: threw: GraphFormatError: 1 node id is not integers (first: "fooBar" at index 3); pass sanitizeIds: "mangle" to rewrite them
-- `gephi/label.gml`: threw: GraphFormatError: 3 node ids are not integers (first: "A" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `gephi/emojis.gml`: threw: GraphFormatError: 1 node id is not integers (first: "A" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `authored/bareword-ids.gml`: threw: GraphFormatError: 2 node ids are not integers (first: "a" at index 0); pass sanitizeIds: "mangle" to rewrite them
-
+No known failures.
 
 ## graphml
 
@@ -211,33 +206,17 @@ No known failures.
 
 ## neo4j
 
-### APOC JSON exports are not read (sources.md 9.4) (#303) (12)
-
-- `apoc-json/all.json`: failed: E_CSV_QUOTE: "all.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_array.json`: failed: E_CSV_QUOTE: "all_array.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_fields.json`: failed: E_CSV_QUOTE: "all_fields.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_id_as_keys.json`: failed: E_CSV_QUOTE: "all_id_as_keys.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_withoutNodeProps_withoutRelProps.json`: failed: E_CSV_QUOTE: "all_withoutNodeProps_withoutRelProps.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/multiLabels.json`: failed: E_CSV_QUOTE: "multiLabels.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/nodes_without_labels.json`: failed: E_CSV_QUOTE: "nodes_without_labels.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/relationship_type_injection.json`: failed: E_CSV_QUOTE: "relationship_type_injection.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/importPointValues.json`: failed: E_CSV_QUOTE: "importPointValues.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/query_nodes.json`: failed: E_CSV_QUOTE: "query_nodes.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/query_nodes_path.json`: failed: E_CSV_QUOTE: "query_nodes_path.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/MapPath.json`: failed: E_CSV_QUOTE: "MapPath.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-
-### APOC CSV exports are not read (sources.md 9.4) (#304) (3)
-
-- `apoc-csv/export-all.csv`: failed: E_NEO4J_HEADER: "export-all.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _e
-- `apoc-csv/multi-labels.csv`: failed: E_NEO4J_HEADER: "multi-labels.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, 
-- `apoc-csv/quotes-none.csv`: failed: E_NEO4J_HEADER: "quotes-none.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _
-
+No known failures.
 
 ## obo
 
 No known failures.
 
 ## pajek
+
+No known failures.
+
+## sif
 
 No known failures.
 
@@ -272,6 +251,7 @@ announced an E_ code (a documented refusal).
 | obo | 300 | 300 | 0 | 0 | direction, duplicateEdges, edgeOrder, idText, lineEnds, propertyValue, qualifierText |
 | json obographs | 300 | 225 | 75 (E_ID_CHARSET) | 0 | direction, edgeMeta, idText, nonFiniteUnset, propertyValue |
 | cys | 300 | 300 | 0 | 0 | idText, unsetAsEmpty |
+| sif | 300 | 139 | 161 (E_SIF_TEXT) | 0 | attributesDropped, direction, idText, weightsDropped |
 
 The documented losses (a check() note code and the difference it allows):
 
@@ -300,6 +280,9 @@ The documented losses (a check() note code and the difference it allows):
 - `W_OBO_LINE_END`: lineEnds
 - `W_OBOGRAPHS_EDGE_COLUMN_AS_META`: edgeMeta
 - `W_CYS_UNSET_AS_EMPTY_STRING`: unsetAsEmpty
+- `W_SIF_UNDIRECTED_AS_DIRECTED`: direction
+- `W_COLUMN_DROPPED`: attributesDropped
+- `W_WEIGHTS_DROPPED`: weightsDropped
 
 Minimal cases (`fixtures/generative/cases.json`):
 
@@ -317,12 +300,12 @@ Minimal cases (`fixtures/generative/cases.json`):
 
 ## Schema validation
 
-Validated 1359 dot, 1398 gexf-1.2draft, 1398 gexf-1.3, 1399 graphml, 1408 jgf exports (GraphML 1.0 XSD, GEXF 1.2draft and 1.3 XSDs, JGF v2 JSON Schema; schemas.ts);
-797 documents have at least one error.
+Validated 1388 dot, 1427 gexf-1.2draft, 1427 gexf-1.3, 1428 graphml, 1437 jgf exports (GraphML 1.0 XSD, GEXF 1.2draft and 1.3 XSDs, JGF v2 JSON Schema; schemas.ts);
+799 documents have at least one error.
 
 | Class | Errors | Kind | Why |
 |---|---|---|---|
-| GEXF viz namespace (gexf) | 424 | deviation | the XSDs are generated by trang from the normative RNC, whose `default namespace = inherit` puts color / position / size / shape in the GEXF namespace; the gexf.net samples, the primer, Gephi and networkx all write them in the viz namespace, and so does graph-io |
+| GEXF viz namespace (gexf) | 426 | deviation | the XSDs are generated by trang from the normative RNC, whose `default namespace = inherit` puts color / position / size / shape in the GEXF namespace; the gexf.net samples, the primer, Gephi and networkx all write them in the viz namespace, and so does graph-io |
 | GraphML nested-graph keyref (graphml) | 261 | deviation | node_id_key selects .//node in EVERY graph, so a nested graph's keys reach its parent's table twice and libxml2 rejects an outer edge into a nested graph; the GraphML primer's own nested.graphml fails identically |
 | GraphML nested-graph port key (graphml) | 2 | deviation | port_name_key selects .//port, which also reaches the ports of the nodes of a node's nested graph, so two of those nodes with a port of the same name (DOT record fields f0, f1, ... in a cluster) collide in their container's table; its own documentation scopes the names to "each <port> element within this <node>", and graph-io never writes one name twice on one node |
 | yFiles extension content (graphml) | 19 | deviation | yEd and yFiles extend GraphML the way the specification provides (an XSD that redefines data-extension.type and key.extra.attrib, yWorks' ygraphml.xsd); the stock XSD here does not load that extension, so the yFiles data and key attributes a yEd or yFiles file carried, which graph-io writes back as read, are rejected; the source file fails the stock XSD identically |

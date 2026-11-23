@@ -49,7 +49,7 @@ const config: StorybookConfig = {
                     // No @babylonjs/core subpath here: vite.config.ts excludes @babylonjs/core, so
                     // Vite never discovers its subpaths mid-run, and pre-bundling one gives it a
                     // second copy of Babylon -- an InstancedMesh the element's deep imports fail
-                    // `instanceof` against, so every node reads as uncoloured.
+                    // `instanceof` against, so every node reads as uncolored.
                     // Imported only by the Graphviz layouts' Worker, which a Layout/Graphviz story
                     // starts after the page has loaded.
                     "@hpcc-js/wasm-graphviz",
@@ -65,6 +65,12 @@ const config: StorybookConfig = {
                 rollupOptions: {
                     external: ["@mlc-ai/web-llm"], // Dynamically loaded at runtime for in-browser LLM
                 },
+                // Rolldown (Vite 8) does not keep module execution order across chunks by
+                // default: a shared chunk the preview entry imports can hold preview code that
+                // reads the __STORYBOOK_MODULE_*__ globals, run before the entry's runtime module
+                // defines them ("__STORYBOOK_MODULE_CLIENT_LOGGER__ is not defined"). The graphty
+                // app's Storybook sets the same option for the same reason.
+                rolldownOptions: { output: { strictExecutionOrder: true } },
             },
         });
         // The library build leaves the Graphviz package out of the Worker it emits, for the

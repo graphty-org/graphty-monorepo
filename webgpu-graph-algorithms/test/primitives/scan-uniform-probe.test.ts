@@ -71,7 +71,7 @@ const VALUE_BASE = 7000;
 /** Bytes of the probe's params block (four u32, the shape of `ScanParams` in src/kernels.ts). */
 const PARAMS_BYTES = 16;
 
-/** Words of the buffer that precede case 3's binding (STORAGE_ALIGN = 256 bytes, the offset alignment the package always honours). */
+/** Words of the buffer that precede case 3's binding (STORAGE_ALIGN = 256 bytes, the offset alignment the package always honors). */
 const OFFSET_WORDS = STORAGE_ALIGN / 4;
 
 /** Case 5's element count: one word more than a block, the smallest input that needs two blocks and three dispatches. */

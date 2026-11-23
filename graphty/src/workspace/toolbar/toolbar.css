@@ -24,8 +24,7 @@
     box-shadow: inset 0 0 0 1px var(--cm-border-selected-strong);
 }
 
-/* The calm list (the `selection-workspace` experiment): one line a row, the chosen row's settings at
-   its end, Run under the list. */
+/* The calm list: one line a row, the chosen row's settings at its end, Run under the list. */
 .ws-analyze-row {
     position: relative;
 }

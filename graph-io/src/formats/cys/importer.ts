@@ -14,13 +14,14 @@
  * table's `graphty:originalId` (restoreMangledIds). 2.x: one full XGMML file per network, with
  * selection and hidden state from `cysession.xml`. Everything is resolved by the XGMML emitter, so
  * both readers share every column rule. Asked for styles, the importer reads the style the imported view names
- * from `session_vizmap.xml` (styles.ts), kept for it through the report; otherwise W_STYLES_NOT_IMPORTED.
+ * from `session_vizmap.xml` or a 2.x `session_vizmap.props` (styles.ts), kept for it through the report; otherwise
+ * W_STYLES_NOT_IMPORTED.
  */
 
 import { GraphFormatError, type GraphSink, INVALID_INDEX } from "@graphty/graph-format";
 
 import { declareResolved } from "../../common/attributes.js";
-import { IdCoercer } from "../../common/ids.js";
+import { IdCoercer, ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
 import { decodeEntryName, readText, throwIfAborted } from "../../common/input.js";
 import {
     chooseGraph,
@@ -44,7 +45,6 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { ORIGINAL_ID_ATTRIBUTE } from "../graphml/constants.js";
 import { XGMML_ISSUE, XGMML_ORIGIN_NAMESPACE } from "../xgmml/constants.js";
 import {
     type AttRec,
@@ -76,6 +76,7 @@ import {
     SELECTED_COLUMN,
     VIEW_POSITION_PREFIX,
 } from "./constants.js";
+import { SessionPictures } from "./pictures.js";
 import {
     elementsNamed,
     entryLabel,
@@ -92,6 +93,7 @@ import {
 } from "./session.js";
 import { readSessionStyles, type SessionStyleSource } from "./styles.js";
 import { cellAtt, type CyTable, readCyTable, type VirtualColumn, virtualColumnsOf } from "./tables.js";
+import { vizmapFromPropsInput } from "./vizmap-props.js";
 
 /**
  * The format-specific options of the session importer.
@@ -575,7 +577,8 @@ async function fill3(
     const { doc, dialect } = parsed;
     const { graph } = choice;
     const members = membersOf(doc, graph);
-    const unmatched = await applyTables(prepared, choice, doc, nodes, edges);
+    const pictures = new SessionPictures(prepared.session, prepared.session.layout.pictures);
+    const unmatched = await applyTables(prepared, choice, doc, nodes, edges, pictures);
     if (unmatched > 0) {
         report.warning(
             "parse-error",
@@ -591,12 +594,16 @@ async function fill3(
         // the graphty.styles block of a session graphty wrote: a graph attribute, as in every other format
         graph.atts.push(textAtt(STYLE_BLOCK_NAME, block));
     }
-    const cyMeta = sessionMeta(prepared, {
-        collection: doc.root.label ?? choice.network.title,
-        network: choice.graphId,
-        parentNetwork: parentNetwork(graph, prepared.choices),
-        visualStyle,
-    });
+    const cyMeta = sessionMeta(
+        prepared,
+        {
+            collection: doc.root.label ?? choice.network.title,
+            network: choice.graphId,
+            parentNetwork: parentNetwork(graph, prepared.choices),
+            visualStyle,
+        },
+        pictures.read,
+    );
     const groups: { group: string; members: string[] }[] = [];
     cyMeta.groups = groups;
     const extras: EmitExtras = {
@@ -666,6 +673,8 @@ interface TableContext {
     readonly virtuals: readonly VirtualColumn[];
     readonly tableOf: (path: string) => Promise<CyTable | null>;
     readonly report: ImportReportBuilder;
+    /** The session's saved pictures, which a network's image annotations are given. */
+    readonly pictures: SessionPictures;
 }
 
 /**
@@ -675,6 +684,7 @@ interface TableContext {
  * @param doc - its network file
  * @param nodes - its node records by id
  * @param edges - its edge records by id
+ * @param pictures - the session's saved pictures
  * @returns the number of rows that name no element of the network
  */
 async function applyTables(
@@ -683,6 +693,7 @@ async function applyTables(
     doc: Parsed["doc"],
     nodes: ReadonlyMap<string, NodeRec>,
     edges: ReadonlyMap<string, EdgeRec>,
+    pictures: SessionPictures,
 ): Promise<number> {
     const { report, inner, session } = prepared;
     const { layout } = session;
@@ -717,6 +728,7 @@ async function applyTables(
         virtuals: layout.cytables === null ? [] : await readVirtuals(session, layout.cytables, report, inner),
         tableOf,
         report,
+        pictures,
     };
     let unmatched = 0;
     for (const entry of layout.tables.filter((t) => t.network === choice.graphId && t.element !== null)) {
@@ -781,7 +793,8 @@ async function applyTable(ctx: TableContext, entry: TableEntry, table: CyTable):
         return (entry.element === "node" ? ctx.nodes : ctx.edges).get(key)?.atts;
     };
     let unmatched = 0;
-    for (const [key, cells] of table.rows) {
+    const rows = entry.element === "network" ? await ctx.pictures.resolveRows(table, ctx.report) : table.rows;
+    for (const [key, cells] of rows) {
         const atts = target(key);
         if (atts !== undefined) {
             atts.push(...rowAtts(table, key, cells, namespace, hidden));
@@ -1544,14 +1557,17 @@ interface SessionMeta {
  * @param facts.network - the network's id
  * @param facts.parentNetwork - the network it was made from
  * @param facts.visualStyle - the style its view uses
+ * @param read - the entries of `skipped` this network read after all (the pictures its annotations show)
  * @returns the record
  */
 function sessionMeta(
     prepared: Prepared,
     facts: { collection: string | null; network: string; parentNetwork: string | null; visualStyle: string | null },
+    read: ReadonlySet<string> = new Set(),
 ): SessionMeta {
-    const { layout } = prepared.session;
     const { report } = prepared;
+    const layout = { ...prepared.session.layout };
+    layout.skipped = layout.skipped.filter((name) => !read.has(name));
     if (layout.styles.length > 0) {
         report.warning(
             "unsupported",
@@ -1596,7 +1612,8 @@ async function importChoice(prepared: Prepared, index: number, sink: GraphSink):
 
 /**
  * Keep what the session's style reader needs (`styles()` gets it back as `context.kept`): the parsed
- * `session_vizmap.xml` of a 3.x session, the style the imported view names, and which network was imported.
+ * `session_vizmap.xml` of a 3.x session or the converted `session_vizmap.props` of a 2.x one, the style the imported
+ * view names, and which network was imported.
  * Reading the styles never fails the import: a damaged entry is kept as the reason it cannot be read.
  * @param prepared - the prepared import
  * @param index - the network imported
@@ -1605,9 +1622,15 @@ async function importChoice(prepared: Prepared, index: number, sink: GraphSink):
 async function keepStyleSource(prepared: Prepared, index: number, visualStyle: string | null): Promise<void> {
     const { layout } = prepared.session;
     const entry = layout.styles.find((e) => e.path.endsWith("session_vizmap.xml"));
+    const props = layout.styles.find((e) => e.path.endsWith("session_vizmap.props"));
     let vizmap: XmlNode | null = null;
     let problem: string | null = null;
-    if (layout.era === "3" && entry !== undefined) {
+    if (layout.era === "2" && props !== undefined) {
+        // a 2.x style file that cannot be read leaves the network files' resolved values
+        const bytes = await entryBytes(prepared, props);
+        const tree = typeof bytes === "string" ? bytes : await vizmapFromPropsInput(bytes, prepared.inner.signal);
+        vizmap = typeof tree === "string" ? null : tree;
+    } else if (layout.era === "3" && entry !== undefined) {
         const bytes = await entryBytes(prepared, entry);
         const tree =
             typeof bytes === "string"

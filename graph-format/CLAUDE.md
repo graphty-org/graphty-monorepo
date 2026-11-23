@@ -109,7 +109,6 @@ pnpm exec knip --workspace graph-format   # from packages/: dead exports (un-exp
 # Benchmarks (design section 15.5)
 npm run benchmark                          # every group, appends benchmarks/results/<host>-node<version>.json
 npx tsx benchmarks/run.ts freeze --no-save # one group, no results file
-node --expose-gc --import tsx benchmarks/run.ts   # exact memory deltas
 
 # Everything before a commit
 npm run ready:commit
@@ -155,7 +154,7 @@ npm run ready:commit
 - I14 indices follow first appearance / `addEdge` order; nothing is sorted by id or degree.
 - I15 determinism across runs and engines (stable counting sorts, insertion-order Maps).
 - I16 prefix stability between freezes without removals or merges; `freezeWithReport` says otherwise.
-- I17 nothing frozen ever changes; views memoised once and shared; only the column set / mutable contents move.
+- I17 nothing frozen ever changes; views memoized once and shared; only the column set / mutable contents move.
 - I18 no snapshot array aliases builder staging.
 
 `test/helpers/invariants.ts` has every one of them as an executable check (`assertInvariants`,

@@ -342,7 +342,7 @@ const config = defineConfig({
                 test: {
                     // The files that hold the GPU for seconds per submission (GPU_ALONE_TESTS above): after every
                     // `node` file has finished (a higher groupOrder runs later), then one file at a time. Vitest 4
-                    // honours fileParallelism per project, so this does not serialise the `node` project.
+                    // honors fileParallelism per project, so this does not serialize the `node` project.
                     name: projectName("node-gpu-alone"),
                     globals: true,
                     environment: "node",

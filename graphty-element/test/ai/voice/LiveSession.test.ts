@@ -231,7 +231,7 @@ describe("one live connection per assistant", () => {
 });
 
 describe("barge-in", () => {
-    it("a press while the model speaks interrupts it once and ends its speech AI_CANCELLED", async () => {
+    it("a press while the model speaks interrupts it once and ends its speech AI_CANCELED", async () => {
         const h = harness();
         await hold(h);
         h.voice.talk(false);
@@ -239,7 +239,7 @@ describe("barge-in", () => {
         connection.emit({ type: "speaking", on: true });
         await hold(h);
         assert.strictEqual(connection.interrupts, 1);
-        assert.deepStrictEqual(of(h, "ai-speech-end"), [{ code: "AI_CANCELLED", params: {} }]);
+        assert.deepStrictEqual(of(h, "ai-speech-end"), [{ code: "AI_CANCELED", params: {} }]);
         // The adapter's own report of the cut-off answer ends nothing twice.
         connection.emit({ type: "speaking", on: false });
         connection.emit({ type: "interrupted" });
@@ -261,7 +261,7 @@ describe("barge-in", () => {
         h.connection().emit({ type: "speaking", on: true });
         h.voice.stopSpeech();
         assert.strictEqual(h.connection().interrupts, 1);
-        assert.deepStrictEqual(of(h, "ai-speech-end"), [{ code: "AI_CANCELLED", params: {} }]);
+        assert.deepStrictEqual(of(h, "ai-speech-end"), [{ code: "AI_CANCELED", params: {} }]);
     });
 });
 
@@ -345,12 +345,12 @@ describe("a press that cannot be live runs turn by turn and says so", () => {
 });
 
 describe("closing the connection", () => {
-    it("dispose closes it, and the held press ends AI_CANCELLED", async () => {
+    it("dispose closes it, and the held press ends AI_CANCELED", async () => {
         const h = harness();
         await hold(h);
         h.voice.dispose();
         assert.isTrue(h.connection().closed);
-        assert.deepStrictEqual(of(h, "ai-voice-end"), [{ reason: "user", code: "AI_CANCELLED", params: {} }]);
+        assert.deepStrictEqual(of(h, "ai-voice-end"), [{ reason: "user", code: "AI_CANCELED", params: {} }]);
     });
 
     it("cancel (leaving XR) closes it", async () => {

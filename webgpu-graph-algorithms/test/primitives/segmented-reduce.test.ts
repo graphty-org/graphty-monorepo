@@ -8,7 +8,6 @@
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
-import { type TestContext } from "vitest";
 
 import { MAX_1D_ITEMS } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
@@ -47,7 +46,7 @@ import {
     worstFactor,
 } from "../helpers/segmented-reduce.js";
 import { F32_MAX, segmentedReduceOracle } from "../oracle/segmented-reduce.js";
-import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
+import { gpuScale, sharedContext } from "../setup/gpu.js";
 
 const OPS: readonly ReduceOp[] = ["sum", "min", "max"];
 const SNIPPETS: readonly string[] = [SEGMENTED_REDUCE_SNIPPETS.weight, SEGMENTED_REDUCE_SNIPPETS.one];
@@ -157,14 +156,7 @@ describe("segmentedReduceOracle (pure)", () => {
 });
 
 describe("segmentedReduce thread-per-row (GPU)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "segmented-reduce" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "segmented-reduce" });
 
     /** sum / min / max x weight / one: twice bitwise, then against the f64 oracle within the analytic tolerance. */
     async function checkAgainstOracle(ctx: GpuContext, s: GraphSnapshot, label: string): Promise<void> {

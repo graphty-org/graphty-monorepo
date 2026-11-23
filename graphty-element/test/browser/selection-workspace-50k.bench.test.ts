@@ -20,7 +20,9 @@
  * waitForPainted(): on the GPU, open 4.7 s and 26 frames, edit 0.3 s, close 4.5 s and 29 frames
  * before a repaint took a slow frame's own length (UpdateManager's SLOW_FRAME_MS), and open 2.3 s
  * and 9 frames, edit 0.1 s, close 1.8 s and 8 frames after; on SwiftShader, open 24 s, edit 10 s,
- * close 32 s before, and open 6.5 s, edit 4.8 s, close 8.0 s after (#5753).
+ * close 32 s before, and open 6.5 s, edit 4.8 s, close 8.0 s after (#5753). Without a GPU
+ * (`GRAPHTY_BROWSER_GPU` unset, as in CI) it loads 10,000 nodes: what is asserted is the same at
+ * either size, and the full size cost CI's software renderer about 2.5 minutes (#9773).
  */
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
@@ -28,7 +30,9 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import type { StepsWatch, UnionLeaf } from "../../session";
 import { Graph, operationQueueOf } from "../../src/Graph";
 
-const NODES = 50_000;
+const GPU = ((import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "") !== "";
+/** A fifth of the nodes on the software renderer: see the file comment. */
+const NODES = GPU ? 50_000 : 10_000;
 
 /** What one step cost. */
 interface Step {
@@ -55,7 +59,7 @@ function picked(second: string): UnionLeaf {
     return { kind: "union", side: "nodes", within: "visible", branches: [branch("b1", "1"), branch("b2", second)] };
 }
 
-describe("the selection workspace on 50,000 nodes", () => {
+describe(`the selection workspace on ${String(NODES)} nodes`, () => {
     let container: HTMLElement;
     let graph: Graph;
     let watch: StepsWatch | null = null;

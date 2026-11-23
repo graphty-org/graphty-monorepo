@@ -3,20 +3,23 @@ import type React from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { useUsageAnswer } from "./usageData";
+import { useAnalyticsSends, useUsageAnswer } from "./usageData";
 import { useAssistantSendsTo } from "./useAssistantSendsTo";
 
 /**
  * The privacy chip (tier1-design.md section 2.1): "Local only", or "Usage data on, content
  * masked" once the reader has said Share; opens Settings > Privacy. The status bar and the start
- * screen both draw it. Its tooltip says what is sent and where the chip leads. With the assistant
- * experiment on and a provider saved it reads "Sends to {provider}" and opens AI provider.
+ * screen both draw it. Its tooltip says what is sent and where the chip leads. With a provider
+ * saved it reads "Sends to {provider}" and opens AI provider.
  * @returns The chip
  */
 export function PrivacyChip(): React.JSX.Element {
     const { run } = useWorkspace();
     const on = useUsageAnswer() === "share";
-    const usage = on ? "Usage data is sent, content masked" : "Nothing is sent";
+    const offWords = useAnalyticsSends()
+        ? "Your files stay on this computer. Anonymous counts are sent"
+        : "Nothing is sent";
+    const usage = on ? "Usage data is sent, content masked" : offWords;
     const sendsTo = useAssistantSendsTo();
     const usageWords = on ? "Usage data on, content masked" : "Local only";
     const glyph =

@@ -145,7 +145,7 @@ async function includeStyles(): Promise<boolean> {
     await userEvent.keyboard("{Control>}e{/Control}");
     const dialog = await screen.findByRole("dialog", { name: "Export" });
     // With no table showing Export opens on Image.
-    await userEvent.click(within(dialog).getByText("Data"));
+    await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"));
     await userEvent.click(await within(dialog).findByRole("combobox", { name: "Format" }));
     await userEvent.click(await screen.findByRole("option", { name: "GraphML" }));
     await waitFor(() => {

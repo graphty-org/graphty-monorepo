@@ -1,9 +1,12 @@
-// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [sampled] [glyphs] [curves] [3d] [no-still] [no-move]
-// lib: cosmos|graphty; mode: default|lean; accel: on|off. Appends one JSON line to BENCH_RESULTS.
+// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [label-<k>] [arrows] [sampled] [glyphs] [curves] [3d] [no-still] [no-move]
+//     [dim=2d|3d] [style=<name>] [layout=<name>] [edit] [frames=<k>] [allow-objects]
+// lib: cosmos|graphty; mode: default|lean|plain; accel: on|off. Appends one JSON line to BENCH_RESULTS.
+// The flags with "=" and edit and allow-objects are the performance matrix's (perf-matrix.mjs); BENCH_SCENARIO names the
+// matrix scenario in the row.
 // dpr other than 1 sets pixel-ratio="device" on graphty-element. BENCH_RENDER_PATH sets its renderPath option;
 // unset, the element keeps its default. BENCH_ANTIALIAS=false sets antialias="false". See RUNBOOK.md for the others.
 import { execFileSync, execSync } from "node:child_process";
-import { appendFileSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { loadavg } from "node:os";
 import { dirname, join } from "node:path";
@@ -38,13 +41,25 @@ const skip = flags.includes("skip-layout"),
     // graphty-element loads through session.data.importColumns with the typed arrays cosmos.gl gets,
     // not nodeData/edgeData records (cosmos-gap G8)
     columns = flags.includes("columns"),
+    // label k nodes spread evenly over the graph (label-1, label-1000): what a few labels cost a GPU layout's landings
+    labelFirst = Number(flags.find((f) => /^label-\d+$/.test(f))?.slice(6) ?? 0),
+    // every edge drawn with an arrowhead (the lean mode draws none)
+    arrows = flags.includes("arrows"),
     noStill = flags.includes("no-still"),
-    noMove = flags.includes("no-move");
+    noMove = flags.includes("no-move"),
+    // a run whose style is meant to take rows off the batch records them instead of failing
+    allowObjects = flags.includes("allow-objects"),
+    edit = flags.includes("edit");
+const flagValue = (key) => flags.find((f) => f.startsWith(`${key}=`))?.slice(key.length + 1);
+const style = flagValue("style"),
+    layout = flagValue("layout"),
+    dim = flagValue("dim"),
+    FRAMES = Number(flagValue("frames") ?? 200);
 const N = Number(n),
     M = Number(m),
     DPR = Number(dpr);
 // The extracted libEGL sits in the main checkout's tmp/, which a worktree does not have.
-const gitDir = execSync("git rev-parse --path-format=absolute --git-common-dir", { cwd: HERE }); // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
+const gitDir = execSync("git rev-parse --path-format=absolute --git-common-dir", { cwd: HERE }); // eslint-disable-line sonarjs/no-os-command-from-path -- a local measuring tool, run from the owner's PATH
 const MAIN = dirname(gitDir.toString().trim());
 const EGL = process.env.BENCH_EGL ?? join(MAIN, "tmp/egl/root/usr/lib/x86_64-linux-gnu");
 const FLAGS = [
@@ -59,10 +74,10 @@ const FLAGS = [
     "--js-flags=--max-old-space-size=16384",
 ];
 const gpuMB = () =>
-    Number(execSync("nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits").toString().trim()); // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
+    Number(execSync("nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits").toString().trim()); // eslint-disable-line sonarjs/no-os-command-from-path -- a local measuring tool, run from the owner's PATH
 // Sum RSS (MB) of every browser process launched with this run's profile dir, by process type.
 const rssMB = () => {
-    const rows = execSync("ps -eo pid,ppid,rss,args --no-headers") // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
+    const rows = execSync("ps -eo pid,ppid,rss,args --no-headers") // eslint-disable-line sonarjs/no-os-command-from-path -- a local measuring tool, run from the owner's PATH
         .toString()
         .trim()
         .split("\n")
@@ -96,6 +111,7 @@ const out = {
     rendererRequest: lib === "graphty" ? RENDERER : undefined,
     antialias: lib === "graphty" ? ANTIALIAS : undefined,
     limits: lib === "graphty" ? LIMITS : undefined,
+    scenario: process.env.BENCH_SCENARIO || undefined,
     n: N,
     m: M,
     dpr: DPR,
@@ -103,6 +119,8 @@ const out = {
     flags,
     at: new Date().toISOString(),
     loadavgBefore: loadavg()[0],
+    // The CPUs this run may use (Linux), so a run on reserved cores can be told from one on the shared machine.
+    cpus: /Cpus_allowed_list:\s*(\S+)/.exec(readFileSync("/proc/self/status", "utf8"))?.[1],
 };
 const log = (k, v) => {
     out[k] = v;
@@ -126,7 +144,7 @@ setTimeout(async () => {
     log("failure", DEADLINE_S >= 570 ? "did not finish in 10 minutes" : `did not finish in ${DEADLINE_S} s`);
     save();
     try {
-        execFileSync("pkill", ["-9", "-f", UDD]); // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
+        execFileSync("pkill", ["-9", "-f", UDD]); // eslint-disable-line sonarjs/no-os-command-from-path -- a local measuring tool, run from the owner's PATH
     } catch {
         /* pkill exits 1 when nothing matched */
     }
@@ -197,6 +215,8 @@ try {
                 accel,
                 dpr: DPR,
                 labels,
+                labelFirst,
+                arrows,
                 sampled,
                 glyphs,
                 curves,
@@ -206,6 +226,7 @@ try {
                 renderer: RENDERER,
                 antialias: ANTIALIAS,
                 limits: LIMITS,
+                dim,
                 onDemand: !!process.env.LAYOUT_ONLY,
             },
         ]),
@@ -220,11 +241,13 @@ try {
         if (lib !== "graphty" || RENDER_PATH !== "batched") return;
         const rows = await page.evaluate(() => document.querySelector("graphty-element")?.rowCounts);
         log(stage === "load" ? "rowCounts" : `rowCounts-${stage}`, rows);
+        if (allowObjects) return;
         if (!rows || rows.objectNodes > 0 || ((curves || threeD) && rows.objectEdges > 0))
             throw new Error(`rows left the batched path after ${stage}: ${JSON.stringify(rows)}`);
     };
     await checkBatched("load");
-    // What a labelled run really built: with sampling on, only the cells' winners.
+    if (style) log("restyle", await page.evaluate((name) => globalThis.B.restyle(name), style));
+    // What a labeled run really built: with sampling on, only the cells' winners.
     if (labels && lib === "graphty")
         log(
             "labelCounts",
@@ -249,7 +272,7 @@ try {
         );
         throw new Error("layout-only run, render-on-demand");
     }
-    if (!noStill) log("still", await page.evaluate(() => B.still(200)));
+    if (!noStill) log("still", await page.evaluate((f) => globalThis.B.still(f), FRAMES));
     if (!noStill) log("gpuFrame", await page.evaluate(() => B.gpuFrame(60)));
     await page
         .screenshot({
@@ -273,8 +296,8 @@ try {
     };
     await profile("still", () => B.still(60));
     await profile("orbit", () => B.orbit(60));
-    if (!noMove) log("orbit", await page.evaluate(() => B.orbit(200)));
-    if (!noMove) log("drag", await page.evaluate(() => B.drag(60)));
+    if (!noMove) log("orbit", await page.evaluate((f) => globalThis.B.orbit(f), FRAMES));
+    if (!noMove) log("drag", await page.evaluate((f) => globalThis.B.drag(f), Math.min(60, FRAMES)));
     if (!noMove) await checkBatched("drag");
     // The heap as the page holds it, before the forced collection below shrinks it.
     log("memoryNoGc", { ...(await page.evaluate(() => B.mem())), rssMB: rssMB() });
@@ -284,6 +307,9 @@ try {
     // why its 10,000-node hover used to find no target. Both libraries hover the same still scene.
     await hoverStage(page, "hover");
     if (lib === "graphty") log("lasso", await page.evaluate(() => B.lasso(20)));
+    if (edit) log("edit", await page.evaluate(() => globalThis.B.edit()));
+    if (layout)
+        log("layoutRun", await page.evaluate(([l, f]) => globalThis.B.layoutRun(l, f, 60000), [layout, FRAMES]));
     if (!skip) {
         log("layoutFps", await profiled("layout", () => B.layoutFps(200, 30000)));
         // The layout is still running: a hover reads the node under the pointer back from the GPU,

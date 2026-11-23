@@ -4,7 +4,7 @@
  * A kept set is a named group of nodes the session holds (`element.session.sets`). A style layer
  * paints one with the selector `{ match: "member", of: { set: id } }`, and from then on the
  * layer follows the set: redefine it, combine it, or change the data a rule set reads, and the
- * picture moves with it. Colouring a set is an ordinary layer -- a set has no colour of its own.
+ * picture moves with it. Coloring a set is an ordinary layer -- a set has no color of its own.
  * The visibility filter names a set with the leaf `{ kind: "member", of: { set: id } }` and
  * follows it the same way. A live layout lays out one set with `setLayout(type, options, { scope })`
  * and holds every other node where it is. A finished run OFFERS sets -- one per community, one for
@@ -29,7 +29,7 @@ const NODES = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: `n${String(n)}`, score:
 /** The ring. */
 const EDGES = NODES.map((node, index) => ({ src: node.id, dst: NODES[(index + 1) % NODES.length].id }));
 
-/** The colour the element's own base layer paints every node. */
+/** The color the element's own base layer paints every node. */
 const BASE = "#6366f1";
 
 /**
@@ -106,10 +106,10 @@ async function settled(canvasElement: HTMLElement): Promise<Graphty> {
 }
 
 /**
- * A layer painting a kept set one colour.
+ * A layer painting a kept set one color.
  * @param name - The layer's name.
  * @param set - The set.
- * @param color - The colour.
+ * @param color - The color.
  * @returns The layer.
  */
 function paintSet(name: string, set: SetId, color: string): LayerSpec {
@@ -117,9 +117,9 @@ function paintSet(name: string, set: SetId, color: string): LayerSpec {
 }
 
 /**
- * Expected colours: the named nodes in their colours, every other node in the base colour.
- * @param painted - Node id to colour.
- * @returns Every node's colour.
+ * Expected colors: the named nodes in their colors, every other node in the base color.
+ * @param painted - Node id to color.
+ * @returns Every node's color.
  */
 function expecting(painted: Readonly<Record<string, string>>): Record<string, string> {
     return Object.fromEntries(NODES.map((node) => [node.id, painted[node.id] ?? BASE]));

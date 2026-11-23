@@ -126,6 +126,19 @@ const circularControls: Meta["argTypes"] = {
     },
 };
 
+const spiralControls: Meta["argTypes"] = {
+    spiralHeight: {
+        control: { type: "range", min: -3, max: 3, step: 0.1 },
+        table: { category: "Spiral Layout" },
+        name: "layoutConfig.height",
+    },
+    spiralEquidistant: {
+        control: { type: "boolean" },
+        table: { category: "Spiral Layout" },
+        name: "layoutConfig.equidistant",
+    },
+};
+
 const fa2Controls: Meta["argTypes"] = {
     fa2MaxIter: {
         control: { type: "range", min: 10, max: 1000, step: 10 },
@@ -350,6 +363,27 @@ export const Circular: Story = {
         const scene = await placed(canvasElement, "Layout/3D Circular");
 
         await assertNodesOnACircle(scene);
+        await assertDistinctPicture(scene, "Layout/3D");
+    },
+};
+
+export const Spiral: Story = {
+    argTypes: spiralControls,
+    args: {
+        setup: storySetup({ viewMode: "3d" }),
+        layout: "spiral",
+        layoutConfig: { dim: 3, height: 1, equidistant: true },
+        spiralHeight: 1,
+        spiralEquidistant: true,
+    },
+    parameters: {
+        controls: {
+            include: ["layoutConfig.height", "layoutConfig.equidistant"],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "Layout/3D Spiral");
+
         await assertDistinctPicture(scene, "Layout/3D");
     },
 };

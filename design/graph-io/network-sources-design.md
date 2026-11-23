@@ -1,6 +1,6 @@
 # Loading graphs from network sources
 
-> The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
+> Merging today: every change reaches master through its own pull request with auto-merge on (CLAUDE.md, "Shipping a change"; .github/workflows/README.md). The Mergify merge queue and the `hold` label were retired on 2026-10-18, and the `golden` integration branch that briefly replaced per-change pull requests was retired in turn by the channels pipeline (design/ci/channels-pipeline.md). Read the merge-queue and `golden` parts below as history.
 
 Status (2026-11-09): implemented, experimental in its API, and always on: the `network-data`
 experiment switch (issue #6211) was removed and its id is now graduated. Built: graph-io's source
@@ -1139,7 +1139,7 @@ it used up the per-client budget).
 
 **Live check.** `graph-io/scripts/live-examples.ts` loads every example from its server and fails
 on an error or an empty graph (a count that drifts is a warning). The `network-examples` job of
-`.github/workflows/links-weekly.yml` runs it weekly and keeps one issue labelled
+`.github/workflows/links-weekly.yml` runs it weekly and keeps one issue labeled
 `dead-network-examples` open while any example fails. `test/sources/examples.test.ts` checks every
 example's catalog data offline and loads the SPARQL examples from recordings.
 
@@ -1782,7 +1782,7 @@ against the effort ("Browser" is CORS, checked 2026-10-17):
 no importer, auth, paging or query, from a fixed trusted host; folding it into the registry would
 make graph-samples depend on graph-io for nothing.
 
-Decision (revised 2026-11-07): **two mechanisms, two catalogues.** graph-samples' datasets are
+Decision (revised 2026-11-07): **two mechanisms, two catalogs.** graph-samples' datasets are
 samples, loaded with `session.data.loadDataset` and listed by the element's `DATASET_DESCRIPTORS`;
 they are not a network source. The `graph-samples` source the first build registered made every
 dataset load a network load, saved in `graphty-sources` and offered for approval on reopen, and put

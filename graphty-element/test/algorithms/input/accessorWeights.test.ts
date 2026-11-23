@@ -3,18 +3,19 @@
  * refuses, over the whole graph and over a run's scope, and which result paths a column may name.
  */
 
-import { assert, describe, it } from "vitest";
+import type { GraphSnapshot } from "@graphty/graph-format";
+import { assert, beforeAll, describe, it } from "vitest";
 
 import { type InputColumns, sessionColumns } from "../../../src/algorithms/input/columns";
 import { DerivedInputs } from "../../../src/algorithms/input/derivedInputs";
 import { createScopedInput, type RunInput, scopeEdges } from "../../../src/algorithms/input/ScopedInput";
 import { isGraphtyError } from "../../../src/errors";
 import type { GraphSession } from "../../../src/session/types";
-import { edgesOf, InputGraph } from "./harness";
+import { edgesOf, type InputGraph, inputGraph } from "./harness";
 
 /** a -> b twice, b -> a, b -> c and c -> c: parallel edges, a reciprocal pair and a self-loop. */
-function multigraph(): InputGraph {
-    return new InputGraph(
+function multigraph(): Promise<InputGraph> {
+    return inputGraph(
         ["a", "b", "c"],
         [
             ["a", "b"],
@@ -54,8 +55,8 @@ function codeOf(run: () => unknown): string {
 }
 
 describe("the weight option", () => {
-    it("keeps an unweighted input unweighted in the subgraph, rather than weighing merged edges by count", () => {
-        const data = multigraph().getDataManager();
+    it("keeps an unweighted input unweighted in the subgraph, rather than weighing merged edges by count", async () => {
+        const data = (await multigraph()).getDataManager();
 
         for (const orientation of ["declared", "undirected"] as const) {
             const input = createScopedInput(data, orientation, { weight: null });
@@ -64,8 +65,8 @@ describe("the weight option", () => {
         }
     });
 
-    it("keeps the element's edge ids on a weighted input's graph, so the element's own helpers read it", () => {
-        const data = multigraph().getDataManager();
+    it("keeps the element's edge ids on a weighted input's graph, so the element's own helpers read it", async () => {
+        const data = (await multigraph()).getDataManager();
         const plain = scopeEdges(createScopedInput(data, "declared"));
 
         for (const orientation of ["declared", "undirected"] as const) {
@@ -82,8 +83,8 @@ describe("the weight option", () => {
         }
     });
 
-    it("refuses a weight attribute that nothing carries", () => {
-        const data = multigraph().getDataManager();
+    it("refuses a weight attribute that nothing carries", async () => {
+        const data = (await multigraph()).getDataManager();
 
         assert.strictEqual(
             codeOf(() =>
@@ -99,8 +100,8 @@ describe("the weight option", () => {
         );
     });
 
-    it("weighs a scoped run's subgraph by the attribute, over the scope's edges only", () => {
-        const graph = multigraph();
+    it("weighs a scoped run's subgraph by the attribute, over the scope's edges only", async () => {
+        const graph = await multigraph();
         const run: RunInput = { inputs: new DerivedInputs(), holder: {}, scope: () => graph.scope(["a", "b"]) };
         const input = createScopedInput(
             graph.getDataManager(),
@@ -138,7 +139,10 @@ describe("result paths as columns", () => {
         data: { attributes: () => [], node: () => undefined, edge: () => undefined },
     } as unknown as GraphSession;
     const columns = sessionColumns(session, [], {}, "probe");
-    const graph = multigraph().snapshot();
+    let graph: GraphSnapshot;
+    beforeAll(async () => {
+        graph = (await multigraph()).snapshot();
+    });
     const edgeIdAt = (row: number): never => String(row) as never;
 
     it("reads a field on the kind of element that carries it", () => {

@@ -19,13 +19,13 @@ export interface PlacementBounds {
 }
 
 /**
- * Where a label's centre goes so that its plane sits beside a box.
+ * Where a label's center goes so that its plane sits beside a box.
  * @param bounds - The box it hangs from, in the parent's coordinates.
  * @param placement - Which side.
  * @param offset - The gap between the box and the plane.
  * @param width - The plane's width, in the parent's coordinates.
  * @param height - The plane's height, in the parent's coordinates.
- * @param out - Where to write the centre.
+ * @param out - Where to write the center.
  * @returns `out`.
  */
 export function placeBeside(
@@ -245,7 +245,7 @@ class Fit {
     }
 
     /**
-     * Put the label's centre in `local` (the parent's coordinates) and `world`.
+     * Put the label's center in `local` (the parent's coordinates) and `world`.
      * @param label - The label.
      * @param placement - Which side of what it hangs from.
      * @param scale - The plane's scaling.
@@ -276,7 +276,7 @@ class Fit {
     }
 
     /**
-     * How far the plane centred on `world` reaches past each edge of the view, in CSS pixels.
+     * How far the plane centered on `world` reaches past each edge of the view, in CSS pixels.
      * @param widthWorld - The plane's width in world units.
      * @param heightWorld - Its height.
      * @returns The amount to move it right (x) and down (y) to bring it in, or null when it is behind the camera.

@@ -14,16 +14,16 @@ slot is filled from a field on the route; routes and slots not yet in the elemen
 `element-needs.md`. *Level 4* is the reason a notice is allowed (`interaction-patterns.md` 3.5
 level 4): out-of-sight, detached, outside-app, or field-closed; "--" for every other type.
 *Spoken* is the live region (`content-design.md` 4, Announcements): polite, assertive, or "--".
-*Also shown* names a second surface carrying the same text. Owner is graphty-element except
-`start.empty` and `feedback.sent` (app): the chip's count, the save state and a changed-options
-count are graph facts a third-party host would otherwise rewrite (`content-design.md` 1). IP is `interaction-patterns.md`, IPE
+*Also shown* names a second surface carrying the same text. Every template is owned by the app; graphty-element owns
+the key, its parameters and when it fires, and publishes no words (`CLAUDE.md`, "graphty-element is neutral about presentation"); a
+third-party host writes its own templates for the same keys (`content-design.md` 1). IP is `interaction-patterns.md`, IPE
 `interaction-pattern-entries.md`. Plurals are ICU in code.
 
 ## Published keys
 
 graphty-element publishes each message by key so a host can supply its own words
 (`decided-doors.md`, "Host names for reader text"). On every route in the Route column that the element owns, a
-message is a record `{ key, params, text }`: on each reader-text event record, on the text beside
+message is a record `{ key, params }`: on each reader-text event record, on the text beside
 a state or on a call's result, and on `GraphtyError` as its reader headline, with its cause as a
 second record of the same shape.
 
@@ -36,10 +36,10 @@ second record of the same shape.
 - **`params` are the template's slots by name**, without braces (`{file}` is `file`), holding raw
   values: a count as a number, a name as a string, a nested cause as its own record. A bracketed
   part left unfilled is a missing parameter, never an empty string. Formatting (`content-design.md`
-  5) is done for `text`; a host that rewords formats its own values.
-- **`text` is the element's English, an unpublished default** any release may reword. A host with
-  no wording of its own shows it.
-- **Stable.** A key is never renamed or reused. Rewording `text` keeps the key; adding an optional
+  5) is the host's, done when it fills its template.
+- **No `text`.** The element publishes no English beside the key; the templates in the Keys table
+  below are the graphty app's.
+- **Stable.** A key is never renamed or reused. Rewording a template keeps the key; adding an optional
   parameter keeps it; removing or renaming a parameter, or changing what the message means, mints
   a new key and retires the old one, which stays listed here as retired so no later message
   takes it.

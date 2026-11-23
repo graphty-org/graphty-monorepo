@@ -504,7 +504,7 @@ flowchart TD
   SEL["Inspector, several nodes: Appearance"] --> Q{"Keep these as a set first?"}
   Q -->|"yes: Create set"| S
   Q -->|no| PK2(["Color picker"])
-  PK2 --> OV[/"Overrides layer written"/]:::gap
+  PK2 --> OV[/"Layer added on top for these nodes"/]:::gap
   C1 --> T1{{"The value row names the layer it edits; so does the legend"}}
   C2 --> T1
   T1 --> T2{{"Chip does not move: counts unchanged"}}
@@ -519,7 +519,7 @@ A second color on the set revises the layer the first added, and a picker drag i
 | open | set's Appearance | the fill swatch; the four-dot picker | Edit in the inspector and one popover (6.2); Bind a property to an attribute (6.6) | no undo entry | the value, or "Mixed" | Surfaced | `session.styles.explain` |
 | first write | color picker; attribute picker | a color; an attribute | Bind a property to an attribute (6.6) | "Add style layer Type X"; "Size by degree on Type X" | the layer appears on top | Surfaced | `session.styles.add` with a `{ match: "member" }` selector on the set (master) |
 | later writes | color picker | a color | Bind a property to an attribute (6.6) | "Change color of Type X" | the value row names the layer being edited | Surfaced | `session.styles.update`; finding the set's layer **missing**: "encoding a data attribute, keyed so a repeated verb edits its earlier layer" |
-| hand edit | several nodes' Appearance | a color | Commit, the write rule and Mixed (3.2) | "Override color of 6 nodes" | the Overrides row counts them | Surfaced | **missing**: "The **Overrides** layer" |
+| hand edit | several nodes' Appearance | a color | Commit, the write rule and Mixed (3.2) | "Override color of 6 nodes" | the new layer's row counts them | Surfaced | **missing**: "Override as one element command" |
 
 **Desk count:** 2 steps, 1 travel (the set; the color), the same as Figma's; binding, 3 steps (the
 set; the four-dot picker; the attribute). **First failure:** an expert editor user types a color on several
@@ -1052,7 +1052,7 @@ a place here is a gap for the information architecture.
    and device table; that neither table holds anything the drawings do not; that every flow
    has its Keyboard line and its Figma route; and that every "Departure:" in a header names a row
    of `figma-crosswalk.md` 4 by its Figma cell. It does not read the step tables' Command column,
-   and it does not judge whether a Figma route is the right analogue or its count is right; a label
+   and it does not judge whether a Figma route is the right analog or its count is right; a label
    in the outline but in the wrong place is beyond it too; those are section 11's hand-kept rows and
    review.
 2. **Cognitive walkthrough** of each flow against its workflows: will the analyst try the right

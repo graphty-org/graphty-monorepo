@@ -13,10 +13,11 @@ export type Threshold = [Op, number];
  */
 export type MemberWindow = "1h" | "1h+6h" | "now" | "slow" | "info";
 
-export type EngineMeasure = "sources_not_ok" | "sources_thin" | "collector_age" | "write_budget";
+export type EngineMeasure = "sources_not_ok" | "sources_thin" | "collector_age" | "write_budget" | "read_budget";
 
 export type Measure =
     | { type: "rate"; metric: string; scale?: number } // sum / n
+    | { type: "rate_per_last"; metric: string; per: string } // (sum / n) / the newest value of `per` (slow only)
     | { type: "median" | "p90"; metric: string; scale?: number } // from the merged histogram
     | { type: "sum"; metric: string; scale?: number }
     | { type: "share"; metric: string; complement?: boolean } // sum / the window's ms
@@ -115,6 +116,8 @@ export interface SlaConfig {
     runnerLimits: Record<string, number>;
     prBudgetsMin: Record<string, number>;
     dailyRowLimit: number;
+    /** The public reads' daily budget in read request units (DAILY_READ_LIMIT in src/model/items.ts). */
+    dailyReadLimit: number;
     members: MemberConfig[];
 }
 

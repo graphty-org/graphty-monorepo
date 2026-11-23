@@ -12,7 +12,6 @@ import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { openBy } from "../../../test/open";
 import { forgetAutosave, openAutosaved, reload } from "../../../test/reload";
 import { pickSample } from "../../../test/samples-dialog";
@@ -28,8 +27,6 @@ declare module "vitest/browser" {
     }
 }
 
-/** The experiment on, as a site.json that lists it. */
-const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
 const KEY = "AIza-a-key-of-the-right-shape";
 const COMPOSER = { name: "Message the assistant" };
 
@@ -93,7 +90,7 @@ function scriptEnable(): void {
 }
 
 /**
- * The workspace, once its element has reported the experiment on.
+ * The workspace, once its element has reported.
  * @param store - the store to mount with.
  * @returns the store.
  */
@@ -223,8 +220,6 @@ async function typeName(keys: string): Promise<void> {
 
 describe("talking to the Assistant", () => {
     beforeEach(async () => {
-        resetSiteConfig();
-        await loadSiteConfig(SITE);
         await page.viewport(1440, 900);
         localStorage.clear();
         sessionStorage.clear();
@@ -238,7 +233,6 @@ describe("talking to the Assistant", () => {
 
     afterEach(() => {
         vi.restoreAllMocks();
-        resetSiteConfig();
         writeAssistantChoice(null);
     });
 
@@ -1235,6 +1229,8 @@ describe("talking to the Assistant", () => {
         await openPanel();
         model.turns = [{ text: "A long answer line.\n".repeat(60), toolCalls: [] }];
         await say("Tell me a lot");
+        // Send also shows before the run starts: the answer in the log says it ran.
+        await within(await chatLog()).findAllByText(/A long answer line/);
         await screen.findByRole("button", { name: "Send" });
         model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
         await say("Please answer");
@@ -1263,6 +1259,8 @@ describe("talking to the Assistant", () => {
         await openPanel();
         model.turns = [{ text: "A long answer line.\n".repeat(60), toolCalls: [] }];
         await say("Tell me a lot");
+        // Send also shows before the run starts: the answer in the log says it ran.
+        await within(await chatLog()).findAllByText(/A long answer line/);
         await screen.findByRole("button", { name: "Send" });
         const log = screen.getByRole("region", { name: "Chat" });
         const before = log.clientHeight;

@@ -266,7 +266,7 @@ describe.each([
         assert.strictEqual(lastResults(harness.driver.requests[3])[0].content.data?.answer, "Colored.");
     });
 
-    it("a cancel ends the helper and the plan with AI_CANCELLED and one ai-pending-resolved", async () => {
+    it("a cancel ends the helper and the plan with AI_CANCELED and one ai-pending-resolved", async () => {
         const store = new MemoryStore();
         const harness = new Harness(
             await assistantSession(),
@@ -287,7 +287,7 @@ describe.each([
         );
         assert.deepStrictEqual(
             ended.map((event) => [event.id, event.code]),
-            [[request, "AI_CANCELLED"]],
+            [[request, "AI_CANCELED"]],
         );
         const record = await store.load(harness.controller.getConversation()?.id ?? "");
         assert.deepStrictEqual(record?.pending, [], "the request and the plan step are gone");
@@ -296,7 +296,7 @@ describe.each([
                 part.type === "tool-result" ? [`${String(part.params.tool)}:${part.code}`] : [],
             ),
         );
-        assert.deepStrictEqual(results, ["delegate:AI_CANCELLED"], "the hand-off answered as cancelled");
+        assert.deepStrictEqual(results, ["delegate:AI_CANCELED"], "the hand-off answered as canceled");
         assert.lengthOf(harness.driver.requests, 1, "nothing ran after the hold");
     });
 });

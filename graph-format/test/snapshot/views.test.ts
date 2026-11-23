@@ -2,7 +2,6 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError } from "../../src/errors.js";
 import { peekView } from "../../src/snapshot/graph-snapshot.js";
 import {
     computeDegreeOrder,
@@ -15,21 +14,9 @@ import {
     viewByteLength,
 } from "../../src/snapshot/views.js";
 import { type GraphSnapshot } from "../../src/types/index.js";
+import { expectError } from "../helpers/errors.js";
 import { assertInvariants } from "../helpers/invariants.js";
 import { type GraphSpec, KARATE_EDGES, makeSnapshot, weightOf } from "../helpers/parts.js";
-
-function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
 
 /** Brute-force per-node quantities from the spec. */
 function brute(spec: GraphSpec, s: GraphSnapshot) {
@@ -263,7 +250,7 @@ describe("sharing and aliasing rules (I17, section 7.2)", () => {
         const s = makeSnapshot(spec);
         const r = s.reverse();
         expect(r.directed).toBe(true);
-        // in-neighbours: 0 <- {2}; 1 <- {0}; 2 <- {0 (e1), 0 (e4), 1}
+        // in-neighbors: 0 <- {2}; 1 <- {0}; 2 <- {0 (e1), 0 (e4), 1}
         expect(Array.from(r.rowPtr)).toEqual([0, 1, 2, 5]);
         expect(Array.from(r.colIdx)).toEqual([2, 0, 0, 0, 1]);
         const fwd = r.fwdArc;

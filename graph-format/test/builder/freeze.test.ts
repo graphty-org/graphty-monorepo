@@ -9,34 +9,10 @@ import { describe, expect, it } from "vitest";
 
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError, type GraphFormatErrorCode } from "../../src/errors.js";
 import { permutationMaterialised } from "../../src/snapshot/graph-snapshot.js";
 import { type DuplicatePolicy } from "../../src/types/index.js";
+import { thrownCode, thrownError } from "../helpers/errors.js";
 import { assertInvariants } from "../helpers/invariants.js";
-
-function code(fn: () => unknown): GraphFormatErrorCode | null {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err.code;
-        }
-        throw err;
-    }
-    return null;
-}
-
-function thrown(fn: () => unknown): GraphFormatError {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err;
-        }
-        throw err;
-    }
-    throw new Error("expected a GraphFormatError");
-}
 
 function remap(array: Uint32Array | null): number[] | null {
     return array === null ? null : Array.from(array);
@@ -208,7 +184,7 @@ describe("freeze: self-loop policy", () => {
         b.addEdge("d", "d");
         b.removeNode("a");
         const before = { m: b.mutationCount, n: b.nodeBound, e: b.edgeBound };
-        const err = thrown(() => b.freeze());
+        const err = thrownError(() => b.freeze());
         expect(err.code).toBe("E_SELF_LOOP");
         expect(err.details.edge).toBe(1);
         expect(err.details.node).toBe(2);
@@ -250,7 +226,7 @@ describe("freeze: duplicate policy", () => {
         const b = parallel(true, "error");
         b.removeEdge(1);
         const bound = b.edgeBound;
-        const err = thrown(() => b.freeze());
+        const err = thrownError(() => b.freeze());
         expect(err.code).toBe("E_DUPLICATE_EDGE");
         expect(err.details).toEqual({ source: 0, target: 1, edges: [0, 2] });
         expect(b.edgeBound).toBe(bound);
@@ -266,7 +242,7 @@ describe("freeze: duplicate policy", () => {
         const b = new GraphBuilder({ directed: false, duplicateEdges: "error" });
         b.addEdge("a", "b");
         b.addEdge("b", "a");
-        const err = thrown(() => b.freeze());
+        const err = thrownError(() => b.freeze());
         expect(err.details).toEqual({ source: 0, target: 1, edges: [0, 1] });
         const ok = new GraphBuilder({ directed: true, duplicateEdges: "error" });
         ok.addEdge("a", "b");
@@ -355,7 +331,7 @@ describe("freeze: duplicate policy", () => {
         expect(b.edgeCount).toBe(1);
         expect(b.edgeWeight(0)).toBe(2);
         expect(b.freeze().edgeCount).toBe(1);
-        expect(code(() => b.freeze({ duplicateEdges: "error" }))).toBeNull();
+        expect(thrownCode(() => b.freeze({ duplicateEdges: "error" }))).toBeNull();
     });
 
     it("a non-keep policy with no duplicates still yields an arena-backed core", () => {
@@ -665,7 +641,7 @@ describe("freeze: options", () => {
         expect(plain.snapshot.label).toBeNull();
         expect(plain.report.timings).toEqual({});
         expect(plain.snapshot.cachedViews()).toEqual([]);
-        expect(code(() => plain.snapshot.validate({ checksum: true }))).toBe("E_INVALID_SNAPSHOT");
+        expect(thrownCode(() => plain.snapshot.validate({ checksum: true }))).toBe("E_INVALID_SNAPSHOT");
     });
 
     it("freezes with an empty prepare list and duplicate-policy profiling", () => {

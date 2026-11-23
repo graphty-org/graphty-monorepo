@@ -202,7 +202,7 @@ export function fakeLayout(session: GraphSession): FakeLayout {
 
 /** A queued command's turn, held until the model releases it. */
 export interface HeldTurn {
-    /** Whether the dispatcher took it back: cancelled, or coalesced away. */
+    /** Whether the dispatcher took it back: canceled, or coalesced away. */
     readonly dropped: boolean;
     /**
      * Give the command its turn.

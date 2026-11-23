@@ -22,8 +22,8 @@ import graphml from "../../../graph-io/test/corpus/graphml/simple.graphml?raw";
 import json from "../../../graph-io/test/corpus/json/sigma-format.json?raw";
 import neo4j from "../../../graph-io/test/corpus/neo4j/typed-properties.csv?raw";
 import pajek from "../../../graph-io/test/corpus/pajek/karate.net?raw";
-import { type GraphtyError, isGraphtyError, type LossNote } from "../../extend";
-import type { ExportResult } from "../../index.js";
+import { type GraphtyError, isGraphtyError } from "../../extend";
+import type { ExportLoss, ExportResult, PendingWorkProgress } from "../../index.js";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { fileStylesOn } from "../helpers/file-styles-on";
 
@@ -83,8 +83,8 @@ function keysOf(records: readonly Readonly<Record<string, unknown>>[]): Set<stri
  * @param notes - The export's loss notes.
  * @returns The unreported losses.
  */
-function unreported(before: Set<string>, after: Set<string>, notes: readonly LossNote[]): string[] {
-    const noted = new Set(notes.map((note) => note.column));
+function unreported(before: Set<string>, after: Set<string>, losses: readonly ExportLoss[]): string[] {
+    const noted = new Set(losses.flatMap((loss) => loss.params.columns));
     return [...before].filter((key) => !after.has(key) && !noted.has(key));
 }
 
@@ -121,8 +121,8 @@ describe("exportGraph round trip", () => {
             const ends = (records: readonly { source: unknown; target: unknown }[]): string[] =>
                 records.map((edge) => `${String(edge.source)}->${String(edge.target)}`).sort();
             assert.deepEqual(ends(again.data.edges()), ends(edges), "edge endpoints");
-            assert.deepEqual(unreported(keysOf(nodes), keysOf(again.data.nodes()), result.lossNotes), [], "node keys");
-            assert.deepEqual(unreported(keysOf(edges), keysOf(again.data.edges()), result.lossNotes), [], "edge keys");
+            assert.deepEqual(unreported(keysOf(nodes), keysOf(again.data.nodes()), result.losses), [], "node keys");
+            assert.deepEqual(unreported(keysOf(edges), keysOf(again.data.edges()), result.losses), [], "edge keys");
 
             const chunks: Uint8Array[] = [];
             for await (const chunk of result.bytes) {
@@ -144,6 +144,31 @@ describe("exportGraph round trip", () => {
             assert.isAbove((await twice.text()).length, 0, "a reloaded export exports again");
         });
     }
+});
+
+describe("export progress", () => {
+    it("reports the queued work the export waits behind, and stops once it writes", async () => {
+        const graph = await loaded("json", json);
+        let release = (): void => undefined;
+        const gate = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        operationQueueOf(graph).queueOperation("algorithm-run", async (context) => {
+            context.progress.setProgress(30);
+            await gate;
+            context.progress.setProgress(90);
+        });
+        const facts: PendingWorkProgress[] = [];
+        const exported = graph.exportGraph("json", { onProgress: (fact) => facts.push(fact) });
+        assert.strictEqual(facts[0]?.params.operations, 1, "told at once what is ahead");
+        release();
+        assert.isAbove((await (await exported).text()).length, 0, "onProgress is not a writer option");
+        assert.deepInclude(facts, {
+            code: "PENDING_WORK",
+            params: { operations: 1, category: "algorithm-run", percent: 90 },
+        });
+        assert.strictEqual(facts.at(-1)?.params.operations, 0, "the last reading counts nothing left");
+    });
 });
 
 describe("what an export carries", () => {
@@ -174,7 +199,7 @@ describe("what an export carries", () => {
         const degreeColumn = session.results.path(root.runId, "value");
         const rankColumn = session.results.path(root.runId, "rank");
 
-        // GEXF holds positions, colours and sizes, and attributes of any name.
+        // GEXF holds positions, colors and sizes, and attributes of any name.
         const gexfOut: ExportResult = await graph.exportGraph("gexf");
         const gexfText = await gexfOut.text();
         assert.include(gexfText, "<viz:position", "positions are written");
@@ -191,12 +216,12 @@ describe("what an export carries", () => {
 
         // CSV has no place for positions or style: the export says so rather than dropping them.
         const csvOut = await graph.exportGraph("csv");
-        const noted = new Set(csvOut.lossNotes.map((note) => note.column));
+        const noted = new Set(csvOut.losses.flatMap((loss) => loss.params.columns));
         assert.isTrue(noted.has("position"), "the positions are reported lost");
         assert.isTrue(noted.has("style.color"), "the colours are reported lost");
         // An edge table has no place for node attributes, the results among them: reported too.
         assert.include(
-            csvOut.lossNotes.map((note) => note.code),
+            csvOut.losses.map((loss) => loss.code),
             "W_CSV_NODE_TABLE",
             "node attributes, results included, are reported lost from an edge table",
         );

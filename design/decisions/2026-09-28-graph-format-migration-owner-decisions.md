@@ -32,5 +32,5 @@ registry"; that clause came from an option the owner did not pick. These remain 
 specifications: an export carries nodes, edges, attributes, positions, algorithm results and style
 wherever the chosen format has a place for them, and reports every omission as a loss note. Where
 that reading goes beyond the owner's words (for example whether a style MAPPING, not only resolved
-colours, must be written when the format can hold one) it is marked there as needing the owner's
+colors, must be written when the format can hold one) it is marked there as needing the owner's
 confirmation.

@@ -1,0 +1,118 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-recipe/v2.json",
+    "kind": "graphty-recipe",
+    "version": 2,
+    "id": "org.example-bank.card-testing-sweep",
+    "name": "Card-testing sweep",
+    "description": "Keeps the week's activity, ranks accounts, finds device rings and flags high-risk accounts.",
+    "created": "2026-08-19T15:00:00.000Z",
+    "modified": "2026-11-03T19:30:00.000Z",
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "dependencies": {
+        "columns": [
+            {
+                "kind": "edge",
+                "name": "time",
+                "schema": {
+                    "type": "string",
+                    "format": "date-time",
+                    "measurement": "time"
+                }
+            },
+            {
+                "kind": "edge",
+                "name": "amount",
+                "schema": {
+                    "type": "number",
+                    "measurement": "quantitative",
+                    "unit": "USD"
+                }
+            }
+        ],
+        "types": ["account", "device"],
+        "sources": ["accounts"]
+    },
+    "namespace": "card_testing",
+    "commands": [
+        {
+            "op": "graph.filter",
+            "on": "edges",
+            "where": "data.time >= '2026-11-09'",
+            "description": "Only this week's activity."
+        },
+        {
+            "op": "algo.run",
+            "algorithm": "pagerank",
+            "as": "pagerank",
+            "params": {
+                "dampingFactor": 0.85,
+                "directed": true,
+                "maxIterations": 100,
+                "tolerance": 0.000001,
+                "useDelta": true
+            },
+            "style": false
+        },
+        {
+            "op": "algo.run",
+            "algorithm": "louvain",
+            "as": "communities",
+            "params": {
+                "maxIterations": 100,
+                "resolution": 1,
+                "tolerance": 0.000001,
+                "useOptimized": true
+            },
+            "scope": {
+                "types": ["account", "device"]
+            },
+            "seed": 1873,
+            "style": false,
+            "description": "Accounts that share devices fall into one group."
+        },
+        {
+            "op": "set.define",
+            "id": "set_01JCBPX7K2M4Q8R1T5V9W3Y6ZA",
+            "name": "High-risk accounts",
+            "reading": "induced",
+            "where": {
+                "kind": "all",
+                "of": [
+                    {
+                        "kind": "source",
+                        "sources": ["accounts"],
+                        "side": "nodes"
+                    },
+                    {
+                        "kind": "expression",
+                        "where": "results.pagerank.value > `0.2`"
+                    }
+                ]
+            }
+        },
+        {
+            "op": "layout.set",
+            "id": "force",
+            "dimension": 3,
+            "options": {
+                "clusterStrength": 1,
+                "nodeGapFront": false,
+                "seed": 52211
+            },
+            "drawnBy": {
+                "engine": "ngraph",
+                "options": {
+                    "dragCoefficient": 0.9,
+                    "gravity": -12,
+                    "springCoefficient": 0.8,
+                    "springLength": 10,
+                    "theta": 0.8,
+                    "timeStep": 0.5
+                }
+            }
+        }
+    ]
+}

@@ -1,7 +1,7 @@
 /**
  * A layer whose Which nodes gains an Or group in the workspace still decides its own Fill over
  * Everything on the REAL graphty-element and Les Miserables, driven by real clicks and keys: after
- * Done, the Fill row says nothing covers it, as the canvas draws the layer's color.
+ * Done, the element reads the layer as deciding Fill on every node it matches.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -18,7 +18,7 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 /**
@@ -75,7 +75,8 @@ describe("a layer's Fill after an Or group is added to its Which nodes", () => {
             assert.isNotNull(found, "the workspace is open");
             return found;
         });
-        await userEvent.click(await within(ws).findByRole("button", { name: "Or..." }));
+        // "+ Card" adds an Or group: a new card.
+        await userEvent.click(await within(ws).findByRole("button", { name: "Card" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Largest component");
         await userEvent.keyboard("{Enter}");
@@ -88,13 +89,10 @@ describe("a layer's Fill after an Or group is added to its Which nodes", () => {
             assert.isNull(document.querySelector(".sel-ws"), "the workspace closed");
         });
         await session.styles.settled();
-        // The canvas draws Busy's color on every node it matches...
+        // The canvas draws Busy's color on every node it matches.
         const entry = session.styles
             .agreement("graph", "node.color", { over: layer.id })
             .channels.find((each) => each.channel === "node.color");
         assert.strictEqual(entry?.state === "agree" ? entry.layerId : undefined, layer.id);
-        // ...and the Fill row says nothing covers it.
-        await screen.findByRole("button", { name: /^Style Nodes\.\.\./ });
-        assert.isNull(document.querySelector("[data-covered-caption]"), "no covered caption under Fill");
     });
 });

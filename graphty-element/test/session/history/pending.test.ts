@@ -27,8 +27,8 @@ function isAbort(error: unknown, reason?: string): boolean {
     );
 }
 
-function labels(items: readonly { label: string }[]): string[] {
-    return items.map((item) => item.label);
+function labels(items: readonly { fact: { params: Readonly<Record<string, unknown>> } }[]): string[] {
+    return items.map((item) => String(item.fact.params.label));
 }
 
 describe("history.pending", () => {
@@ -68,13 +68,13 @@ describe("undo while work is pending", () => {
         const newer = outcome(dispatcher.dispatch({ op: "fake.run", id: "newer" }));
 
         const first = await dispatcher.undo();
-        assert.strictEqual(first.kind, "cancelled");
-        assert.deepEqual(first.kind === "cancelled" ? labels(first.pending) : [], ["Ran newer"]);
+        assert.strictEqual(first.kind, "canceled");
+        assert.deepEqual(first.kind === "canceled" ? labels(first.pending) : [], ["Ran newer"]);
         assert.isTrue(isAbort((await newer).error, "undo"));
         assert.strictEqual(stackName(dispatcher), "a");
 
         const second = await dispatcher.undo();
-        assert.deepEqual(second.kind === "cancelled" ? labels(second.pending) : [], ["Ran older"]);
+        assert.deepEqual(second.kind === "canceled" ? labels(second.pending) : [], ["Ran older"]);
         assert.isTrue(isAbort((await older).error, "undo"));
 
         const third = await dispatcher.undo();
@@ -110,7 +110,7 @@ describe("undo while work is pending", () => {
 
         assert.strictEqual((await dispatcher.undo()).kind, "undone", "the edit after the run goes first");
         assert.deepEqual(labels(dispatcher.pending), ["Ran slow"], "and the run survives it");
-        assert.strictEqual((await dispatcher.undo()).kind, "cancelled", "then the run");
+        assert.strictEqual((await dispatcher.undo()).kind, "canceled", "then the run");
         assert.isTrue(isAbort((await run).error, "undo"));
     });
 
@@ -136,7 +136,7 @@ describe("undo while work is pending", () => {
         const after = outcome(dispatcher.dispatch({ op: "fake.run", id: "after" }));
 
         const first = await dispatcher.redo();
-        assert.deepEqual(first.kind === "cancelled" ? labels(first.pending) : [], ["Ran after"]);
+        assert.deepEqual(first.kind === "canceled" ? labels(first.pending) : [], ["Ran after"]);
         assert.isTrue(isAbort((await after).error, "redo"));
 
         assert.strictEqual((await dispatcher.redo()).kind, "redone");
@@ -168,7 +168,7 @@ describe("undo while work is pending", () => {
 
         assert.deepEqual(dispatcher.nextUndo?.kind, "cancel");
         const first = await dispatcher.undo();
-        assert.deepEqual(first.kind === "cancelled" ? labels(first.pending) : [], ["Message"]);
+        assert.deepEqual(first.kind === "canceled" ? labels(first.pending) : [], ["Message"]);
         assert.isTrue(isAbort((await message).error));
         assert.isFalse(dispatcher.state.config.has("pin/x"));
         assert.isTrue(dispatcher.state.config.get("node/x"));
@@ -196,7 +196,7 @@ describe("undo while work is pending", () => {
         await tick();
 
         const first = await dispatcher.undo();
-        assert.deepEqual(first.kind === "cancelled" ? labels(first.pending) : [], ["Message"]);
+        assert.deepEqual(first.kind === "canceled" ? labels(first.pending) : [], ["Message"]);
         assert.isTrue(isAbort((await message).error));
         assert.isFalse(dispatcher.state.config.has("node/z"));
     });
@@ -232,7 +232,7 @@ describe("history.nextUndo", () => {
         await dispatcher.dispatch({ op: "fake.styles", name: "a" });
         const next = nextUndo();
         assert.strictEqual(next?.kind, "undo");
-        assert.strictEqual(next?.kind === "undo" ? next.step.label : "", "Styled a");
+        assert.strictEqual(next?.kind === "undo" ? String(next.step.fact.params.label) : "", "Styled a");
         assert.strictEqual(nextUndo(), next);
 
         const run = outcome(dispatcher.dispatch({ op: "fake.run", id: "degree" }));
@@ -255,9 +255,9 @@ describe("history.cancel", () => {
         const edge = outcome(dispatcher.dispatch({ op: "fake.add-edge", source: "x", target: "y" }));
         const [first] = dispatcher.pending;
 
-        const cancelled = dispatcher.cancel(first.id);
+        const canceled = dispatcher.cancel(first.id);
 
-        assert.deepEqual(labels(cancelled), ["Loaded nodes", "Added x-y"]);
+        assert.deepEqual(labels(canceled), ["Loaded nodes", "Added x-y"]);
         assert.isTrue(isAbort((await nodes).error, "cancel"));
         assert.isTrue(isAbort((await edge).error, "cancel"));
         assert.deepEqual(labels(dispatcher.pending), ["Ran degree"]);
@@ -275,8 +275,8 @@ describe("history.cancel", () => {
         await tick();
         const pinned = outcome(dispatcher.dispatch({ op: "fake.pin", id: "x" }));
 
-        const cancelled = dispatcher.cancel(dispatcher.pending[1].id);
-        assert.deepEqual(labels(cancelled), ["Pinned x"]);
+        const canceled = dispatcher.cancel(dispatcher.pending[1].id);
+        assert.deepEqual(labels(canceled), ["Pinned x"]);
         assert.isTrue(isAbort((await pinned).error, "cancel"));
 
         gates.open("chunk");
@@ -368,7 +368,7 @@ describe("deferred members", () => {
         });
 
         const first = await dispatcher.undo();
-        assert.deepEqual(first.kind === "cancelled" ? labels(first.pending) : [], ["Ran degree"]);
+        assert.deepEqual(first.kind === "canceled" ? labels(first.pending) : [], ["Ran degree"]);
         assert.isTrue(isAbort((await run)?.error, "undo"));
         assert.strictEqual(stackName(dispatcher), "a");
 

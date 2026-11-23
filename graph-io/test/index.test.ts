@@ -69,9 +69,11 @@ const VALUE_EXPORTS = [
     "DOT_STYLE_CAPABILITIES",
     "dotExporter",
     "dotFileLayout",
+    "requestedLayout",
     "dotImporter",
     "graphvizFont",
     "graphvizPosBends",
+    "graphvizPosCurve",
     "RANK_COLUMN",
     "RANK_SET_COLUMN",
     "GEXF_1_2_CAPABILITIES",
@@ -100,6 +102,9 @@ const VALUE_EXPORTS = [
     "jsonExporter",
     "jsonImporter",
     "jsonShapeOf",
+    "readJsonRecords",
+    "recordKey",
+    "recordPaths",
     "exportNeo4jFiles",
     "ID_SPACE_COLUMN",
     "LABELS_COLUMN",
@@ -121,6 +126,14 @@ const VALUE_EXPORTS = [
     "PAJEK_STYLE_COMMENT",
     "pajekExporter",
     "pajekImporter",
+    "INTERACTION_COLUMN",
+    "SIF_CAPABILITIES",
+    "SIF_ISSUE",
+    "XLSX_ISSUE",
+    "SIF_LOSS",
+    "sifExporter",
+    "sifImporter",
+    "xlsxImporter",
     "XGMML_ISSUE",
     "XGMML_LOSS",
     "xgmmlExporter",
@@ -130,6 +143,7 @@ const VALUE_EXPORTS = [
     "CYS_LOSS",
     "cysExporter",
     "cysImporter",
+    "readCytoscapeStyleFile",
     // shared helpers for plugin authors
     "BAD_DEFAULT_CODE",
     "BAD_OPTIONS_CODE",
@@ -245,6 +259,7 @@ const VALUE_EXPORTS = [
     "ROLE_ASSUMED_CODE",
     "ROLE_DROPPED_CODE",
     "ROLE_TAKEN_CODE",
+    "SHEET_NOT_FOUND_CODE",
     "SINGLE_OBJECT_ASPECT_CODE",
     "SELF_LOOP_CODE",
     "SELF_LOOPS_DROPPED_CODE",
@@ -312,6 +327,7 @@ const VALUE_EXPORTS = [
     "replayFetch",
     "recordingFrom",
     "sha256Hex",
+    "sha256HexSync",
     "NDEX_SOURCE_ID",
     "CYPHER_SOURCE_ID",
     "NEO4J_SOURCE_ID",
@@ -324,9 +340,14 @@ const VALUE_EXPORTS = [
     "GITHUB_SOURCE_ID",
     "S3_SOURCE_ID",
     "ZENODO_SOURCE_ID",
+    "FIGSHARE_SOURCE_ID",
     "SOURCE_DEGREE_ATTR",
     "SOURCE_ENTITY_ATTR",
     "SOURCE_FORMAT_PREFIX",
+    "URL_SOURCE_ID",
+    "URL_DESCRIPTOR",
+    "sourceEndpoint",
+    "sourceFileName",
 ];
 
 describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
@@ -350,6 +371,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             ["xgmml", graphIo.xgmmlImporter, graphIo.xgmmlExporter],
             ["obo", graphIo.oboImporter, graphIo.oboExporter],
             ["cys", graphIo.cysImporter, graphIo.cysExporter],
+            ["sif", graphIo.sifImporter, graphIo.sifExporter],
         ];
         for (const [format, importer, exporter] of pairs) {
             expect(importer.format).toBe(format);
@@ -359,7 +381,10 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             expect(importer.extensions.length).toBeGreaterThan(0);
             expect(typeof importer.sniff).toBe("function");
         }
-        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(new Set(pairs.map(([format]) => format)));
+        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(new Set([...pairs.map(([format]) => format), "xlsx"]));
+        // a workbook is read only
+        expect(graphIo.registry.importer("xlsx")).toBe(graphIo.xlsxImporter);
+        expect(graphIo.registry.hasExporter("xlsx")).toBe(false);
     });
 
     it("keeps every issue and loss code table frozen with distinct string values", () => {

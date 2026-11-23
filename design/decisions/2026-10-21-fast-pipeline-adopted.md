@@ -1,5 +1,7 @@
 # Changes land after a fast check and are verified in full after landing
 
+> Status: Superseded 2026-10-25 by 2026-10-25-channels-pipeline-adopted.md: changes no longer land through `golden`; every change reaches master through its own pull request.
+
 Date: 2026-10-21
 Decided by: the owner
 Changes: how a change travels from a development branch to master, graphty.app and npm, as laid

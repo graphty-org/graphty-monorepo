@@ -33,6 +33,7 @@ const VALUE_EXPORTS = [
     "fromRecords",
     "fromWire",
     "gatherArray",
+    "coordinateSystemOf",
     "gatherColumn",
     "gpuEligibility",
     "inferTextDtype",

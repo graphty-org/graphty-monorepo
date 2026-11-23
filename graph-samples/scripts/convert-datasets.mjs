@@ -590,7 +590,7 @@ const CONVERTERS = {
     "venice-transit"(_social, files) {
         // network_nodes.csv: stop_I;lat;lon;name. network_combined.csv: from_stop_I;to_stop_I;d;
         // duration_avg;n_vehicles;route_I_counts;route_type, one row per stop pair and GTFS route type
-        // (0 tram, 3 bus, 4 ferry); d is the straight-line distance in metres.
+        // (0 tram, 3 bus, 4 ferry); d is the straight-line distance in meters.
         const stops = semicolonRows(
             Buffer.from(unzipMember(files.venice, "venice/network_nodes.csv"), "latin1").toString("utf8"),
         );

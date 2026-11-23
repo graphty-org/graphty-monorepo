@@ -226,9 +226,16 @@ function admit(
 
     const { descriptor: given, glsl, wgsl, lowDetail } = registration;
     const { webgpu, tags, ...facts } = given;
+    // Checked as unknown: a caller's registration may break its type, and narrowing `tags` itself
+    // would leave it an any[].
+    const askedTags: unknown = tags;
     if (
-        tags !== undefined &&
-        !(Array.isArray(tags) && tags.length <= 16 && tags.every((tag) => typeof tag === "string" && tag !== ""))
+        askedTags !== undefined &&
+        !(
+            Array.isArray(askedTags) &&
+            askedTags.length <= 16 &&
+            askedTags.every((tag) => typeof tag === "string" && tag !== "")
+        )
     ) {
         refuse(given.id, "descriptor.tags", [{ code: "shader.header-key", params: { key: "tags" } }]);
     }

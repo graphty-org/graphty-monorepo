@@ -2,9 +2,9 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
-import { asNumber, createMockGraph, getNodeResult } from "../../helpers/mockGraph";
+import { asNumber, createSessionGraph, getNodeResult } from "../../helpers/session-graph";
 
-const mockGraph = createMockGraph;
+const mockGraph = createSessionGraph;
 
 describe("BFSAlgorithm", () => {
     describe("Algorithm Registration", () => {

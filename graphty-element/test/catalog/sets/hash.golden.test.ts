@@ -2,7 +2,7 @@
  * Goldens for the member hashes and the `r1:` revision (design/sets/sets-design.md section 12.2).
  *
  * Every expected value here is derived without the code under test: a reference FNV-1a-32 loop and
- * MurmurHash3 finaliser in BigInt arithmetic (not Math.imul), each checked against published
+ * MurmurHash3 finalizer in BigInt arithmetic (not Math.imul), each checked against published
  * vectors, fed unit sequences
  * written out by hand, float64 bytes included. The frozen hex literals at the end were written only
  * after the derivations passed; they pin the persisted format.
@@ -31,7 +31,7 @@ function fnv(units: readonly number[], lane: { basis: bigint; prime: bigint } = 
 }
 
 /**
- * Reference MurmurHash3 32-bit finaliser, in BigInt arithmetic.
+ * Reference MurmurHash3 32-bit finalizer, in BigInt arithmetic.
  * @param lane - An unsigned 32-bit value.
  * @returns The mixed value.
  */
@@ -48,7 +48,7 @@ function fmix(lane: number): number {
 }
 
 /**
- * Both lanes over one unit sequence, each finalised.
+ * Both lanes over one unit sequence, each finalized.
  * @param units - The units.
  * @returns The two-lane hash.
  */

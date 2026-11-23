@@ -1,5 +1,8 @@
 # Algorithm Implementations Strategy
 
+> **Historical.** This plan was written when DegreeAlgorithm was graphty-element's only algorithm; `graphty-element/src/algorithms/` now holds the wrappers it planned. Package names, versions and counts below are as they were then; the
+> current packages are in the root `CLAUDE.md` and each `package.json`.
+
 ## Overview
 
 This document outlines the strategy for implementing wrapper classes in `graphty-element` for all algorithms available in the `@graphty/algorithms` package. These wrappers integrate the pure algorithm functions with the visualization system, storing results on graph elements and providing suggested styles for visualization.

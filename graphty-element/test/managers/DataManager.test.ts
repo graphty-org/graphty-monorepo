@@ -393,6 +393,51 @@ describe("DataManager", () => {
         });
     });
 
+    // Issue #8169: on the batched path `getNodes()` built a Node for every unbuilt row, and at a
+    // million rows that crashed the page. Now the array builds an element's Node when it is read.
+    describe("getNodes on the batched path", () => {
+        beforeEach(() => {
+            graph.setRenderPath("batched");
+            dataManager.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        });
+
+        it("builds no Node for the call, its length or the ids", () => {
+            const before = dataManagerInternals.nodesBuilt(dataManager);
+            assert.isBelow(before, 3, "the batched path leaves rows unbuilt");
+
+            const nodes = graph.getNodes();
+            assert.equal(nodes.length, 3);
+            assert.deepEqual(graph.getNodeIds(), ["a", "b", "c"]);
+            assert.equal(dataManagerInternals.nodesBuilt(dataManager), before);
+        });
+
+        it("builds one Node per element read, the graph's own, and keeps it", () => {
+            const before = dataManagerInternals.nodesBuilt(dataManager);
+            const nodes = graph.getNodes();
+
+            const last = nodes[2];
+            assert.strictEqual(last, graph.getNode("c"));
+            assert.strictEqual(nodes[2], last);
+            assert.equal(dataManagerInternals.nodesBuilt(dataManager), Math.min(3, before + 1));
+            assert.isTrue(Array.isArray(nodes));
+            assert.isUndefined(nodes[3]);
+        });
+
+        it("walks in the order the node map does, through iteration and array methods", () => {
+            const expected = [...dataManager.nodes.values()].map((node) => node.id);
+            const nodes = graph.getNodes();
+            assert.deepEqual(
+                nodes.map((node) => node.id),
+                expected,
+            );
+            assert.deepEqual(
+                [...graph.getNodes()].map((node) => node.id),
+                expected,
+            );
+            assert.deepEqual(graph.getNodeIds(), expected);
+        });
+    });
+
     // The count the lazy-edge stage of design/rendering/row-renderer.md drives toward zero under
     // "batched". Under "objects", the default, every edge a load stores is built once, when both ends are.
     describe("edges built", () => {
@@ -542,12 +587,16 @@ describe("DataManager", () => {
             assert.equal(dataManagerInternals.edgesBuilt(dataManager), 1);
         });
 
-        it("builds the other edges of a built edge's pair, which it fans with", () => {
+        it("fans a built edge with its pair's other edges, building none of them", () => {
             dataManager.addEdges([{ src: "b", dst: "a" }]);
             const edge = dataManager.getEdge("0");
             assert.isDefined(edge);
             assert.equal(dataManager.drawnBundle(edge).count, 2);
-            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2, "the pair's two, not the lone b-c edge");
+            assert.equal(
+                dataManagerInternals.edgesBuilt(dataManager),
+                1,
+                "the other edge keeps its row line and row order",
+            );
         });
 
         // The element's own walks of the edges outside the data manager (a pick, a selection

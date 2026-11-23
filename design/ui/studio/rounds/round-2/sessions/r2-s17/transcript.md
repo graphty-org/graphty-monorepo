@@ -23,7 +23,7 @@ Then College football is right there on the right."
 
 Command: `--step $S --click "No thanks" --click "College football"` -> 02.png
 
-Seen: the football network opened -- a big square-ish hairball of blue dots and grey lines, no
+Seen: the football network opened -- a big square-ish hairball of blue dots and gray lines, no
 names anywhere. Left: a search box "Find nodes, edges, values", "Selection", "Everything". Right
 panel: "Graph / From College football", two tabs "Style" and "Values" (Values is selected), an
 Overview with Nodes 115, Edges 613, Density, Components. Bottom toolbar: a flask, a chart icon,
@@ -36,7 +36,7 @@ Names on the dots is how it looks, so I'd guess that's 'Style'. I'll click Style
 
 Command: `--step $S --click "Style"` -> 03.png
 
-Seen: Style shows "Canvas / Background F5F5F5", then "Method: Force - Recommended", a grey
+Seen: Style shows "Canvas / Background F5F5F5", then "Method: Force - Recommended", a gray
 paragraph about pulling nodes together, Shape 3D/2D, Spring length 30, Gravity -1.2, Advanced,
 "Applied". Nothing about names or labels.
 
@@ -70,7 +70,7 @@ Command: `--step $S --click "label"` -> 06.png
 
 Seen: names appeared above the dots: Georgia Tech, Maryland, Florida, Arkansas, Boise State,
 Arizona, California, ... The panel now shows a Label row "Aa Above | Abc label" with a minus, and
-under it in small grey "115 labels, 14 hidden to avoid overlap". The names are very small, and
+under it in small gray "115 labels, 14 hidden to avoid overlap". The names are very small, and
 in the crowded middle many are tiny and overlap (I had to lean in). Notre Dame, Air Force, UCLA
 readable.
 
@@ -83,7 +83,7 @@ when there's room."
 Command: `--step $S --wheel 740,460,-400` -> 07.png
 
 Seen: the picture got only a little bigger. The names did NOT get bigger -- they stay the same
-tiny print. And the grey line now says "115 labels, 16 hidden to avoid overlap" -- 16, not 14.
+tiny print. And the gray line now says "115 labels, 16 hidden to avoid overlap" -- 16, not 14.
 Zooming in hid more, not fewer.
 
 Tom (frowning): "I made it bigger and it hid two more? That's backwards. That's one thing that
@@ -119,7 +119,7 @@ Command: `node tool/real.mjs --end $S`
     - The pick list said "Attributes: id, label, value". I guessed "label". Nothing told me which
       one holds the team names.
     - The names are very small print. I can't read most of them in the middle of the picture.
-    - "14 hidden to avoid overlap" is in small grey type. I only noticed it because it had a number
+    - "14 hidden to avoid overlap" is in small gray type. I only noticed it because it had a number
       in it. It did not say how to show them.
     - I zoomed the picture in to make room, and it said 16 hidden instead of 14. Bigger picture,
       more names hidden -- that seems backwards. The names did not get bigger when I zoomed either.

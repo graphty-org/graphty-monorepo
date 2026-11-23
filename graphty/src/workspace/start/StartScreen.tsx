@@ -4,20 +4,20 @@ import { useFileDrop } from "@graphty/compact-mantine";
 import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES } from "../../data/sampleManifest";
-import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
+import { layoutRows } from "../layout/methods";
+import { useAnalyticsSends } from "../privacy/usageData";
 import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
-import { NETWORK_DIALOG } from "../server/commands";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
@@ -26,6 +26,7 @@ import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
 import { isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
+import { NETWORK_DIALOG, NetworkDataDialog } from "./NetworkDataDialog";
 import { openDataset, openFiles, openGenerated, openNetworkSample, openSample, pickFiles } from "./open";
 import { SampleCard } from "./SampleCard";
 import { GENERATED, type LibraryTile, NETWORK_TILES, type NetworkTile, offeredTiles } from "./sampleLibrary";
@@ -38,6 +39,8 @@ const ELEMENT_DOCS = "https://graphty.app/docs/graphty-element/";
 const DOCS = "https://graphty.app/docs/";
 /** graphty-element's license. */
 const LICENSE = `${GITHUB}/blob/master/graphty-element/LICENSE`;
+/** What usage data is sent and where; served by this site (public/privacy.html). */
+const PRIVACY = "/privacy.html";
 
 /** The canvas color behind the graph, per color scheme; the same as `--ws-land-canvas`. */
 const CANVAS = { light: "#fbfbfd", dark: "#15171e" } as const;
@@ -163,7 +166,8 @@ function RecentTile({ entry }: Readonly<{ entry: RecentProject }>): React.JSX.El
  */
 function FactBar({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
     const algorithms = session?.catalog.algorithms().length;
-    const layouts = session?.catalog.layouts().length;
+    // Counted as the Layout list counts its rows: a layout's other engines are rows of their own.
+    const layouts = session === null ? undefined : layoutRows(session.catalog.layouts()).length;
     return (
         <aside className="ws-land-strip" aria-label="graphty at a glance">
             <a className="ws-land-it ws-land-oss" href={GITHUB} target="_blank" rel="noopener noreferrer">
@@ -250,9 +254,7 @@ function SampleLibrary(): React.JSX.Element {
         }
     };
     const query = text.trim().toLowerCase();
-    // The first paint does not wait for the site's configuration.
-    const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
-    const library = offeredTiles(timeline);
+    const library = offeredTiles();
     // In the order the sections are drawn: samples, network data, then generated.
     const offered = [
         ...library.filter((tile) => tile.field !== GENERATED),
@@ -413,10 +415,12 @@ function SampleLibrary(): React.JSX.Element {
 }
 
 /**
- * The foot of the page: the formats it opens, the license, the code and the docs.
+ * The foot of the page: the formats it opens, the license, the code, the docs and, when the page
+ * sends PostHog anything (a site with PostHog ids, on its own host), the privacy page.
  * @returns The footer
  */
 function PageFoot(): React.JSX.Element {
+    const analytics = useAnalyticsSends();
     return (
         <footer className="ws-land-foot">
             <span>
@@ -435,6 +439,14 @@ function PageFoot(): React.JSX.Element {
                 <a href={DOCS} target="_blank" rel="noopener noreferrer">
                     Docs
                 </a>{" "}
+                {analytics ? (
+                    <>
+                        &middot;{" "}
+                        <a href={PRIVACY} target="_blank" rel="noopener noreferrer">
+                            Privacy
+                        </a>{" "}
+                    </>
+                ) : null}
                 &middot; Put it on your own site: <code>npm i @graphty/graphty-element</code>{" "}
                 {/* The footer's other "Docs" is the app's; this one names what it documents. */}
                 <a href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer" aria-label="Docs for graphty-element">
@@ -519,7 +531,7 @@ export function StartScreen(): React.JSX.Element {
     const { over: dragging } = useFileDrop("window", onDrop);
 
     const returning = recent.length > 0;
-    const [latest] = recent;
+    const latest = recent.at(0);
     // Focus goes with the scroll, to the library's heading: not editable, so Home, End and the Page
     // keys still scroll the page, and the next Tab reaches the search.
     const showSamples = (): void => {
@@ -723,6 +735,8 @@ export function StartScreen(): React.JSX.Element {
                     </Paper>
                 </div>
             ) : null}
+            {/* Only here: the app proper adds network data through its own Network data panel. */}
+            <NetworkDataDialog />
         </div>
     );
 }

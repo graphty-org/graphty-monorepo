@@ -6,9 +6,9 @@
  * Rows in the skip mask and the w lane are the owner's: `to-drawn` never writes them, the owner does.
  */
 
-import { plan1d } from "../kernel/dispatch.js";
+import { type DispatchPlan, plan1d, planGridStride } from "../kernel/dispatch.js";
 import { type BoundKernel, type Kernel } from "../kernel/kernel.js";
-import { DRAWN_PARAMS, kernelSpec } from "../kernels.js";
+import { DRAWN_PARAMS, ENVELOPE_PARAMS, kernelSpec } from "../kernels.js";
 import { type DrawnTransform } from "../types/layout.js";
 import { type Binding } from "../types/memory.js";
 import { type ModelResources } from "./force-simulation.js";
@@ -25,15 +25,32 @@ interface Slot {
     readonly pending: Set<number>;
 }
 
-/** What one batch's slot holds once it lands: the buffer and the transform it was drawn with. */
+/** What one batch's slot holds once it lands: the buffer and the transform it was sent with (a fitted one resolves at landing). */
 export interface DrawnRecord {
     readonly buffer: GPUBuffer;
     readonly transform: DrawnTransform;
+    /** The batch's envelope, {@link ENVELOPE_BYTES} bytes: the buffer the owner reads back with the slot. */
+    readonly envelope: GPUBuffer;
+}
+
+/**
+ * Bytes of the envelope a batch writes, one vec4f each: sum and count, min, max, the furthest squared distance, then
+ * the mean and furthest distance `to-drawn` fits with, and the center and scale it drew with when fitting.
+ */
+export const ENVELOPE_BYTES = 96;
+
+/** The `envelope` kernel's four dispatches (see its body), each with its own params and plan. */
+interface EnvelopeStep {
+    readonly bound: BoundKernel;
+    readonly plan: DispatchPlan;
 }
 
 /** The compiled `to-drawn` kernel and one slot per batch in flight. */
 export class DrawnStage {
     private readonly kernel: Kernel;
+    private readonly envelopeKernel: Kernel;
+    private readonly envelopeSteps: EnvelopeStep[];
+    private readonly envelopeBuffer: GPUBuffer;
     private readonly box: LeaseBox;
     private readonly slots: Slot[];
     private skipWords: Uint32Array<ArrayBuffer>;
@@ -50,9 +67,10 @@ export class DrawnStage {
      * @param resources - the simulation's resources
      * @param box - the lease
      * @param kernel - the compiled kernel
+     * @param envelope - the compiled `envelope` kernel
      * @param count - how many slots
      */
-    private constructor(resources: ModelResources, box: LeaseBox, kernel: Kernel, count: number) {
+    private constructor(resources: ModelResources, box: LeaseBox, kernel: Kernel, envelope: Kernel, count: number) {
         const { n, dim, device, caps } = resources;
         const lease = leaseOf(box);
         const storage = (bytes: number, label: string): Binding => ({
@@ -70,6 +88,8 @@ export class DrawnStage {
         const skipBytes = 4 * Math.max(1, Math.ceil(n / 32));
         this.skipWords = new Uint32Array(skipBytes / 4);
         const scene = resources.buffer("scenePositions");
+        const env = storage(ENVELOPE_BYTES, "drawn/envelope");
+        this.envelopeBuffer = env.buffer;
         this.slots = [];
         for (let i = 0; i < count; i++) {
             const binding = storage(16 * Math.max(1, n), `drawn/slot${i}`);
@@ -84,13 +104,32 @@ export class DrawnStage {
             };
             this.slots.push({
                 binding,
-                bound: kernel.bind({ scene, skip, drawn: binding, P: params }),
+                bound: kernel.bind({ scene, skip, drawn: binding, env, P: params }),
                 params,
                 skip,
                 pending: new Set(),
             });
         }
         this.transform(this.current);
+        // ONE ENVELOPE A BATCH, measured after its last iteration: the owner fits the next transform from these bytes
+        // instead of walking every row (issue #8801), and a fitted batch draws with it (issue #9665). Its buffer is read
+        // back before the next batch writes it.
+        this.envelopeKernel = envelope;
+        const stride = planGridStride(n, envelope.workgroupSize, caps);
+        const one: DispatchPlan = { x: 1, y: 1, z: 1, items: envelope.workgroupSize, stride: null };
+        const partials = storage(48 * stride.x, "drawn/envelope-partials");
+        this.envelopeSteps = [stride, one, stride, one].map((plan, mode) => {
+            const params: Binding = {
+                buffer: lease.uniform(ENVELOPE_PARAMS.byteLength, `drawn/envelope-params${mode}`),
+                offset: 0,
+                size: ENVELOPE_PARAMS.byteLength,
+                window: null,
+            };
+            const bytes = new ArrayBuffer(ENVELOPE_PARAMS.byteLength);
+            ENVELOPE_PARAMS.write(new DataView(bytes), { n, mode, groups: stride.x, pad0: 0 });
+            device.queue.writeBuffer(params.buffer, 0, bytes);
+            return { bound: envelope.bind({ scene, partials, env, P: params }), plan };
+        });
     }
 
     /**
@@ -103,7 +142,8 @@ export class DrawnStage {
         const box: LeaseBox = { lease: resources.pool.lease() };
         try {
             const kernel = await resources.pipelines.kernel(kernelSpec("to-drawn"));
-            return new DrawnStage(resources, box, kernel, count);
+            const envelope = await resources.pipelines.kernel(kernelSpec("envelope"));
+            return new DrawnStage(resources, box, kernel, envelope, count);
         } catch (error) {
             leaseOf(box).release();
             throw error;
@@ -121,7 +161,7 @@ export class DrawnStage {
             n: this.n,
             dim: this.dim,
             scale: t.scale,
-            pad0: 0,
+            fit: t.fit !== undefined && t.fit > 0 ? t.fit : 0,
             cx: t.center[0],
             cy: t.center[1],
             cz: t.center[2],
@@ -175,8 +215,12 @@ export class DrawnStage {
             queue.writeBuffer(slot.binding.buffer, 16 * row, rows, 4 * row, 4);
         }
         slot.pending.clear();
+        // measured first, so a fitted batch draws about its own rows
+        for (const step of this.envelopeSteps) {
+            this.envelopeKernel.dispatch(encoder, step.bound, step.plan, [0]);
+        }
         this.kernel.dispatch(encoder, slot.bound, this.plan, [0]);
-        return { buffer: slot.binding.buffer, transform: this.current };
+        return { buffer: slot.binding.buffer, transform: this.current, envelope: this.envelopeBuffer };
     }
 
     /** Releases the lease and drops the bind groups; idempotent. */
@@ -186,5 +230,6 @@ export class DrawnStage {
             this.box.lease = null;
         }
         this.kernel.invalidate();
+        this.envelopeKernel.invalidate();
     }
 }

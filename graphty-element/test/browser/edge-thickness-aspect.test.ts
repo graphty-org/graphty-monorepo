@@ -8,7 +8,7 @@
  *
  * The camera is orthographic with one world unit per pixel, so a line's world angle is its
  * pixel angle and its drawn thickness can be measured directly: the lit area inside a disk
- * centred on the line, divided by the disk's diameter.
+ * centered on the line, divided by the disk's diameter.
  */
 
 import { Camera, Color4, Engine, FreeCamera, Scene, Vector3 } from "@babylonjs/core";
@@ -61,10 +61,10 @@ describe("solid edge thickness on a non-square canvas", () => {
     });
 
     /**
-     * The drawn thickness of the line through a centre, in pixels.
+     * The drawn thickness of the line through a center, in pixels.
      * @param pixels - The frame, bottom row first.
-     * @param cx - Centre x in world units (= pixels from the canvas centre).
-     * @param cy - Centre y in world units.
+     * @param cx - Center x in world units (= pixels from the canvas center).
+     * @param cy - Center y in world units.
      * @returns Lit area in the disk over its diameter.
      */
     function thicknessAt(pixels: Uint8Array, cx: number, cy: number): number {

@@ -462,24 +462,19 @@ export const ScrubAndType: Story = {
             slot.removeEventListener("pointerdown", record);
             expect(trusted).toEqual([true]);
         } else {
-            // In Storybook's own UI a page script cannot make trusted input, so the scrub is replayed.
+            // In Storybook's own UI a page script cannot make trusted input, so the scrub is replayed
+            // with Storybook's userEvent.
             const { left, top } = slot.getBoundingClientRect();
-            const at = (type: string, x: number): void => {
-                slot.dispatchEvent(
-                    new PointerEvent(type, {
-                        bubbles: true,
-                        cancelable: true,
-                        button: 0,
-                        pointerId: 1,
-                        clientX: x,
-                        clientY: top + 12,
-                    }),
-                );
-            };
-            at("pointerdown", left + 12);
-            at("pointermove", left + 22);
-            at("pointermove", left + 32);
-            at("pointerup", left + 32);
+            const at = (x: number): { target: HTMLElement; coords: { clientX: number; clientY: number } } => ({
+                target: slot,
+                coords: { clientX: x, clientY: top + 12 },
+            });
+            await userEvent.pointer([
+                { ...at(left + 12), keys: "[MouseLeft>]" },
+                at(left + 22),
+                at(left + 32),
+                { ...at(left + 32), keys: "[/MouseLeft]" },
+            ]);
         }
         await waitFor(() => expect(canvas.getByTestId("commits")).toHaveTextContent("50"));
         // The scrub ends with focus in the field and, a frame later, its whole value selected.

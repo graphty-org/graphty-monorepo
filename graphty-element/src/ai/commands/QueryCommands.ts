@@ -8,7 +8,16 @@ import { z } from "zod";
 import type { Graph } from "../../Graph";
 import { SchemaExtractor } from "../schema/SchemaExtractor";
 import type { PropertySummary, SchemaSummary } from "../schema/types";
-import { CONNECTED_BY_SYNTAX, isMatchAllSelector, matchingNodeIds, noMatchMessage, SELECTOR_SYNTAX } from "./selectors";
+import {
+    CONNECTED_BY_SYNTAX,
+    edgeItemsOf,
+    isMatchAllSelector,
+    matchingNodeIds,
+    nodeItemsOf,
+    noMatchMessage,
+    SELECTOR_SYNTAX,
+    shownIdsOf,
+} from "./selectors";
 import type { CommandResult, GraphCommand } from "./types";
 
 /**
@@ -43,7 +52,7 @@ export const queryGraph: GraphCommand = {
         try {
             switch (query) {
                 case "nodeCount": {
-                    const nodeCount = graph.getNodeCount();
+                    const { nodeCount } = countsOf(graph);
                     return Promise.resolve({
                         success: true,
                         message: `The graph has ${nodeCount} node${nodeCount !== 1 ? "s" : ""}.`,
@@ -52,7 +61,7 @@ export const queryGraph: GraphCommand = {
                 }
 
                 case "edgeCount": {
-                    const edgeCount = graph.getEdgeCount();
+                    const { edgeCount } = countsOf(graph);
                     return Promise.resolve({
                         success: true,
                         message: `The graph has ${edgeCount} edge${edgeCount !== 1 ? "s" : ""}.`,
@@ -61,8 +70,7 @@ export const queryGraph: GraphCommand = {
                 }
 
                 case "currentLayout": {
-                    const layoutManager = graph.getLayoutManager();
-                    const layout = layoutManager.layoutEngine?.type ?? "unknown";
+                    const layout = graph.getSession().layout.engine;
                     return Promise.resolve({
                         success: true,
                         message: `The current layout is "${layout}".`,
@@ -72,11 +80,10 @@ export const queryGraph: GraphCommand = {
 
                 case "all":
                 case "summary": {
-                    const nodeCount = graph.getNodeCount();
-                    const edgeCount = graph.getEdgeCount();
-                    const layoutManager = graph.getLayoutManager();
-                    const layout = layoutManager.layoutEngine?.type ?? "unknown";
-                    const is2D = graph.getViewMode() === "2d";
+                    const { nodeCount } = countsOf(graph);
+                    const { edgeCount } = countsOf(graph);
+                    const layout = graph.getSession().layout.engine;
+                    const is2D = graph.getSession().layout.dimension === "2d";
 
                     return Promise.resolve({
                         success: true,
@@ -96,8 +103,8 @@ export const queryGraph: GraphCommand = {
 
                 default: {
                     // Handle unknown query type
-                    const nodeCount = graph.getNodeCount();
-                    const edgeCount = graph.getEdgeCount();
+                    const { nodeCount } = countsOf(graph);
+                    const { edgeCount } = countsOf(graph);
                     return Promise.resolve({
                         success: true,
                         message: `Unknown query type "${String(query)}". The graph has ${nodeCount} nodes and ${edgeCount} edges.`,
@@ -116,6 +123,33 @@ export const queryGraph: GraphCommand = {
 
 /** How many node ids findNodes returns when the caller passes no limit. */
 const DEFAULT_FIND_NODES_LIMIT = 50;
+
+/**
+ * How many nodes and edges an assistant is told of: what is shown while the session reads the
+ * working graph, else every one.
+ * @param graph - The graph.
+ * @returns The counts.
+ */
+function countsOf(graph: Graph): { nodeCount: number; edgeCount: number } {
+    const session = graph.getSession();
+    if (session.workingGraph) {
+        const { nodeCount, edgeCount } = session.data.statistics();
+        return { nodeCount, edgeCount };
+    }
+
+    const { counts } = session.status;
+    return { nodeCount: counts.nodes, edgeCount: counts.edges };
+}
+
+/**
+ * The elements among some ids, or all of them when no ids are given.
+ * @param items - The nodes or edges.
+ * @param ids - The ids kept, or undefined for every one.
+ * @returns The kept elements.
+ */
+function shownOf<T extends { readonly id: unknown }>(items: Iterable<T>, ids: ReadonlySet<string> | undefined): T[] {
+    return Array.from(items).filter((item) => ids === undefined || ids.has(String(item.id)));
+}
 
 /**
  * Command to find nodes matching criteria.
@@ -299,11 +333,11 @@ export const getSchema: GraphCommand = {
         try {
             const extractor = new SchemaExtractor(graph);
             const schema = extractor.extract();
-            const dataManager = graph.getDataManager();
+            const shown = shownIdsOf(graph);
 
             switch (query) {
                 case "nodeTypes": {
-                    const types = typeValues(schema.nodeProperties, () => dataManager.nodes.values());
+                    const types = typeValues(schema.nodeProperties, () => shownOf(nodeItemsOf(graph), shown?.nodes));
 
                     if (types.length === 0) {
                         return Promise.resolve({
@@ -322,7 +356,7 @@ export const getSchema: GraphCommand = {
                 }
 
                 case "edgeTypes": {
-                    const types = typeValues(schema.edgeProperties, () => dataManager.edges.values());
+                    const types = typeValues(schema.edgeProperties, () => shownOf(edgeItemsOf(graph), shown?.edges));
 
                     if (types.length === 0) {
                         return Promise.resolve({
@@ -371,8 +405,12 @@ export const getSchema: GraphCommand = {
                 }
 
                 case "all": {
-                    const nodeTypes = typeValues(schema.nodeProperties, () => dataManager.nodes.values());
-                    const edgeTypes = typeValues(schema.edgeProperties, () => dataManager.edges.values());
+                    const nodeTypes = typeValues(schema.nodeProperties, () =>
+                        shownOf(nodeItemsOf(graph), shown?.nodes),
+                    );
+                    const edgeTypes = typeValues(schema.edgeProperties, () =>
+                        shownOf(edgeItemsOf(graph), shown?.edges),
+                    );
                     const message = schemaSummaryMessage(schema, nodeTypes, edgeTypes);
 
                     return Promise.resolve({

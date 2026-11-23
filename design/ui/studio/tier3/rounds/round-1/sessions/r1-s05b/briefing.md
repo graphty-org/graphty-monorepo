@@ -84,7 +84,7 @@ Calm, precise, slightly dry. Counts out loud: "that was eleven tabs", "focus wen
 again". Names what he expected the key to do and what it did. Praises a good shortcut briefly and
 moves on. Does not apologize for not using a mouse.
 
-## Behaviour rules for playing Sam in a session
+## Behavior rules for playing Sam in a session
 
 - **Keyboard only, always.** Uses `--key` and `--type` and nothing else: no clicks, no clicking at
   a point, no hovering, no dragging, no wheel. He can see every screenshot.

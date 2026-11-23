@@ -3852,6 +3852,9 @@ export class UpdateManager implements Manager {
     /** The row table's `unplacedMoves` at the last walk of the node positions, or -1. */
     private lastUnplacedMoves = -1;
 
+    /** How many `Node`s had been built at the last walk of the node positions (`nodesBuilt`). */
+    private lastNodesBuilt = -1;
+
     /** Set by anything in this frame that changed what is drawn. See `settleActiveMeshFreeze`. */
     private sceneChanged = true;
     /** Whether the node paint running now showed, hid or rebuilt a node's own meshes. */
@@ -4255,6 +4258,7 @@ export class UpdateManager implements Manager {
         const table = this.graphContext.getRowTable?.();
         this.lastRowMoves = table?.moves ?? -1;
         this.lastUnplacedMoves = table?.unplacedMoves ?? -1;
+        this.lastNodesBuilt = dataManagerInternals.nodesBuilt(this.dataManager);
         let highest = -1;
         for (const { index } of this.layoutManager.nodes) {
             highest = Math.max(highest, index === INVALID_INDEX ? -1 : index);
@@ -4343,8 +4347,13 @@ export class UpdateManager implements Manager {
     } {
         const table = this.graphContext.getRowTable?.();
         const moves = table?.moves ?? -1;
-        const rowsStill = moves !== -1 && moves === this.lastRowMoves;
+        // A Node built since the last walk is on no roster, and only a walk of every Node finds it and places its
+        // edges. Its build moved no row when it put its row where the row already was, so the table cannot say
+        // (#9739: every batched Node of a load was missed, and its edges kept the place they were first given).
+        const built = dataManagerInternals.nodesBuilt(this.dataManager);
+        const rowsStill = moves !== -1 && moves === this.lastRowMoves && built === this.lastNodesBuilt;
         this.lastRowMoves = moves;
+        this.lastNodesBuilt = built;
         // A drag places its Node's row alone: a row with no Node moved only by a write of the table's other kinds, so
         // a drag on a graph of rows with no Node visits the dragged node's edges, not every placed edge (issue #9166).
         const unplaced = table?.unplacedMoves ?? -1;

@@ -14,13 +14,13 @@ import {
     scopedInputCounters,
 } from "../../../src/algorithms/input/ScopedInput";
 import { isGraphtyError } from "../../../src/errors";
-import { InputGraph, resolutionOver } from "./harness";
+import { type InputGraph, inputGraph, resolutionOver } from "./harness";
 
 /** A path of ten nodes with a parallel pair, so a merging policy has something to merge. */
-function path(): InputGraph {
+async function path(): Promise<InputGraph> {
     const ids = Array.from({ length: 10 }, (_, index) => `n${String(index)}`);
 
-    return new InputGraph(ids, [...ids.slice(1).map((id, index) => [ids[index], id, 1] as const), ["n0", "n1", 2]]);
+    return inputGraph(ids, [...ids.slice(1).map((id, index) => [ids[index], id, 1] as const), ["n0", "n1", 2]]);
 }
 
 /**
@@ -100,8 +100,8 @@ function walk(roots: unknown[]): number {
 }
 
 describe("the key", () => {
-    it("hits on another resolution with the same bitmaps, and misses on each part of the key", () => {
-        const graph = path();
+    it("hits on another resolution with the same bitmaps, and misses on each part of the key", async () => {
+        const graph = await path();
         const { inputs } = recording();
         const holder = {};
         const scope = graph.scope(["n0", "n1", "n2"]);
@@ -153,15 +153,15 @@ describe("the key", () => {
         };
         assert.notStrictEqual(read(graph, inputs, holder, otherStore).snapshot, first.snapshot, "another store");
 
-        graph.add(["n10"]);
+        await graph.add(["n10"]);
         const after = graph.scope(["n0", "n1", "n2"]);
         assert.notStrictEqual(read(graph, inputs, holder, after).snapshot, first.snapshot, "another snapshot serial");
     });
 });
 
 describe("the declared intermediate", () => {
-    it("is shared by both orientations: the undirected input is derived from it, not from the graph", () => {
-        const graph = path();
+    it("is shared by both orientations: the undirected input is derived from it, not from the graph", async () => {
+        const graph = await path();
         const { inputs } = recording();
         const holder = {};
         const scope = graph.scope(["n0", "n1", "n2", "n3"]);
@@ -180,8 +180,8 @@ describe("the declared intermediate", () => {
 });
 
 describe("reference counts", () => {
-    it("hold an input until the run lets go; a freeze only marks it", () => {
-        const graph = path();
+    it("hold an input until the run lets go; a freeze only marks it", async () => {
+        const graph = await path();
         const { inputs, released } = recording();
         const holder = {};
         const input = read(graph, inputs, holder, graph.scope(["n0", "n1", "n2"]));
@@ -195,8 +195,8 @@ describe("reference counts", () => {
         assert.lengthOf(inputs.list(), 0);
     });
 
-    it("dispose only marks a held input, and caches nothing afterwards", () => {
-        const graph = path();
+    it("dispose only marks a held input, and caches nothing afterwards", async () => {
+        const graph = await path();
         const { inputs, released } = recording();
         const holder = {};
         const input = read(graph, inputs, holder, graph.scope(["n0", "n1", "n2"]));
@@ -212,8 +212,8 @@ describe("reference counts", () => {
         assert.include(released, again.snapshot, "after dispose an input lives only as long as its run");
     });
 
-    it("byte pressure never evicts a held input, and evicts it once it is let go", () => {
-        const graph = path();
+    it("byte pressure never evicts a held input, and evicts it once it is let go", async () => {
+        const graph = await path();
         const { inputs, released } = recording(1);
         const first = {};
         const second = {};
@@ -227,8 +227,8 @@ describe("reference counts", () => {
         assert.notInclude(released, b.snapshot);
     });
 
-    it("releases a shared input only on its last holder", () => {
-        const graph = path();
+    it("releases a shared input only on its last holder", async () => {
+        const graph = await path();
         const { inputs, released } = recording();
         const one = {};
         const two = {};
@@ -247,7 +247,7 @@ describe("reference counts", () => {
 
 describe("admission", () => {
     it("waits for another run to let go, then admits", async () => {
-        const graph = path();
+        const graph = await path();
         // The bound: what the other run holds, plus ten bytes; the asking run wants twenty.
         const probe = recording();
         read(graph, probe.inputs, {}, graph.scope(["n0", "n1", "n2"]));
@@ -268,7 +268,7 @@ describe("admission", () => {
     });
 
     it("refuses E_TOO_LARGE when no other run holds anything and it still does not fit", async () => {
-        const graph = path();
+        const graph = await path();
         const { inputs } = recording(8);
         let error: unknown;
         try {
@@ -281,7 +281,7 @@ describe("admission", () => {
     });
 
     it("never waits on itself: a run holding an input is admitted over the bound", async () => {
-        const graph = path();
+        const graph = await path();
         const { inputs } = recording(1);
         const holder = {};
         read(graph, inputs, holder, graph.scope(["n0", "n1", "n2"]));
@@ -293,7 +293,7 @@ describe("admission", () => {
     });
 
     it("an aborted wait rejects", async () => {
-        const graph = path();
+        const graph = await path();
         const { inputs } = recording(1);
         read(graph, inputs, {}, graph.scope(["n0", "n1", "n2"]));
         const controller = new AbortController();
@@ -312,8 +312,8 @@ describe("admission", () => {
 });
 
 describe("byte accounting", () => {
-    it("bounds at max(256 MB, 1.5 x the full snapshot's bytes)", () => {
-        const graph = path();
+    it("bounds at max(256 MB, 1.5 x the full snapshot's bytes)", async () => {
+        const graph = await path();
         const { inputs } = recording();
         read(graph, inputs, {}, graph.scope(["n0", "n1", "n2"]));
         const full = graph.snapshot().byteLength({ columns: true, ids: true });
@@ -321,8 +321,8 @@ describe("byte accounting", () => {
         assert.strictEqual(inputs.bound, Math.max(256 * 1024 * 1024, Math.ceil(1.5 * full)));
     });
 
-    it("reports exactly the bytes of the typed arrays its entries reach, derived snapshots' columns included", () => {
-        const graph = path();
+    it("reports exactly the bytes of the typed arrays its entries reach, derived snapshots' columns included", async () => {
+        const graph = await path();
         const { inputs } = recording();
         const holder = {};
         read(graph, inputs, holder, graph.scope(["n0", "n1", "n2", "n3"]));
@@ -345,9 +345,9 @@ describe("byte accounting", () => {
         assert.isAtLeast(inputs.bytes, entries[0].snapshot.byteLength({ columns: true }), "the columns are in it");
     });
 
-    it("counts a release per snapshot, never one per key", () => {
+    it("counts a release per snapshot, never one per key", async () => {
         const before = derivedInputCounters.released;
-        const graph = path();
+        const graph = await path();
         const { inputs, released } = recording();
         const holder = {};
         read(graph, inputs, holder, graph.scope(["n0", "n1"]));

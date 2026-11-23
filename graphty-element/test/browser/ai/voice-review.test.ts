@@ -25,13 +25,11 @@ let recognizers: FakeRecognition[];
 
 /**
  * An element on the page.
- * @param features - Its experiments.
  * @returns It, settled.
  */
-async function mount(features: readonly string[]): Promise<Graphty> {
+async function mount(): Promise<Graphty> {
     const made = document.createElement("graphty-element");
     made.style.cssText = "display:block;width:400px;height:300px";
-    made.features = [...features];
     document.body.appendChild(made);
     await made.waitForSettled();
     return made;
@@ -68,7 +66,7 @@ afterEach(() => {
 
 describe("voice.review", () => {
     beforeEach(async () => {
-        element = await mount(["assistant"]);
+        element = await mount();
         await element.enableAiControl({ toolset: "generated", provider: "mock", voice: { review: true } });
         element.addEventListener("ai-command-start", (event) => {
             commands.push((event as CustomEvent<{ input: string }>).detail.input);
@@ -114,17 +112,8 @@ describe("voice.review", () => {
 });
 
 describe("voice.review refused", () => {
-    it("rejects with E_FEATURE_OFF while the experiment is off", async () => {
-        element = await mount([]);
-        const refused = await element
-            .enableAiControl({ toolset: "generated", provider: "mock", voice: { review: true } })
-            .catch((error: unknown) => error as { code: string; details: unknown });
-        assert.strictEqual((refused as { code: string }).code, "E_FEATURE_OFF");
-        assert.deepEqual((refused as { details: unknown }).details, { feature: "assistant", key: "voice.review" });
-    });
-
     it("rejects a live conversation, whose words cannot wait", async () => {
-        element = await mount(["assistant"]);
+        element = await mount();
         const refused = await element
             .enableAiControl({ toolset: "generated", provider: "mock", voice: { review: true, mode: "live" } })
             .catch((error: unknown) => error as { params: unknown });

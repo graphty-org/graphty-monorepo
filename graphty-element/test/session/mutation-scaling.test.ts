@@ -10,7 +10,6 @@
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
@@ -329,7 +328,6 @@ const CASES: readonly Case[] = [
         method: "SelectionApi.peek",
         growth: "linear",
         prepare: (session, size) => {
-            setDefaultFeatures(["timeline", "assistant"]);
             return Promise.resolve(async () => {
                 await session.selection.peek({ nodes: ids(size) });
                 await session.styles.settled();

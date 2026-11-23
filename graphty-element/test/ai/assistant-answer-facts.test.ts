@@ -17,7 +17,7 @@ const DEGREE = { tool: "run_algorithm", args: { action: "run", name: "degree" } 
  * @returns The assistant.
  */
 async function assistant(): Promise<ScriptedAssistant> {
-    return new ScriptedAssistant(await assistantSession(undefined, ["assistant"]), { history: "memory", gate: false });
+    return new ScriptedAssistant(await assistantSession(), { history: "memory", gate: false });
 }
 
 /**

@@ -180,6 +180,8 @@ export interface AccelerationStatus {
     readonly backend?: "webgpu" | (string & {});
     readonly code?: AccelerationErrorCode;
     readonly device?: string;
+    readonly exactMaxNodes?: number;
+    readonly exactMaxNodesBasis?: ExactMaxNodesBasis;
     readonly params?: Readonly<Record<string, CodedFactParam>>;
     readonly policy: AccelerationPolicy;
     readonly reason?: string;
@@ -192,6 +194,12 @@ export interface AcceleratorDeviceInfo {
     readonly architecture: string;
     readonly description: string;
     readonly vendor: string;
+}
+
+// @public
+export interface AcceleratorExactMaxNodes {
+    readonly basis: ExactMaxNodesBasis;
+    readonly value: number;
 }
 
 // @public
@@ -2743,6 +2751,9 @@ export class EventManager implements Manager {
 export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEventType;
 
 // @public
+export type ExactMaxNodesBasis = "measured" | "default" | "configured";
+
+// @public
 export interface ExpandBehavior {
     readonly depth?: number;
     readonly direction?: "out" | "in" | "both";
@@ -2801,7 +2812,7 @@ export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
+export type FeatureId = "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
 
 // @public
 export interface FigureOptions {
@@ -3369,8 +3380,10 @@ export class Graph implements GraphContext {
 export interface GraphAccelerator {
     [algorithmOrLayout: string]: unknown;
     readonly backend: "webgpu" | (string & {});
+    calibrate?(): Promise<void>;
     readonly device?: AcceleratorDeviceInfo;
     dispose?(): void;
+    readonly exactMaxNodes?: AcceleratorExactMaxNodes;
     readonly lost?: Promise<{
         reason: string;
     }>;

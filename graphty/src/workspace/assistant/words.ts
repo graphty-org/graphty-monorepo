@@ -350,8 +350,6 @@ export function endWords(code: string, params: AiResultParams, provider: string,
             return setup("The AI provider settings cannot be used.");
         case "E_MISSING_PACKAGE":
             return setup(`${name} needs the package ${String(params.package)}, which is not installed.`);
-        case "E_FEATURE_OFF":
-            return setup("The assistant experiment is off.");
         case "AI_HOSTED_TOOL_UNSUPPORTED":
             return note(`${name} cannot use this tool, so the assistant worked without it.`);
         case "AI_PROVIDER_ERROR": {

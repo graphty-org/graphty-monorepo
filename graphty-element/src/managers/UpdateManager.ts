@@ -279,16 +279,25 @@ function growForLabel(box: FramingBox, labelMesh: Mesh | null | undefined): void
     // A center label slides onto its node's line of sight for the camera it is seen from; the framing is
     // about to move that camera, so it measures the plane before the slide (see withoutEyeLine).
     withoutEyeLine(labelMesh, () => {
-        const { minimumWorld, maximumWorld, vectorsWorld } = labelMesh.getBoundingInfo().boundingBox;
-        for (const corner of vectorsWorld) {
-            box.spots.push({ pos: corner.clone(), half: 0 });
-        }
-
-        for (const axis of ["x", "y", "z"] as const) {
-            box.min[axis] = Math.min(box.min[axis], minimumWorld[axis]);
-            box.max[axis] = Math.max(box.max[axis], maximumWorld[axis]);
-        }
+        growForMesh(box, labelMesh);
     });
+}
+
+/**
+ * Grow a box to take in a mesh's world bounding box, its corners as spots.
+ * @param box - The box to grow.
+ * @param mesh - The mesh.
+ */
+function growForMesh(box: FramingBox, mesh: Mesh): void {
+    const { minimumWorld, maximumWorld, vectorsWorld } = mesh.getBoundingInfo().boundingBox;
+    for (const corner of vectorsWorld) {
+        box.spots.push({ pos: corner.clone(), half: 0 });
+    }
+
+    for (const axis of ["x", "y", "z"] as const) {
+        box.min[axis] = Math.min(box.min[axis], minimumWorld[axis]);
+        box.max[axis] = Math.max(box.max[axis], maximumWorld[axis]);
+    }
 }
 
 /**
@@ -2618,6 +2627,14 @@ export class UpdateManager implements Manager {
     fitAnnotations: (() => void) | null = null;
 
     /**
+     * The meshes a file's annotations are drawn on, which a fit frames with the nodes: Cytoscape desktop fits its
+     * annotations into the view too (cys-import-and-save: a picture beside the network takes half the canvas). Null
+     * when nothing draws annotations.
+     * @internal
+     */
+    annotationMeshes: (() => readonly Mesh[]) | null = null;
+
+    /**
      * Whether an operation is queued or running, so the graph is about to change. Null when nothing queues
      * operations. Kept for code that set it, and asked as one `wait` entry of {@link UpdateManager.pending}; new
      * work enters that record itself.
@@ -3691,8 +3708,33 @@ export class UpdateManager implements Manager {
         return (
             this.fixedFraming() ??
             this.envelopeFraming() ??
-            framingBox(this.layoutManager.nodes, this.layoutManager.edges, this.framing?.extent, this.columnFraming())
+            this.withAnnotations(
+                framingBox(
+                    this.layoutManager.nodes,
+                    this.layoutManager.edges,
+                    this.framing?.extent,
+                    this.columnFraming(),
+                ),
+            )
         );
+    }
+
+    /**
+     * Grow a framing box to take in the file's annotations, as a program that fits its drawing fits them; with node
+     * centers alone framed, nothing else is.
+     * @param box - The box of the nodes and their labels.
+     * @returns The box, grown in place.
+     */
+    private withAnnotations(box: FramingBox | undefined): FramingBox | undefined {
+        if (box !== undefined && this.framing?.extent !== "centers") {
+            for (const mesh of this.annotationMeshes?.() ?? []) {
+                // a mesh drawn since the last frame has not placed its box in the world yet
+                mesh.computeWorldMatrix(true);
+                growForMesh(box, mesh);
+            }
+        }
+
+        return box;
     }
 
     /**
@@ -4157,9 +4199,12 @@ export class UpdateManager implements Manager {
      * @param visited - Edges this pass already placed, skipped and added to; undefined to place every one.
      */
     private updateEdgesOf(nodes: readonly Node[], visited?: Set<Edge>): void {
+        // Only the built ones: an edge with no `Edge` is a row line, drawn from its rows, and reading it through
+        // `edges` would build one for every edge of a moved node.
+        const built = dataManagerInternals.builtEdges(this.dataManager);
         for (const node of nodes) {
             for (const id of this.dataManager.incidentEdgeIds(node)) {
-                const edge = this.dataManager.edges.get(id);
+                const edge = built.get(id);
                 if (edge !== undefined) {
                     UpdateManager.placeOnce(edge, visited);
                 }

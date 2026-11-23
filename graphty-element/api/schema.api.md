@@ -174,7 +174,7 @@ export const DEFAULT_SELECTION_STYLE: GraphSelectionStyleConfig;
 // @public
 export const DEFAULT_VIEW_MODE: ViewMode;
 
-// @public (undocumented)
+// @public
 export const defaultEdgeStyle: EdgeStyleConfig;
 
 // @public
@@ -1631,7 +1631,7 @@ export const EdgeStyle: z.ZodObject<{
     visible: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>;
 
-// @public (undocumented)
+// @public
 export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
 
 // @public

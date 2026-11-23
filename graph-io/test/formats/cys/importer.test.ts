@@ -10,6 +10,7 @@ import { CYS_ISSUE } from "../../../src/formats/cys/constants.js";
 import { cysImporter, sniffCys } from "../../../src/formats/cys/importer.js";
 import { urlDecode } from "../../../src/formats/cys/session.js";
 import { importAllGraphs, importGraph, listGraphs, registry } from "../../../src/registry.js";
+import { readImageAnnotations } from "../../../src/styles/annotations.js";
 import { resolveStyles } from "../../../src/styles/internal.js";
 import { ImportError, type ImportReport } from "../../../src/types.js";
 import { makeZip, type ZipInput } from "../../helpers/zip.js";
@@ -609,5 +610,55 @@ describe("cysImporter: group state", () => {
         expect(await visible(session(body, [hidden("")]))).toEqual(expanded);
         expect(await visible(session(body, [hidden("99")]))).toEqual(expanded);
         expect(await visible(session(body))).toEqual(expanded);
+    });
+});
+
+describe("cysImporter: image annotations", () => {
+    const PICTURES = `${ROOT}apps/org.cytoscape.ding.customgraphicsmgr/`;
+    const URL = "file:/C:/Users/Rudi/Desktop/cy%20samples/sample-2.png";
+    const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 1, 2, 255]);
+    const NETWORK_TABLE = "2-Net/LOCAL_ATTRS-org.cytoscape.model.CyNetwork-Net+default+network.cytable";
+    const annotated = (extra: readonly ZipInput[]): Uint8Array =>
+        session('<node id="3" label="a"/>', [
+            table(NETWORK_TABLE, [
+                '"CyCSV-Version","1"',
+                '"SUID","__Annotations"',
+                '"java.lang.Long","java.util.List<java.lang.String>"',
+                '"","mutable"',
+                '"Net default network"',
+                `"2","type=org.cytoscape.view.presentation.annotations.ImageAnnotation|uuid=p|URL=${URL}|x=0|y=0|width=10|height=20"`,
+            ]),
+            ...extra,
+        ]);
+
+    it("draws the picture the session saved for an annotation's URL, as a data: URL", async () => {
+        const { snapshot } = await importGraph(
+            annotated([
+                {
+                    name: `${PICTURES}image_metadata.props`,
+                    data: `#Image Metadata\n40=org.cytoscape.ding.customgraphics.bitmap.URLImageCustomGraphics,40,${URL.replaceAll(":", "\\:")},bitmap image\n`,
+                },
+                { name: `${PICTURES}40.png`, data: PNG },
+            ]),
+            { format: "cys" },
+        );
+        const [picture] = readImageAnnotations(snapshot);
+        expect(picture.url).toBe(`data:image/png;base64,${Buffer.from(PNG).toString("base64")}`);
+        expect([picture.width, picture.height]).toEqual([10, 20]);
+        // read, so no longer listed as skipped
+        expect(snapshot.meta.extra.cytoscape).toMatchObject({ skippedEntries: [] });
+    });
+
+    it("keeps the annotation's URL when the session saved no picture for it", async () => {
+        const { snapshot } = await importGraph(
+            annotated([
+                { name: `${PICTURES}image_metadata.props`, data: "41=x,41,file:/elsewhere.png,bitmap image\n" },
+                { name: `${PICTURES}41.png`, data: PNG },
+            ]),
+            { format: "cys" },
+        );
+        expect(readImageAnnotations(snapshot).map((a) => a.url)).toEqual([URL]);
+        // the index was read; a picture no annotation names stays skipped
+        expect(snapshot.meta.extra.cytoscape).toMatchObject({ skippedEntries: [`${PICTURES}41.png`] });
     });
 });

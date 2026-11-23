@@ -111,6 +111,44 @@ describe("the drawn ring", () => {
         });
     }
 
+    // A batch sent with `fit` draws its own landing: mean at the target, furthest row `fit` out (issue #9665).
+    it("fits a batch sent with fit to its own landing, and reports the transform it drew with", async (t) => {
+        requireGpu(t);
+        const simulation = ringed(ctx, 3);
+        const scene = new Float32Array(3 * n).fill(Number.NaN);
+        simulation.load(snapshot, scene);
+        simulation.setDrawn({ slots: 2, rows: new Float32Array(4 * n) });
+        simulation.setDrawnTransform({ ...TRANSFORM, fit: 50 });
+        for (let batch = 0; batch < 3; batch++) {
+            await simulation.step(4);
+        }
+        await simulation.flush();
+        const landed = simulation.landedDrawn;
+        const via = simulation.landedDrawnTransform;
+        assert.ok(landed !== null && via !== null && via !== undefined);
+        assert.strictEqual(via.fit, undefined, "the transform drawn with, not the one sent");
+        const drawn = await readF32(ctx, landed, 4 * n);
+        simulation.dispose();
+
+        let far = 0;
+        for (let i = 0; i < n; i++) {
+            for (let axis = 0; axis < 3; axis++) {
+                const want = (scene[3 * i + axis] - via.center[axis]) * via.scale + TRANSFORM.target[axis];
+                const got = drawn[4 * i + axis];
+                assert.ok(Math.abs(got - want) <= 1e-5 * Math.max(1, Math.abs(want)), `row ${i}: ${got} vs ${want}`);
+            }
+            far = Math.max(
+                far,
+                Math.hypot(
+                    drawn[4 * i] - TRANSFORM.target[0],
+                    drawn[4 * i + 1] - TRANSFORM.target[1],
+                    drawn[4 * i + 2] - TRANSFORM.target[2],
+                ),
+            );
+        }
+        assert.ok(Math.abs(far - 50) < 1e-3, `the furthest row is drawn ${far} out`);
+    });
+
     it("a batch in flight across a load never lands as the drawn buffer", async (t) => {
         requireGpu(t);
         const simulation = ringed(ctx, 2);

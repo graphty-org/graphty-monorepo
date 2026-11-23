@@ -24,7 +24,7 @@
 #    committed images and the Figma lock;
 #    tools/check-quick.test.mjs fails when the Checks job gains a `pnpm run` step this script lacks;
 # 9. only with --with-dry-run: the graphty app's build, then its dry run (graphty/acceptance/run.mjs, every
-#    route, on this machine's NVIDIA card). Never by default: the agent that owns a long-lived branch
+#    route, on this machine's NVIDIA card), once as is and once with the cosmograph experiment on. Never by default: the agent that owns a long-lived branch
 #    asks for it before opening the pull request (CLAUDE.md, "Shipping a change", step 2; issue #3269).
 #
 # Left to CI, which runs them on every pull request that needs them (issue #8052): the documentation site
@@ -190,9 +190,17 @@ for lane in tests gpu checks; do
 done
 rm -rf "$LANES"
 # The dry run walks graphty/dist, so it never runs on a build the app step failed to refresh.
-dry_run() { pnpm exec nx run graphty:build && node graphty/acceptance/run.mjs; }
+# It walks every route twice: on graphty-element's default render path, and with the cosmograph
+# experiment on, which draws with the batched render path (graphty/acceptance/README.md).
+dry_run() {
+    pnpm exec nx run graphty:build || return 1
+    local rc=0
+    node graphty/acceptance/run.mjs || rc=1
+    node graphty/acceptance/run.mjs --features cosmograph || rc=1
+    return "$rc"
+}
 if [ "$DRY_RUN" = 1 ]; then
-    step "Dry run of the graphty app (NVIDIA GPU)" dry_run
+    step "Dry run of the graphty app, on both render paths (NVIDIA GPU)" dry_run
 fi
 
 echo "========================================"

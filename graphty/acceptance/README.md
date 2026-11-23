@@ -72,6 +72,36 @@ started while those are busy waits for them, and its report says how long.
 A route takes 2 to 6 seconds once its browser is up. The routes are spread over the browsers as
 each frees up.
 
+## On both render paths
+
+graphty-element draws a graph one of two ways: its default render path, one mesh per node and edge,
+and the batched path, which draws every node and edge from tables on the GPU. The app switches to the
+batched path only with its `cosmograph` experiment on (`?features=cosmograph`), so a plain run walks
+the default path alone. `--features` opens the app with experiments on; each such run writes to its
+own folder (`tmp/dry-run-<features>/`), and `compare-reports.mjs` puts two runs side by side:
+
+```bash
+node graphty/acceptance/run.mjs                           # the default render path: tmp/dry-run/
+node graphty/acceptance/run.mjs --features cosmograph     # the batched render path: tmp/dry-run-cosmograph/
+node graphty/acceptance/compare-reports.mjs tmp/dry-run/report.json tmp/dry-run-cosmograph/report.json
+```
+
+`compare-reports.mjs` prints each route whose result differs, with both reasons, and exits 1 when one
+does. `pnpm run check:quick --with-dry-run` walks every route both ways.
+
+Three routes point at the canvas itself, for what the batched path changed underneath:
+
+- `c01-point-at-nodes-and-an-edge`: hovers and clicks Valjean, Javert and Fantine in Les Miserables,
+  then an edge between its two nodes, and checks the hovered node and the selection after each.
+- `c02-edges-follow-an-animating-layout`: in the karate club, changes the layout to Circle with a glide,
+  and on every frame the nodes move checks that pointing between each edge's two drawn nodes
+  (`nodeScreenPosition`) finds that edge or a node (`elementAt`), as a hover or click there would.
+- `c03-edges-follow-a-running-force-layout`: the same while ForceAtlas2 runs.
+
+`elementAt` measures a straight edge from its two nodes' drawn centers, so the last two check picking
+during motion; a line drawn behind its moving nodes shows only in the canvas's pixels, which
+graphty-element's own in-motion tests read.
+
 ## The selection workspace's acceptance test
 
 `selection-workspace-uat.mjs` tests the selection workspace, one screen in depth, where a route walks
@@ -86,7 +116,12 @@ tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url 
 tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist --browser webkit
 tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url <url> --only m012,settings   # some scenarios, by id or words
 node graphty/acceptance/selection-workspace-uat.mjs --list                                                   # the matrix, nothing run
+tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist --browser chromium \
+    --features cosmograph --report tmp/sw-batched.json                                                       # on the batched render path
 ```
+
+`--features` opens the app with experiments on (`cosmograph` draws with the batched render path), and
+`--report <file>` writes every scenario's result as JSON, for `compare-reports.mjs` beside a run without.
 
 It drives real clicks, drags and keys over a pairwise matrix of card kinds, verbs, starts, card shapes,
 entry points, datasets, edits and ways of leaving, then named scenarios (a slider's exact ends, settings
@@ -165,6 +200,8 @@ correctly and the drawing is still wrong is outside what the dry run can see.
 | `edgeLook(channel)`  | Each edge's drawn value: `"edge.color"`, `"edge.width"`                                              |
 | `nodes()`, `edges()` | Every record: its `id` and its columns                                                               |
 | `layers()`           | The style layers' names                                                                              |
+| `selection()`        | `{ hovered, nodes, edges }`: the node under the pointer and what is selected, as ids                 |
+| `recorded()`         | What the walk recorded in the page (`globalThis.acceptanceRecord`), for what happened mid-walk       |
 | `page`               | The page, for what is on screen: `g.page.getByRole("group", { name: "Highest" })`                    |
 
 The readers live in `readers.mjs`. Check the outcome itself, not that something happened: "exactly

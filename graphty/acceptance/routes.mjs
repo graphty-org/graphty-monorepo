@@ -340,6 +340,198 @@ async function colorPerValue(g, column, values) {
 
 const sizeIs = (nodes, edges) => async (g) => assert.deepEqual(await g.counts(), { nodes, edges });
 
+// ---------------------------------------------------------------- pointing at the canvas
+
+/**
+ * Wait for the picture to be final: the element's own promise (layout settled, camera framed, a
+ * frame drawn).
+ * @param u the user's hands (README.md)
+ */
+async function stableFrame(u) {
+    await u.page.evaluate(() => document.querySelector("graphty-element").waitForStableFrame());
+}
+
+/**
+ * Up to `frames` page frames, until `done(selection)` holds: the pointer's effect lands a frame or
+ * two after the input (a pick reads the last drawn frame). Counted frames, never a clock.
+ * @param u the user's hands (README.md)
+ * @param done what the selection should come to
+ * @param frames how many frames to give it
+ * @returns the selection as it ended
+ */
+async function selectionAfter(u, done, frames = 60) {
+    const read = () =>
+        u.page.evaluate(() => {
+            const s = document.querySelector("graphty-element").session;
+            const h = s.selection.hovered;
+            return {
+                hovered: h === null ? null : String(h),
+                nodes: s.selection.nodes.map(String),
+                edges: s.selection.edges.map(String),
+            };
+        });
+    let sel = await read();
+    for (let n = 0; n < frames && !done(sel); n++) {
+        await u.page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
+        sel = await read();
+    }
+    return sel;
+}
+
+/**
+ * Where a node is drawn, in page pixels, and whether the app's own UI covers that point.
+ * @param u the user's hands (README.md)
+ * @param id the node
+ * @returns the page point `x`, `y`, whether the node is `visible`, and `covered`: what is on top when it is not the canvas, else null
+ */
+function nodeOnPage(u, id) {
+    return u.page.evaluate((id) => {
+        const el = document.querySelector("graphty-element");
+        const at = el.nodeScreenPosition(id);
+        const r = el.getBoundingClientRect();
+        if (!at) return { x: 0, y: 0, visible: false, covered: "no such node" };
+        const [x, y] = [r.left + at.x, r.top + at.y];
+        const top = document.elementFromPoint(x, y);
+        const covered =
+            top === el || el.contains(top) ? null : (top?.getAttribute("aria-label") ?? top?.tagName ?? "nothing");
+        return { x, y, visible: at.visible, covered };
+    }, id);
+}
+
+/**
+ * A drawn edge long enough to point at between its two nodes, where the canvas is not covered: the
+ * first in the data whose middle the element says is that edge. Its middle is in page pixels.
+ * @param u the user's hands (README.md)
+ * @returns the edge's `id` and its middle's page point `x`, `y`, or null when no edge qualifies
+ */
+function pointableEdge(u) {
+    return u.page.evaluate(() => {
+        const el = document.querySelector("graphty-element");
+        const r = el.getBoundingClientRect();
+        for (const e of el.session.data.edges()) {
+            const [a, b] = [el.nodeScreenPosition(e.source), el.nodeScreenPosition(e.target)];
+            if (!a?.visible || !b?.visible) continue;
+            if (Math.hypot(a.x - b.x, a.y - b.y) < a.radius + b.radius + 40) continue;
+            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            const hit = el.elementAt(mid);
+            const top = document.elementFromPoint(r.left + mid.x, r.top + mid.y);
+            if (hit?.kind === "edge" && String(hit.id) === String(e.id) && (top === el || el.contains(top)))
+                return { id: String(e.id), x: r.left + mid.x, y: r.top + mid.y };
+        }
+        return null;
+    });
+}
+
+/**
+ * Point at three named nodes and at an edge, hovering then clicking each, and record what the
+ * element reported after each (window.acceptanceRecord, read by the checks).
+ * @param u the user's hands (README.md)
+ * @param names the nodes
+ */
+async function pointAndClick(u, names) {
+    const record = { nodes: [], edge: null };
+    for (const id of names) {
+        await stableFrame(u);
+        const at = await nodeOnPage(u, id);
+        await u.page.mouse.move(at.x, at.y);
+        const { hovered } = await selectionAfter(u, (s) => s.hovered === id);
+        await u.page.mouse.down();
+        await u.page.mouse.up();
+        const { nodes } = await selectionAfter(u, (s) => s.nodes.includes(id));
+        record.nodes.push({ id, at, hovered, selected: nodes });
+    }
+    await stableFrame(u);
+    const edge = await pointableEdge(u);
+    if (edge !== null) {
+        await u.page.mouse.move(edge.x, edge.y);
+        await u.page.mouse.down();
+        await u.page.mouse.up();
+        const { nodes, edges } = await selectionAfter(u, (s) => s.edges.includes(edge.id));
+        record.edge = { ...edge, selectedNodes: nodes, selectedEdges: edges };
+    }
+    await u.page.evaluate((r) => {
+        globalThis.acceptanceRecord = r;
+    }, record);
+}
+
+/**
+ * Record every frame while the layout moves: per frame each node's drawn center (nodeScreenPosition),
+ * and for every drawn edge long enough to have a middle off its nodes, what the element finds at that
+ * middle (elementAt): pointing there while the layout moves must find the edge (or a node over it), as
+ * a hover or a click would. elementAt measures a straight edge from its two nodes' drawn centers, so
+ * this checks picking during motion; it cannot see a line drawn behind its nodes, which only the
+ * canvas's pixels show (graphty-element's own in-motion tests read those). Written to
+ * window.acceptanceRecord until stopped.
+ * @param u the user's hands (README.md)
+ */
+async function recordMotion(u) {
+    await u.page.evaluate(() => {
+        const el = document.querySelector("graphty-element");
+        const rec = { frames: 0, moving: 0, checked: 0, missed: 0, misses: [], otherEdge: 0 };
+        globalThis.acceptanceRecord = rec;
+        let last = null;
+        let on = true;
+        globalThis.acceptanceStopRecording = () => {
+            on = false;
+        };
+        // what pointing between an edge's two drawn nodes finds
+        const pointBetween = (e, a, b) => {
+            if (!a?.visible || !b?.visible) return;
+            if (Math.hypot(a.x - b.x, a.y - b.y) < a.radius + b.radius + 16) return;
+            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            const hit = el.elementAt(mid);
+            rec.checked++;
+            if (hit === null) {
+                rec.missed++;
+                if (rec.misses.length < 10)
+                    rec.misses.push({ frame: rec.frames, edge: String(e.id), at: mid, from: a, to: b });
+            } else if (hit.kind === "edge" && String(hit.id) !== String(e.id)) rec.otherEdge++;
+        };
+        const tick = () => {
+            if (!on) return;
+            const pos = new Map(el.session.data.nodes().map((n) => [String(n.id), el.nodeScreenPosition(n.id)]));
+            const moved =
+                last !== null &&
+                [...pos].some(([id, p]) => {
+                    const q = last.get(id);
+                    return p && q && Math.hypot(p.x - q.x, p.y - q.y) > 0.5;
+                });
+            if (moved) {
+                rec.moving++;
+                for (const e of el.session.data.edges())
+                    pointBetween(e, pos.get(String(e.source)), pos.get(String(e.target)));
+            }
+            last = pos;
+            rec.frames++;
+            requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    });
+}
+
+/**
+ * The toolbar's Layout, a layout from its list, then Apply.
+ * @param u the user's hands (README.md)
+ * @param name the layout as the list names it ("Circle")
+ * @param transition how the nodes move to the new layout ("Glide"); the form's default when omitted
+ */
+async function applyLayout(u, name, transition) {
+    await u.page
+        .getByRole("button", { name: /^Layout\b/ })
+        .first()
+        .click();
+    await u.page
+        .getByRole("listbox", { name: "Layouts" })
+        .getByRole("option", { name: new RegExp(String.raw`^${name}\b`) })
+        .first()
+        .click();
+    if (transition !== undefined) {
+        await u.page.getByRole("combobox", { name: "Transition" }).click();
+        await u.page.getByRole("option", { name: transition, exact: true }).click();
+    }
+    await u.click("Apply");
+}
+
 // ---------------------------------------------------------------- the routes
 
 export const routes = [
@@ -873,6 +1065,93 @@ export const routes = [
                 assert.ok(
                     nodes.filter((n) => !yes(n.on_record)).every((n) => colors[n.id] === STARTING_NODE_COLOR),
                     "every source off the record keeps the starting color",
+                );
+            },
+        },
+    },
+    {
+        id: "c01-point-at-nodes-and-an-edge",
+        feature: "Hover and click nodes and an edge on the canvas",
+        from: "render paths (graphty-element's objects and batched)",
+        async walk(u) {
+            await openSample(u, "Les Miserables");
+            await pointAndClick(u, ["Valjean", "Javert", "Fantine"]);
+        },
+        checks: {
+            "each of Valjean, Javert and Fantine is drawn on an uncovered part of the canvas": async (g) => {
+                for (const n of (await g.recorded()).nodes)
+                    assert.ok(n.at.visible && n.at.covered === null, `${n.id}: ${JSON.stringify(n.at)}`);
+            },
+            "pointing at each of them hovers that node": async (g) => {
+                for (const n of (await g.recorded()).nodes)
+                    assert.equal(n.hovered, n.id, `pointing at ${n.id} hovers ${n.hovered}`);
+            },
+            "clicking each of them selects that node alone": async (g) => {
+                for (const n of (await g.recorded()).nodes)
+                    assert.deepEqual(n.selected, [n.id], `clicking ${n.id} selects ${JSON.stringify(n.selected)}`);
+            },
+            "an edge drawn between its nodes is found there, and clicking it selects it": async (g) => {
+                const { edge } = await g.recorded();
+                assert.ok(
+                    edge !== null,
+                    "no edge's middle is that edge (elementAt) on an uncovered part of the canvas",
+                );
+                assert.ok(edge.selectedEdges.includes(edge.id), `clicked edge ${edge.id}: ${JSON.stringify(edge)}`);
+            },
+        },
+    },
+    {
+        id: "c02-edges-follow-an-animating-layout",
+        feature: "Change the layout with a glide and watch the edges move with their nodes",
+        from: "render paths (graphty-element's objects and batched)",
+        async walk(u) {
+            await openSample(u, "Zachary's karate club");
+            await stableFrame(u);
+            await recordMotion(u);
+            await applyLayout(u, "Circle", "Glide");
+            await stableFrame(u);
+            await u.page.evaluate(() => globalThis.acceptanceStopRecording());
+        },
+        checks: {
+            "the layout moved the nodes over several drawn frames": async (g) => {
+                const r = await g.recorded();
+                assert.ok(r.moving >= 3, `nodes moved on ${r.moving} of ${r.frames} frames`);
+            },
+            "on every moving frame, pointing between an edge's two drawn nodes finds the edge or a node": async (g) => {
+                const r = await g.recorded();
+                assert.ok(r.checked > 0, "no edge was checked");
+                assert.equal(
+                    r.missed,
+                    0,
+                    `${r.missed} of ${r.checked} edge middles found nothing (${r.moving} moving frames); first: ${JSON.stringify(r.misses.slice(0, 3))}`,
+                );
+            },
+        },
+    },
+    {
+        id: "c03-edges-follow-a-running-force-layout",
+        feature: "Run a force layout and watch the edges move with their nodes",
+        from: "render paths (graphty-element's objects and batched)",
+        async walk(u) {
+            await openSample(u, "Zachary's karate club");
+            await stableFrame(u);
+            await recordMotion(u);
+            await applyLayout(u, "ForceAtlas2");
+            await stableFrame(u);
+            await u.page.evaluate(() => globalThis.acceptanceStopRecording());
+        },
+        checks: {
+            "the layout moved the nodes over several drawn frames": async (g) => {
+                const r = await g.recorded();
+                assert.ok(r.moving >= 3, `nodes moved on ${r.moving} of ${r.frames} frames`);
+            },
+            "on every moving frame, pointing between an edge's two drawn nodes finds the edge or a node": async (g) => {
+                const r = await g.recorded();
+                assert.ok(r.checked > 0, "no edge was checked");
+                assert.equal(
+                    r.missed,
+                    0,
+                    `${r.missed} of ${r.checked} edge middles found nothing (${r.moving} moving frames); first: ${JSON.stringify(r.misses.slice(0, 3))}`,
                 );
             },
         },

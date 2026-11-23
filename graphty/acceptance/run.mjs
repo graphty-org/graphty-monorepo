@@ -10,6 +10,8 @@
  *   node graphty/acceptance/run.mjs --workers 1        one browser
  *   node graphty/acceptance/run.mjs --list             the routes, nothing run
  *   node graphty/acceptance/run.mjs --dist <dir>       another build (default graphty/dist)
+ *   node graphty/acceptance/run.mjs --features cosmograph  the app opened with these experiments on
+ *                                                      (?features=...); writes tmp/dry-run-<features>/
  *
  * Writes tmp/dry-run/report.json (each route's result, time and reason) and, for a failed route,
  * tmp/dry-run/<route>.aria.txt: what the page offered a user when it failed, and tmp/dry-run/<route>.png
@@ -41,7 +43,9 @@ const repo = resolve(here, "../..");
 const gitArgs = ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"];
 const commonDir = spawnSync("git", gitArgs, { encoding: "utf8" }); // eslint-disable-line sonarjs/no-os-command-from-path -- the developer's own git
 const main = dirname(commonDir.stdout.trim());
-const OUT = join(repo, "tmp/dry-run");
+// --features gets its own folder, so a run with an experiment on and one without can be compared
+// (compare-reports.mjs) and can run at once.
+let OUT = join(repo, "tmp/dry-run");
 const GATE = join(repo, "design/ui/studio/tool/with-browser.sh");
 const FILES = join(repo, "design/ui/studio/tool/files");
 // The GPU flags the design studio's tool proved on this machine (design/ui/studio/tool/real.mjs):
@@ -79,6 +83,7 @@ function options(argv) {
                 workers: { type: "string", default: "4" },
                 list: { type: "boolean", default: false },
                 dist: { type: "string", default: join(repo, "graphty/dist") },
+                features: { type: "string", default: "" },
                 worker: { type: "string" },
             },
         }));
@@ -92,6 +97,7 @@ function options(argv) {
         workers: Number(v.workers),
         dist: resolve(v.dist),
     };
+    if (o.features) OUT = `${OUT}-${o.features.replaceAll(",", "-")}`;
     if (!Number.isInteger(o.workers) || o.workers < 1 || o.workers > 4) {
         console.error("--workers must be 1 to 4 (the machine's shared browser cap)");
         process.exit(2);
@@ -159,7 +165,8 @@ async function runAll(o) {
     mkdirSync(join(OUT, "claims"), { recursive: true });
     mkdirSync(join(OUT, "results"), { recursive: true });
     const workers = Math.min(o.workers, picked.length);
-    console.log(`dry run: ${picked.length} routes on ${workers} browser(s), build ${o.dist}`);
+    const on = o.features ? `, features ${o.features}` : "";
+    console.log(`dry run: ${picked.length} routes on ${workers} browser(s), build ${o.dist}${on}`);
     // from when the run began to wait for its first browser slot (the entry below), so the report counts that wait
     const started = Number(process.env.DRY_RUN_STARTED) || Date.now();
     const ids = picked.map((r) => r.id).join(",");
@@ -178,6 +185,8 @@ async function runAll(o) {
                 ids,
                 "--dist",
                 o.dist,
+                "--features",
+                o.features,
             ],
             {
                 stdio: "inherit",
@@ -217,7 +226,7 @@ async function runAll(o) {
     const routeMs = results.reduce((t, r) => t + r.ms, 0);
     writeFileSync(
         join(OUT, "report.json"),
-        JSON.stringify({ wallMs: wall, routeMs, slotWait, workers, results }, null, 1) + "\n",
+        JSON.stringify({ features: o.features, wallMs: wall, routeMs, slotWait, workers, results }, null, 1) + "\n",
     );
     rmSync(join(OUT, "claims"), { recursive: true, force: true });
     console.log("\nroute                                     result    time  feature");
@@ -358,7 +367,8 @@ async function runWorker(o) {
     // how long this worker waited for its browser slot before it started
     const slotWaitMs = Date.now() - Number(process.env.DRY_RUN_STARTED || Date.now());
     const http = await serve(o.dist);
-    const origin = `http://127.0.0.1:${http.address().port}/`;
+    const query = o.features ? `?features=${o.features}` : "";
+    const origin = `http://127.0.0.1:${http.address().port}/${query}`;
     try {
         for (const route of picked) {
             // claim the route: the first worker to create its claim file walks it

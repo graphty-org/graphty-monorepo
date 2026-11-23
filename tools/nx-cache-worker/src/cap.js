@@ -26,6 +26,7 @@ export function dailyCap() {
     async function flush(env, now) {
         lastFlush = now;
         if (!env.DAILY_COUNT) return;
+        const sentDay = day;
         const sending = pending;
         pending = {};
         unsent = 0;
@@ -33,10 +34,12 @@ export function dailyCap() {
             const stub = env.DAILY_COUNT.get(env.DAILY_COUNT.idFromName("caps"));
             const res = await stub.fetch("https://daily-count/add", {
                 method: "POST",
-                body: JSON.stringify({ day, counts: sending }),
+                body: JSON.stringify({ day: sentDay, counts: sending }),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            totals = await res.json();
+            const dayTotals = await res.json();
+            // A reply that lands after 00:00 UTC is the old day's: the new day keeps its own.
+            if (day === sentDay) totals = dayTotals;
         } catch (error) {
             // Fail open on the counter, never on the cap: keep the counts and send them with the next flush.
             console.error(`daily cap: could not add counts: ${error.message}`);

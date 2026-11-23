@@ -101,6 +101,7 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/framing-sizes-screen-labels-for-its-camera.test.ts",
     "test/browser/label-textures-fit-across-frames.test.ts",
     "test/browser/branches-view-scaling.test.ts",
+    "test/browser/edges-follow-running-layout.test.ts",
 ];
 
 /**

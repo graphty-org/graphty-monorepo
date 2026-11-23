@@ -52,11 +52,13 @@ export function AiProviderPage({
 }
 
 /**
- * The Assistant place: its panel, or nothing until the element has come up.
- * @returns The panel, or nothing
+ * The Assistant place: its panel, drawn with the rail's mark even before the element has come up
+ * (the panel waits on the element itself), so a click on the marked place never closes a panel
+ * the reader never saw.
+ * @returns The panel
  */
-export function AssistantPlace(): React.JSX.Element | null {
-    const { element, store } = useWorkspace();
+export function AssistantPlace(): React.JSX.Element {
+    const { store } = useWorkspace();
     // Code already in is drawn at once: a lazy component suspends on its first render even then,
     // and React holds a suspended reveal back about 300 ms, a gap in which the rail marks the place
     // and a click on it closes a panel the reader never saw. Chosen once, so the panel never remounts.
@@ -70,7 +72,7 @@ export function AssistantPlace(): React.JSX.Element | null {
         },
         [store],
     );
-    return element === null ? null : (
+    return (
         <Suspense fallback={null}>
             <Panel />
         </Suspense>

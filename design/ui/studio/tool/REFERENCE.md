@@ -414,15 +414,14 @@ screen by screen.
 ## Tier 6 sessions: the Assistant with live Gemini
 
 A session of tier 6 (a folder under `tier6/`, or `REAL_TIER=6`) runs the same production build with
-the Assistant on and a real model behind it. Nothing changes for any other tier: production's `site.json`, no
+a real model behind the Assistant. Nothing changes for any other tier: production's `site.json`, no
 network route, and the warm pool as before. The code is in `tier6.mjs`.
 
-- **The flag.** The session's own server answers `/site.json` with `{ "features": ["assistant"] }`.
-  Since the assistant graduated (2026-11-22, issue #9670) that id is accepted and changes nothing,
-  and the rail shows Assistant on every site; before, it was what made the rail show Assistant with nothing in the page address and no site chip. The app reads that
-  file once, when it loads, and a warm browser loaded it before it had a session, so a tier 6 session
-  never takes a warm browser and never starts one: it always starts cold. Check a takeover with no
-  `REAL_TIER` set.
+- **The site file.** The session's own server answers `/site.json` with `{}`: it names no site, so
+  the header shows no site chip. The Assistant needs no flag (it graduated 2026-11-22, issue #9670).
+  The app reads that file once, when it loads, and a warm browser loaded production's before it had
+  a session, so a tier 6 session never takes a warm browser and never starts one: it always starts
+  cold. Check a takeover with no `REAL_TIER` set.
 - **The key.** The session process takes `GOOGLE_API_KEY` from the main checkout's root `.env`, that
   one value only (`node:util` `parseEnv`, so no other token reaches `process.env`), and removes the
   variable from its own environment before launching the browser. A missing key fails `--start` with

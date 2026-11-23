@@ -756,14 +756,18 @@ export function JoinScreen(): React.JSX.Element | null {
     const joining = useWorkspaceState((state) => state.joining);
     const editing = useWorkspaceState((state) => state.editingJoin);
     const { session } = workspace;
+    // A join being edited that a reload kept names a joined table the reopened work brings in a
+    // little later: the screen opens once it is in.
+    const changes = useSessionEvents(editing === null ? null : session, ["project:changed"]);
+    const editedIn =
+        editing !== null && changes >= 0 && session?.data.joins().some((each) => each.source === editing) === true;
     const subject = useMemo(() => {
         if (joining !== null) {
             return draftSubject(joining);
         }
-        const record =
-            editing === null ? undefined : workspace.session?.data.joins().find((each) => each.source === editing);
+        const record = editedIn ? workspace.session?.data.joins().find((each) => each.source === editing) : undefined;
         return record === undefined ? null : editSubject(workspace, record);
-    }, [joining, editing, workspace]);
+    }, [joining, editing, workspace, editedIn]);
     if (session === null || subject === null) {
         return null;
     }

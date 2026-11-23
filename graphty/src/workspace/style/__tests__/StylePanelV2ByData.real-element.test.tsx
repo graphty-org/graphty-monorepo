@@ -223,7 +223,11 @@ describe("Style panel v2's by-data links", () => {
                 return found;
             });
             // Every sub-group shown, by real clicks on its "+".
-            for (const group of LABEL_RUBRIC.groups) {
+            // A group all of whose lines are rare is the Advanced dialog's, whose lines draw no link (design "Input
+            // rules"): a rare field set there is linked from its line under the row.
+            for (const group of LABEL_RUBRIC.groups.filter((each) =>
+                each.lines.some((line) => line.advanced !== true),
+            )) {
                 if (within(pop).queryByRole("group", { name: group.name }) === null) {
                     await userEvent.click(within(pop).getByRole("button", { name: /^Add to .* settings$/ }));
                     await userEvent.click(await screen.findByRole("menuitem", { name: group.name }));
@@ -238,9 +242,14 @@ describe("Style panel v2's by-data links", () => {
                 ...LABEL_RUBRIC.main,
                 ...LABEL_RUBRIC.groups.flatMap((g) => g.lines),
             ]) {
-                const fields = [line.field, ...(line.units ?? []), ...(line.pair === undefined ? [] : [line.pair])];
+                const fields = [
+                    line.field,
+                    ...(line.toggles ?? []),
+                    ...(line.units ?? []),
+                    ...(line.pair === undefined ? [] : [line.pair]),
+                ];
                 const linked = fields.filter((field) => varying.has(field));
-                if (linked.length === 0 || line.unit !== undefined) {
+                if (linked.length === 0 || line.unit !== undefined || line.advanced === true) {
                     continue;
                 }
                 const drawn = [row, pop]
@@ -268,7 +277,21 @@ describe("Style panel v2's by-data links", () => {
                     met.add(field);
                 }
             }
-            assert.sameMembers([...met], [...varying], "every varying field's line was met with its link");
+            // A rare field's line is the Advanced dialog's, linked from under the row once set.
+            const rare = new Set(
+                [...LABEL_RUBRIC.main, ...LABEL_RUBRIC.groups.flatMap((g) => g.lines)]
+                    .filter((line) => line.advanced === true)
+                    .flatMap((line) => [
+                        line.field,
+                        ...(line.units ?? []),
+                        ...(line.pair === undefined ? [] : [line.pair]),
+                    ]),
+            );
+            assert.sameMembers(
+                [...met],
+                [...varying].filter((field) => !rare.has(field) || met.has(field)),
+                "every varying field's line was met with its link",
+            );
 
             // One field bound through its link with real clicks lands on its own flat channel and paints.
             const field = varying.has("color") ? "color" : [...varying][0];
